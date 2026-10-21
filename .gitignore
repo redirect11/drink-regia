@@ -1,0 +1,8 @@
+node_modules
+dist
+.env
+.env.*
+!functions/.env
+coverage
+.firebase
+*.log
