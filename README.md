@@ -23,12 +23,25 @@ npm run lint
 npm run build
 ```
 
-Le variabili `VITE_FIREBASE_*` del progetto `drink-regia` vanno in un
-`.env` locale (non si committa) e nell'environment GitHub «regia». I
-segreti delle Functions (`GITHUB_DISPATCH_TOKEN`,
-`PROVISIONING_CALLBACK_SECRET`, `STRIPE_SECRET_KEY`,
-`STRIPE_WEBHOOK_SECRET`) si mettono con
-`firebase functions:secrets:set --project drink-regia`.
+**Due progetti Firebase**, come tana-drink: `drink-regia-test` per
+provare e `drink-regia` per la produzione. Un push non pubblica mai: un
+tag su un commit fuori da `main` (o il lancio a mano di «Deploy to
+Firebase») va sul test, un tag su `main` va in produzione dopo
+un'approvazione su GitHub (`docs/handover.md` §3,
+`docs/actions-come-tana-drink.md`). I segreti stanno nelle GitHub
+Environments `test` e `production`, stessi nomi e valori del loro
+progetto: i quattro `VITE_FIREBASE_*` (`scripts/segreti-environment.mjs`
+li mette dalla sdkconfig) e `FIREBASE_SERVICE_ACCOUNT`. In locale i
+`VITE_FIREBASE_*` vanno in un `.env` (non si committa). I segreti delle
+Functions (`GITHUB_DISPATCH_TOKEN`, `PROVISIONING_CALLBACK_SECRET`,
+`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`) si mettono con
+`firebase functions:secrets:set --project <progetto>`; la configurazione
+non segreta per progetto sta in `functions/.env.<progetto>`.
+
+**Le issue nascono dal registro**: `scripts/generate-issues.mjs` legge
+`requirements/requirements.yaml` e `requirements/bugs.yaml` e apre,
+riallinea e chiude le issue su GitHub; la bacheca è il project
+«drink-regia» (n. 5) dell'account.
 
 **Il backoffice** si apre solo con un account che ha il claim `admin`.
 Ci si registra dal sito come un cliente qualsiasi, poi si dà il claim da

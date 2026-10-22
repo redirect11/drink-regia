@@ -9,6 +9,14 @@ import { Termini, Privacy } from './pages/Legali.jsx'
 import { osservaUtente, esci } from './lib/db.js'
 import { NOME_PRODOTTO, EMAIL_CONTATTI, URL_DEMO } from './lib/prodotto.js'
 
+// Il nastro «TEST» e la versione (REQ-DEV-002): il sito di test
+// (drink-regia-test) deve dirsi tale a chi lo guarda, come in tana-drink.
+// VITE_APP_ENV e VITE_APP_VERSION le mette il deploy (deploy.yml); in
+// locale e nei test mancano, e il nastro c'è, perché non è produzione.
+// La versione di riserva è quella di package.json (vite.config.js).
+const PRODUZIONE = import.meta.env.VITE_APP_ENV === 'production'
+const VERSIONE = import.meta.env.VITE_APP_VERSION || __APP_VERSION__
+
 // Le voci del menù della prima pagina (REQ-FLOTTA-002): sono ancore
 // dentro Home, raggiungibili anche dalle altre pagine con «/#…».
 const VOCI = [
@@ -29,6 +37,11 @@ export default function App() {
   const pronto = utente !== undefined
   return (
     <div className="regia">
+      {!PRODUZIONE && (
+        <div className="nastro-test" role="note">
+          TEST · {VERSIONE} · non è il sito vero
+        </div>
+      )}
       <header className="barra">
         <Link to="/" className="marchio">
           <span className="marchio-punto" aria-hidden="true" />
@@ -105,7 +118,7 @@ export default function App() {
         </div>
         <p className="muted small piede-riga">
           © {new Date().getFullYear()} {NOME_PRODOTTO}. Importi IVA esclusa. Lo scontrino sulla stampante termica non è uno
-          scontrino fiscale.
+          scontrino fiscale. <span data-testid="versione">Versione {VERSIONE}</span>
         </p>
       </footer>
     </div>

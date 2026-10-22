@@ -190,6 +190,61 @@ requirements:
     labels: [metodo]
     test_cases:
       - tests/requisiti.test.js
+  - id: REQ-DEV-002
+    title: "Le Actions come tana-drink: un push non pubblica, il tag va sul test o in produzione, con un progetto Firebase di test"
+    area: ".github/workflows/test.yml, firebase-hosting.yml, deploy.yml, vitest.config.mjs, src/App.jsx (nastro TEST), scripts/abilita-api.mjs, scripts/abilita-accesso-email.mjs, scripts/segreti-environment.mjs, functions/.env.<progetto>"
+    description: >
+      Lo stesso modello di pubblicazione di tana-drink
+      (docs/actions-come-tana-drink.md, l'utente, 22/10/2026: «replicare le
+      action, il sito di test con il suo db per le prove e il workflow»).
+      Un push su un ramo qualsiasi (tranne release/**) fa lint, test e
+      build e basta; una pull request verso develop o main anche la
+      coverage, con soglie per area in vitest.config.mjs che si alzano e
+      non si abbassano. Pubblicano solo il tag e il lancio a mano di «Deploy
+      to Firebase»: il job «Dove va» guarda dove sta il commit, su main e'
+      produzione (drink-regia, environment `production` con approvazione),
+      tutto il resto e' test (drink-regia-test, environment `test`). Il
+      deploy riusabile (deploy.yml) ha l'environment scritto a chiare
+      lettere e la guardia: se VITE_FIREBASE_PROJECT_ID non coincide col
+      progetto di destinazione si ferma. Il sito fuori dalla produzione
+      porta un nastro «TEST» con la versione, e il pie' di pagina dice la
+      versione pubblicata (VITE_APP_ENV, VITE_APP_VERSION dal deploy,
+      package.json come ripiego). Le Functions leggono la configurazione
+      per progetto da functions/.env.<progetto>. Gli script per un progetto
+      nuovo (API, Auth email, segreti dell'environment) usano il token del
+      Firebase CLI: niente gcloud, niente chiavi nel repository.
+      STATO AL 22/10/2026: codice e test fatti; il progetto
+      drink-regia-test, i service account del deploy, l'environment `test`
+      e i segreti si fanno col permesso dell'utente (docs/handover.md §5).
+    status: implemented
+    generate_issue: false
+    labels: [metodo, regia]
+    test_cases:
+      - tests/ci.test.js
+      - tests/App.test.jsx
+  - id: REQ-DEV-003
+    title: "Le issue nascono dal registro e la bacheca le segue, come in tana-drink"
+    area: "scripts/generate-issues.mjs, scripts/lib-requisiti.mjs, scripts/bacheca.mjs, .github/workflows/generate-issues.yml"
+    description: >
+      «Va creato anche il project su GitHub per gestire le issue come per
+      tana-drink» (l'utente, 22/10/2026). Script e workflow copiati da
+      tana-drink: a ogni push che tocca requirements/requirements.yaml o
+      requirements/bugs.yaml le voci con generate_issue: true diventano
+      issue «[ID] titolo», idempotenti per identificativo; una voce finita
+      porta la scheda su «Implemented» dai rami di lavoro, su «In test» da
+      develop (etichetta in-test), e chiude l'issue da main; una voce
+      scartata (deprecated, wontfix) chiude come «not planned». La bacheca
+      e' il project GitHub «drink-regia» (n. 5 dell'account redirect11),
+      creato il 22/10/2026 con le colonne di tana-drink (To triage,
+      Backlog, Ready, Implemented, In test, Done) e i campi Priority,
+      Severity, Size, collegato al repository. Le schede si muovono da sole
+      solo col segreto PROJECT_TOKEN (token personale con scope project,
+      lo mette l'utente); senza, le issue si aggiornano lo stesso.
+    status: implemented
+    generate_issue: false
+    labels: [metodo, regia]
+    test_cases:
+      - tests/issue.test.js
 
   - id: REQ-FLOTTA-008
     title: "Un'istanza si ferma: Sospendi, Riattiva e Chiudi dal backoffice, e la sospensione automatica di chi non paga"

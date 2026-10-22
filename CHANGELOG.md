@@ -6,6 +6,9 @@ data.
 
 ## 0.1.0 (non ancora pubblicata)
 
+- Il sito di test (`drink-regia-test.web.app`) porta un nastro «TEST» con
+  la versione, e il piè di pagina dice la versione pubblicata anche in
+  produzione.
 - La richiesta di attivazione dell'istanza la scrive il server, non il
   browser: la Function `chiediAttivazione` rilegge cliente, abbonamento e
   impostazioni e rifiuta chi non ha un abbonamento attivo, chi non ha

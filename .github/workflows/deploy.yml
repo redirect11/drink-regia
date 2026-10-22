@@ -1,0 +1,76 @@
+name: Deploy (riusabile)
+
+# IL DEPLOY VERO, chiamato da firebase-hosting.yml. Sta a parte perché
+# l'`environment:` deve essere scritto a chiare lettere: è quello che fa
+# scattare l'approvazione sulla produzione.
+on:
+  workflow_call:
+    inputs:
+      ambiente:
+        description: 'Environment GitHub (production | test)'
+        required: true
+        type: string
+      progetto:
+        description: 'Progetto Firebase di destinazione'
+        required: true
+        type: string
+      versione:
+        description: 'Etichetta della versione pubblicata (il tag)'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Pubblica su ${{ inputs.progetto }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.ambiente }}
+    env:
+      TARGET_PROJECT: ${{ inputs.progetto }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm ci --prefix functions
+
+      # La config del build deve corrispondere al progetto di destinazione:
+      # con i segreti sbagliati si fallisce, non si pubblica altrove.
+      - name: Guardia ambiente
+        env:
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+        run: |
+          if [ "$VITE_FIREBASE_PROJECT_ID" != "$TARGET_PROJECT" ]; then
+            echo "::error::Config ($VITE_FIREBASE_PROJECT_ID) ≠ progetto di destinazione ($TARGET_PROJECT). Configura i segreti dell'environment GitHub."
+            exit 1
+          fi
+          echo "Deploy su $TARGET_PROJECT — versione ${{ inputs.versione || github.ref_name }}."
+
+      # VITE_APP_ENV e VITE_APP_VERSION: il sito mostra il nastro «TEST» e la
+      # versione nel piè di pagina quando non è produzione (src/App.jsx).
+      - name: Build
+        env:
+          VITE_APP_ENV: ${{ inputs.ambiente == 'production' && 'production' || 'test' }}
+          VITE_APP_VERSION: ${{ inputs.versione || github.ref_name }}
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+        run: npm run build
+
+      - name: Deploy regole Firestore, Functions e Hosting
+        env:
+          SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          echo "$SA_JSON" > /tmp/sa.json
+          GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa.json \
+            npx firebase-tools deploy --only firestore,functions,hosting \
+            --project "$TARGET_PROJECT" --force
+          rm /tmp/sa.json

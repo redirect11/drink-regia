@@ -106,61 +106,72 @@ Il repository è privato sul piano gratuito: **GitHub non permette la
 protezione dei rami**. Le regole «mai commit diretti su develop o main»
 valgono per disciplina, non per vincolo tecnico. Nessuna eccezione.
 
-### Stato di oggi (22/10/2026)
+### Stato di oggi (22/10/2026, sera)
 
-Esistono solo `develop` e `main`, allineati fin qui con commit diretti
-su `develop` durante la costruzione. **Da ora si apre
-`release/0.1.0`** da `develop` e si lavora lì. `package.json` è a
-`0.1.0`: la prima pubblicazione sarà il tag `v0.1.0`, e subito dopo il
-ramo di lavoro passa a `0.2.0-beta`.
+`release/0.1.0` è aperto da `develop` (worktree `../drink-regia-0.1.0`)
+e ci si lavora. `package.json` è a `0.1.0`: la prima pubblicazione sarà
+il tag `v0.1.0-beta` su `develop` (sul test) e poi `v0.1.0` su `main`
+(produzione); subito dopo il ramo di lavoro passa a `0.2.0-beta`.
 
-### A pubblicare è il tag, non il push
+### A pubblicare è il tag, non il push (il modello di tana-drink)
 
-Workflow `.github/workflows/ci.yml`:
+Tre workflow, gli stessi di tana-drink (`docs/actions-come-tana-drink.md`
+è il disegno, `tests/ci.test.js` li legge e li controlla):
 
-- ogni push e PR: lint, test, build. Finisce lì.
-- **tag `v*` su un commit di `main`**: dopo i test, deploy di regole
-  Firestore, Functions e Hosting su `drink-regia`, dentro l'environment
-  GitHub `production`, che **aspetta un'approvazione a mano su GitHub**
-  (Actions → il run → Review deployments).
-- `workflow_dispatch` con input `pubblica=true`: stesso deploy, a mano.
-  Si usa solo col via libera dell'utente.
+| Cosa si fa | Cosa succede |
+|---|---|
+| push su un ramo qualsiasi (tranne `release/**`) | `test.yml`: lint, test, build. Nessun deploy. |
+| pull request verso `develop` o `main` | lint, test, build **e coverage** (`npm run test:coverage`, soglie in `vitest.config.mjs`: un cricchetto, si alzano e non si abbassano) |
+| lancio a mano di «Deploy to Firebase» su un ramo | va sul **test** (`drink-regia-test`), subito |
+| tag su un commit **non** in `main` | va sul **test**, subito |
+| tag su un commit **di `main`** | va in **produzione** (`drink-regia`), dopo l'approvazione a mano su GitHub (Actions → il run → Review deployments) |
 
-**Stranezza nota**: nel repository della regia i push **non avviano la
-CI da soli**. Dopo ogni push si lancia:
+Il ramo non conta: conta **dove sta il commit taggato** (job «Dove va» di
+`firebase-hosting.yml`, con `git merge-base --is-ancestor`). Il deploy
+vero è `deploy.yml`, riusabile, con l'`environment:` scritto a chiare
+lettere: `test` o `production`, **stessi nomi dei segreti, valori del
+loro progetto**. `VITE_FIREBASE_PROJECT_ID` è anche la guardia: se non
+coincide col progetto di destinazione il deploy si ferma. Il sito fuori
+dalla produzione porta un nastro «TEST» con la versione (`VITE_APP_ENV`,
+`VITE_APP_VERSION`, in `App.jsx`).
+
+**Stranezza nota**: finora i push **non avviavano la CI da soli**. Dopo
+un push si verifica che `Tests` sia partito, altrimenti:
 
 ```sh
-gh workflow run ci.yml -R redirect11/drink-regia --ref <ramo>
+gh workflow run test.yml -R redirect11/drink-regia --ref <ramo>
 gh run list -R redirect11/drink-regia -L 1
 ```
-
-Da capire perché (è nella lista dei lavori); finché non si capisce, si
-lancia a mano e si aspetta il verde prima di ogni PR.
 
 ### Il rilascio, passo per passo
 
 ```sh
 # 1. sul ramo di lavoro: package.json alla versione senza -beta, CHANGELOG datato
 # 2. PR release/x.y.z -> develop (test verdi, cancello di qualità sotto)
-# 3. PR develop -> main (sempre dal ramo di release, mai da altro)
-# 4. tag su main, che pubblica:
-git fetch origin && git checkout main && git pull
+# 3. tag -beta su develop: va sul test da solo
+git fetch origin && git checkout develop && git pull
+git tag vX.Y.Z-beta && git push origin vX.Y.Z-beta
+# 4. si prova su https://drink-regia-test.web.app
+# 5. PR develop -> main (sempre dal ramo di release, mai da altro), col via libera
+# 6. tag su main, che pubblica in produzione:
+git checkout main && git pull
 git tag vX.Y.Z && git push origin vX.Y.Z
-# 5. su GitHub: Actions -> approvare il deploy nell'environment production
-# 6. SUBITO DOPO, sul nuovo ramo di lavoro: package.json alla prossima con -beta
+# 7. su GitHub: Actions -> approvare il deploy nell'environment production
+# 8. SUBITO DOPO, sul nuovo ramo di lavoro: package.json alla prossima con -beta
 ```
 
-Il tag si mette **solo su `main`** (non c'è il test, quindi non c'è il
-tag su `develop` come in tana-drink). Mai tag su rami di release o
-hotfix. Il CHANGELOG oggi non esiste: si crea con la prima release
-(`CHANGELOG.md`, una voce per ogni cambiamento visibile, nello stesso
-commit del cambiamento).
+Mai tag su rami di release o hotfix. Per provare un ramo di lavoro sul
+test senza tag: `gh workflow run firebase-hosting.yml -R
+redirect11/drink-regia --ref <ramo>`. Il `CHANGELOG.md` esiste dal
+22/10: una voce per ogni cambiamento visibile, nello stesso commit del
+cambiamento.
 
 ### Il cancello di qualità, prima di ogni PR verso `develop`
 
 ```sh
 npm run lint          # pulito (guardare il codice di uscita)
-npm test              # verde: 83 test al 22/10/2026
+npm test              # verde: 106 test al 22/10/2026 (sera)
+npm run test:coverage # le soglie di vitest.config.mjs reggono
 npm run build         # compila
 ```
 
@@ -171,14 +182,30 @@ Claude, `/simplify`), CHANGELOG se c'è qualcosa di visibile. Non si
 sbagliato o il test descriveva una cosa che si è deciso di cambiare, e
 allora si cambia il test spiegando perché.
 
-### Issue GitHub
+### Issue GitHub e bacheca
 
-Le issue si aprono dal registro (in tana-drink c'è
-`scripts/generate-issues.mjs`, qui non ancora: da portare se serve) e le
-segnalazioni dell'utente diventano voci `REQ-*` o, per i difetti, un
-registro `requirements/bugs.yaml` da creare con lo stesso formato
-(stati `todo`/`fixed`/`wontfix`, campo `in_produzione`). Un bug
-`fixed` chiude la sua issue.
+Le issue nascono dal registro, come in tana-drink:
+`scripts/generate-issues.mjs` (con `lib-requisiti.mjs` e `bacheca.mjs`,
+copiati di là il 22/10) le apre per le voci con `generate_issue: true`,
+le riallinea, le chiude. Il workflow `generate-issues.yml` lo lancia a
+ogni push che tocca `requirements/requirements.yaml` o
+`requirements/bugs.yaml`: su `feature/**` e `release/**` una voce finita
+porta la scheda su «Implemented», su `develop` su «In test» (etichetta
+`in-test`), su `main` chiude l'issue. Le segnalazioni dell'utente
+diventano voci `REQ-*` o, per i difetti, voci di `requirements/bugs.yaml`
+(stesso formato; stati `todo`/`fixed`/`wontfix`, campo `in_produzione`,
+`severity`, `priority`), da creare alla prima segnalazione.
+
+**La bacheca** è il project GitHub **«drink-regia», n. 5**
+(https://github.com/users/redirect11/projects/5), creato il 22/10 con le
+stesse colonne di tana-drink (To triage, Backlog, Ready, Implemented, In
+test, Done) e i campi Priority, Severity, Size, collegato al repository.
+Perché le schede si muovano da sole servono due cose, ancora da fare:
+il segreto `PROJECT_TOKEN` nel repository (un token personale con scope
+`project`, lo stesso di tana-drink: lo mette l'utente) e, dal project
+stesso, il workflow «Auto-add to project» sulle issue del repository
+(non si imposta via API). Senza, le issue si aggiornano lo stesso e le
+schede si spostano a mano.
 
 ---
 
@@ -209,8 +236,12 @@ functions/.env              GITHUB_REPO, GITHUB_REF, APP_REF (non segreti, commi
 firestore.rules             clienti, istanze, richieste, impostazioni
 piani.json                  piani, moduli, terminale in più, attivazione
 scripts/admin-regia.mjs     dà o toglie il claim admin a un account
-requirements/requirements.yaml  REQ-FLOTTA-002..011 (lato regia), REQ-DEV-001
-tests/                      vitest, happy-dom; 15 file
+scripts/abilita-api.mjs, abilita-accesso-email.mjs, lib-firestore.js  un progetto nuovo, dalla riga di comando (token del Firebase CLI)
+scripts/segreti-environment.mjs  i VITE_FIREBASE_* di un environment GitHub dalla sdkconfig
+scripts/generate-issues.mjs, lib-requisiti.mjs, bacheca.mjs  le issue dal registro e la bacheca (da tana-drink)
+.github/workflows/          test.yml, firebase-hosting.yml, deploy.yml, generate-issues.yml
+requirements/requirements.yaml  REQ-FLOTTA-002..011 (lato regia), REQ-DEV-001..003
+tests/                      vitest, happy-dom; 17 file
 ```
 
 **Firestore** (`drink-regia`): `clienti/{uid}` (titolare: locale,
@@ -259,8 +290,11 @@ canale di anteprima col via libera.
 
 | Cosa | Stato |
 |---|---|
-| Hosting `drink-regia.web.app` | pubblicato una volta (hosting + regole), **senza la landing page nuova** |
+| Hosting `drink-regia.web.app` | pubblicato una volta (hosting + regole), **senza la landing page nuova né il fix C2** |
 | Functions | **nessuna pubblicata** |
+| Progetto di test `drink-regia-test` | **da creare** (docs/actions-come-tana-drink.md §2-5: progetto, Blaze, API, Firestore, app web, Auth, SA di deploy, segreti). Col permesso dell'utente. |
+| Environment GitHub `test` | **da creare**, con gli stessi quattro `VITE_FIREBASE_*` del progetto di test (`scripts/segreti-environment.mjs`) e `FIREBASE_SERVICE_ACCOUNT` |
+| Segreto `PROJECT_TOKEN` (bacheca) | **manca**: lo mette l'utente |
 | Auth | email/password attivo |
 | Firestore | `europe-west1`, regole pubblicate |
 | Blaze | attivo |
@@ -319,8 +353,13 @@ L'elenco completo con i riferimenti al codice è in
    22/10), poi pubblicazione col via libera.
 9. **Le Actions come tana-drink, con il progetto di test
    `drink-regia-test`**: istruzioni complete in
-   [actions-come-tana-drink.md](actions-come-tana-drink.md). Quando è
-   fatto, il tag su `develop` va sul test e questo file si aggiorna.
+   [actions-come-tana-drink.md](actions-come-tana-drink.md). Il codice
+   è fatto il 22/10 (tre workflow, coverage, nastro TEST, script, test
+   dei workflow, issue e bacheca). **Restano i passi di infrastruttura**,
+   col permesso dell'utente: progetto `drink-regia-test` (§2), service
+   account del deploy per i due progetti (§3), environment `test` e
+   segreti (§4, §5), «Required reviewers» su `production`, `PROJECT_TOKEN`,
+   «Auto-add» sulla bacheca. Poi la verifica di §8.
 10. **Quando la flotta è merged in tana-drink**: `GITHUB_REF` e `APP_REF`
    a `main` in `functions/.env`.
 
