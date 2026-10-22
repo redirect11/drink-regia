@@ -8,8 +8,18 @@
 
 const listino = require('../../piani.json')
 
-const MAPPA = { magazzino: ['conta'], staff: [], statistiche: [], menu_tavoli: [], pagamenti: [] }
-const TUTTI = ['conta', 'fatture', 'scadenzario']
+// Stessi id nel listino e nell'app (REQ-LIC-002 in tana-drink); il
+// magazzino porta con sé i suoi tre moduli di dettaglio.
+const MAPPA = {
+  menu_tavoli: ['menu_tavoli'],
+  ordini_cliente: ['ordini_cliente'],
+  clienti: ['clienti'],
+  magazzino: ['magazzino', 'conta', 'fatture', 'scadenzario'],
+  statistiche: ['statistiche'],
+  staff: ['staff'],
+  sumup: ['sumup'],
+}
+const TUTTI = ['menu_tavoli', 'ordini_cliente', 'clienti', 'magazzino', 'conta', 'fatture', 'scadenzario', 'statistiche', 'staff', 'sumup']
 
 // { conta: true, fatture: false, … } per una scelta.
 function moduliLicenza({ piano = 'base', moduli = [] } = {}) {
