@@ -30,6 +30,19 @@ segreti delle Functions (`GITHUB_DISPATCH_TOKEN`,
 `STRIPE_WEBHOOK_SECRET`) si mettono con
 `firebase functions:secrets:set --project drink-regia`.
 
+**Il backoffice** si apre solo con un account che ha il claim `admin`.
+Ci si registra dal sito come un cliente qualsiasi, poi si dà il claim da
+qui, con le credenziali del progetto:
+
+```sh
+node scripts/admin-regia.mjs --email <la tua email>
+```
+
+e si esce e rientra dal sito. Prima di tutto questo, in console Firebase
+del progetto `drink-regia`, Authentication va avviata («Inizia») col
+provider Email/password acceso: senza, registrazione e accesso
+rispondono con un errore di configurazione.
+
 I prezzi stanno in `piani.json`, in un posto solo. Il nome visibile del
 prodotto in `src/lib/prodotto.js`. I requisiti in
 `requirements/requirements.yaml`, coi test che li dimostrano.
