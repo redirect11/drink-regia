@@ -6,6 +6,9 @@ backoffice, abbonamento, Functions di attivazione. Progetto Firebase
 nel repository `tana-drink`: lì `docs/flotta.md` è il disegno intero, e le
 regole di lavoro sono le stesse di quel repository.
 
+- **Prima di tutto, [docs/handover.md](docs/handover.md)**: perimetro,
+  processo di rilascio, stato del progetto, lavori aperti e contratti
+  condivisi con tana-drink. È il punto di partenza di ogni sessione.
 - **Tutto in italiano**: interfaccia, commenti, commit, PR.
 - **GitFlow**: si lavora su `release/x.y.z` da `develop`; mai commit diretti
   su `develop` o `main`, merge solo via pull request. A pubblicare è il tag:
