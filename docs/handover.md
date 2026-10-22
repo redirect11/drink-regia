@@ -317,7 +317,11 @@ L'elenco completo con i riferimenti al codice è in
    dell'utente: riguarda tana-drink).
 8. **Landing page**: verifica visiva desktop e telefono (non fatta il
    22/10), poi pubblicazione col via libera.
-9. **Quando la flotta è merged in tana-drink**: `GITHUB_REF` e `APP_REF`
+9. **Le Actions come tana-drink, con il progetto di test
+   `drink-regia-test`**: istruzioni complete in
+   [actions-come-tana-drink.md](actions-come-tana-drink.md). Quando è
+   fatto, il tag su `develop` va sul test e questo file si aggiorna.
+10. **Quando la flotta è merged in tana-drink**: `GITHUB_REF` e `APP_REF`
    a `main` in `functions/.env`.
 
 ---
