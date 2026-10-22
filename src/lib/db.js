@@ -92,7 +92,47 @@ export function osservaRichiesta(slug, cb) {
 
 export async function chiediAttivazione(cliente) {
   serve()
-  await setDoc(doc(db, 'richieste', cliente.slug), nuovaRichiesta(cliente))
+  const automatico = (await leggiImpostazioniRegia()).deploy_automatico !== false
+  await setDoc(doc(db, 'richieste', cliente.slug), nuovaRichiesta(cliente, new Date(), { automatico }))
+}
+
+// ── le impostazioni della regia (REQ-FLOTTA-011) ──
+// Un documento solo, impostazioni/regia: `deploy_automatico` (true di
+// partenza). Lo leggono tutti gli autenticati, lo scrive l'admin.
+export async function leggiImpostazioniRegia() {
+  serve()
+  const s = await getDoc(doc(db, 'impostazioni', 'regia'))
+  return s.exists() ? s.data() : {}
+}
+
+export function osservaImpostazioniRegia(cb) {
+  serve()
+  return onSnapshot(doc(db, 'impostazioni', 'regia'), (s) => cb(s.exists() ? s.data() : {}))
+}
+
+export async function impostaDeployAutomatico(acceso) {
+  serve()
+  await setDoc(doc(db, 'impostazioni', 'regia'), { deploy_automatico: Boolean(acceso), aggiornate_il: new Date().toISOString() }, { merge: true })
+}
+
+// L'admin autorizza (→ in coda, la Function la lancia) o rifiuta una richiesta.
+export async function autorizzaRichiesta(slug) {
+  serve()
+  await updateDoc(doc(db, 'richieste', slug), { stato: STATI.IN_CODA, autorizzata_il: new Date().toISOString() })
+}
+
+export async function rifiutaRichiesta(slug, motivo) {
+  serve()
+  await updateDoc(doc(db, 'richieste', slug), { stato: STATI.ERRORE, errore: motivo || 'Richiesta rifiutata', rifiutata_il: new Date().toISOString() })
+}
+
+// L'admin crea un locale da sé: account del titolare, documento del
+// cliente, e se vuole l'attivazione subito (Function creaCliente).
+export async function creaClienteDaAdmin(dati) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'creaCliente')
+  const { data } = await fn(dati)
+  return data
 }
 
 // ── abbonamento (REQ-FLOTTA-007) ──

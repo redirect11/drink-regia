@@ -15,7 +15,7 @@ describe('dispatchPayload', () => {
   it('è il corpo del workflow_dispatch, con gli input come stringhe', () => {
     expect(dispatchPayload(richiesta, { ref: 'develop' })).toEqual({
       ref: 'develop',
-      inputs: { slug: 'bar-mario', nome_locale: 'Bar Mario', piano: 'base', moduli: 'staff,magazzino', uid: 'u1' },
+      inputs: { slug: 'bar-mario', nome_locale: 'Bar Mario', piano: 'base', moduli: 'staff,magazzino', uid: 'u1', ref: 'develop' },
     })
   })
 
@@ -40,6 +40,13 @@ describe('daLanciare', () => {
     expect(daLanciare(null, { ...richiesta, stato: 'in corso' })).toBe(false)
   })
 
+  // REQ-FLOTTA-011: «da approvare» non parte; l'autorizzazione (→ in coda) sì.
+  it('una richiesta da approvare non parte finché l’admin non la autorizza', () => {
+    const daApprovare = { ...richiesta, stato: 'da approvare' }
+    expect(daLanciare(null, daApprovare)).toBe(false)
+    expect(daLanciare(daApprovare, { ...daApprovare, stato: 'in coda', autorizzata_il: 'x' })).toBe(true)
+  })
+
   it('un rilancio dell’admin parte; un altro aggiornamento no', () => {
     const inErrore = { ...richiesta, stato: 'errore' }
     expect(daLanciare(inErrore, { ...richiesta, rilanciata_il: 'x' })).toBe(true)
@@ -53,7 +60,7 @@ describe('esitoValido e documentoIstanza', () => {
   it('accetta solo slug e stati noti, e riempie il documento senza perdere quello che c’era', () => {
     expect(esitoValido({ slug: 'bar-mario', stato: 'boh' })).toBeNull()
     expect(esitoValido(null)).toBeNull()
-    const esito = esitoValido({ slug: 'bar-mario', stato: 'attiva', url: 'https://bar-mario.drink.app', versione: 'v1.10.0' })
+    const esito = esitoValido({ slug: 'bar-mario', stato: 'attiva', url: 'https://bar-mario.drink.app', versione: 'v1.10.0', ambiente: 'produzione', ref: 'main' })
     const doc = documentoIstanza(esito, { uid: 'u1', progetto: 'drinkpos-bar-mario' }, new Date('2026-10-22T10:00:00Z'))
     expect(doc).toEqual({
       uid: 'u1',
@@ -62,6 +69,8 @@ describe('esitoValido e documentoIstanza', () => {
       url: 'https://bar-mario.drink.app',
       progetto: 'drinkpos-bar-mario',
       versione: 'v1.10.0',
+      ambiente: 'produzione',
+      ref: 'main',
       errore: null,
       aggiornata_il: '2026-10-22T10:00:00.000Z',
     })

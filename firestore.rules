@@ -34,15 +34,22 @@ service cloud.firestore {
       allow write: if admin();
     }
 
-    // La richiesta di attivazione: il titolare la crea per il suo slug, una
-    // Function la lavora, l'admin la può rilanciare.
+    // La richiesta di attivazione: il titolare la crea per il suo slug («in
+    // coda», o «da approvare» quando il deploy automatico è spento), una
+    // Function la lavora, l'admin la autorizza, rifiuta o rilancia.
     match /richieste/{slug} {
       allow read: if admin() || (autenticato() && resource.data.uid == request.auth.uid);
       allow create: if autenticato()
         && request.auth.token.email_verified == true
         && request.resource.data.uid == request.auth.uid
-        && request.resource.data.stato == 'in coda';
+        && request.resource.data.stato in ['in coda', 'da approvare'];
       allow update, delete: if admin();
+    }
+
+    // Le impostazioni della regia (REQ-FLOTTA-011): il deploy automatico.
+    match /impostazioni/{doc} {
+      allow read: if autenticato();
+      allow write: if admin();
     }
   }
 }

@@ -19,7 +19,16 @@ const db = vi.hoisted(() => ({
   rilanciaAttivazione: vi.fn(async () => {}),
   impostaStatoIstanza: vi.fn(async () => {}),
   aggiornaIstanza: vi.fn(async () => {}),
+  osservaImpostazioniRegia: vi.fn((cb) => {
+    cb(regia.impostazioni)
+    return () => {}
+  }),
+  impostaDeployAutomatico: vi.fn(async () => {}),
+  autorizzaRichiesta: vi.fn(async () => {}),
+  rifiutaRichiesta: vi.fn(async () => {}),
+  creaClienteDaAdmin: vi.fn(async () => ({ uid: 'n', slug: 'bar-creato' })),
 }))
+const regia = vi.hoisted(() => ({ impostazioni: {} }))
 vi.mock('../src/lib/db.js', () => db)
 
 import Backoffice from '../src/pages/Backoffice.jsx'
@@ -34,6 +43,7 @@ const mostra = () =>
 
 beforeEach(() => {
   vi.clearAllMocks()
+  regia.impostazioni = {}
   db.elencoClienti.mockResolvedValue([
     { uid: 'a', slug: 'bar-attivo', nome_locale: 'Bar Attivo', email: 'a@x.it', piano: 'completo', creato_il: '2026-10-01' },
     { uid: 'b', slug: 'bar-rotto', nome_locale: 'Bar Rotto', email: 'b@x.it', piano: 'base', creato_il: '2026-10-02' },
@@ -108,5 +118,51 @@ describe('il backoffice', () => {
     const nuovo = (await screen.findAllByRole('row')).find((r) => r.textContent.includes('Bar Nuovo'))
     await user.click(within(nuovo).getByRole('button', { name: 'Piano a mano' }))
     expect(db.segnaPiano).toHaveBeenCalledWith('c', { piano: 'base', moduli: [], terminali: 1 })
+  })
+})
+
+// REQ-FLOTTA-011: l'admin governa i deploy e crea locali da sé.
+describe('il backoffice governa i deploy', () => {
+  it('l’interruttore del deploy automatico è acceso di partenza e si spegne', async () => {
+    const user = userEvent.setup()
+    mostra()
+    const interruttore = await screen.findByLabelText('Deploy automatico')
+    expect(interruttore).toBeChecked()
+    await user.click(interruttore)
+    expect(db.impostaDeployAutomatico).toHaveBeenCalledWith(false)
+  })
+
+  it('spento, le richieste da approvare stanno in cima: Autorizza le mette in coda, Rifiuta chiede il motivo', async () => {
+    const user = userEvent.setup()
+    regia.impostazioni = { deploy_automatico: false }
+    db.elencoRichieste.mockResolvedValue({ 'bar-nuovo': { stato: 'da approvare', piano: 'base', chiesta_il: '2026-10-22T10:00:00Z' } })
+    mostra()
+    const sezione = await screen.findByRole('region', { name: 'Richieste da autorizzare' })
+    expect(sezione).toHaveTextContent(/Bar Nuovo/)
+    expect(screen.getByText(/aspettano la tua autorizzazione/)).toBeInTheDocument()
+    await user.click(within(sezione).getByRole('button', { name: 'Autorizza' }))
+    expect(db.autorizzaRichiesta).toHaveBeenCalledWith('bar-nuovo')
+    vi.spyOn(window, 'prompt').mockReturnValue('dati incompleti')
+    await user.click(within(sezione).getByRole('button', { name: 'Rifiuta' }))
+    expect(db.rifiutaRichiesta).toHaveBeenCalledWith('bar-nuovo', 'dati incompleti')
+  })
+
+  it('«Nuovo locale» crea il cliente con piano, moduli e attivazione subito', async () => {
+    const user = userEvent.setup()
+    mostra()
+    await user.click(await screen.findByRole('button', { name: 'Nuovo locale' }))
+    const modulo = screen.getByRole('form', { name: 'Nuovo locale' })
+    await user.type(within(modulo).getByLabelText('Nome del locale'), 'Bar Creato')
+    await user.type(within(modulo).getByLabelText('Email del titolare'), 'creato@example.it')
+    await user.click(within(modulo).getByLabelText(/Personale e ore/))
+    await user.click(within(modulo).getByRole('button', { name: 'Crea il locale' }))
+    expect(db.creaClienteDaAdmin).toHaveBeenCalledWith({
+      nome_locale: 'Bar Creato',
+      email: 'creato@example.it',
+      piano: 'base',
+      moduli: ['staff'],
+      terminali: 1,
+      attiva_subito: true,
+    })
   })
 })

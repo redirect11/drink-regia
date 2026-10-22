@@ -20,6 +20,9 @@ function dispatchPayload(richiesta, { ref = 'develop' } = {}) {
       piano: String(richiesta.piano || 'base'),
       moduli: (richiesta.moduli || []).join(','),
       uid: String(richiesta.uid || ''),
+      // La versione dell'app da pubblicare (REQ-FLOTTA-009): il workflow la
+      // prende da qui, non dal ramo che contiene il file del workflow.
+      ref,
     },
   }
 }
@@ -51,6 +54,10 @@ function esitoValido(body) {
     url: body.url ? String(body.url) : null,
     progetto: body.progetto ? String(body.progetto) : null,
     versione: body.versione ? String(body.versione) : null,
+    // L'app di un locale è di produzione (REQ-FLOTTA-009): il workflow lo
+    // dice, con il ramo o tag da cui l'ha compilata.
+    ambiente: body.ambiente ? String(body.ambiente) : null,
+    ref: body.ref ? String(body.ref) : null,
     errore: body.stato === 'errore' ? String(body.errore || 'Attivazione fallita') : null,
   }
 }
@@ -64,6 +71,8 @@ function documentoIstanza(esito, prima = null, adesso = new Date()) {
     url: esito.url ?? prima?.url ?? null,
     progetto: esito.progetto ?? prima?.progetto ?? null,
     versione: esito.versione ?? prima?.versione ?? null,
+    ambiente: esito.ambiente ?? prima?.ambiente ?? null,
+    ref: esito.ref ?? prima?.ref ?? null,
     errore: esito.errore,
     aggiornata_il: adesso.toISOString(),
   }

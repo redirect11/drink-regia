@@ -8,6 +8,7 @@ import { DOMINIO_ISTANZE, PREFISSO_PROGETTI } from './prodotto.js'
 
 export const STATI = {
   DA_ATTIVARE: 'da attivare',
+  DA_APPROVARE: 'da approvare',
   IN_CODA: 'in coda',
   IN_CORSO: 'in corso',
   ATTIVA: 'attiva',
@@ -16,6 +17,7 @@ export const STATI = {
 
 const DETTO = {
   [STATI.DA_ATTIVARE]: 'Non ancora attivata',
+  [STATI.DA_APPROVARE]: 'In attesa di autorizzazione: ti avvisiamo quando parte',
   [STATI.IN_CODA]: 'In coda: l’attivazione parte a breve',
   [STATI.IN_CORSO]: 'Attivazione in corso (qualche minuto)',
   [STATI.ATTIVA]: 'Attiva',
@@ -51,14 +53,16 @@ export function puoAttivare(cliente, istanza, richiesta, { emailVerificata = tru
 }
 
 // La richiesta che il titolare scrive in richieste/{slug}.
-export function nuovaRichiesta(cliente, adesso = new Date()) {
+// Col deploy automatico spento (REQ-FLOTTA-011) la richiesta nasce «da
+// approvare»: parte quando l'amministratore la autorizza dal backoffice.
+export function nuovaRichiesta(cliente, adesso = new Date(), { automatico = true } = {}) {
   return {
     uid: cliente.uid,
     slug: cliente.slug,
     nome_locale: cliente.nome_locale,
     piano: cliente.piano,
     moduli: cliente.moduli || [],
-    stato: STATI.IN_CODA,
+    stato: automatico ? STATI.IN_CODA : STATI.DA_APPROVARE,
     chiesta_il: adesso.toISOString(),
   }
 }

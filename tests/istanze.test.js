@@ -50,6 +50,14 @@ describe('la richiesta e i nomi', () => {
     })
   })
 
+  // REQ-FLOTTA-011: col deploy automatico spento la richiesta aspetta l'admin.
+  it('col deploy automatico spento la richiesta nasce «da approvare», e la dashboard lo dice', () => {
+    const r = nuovaRichiesta({ uid: 'u1', slug: 'bar-mario', nome_locale: 'Bar Mario', piano: 'base' }, new Date(), { automatico: false })
+    expect(r.stato).toBe(STATI.DA_APPROVARE)
+    expect(statoDetto(STATI.DA_APPROVARE)).toMatch(/autorizzazione/)
+    expect(puoAttivare({ uid: 'u1', slug: 'bar-mario', piano: 'base' }, null, r).ok).toBe(false)
+  })
+
   it('il progetto e l’indirizzo nascono dallo slug', () => {
     expect(progettoDi('bar-mario')).toBe('drinkpos-bar-mario')
     expect(urlDi('bar-mario')).toMatch(/^https:\/\/bar-mario\./)

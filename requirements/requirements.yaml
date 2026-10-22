@@ -243,3 +243,35 @@ requirements:
       - tests/abbonamento.test.js
       - tests/SceltaPiano.test.jsx
       - tests/Dashboard.test.jsx
+
+  - id: REQ-FLOTTA-011
+    title: "Il backoffice governa i deploy: interruttore del deploy automatico, richieste da autorizzare, un locale creato dall'admin"
+    area: "src/pages/Backoffice.jsx, src/lib/db.js, src/lib/istanze.js, functions/index.js (creaCliente), firestore.rules (impostazioni/regia, richieste)"
+    description: >
+      «Nel backoffice nostro ci deve essere la possibilita' di
+      attivare/disattivare il deploy automatico e gestire le richieste di
+      deploy da parte mia. Ad esempio se e' disattivato il deploy
+      automatico, sono io ad autorizzare il deploy di una nuova app. E poi
+      sempre lato backoffice devo poter creare anche io una nuova app»
+      (l'utente, 22/10/2026).
+      L'INTERRUTTORE: `impostazioni/regia.deploy_automatico` (acceso di
+      partenza), cambiato dal backoffice. Acceso, «Attiva» del titolare
+      mette la richiesta «in coda» e la Function la lancia; spento, la
+      richiesta nasce «da approvare» e la dashboard dice «In attesa di
+      autorizzazione». Il backoffice mostra le richieste da autorizzare in
+      cima, con Autorizza (→ in coda: parte) e Rifiuta (con motivo, che il
+      titolare legge).
+      UN LOCALE DALL'ADMIN: il modulo «Nuovo locale» (nome, email del
+      titolare, piano, moduli, terminali, «attiva subito») chiama la
+      Function `creaCliente`: crea l'account del titolare senza password
+      (la imposta lui con «Password dimenticata»), il documento del cliente
+      con piano a mano e abbonamento manuale attivo, e se chiesto la
+      richiesta di attivazione gia' in coda. I consensi restano da
+      raccogliere e il documento lo dice.
+    status: implemented
+    generate_issue: false
+    labels: [prodotto, flotta, regia]
+    test_cases:
+      - tests/istanze.test.js
+      - tests/provisioning.test.js
+      - tests/Backoffice.test.jsx

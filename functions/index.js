@@ -22,6 +22,7 @@ const { righeCheckout, metadatiDi, aggiornamentoDaEvento } = require('./lib/abbo
 const { onSchedule } = require('firebase-functions/v2/scheduler')
 const { patchLicenza, daSospendere, STATI: STATI_LICENZA } = require('./lib/sospensione.js')
 const { initializeApp: initializeAppCon, getApps } = require('firebase-admin/app')
+const { getAuth } = require('firebase-admin/auth')
 
 initializeApp()
 const db = getFirestore()
@@ -280,4 +281,51 @@ exports.licenzaSegueIlPiano = onDocumentUpdated({ ...OPTS, document: 'clienti/{u
   if (!ist?.progetto || ist.stato !== 'attiva') return
   await firestoreDi(ist.progetto).doc('settings/bar').update(patchLicenzaPiano(dopo))
   await db.doc(`istanze/${dopo.slug}`).set({ licenza_piano: dopo.piano, licenza_scritta_il: new Date().toISOString() }, { merge: true })
+})
+
+// ── L'ADMIN CREA UN LOCALE DA SÉ (REQ-FLOTTA-011) ─────────────────────
+// Account del titolare (senza password: la imposta lui con «Password
+// dimenticata» sul sito), documento del cliente con piano a mano, e se
+// l'admin lo chiede la richiesta di attivazione, già in coda.
+exports.creaCliente = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const { email, nome_locale, piano = 'base', moduli = [], terminali = 1, attiva_subito = false } = req.data || {}
+  const nome = String(nome_locale || '').trim()
+  const slug = nome
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').replace(/-{2,}/g, '-').slice(0, 30).replace(/-+$/g, '')
+  if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(slug)) throw new HttpsError('invalid-argument', 'Nome del locale troppo corto o non valido.')
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(email || ''))) throw new HttpsError('invalid-argument', 'Email non valida.')
+  const esiste = await db.collection('clienti').where('slug', '==', slug).limit(1).get()
+  if (!esiste.empty) throw new HttpsError('already-exists', `Esiste già un locale con identificativo ${slug}.`)
+  const auth = getAuth()
+  let utente
+  try {
+    utente = await auth.getUserByEmail(email)
+  } catch {
+    utente = await auth.createUser({ email, emailVerified: true })
+  }
+  const ora = new Date().toISOString()
+  const pulita = metadatiDi(utente.uid, { piano, moduli, terminali })
+  const cliente = {
+    uid: utente.uid,
+    versione_schema: 2,
+    email: String(email).toLowerCase(),
+    nome_locale: nome,
+    slug,
+    locale: { tipo: 'altro', indirizzo: {}, telefono: '', sito: '' },
+    fatturazione: {},
+    referente: {},
+    consensi: { termini_il: null, privacy_il: null, marketing: false, nota: 'creato dall’amministratore: consensi da raccogliere' },
+    piano: pulita.piano,
+    moduli: pulita.moduli ? pulita.moduli.split(',') : [],
+    terminali: Number(pulita.terminali) || 1,
+    abbonamento: { stato: 'attivo', origine: 'manuale', dal: ora },
+    creato_da_admin: true,
+    creato_il: ora,
+  }
+  await db.doc(`clienti/${utente.uid}`).set(cliente, { merge: true })
+  if (attiva_subito) {
+    await db.doc(`richieste/${slug}`).set({ uid: utente.uid, slug, nome_locale: nome, piano: cliente.piano, moduli: cliente.moduli, stato: 'in coda', chiesta_il: ora, chiesta_da: 'admin' })
+  }
+  return { uid: utente.uid, slug }
 })
