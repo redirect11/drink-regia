@@ -135,8 +135,11 @@ coincide col progetto di destinazione il deploy si ferma. Il sito fuori
 dalla produzione porta un nastro «TEST» con la versione (`VITE_APP_ENV`,
 `VITE_APP_VERSION`, in `App.jsx`).
 
-**Stranezza nota**: finora i push **non avviavano la CI da soli**. Dopo
-un push si verifica che `Tests` sia partito, altrimenti:
+**Stranezza nota, forse passata**: fino al pomeriggio del 22/10 i push
+non avviavano `ci.yml` da soli; la sera il push su `release/0.1.0` ha
+avviato `generate-issues.yml` senza aiuto. Dopo un push su un ramo che
+non sia `release/**` si verifica che `Tests` sia partito, altrimenti
+(funziona solo quando `test.yml` è su `main`, il ramo di default):
 
 ```sh
 gh workflow run test.yml -R redirect11/drink-regia --ref <ramo>
