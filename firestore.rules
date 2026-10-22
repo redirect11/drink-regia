@@ -34,15 +34,16 @@ service cloud.firestore {
       allow write: if admin();
     }
 
-    // La richiesta di attivazione: il titolare la crea per il suo slug («in
-    // coda», o «da approvare» quando il deploy automatico è spento), una
-    // Function la lavora, l'admin la autorizza, rifiuta o rilancia.
+    // La richiesta di attivazione: la scrive SOLO la Function
+    // `chiediAttivazione` (Admin SDK, fuori da queste regole) dopo aver
+    // riletto cliente e abbonamento; il titolare la legge, l'admin la
+    // autorizza, rifiuta o rilancia. Audit del 22/10/2026, C2: prima la
+    // creava il browser e le regole non controllavano né lo slug né
+    // l'abbonamento, così chiunque registrato si attivava gratis o sullo
+    // slug di un altro. Nessuna create dai client, a nessuna condizione.
     match /richieste/{slug} {
       allow read: if admin() || (autenticato() && resource.data.uid == request.auth.uid);
-      allow create: if autenticato()
-        && request.auth.token.email_verified == true
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.stato in ['in coda', 'da approvare'];
+      allow create: if false;
       allow update, delete: if admin();
     }
 

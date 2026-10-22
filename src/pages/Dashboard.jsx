@@ -34,7 +34,8 @@ export default function Dashboard({ utente }) {
   const attiva = async () => {
     setErrore(null)
     try {
-      await chiediAttivazione(cliente)
+      // Il server rilegge tutto da sé: qui non si passa niente (audit C2).
+      await chiediAttivazione()
     } catch (e) {
       setErrore(e.message)
     }

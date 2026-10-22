@@ -57,6 +57,11 @@ prende slug, piano, moduli e nome da lì e non dal corpo, e sceglie lo
 stato leggendo `impostazioni/regia.deploy_automatico`. La regola di
 create per i client si toglie. `avviaProvisioning` rilegge comunque il
 cliente e rifiuta se slug o stato non coincidono.
+*Chiusa il 22/10/2026* (ramo `release/0.1.0`): callable
+`chiediAttivazione` con `preparaRichiesta` e `richiestaCoerente` in
+`functions/lib/provisioning.js`, `allow create: if false` in
+`firestore.rules`. In produzione solo col deploy delle Functions e
+delle regole.
 
 ### Alte
 
@@ -322,6 +327,7 @@ disiscrizione, mittente con SPF/DKIM/DMARC, mai alle PEC di fatturazione.
    Functions e nelle regole.
 2. [codice] **C2**: la richiesta di attivazione la crea una callable che
    verifica l'abbonamento sul server; via la create dai client.
+   **Fatto il 22/10/2026** (`release/0.1.0`), da pubblicare.
 3. [codice] **H1**: allowlist dei campi che il titolare può modificare.
 4. [codice] **H2**: la chiave `licenza` di `settings/bar` non è
    scrivibile dai client; sospensione applicata dalle regole.

@@ -14,7 +14,7 @@ const { onRequest } = require('firebase-functions/v2/https')
 const { defineSecret } = require('firebase-functions/params')
 const { initializeApp } = require('firebase-admin/app')
 const { getFirestore } = require('firebase-admin/firestore')
-const { dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, documentoIstanza, bearerValido } = require('./lib/provisioning.js')
+const { preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, documentoIstanza, bearerValido } = require('./lib/provisioning.js')
 const { patchLicenzaPiano, sceltaCambiata } = require('./lib/licenza.js')
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
 const { FieldValue } = require('firebase-admin/firestore')
@@ -54,7 +54,18 @@ async function dispatchGitHub(workflow, corpo) {
 }
 
 async function lancia(richiesta) {
-  const corpo = dispatchPayload(richiesta, { ref: REF })
+  const adesso = new Date().toISOString()
+  // Audit del 22/10/2026, C2: il workflow parte solo se la richiesta è
+  // davvero del cliente che dice, con l'abbonamento attivo; e gli input
+  // (nome, piano, moduli) si prendono dal cliente, non dalla richiesta.
+  const cliente = richiesta.uid ? (await db.doc(`clienti/${richiesta.uid}`).get()).data() : null
+  const coerenza = richiestaCoerente(richiesta, cliente)
+  if (!coerenza.ok) {
+    console.error(`[provisioning] ${richiesta.slug} non parte: ${coerenza.perche}`)
+    await db.doc(`richieste/${richiesta.slug}`).set({ stato: 'errore', errore: `Lancio rifiutato: ${coerenza.perche}`, aggiornata_il: adesso }, { merge: true })
+    return
+  }
+  const corpo = dispatchPayload({ ...richiesta, nome_locale: cliente.nome_locale, piano: cliente.piano, moduli: cliente.moduli }, { ref: REF })
   const res = await fetch(`https://api.github.com/repos/${REPO}/actions/workflows/${WORKFLOW}/dispatches`, {
     method: 'POST',
     headers: {
@@ -65,7 +76,6 @@ async function lancia(richiesta) {
     },
     body: JSON.stringify(corpo),
   })
-  const adesso = new Date().toISOString()
   if (res.status !== 204) {
     const testo = await res.text().catch(() => '')
     await db.doc(`richieste/${richiesta.slug}`).set({ stato: 'errore', errore: `GitHub ${res.status}: ${testo.slice(0, 200)}`, aggiornata_il: adesso }, { merge: true })
@@ -81,6 +91,32 @@ async function lancia(richiesta) {
     { merge: true }
   )
 }
+
+// Il titolare chiede l'attivazione (audit del 22/10/2026, C2): la richiesta
+// la scrive questa callable, non il browser. Il corpo della chiamata non
+// conta niente: tutto viene da clienti/{uid}, dallo stato dell'istanza e
+// dalle impostazioni della regia, riletti qui. Le regole Firestore non
+// lasciano più creare richieste ai client.
+exports.chiediAttivazione = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  const uid = req.auth.uid
+  const cliente = (await db.doc(`clienti/${uid}`).get()).data()
+  if (!cliente?.slug) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
+  const [istanza, richiesta, impostazioni] = await Promise.all([
+    db.doc(`istanze/${cliente.slug}`).get().then((s) => s.data() || null),
+    db.doc(`richieste/${cliente.slug}`).get().then((s) => s.data() || null),
+    db.doc('impostazioni/regia').get().then((s) => s.data() || {}),
+  ])
+  const esito = preparaRichiesta(cliente, {
+    istanza,
+    richiesta,
+    emailVerificata: req.auth.token?.email_verified === true,
+    automatico: impostazioni.deploy_automatico !== false,
+  })
+  if (!esito.ok) throw new HttpsError('failed-precondition', esito.perche)
+  await db.doc(`richieste/${cliente.slug}`).set(esito.richiesta)
+  return { ok: true, stato: esito.richiesta.stato }
+})
 
 exports.avviaProvisioning = onDocumentCreated(
   { ...OPTS, document: 'richieste/{slug}', secrets: [GITHUB_DISPATCH_TOKEN] },
