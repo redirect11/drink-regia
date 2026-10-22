@@ -14,7 +14,7 @@ import { doc, setDoc, getDoc, onSnapshot, collection, getDocs, orderBy, query, u
 import { getFunctions, httpsCallable } from 'firebase/functions'
 import { auth, db, configurata, app } from './firebase.js'
 import { nuovoCliente } from './clienti.js'
-import { nuovaRichiesta, STATI } from './istanze.js'
+import { STATI } from './istanze.js'
 
 const serve = () => {
   if (!configurata) throw new Error('La regia non è collegata a Firebase: mancano le variabili VITE_FIREBASE_*.')
@@ -90,21 +90,21 @@ export function osservaRichiesta(slug, cb) {
   return onSnapshot(doc(db, 'richieste', slug), (s) => cb(s.exists() ? s.data() : null))
 }
 
-export async function chiediAttivazione(cliente) {
+// L'attivazione si chiede alla Function `chiediAttivazione` (audit del
+// 22/10/2026, C2): è lei che rilegge cliente, abbonamento e impostazioni
+// e scrive richieste/{slug}. Il browser non manda niente, e le regole non
+// gli lascerebbero comunque scrivere la richiesta.
+export async function chiediAttivazione() {
   serve()
-  const automatico = (await leggiImpostazioniRegia()).deploy_automatico !== false
-  await setDoc(doc(db, 'richieste', cliente.slug), nuovaRichiesta(cliente, new Date(), { automatico }))
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'chiediAttivazione')
+  const { data } = await fn({})
+  return data
 }
 
 // ── le impostazioni della regia (REQ-FLOTTA-011) ──
 // Un documento solo, impostazioni/regia: `deploy_automatico` (true di
-// partenza). Lo leggono tutti gli autenticati, lo scrive l'admin.
-export async function leggiImpostazioniRegia() {
-  serve()
-  const s = await getDoc(doc(db, 'impostazioni', 'regia'))
-  return s.exists() ? s.data() : {}
-}
-
+// partenza). Lo legge il backoffice, lo scrive l'admin; la Function
+// `chiediAttivazione` lo rilegge da sé per decidere lo stato iniziale.
 export function osservaImpostazioniRegia(cb) {
   serve()
   return onSnapshot(doc(db, 'impostazioni', 'regia'), (s) => cb(s.exists() ? s.data() : {}))

@@ -83,8 +83,11 @@ requirements:
       piano scelto, lo stato dell'istanza (`da attivare`, `in coda`, `in
       corso`, `attiva`, `errore`, con la data dell'ultimo passaggio) e,
       quando e' attiva, l'indirizzo dell'app e il promemoria dell'accesso
-      admin. Il tasto «Attiva» scrive la richiesta (REQ-FLOTTA-006); senza
-      abbonamento valido (REQ-FLOTTA-007) il tasto spiega cosa manca.
+      admin. Il tasto «Attiva» chiama la Function `chiediAttivazione`
+      (REQ-FLOTTA-006), senza passare dati; senza abbonamento valido
+      (REQ-FLOTTA-007) il tasto spiega cosa manca, e se il server rifiuta
+      la dashboard riporta il motivo. `puoAttivare` decide solo se il
+      tasto e' acceso: la regola che conta la rifa' il server.
     status: implemented
     generate_issue: false
     labels: [prodotto, flotta, regia]
@@ -140,15 +143,29 @@ requirements:
       - tests/SceltaPiano.test.jsx
   - id: REQ-FLOTTA-006
     title: "Le Functions della regia lanciano l'attivazione di un'istanza e ne ricevono l'esito"
-    area: "functions/index.js, functions/lib/provisioning.js, functions/.env"
+    area: "functions/index.js, functions/lib/provisioning.js, functions/.env, firestore.rules, src/lib/db.js (chiediAttivazione)"
     description: >
       La parte della regia dell'attivazione automatica (il disegno intero e
       il workflow stanno nel repository tana-drink, docs/flotta.md e
-      provisiona-istanza.yml). Quando nasce `richieste/{slug}` in coda, o
+      provisiona-istanza.yml).
+      LA RICHIESTA LA SCRIVE IL SERVER (audit del 22/10/2026, falla C2:
+      «Questo va assolutamente risolto», l'utente, 22/10/2026). La callable
+      `chiediAttivazione` ignora il corpo della chiamata: rilegge
+      `clienti/{uid}`, `istanze/{slug}`, `richieste/{slug}` e
+      `impostazioni/regia`, e con `preparaRichiesta` pretende email
+      verificata, piano e `abbonamento.stato == 'attivo'`, nessuna
+      attivazione gia' in viaggio; slug, nome, piano e moduli (puliti col
+      listino) vengono dal documento del cliente, lo stato iniziale («in
+      coda» o «da approvare») dal deploy automatico. Le regole Firestore
+      non lasciano creare richieste a nessun client. Prima del lancio,
+      `richiestaCoerente` rilegge il cliente e rifiuta (richiesta in
+      «errore», niente dispatch) se slug o uid non sono suoi o se
+      l'abbonamento non e' attivo: vale anche per i rilanci dell'admin.
+      Quando nasce `richieste/{slug}` in coda, o
       l'admin la rilancia (`rilanciata_il` cambia), `avviaProvisioning` /
       `rilanciaProvisioning` chiamano il workflow_dispatch di GitHub con
-      slug, nome, piano, moduli e uid come stringhe; la richiesta passa «in
-      corso» e nasce `istanze/{slug}`. `esitoProvisioning` riceve il POST
+      slug, nome, piano, moduli e uid come stringhe, presi dal cliente; la
+      richiesta passa «in corso» e nasce `istanze/{slug}`. `esitoProvisioning` riceve il POST
       del workflow col bearer `PROVISIONING_CALLBACK_SECRET` (confronto a
       tempo costante), accetta solo slug e stati noti e aggiorna istanza e
       richiesta senza perdere quello che c'era. Logica pura in

@@ -2,7 +2,7 @@
 'use strict'
 
 // LA DASHBOARD DEL TITOLARE (REQ-FLOTTA-004): il locale, il piano, lo
-// stato dell'istanza; «Attiva» scrive la richiesta e, senza piano, spiega.
+// stato dell'istanza; «Attiva» chiama la Function e, senza piano, spiega.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
@@ -61,11 +61,23 @@ describe('la dashboard', () => {
     expect(screen.queryByRole('button', { name: /Vai al pagamento/ })).toBeNull()
   })
 
-  it('«Attiva» scrive la richiesta', async () => {
+  // Audit del 22/10/2026, C2: il browser non manda niente, il server
+  // rilegge il cliente da sé. Prima qui si controllava che partisse il
+  // documento del cliente: era proprio quello il problema.
+  it('«Attiva» chiede l’attivazione al server, senza passare dati', async () => {
     const user = userEvent.setup()
     mostra()
     await user.click(screen.getByRole('button', { name: /Attiva l’istanza/ }))
-    expect(db.chiediAttivazione).toHaveBeenCalledWith(stato.cliente)
+    expect(db.chiediAttivazione).toHaveBeenCalledTimes(1)
+    expect(db.chiediAttivazione).toHaveBeenCalledWith()
+  })
+
+  it('se il server rifiuta, la dashboard dice perché', async () => {
+    db.chiediAttivazione.mockRejectedValueOnce(new Error('L’abbonamento non risulta attivo.'))
+    const user = userEvent.setup()
+    mostra()
+    await user.click(screen.getByRole('button', { name: /Attiva l’istanza/ }))
+    expect(await screen.findByText('L’abbonamento non risulta attivo.')).toBeInTheDocument()
   })
 
   it('senza piano il tasto è spento, dice cosa manca, e sotto c’è la scelta del piano', () => {

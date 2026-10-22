@@ -5,8 +5,63 @@
 // documenti `istanze/{slug}` e `richieste/{slug}`. Niente Firebase qui:
 // index.js collega, questo decide, e si prova senza emulatori.
 
+const { sceltaPulita } = require('./abbonamento.js')
+
 const SLUG = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/
 const STATI = ['in coda', 'in corso', 'attiva', 'errore']
+// Gli stati con cui un'attivazione è già in viaggio o finita: non si
+// chiede due volte. Dopo un «errore» sì, si riprova.
+const IN_VIAGGIO = ['da approvare', 'in coda', 'in corso', 'attiva']
+
+// ── LA RICHIESTA LA SCRIVE IL SERVER (audit del 22/10/2026, C2) ────────
+// Prima la scriveva il browser in richieste/{slug}, e le regole non
+// controllavano né lo slug né l'abbonamento: chiunque registrato poteva
+// attivarsi gratis col piano completo, saltare l'approvazione dell'admin o
+// scrivere sullo slug di un altro cliente. «Questo va assolutamente
+// risolto» (l'utente, 22/10/2026). Da qui in poi la callable
+// `chiediAttivazione` rilegge il cliente e decide con questa funzione:
+// slug, piano, moduli e nome vengono dal documento del cliente, mai dal
+// corpo della chiamata; lo stato iniziale lo sceglie
+// `impostazioni/regia.deploy_automatico`, letto sul server.
+function preparaRichiesta(cliente, { istanza = null, richiesta = null, emailVerificata = false, automatico = true, adesso = new Date() } = {}) {
+  const no = (perche) => ({ ok: false, perche, richiesta: null })
+  if (!cliente || !SLUG.test(cliente.slug || '')) return no('Nessun locale registrato per questo account.')
+  if (!emailVerificata) return no('Prima conferma l’email: trovi il messaggio nella casella con cui ti sei registrato.')
+  if (!cliente.piano) return no('Serve un piano: scegline uno e completa l’abbonamento.')
+  if (cliente.abbonamento?.stato !== 'attivo') return no('L’abbonamento non risulta attivo.')
+  // La stessa regola della dashboard (src/lib/istanze.js, puoAttivare):
+  // l'istanza vince sulla richiesta, e in viaggio non si chiede di nuovo.
+  const stato = istanza?.stato || richiesta?.stato || null
+  if (stato && IN_VIAGGIO.includes(stato)) return no(`L’istanza è già ${stato}.`)
+  const scelta = sceltaPulita(cliente)
+  return {
+    ok: true,
+    perche: null,
+    richiesta: {
+      uid: cliente.uid,
+      slug: cliente.slug,
+      nome_locale: String(cliente.nome_locale || cliente.slug),
+      piano: scelta.piano,
+      moduli: scelta.moduli,
+      stato: automatico ? 'in coda' : 'da approvare',
+      chiesta_il: adesso.toISOString(),
+      chiesta_da: 'titolare',
+    },
+  }
+}
+
+// Prima di lanciare il workflow si rilegge il cliente: la richiesta deve
+// essere la sua (stesso slug, stesso uid) e l'abbonamento deve essere
+// ancora attivo. Se qualcosa non torna il lancio non parte, qualunque
+// cosa ci sia scritto nella richiesta. Vale anche per i rilanci.
+function richiestaCoerente(richiesta, cliente) {
+  if (!richiesta || !SLUG.test(richiesta.slug || '')) return { ok: false, perche: 'Richiesta senza uno slug valido' }
+  if (!cliente) return { ok: false, perche: 'Cliente non trovato' }
+  if (cliente.slug !== richiesta.slug) return { ok: false, perche: `Lo slug «${richiesta.slug}» non è del cliente` }
+  if (richiesta.uid && cliente.uid !== richiesta.uid) return { ok: false, perche: 'La richiesta non è del titolare' }
+  if (cliente.abbonamento?.stato !== 'attivo') return { ok: false, perche: 'Abbonamento non attivo' }
+  return { ok: true, perche: null }
+}
 
 // Il corpo della chiamata `POST /repos/{repo}/actions/workflows/{file}/dispatches`.
 // Gli input sono stringhe: GitHub non accetta altro.
@@ -89,4 +144,4 @@ function bearerValido(header, segreto) {
   return diff === 0
 }
 
-module.exports = { dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, documentoIstanza, bearerValido, STATI }
+module.exports = { preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, documentoIstanza, bearerValido, STATI }
