@@ -43,6 +43,10 @@ del progetto `drink-regia`, Authentication va avviata («Inizia») col
 provider Email/password acceso: senza, registrazione e accesso
 rispondono con un errore di configurazione.
 
+L'audit di sicurezza e privacy del 22/10/2026, con la lista delle cose
+da chiudere prima della prima attivazione reale, sta in
+[docs/audit-sicurezza-privacy.md](docs/audit-sicurezza-privacy.md).
+
 I prezzi stanno in `piani.json`, in un posto solo. Il nome visibile del
 prodotto in `src/lib/prodotto.js`. I requisiti in
 `requirements/requirements.yaml`, coi test che li dimostrano.
