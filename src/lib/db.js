@@ -106,6 +106,29 @@ export async function avviaPagamento(scelta) {
   return data
 }
 
+// ── lo stato di un'istanza (REQ-FLOTTA-008) ──
+export async function impostaStatoIstanza(slug, stato, motivo = null) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'impostaStatoIstanza')
+  await fn({ slug, stato, motivo })
+}
+
+// Il titolare cambia piano, moduli o terminali (REQ-FLOTTA-010).
+export async function cambiaScelta(scelta) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'cambiaScelta')
+  const { data } = await fn(scelta)
+  return data
+}
+
+// L'admin porta l'ultima versione dell'app a un locale (REQ-FLOTTA-009).
+export async function aggiornaIstanza(slug, ref = null) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'aggiornaIstanza')
+  const { data } = await fn(ref ? { slug, ref } : { slug })
+  return data
+}
+
 // ── backoffice ──
 export async function elencoClienti() {
   serve()

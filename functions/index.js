@@ -14,10 +14,14 @@ const { onRequest } = require('firebase-functions/v2/https')
 const { defineSecret } = require('firebase-functions/params')
 const { initializeApp } = require('firebase-admin/app')
 const { getFirestore } = require('firebase-admin/firestore')
-const { dispatchPayload, daLanciare, esitoValido, documentoIstanza, bearerValido } = require('./lib/provisioning.js')
+const { dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, documentoIstanza, bearerValido } = require('./lib/provisioning.js')
+const { patchLicenzaPiano, sceltaCambiata } = require('./lib/licenza.js')
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
 const { FieldValue } = require('firebase-admin/firestore')
 const { righeCheckout, metadatiDi, aggiornamentoDaEvento } = require('./lib/abbonamento.js')
+const { onSchedule } = require('firebase-functions/v2/scheduler')
+const { patchLicenza, daSospendere, STATI: STATI_LICENZA } = require('./lib/sospensione.js')
+const { initializeApp: initializeAppCon, getApps } = require('firebase-admin/app')
 
 initializeApp()
 const db = getFirestore()
@@ -31,6 +35,22 @@ const STRIPE_WEBHOOK_SECRET = defineSecret('STRIPE_WEBHOOK_SECRET')
 const REPO = process.env.GITHUB_REPO || 'redirect11/tana-drink'
 const REF = process.env.GITHUB_REF || 'develop'
 const WORKFLOW = 'provisiona-istanza.yml'
+const WORKFLOW_AGGIORNA = 'aggiorna-istanza.yml'
+// La versione dell'app da pubblicare: di norma `main` (l'ultimo rilascio).
+const REF_APP = process.env.APP_REF || 'main'
+
+async function dispatchGitHub(workflow, corpo) {
+  return fetch(`https://api.github.com/repos/${REPO}/actions/workflows/${workflow}/dispatches`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${GITHUB_DISPATCH_TOKEN.value()}`,
+      Accept: 'application/vnd.github+json',
+      'Content-Type': 'application/json',
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+    body: JSON.stringify(corpo),
+  })
+}
 
 async function lancia(richiesta) {
   const corpo = dispatchPayload(richiesta, { ref: REF })
@@ -155,4 +175,109 @@ exports.stripeWebhook = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY, STRIPE
   if (agg.patch.abbonamento) await ref.set(agg.patch, { merge: true })
   else await ref.update({ ...agg.patch, 'abbonamento.visto_il': FieldValue.serverTimestamp() })
   res.status(200).json({ ok: true })
+})
+
+// ── SOSPENDERE, RIATTIVARE, CHIUDERE UN'ISTANZA (REQ-FLOTTA-008) ───────
+
+// Il Firestore di un'istanza, da qui: un'app admin per progetto. Il
+// service account di runtime della regia ha `roles/datastore.user` sul
+// progetto (lo dà Terraform).
+function firestoreDi(progetto) {
+  const nome = `istanza-${progetto}`
+  const app = getApps().find((a) => a.name === nome) || initializeAppCon({ projectId: progetto }, nome)
+  return getFirestore(app)
+}
+
+async function scriviStatoIstanza(slug, stato, motivo) {
+  const ist = (await db.doc(`istanze/${slug}`).get()).data()
+  if (!ist?.progetto) throw new HttpsError('failed-precondition', 'Istanza senza progetto: non è ancora attiva.')
+  await firestoreDi(ist.progetto).doc('settings/bar').update(patchLicenza(stato, { motivo }))
+  await db.doc(`istanze/${slug}`).set({ licenza_stato: stato, licenza_motivo: motivo || null, licenza_dal: new Date().toISOString() }, { merge: true })
+}
+
+// Dal backoffice: Sospendi, Riattiva, Chiudi. Solo col claim admin.
+exports.impostaStatoIstanza = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const { slug, stato, motivo } = req.data || {}
+  if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(slug || '')) throw new HttpsError('invalid-argument', 'Slug non valido.')
+  if (!STATI_LICENZA.includes(stato)) throw new HttpsError('invalid-argument', 'Stato non valido.')
+  await scriviStatoIstanza(slug, stato, motivo ? String(motivo).slice(0, 200) : null)
+  return { ok: true }
+})
+
+// Ogni mattina: chi non paga da più dei giorni di grazia si sospende, chi
+// ha disdetto si chiude, chi è tornato a pagare si riattiva.
+exports.sospendiMorosi = onSchedule({ ...OPTS, schedule: '0 6 * * *', timeZone: 'Europe/Rome' }, async () => {
+  const clienti = (await db.collection('clienti').get()).docs.map((d) => d.data())
+  const istanze = Object.fromEntries((await db.collection('istanze').get()).docs.map((d) => [d.id, d.data()]))
+  for (const { cliente, stato, motivo } of daSospendere(clienti, istanze)) {
+    try {
+      await scriviStatoIstanza(cliente.slug, stato, motivo)
+      console.log(`[licenza] ${cliente.slug} → ${stato}`)
+    } catch (e) {
+      console.error(`[licenza] ${cliente.slug}:`, e?.message || e)
+    }
+  }
+})
+
+// ── GLI AGGIORNAMENTI DELLA FLOTTA (REQ-FLOTTA-009) ───────────────────
+// L'app di base è tana-drink: ogni rilascio si porta sui locali che si
+// decide dal backoffice («Aggiorna», «Aggiorna tutte»). La versione la
+// riferisce il workflow, con l'esito.
+exports.aggiornaIstanza = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN] }, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const slug = String(req.data?.slug || '')
+  const ist = (await db.doc(`istanze/${slug}`).get()).data()
+  if (!ist || ist.stato !== 'attiva') throw new HttpsError('failed-precondition', 'L’istanza non è attiva.')
+  const cliente = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]?.data()
+  const ref = String(req.data?.ref || REF_APP)
+  const res = await dispatchGitHub(WORKFLOW_AGGIORNA, dispatchAggiornamento({ slug, nome_locale: cliente?.nome_locale }, { ref }))
+  if (res.status !== 204) throw new HttpsError('internal', `GitHub ${res.status}`)
+  await db.doc(`istanze/${slug}`).set({ aggiornamento_chiesto_il: new Date().toISOString(), aggiornamento_ref: ref }, { merge: true })
+  return { ok: true, ref }
+})
+
+// ── IL PIANO CHE CAMBIA (REQ-FLOTTA-010) ──────────────────────────────
+// Il titolare cambia piano, moduli o terminali: con Stripe si aggiorna la
+// subscription (gli importi si conguagliano) e il webhook riporta la
+// scelta sul cliente; senza Stripe (piano a mano) si scrive subito. In
+// tutti e due i casi la licenza dell'istanza segue (sotto).
+exports.cambiaScelta = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  const uid = req.auth.uid
+  const cliente = (await db.doc(`clienti/${uid}`).get()).data()
+  if (!cliente) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
+  const scelta = { piano: req.data?.piano, moduli: req.data?.moduli, terminali: req.data?.terminali }
+  const sub = cliente.abbonamento?.stripe_subscription
+  const stripe = stripeClient()
+  if (sub && stripe) {
+    const attuale = await stripe.subscriptions.retrieve(sub)
+    await stripe.subscriptions.update(sub, {
+      items: [...attuale.items.data.map((i) => ({ id: i.id, deleted: true })), ...righeCheckout(scelta)],
+      metadata: metadatiDi(uid, scelta),
+      proration_behavior: 'create_prorations',
+    })
+    return { ok: true, via: 'stripe' }
+  }
+  if (cliente.abbonamento?.origine === 'manuale' || cliente.piano) {
+    const pulita = metadatiDi(uid, scelta)
+    await db.doc(`clienti/${uid}`).set(
+      { piano: pulita.piano, moduli: pulita.moduli ? pulita.moduli.split(',') : [], terminali: Number(pulita.terminali) || 1 },
+      { merge: true }
+    )
+    return { ok: true, via: 'manuale' }
+  }
+  throw new HttpsError('failed-precondition', 'Prima serve un abbonamento: scegli un piano e paga.')
+})
+
+// La licenza dell'istanza segue il cliente: quando piano, moduli o
+// terminali cambiano e l'istanza è attiva, si riscrive settings/bar.licenza.
+exports.licenzaSegueIlPiano = onDocumentUpdated({ ...OPTS, document: 'clienti/{uid}' }, async (event) => {
+  const prima = event.data?.before?.data()
+  const dopo = event.data?.after?.data()
+  if (!dopo?.slug || !sceltaCambiata(prima, dopo)) return
+  const ist = (await db.doc(`istanze/${dopo.slug}`).get()).data()
+  if (!ist?.progetto || ist.stato !== 'attiva') return
+  await firestoreDi(ist.progetto).doc('settings/bar').update(patchLicenzaPiano(dopo))
+  await db.doc(`istanze/${dopo.slug}`).set({ licenza_piano: dopo.piano, licenza_scritta_il: new Date().toISOString() }, { merge: true })
 })

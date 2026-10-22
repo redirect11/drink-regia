@@ -24,6 +24,13 @@ function dispatchPayload(richiesta, { ref = 'develop' } = {}) {
   }
 }
 
+// L'aggiornamento di un'istanza (REQ-FLOTTA-009): stesso meccanismo, altro
+// workflow (aggiorna-istanza.yml), con la versione dell'app da pubblicare.
+function dispatchAggiornamento(istanza, { ref = 'main' } = {}) {
+  if (!istanza || !SLUG.test(istanza.slug || '')) throw new Error('Istanza senza uno slug valido')
+  return { ref, inputs: { slug: istanza.slug, nome_locale: String(istanza.nome_locale || istanza.slug), ref } }
+}
+
 // Si lancia solo una richiesta «in coda»: una «in corso» è già partita,
 // una «attiva» ha finito. La Function su update usa `rilanciata_il` per
 // distinguere un rilancio dell'admin da un altro aggiornamento qualsiasi.
@@ -73,4 +80,4 @@ function bearerValido(header, segreto) {
   return diff === 0
 }
 
-module.exports = { dispatchPayload, daLanciare, esitoValido, documentoIstanza, bearerValido, STATI }
+module.exports = { dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, documentoIstanza, bearerValido, STATI }

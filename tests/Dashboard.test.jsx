@@ -26,7 +26,7 @@ const db = vi.hoisted(() => ({
   }),
   chiediAttivazione: vi.fn(async () => {}),
 }))
-vi.mock('../src/lib/db.js', () => ({ ...db, avviaPagamento: vi.fn() }))
+vi.mock('../src/lib/db.js', () => ({ ...db, avviaPagamento: vi.fn(), cambiaScelta: vi.fn(async () => ({ ok: true })) }))
 
 import Dashboard from '../src/pages/Dashboard.jsx'
 
@@ -49,8 +49,16 @@ describe('la dashboard', () => {
   it('dice locale, piano col prezzo del mese e stato dell’istanza', () => {
     mostra()
     expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Bar Mario')
-    expect(screen.getByText('Base').closest('p')).toHaveTextContent('46 €') // 24 + 10 (staff) + 12 (secondo terminale)
+    expect(screen.getAllByText('Base')[0].closest('p')).toHaveTextContent('46 €') // 24 + 10 (staff) + 12 (secondo terminale)
     expect(screen.getByTestId('stato-istanza')).toHaveTextContent('Non ancora attivata')
+  })
+
+  // REQ-FLOTTA-010: con l'abbonamento attivo si cambia piano o moduli.
+  it('con l’abbonamento attivo c’è «Cambia piano o moduli», non la scelta iniziale', () => {
+    mostra()
+    expect(screen.getByRole('heading', { name: 'Cambia piano o moduli' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Aggiorna il piano' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Vai al pagamento/ })).toBeNull()
   })
 
   it('«Attiva» scrive la richiesta', async () => {

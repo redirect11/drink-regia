@@ -77,6 +77,20 @@ function aggiornamentoDaEvento(tipo, oggetto, adesso = new Date()) {
       },
     }
   }
+  // Il piano cambiato da Stripe (REQ-FLOTTA-010): i metadati della
+  // subscription portano la scelta nuova.
+  if (tipo === 'customer.subscription.updated') {
+    if (!oggetto?.id || !md.piano) return null
+    return {
+      stripe_subscription: oggetto.id,
+      patch: {
+        piano: md.piano,
+        moduli: md.moduli ? md.moduli.split(',').filter(Boolean) : [],
+        terminali: Number(md.terminali) || 1,
+        'abbonamento.aggiornato_il': ora,
+      },
+    }
+  }
   if (tipo === 'invoice.paid') {
     const sub = oggetto?.subscription
     if (!sub) return null

@@ -163,3 +163,83 @@ requirements:
     labels: [metodo]
     test_cases:
       - tests/requisiti.test.js
+
+  - id: REQ-FLOTTA-008
+    title: "Un'istanza si ferma: Sospendi, Riattiva e Chiudi dal backoffice, e la sospensione automatica di chi non paga"
+    area: "functions/index.js (impostaStatoIstanza, sospendiMorosi), functions/lib/sospensione.js, src/pages/Backoffice.jsx, src/lib/db.js"
+    description: >
+      «Serve un modo per eliminare/fermare l'app deployata (ad esempio se
+      non arriva il pagamento mensile)» (l'utente, 22/10/2026). La parte
+      della regia: lo stato della licenza dell'istanza
+      (`settings/bar.licenza.stato`: attiva, sospesa, chiusa) lo scrive la
+      Function `impostaStatoIstanza`, cross-progetto, a cui il backoffice
+      arriva coi tasti Sospendi (con motivo), Chiudi e Riattiva; e la
+      Function giornaliera `sospendiMorosi` sospende chi ha l'abbonamento
+      «in sospeso» da piu' di sette giorni, chiude chi ha disdetto e
+      riattiva chi e' tornato a pagare (logica pura in lib/sospensione.js).
+      `istanze/{slug}` tiene `licenza_stato` e `licenza_motivo` per il
+      backoffice. Cosa fa l'app quando e' sospesa sta nel repository
+      tana-drink (REQ-FLOTTA-008 di la'): si ferma, lo dice, i dati restano.
+      La cancellazione vera del progetto e' un gesto a mano, dopo i 30
+      giorni promessi (scripts/elimina-istanza.mjs in tana-drink).
+    status: implemented
+    generate_issue: false
+    labels: [prodotto, flotta, regia]
+    test_cases:
+      - tests/sospensione.test.js
+      - tests/Backoffice.test.jsx
+
+  - id: REQ-FLOTTA-009
+    title: "Gli aggiornamenti dell'app arrivano ai locali che si decide: «Aggiorna» e «Aggiorna tutte» dal backoffice"
+    area: "functions/index.js (aggiornaIstanza), functions/lib/provisioning.js (dispatchAggiornamento), src/pages/Backoffice.jsx, src/lib/db.js, functions/.env (APP_REF)"
+    description: >
+      «La versione dovrebbe seguire l'app di base, quindi mi aspetto che
+      tutte le versioni delle app deployate dovrebbero essere allineate
+      all'app base che per ora rimane tana-drink. Tutte le
+      modifiche/bugfix/aggiornamenti sull'app base dovrebbero essere
+      deployate anche su tutti i siti cliente o comunque decidere su quali
+      clienti deployare gli aggiornamenti» (l'utente, 22/10/2026).
+      LA VERSIONE E' QUELLA DI TANA-DRINK: ogni istanza mostra in
+      `istanze/{slug}.versione` la versione dell'app che ha, riferita dal
+      workflow a ogni pubblicazione. Un rilascio di tana-drink non tocca i
+      locali da solo: dal backoffice, «Aggiorna» su una riga porta a quel
+      locale la versione in APP_REF (di norma `main`, l'ultimo rilascio;
+      finche' la flotta non e' merged, feature/flotta), «Aggiorna tutte le
+      istanze attive» la porta a tutti quelli attivi, con conferma. La
+      Function `aggiornaIstanza` (solo admin) lancia il workflow
+      `aggiorna-istanza.yml` di tana-drink, che compila per quel locale,
+      pubblica e riferisce la versione. Un tag passato come `ref` riporta
+      un locale a una versione precedente.
+    status: implemented
+    generate_issue: false
+    labels: [prodotto, flotta, regia]
+    test_cases:
+      - tests/provisioning.test.js
+      - tests/Backoffice.test.jsx
+
+  - id: REQ-FLOTTA-010
+    title: "I servizi premium si comprano e si cambiano dalla dashboard, e la licenza dell'istanza li accende"
+    area: "functions/index.js (cambiaScelta, licenzaSegueIlPiano), functions/lib/licenza.js, functions/lib/abbonamento.js (customer.subscription.updated), src/pages/SceltaPiano.jsx (modifica), src/pages/Dashboard.jsx"
+    description: >
+      «Dobbiamo attivare il supporto per i servizi premium e l'acquisto dei
+      servizi premium» (l'utente, 22/10/2026).
+      Con l'abbonamento attivo la dashboard mostra «Cambia piano o moduli»:
+      lo stesso selettore della prima scelta, col prezzo del mese che si
+      aggiorna, e «Aggiorna il piano» al posto del Checkout. La Function
+      `cambiaScelta` aggiorna la subscription di Stripe (righe nuove al
+      posto delle vecchie, conguaglio pro rata, metadati con la scelta) e
+      il webhook `customer.subscription.updated` riporta piano, moduli e
+      terminali sul cliente; per un piano segnato a mano scrive subito.
+      LA LICENZA SEGUE: `licenzaSegueIlPiano` scatta quando piano, moduli o
+      terminali del cliente cambiano e l'istanza e' attiva, e riscrive
+      `settings/bar.licenza` nell'istanza (moduli dell'app da piani.json:
+      magazzino → conta; il completo accende tutto). L'app li legge subito
+      (lib/licenza.js di tana-drink: incluso e acceso).
+    status: implemented
+    generate_issue: false
+    labels: [prodotto, flotta, regia]
+    test_cases:
+      - tests/licenza.test.js
+      - tests/abbonamento.test.js
+      - tests/SceltaPiano.test.jsx
+      - tests/Dashboard.test.jsx

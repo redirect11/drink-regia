@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest'
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
-const { dispatchPayload, daLanciare, esitoValido, documentoIstanza, bearerValido } = require('../functions/lib/provisioning.js')
+const { dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, documentoIstanza, bearerValido } = require('../functions/lib/provisioning.js')
 
 const richiesta = { uid: 'u1', slug: 'bar-mario', nome_locale: 'Bar Mario', piano: 'base', moduli: ['staff', 'magazzino'], stato: 'in coda' }
 
@@ -21,6 +21,16 @@ describe('dispatchPayload', () => {
 
   it('senza uno slug valido non parte niente', () => {
     expect(() => dispatchPayload({ slug: 'X' })).toThrow(/slug/)
+  })
+})
+
+describe('dispatchAggiornamento', () => {
+  it('lancia aggiorna-istanza.yml con lo slug e la versione dell’app', () => {
+    expect(dispatchAggiornamento({ slug: 'bar-mario', nome_locale: 'Bar Mario' }, { ref: 'v1.10.0' })).toEqual({
+      ref: 'v1.10.0',
+      inputs: { slug: 'bar-mario', nome_locale: 'Bar Mario', ref: 'v1.10.0' },
+    })
+    expect(() => dispatchAggiornamento({ slug: 'x' })).toThrow(/slug/)
   })
 })
 

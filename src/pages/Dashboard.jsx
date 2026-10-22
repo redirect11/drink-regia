@@ -116,6 +116,7 @@ export default function Dashboard({ utente }) {
       </section>
       {/* Senza un abbonamento attivo si sceglie (o si rinnova) il piano. */}
       {cliente.abbonamento?.stato !== 'attivo' && <SceltaPiano cliente={cliente} />}
+      {cliente.abbonamento?.stato === 'attivo' && <SceltaPiano cliente={cliente} modifica />}
       {new URLSearchParams(window.location.search).get('pagamento') === 'ok' && (
         <p className="muted small">Pagamento ricevuto: l’abbonamento compare qui sopra appena Stripe ce lo conferma, di solito in pochi secondi.</p>
       )}

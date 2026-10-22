@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { elencoClienti, elencoIstanze, elencoRichieste, segnaPiano, rilanciaAttivazione } from '../lib/db.js'
+import { elencoClienti, elencoIstanze, elencoRichieste, segnaPiano, rilanciaAttivazione, impostaStatoIstanza, aggiornaIstanza } from '../lib/db.js'
 import { statoIstanza, statoDetto, STATI, progettoDi } from '../lib/istanze.js'
 import { PIANI, prezzoMensile, euro } from '../lib/piani.js'
 import { contattoDi } from '../lib/clienti.js'
@@ -37,11 +37,47 @@ export default function Backoffice() {
     carica()
   }
 
+  // Sospendi, Riattiva, Chiudi (REQ-FLOTTA-008): l'app del locale si ferma
+  // e lo dice; i dati restano. Il motivo lo legge il titolare.
+  const cambiaStato = async (c, stato) => {
+    const motivo = stato === 'attiva' ? null : window.prompt(`Motivo (lo legge il titolare di ${c.nome_locale}):`, stato === 'sospesa' ? 'pagamento non ricevuto' : 'chiusura')
+    if (stato !== 'attiva' && motivo == null) return
+    try {
+      await impostaStatoIstanza(c.slug, stato, motivo)
+    } catch (e) {
+      setErrore(e.message)
+    }
+    carica()
+  }
+
+  // L'ultima versione dell'app a un locale, o a tutti quelli attivi
+  // (REQ-FLOTTA-009): l'app di base è tana-drink, i locali la seguono
+  // quando lo si decide.
+  const aggiorna = async (c) => {
+    try {
+      await aggiornaIstanza(c.slug)
+    } catch (e) {
+      setErrore(e.message)
+    }
+  }
+  const aggiornaTutte = async () => {
+    const attive = righe.filter((r) => r.stato === STATI.ATTIVA)
+    if (!window.confirm(`Portare l’ultima versione a ${attive.length} locali attivi?`)) return
+    for (const r of attive) await aggiorna(r.cliente)
+  }
+
   if (righe === undefined) return <main className="pagina muted">Carico…</main>
 
   return (
     <main className="pagina">
-      <h2>Backoffice</h2>
+      <div className="row-tra">
+        <h2>Backoffice</h2>
+        {righe?.some((r) => r.stato === STATI.ATTIVA) && (
+          <button type="button" className="btn ghost small" onClick={aggiornaTutte}>
+            Aggiorna tutte le istanze attive
+          </button>
+        )}
+      </div>
       {errore && <p className="errore">{errore}</p>}
       {righe.length === 0 ? (
         <p className="muted">Nessun cliente.</p>
@@ -75,7 +111,15 @@ export default function Backoffice() {
                   {contattoDi(c) && <div className="muted small">{contattoDi(c)}</div>}
                 </td>
                 <td>{c.piano ? `${PIANI[c.piano]?.nome || c.piano} · ${euro(prezzoMensile(c))}` : <span className="muted">—</span>}</td>
-                <td>{statoDetto(stato)}</td>
+                <td>
+                  {statoDetto(stato)}
+                  {istanza?.licenza_stato && istanza.licenza_stato !== 'attiva' && (
+                    <div className="errore small">
+                      {istanza.licenza_stato}
+                      {istanza.licenza_motivo ? ` · ${istanza.licenza_motivo}` : ''}
+                    </div>
+                  )}
+                </td>
                 <td>
                   <code>{istanza?.progetto || progettoDi(c.slug)}</code>
                 </td>
@@ -87,6 +131,26 @@ export default function Backoffice() {
                   {stato === STATI.ERRORE && (
                     <button type="button" className="btn ghost small" onClick={() => rilanciaAttivazione(c.slug).then(carica)}>
                       Rilancia
+                    </button>
+                  )}
+                  {stato === STATI.ATTIVA && (
+                    <button type="button" className="btn ghost small" onClick={() => aggiorna(c)}>
+                      Aggiorna
+                    </button>
+                  )}
+                  {stato === STATI.ATTIVA && (istanza?.licenza_stato || 'attiva') === 'attiva' && (
+                    <>
+                      <button type="button" className="btn ghost small" onClick={() => cambiaStato(c, 'sospesa')}>
+                        Sospendi
+                      </button>
+                      <button type="button" className="btn ghost small" onClick={() => cambiaStato(c, 'chiusa')}>
+                        Chiudi
+                      </button>
+                    </>
+                  )}
+                  {stato === STATI.ATTIVA && istanza?.licenza_stato && istanza.licenza_stato !== 'attiva' && (
+                    <button type="button" className="btn ghost small" onClick={() => cambiaStato(c, 'attiva')}>
+                      Riattiva
                     </button>
                   )}
                 </td>
