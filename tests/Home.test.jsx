@@ -5,7 +5,7 @@
 // prezzi, il tasto per registrarsi. Tono del mestiere, niente urla.
 
 import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import '@testing-library/jest-dom/vitest'
 import Home from '../src/pages/Home.jsx'
@@ -26,11 +26,37 @@ describe('la prima pagina', () => {
       const scheda = screen.getByRole('article', { name: `Piano ${p.nome}` })
       expect(scheda).toHaveTextContent(`${p.prezzo} €`)
     }
-    for (const m of MODULI) expect(screen.getByText(m.nome)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Registra il tuo locale/ })).toHaveAttribute('href', '/registrati')
+    // I moduli stanno nella tabella dei prezzi (lo stesso nome può comparire
+    // anche tra le funzioni raccontate sopra).
+    const tabella = within(screen.getByRole('table'))
+    for (const m of MODULI) expect(tabella.getByText(m.nome)).toBeInTheDocument()
+    // Il tasto per registrarsi c'è in cima e in fondo, e porta sempre lì.
+    for (const l of screen.getAllByRole('link', { name: /Registra il tuo locale/ })) expect(l).toHaveAttribute('href', '/registrati')
     // Lo scontrino non è fiscale: si dice subito, non nel contratto.
     expect(screen.getByText(/non è uno scontrino fiscale/)).toBeInTheDocument()
     expect(document.body.textContent).not.toMatch(/sblocca|acquista ora|scopri/i)
+  })
+
+  // Una landing page intera (l'utente, 22/10/2026): le sezioni che il menù
+  // della barra raggiunge, con le funzioni, i tre passi e le domande.
+  it('ha le sezioni del menù: funzioni, come funziona, prezzi, domande, contatti', () => {
+    render(
+      <MemoryRouter future={FUTURO}>
+        <Home utente={null} />
+      </MemoryRouter>
+    )
+    for (const id of ['funzioni', 'come-funziona', 'prezzi', 'domande', 'contatti']) {
+      expect(document.getElementById(id), id).not.toBeNull()
+    }
+    expect(screen.getByRole('heading', { name: 'Funzioni' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Funziona senza rete' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Come funziona' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Domande frequenti' })).toBeInTheDocument()
+    // Le domande si aprono una per una.
+    expect(screen.getByText('Lo scontrino è fiscale?').closest('details')).not.toBeNull()
+    // L'immagine ha un testo alternativo e il link alla dimostrazione apre fuori.
+    expect(screen.getByRole('img', { name: /cocktail bar/ })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /dimostrativa/ })).toHaveAttribute('target', '_blank')
   })
 
   it('a chi è già dentro mostra la dashboard, non la registrazione', () => {

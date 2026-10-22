@@ -2,40 +2,111 @@
 :root {
   --bg: #0e0e15;
   --bg-2: #171724;
+  --bg-3: #1f1f30;
   --text: #ececf3;
   --muted: #9b9ba8;
   --line: rgba(255, 255, 255, 0.1);
   --accent: #e3b23c;
+  --accent-soft: rgba(227, 178, 60, 0.14);
   --errore: #e74c3c;
+  --raggio: 14px;
 }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif; }
+html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.55 system-ui, -apple-system, 'Segoe UI', sans-serif; }
 a { color: var(--accent); }
+h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .regia { min-height: 100dvh; display: flex; flex-direction: column; }
-.barra { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); }
-.marchio { font-weight: 700; color: var(--text); text-decoration: none; font-size: 1.2rem; }
-.barra nav { display: flex; gap: 14px; align-items: center; }
-.barra nav a, .barra nav .link { color: var(--text); text-decoration: none; background: none; border: none; font: inherit; cursor: pointer; }
+
+/* ── La barra: marchio a sinistra, menù a destra; sul telefono il menù si
+   apre col tasto. Resta in cima, sopra la pagina che scorre. ── */
+.barra { position: sticky; top: 0; z-index: 10; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--line); background: rgba(14, 14, 21, 0.82); backdrop-filter: blur(12px); }
+.marchio { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; color: var(--text); text-decoration: none; font-size: 1.25rem; }
+.marchio-punto { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+.barra nav { display: flex; gap: 18px; align-items: center; }
+.barra nav a, .barra nav .link { color: var(--text); text-decoration: none; background: none; border: none; font: inherit; cursor: pointer; padding: 4px 0; }
+.barra nav a:hover, .barra nav .link:hover { color: var(--accent); }
+.barra nav a.btn { color: #1a1a1a; }
+.menu-tasto { display: none; background: none; border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 6px 12px; font: inherit; cursor: pointer; }
+@media (max-width: 760px) {
+  .menu-tasto { display: inline-block; }
+  .barra nav { display: none; position: absolute; left: 0; right: 0; top: 100%; flex-direction: column; align-items: stretch; gap: 0; background: var(--bg-2); border-bottom: 1px solid var(--line); padding: 8px 20px 14px; }
+  .barra nav.aperto { display: flex; }
+  .barra nav a, .barra nav .link { padding: 10px 0; border-bottom: 1px solid var(--line); text-align: left; }
+  .barra nav a.btn { margin-top: 10px; text-align: center; border-bottom: none; }
+}
+
 .pagina { flex: 1; width: 100%; max-width: 960px; margin: 0 auto; padding: 24px 16px; }
 .pagina.stretta { max-width: 480px; }
-.hero { padding: 32px 0 16px; }
-.hero h1 { font-size: 2.4rem; margin: 0 0 6px; }
-.slogan { font-size: 1.25rem; margin: 0 0 6px; }
 .muted { color: var(--muted); }
 .small { font-size: 0.85rem; }
-.azioni { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
-.btn { display: inline-block; padding: 10px 16px; border-radius: 10px; border: 1px solid var(--accent); background: var(--accent); color: #1a1a1a; font-weight: 600; text-decoration: none; cursor: pointer; font: inherit; }
+.azioni { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+.btn { display: inline-block; padding: 11px 18px; border-radius: 10px; border: 1px solid var(--accent); background: var(--accent); color: #1a1a1a; font-weight: 600; text-decoration: none; cursor: pointer; font: inherit; transition: transform 0.12s ease, filter 0.12s ease; }
+.btn:hover { filter: brightness(1.06); transform: translateY(-1px); }
 .btn.ghost { background: transparent; color: var(--text); border-color: var(--line); }
-.btn.small { padding: 6px 10px; font-size: 0.85rem; }
-.btn.block { display: block; width: 100%; margin-top: 12px; }
+.btn.ghost:hover { border-color: var(--accent); }
+.btn.small { padding: 6px 12px; font-size: 0.9rem; }
+.btn.block { display: block; width: 100%; margin-top: 12px; text-align: center; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.card { background: var(--bg-2); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
-.piani { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin: 12px 0 24px; }
+.card { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--raggio); padding: 18px; }
+
+/* ── La landing page (REQ-FLOTTA-002) ── */
+.landing { flex: 1; width: 100%; max-width: 1080px; margin: 0 auto; padding: 0 20px 40px; }
+.sezione { padding: 56px 0 8px; }
+.sezione h2 { font-size: 1.9rem; margin: 0 0 6px; }
+.sezione-sotto { max-width: 640px; margin: 0 0 20px; }
+
+.hero { display: grid; grid-template-columns: 1.1fr 1fr; gap: 36px; align-items: center; padding: 56px 0 24px; position: relative; }
+.hero::before { content: ''; position: absolute; inset: -80px -200px auto; height: 420px; background: radial-gradient(60% 60% at 30% 20%, var(--accent-soft), transparent 70%); pointer-events: none; z-index: -1; }
+.occhiello { color: var(--accent); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; font-size: 0.8rem; margin: 0 0 10px; }
+.hero h1 { font-size: 3.4rem; margin: 0 0 8px; }
+.slogan { font-size: 1.5rem; margin: 0 0 10px; font-weight: 500; }
+.hero-descrizione { max-width: 520px; font-size: 1.05rem; }
+.fatti { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; padding: 0; margin: 22px 0 0; }
+.fatti li { font-size: 0.85rem; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg-2); color: var(--muted); }
+.hero-figura { margin: 0; border-radius: var(--raggio); overflow: hidden; border: 1px solid var(--line); box-shadow: 0 30px 60px rgba(0, 0, 0, 0.45); aspect-ratio: 4 / 3; }
+.hero-figura img { width: 100%; height: 100%; object-fit: cover; display: block; }
+@media (max-width: 860px) {
+  .hero { grid-template-columns: 1fr; padding-top: 32px; }
+  .hero h1 { font-size: 2.6rem; }
+  .hero-figura { aspect-ratio: 16 / 9; }
+}
+
+.griglia-funzioni { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+.funzione h3 { margin: 10px 0 6px; font-size: 1.1rem; }
+.funzione p { margin: 0; }
+.icona { width: 30px; height: 30px; color: var(--accent); }
+
+.passi-landing { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; list-style: none; padding: 0; margin: 8px 0 0; }
+.passi-landing li { position: relative; padding: 18px 18px 18px 64px; background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--raggio); }
+.passi-landing .numero { position: absolute; left: 18px; top: 18px; width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: #1a1a1a; font-weight: 700; display: grid; place-items: center; }
+.passi-landing h3 { margin: 0 0 4px; font-size: 1.05rem; }
+.passi-landing p { margin: 0; }
+
+.piani { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin: 12px 0 28px; }
+.piano { position: relative; display: flex; flex-direction: column; }
 .piano h3 { margin-top: 0; }
-.prezzo { font-size: 1.8rem; font-weight: 700; margin: 4px 0; }
+.piano .btn { margin-top: auto; }
+.piano.in-evidenza { border-color: var(--accent); background: linear-gradient(180deg, var(--accent-soft), var(--bg-2) 60%); }
+.etichetta { position: absolute; top: 14px; right: 14px; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 3px 9px; }
+.prezzo { font-size: 2rem; font-weight: 700; margin: 4px 0; }
 table.moduli, table.clienti { width: 100%; border-collapse: collapse; }
-table th, table td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table th, table td { text-align: left; padding: 10px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .prezzo-riga { white-space: nowrap; text-align: right; }
+
+.domande { display: grid; gap: 8px; max-width: 760px; }
+.domande details { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 0 16px; }
+.domande summary { cursor: pointer; padding: 14px 0; font-weight: 600; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
+.domande summary::-webkit-details-marker { display: none; }
+.domande summary::after { content: '+'; color: var(--accent); font-weight: 400; }
+.domande details[open] summary::after { content: '–'; }
+.domande details p { margin: 0 0 14px; }
+
+.contatti { margin-top: 56px; padding: 32px; text-align: center; border-color: var(--accent); }
+.contatti h2 { margin-top: 0; }
+.contatti .azioni { justify-content: center; }
+
+/* ── Moduli, form, tabelle delle pagine interne ── */
 label { display: block; margin-top: 10px; font-size: 0.9rem; color: var(--muted); }
 select, textarea { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; }
 fieldset { border: none; padding: 0; margin: 0; }
@@ -60,4 +131,13 @@ input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--
 .opzione input { width: auto; margin-right: 8px; }
 code { background: rgba(255, 255, 255, 0.06); padding: 1px 5px; border-radius: 5px; }
 .row-tra { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
-.piede { text-align: center; padding: 16px; border-top: 1px solid var(--line); }
+
+/* ── Il piè di pagina a colonne ── */
+.piede { border-top: 1px solid var(--line); padding: 32px 20px 20px; background: var(--bg-2); }
+.piede-colonne { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 24px; max-width: 1080px; margin: 0 auto; }
+.piede-colonne h4 { margin: 0 0 8px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.piede-colonne a { display: block; color: var(--text); text-decoration: none; padding: 3px 0; }
+.piede-colonne a:hover { color: var(--accent); }
+.piede-marchio { font-size: 1.1rem; margin-bottom: 4px; }
+.piede-riga { max-width: 1080px; margin: 24px auto 0; padding-top: 14px; border-top: 1px solid var(--line); }
+@media (max-width: 760px) { .piede-colonne { grid-template-columns: 1fr 1fr; } }

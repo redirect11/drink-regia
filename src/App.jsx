@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, Navigate, Route, Routes } from 'react-router-dom'
+import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import Home from './pages/Home.jsx'
 import Registrati from './pages/Registrati.jsx'
 import Accedi from './pages/Accedi.jsx'
@@ -7,21 +7,48 @@ import Dashboard from './pages/Dashboard.jsx'
 import Backoffice from './pages/Backoffice.jsx'
 import { Termini, Privacy } from './pages/Legali.jsx'
 import { osservaUtente, esci } from './lib/db.js'
-import { NOME_PRODOTTO } from './lib/prodotto.js'
+import { NOME_PRODOTTO, EMAIL_CONTATTI, URL_DEMO } from './lib/prodotto.js'
+
+// Le voci del menù della prima pagina (REQ-FLOTTA-002): sono ancore
+// dentro Home, raggiungibili anche dalle altre pagine con «/#…».
+const VOCI = [
+  ['funzioni', 'Funzioni'],
+  ['come-funziona', 'Come funziona'],
+  ['prezzi', 'Prezzi'],
+  ['domande', 'Domande'],
+]
 
 export default function App() {
   const [utente, setUtente] = useState(undefined) // undefined = non ancora saputo
+  const [menuAperto, setMenuAperto] = useState(false)
+  const posizione = useLocation()
   useEffect(() => osservaUtente(setUtente), [])
+  // Cambiando pagina il menù a tendina del telefono si chiude da solo.
+  useEffect(() => setMenuAperto(false), [posizione])
 
   const pronto = utente !== undefined
   return (
     <div className="regia">
       <header className="barra">
         <Link to="/" className="marchio">
+          <span className="marchio-punto" aria-hidden="true" />
           {NOME_PRODOTTO}
         </Link>
-        <nav>
-          <a href="/#prezzi">Prezzi</a>
+        <button
+          type="button"
+          className="menu-tasto"
+          aria-expanded={menuAperto}
+          aria-controls="menu-principale"
+          onClick={() => setMenuAperto((a) => !a)}
+        >
+          Menu
+        </button>
+        <nav id="menu-principale" className={menuAperto ? 'aperto' : ''} aria-label="Principale">
+          {VOCI.map(([id, testo]) => (
+            <a key={id} href={`/#${id}`}>
+              {testo}
+            </a>
+          ))}
           {utente && <Link to="/dashboard">Dashboard</Link>}
           {utente?.admin && <Link to="/backoffice">Backoffice</Link>}
           {utente ? (
@@ -29,7 +56,12 @@ export default function App() {
               Esci
             </button>
           ) : (
-            <Link to="/accedi">Accedi</Link>
+            <>
+              <Link to="/accedi">Accedi</Link>
+              <Link to="/registrati" className="btn small">
+                Registra il locale
+              </Link>
+            </>
           )}
         </nav>
       </header>
@@ -45,8 +77,36 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       )}
-      <footer className="piede muted small">
-        {NOME_PRODOTTO} · un’installazione per ogni locale · <Link to="/termini">Termini</Link> · <Link to="/privacy">Privacy</Link>
+      <footer className="piede">
+        <div className="piede-colonne">
+          <div>
+            <div className="marchio piede-marchio">{NOME_PRODOTTO}</div>
+            <p className="muted small">Un’installazione per ogni locale. I dati restano suoi.</p>
+          </div>
+          <div>
+            <h4>Prodotto</h4>
+            <a href="/#funzioni">Funzioni</a>
+            <a href="/#prezzi">Prezzi</a>
+            <a href={URL_DEMO} target="_blank" rel="noreferrer">
+              Installazione dimostrativa
+            </a>
+          </div>
+          <div>
+            <h4>Account</h4>
+            <Link to="/accedi">Accedi</Link>
+            <Link to="/registrati">Registra il locale</Link>
+          </div>
+          <div>
+            <h4>Informazioni</h4>
+            <Link to="/termini">Termini di servizio</Link>
+            <Link to="/privacy">Privacy</Link>
+            <a href={`mailto:${EMAIL_CONTATTI}`}>{EMAIL_CONTATTI}</a>
+          </div>
+        </div>
+        <p className="muted small piede-riga">
+          © {new Date().getFullYear()} {NOME_PRODOTTO}. Importi IVA esclusa. Lo scontrino sulla stampante termica non è uno
+          scontrino fiscale.
+        </p>
       </footer>
     </div>
   )

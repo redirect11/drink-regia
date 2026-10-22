@@ -20,12 +20,22 @@ requirements:
       — logica pura, con i prezzi in un posto solo), il tasto per
       registrarsi. Il nome visibile del prodotto sta in `prodotto.js` e si
       cambia li'. Testi nel registro del mestiere, senza toni da venditore.
+      LANDING PAGE INTERA (l'utente, 22/10/2026: «deve essere una landing
+      page con menu e tutto il resto, una roba seria»): barra fissa col
+      menu' delle sezioni (Funzioni, Come funziona, Prezzi, Domande), che
+      sul telefono si apre con un tasto; hero con immagine neutra e il
+      link all'installazione dimostrativa; sei funzioni raccontate dal
+      banco; i tre passi dell'attivazione; i piani con il Completo in
+      evidenza e i moduli; sei domande frequenti apribili; il blocco dei
+      contatti; pie' di pagina a colonne con termini, privacy e email.
+      Nessuna richiesta esterna (icone inline, immagine servita dal sito).
     status: implemented
     generate_issue: false
     labels: [prodotto, flotta, regia]
     test_cases:
       - tests/piani.test.js
       - tests/Home.test.jsx
+      - tests/App.test.jsx
   - id: REQ-FLOTTA-003
     title: "Registrazione e accesso del titolare: account con email verificata, dati del locale, di fatturazione e del referente"
     area: "src/pages/Registrati.jsx, src/pages/Accedi.jsx, src/pages/Legali.jsx, src/lib/clienti.js, src/lib/validazione.js, src/lib/db.js, firestore.rules"
