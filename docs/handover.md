@@ -302,7 +302,8 @@ canale di anteprima col via libera.
 | Firestore | `europe-west1`, regole pubblicate |
 | Blaze | attivo |
 | Environment GitHub `production` | segreti `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID`; **manca `FIREBASE_SERVICE_ACCOUNT`** (chiave del SA di deploy: senza, il deploy da tag fallisce) |
-| Segreti delle Functions | `PROVISIONING_CALLBACK_SECRET` presente; **mancano `GITHUB_DISPATCH_TOKEN`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`** |
+| Segreti delle Functions | `PROVISIONING_CALLBACK_SECRET` presente; **mancano `GITHUB_DISPATCH_TOKEN`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`** e, dal ramo `feature/cassetto-ai` (24/10), **`ANTHROPIC_API_KEY`**: senza, il deploy delle Functions si ferma |
+| Cassetto AI (REQ-AI-003) | **scritto, non pubblicato**, sul ramo `feature/cassetto-ai`. La chiave Anthropic e la ricarica automatica del credito Anthropic sono da impostare nella Console di Claude (vedi §7, «Cassetto AI») |
 | `functions/.env` | `GITHUB_REPO=redirect11/tana-drink`, `GITHUB_REF` e `APP_REF` = `feature/flotta` (temporaneo: a `main` quando la flotta è merged) |
 | Segnaposto da decidere (utente) | nome del prodotto «Drink», prezzi, email `info@drink.app`, dominio `drink.app`, dati della società in `Legali.jsx` |
 
@@ -365,6 +366,14 @@ L'elenco completo con i riferimenti al codice è in
    «Auto-add» sulla bacheca. Poi la verifica di §8.
 10. **Quando la flotta è merged in tana-drink**: `GITHUB_REF` e `APP_REF`
    a `main` in `functions/.env`.
+11. **Il cassetto AI (REQ-AI-003)**, ramo `feature/cassetto-ai`, scritto e
+   provato il 24/10. Restano: le decisioni dell'utente (pacchetti o
+   consumo, ricarico, cambio, importi dei pacchetti, tetto predefinito:
+   oggi segnaposto in `piani.json`); la chiave `ANTHROPIC_API_KEY` nei
+   segreti delle Functions; la Tana registrata dal backoffice («Locale
+   esistente») e la sua chiave della regia; il lato app in tana-drink
+   (contratto in §7). Il ramo non va in `release/0.1.0` finché la chiave
+   non c'è: Firebase non pubblica Functions con un segreto mancante.
 
 ---
 
@@ -399,6 +408,30 @@ giorno**, e lo si scrive all'utente perché lo porti nell'altra sessione.
   la sua numerazione, indipendente.
 - **Nome del prodotto e prefisso dei progetti**: `src/lib/prodotto.js`
   qui, `PREFISSO_PROGETTI = 'drinkpos'` anche in Terraform di tana-drink.
+- **Cassetto AI** (REQ-AI-003, dal 24/10/2026). L'installazione non
+  chiama mai il modello e non ha la chiave di Anthropic: una Function
+  **dell'installazione** (mai il browser: i clienti del locale hanno
+  account sullo stesso progetto) fa
+  `POST https://europe-west1-drink-regia.cloudfunctions.net/richiestaAI`
+  con `Authorization: Bearer <slug>.<segreto>` (la chiave della regia,
+  creata dal backoffice con «Chiave AI», nei segreti dell'installazione)
+  e uno di questi corpi JSON:
+  `{ "tipo": "descrizione", "nome", "produttore"?, "categoria"?, "note"? }`
+  oppure `{ "tipo": "fattura", "file": <base64>, "media_type":
+  "application/pdf" | "image/jpeg" | "image/png" | "image/webp" |
+  "image/gif" }` (foto fino a 5 MB, PDF fino a 20 MB). Risposte:
+  `200 { ok, tipo, risultato, costo_eur, credito_eur }`; `400` richiesta
+  sbagliata; `401` chiave non valida; `402 { codice: credito | tetto |
+  spento | senza-cassetto }` credito o tetto non bastano: **si ferma solo
+  l'AI**; `422 { codice, costo_eur, credito_eur }` il modello non ha dato
+  un risultato usabile (il costo resta); `503` servizio occupato, si
+  riprova. `risultato` per la descrizione è `{ descrizione, da_verificare:
+  [] }`; per la fattura `{ fornitore: { ragione_sociale, partita_iva },
+  numero, data, righe: [{ descrizione, codice, quantita, unita,
+  prezzo_unitario, sconto_percentuale, aliquota_iva, importo }],
+  imponibile, iva, totale, da_verificare: [] }`, con `null` per i dati
+  assenti. Tutto è una **proposta da rivedere** prima di pubblicarla o
+  registrarla. Gli schemi stanno in `functions/lib/ai.js`.
 
 ---
 

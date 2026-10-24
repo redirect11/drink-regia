@@ -43,6 +43,13 @@ non segreta per progetto sta in `functions/.env.<progetto>`.
 riallinea e chiude le issue su GitHub; la bacheca è il project
 «drink-regia» (n. 5) dell'account.
 
+**Il cassetto AI** (REQ-AI-003): le installazioni chiedono le funzioni AI
+alla Function `richiestaAI` della regia, con una chiave della regia; la
+regia controlla il credito del locale, chiama Claude con la sua chiave
+(`ANTHROPIC_API_KEY`, solo nei segreti delle Functions) e scala il costo.
+Credito, tetto mensile e storico stanno in `ai/{slug}`; il contratto con
+l'app è in `docs/handover.md` §7.
+
 **Il backoffice** si apre solo con un account che ha il claim `admin`.
 Ci si registra dal sito come un cliente qualsiasi, poi si dà il claim da
 qui, con le credenziali del progetto:
