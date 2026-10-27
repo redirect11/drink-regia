@@ -30,6 +30,8 @@ const db = vi.hoisted(() => ({
   elencoCassettiAI: vi.fn(async () => ({})),
   gestisciCassettoAI: vi.fn(async () => ({ ok: true })),
   registraLocaleEsistente: vi.fn(async () => ({ uid: 't', slug: 'tana-drink' })),
+  elencoRilasci: vi.fn(async () => []),
+  gestisciRilascio: vi.fn(async () => ({ ok: true })),
 }))
 const regia = vi.hoisted(() => ({ impostazioni: {} }))
 vi.mock('../src/lib/db.js', () => db)
@@ -102,17 +104,15 @@ describe('il backoffice', () => {
   })
 
   // REQ-FLOTTA-009: l'app di base è tana-drink; un aggiornamento si porta
-  // sui locali che si decide, o su tutti.
-  it('«Aggiorna» porta l’ultima versione a un locale, «Aggiorna tutte» a tutti quelli attivi', async () => {
+  // a un locale solo con «Aggiorna». A tutti ci arriva a ondate
+  // (REQ-FLOTTA-012): «Aggiorna tutte» non c'è più.
+  it('«Aggiorna» porta l’ultima versione a un locale; a tutti si arriva solo con un rilascio', async () => {
     const user = userEvent.setup()
     mostra()
     const attivo = (await screen.findAllByRole('row')).find((r) => r.textContent.includes('Bar Attivo'))
     await user.click(within(attivo).getByRole('button', { name: 'Aggiorna' }))
     expect(db.aggiornaIstanza).toHaveBeenCalledWith('bar-attivo')
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
-    await user.click(screen.getByRole('button', { name: /Aggiorna tutte/ }))
-    // Solo le attive: Bar Rotto è in errore, Bar Nuovo non è mai partito.
-    expect(db.aggiornaIstanza).toHaveBeenCalledTimes(2)
+    expect(screen.queryByRole('button', { name: /Aggiorna tutte/ })).toBeNull()
   })
 
   it('un piano si segna a mano, finché non c’è Stripe', async () => {
@@ -246,9 +246,107 @@ describe('il backoffice e il credito AI', () => {
     expect(within(tana).queryByRole('button', { name: 'Aggiorna' })).toBeNull()
     expect(within(tana).queryByRole('button', { name: 'Sospendi' })).toBeNull()
     expect(within(tana).getByRole('button', { name: 'Ricarica AI' })).toBeInTheDocument()
+    // Né un gruppo di rilascio: la Tana è sempre nell'ondata delle interne.
+    expect(within(tana).queryByRole('combobox')).toBeNull()
+    await user.click(within(tana).getByRole('button', { name: 'Piano a mano' }))
+    expect(db.aggiornaIstanza).not.toHaveBeenCalled()
+  })
+})
+
+// I RILASCI A ONDATE (REQ-FLOTTA-012): un tag arriva ai locali un'ondata
+// alla volta; un aggiornamento fallito si riprova o si torna indietro.
+describe('i rilasci a ondate nel backoffice', () => {
+  const rilascio = (extra = {}) => ({
+    ref: 'v1.11.0',
+    stato: 'in corso',
+    ondata: 0,
+    ondate: [
+      { nome: 'prova', slugs: ['bar-prova'], avviata_il: '2026-10-27T09:00:00Z' },
+      { nome: 'generale', slugs: ['bar-attivo'], avviata_il: null },
+    ],
+    riepilogo: [
+      { nome: 'prova', riuscito: 1, 'in corso': 0, fallito: 0, 'in attesa': 0, escluso: 0 },
+      { nome: 'generale', riuscito: 0, 'in corso': 0, fallito: 0, 'in attesa': 1, escluso: 0 },
+    ],
+    puo_avanzare: true,
+    prossima: 'generale',
+    perche_fermo: null,
+    creato_il: '2026-10-27T08:00:00Z',
+    ...extra,
+  })
+
+  it('senza rilasci aperti si crea un rilascio, solo da un tag', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(window, 'prompt').mockReturnValueOnce('main').mockReturnValueOnce('v1.11.0')
+    vi.spyOn(window, 'alert').mockImplementation(() => {})
+    mostra()
+    const riquadro = await screen.findByRole('region', { name: 'Rilasci' })
+    await user.click(within(riquadro).getByRole('button', { name: 'Nuovo rilascio' }))
+    // «main» cambia fra un'ondata e l'altra: non è un rilascio.
+    expect(window.alert).toHaveBeenCalled()
+    expect(db.gestisciRilascio).not.toHaveBeenCalled()
+    await user.click(within(riquadro).getByRole('button', { name: 'Nuovo rilascio' }))
+    expect(db.gestisciRilascio).toHaveBeenCalledWith('crea', { ref: 'v1.11.0' })
+  })
+
+  it('un rilascio aperto dice le ondate e avvia la successiva', async () => {
+    const user = userEvent.setup()
+    db.elencoRilasci.mockResolvedValue([rilascio()])
     vi.spyOn(window, 'confirm').mockReturnValue(true)
-    await user.click(screen.getByRole('button', { name: /Aggiorna tutte/ }))
-    expect(db.aggiornaIstanza).toHaveBeenCalledTimes(1)
-    expect(db.aggiornaIstanza).toHaveBeenCalledWith('bar-attivo')
+    mostra()
+    const riquadro = await screen.findByRole('region', { name: 'Rilasci' })
+    expect(await within(riquadro).findByText('v1.11.0')).toBeInTheDocument()
+    expect(riquadro).toHaveTextContent('Istanze di prova')
+    expect(riquadro).toHaveTextContent('1 aggiornati')
+    expect(within(riquadro).queryByRole('button', { name: 'Nuovo rilascio' })).toBeNull()
+    await user.click(within(riquadro).getByRole('button', { name: 'Avvia l’ondata «Tutti gli altri»' }))
+    expect(db.gestisciRilascio).toHaveBeenCalledWith('avanza', { ref: 'v1.11.0' })
+  })
+
+  it('un rilascio fermo dice perché e non avanza', async () => {
+    db.elencoRilasci.mockResolvedValue([
+      rilascio({
+        stato: 'fermo',
+        fermato_perche: 'Aggiornamento fallito: bar-prova',
+        puo_avanzare: false,
+        prossima: null,
+        perche_fermo: 'Nell’ondata «prova» ci sono aggiornamenti falliti: riprova o torna alla versione di prima.',
+      }),
+    ])
+    mostra()
+    const riquadro = await screen.findByRole('region', { name: 'Rilasci' })
+    expect(await within(riquadro).findByText(/Aggiornamento fallito: bar-prova/)).toBeInTheDocument()
+    expect(riquadro).toHaveTextContent('riprova o torna alla versione di prima')
+    expect(within(riquadro).queryByRole('button', { name: /Avvia l’ondata/ })).toBeNull()
+    expect(within(riquadro).getByRole('button', { name: 'Annulla rilascio' })).toBeInTheDocument()
+  })
+
+  it('un aggiornamento fallito lascia il locale attivo, e si riprova o si torna indietro', async () => {
+    const user = userEvent.setup()
+    db.elencoIstanze.mockResolvedValue({
+      'bar-attivo': {
+        stato: 'attiva',
+        progetto: 'drinkpos-bar-attivo',
+        versione: 'v1.10.0',
+        aggiornamento: { ref: 'v1.11.0', rilascio: 'v1.11.0', stato: 'fallito', errore: 'deploy interrotto', versione_precedente: 'v1.10.0' },
+      },
+    })
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    mostra()
+    const attivo = (await screen.findAllByRole('row')).find((r) => r.textContent.includes('Bar Attivo'))
+    expect(attivo).toHaveTextContent('Attiva')
+    expect(attivo).toHaveTextContent('aggiornamento a v1.11.0 fallito: deploy interrotto')
+    await user.click(within(attivo).getByRole('button', { name: 'Riprova' }))
+    expect(db.gestisciRilascio).toHaveBeenCalledWith('riprova', { ref: 'v1.11.0', slug: 'bar-attivo' })
+    await user.click(within(attivo).getByRole('button', { name: 'Torna a v1.10.0' }))
+    expect(db.gestisciRilascio).toHaveBeenCalledWith('indietro', { slug: 'bar-attivo' })
+  })
+
+  it('un locale della flotta si mette nel gruppo pilota', async () => {
+    const user = userEvent.setup()
+    mostra()
+    const attivo = (await screen.findAllByRole('row')).find((r) => r.textContent.includes('Bar Attivo'))
+    await user.selectOptions(within(attivo).getByRole('combobox', { name: 'Gruppo di rilascio di Bar Attivo' }), 'pilota')
+    expect(db.gestisciRilascio).toHaveBeenCalledWith('gruppo', { slug: 'bar-attivo', gruppo: 'pilota' })
   })
 })

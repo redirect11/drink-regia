@@ -147,3 +147,7 @@ code { background: rgba(255, 255, 255, 0.06); padding: 1px 5px; border-radius: 5
 
 /* La chiave AI di un'installazione (REQ-AI-003): lunga, va a capo e si seleziona tutta. */
 .chiave { display: block; word-break: break-all; user-select: all; padding: 8px; margin: 8px 0; }
+/* I rilasci a ondate (REQ-FLOTTA-012): l'ondata in corso si distingue. */
+.ondate { margin: 8px 0; padding-left: 20px; }
+.ondate li { margin: 4px 0; }
+.ondata-attuale { font-weight: 600; }

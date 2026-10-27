@@ -4,6 +4,18 @@ Una voce per ogni cambiamento visibile, nello stesso commit del
 cambiamento. La versione in cima è quella in lavorazione finché non ha la
 data.
 
+## Sul ramo `feature/rilasci-a-ondate` (non ancora in una versione)
+
+- I rilasci di tana-drink arrivano ai locali a ondate: istanze di prova,
+  installazioni interne, locali pilota, tutti gli altri. Dal riquadro
+  «Rilasci» del backoffice l'admin crea un rilascio da un tag e avvia
+  ogni ondata quando la precedente è finita senza errori; il gruppo di
+  ogni locale si sceglie dalla sua riga. «Aggiorna tutte le istanze
+  attive» non c'è più (REQ-FLOTTA-012).
+- Un aggiornamento fallito non segna più il locale «in errore»: il locale
+  resta attivo, la riga dice cosa è fallito, il rilascio si ferma, e si
+  riprova o si torna alla versione di prima (REQ-FLOTTA-012).
+
 ## Sul ramo `feature/cassetto-ai` (non ancora in una versione)
 
 - Il credito AI di ogni locale: nella dashboard il titolare vede il

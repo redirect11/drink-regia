@@ -169,6 +169,22 @@ export async function aggiornaIstanza(slug, ref = null) {
   return data
 }
 
+// I rilasci a ondate (REQ-FLOTTA-012): il più recente per primo.
+export async function elencoRilasci() {
+  serve()
+  const snap = await getDocs(collection(db, 'rilasci'))
+  return snap.docs.map((d) => d.data()).sort((a, b) => String(b.creato_il).localeCompare(String(a.creato_il)))
+}
+
+// crea, avanza, riprova, indietro, ferma, annulla, gruppo: le decide la
+// Function, che rilegge tutto.
+export async function gestisciRilascio(azione, dati = {}) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'gestisciRilascio', { timeout: 540_000 })
+  const { data } = await fn({ azione, ...dati })
+  return data
+}
+
 // ── backoffice ──
 export async function elencoClienti() {
   serve()

@@ -50,6 +50,13 @@ service cloud.firestore {
       allow update, delete: if admin();
     }
 
+    // I rilasci a ondate (REQ-FLOTTA-012): li scrive solo la Function
+    // `gestisciRilascio` e l'esito del workflow; l'admin li legge.
+    match /rilasci/{tag} {
+      allow read: if admin();
+      allow write: if false;
+    }
+
     // Il cassetto AI di un'installazione (REQ-AI-003): credito, tetto,
     // speso del mese, lo storico dei consumi e delle ricariche. Lo scrivono
     // solo le Functions (Admin SDK, fuori da queste regole): il titolare lo

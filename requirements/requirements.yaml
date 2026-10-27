@@ -272,7 +272,7 @@ requirements:
       - tests/Backoffice.test.jsx
 
   - id: REQ-FLOTTA-009
-    title: "Gli aggiornamenti dell'app arrivano ai locali che si decide: «Aggiorna» e «Aggiorna tutte» dal backoffice"
+    title: "Gli aggiornamenti dell'app arrivano ai locali che si decide: «Aggiorna» su un locale, i rilasci a ondate per tutti"
     area: "functions/index.js (aggiornaIstanza), functions/lib/provisioning.js (dispatchAggiornamento), src/pages/Backoffice.jsx, src/lib/db.js, functions/.env (APP_REF)"
     description: >
       «La versione dovrebbe seguire l'app di base, quindi mi aspetto che
@@ -286,8 +286,10 @@ requirements:
       workflow a ogni pubblicazione. Un rilascio di tana-drink non tocca i
       locali da solo: dal backoffice, «Aggiorna» su una riga porta a quel
       locale la versione in APP_REF (di norma `main`, l'ultimo rilascio;
-      finche' la flotta non e' merged, feature/flotta), «Aggiorna tutte le
-      istanze attive» la porta a tutti quelli attivi, con conferma. La
+      finche' la flotta non e' merged, feature/flotta): serve per una
+      correzione urgente su un locale solo. A tutti i locali un rilascio
+      arriva a ondate (REQ-FLOTTA-012), che hanno preso il posto di
+      «Aggiorna tutte le istanze attive» il 27/10/2026. La
       Function `aggiornaIstanza` (solo admin) lancia il workflow
       `aggiorna-istanza.yml` di tana-drink, che compila per quel locale,
       pubblica e riferisce la versione. Un tag passato come `ref` riporta
@@ -357,6 +359,43 @@ requirements:
       - tests/istanze.test.js
       - tests/provisioning.test.js
       - tests/Backoffice.test.jsx
+
+  - id: REQ-FLOTTA-012
+    title: "I rilasci arrivano ai locali a ondate: prova, interne, pilota, tutti; un aggiornamento fallito ferma il rilascio, non il locale"
+    area: "functions/lib/rilasci.js, functions/lib/provisioning.js (eAggiornamento, documentoAggiornamento), functions/index.js (gestisciRilascio, aggiornaIstanza, esitoProvisioning), firestore.rules (rilasci), src/pages/Rilasci.jsx, src/pages/Backoffice.jsx, src/lib/rilasci.js, src/lib/db.js"
+    description: >
+      «Gli aggiornamenti vanno fatti a ondate. Con molti progetti, un
+      rilascio va prima sul test, poi sulla Tana, poi su un primo gruppo,
+      poi su tutti. La regia deve sapere quale versione gira in ogni locale
+      e cosa fare se un aggiornamento fallisce. — Va bene gestiamolo»
+      (l'utente, 27/10/2026).
+      UN RILASCIO E' UN TAG vX.Y.Z di tana-drink, mai `main`: fra
+      un'ondata e l'altra `main` puo' andare avanti. Il backoffice lo crea
+      (riquadro «Rilasci», un rilascio aperto alla volta) e la Function
+      `gestisciRilascio` fotografa le ondate in `rilasci/{tag}`: prova
+      (gruppo «prova», istanze nostre), interna (interne ed esistenti, come
+      la Tana), pilota (gruppo «pilota»), generale (tutte le altre attive;
+      le chiuse no). Il gruppo lo sceglie l'admin, riga per riga.
+      UN'ONDATA ALLA VOLTA: la avvia l'admin, e solo quando quella prima e'
+      finita senza falliti, in corso o in attesa. Un locale esistente non
+      si lancia: pubblica dal suo repository e l'ondata aspetta che
+      riferisca la versione del tag.
+      UN AGGIORNAMENTO FALLITO non segna piu' l'istanza in «errore»: un
+      esito su un'istanza gia' attiva (o su un locale esistente, o con
+      `operazione: aggiornamento`) e' un aggiornamento, e scrive solo
+      `istanze/{slug}.aggiornamento` (stato, ref, versione di prima,
+      errore); versione e ref cambiano solo se e' riuscito. Il rilascio si
+      ferma con il perche'; dalla riga del locale si riprova o si torna
+      alla versione di prima (un tag), poi si riprende con l'ondata
+      successiva. L'ultima ondata finita chiude il rilascio.
+    status: implemented
+    generate_issue: false
+    labels: [prodotto, flotta, regia]
+    test_cases:
+      - tests/rilasci.test.js
+      - tests/Backoffice.test.jsx
+      - tests/provisioning.test.js
+
   - id: REQ-AI-003
     title: "Il cassetto AI nella regia: credito in euro per installazione, tetto mensile, ricarica con Stripe, e la Tana come locale esistente"
     area: "functions/lib/ai.js, functions/lib/esistente.js, functions/index.js (richiestaAI, creaRicaricaAI, gestisciCassettoAI, registraLocaleEsistente, stripeWebhook), firestore.rules (ai/), piani.json (ai), src/pages/CreditoAI.jsx, src/pages/Backoffice.jsx, src/lib/ai.js"

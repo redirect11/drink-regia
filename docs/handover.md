@@ -374,6 +374,33 @@ L'elenco completo con i riferimenti al codice è in
    esistente») e la sua chiave della regia; il lato app in tana-drink
    (contratto in §7). Il ramo non va in `release/0.1.0` finché la chiave
    non c'è: Firebase non pubblica Functions con un segreto mancante.
+12. **I rilasci a ondate (REQ-FLOTTA-012)**, ramo `feature/rilasci-a-ondate`
+   (parte da `feature/cassetto-ai`, va unito dopo), scritto e provato il
+   27/10. La regia è pronta e lavora già con il workflow di oggi. In
+   tana-drink restano tre ritocchi (contratto in §7, «Rilasci a
+   ondate»), da portare a quella sessione: la regia non tocca tana-drink.
+13. **Quota dei progetti Google e organizzazione** (decisioni dell'utente
+   del 27/10/2026). Il modello resta un progetto per locale. L'utente
+   chiede a Google l'aumento della quota di progetti sull'account di
+   fatturazione; intanto apre un **secondo account di fatturazione per le
+   prove** (il primo regge progetti in produzione e non si tocca). Su
+   quello vanno `drink-regia-test` e i progetti delle istanze di prova:
+   in tana-drink il segreto `BILLING_ACCOUNT_ID` dell'environment
+   `flotta` punta al secondo account finché non ci sono locali veri, e
+   l'account di servizio del provisioning ha `roles/billing.user` su di
+   esso. Senza organizzazione i progetti delle istanze si creano a mano
+   (`drinkpos-<slug>`) e il workflow li importa. **L'organizzazione
+   Google** (Cloud Identity Free, su un dominio nostro verificato) toglie
+   questo passo: con `ORG_ID` il Terraform di tana-drink crea il progetto
+   da solo, in una cartella dei locali. Le organizzazioni nuove nascono
+   con regole di sicurezza accese: `iam.allowedPolicyMemberDomains`
+   blocca `allUsers`, quindi sulla cartella dei locali va allentata,
+   altrimenti le Functions pubbliche delle istanze (callable e webhook)
+   non si pubblicano; `iam.managed.disableServiceAccountKeyCreation`
+   blocca le chiavi JSON degli account di servizio creati dentro
+   l'organizzazione (la strada giusta è Workload Identity Federation da
+   GitHub, senza chiavi). I progetti di oggi possono restare fuori
+   dall'organizzazione. Ogni passo si fa col permesso dell'utente.
 
 ---
 
@@ -397,7 +424,8 @@ giorno**, e lo si scrive all'utente perché lo porti nell'altra sessione.
   stesso regex ovunque: `^[a-z][a-z0-9-]{4,28}[a-z0-9]$`.
 - **Callback** `esitoProvisioning`: bearer `PROVISIONING_CALLBACK_SECRET`
   (stesso valore nel repository tana-drink come segreto), corpo con
-  `slug`, `stato`, `progetto`, `url`, `errore`, `versione`.
+  `slug`, `stato`, `progetto`, `url`, `errore`, `versione`, `ref`,
+  `ambiente` e, facoltativo, `operazione` (sotto, «Rilasci a ondate»).
 - **Licenza nell'istanza**: `settings/bar.licenza` = `{ piano, moduli:
   {id: bool}, stato: attiva|sospesa|chiusa, motivo, dal, slug, regia_url,
   scritta_il }`. La scrive `licenza-istanza.mjs` alla prima attivazione e
@@ -432,6 +460,31 @@ giorno**, e lo si scrive all'utente perché lo porti nell'altra sessione.
   imponibile, iva, totale, da_verificare: [] }`, con `null` per i dati
   assenti. Tutto è una **proposta da rivedere** prima di pubblicarla o
   registrarla. Gli schemi stanno in `functions/lib/ai.js`.
+- **Rilasci a ondate** (REQ-FLOTTA-012, dal 27/10/2026). La regia porta
+  un rilascio ai locali un'ondata alla volta e lancia
+  `aggiorna-istanza.yml` con gli stessi input di oggi (`slug`,
+  `nome_locale`, `ref`): **nessun input nuovo**, perché GitHub rifiuta
+  un dispatch con input che il workflow non dichiara. Il `ref` di un
+  rilascio è sempre un tag `vX.Y.Z`. Lato tana-drink servono tre cose:
+  1. **Il tag e la versione combaciano.** La regia confronta la
+     `versione` riferita (`v` + `package.json`) con il tag del rilascio,
+     e usa la versione di prima come tag a cui tornare: il tag `vX.Y.Z`
+     deve avere `package.json` a `X.Y.Z`.
+  2. **Il callback di `aggiorna-istanza.yml` dice cos'è**: nel corpo
+     `"operazione": "aggiornamento"` (e `"attivazione"` in
+     `provisiona-istanza.yml`). Facoltativo: senza, la regia tratta come
+     aggiornamento ogni esito su un'istanza già attiva. Con un
+     aggiornamento fallito lo stato dell'istanza non cambia più; si
+     segna solo `istanze/{slug}.aggiornamento`.
+  3. **La Tana riferisce la sua versione.** È un locale esistente: si
+     pubblica dal suo repository, e l'ondata delle interne aspetta che
+     riferisca il tag. Dopo un deploy di produzione riuscito, il
+     workflow della Tana manda allo stesso callback
+     `{ "slug": "<slug della Tana nella regia>", "stato": "attiva",
+     "operazione": "aggiornamento", "versione": "vX.Y.Z", "ref":
+     "vX.Y.Z", "ambiente": "produzione" }` con il bearer
+     `PROVISIONING_CALLBACK_SECRET`. Su un locale esistente la regia
+     registra solo la versione, mai lo stato.
 
 ---
 

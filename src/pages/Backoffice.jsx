@@ -15,11 +15,15 @@ import {
   elencoCassettiAI,
   gestisciCassettoAI,
   registraLocaleEsistente,
+  elencoRilasci,
+  gestisciRilascio,
 } from '../lib/db.js'
 import { statoIstanza, statoDetto, STATI, progettoDi } from '../lib/istanze.js'
 import { PIANI, MODULI, prezzoMensile, euro } from '../lib/piani.js'
 import { contattoDi } from '../lib/clienti.js'
 import { statoCredito, euroCent } from '../lib/ai.js'
+import { GRUPPI, TAG, aggiornamentoDetto } from '../lib/rilasci.js'
+import Rilasci from './Rilasci.jsx'
 
 // IL BACKOFFICE (REQ-FLOTTA-005): tutti i clienti con piano, stato
 // dell'istanza, progetto, versione; le richieste in coda o in errore in
@@ -36,17 +40,20 @@ export default function Backoffice() {
   const [esistente, setEsistente] = useState(false)
   // La chiave AI appena creata: si vede una volta sola, qui (REQ-AI-003).
   const [chiaveNuova, setChiaveNuova] = useState(null)
+  const [rilasci, setRilasci] = useState([])
 
   const carica = async () => {
     try {
       // I cassetti AI sono un di più: se non si leggono, il resto del
       // backoffice deve lavorare lo stesso.
-      const [clienti, istanze, richieste, cassetti] = await Promise.all([
+      const [clienti, istanze, richieste, cassetti, elencoR] = await Promise.all([
         elencoClienti(),
         elencoIstanze(),
         elencoRichieste(),
         elencoCassettiAI().catch(() => ({})),
+        elencoRilasci().catch(() => []),
       ])
+      setRilasci(elencoR)
       setRighe(
         clienti
           .map((c) => ({ cliente: c, istanza: istanze[c.slug] || null, richiesta: richieste[c.slug] || null, cassetto: cassetti[c.slug] || null }))
@@ -85,22 +92,32 @@ export default function Backoffice() {
     carica()
   }
 
-  // L'ultima versione dell'app a un locale, o a tutti quelli attivi
-  // (REQ-FLOTTA-009): l'app di base è tana-drink, i locali la seguono
-  // quando lo si decide.
+  // L'ultima versione dell'app a un locale (REQ-FLOTTA-009): per una
+  // correzione urgente su un locale solo. A tutti i locali un rilascio ci
+  // arriva a ondate (REQ-FLOTTA-012), dal riquadro «Rilasci»: un errore
+  // si vede sulle istanze di prova, non su tutti insieme.
   const aggiorna = async (c) => {
     try {
       await aggiornaIstanza(c.slug)
     } catch (e) {
       setErrore(e.message)
     }
+    carica()
   }
-  const aggiornaTutte = async () => {
-    // I locali esistenti (la Tana) si aggiornano dal loro repository.
-    const attive = righe.filter((r) => r.stato === STATI.ATTIVA && r.istanza?.origine !== 'esistente')
-    if (!window.confirm(`Portare l’ultima versione a ${attive.length} locali attivi?`)) return
-    for (const r of attive) await aggiorna(r.cliente)
+  const azioneRilascio = async (azione, dati) => {
+    setErrore(null)
+    try {
+      const esito = await gestisciRilascio(azione, dati)
+      if (esito?.nonPartiti?.length) setErrore(`Non partiti: ${esito.nonPartiti.join('; ')}`)
+    } catch (e) {
+      setErrore(e.message)
+    }
+    carica()
   }
+  // Un aggiornamento fallito: si rilancia (nel rilascio, o da solo con lo
+  // stesso ref) oppure si torna alla versione di prima.
+  const riprova = (c, agg) =>
+    agg.rilascio ? azioneRilascio('riprova', { ref: agg.rilascio, slug: c.slug }) : aggiornaIstanza(c.slug, agg.ref).catch((e) => setErrore(e.message)).then(carica)
 
   const autorizza = async (c) => {
     try {
@@ -172,11 +189,6 @@ export default function Backoffice() {
           <button type="button" className="btn ghost small" onClick={() => setEsistente((v) => !v)}>
             {esistente ? 'Chiudi' : 'Locale esistente'}
           </button>
-          {righe.some((r) => r.stato === STATI.ATTIVA) && (
-            <button type="button" className="btn ghost small" onClick={aggiornaTutte}>
-              Aggiorna tutte le istanze attive
-            </button>
-          )}
         </div>
       </div>
       <p className="muted small">
@@ -223,6 +235,8 @@ export default function Backoffice() {
           </div>
         </section>
       )}
+
+      <Rilasci rilasci={rilasci} onAzione={azioneRilascio} />
 
       {daApprovare.length > 0 && (
         <section className="card" aria-label="Richieste da autorizzare">
@@ -306,6 +320,25 @@ export default function Backoffice() {
                 <td>
                   {istanza?.versione || <span className="muted">—</span>}
                   {istanza?.ref && istanza.ref !== 'main' && <div className="muted small">da {istanza.ref}</div>}
+                  {aggiornamentoDetto(istanza?.aggiornamento) && (
+                    <div className={istanza.aggiornamento.stato === 'fallito' ? 'errore small' : 'muted small'}>
+                      {aggiornamentoDetto(istanza.aggiornamento)}
+                    </div>
+                  )}
+                  {daFlotta && stato === STATI.ATTIVA && !istanza?.interna && (
+                    <select
+                      className="small"
+                      aria-label={`Gruppo di rilascio di ${c.nome_locale}`}
+                      value={istanza?.gruppo_rilascio || 'generale'}
+                      onChange={(e) => azioneRilascio('gruppo', { slug: c.slug, gruppo: e.target.value })}
+                    >
+                      {GRUPPI.map((g) => (
+                        <option key={g.id} value={g.id}>
+                          {g.nome}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </td>
                 <td>
                   {credito ? (
@@ -352,6 +385,24 @@ export default function Backoffice() {
                     <button type="button" className="btn ghost small" onClick={() => aggiorna(c)}>
                       Aggiorna
                     </button>
+                  )}
+                  {daFlotta && istanza?.aggiornamento?.stato === 'fallito' && (
+                    <>
+                      <button type="button" className="btn ghost small" onClick={() => riprova(c, istanza.aggiornamento)}>
+                        Riprova
+                      </button>
+                      {TAG.test(istanza.aggiornamento.versione_precedente || '') && (
+                        <button
+                          type="button"
+                          className="btn ghost small"
+                          onClick={() => {
+                            if (window.confirm(`Riportare ${c.nome_locale} a ${istanza.aggiornamento.versione_precedente}?`)) azioneRilascio('indietro', { slug: c.slug })
+                          }}
+                        >
+                          Torna a {istanza.aggiornamento.versione_precedente}
+                        </button>
+                      )}
+                    </>
                   )}
                   {daFlotta && stato === STATI.ATTIVA && (istanza?.licenza_stato || 'attiva') === 'attiva' && (
                     <>

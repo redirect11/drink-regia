@@ -16,7 +16,8 @@ const { onRequest } = require('firebase-functions/v2/https')
 const { defineSecret } = require('firebase-functions/params')
 const { initializeApp } = require('firebase-admin/app')
 const { getFirestore } = require('firebase-admin/firestore')
-const { preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, documentoIstanza, bearerValido } = require('./lib/provisioning.js')
+const { preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, eAggiornamento, documentoIstanza, documentoAggiornamento, bearerValido } = require('./lib/provisioning.js')
+const rilasci = require('./lib/rilasci.js')
 const { patchLicenzaPiano, sceltaCambiata } = require('./lib/licenza.js')
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
 const { FieldValue } = require('firebase-admin/firestore')
@@ -140,7 +141,7 @@ exports.rilanciaProvisioning = onDocumentUpdated(
   }
 )
 
-// L'esito dal workflow: POST con bearer, corpo { slug, stato, url, progetto, versione, errore }.
+// L'esito dal workflow: POST con bearer, corpo { slug, stato, url, progetto, versione, ref, ambiente, operazione, errore }.
 exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK_SECRET], cors: false }, async (req, res) => {
   if (req.method !== 'POST') return res.status(405).send('')
   if (!bearerValido(req.get('authorization'), PROVISIONING_CALLBACK_SECRET.value())) return res.status(401).send('')
@@ -148,6 +149,17 @@ exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK
   if (!esito) return res.status(400).json({ errore: 'esito non valido' })
   const ref = db.doc(`istanze/${esito.slug}`)
   const prima = (await ref.get()).data() || null
+  // Un aggiornamento non tocca lo stato dell'istanza né la richiesta di
+  // attivazione (REQ-FLOTTA-012); fa andare avanti, o fermare, il rilascio.
+  if (eAggiornamento(esito, prima)) {
+    await ref.set(documentoAggiornamento(esito, prima), { merge: true })
+    try {
+      await ricalcolaRilasci()
+    } catch (e) {
+      console.error('[rilasci] ricalcolo dopo esito:', e?.message || e)
+    }
+    return res.status(200).json({ ok: true, operazione: 'aggiornamento' })
+  }
   await ref.set(documentoIstanza(esito, prima), { merge: true })
   await db.doc(`richieste/${esito.slug}`).set({ stato: esito.stato, aggiornata_il: new Date().toISOString() }, { merge: true })
   res.status(200).json({ ok: true })
@@ -278,20 +290,140 @@ exports.sospendiMorosi = onSchedule({ ...OPTS, schedule: '0 6 * * *', timeZone: 
 // L'app di base è tana-drink: ogni rilascio si porta sui locali che si
 // decide dal backoffice («Aggiorna», «Aggiorna tutte»). La versione la
 // riferisce il workflow, con l'esito.
+// Lancia l'aggiornamento di un locale e lo segna «in corso», con la
+// versione di prima (il tag a cui tornare se va male). Ritorna null se è
+// partito, o il perché se non è partito.
+async function lanciaAggiornamento(slug, ref, { rilascio = null, ritorno = false } = {}) {
+  const istRef = db.doc(`istanze/${slug}`)
+  const ist = (await istRef.get()).data()
+  if (!ist || ist.stato !== 'attiva') return 'L’istanza non è attiva.'
+  // Un locale registrato come esistente (la Tana, REQ-AI-003) ha i suoi
+  // rilasci e il suo progetto: il workflow della flotta non lo tocca mai.
+  if (ist.origine === 'esistente') return 'Questa installazione si aggiorna dal suo repository, non dalla flotta.'
+  const cliente = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]?.data()
+  const res = await dispatchGitHub(WORKFLOW_AGGIORNA, dispatchAggiornamento({ slug, nome_locale: cliente?.nome_locale }, { ref }))
+  const adesso = new Date()
+  if (res.status !== 204) {
+    // Non è partito: si segna fallito, così il rilascio si ferma e si vede.
+    await istRef.set({ aggiornamento: { ...rilasci.aggiornamentoLanciato(ist, ref, { rilascio, ritorno, adesso }), stato: 'fallito', finito_il: adesso.toISOString(), errore: `GitHub ${res.status}: il workflow non è partito` } }, { merge: true })
+    return `GitHub ${res.status}`
+  }
+  await istRef.set({ aggiornamento: rilasci.aggiornamentoLanciato(ist, ref, { rilascio, ritorno, adesso }), aggiornamento_chiesto_il: adesso.toISOString(), aggiornamento_ref: ref }, { merge: true })
+  return null
+}
+
+async function tutteLeIstanze() {
+  return Object.fromEntries((await db.collection('istanze').get()).docs.map((d) => [d.id, d.data()]))
+}
+
+// Dopo ogni esito o azione: i rilasci aperti si fermano o si chiudono
+// (dopoEsito) e il riepilogo per il backoffice si riscrive.
+async function ricalcolaRilasci() {
+  const aperti = (await db.collection('rilasci').where('stato', 'in', rilasci.APERTI).get()).docs
+  if (!aperti.length) return
+  const istanze = await tutteLeIstanze()
+  for (const d of aperti) {
+    const r = rilasci.dopoEsito(d.data(), istanze) || d.data()
+    await d.ref.set(rilasci.conRiepilogo(r, istanze))
+  }
+}
+
 exports.aggiornaIstanza = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN] }, async (req) => {
   if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
   const slug = String(req.data?.slug || '')
-  const ist = (await db.doc(`istanze/${slug}`).get()).data()
-  if (!ist || ist.stato !== 'attiva') throw new HttpsError('failed-precondition', 'L’istanza non è attiva.')
-  // Un locale registrato come esistente (la Tana, REQ-AI-003) ha i suoi
-  // rilasci e il suo progetto: il workflow della flotta non lo tocca mai.
-  if (ist.origine === 'esistente') throw new HttpsError('failed-precondition', 'Questa installazione si aggiorna dal suo repository, non dalla flotta.')
-  const cliente = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]?.data()
   const ref = String(req.data?.ref || REF_APP)
-  const res = await dispatchGitHub(WORKFLOW_AGGIORNA, dispatchAggiornamento({ slug, nome_locale: cliente?.nome_locale }, { ref }))
-  if (res.status !== 204) throw new HttpsError('internal', `GitHub ${res.status}`)
-  await db.doc(`istanze/${slug}`).set({ aggiornamento_chiesto_il: new Date().toISOString(), aggiornamento_ref: ref }, { merge: true })
+  const perche = await lanciaAggiornamento(slug, ref)
+  if (perche) throw new HttpsError('failed-precondition', perche)
   return { ok: true, ref }
+})
+
+// ── I RILASCI A ONDATE (REQ-FLOTTA-012) ───────────────────────────────
+// Un rilascio alla volta. Azioni dell'admin:
+//   crea {ref}            fotografa le ondate per il tag vX.Y.Z
+//   avanza {ref}          avvia l'ondata successiva (la prima, o riprende
+//                         un rilascio fermo quando l'ondata è a posto)
+//   riprova {ref, slug}   rilancia un aggiornamento fallito
+//   indietro {slug}       riporta un locale alla versione di prima
+//   ferma {ref, perche}   nessuna ondata nuova finché non si riprende
+//   annulla {ref}         il rilascio si chiude qui (i locali restano
+//                         come sono)
+//   gruppo {slug, gruppo} prova, pilota o generale
+// Un'ondata grande lancia molti workflow uno dopo l'altro: tempo lungo.
+exports.gestisciRilascio = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN], timeoutSeconds: 540 }, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const { azione } = req.data || {}
+  const tag = String(req.data?.ref || '')
+  const slug = String(req.data?.slug || '')
+  const rilascioRef = rilasci.TAG.test(tag) ? db.doc(`rilasci/${tag}`) : null
+  const no = (perche) => {
+    throw new HttpsError('failed-precondition', perche)
+  }
+  try {
+    if (azione === 'gruppo') {
+      const gruppo = String(req.data?.gruppo || '')
+      if (!rilasci.GRUPPI.includes(gruppo)) no('Gruppo non valido.')
+      const ist = (await db.doc(`istanze/${slug}`).get()).data()
+      if (!ist) no('Istanza non trovata.')
+      await db.doc(`istanze/${slug}`).set({ gruppo_rilascio: gruppo }, { merge: true })
+      return { ok: true }
+    }
+    if (azione === 'indietro') {
+      const ist = (await db.doc(`istanze/${slug}`).get()).data()
+      const versione = rilasci.versioneDiRitorno(ist)
+      if (!versione) no('Non c’è una versione precedente a cui tornare.')
+      const perche = await lanciaAggiornamento(slug, versione, { rilascio: ist.aggiornamento?.rilascio || null, ritorno: true })
+      if (perche) no(perche)
+      await ricalcolaRilasci()
+      return { ok: true, ref: versione }
+    }
+    if (!rilascioRef) no('Un rilascio è un tag vX.Y.Z di tana-drink, non un ramo.')
+    if (azione === 'crea') {
+      const aperti = await db.collection('rilasci').where('stato', 'in', rilasci.APERTI).get()
+      if (!aperti.empty) no(`C’è già un rilascio aperto: ${aperti.docs[0].id}. Finiscilo o annullalo prima.`)
+      const esiste = (await rilascioRef.get()).data()
+      if (esiste && esiste.stato !== 'annullato') no(`Il rilascio ${tag} c’è già.`)
+      const istanze = await tutteLeIstanze()
+      const nuovo = rilasci.nuovoRilascio(tag, istanze, { da: req.auth.token.email || req.auth.uid })
+      await rilascioRef.set(rilasci.conRiepilogo(nuovo, istanze))
+      return { ok: true }
+    }
+    const rilascio = (await rilascioRef.get()).data()
+    if (!rilascio) no('Rilascio non trovato.')
+    if (azione === 'avanza') {
+      const istanze = await tutteLeIstanze()
+      const { rilascio: avanti, daLanciare } = rilasci.avanzamento(rilascio, istanze)
+      // Prima si scrive il rilascio, poi si lancia: un secondo clic trova
+      // l'ondata già partita e si ferma.
+      await rilascioRef.set(rilasci.conRiepilogo(avanti, istanze))
+      const nonPartiti = []
+      for (const s of daLanciare) {
+        const perche = await lanciaAggiornamento(s, tag, { rilascio: tag })
+        if (perche) nonPartiti.push(`${s}: ${perche}`)
+      }
+      await ricalcolaRilasci()
+      return { ok: true, ondata: avanti.ondate[avanti.ondata].nome, lanciati: daLanciare.length - nonPartiti.length, nonPartiti }
+    }
+    if (azione === 'riprova') {
+      if (!rilascio.ondate.some((o) => o.slugs.includes(slug))) no('Questo locale non è nel rilascio.')
+      const perche = await lanciaAggiornamento(slug, tag, { rilascio: tag })
+      if (perche) no(perche)
+      await ricalcolaRilasci()
+      return { ok: true }
+    }
+    if (azione === 'ferma' || azione === 'annulla') {
+      if (!rilasci.APERTI.includes(rilascio.stato)) no('Il rilascio non è aperto.')
+      const adesso = new Date().toISOString()
+      const patch = azione === 'ferma'
+        ? { stato: 'fermo', fermato_perche: String(req.data?.perche || 'Fermato dall’amministratore').slice(0, 200) }
+        : { stato: 'annullato', annullato_il: adesso }
+      await rilascioRef.set({ ...patch, aggiornato_il: adesso }, { merge: true })
+      return { ok: true }
+    }
+    no('Azione sconosciuta.')
+  } catch (e) {
+    if (e instanceof rilasci.RilascioNonValido) throw new HttpsError('failed-precondition', e.message)
+    throw e
+  }
 })
 
 // ── IL PIANO CHE CAMBIA (REQ-FLOTTA-010) ──────────────────────────────
