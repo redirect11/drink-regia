@@ -4,16 +4,13 @@ Una voce per ogni cambiamento visibile, nello stesso commit del
 cambiamento. La versione in cima è quella in lavorazione finché non ha la
 data.
 
-## Sul ramo `feature/flotta-nella-regia` (non ancora in una versione)
+## 0.2.0 (in lavorazione)
 
 - L'attivazione e l'aggiornamento dei locali partono dalla regia: il
   Terraform e i workflow stanno qui, e l'app arriva da tana-drink alla
   versione scelta. La regia di test lavora sui suoi locali di prova, col
   suo account di fatturazione, e può sospenderli e chiuderli come la
   produzione (REQ-FLOTTA-013).
-
-## Sul ramo `feature/rilasci-a-ondate` (non ancora in una versione)
-
 - I rilasci di tana-drink arrivano ai locali a ondate: istanze di prova,
   installazioni interne, locali pilota, tutti gli altri. Dal riquadro
   «Rilasci» del backoffice l'admin crea un rilascio da un tag e avvia
@@ -23,9 +20,6 @@ data.
 - Un aggiornamento fallito non segna più il locale «in errore»: il locale
   resta attivo, la riga dice cosa è fallito, il rilascio si ferma, e si
   riprova o si torna alla versione di prima (REQ-FLOTTA-012).
-
-## Sul ramo `feature/cassetto-ai` (non ancora in una versione)
-
 - Il credito AI di ogni locale: nella dashboard il titolare vede il
   credito, lo speso del mese contro il tetto e gli ultimi consumi, e
   ricarica a pacchetti con Stripe. Finito il credito si fermano solo le
