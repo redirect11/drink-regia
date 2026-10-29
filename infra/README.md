@@ -27,6 +27,7 @@ regia di test (`drink-regia-test`) su `flotta-test`. Lo sceglie l'input
 | `REGIA_URL` | variabile | `https://drink-regia.web.app` | `https://drink-regia-test.web.app` |
 | `REGIA_SA_EMAIL` | variabile | `600871952552-compute@developer.gserviceaccount.com` | `246268671867-compute@developer.gserviceaccount.com` |
 | `ORG_ID` | variabile, facoltativa | l'organizzazione Google Cloud | la stessa |
+| `ARCHIVIO_BUCKET` | variabile | `drink-regia-archivio` (nel progetto `drink-regia`) | `drink-regia-test-archivio` (nel progetto `drink-regia-test`) |
 
 `REGIA_SA_EMAIL` è l'account con cui girano le Functions di quella regia:
 il Terraform gli dà `roles/datastore.user` sul locale, così la regia può
@@ -52,6 +53,20 @@ soltanto.
    provisioning il ruolo «Proprietario». Il workflow lo importa e lo
    completa; se manca, si ferma e lo dice. Con `ORG_ID` lo crea Terraform,
    e chi crea il progetto ne è proprietario.
+5. **Il bucket degli archivi** di ciascuna regia (REQ-FLOTTA-014,
+   `elimina-istanza.yml`), creato una volta:
+   - nome come in `ARCHIVIO_BUCKET`, regione `europe-west1`, accesso
+     uniforme, accesso pubblico **impedito**;
+   - una regola del ciclo di vita: **elimina gli oggetti dopo 180 giorni**
+     (è la durata scritta nei termini e nella privacy);
+   - `provisioning@drink-regia`: «Amministratore oggetti Storage» sul
+     bucket (ci scrive il backup);
+   - l'account di runtime delle Functions di quella regia
+     (`REGIA_SA_EMAIL`): «Visualizzatore oggetti Storage» sul bucket, e
+     «Creatore token account di servizio» **su se stesso**, per firmare il
+     link di download che `scaricaArchivio` dà al titolare. Nessun altro.
+   Il workflow usa `gcloud`: il runner di GitHub ce l'ha, e lo autentica
+   `google-github-actions/auth` con la stessa chiave di provisioning.
 
 ## Gli slug di prova
 

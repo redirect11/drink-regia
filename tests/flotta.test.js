@@ -23,6 +23,8 @@ const leggi = (f) => readFileSync(join(process.cwd(), f), 'utf8')
 const eventi = (w) => w.on ?? w[true]
 const provisiona = load(leggi('.github/workflows/provisiona-istanza.yml'))
 const aggiorna = load(leggi('.github/workflows/aggiorna-istanza.yml'))
+const elimina = load(leggi('.github/workflows/elimina-istanza.yml'))
+const { dispatchEliminazione } = require('../functions/lib/eliminazione.js')
 const job = (w) => Object.values(w.jobs)[0]
 const passi = (w) => job(w).steps
 const passo = (w, nome) => passi(w).find((s) => s.name === nome)
@@ -162,5 +164,50 @@ describe('le Functions lanciano i workflow della regia', () => {
   it('la regia di test lancia sull’environment di test, la produzione sul suo', () => {
     expect(env('functions/.env.drink-regia-test').FLOTTA_AMBIENTE).toBe('test')
     expect(env('functions/.env.drink-regia').FLOTTA_AMBIENTE).toBe('produzione')
+  })
+})
+
+// L'ELIMINAZIONE (REQ-FLOTTA-014): il backup completo e verificato viene
+// PRIMA di qualunque cancellazione, e senza verifica il progetto resta.
+describe('elimina-istanza.yml', () => {
+  const nomi = passi(elimina).map((s) => s.name || s.uses)
+  const prima = (a, b) => expect(nomi.indexOf(a), `${a} prima di ${b}`).toBeLessThan(nomi.indexOf(b))
+
+  it('parte solo a comando, con gli input che la regia manda, sull’environment della sua regia', () => {
+    expect(Object.keys(eventi(elimina))).toEqual(['workflow_dispatch'])
+    expect(Object.keys(eventi(elimina).workflow_dispatch.inputs).sort()).toEqual(Object.keys(dispatchEliminazione('prova-bar').inputs).sort())
+    expect(job(elimina).environment).toBe("${{ inputs.ambiente == 'test' && 'flotta-test' || 'flotta' }}")
+    expect(elimina.concurrency.group).toBe('istanza-${{ inputs.slug }}')
+  })
+
+  it('gli input non entrano nei comandi, e la demo non si elimina', () => {
+    for (const s of passi(elimina)) expect(s.run || '', s.name).not.toMatch(/\$\{\{\s*(inputs|github\.event\.inputs)\./)
+    expect(passi(elimina)[0].run).toContain('drinkpos-demo')
+  })
+
+  it('l’ordine: backup leggibile, export nativo, archivio, verifica, e solo dopo l’eliminazione', () => {
+    prima('Il backup leggibile', "L'export nativo del database")
+    prima("L'export nativo del database", "Nell'archivio")
+    prima("Nell'archivio", 'Il backup è completo?')
+    prima('Il backup è completo?', 'Elimina il progetto')
+    prima('Elimina il progetto', 'Lo stato di Terraform')
+  })
+
+  it('senza backup verificato niente si cancella', () => {
+    expect(passo(elimina, 'Il backup è completo?').run).toContain('echo "VERIFICATO=si" >> "$GITHUB_ENV"')
+    expect(passo(elimina, 'Elimina il progetto').if).toBe("env.VERIFICATO == 'si'")
+    expect(passo(elimina, 'Lo stato di Terraform').if).toBe("env.VERIFICATO == 'si'")
+    // La verifica guarda lo zip, il manifesto e l'export nativo completo.
+    const verifica = passo(elimina, 'Il backup è completo?').run
+    expect(verifica).toContain('$BYTE_ZIP')
+    expect(verifica).toContain('manifesto.json')
+    expect(verifica).toContain('overall_export_metadata')
+  })
+
+  it('l’esito torna alla regia sempre, con l’archivio solo se è eliminata', () => {
+    const esito = passo(elimina, 'Esito alla regia')
+    expect(esito.if).toBe('always()')
+    expect(esito.run).toContain('operazione: "eliminazione"')
+    expect(esito.run).toContain('stato === "eliminata" ?')
   })
 })

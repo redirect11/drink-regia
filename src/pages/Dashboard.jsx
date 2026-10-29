@@ -4,6 +4,7 @@ import { statoIstanza, statoDetto, puoAttivare, urlDi, progettoDi, STATI } from 
 import { PIANI, MODULI, prezzoMensile, euro } from '../lib/piani.js'
 import SceltaPiano from './SceltaPiano.jsx'
 import CreditoAI from './CreditoAI.jsx'
+import ChiudiLocale from './ChiudiLocale.jsx'
 
 // LA DASHBOARD DEL TITOLARE (REQ-FLOTTA-004): il suo locale, il piano, lo
 // stato dell'istanza e, quando è attiva, l'indirizzo dell'app.
@@ -123,6 +124,8 @@ export default function Dashboard({ utente }) {
       {new URLSearchParams(window.location.search).get('pagamento') === 'ok' && (
         <p className="muted small">Pagamento ricevuto: l’abbonamento compare qui sopra appena Stripe ce lo conferma, di solito in pochi secondi.</p>
       )}
+      {/* In fondo, lontano dal resto: chiudere e cancellare il locale. */}
+      <ChiudiLocale istanza={istanza} />
     </main>
   )
 }

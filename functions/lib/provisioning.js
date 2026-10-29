@@ -33,6 +33,9 @@ function preparaRichiesta(cliente, { istanza = null, richiesta = null, emailVeri
   // l'istanza vince sulla richiesta, e in viaggio non si chiede di nuovo.
   const stato = istanza?.stato || richiesta?.stato || null
   if (stato && IN_VIAGGIO.includes(stato)) return no(`L’istanza è già ${stato}.`)
+  // Un locale eliminato (REQ-FLOTTA-014) non rinasce da qui: Google non
+  // riusa mai l'id di un progetto cancellato, drinkpos-<slug> non torna.
+  if (istanza?.stato === 'eliminata') return no('Il locale è stato eliminato: per riaprirlo scrivici.')
   const scelta = sceltaPulita(cliente)
   return {
     ok: true,

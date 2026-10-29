@@ -14,6 +14,8 @@ export const STATI = {
   IN_CORSO: 'in corso',
   ATTIVA: 'attiva',
   ERRORE: 'errore',
+  // Eliminata col suo progetto, dopo il backup (REQ-FLOTTA-014).
+  ELIMINATA: 'eliminata',
 }
 
 const DETTO = {
@@ -23,6 +25,7 @@ const DETTO = {
   [STATI.IN_CORSO]: 'Attivazione in corso (qualche minuto)',
   [STATI.ATTIVA]: 'Attiva',
   [STATI.ERRORE]: 'Attivazione fallita: ci stiamo guardando',
+  [STATI.ELIMINATA]: 'Eliminata',
 }
 
 export const statoDetto = (stato) => DETTO[stato] || DETTO[STATI.DA_ATTIVARE]

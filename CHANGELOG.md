@@ -14,6 +14,12 @@ data.
 - Il backoffice mostra un locale per scheda: nome e stato colorato in
   alto, i dati in ordine, il link all'app del locale, le azioni a gruppi
   con Sospendi e Chiudi separati dalle altre (REQ-FLOTTA-005).
+- Un locale si può eliminare col suo progetto, sempre dopo un backup
+  completo e verificato. Il titolare lo chiede dalla sua dashboard: l'app
+  si ferma subito, la cancellazione arriva dopo 30 giorni e fino ad allora
+  si annulla. L'admin, per un locale già chiuso, la fa anche subito. Si
+  conferma scrivendo il nome dell'app. Il backup resta 180 giorni e lo
+  scarica solo il titolare. Termini e privacy aggiornati (REQ-FLOTTA-014).
 
 ## 0.2.0 (in lavorazione)
 

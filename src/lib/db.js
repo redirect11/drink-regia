@@ -274,3 +274,21 @@ export async function registraLocaleEsistente(dati) {
   const { data } = await fn(dati)
   return data
 }
+
+// L'eliminazione di un locale (REQ-FLOTTA-014). Il titolare: «chiedi»
+// (chiude e programma a 30 giorni) e «annulla». L'admin: «chiedi» con
+// slug e subito, e «annulla». Si conferma col nome dell'app.
+export async function gestisciEliminazione(azione, dati = {}) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'gestisciEliminazione')
+  const { data } = await fn({ azione, ...dati })
+  return data
+}
+
+// Il link, valido 15 minuti, per scaricare l'archivio del proprio locale.
+export async function scaricaArchivio() {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'scaricaArchivio')
+  const { data } = await fn({})
+  return data
+}

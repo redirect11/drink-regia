@@ -490,3 +490,43 @@ requirements:
       - tests/flotta.test.js
       - tests/licenza.test.js
       - tests/provisioning.test.js
+
+  - id: REQ-FLOTTA-014
+    title: "Eliminare un locale e il suo progetto, sempre dopo un backup completo e verificato che scarica solo il titolare"
+    area: "functions/lib/eliminazione.js, functions/index.js (gestisciEliminazione, eliminazioniProgrammate, scaricaArchivio, esitoProvisioning), .github/workflows/elimina-istanza.yml, scripts/archivia-istanza.mjs, src/pages/ChiudiLocale.jsx, src/pages/Dashboard.jsx, src/pages/Backoffice.jsx (EliminaLocale), src/lib/istanze.js (ELIMINATA), src/pages/Legali.jsx"
+    description: >
+      Decisioni dell'utente del 29/10/2026. IL TITOLARE, dalla sua dashboard,
+      chiude il locale e ne chiede la cancellazione: l'app si ferma subito,
+      l'abbonamento si disdice a fine periodo, la cancellazione parte dopo
+      30 giorni; fino ad allora la annulla e il locale torna com'era (e la
+      disdetta si toglie). Non puo' chiederla subito, ne' annullare una
+      chiusura decisa dall'admin. L'ADMIN, solo per un locale gia' chiuso,
+      sceglie fra subito e 30 giorni dalla chiusura, e annulla qualunque
+      cancellazione programmata. Mai per un locale esistente, interno o per
+      la demo. Tutti e due confermano scrivendo il nome dell'app
+      (drinkpos-<slug>). IL BACKUP E' OBBLIGATORIO: elimina-istanza.yml fa
+      il backup leggibile (dati.json con tutte le collezioni e i tipi,
+      utenti.json senza password, i file dello Storage, manifesto.json, in
+      archivio.zip) e l'export nativo di Firestore, li mette nel bucket
+      degli archivi, verifica zip, manifesto ed export completo, e SOLO
+      DOPO cancella il progetto e lo stato di Terraform; senza verifica il
+      progetto resta. La regia rifiuta un esito «eliminata» senza archivio.
+      L'ARCHIVIO resta 180 giorni (regola del bucket) e lo scarica solo il
+      titolare del locale, dalla dashboard, con un link firmato di 15
+      minuti: per quei dati il locale e' titolare del trattamento e noi
+      responsabili (GDPR art. 28); nemmeno l'admin ha il pulsante. Ogni
+      mattina eliminazioniProgrammate lancia quelle arrivate alla data, se
+      il locale e' ancora chiuso. Un locale eliminato non si riattiva
+      (Google non riusa l'id di un progetto cancellato). Termini e privacy
+      lo dicono; il DPA, quando c'e', deve dire lo stesso. Da fare fuori dal
+      codice: i bucket degli archivi e i loro permessi (infra/README.md).
+    status: partial
+    generate_issue: true
+    labels: [flotta, regia, privacy]
+    priority: P1
+    test_cases:
+      - tests/eliminazione.test.js
+      - tests/ChiudiLocale.test.jsx
+      - tests/Backoffice.test.jsx
+      - tests/flotta.test.js
+      - tests/provisioning.test.js

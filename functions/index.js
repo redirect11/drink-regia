@@ -30,6 +30,8 @@ const { patchLicenza, daSospendere, STATI: STATI_LICENZA } = require('./lib/sosp
 const { initializeApp: initializeAppCon, getApps } = require('firebase-admin/app')
 const { getAuth } = require('firebase-admin/auth')
 const ai = require('./lib/ai.js')
+const elim = require('./lib/eliminazione.js')
+const { getStorage } = require('firebase-admin/storage')
 const { datiEsistente, documentiEsistente, DatiNonValidi, scriveLicenza } = require('./lib/esistente.js')
 
 initializeApp()
@@ -46,6 +48,7 @@ const REPO = process.env.GITHUB_REPO || 'redirect11/drink-regia'
 const REF = process.env.FLOTTA_REF || 'main'
 const WORKFLOW = 'provisiona-istanza.yml'
 const WORKFLOW_AGGIORNA = 'aggiorna-istanza.yml'
+const WORKFLOW_ELIMINA = 'elimina-istanza.yml'
 // La versione dell'app da pubblicare: di norma `main` (l'ultimo rilascio).
 const REF_APP = process.env.APP_REF || 'main'
 // La regia di test lancia sull'environment flotta-test: il suo account di
@@ -151,6 +154,15 @@ exports.rilanciaProvisioning = onDocumentUpdated(
 exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK_SECRET], cors: false }, async (req, res) => {
   if (req.method !== 'POST') return res.status(405).send('')
   if (!bearerValido(req.get('authorization'), PROVISIONING_CALLBACK_SECRET.value())) return res.status(401).send('')
+  // L'esito di un'eliminazione (REQ-FLOTTA-014) ha campi e stati suoi.
+  if (req.body?.operazione === 'eliminazione') {
+    const fine = elim.esitoEliminazione(req.body)
+    if (!fine) return res.status(400).json({ errore: 'esito non valido' })
+    const ref = db.doc(`istanze/${fine.slug}`)
+    const prima = (await ref.get()).data() || null
+    await ref.set(elim.documentoEliminazione(fine, prima), { merge: true })
+    return res.status(200).json({ ok: true, operazione: 'eliminazione' })
+  }
   const esito = esitoValido(req.body)
   if (!esito) return res.status(400).json({ errore: 'esito non valido' })
   const ref = db.doc(`istanze/${esito.slug}`)
@@ -747,4 +759,123 @@ exports.registraLocaleEsistente = onCall(OPTS, async (req) => {
   batch.set(db.doc(`ai/${d.slug}`), ai.nuovoCassetto({ slug: d.slug, uid: utente.uid, interna: d.interna, adesso }))
   await batch.commit()
   return { uid: utente.uid, slug: d.slug }
+})
+
+// ── L'ELIMINAZIONE DI UN LOCALE (REQ-FLOTTA-014) ───────────────────────
+//
+// Decisioni dell'utente del 29/10/2026. Il TITOLARE, dalla sua dashboard,
+// chiude il locale e ne chiede la cancellazione, che parte fra 30 giorni;
+// finché non parte la può annullare, e il locale torna com'era. Solo
+// l'ADMIN può chiederla subito (o anche lui a 30 giorni), e solo per un
+// locale già chiuso. Tutti e due confermano scrivendo il nome dell'app.
+// Il lavoro lo fa elimina-istanza.yml: prima il backup verificato, poi
+// l'eliminazione. Le regole stanno in lib/eliminazione.js.
+
+async function lanciaEliminazione(slug) {
+  const res = await dispatchGitHub(WORKFLOW_ELIMINA, elim.dispatchEliminazione(slug, { ref: REF, ambiente: AMBIENTE_FLOTTA }))
+  const ref = db.doc(`istanze/${slug}`)
+  if (res.status !== 204) {
+    await ref.set({ eliminazione: { stato: 'fallita', errore: `GitHub ${res.status}: il workflow non è partito`, finito_il: new Date().toISOString() } }, { merge: true })
+    return `GitHub ${res.status}`
+  }
+  await ref.set({ eliminazione: { stato: 'in corso', lanciata_il: new Date().toISOString() } }, { merge: true })
+  return null
+}
+
+// Disdetta a fine periodo, o il suo contrario: chi chiude il locale non
+// paga il mese dopo, chi ci ripensa torna come prima.
+async function disdettaAFinePeriodo(cliente, disdici) {
+  const sub = cliente?.abbonamento?.stripe_subscription
+  const stripe = stripeClient()
+  if (!sub || !stripe) return
+  await stripe.subscriptions.update(sub, { cancel_at_period_end: disdici })
+}
+
+exports.gestisciEliminazione = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN, STRIPE_SECRET_KEY] }, async (req) => {
+  if (!req.auth) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  const admin = req.auth.token?.admin === true
+  const { azione, conferma, subito = false } = req.data || {}
+  const adesso = new Date()
+
+  // Di quale locale si parla: l'admin lo nomina, il titolare è il suo.
+  let slug
+  let cliente
+  if (admin) {
+    slug = String(req.data?.slug || '')
+    if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(slug)) throw new HttpsError('invalid-argument', 'Slug non valido.')
+    cliente = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]?.data() || null
+  } else {
+    cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data() || null
+    slug = cliente?.slug
+    if (!slug) throw new HttpsError('failed-precondition', 'Nessun locale collegato a questo account.')
+  }
+  const istRef = db.doc(`istanze/${slug}`)
+  const ist = (await istRef.get()).data() || null
+
+  if (azione === 'chiedi' && !admin) {
+    const puo = elim.puoChiedereTitolare(ist)
+    if (!puo.ok) throw new HttpsError('failed-precondition', puo.perche)
+    if (!elim.confermaValida(ist, conferma)) throw new HttpsError('invalid-argument', `Per confermare scrivi ${ist.progetto}.`)
+    const richiesta = elim.richiestaTitolare(ist, { da: req.auth.token.email || req.auth.uid, adesso })
+    await scriviStatoIstanza(slug, 'chiusa', 'chiusura chiesta dal titolare')
+    await istRef.set({ eliminazione: richiesta }, { merge: true })
+    await disdettaAFinePeriodo(cliente, true).catch((e) => console.error(`[eliminazione] ${slug}, disdetta:`, e?.message || e))
+    return { ok: true, quando: richiesta.quando }
+  }
+
+  if (azione === 'chiedi' && admin) {
+    const puo = elim.puoEliminare(ist)
+    if (!puo.ok) throw new HttpsError('failed-precondition', puo.perche)
+    if (!elim.confermaValida(ist, conferma)) throw new HttpsError('invalid-argument', `Per confermare scrivi ${ist.progetto}.`)
+    const richiesta = elim.eliminazioneChiesta(ist, { subito: Boolean(subito), da: req.auth.token.email || req.auth.uid, adesso })
+    await istRef.set({ eliminazione: richiesta }, { merge: true })
+    if (!subito) return { ok: true, quando: richiesta.quando }
+    const perche = await lanciaEliminazione(slug)
+    if (perche) throw new HttpsError('unavailable', `Il backup e l’eliminazione non sono partiti: ${perche}.`)
+    return { ok: true, quando: richiesta.quando }
+  }
+
+  if (azione === 'annulla') {
+    const puo = elim.puoAnnullare(ist, admin ? 'admin' : 'titolare')
+    if (!puo.ok) throw new HttpsError('failed-precondition', puo.perche)
+    const e = ist.eliminazione
+    await istRef.set({ eliminazione: { ...e, stato: 'annullata', annullata_il: adesso.toISOString(), annullata_da: req.auth.token.email || req.auth.uid } }, { merge: true })
+    // Una chiusura chiesta dal titolare si annulla tornando com'era.
+    if (e.richiedente === 'titolare') {
+      await scriviStatoIstanza(slug, e.licenza_prima || 'attiva', e.licenza_prima === 'sospesa' ? 'pagamento non ricevuto' : null)
+      await disdettaAFinePeriodo(cliente, false).catch((err) => console.error(`[eliminazione] ${slug}, disdetta:`, err?.message || err))
+    }
+    return { ok: true }
+  }
+
+  throw new HttpsError('invalid-argument', 'Azione sconosciuta.')
+})
+
+// Ogni mattina: le cancellazioni programmate arrivate alla data partono.
+exports.eliminazioniProgrammate = onSchedule({ ...OPTS, schedule: '0 5 * * *', timeZone: 'Europe/Rome', secrets: [GITHUB_DISPATCH_TOKEN] }, async () => {
+  for (const slug of elim.daEliminareOggi(await tutteLeIstanze())) {
+    const perche = await lanciaEliminazione(slug).catch((e) => e?.message || String(e))
+    console.log(`[eliminazione] ${slug}: ${perche || 'partita'}`)
+  }
+})
+
+// L'archivio di un locale eliminato lo scarica SOLO il suo titolare
+// (decisione dell'utente del 29/10/2026): per quei dati il locale è
+// titolare del trattamento. Nemmeno l'admin ha questo pulsante. Il link
+// vale 15 minuti; l'archivio stesso si cancella dopo 180 giorni.
+exports.scaricaArchivio = onCall(OPTS, async (req) => {
+  if (!req.auth) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Conferma prima la tua email.')
+  const cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data()
+  if (!cliente?.slug || cliente.uid && cliente.uid !== req.auth.uid) throw new HttpsError('permission-denied', 'Nessun locale collegato a questo account.')
+  const ist = (await db.doc(`istanze/${cliente.slug}`).get()).data()
+  if (!elim.archivioScaricabile(ist)) throw new HttpsError('not-found', 'Non c’è un archivio da scaricare, o è scaduto.')
+  const { bucket, zip } = ist.eliminazione.archivio
+  const [url] = await getStorage().bucket(bucket).file(zip).getSignedUrl({
+    version: 'v4',
+    action: 'read',
+    expires: Date.now() + 15 * 60 * 1000,
+    responseDisposition: `attachment; filename="${cliente.slug}-archivio.zip"`,
+  })
+  return { url, scade_il: ist.eliminazione.scade_il }
 })

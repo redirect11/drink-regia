@@ -16,6 +16,12 @@ const ADESSO = new Date('2026-10-22T10:00:00Z')
 // Audit del 22/10/2026, C2: la richiesta la scrive il server, dal documento
 // del cliente, e solo con l'abbonamento attivo.
 describe('preparaRichiesta', () => {
+  // REQ-FLOTTA-014: Google non riusa l'id di un progetto cancellato.
+  it('un locale eliminato non si riattiva da qui', () => {
+    const esito = preparaRichiesta(cliente, { emailVerificata: true, istanza: { stato: 'eliminata' }, adesso: ADESSO })
+    expect(esito).toMatchObject({ ok: false, perche: expect.stringMatching(/eliminato/) })
+  })
+
   it('la richiesta nasce dal cliente, in coda, con piano e moduli puliti', () => {
     const esito = preparaRichiesta(cliente, { emailVerificata: true, adesso: ADESSO })
     expect(esito.ok).toBe(true)

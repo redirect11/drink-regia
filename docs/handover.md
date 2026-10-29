@@ -406,20 +406,33 @@ L'elenco completo con i riferimenti al codice è in
    l'organizzazione (la strada giusta è Workload Identity Federation da
    GitHub, senza chiavi). I progetti di oggi possono restare fuori
    dall'organizzazione. Ogni passo si fa col permesso dell'utente.
-14. **La flotta nella regia (REQ-FLOTTA-013)**, ramo
-   `feature/flotta-nella-regia` (parte da `feature/rilasci-a-ondate`, va
-   unito dopo), scritto il 29/10/2026: il Terraform dei locali, i due
-   workflow e lo script della licenza stanno qui
-   ([flotta-nella-regia.md](flotta-nella-regia.md)). Restano, nell'ordine:
-   il ramo su `main` (GitHub lancia a comando solo i workflow del ramo
-   principale; senza tag su `main` la produzione non si pubblica); gli
-   environment `flotta` e `flotta-test` coi segreti e le variabili di
-   [infra/README.md](../infra/README.md), messi dall'utente; il token
-   `GITHUB_DISPATCH_TOKEN` nuovo, limitato a `redirect11/drink-regia`,
-   nelle Functions di ciascuna regia; la prima attivazione di prova con
-   uno slug `prova-…`. In tana-drink, da portare a quella sessione: via
-   `provisiona-istanza.yml`, `aggiorna-istanza.yml`, `infra/`,
-   `scripts/licenza-istanza.mjs` e i segreti della flotta.
+14. **La flotta nella regia (REQ-FLOTTA-013)**: su `main` dalla 0.2.0 e
+   0.2.1 (PR #4–#7), environment `flotta` e `flotta-test` coi segreti,
+   token limitato alla regia. Provata il 29/10/2026 con la prima
+   attivazione vera (`prova-bar` sulla regia di test, run 40946898455):
+   istanza attiva su https://drinkpos-prova-bar.web.app. Da provare ancora:
+   un'attivazione su un progetto del tutto nuovo (su `prova-bar` il bucket
+   di Storage l'avevo creato a mano e gli agenti di Google erano già nati).
+   In tana-drink, da portare a quella sessione: via `provisiona-istanza.yml`,
+   `aggiorna-istanza.yml`, `infra/`, `scripts/licenza-istanza.mjs` e i
+   segreti della flotta.
+15. **Eliminare un locale (REQ-FLOTTA-014)**, ramo `feature/elimina-locale`
+   (parte da `feature/backoffice-leggibile`, PR #8), scritto il 29/10/2026.
+   Prima di usarlo, col permesso dell'utente: i due bucket degli archivi e
+   i loro permessi ([infra/README.md](../infra/README.md), punto 5), la
+   variabile `ARCHIVIO_BUCKET` nei due environment. Poi la prova su
+   `prova-bar`: chiudere, eliminare subito dal backoffice di test, scaricare
+   l'archivio dalla dashboard del titolare. Il DPA, quando si scrive, deve
+   dire le stesse durate dei termini (30 giorni, archivio 180).
+16. **Il dominio** (domanda dell'utente del 29/10/2026: regia su
+   `regiadrink.it`, locali su `<slug>.regiadrink.it`). Quando c'è: DNS su
+   Cloud DNS in `drink-regia`; il dominio della regia una volta sul sito
+   `drink-regia`; nel Terraform dei locali `google_firebase_hosting_custom_domain`
+   e `google_dns_record_set` per `<slug>.<dominio>`, e il dominio fra quelli
+   autorizzati di Auth. Firebase non accetta un `*.` diviso fra progetti:
+   ogni locale registra il suo. `DOMINIO_ISTANZE` in `src/lib/prodotto.js`.
+   Da decidere: il nome, e se i locali stanno sotto un livello dedicato
+   (`<slug>.app.<dominio>`).
 
 ---
 

@@ -17,6 +17,7 @@ import {
   registraLocaleEsistente,
   elencoRilasci,
   gestisciRilascio,
+  gestisciEliminazione,
 } from '../lib/db.js'
 import { statoIstanza, statoDetto, STATI, progettoDi } from '../lib/istanze.js'
 import { PIANI, MODULI, prezzoMensile, euro } from '../lib/piani.js'
@@ -41,6 +42,8 @@ export default function Backoffice() {
   // La chiave AI appena creata: si vede una volta sola, qui (REQ-AI-003).
   const [chiaveNuova, setChiaveNuova] = useState(null)
   const [rilasci, setRilasci] = useState([])
+  // Lo slug del locale col modulo «Elimina» aperto (REQ-FLOTTA-014).
+  const [elimina, setElimina] = useState(null)
 
   const carica = async () => {
     try {
@@ -86,6 +89,18 @@ export default function Backoffice() {
     if (stato !== 'attiva' && motivo == null) return
     try {
       await impostaStatoIstanza(c.slug, stato, motivo)
+    } catch (e) {
+      setErrore(e.message)
+    }
+    carica()
+  }
+
+  // Annullare un'eliminazione programmata: l'admin le annulla tutte; il
+  // locale resta chiuso finché non lo si riattiva (REQ-FLOTTA-014).
+  const annullaEliminazione = async (c) => {
+    if (!window.confirm(`Annullare l’eliminazione di ${c.nome_locale}?`)) return
+    try {
+      await gestisciEliminazione('annulla', { slug: c.slug })
     } catch (e) {
       setErrore(e.message)
     }
@@ -351,6 +366,12 @@ export default function Backoffice() {
                         )}
                       </dd>
                     </div>
+                    {eliminazioneDetta(istanza) && (
+                      <div>
+                        <dt>Eliminazione</dt>
+                        <dd className={istanza.eliminazione.stato === 'fallita' ? 'errore' : ''}>{eliminazioneDetta(istanza)}</dd>
+                      </div>
+                    )}
                     {daFlotta && stato === STATI.ATTIVA && !istanza?.interna && (
                       <div>
                         <dt>
@@ -444,13 +465,36 @@ export default function Backoffice() {
                             </button>
                           </>
                         ) : (
-                          <button type="button" className="btn ghost small" onClick={() => cambiaStato(c, 'attiva')}>
-                            Riattiva
-                          </button>
+                          <>
+                            <button type="button" className="btn ghost small" onClick={() => cambiaStato(c, 'attiva')}>
+                              Riattiva
+                            </button>
+                            {licenza === 'chiusa' && !['programmata', 'in coda', 'in corso'].includes(istanza?.eliminazione?.stato) && (
+                              <button type="button" className="btn ghost small" onClick={() => setElimina(elimina === c.slug ? null : c.slug)}>
+                                Elimina…
+                              </button>
+                            )}
+                            {istanza?.eliminazione?.stato === 'programmata' && (
+                              <button type="button" className="btn ghost small" onClick={() => annullaEliminazione(c)}>
+                                Annulla eliminazione
+                              </button>
+                            )}
+                          </>
                         )}
                       </div>
                     )}
                   </footer>
+                  {elimina === c.slug && (
+                    <EliminaLocale
+                      cliente={c}
+                      istanza={istanza}
+                      onFatto={() => {
+                        setElimina(null)
+                        carica()
+                      }}
+                      onErrore={setErrore}
+                    />
+                  )}
                 </article>
               </li>
             )
@@ -615,6 +659,7 @@ const STATO_BREVE = {
   [STATI.IN_CORSO]: 'In corso',
   [STATI.ATTIVA]: 'Attiva',
   [STATI.ERRORE]: 'Errore',
+  [STATI.ELIMINATA]: 'Eliminata',
 }
 const TONO = {
   [STATI.ATTIVA]: 'ok',
@@ -624,6 +669,67 @@ const TONO = {
   [STATI.DA_APPROVARE]: 'avviso',
 }
 
+// A che punto è l'eliminazione di un locale (REQ-FLOTTA-014), in una riga.
+const giorno = (iso) => new Date(iso).toLocaleDateString('it-IT')
+function eliminazioneDetta(istanza) {
+  const e = istanza?.eliminazione
+  if (!e || e.stato === 'annullata') return null
+  const chi = e.richiedente === 'titolare' ? ' (chiesta dal titolare)' : ''
+  if (e.stato === 'programmata') return `Programmata per il ${giorno(e.quando)}${chi}`
+  if (e.stato === 'in coda' || e.stato === 'in corso') return 'Backup ed eliminazione in corso'
+  if (e.stato === 'fallita') return `Non riuscita: ${e.errore || 'vedi il workflow'}. Il progetto c’è ancora.`
+  if (e.stato === 'eliminata') return `Eliminata il ${giorno(e.finito_il)} · archivio fino al ${giorno(e.scade_il)}, lo scarica solo il titolare`
+  return null
+}
+
+// IL MODULO «ELIMINA» (REQ-FLOTTA-014, l'utente, 29/10/2026): solo l'admin
+// può scegliere «subito»; in tutti e due i casi il workflow fa prima il
+// backup e lo verifica. Per confermare si scrive il nome dell'app.
+function EliminaLocale({ cliente, istanza, onFatto, onErrore }) {
+  const [subito, setSubito] = useState(false)
+  const [conferma, setConferma] = useState('')
+  const [inCorso, setInCorso] = useState(false)
+  const progetto = istanza?.progetto || progettoDi(cliente.slug)
+  const invia = async (e) => {
+    e.preventDefault()
+    setInCorso(true)
+    try {
+      await gestisciEliminazione('chiedi', { slug: cliente.slug, conferma, subito })
+      onFatto()
+    } catch (err) {
+      onErrore(err.message)
+    } finally {
+      setInCorso(false)
+    }
+  }
+  return (
+    <form className="elimina-form" onSubmit={invia} aria-label={`Elimina ${cliente.nome_locale}`}>
+      <strong>Eliminare {cliente.nome_locale} e il suo progetto?</strong>
+      <p className="muted small">
+        Prima si fa il backup completo (database, file, utenti) e si verifica; senza backup verificato il progetto non si tocca.
+        L’archivio resta 180 giorni e lo scarica solo il titolare.
+      </p>
+      <label className="opzione">
+        <input type="radio" name={`quando-${cliente.slug}`} checked={!subito} onChange={() => setSubito(false)} />
+        Fra 30 giorni dalla chiusura
+      </label>
+      <label className="opzione">
+        <input type="radio" name={`quando-${cliente.slug}`} checked={subito} onChange={() => setSubito(true)} />
+        Subito, appena il backup è verificato
+      </label>
+      <label htmlFor={`conferma-${cliente.slug}`}>
+        Per confermare scrivi <code>{progetto}</code>
+      </label>
+      <input id={`conferma-${cliente.slug}`} value={conferma} onChange={(e) => setConferma(e.target.value)} autoComplete="off" />
+      <div className="azioni">
+        <button type="submit" className="btn pericolo small" disabled={inCorso || conferma.trim() !== progetto}>
+          {subito ? 'Backup ed elimina subito' : 'Programma l’eliminazione'}
+        </button>
+      </div>
+    </form>
+  )
+}
+
 // In cima quello che chiede attenzione.
-const PESI = { [STATI.ERRORE]: 0, [STATI.DA_APPROVARE]: 1, [STATI.IN_CODA]: 2, [STATI.IN_CORSO]: 3, [STATI.DA_ATTIVARE]: 4, [STATI.ATTIVA]: 5 }
+const PESI = { [STATI.ERRORE]: 0, [STATI.DA_APPROVARE]: 1, [STATI.IN_CODA]: 2, [STATI.IN_CORSO]: 3, [STATI.DA_ATTIVARE]: 4, [STATI.ATTIVA]: 5, [STATI.ELIMINATA]: 8 }
 const peso = (s) => PESI[s] ?? 9

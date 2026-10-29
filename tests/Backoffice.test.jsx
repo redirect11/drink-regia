@@ -32,6 +32,7 @@ const db = vi.hoisted(() => ({
   registraLocaleEsistente: vi.fn(async () => ({ uid: 't', slug: 'tana-drink' })),
   elencoRilasci: vi.fn(async () => []),
   gestisciRilascio: vi.fn(async () => ({ ok: true })),
+  gestisciEliminazione: vi.fn(async () => ({ ok: true })),
 }))
 const regia = vi.hoisted(() => ({ impostazioni: {} }))
 vi.mock('../src/lib/db.js', () => db)
@@ -363,5 +364,44 @@ describe('i rilasci a ondate nel backoffice', () => {
     const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
     await user.selectOptions(within(attivo).getByRole('combobox', { name: 'Gruppo di rilascio di Bar Attivo' }), 'pilota')
     expect(db.gestisciRilascio).toHaveBeenCalledWith('gruppo', { slug: 'bar-attivo', gruppo: 'pilota' })
+  })
+})
+
+// L'ELIMINAZIONE (REQ-FLOTTA-014): solo un locale chiuso, solo l'admin può
+// scegliere «subito», sempre scrivendo il nome dell'app.
+describe('eliminare un locale dal backoffice', () => {
+  it('un locale chiuso si elimina subito, confermando col nome dell’app', async () => {
+    const user = userEvent.setup()
+    db.elencoIstanze.mockResolvedValue({
+      'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', versione: 'v1.10.0', licenza_stato: 'chiusa', licenza_motivo: 'chiusura' },
+    })
+    mostra()
+    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
+    await user.click(within(attivo).getByRole('button', { name: 'Elimina…' }))
+    const modulo = within(attivo).getByRole('form', { name: 'Elimina Bar Attivo' })
+    await user.click(within(modulo).getByLabelText(/Subito/))
+    const tasto = within(modulo).getByRole('button', { name: 'Backup ed elimina subito' })
+    expect(tasto).toBeDisabled()
+    await user.type(within(modulo).getByLabelText(/Per confermare scrivi/), 'drinkpos-bar-attivo')
+    await user.click(tasto)
+    expect(db.gestisciEliminazione).toHaveBeenCalledWith('chiedi', { slug: 'bar-attivo', conferma: 'drinkpos-bar-attivo', subito: true })
+  })
+
+  it('un locale aperto non ha «Elimina»; una programmata si vede e si annulla', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    db.elencoIstanze.mockResolvedValue({
+      'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', licenza_stato: 'chiusa', eliminazione: { stato: 'programmata', quando: '2026-11-28T10:00:00Z', richiedente: 'titolare' } },
+      'bar-rotto': { stato: 'attiva', progetto: 'drinkpos-bar-rotto' },
+    })
+    mostra()
+    const schede = await screen.findAllByRole('article')
+    const rotto = schede.find((r) => r.textContent.includes('Bar Rotto'))
+    expect(within(rotto).queryByRole('button', { name: 'Elimina…' })).toBeNull()
+    const attivo = schede.find((r) => r.textContent.includes('Bar Attivo'))
+    expect(attivo).toHaveTextContent(/Programmata per il .* \(chiesta dal titolare\)/)
+    expect(within(attivo).queryByRole('button', { name: 'Elimina…' })).toBeNull()
+    await user.click(within(attivo).getByRole('button', { name: 'Annulla eliminazione' }))
+    expect(db.gestisciEliminazione).toHaveBeenCalledWith('annulla', { slug: 'bar-attivo' })
   })
 })
