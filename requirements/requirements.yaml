@@ -104,6 +104,11 @@ requirements:
       si rilancia un'attivazione fallita e si segna un abbonamento pagato a
       mano (finche' Stripe non c'e', REQ-FLOTTA-007). La regia vede
       aggregati e stati, mai i dati operativi dei locali.
+      Dal 29/10/2026 un locale per scheda (l'utente: «puoi migliorare la
+      visualizzazione?»): nome e stato breve colorato in alto, i dati in
+      una griglia che va a capo da sola, il link all'app del locale, le
+      azioni a gruppi (istanza e piano, credito AI, licenza), con Sospendi
+      e Chiudi a parte, a destra.
     status: implemented
     generate_issue: false
     labels: [prodotto, flotta, regia]
