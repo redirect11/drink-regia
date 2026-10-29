@@ -110,6 +110,15 @@ describe('infra/istanza/main.tf', () => {
     expect(variabile('ambiente')).toContain('contains(["produzione", "test"], var.ambiente)')
     expect(tf).toContain('ambiente = var.ambiente')
   })
+
+  // L'app usa firebase/storage e il deploy pubblica storage.rules: senza il
+  // bucket la prima attivazione di prova si è fermata al deploy.
+  it('lo Storage dell’app nasce col progetto, e la build ne riceve il nome', () => {
+    expect(tf).toContain('"firebasestorage.googleapis.com"')
+    expect(tf).toContain('name                        = "${local.progetto}.firebasestorage.app"')
+    expect(tf).toContain('resource "google_firebase_storage_bucket" "storage"')
+    expect(tf).toContain('VITE_FIREBASE_STORAGE_BUCKET      = google_firebase_storage_bucket.storage.bucket_id')
+  })
 })
 
 describe('le Functions lanciano i workflow della regia', () => {
