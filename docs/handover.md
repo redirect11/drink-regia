@@ -442,6 +442,12 @@ moduli, la licenza nell'istanza e la Tana.
   `functions/.env.<progetto>` con `VENUE_NAME`;
   `firebase deploy --only firestore,storage,functions,hosting`. Se
   tana-drink cambia uno di questi comandi, cambiano i nostri workflow.
+- **I segreti che le Functions dell'app dichiarano** (`defineSecret`):
+  oggi solo `SUMUP_API_KEY`. Stanno in `SEGRETI_APP` dei due workflow, che
+  li creano nel progetto del locale col segnaposto `non-configurato` se
+  mancano (`scripts/segreti-istanza.mjs`), senza mai sovrascriverli: il
+  valore vero è del locale. Se l'app ne dichiara uno nuovo, si aggiunge
+  lì, altrimenti Firebase non pubblica le Functions.
 - **Id dei moduli.** `functions/piani.json` → `moduli[].id` e
   `functions/lib/licenza.js` (MAPPA, TUTTI) devono combaciare con
   `src/lib/licenza.js` (MODULI_PREMIUM) in tana-drink. Oggi: `menu_tavoli`, `ordini_cliente`, `clienti`,

@@ -77,6 +77,9 @@ env:
   REF_APP: ${{ inputs.ref }}
   AMBIENTE: ${{ inputs.ambiente }}
   PROGETTO: drinkpos-${{ inputs.slug }}
+  # I segreti che le Functions dell'app di tana-drink dichiarano
+  # (defineSecret): contratto con tana-drink, docs/handover.md §7.
+  SEGRETI_APP: SUMUP_API_KEY
 
 jobs:
   provisiona:
@@ -204,6 +207,18 @@ jobs:
           npm ci --prefix app
           npm ci --prefix app/functions
 
+      # Il bucket di Storage dell'app: lo può creare solo l'API di Firebase,
+      # non il Terraform (scripts/storage-istanza.mjs). Senza, il deploy di
+      # storage.rules si ferma.
+      - name: Lo Storage del locale
+        run: node scripts/storage-istanza.mjs --project "$PROGETTO"
+
+      # I segreti che le Functions dell'app dichiarano: senza, Firebase non
+      # le pubblica. Si creano col segnaposto, mai sovrascritti
+      # (scripts/segreti-istanza.mjs).
+      - name: I segreti dell'app
+        run: node scripts/segreti-istanza.mjs --project "$PROGETTO" --segreti "$SEGRETI_APP"
+
       - name: La cartella del cliente
         working-directory: app
         run: node scripts/genera-cliente.mjs --slug "$SLUG" --nome "$NOME"
@@ -221,7 +236,17 @@ jobs:
 
       - name: Deploy regole, indici, Functions e hosting
         working-directory: app
-        run: npx firebase-tools deploy --only firestore,storage,functions,hosting --project "$PROGETTO" --force
+        # Al primo deploy delle Functions di un progetto nuovo, i permessi
+        # degli agenti di Google arrivano qualche minuto dopo («Retry the
+        # deployment in a few minutes», prova-bar, 29/10/2026): si riprova
+        # due volte, a 90 secondi. Il deploy si può ripetere senza danni.
+        run: |
+          for tentativo in 1 2 3; do
+            if npx firebase-tools deploy --only firestore,storage,functions,hosting --project "$PROGETTO" --force; then exit 0; fi
+            if [ "$tentativo" = 3 ]; then exit 1; fi
+            echo "::warning::Deploy non riuscito al tentativo $tentativo: riprovo fra 90 secondi."
+            sleep 90
+          done
 
       - name: Licenza e nome del locale nell'istanza
         env:

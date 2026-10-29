@@ -62,6 +62,26 @@ describe.each(WORKFLOW)('%s', (_, w, corpo) => {
     expect(passo(w, 'Deploy regole, indici, Functions e hosting')['working-directory']).toBe('app')
   })
 
+  // Al primo deploy delle Functions i permessi degli agenti di Google
+  // arrivano dopo qualche minuto (prova-bar): il deploy si riprova.
+  it('il deploy si riprova due volte, a 90 secondi', () => {
+    const deploy = passo(w, 'Deploy regole, indici, Functions e hosting').run
+    expect(deploy).toContain('for tentativo in 1 2 3; do')
+    expect(deploy).toContain('npx firebase-tools deploy --only firestore,storage,functions,hosting --project "$PROGETTO" --force')
+    expect(deploy).toContain('sleep 90')
+  })
+
+  // Le Functions dell'app dichiarano dei segreti, e Firebase non le
+  // pubblica se ne manca uno (la prima attivazione di prova, SUMUP_API_KEY).
+  it('i segreti dichiarati dall’app si creano prima del deploy', () => {
+    expect(w.env.SEGRETI_APP).toBe('SUMUP_API_KEY')
+    const nomi = passi(w).map((s) => s.name)
+    expect(passo(w, "I segreti dell'app").run).toBe('node scripts/segreti-istanza.mjs --project "$PROGETTO" --segreti "$SEGRETI_APP"')
+    expect(nomi.indexOf("I segreti dell'app")).toBeGreaterThan(nomi.indexOf('Dipendenze'))
+    expect(nomi.indexOf("I segreti dell'app")).toBeLessThan(nomi.indexOf('Deploy regole, indici, Functions e hosting'))
+    expect(passo(w, 'Dipendenze').run).toContain('npm ci --prefix functions')
+  })
+
   it('attivazione e aggiornamento dello stesso locale non si sovrappongono', () => {
     expect(w.concurrency).toEqual({ group: 'istanza-${{ inputs.slug }}', 'cancel-in-progress': false })
   })
@@ -109,6 +129,26 @@ describe('infra/istanza/main.tf', () => {
   it('l’ambiente è produzione o test, ed è un’etichetta del progetto', () => {
     expect(variabile('ambiente')).toContain('contains(["produzione", "test"], var.ambiente)')
     expect(tf).toContain('ambiente = var.ambiente')
+  })
+
+  it('gli agenti di Eventarc e Pub/Sub nascono col progetto, con i loro ruoli', () => {
+    expect(tf).toContain('for_each   = toset(["eventarc.googleapis.com", "pubsub.googleapis.com"])')
+    expect(tf).toContain('role     = "roles/eventarc.serviceAgent"')
+    expect(tf).toContain('role     = "roles/iam.serviceAccountTokenCreator"')
+  })
+
+  // L'app usa firebase/storage e il deploy pubblica storage.rules: senza il
+  // bucket la prima attivazione di prova si è fermata al deploy, e il
+  // Terraform non lo può creare (i nomi *.firebasestorage.app sono di
+  // Firebase): lo crea l'API di Firebase Storage, dal workflow.
+  it('lo Storage dell’app: l’API col progetto, il bucket dallo script prima del deploy', () => {
+    expect(tf).toContain('"firebasestorage.googleapis.com"')
+    expect(tf).not.toMatch(/resource "google_storage_bucket"/)
+    expect(tf).toContain('VITE_FIREBASE_STORAGE_BUCKET      = "${local.progetto}.firebasestorage.app"')
+    const nomi = passi(provisiona).map((s) => s.name)
+    expect(passo(provisiona, 'Lo Storage del locale').run).toBe('node scripts/storage-istanza.mjs --project "$PROGETTO"')
+    expect(nomi.indexOf('Lo Storage del locale')).toBeGreaterThan(nomi.indexOf('Dipendenze'))
+    expect(nomi.indexOf('Lo Storage del locale')).toBeLessThan(nomi.indexOf('Deploy regole, indici, Functions e hosting'))
   })
 })
 
