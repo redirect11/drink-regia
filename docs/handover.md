@@ -289,14 +289,15 @@ canale di anteprima col via libera.
 
 ---
 
-## 5. Lo stato del progetto Firebase e dei segreti (22/10/2026)
+## 5. Lo stato del progetto Firebase e dei segreti (22/10/2026, test il 29/10)
 
 | Cosa | Stato |
 |---|---|
 | Hosting `drink-regia.web.app` | pubblicato una volta (hosting + regole), **senza la landing page nuova né il fix C2** |
 | Functions | **nessuna pubblicata** |
-| Progetto di test `drink-regia-test` | **da creare** (docs/actions-come-tana-drink.md §2-5: progetto, Blaze, API, Firestore, app web, Auth, SA di deploy, segreti). Col permesso dell'utente. |
-| Environment GitHub `test` | **da creare**, con gli stessi quattro `VITE_FIREBASE_*` del progetto di test (`scripts/segreti-environment.mjs`) e `FIREBASE_SERVICE_ACCOUNT` |
+| Progetto di test `drink-regia-test` | **creato il 29/10/2026**, su Blaze col secondo account di fatturazione («Il mio account di fatturazione 2», solo prove). API, Firestore `europe-west1`, Auth email, SA del deploy con i ruoli di docs/actions-come-tana-drink.md §3. Sito, regole e 17 Functions pubblicati dal tag `v0.1.0-prova.3` (ramo `feature/rilasci-a-ondate`). Segreti delle Functions: `PROVISIONING_CALLBACK_SECRET` (lo stesso della produzione: tana-drink ne conosce uno), Stripe **sandbox**; `ANTHROPIC_API_KEY` e `GITHUB_DISPATCH_TOKEN` **segnaposto** (il cassetto AI e le attivazioni vere non partono finché non si mettono quelli veri). |
+| Environment GitHub `test` | **creato il 29/10/2026**: i quattro `VITE_FIREBASE_*` e `FIREBASE_SERVICE_ACCOUNT` |
+| Approvazione sulla produzione | **non disponibile**: GitHub Free non dà i «Required reviewers» a un repository privato (provato il 29/10/2026, errore 422). Oggi protegge solo il job «Dove va» (un tag fuori da `main` va sul test). Decisione dell'utente: GitHub Pro, o accettare il controllo del workflow |
 | Segreto `PROJECT_TOKEN` (bacheca) | **manca**: lo mette l'utente |
 | Auth | email/password attivo |
 | Firestore | `europe-west1`, regole pubblicate |

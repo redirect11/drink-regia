@@ -102,7 +102,12 @@ Firebase crea `firebase-adminsdk-fbsvc@<progetto>.iam.gserviceaccount.com`.
    `roles/datastore.indexAdmin`, `roles/firebaserules.admin`,
    `roles/secretmanager.admin` (il deploy controlla che i segreti delle
    Functions esistano e dà al SA di runtime il permesso di leggerli: senza,
-   si ferma con `secretmanager.secrets.get` negato). Le API che il SA del
+   si ferma con `secretmanager.secrets.get` negato), `roles/cloudscheduler.admin`
+   (la pianificazione di `sospendiMorosi`), `roles/artifactregistry.admin`
+   (la pulizia automatica delle immagini vecchie) e `roles/run.admin`:
+   senza, le Functions HTTP e callable nascono **private** (`allUsers` non
+   riceve `roles/run.invoker`), Google risponde 403 a sito, Stripe e
+   tana-drink, e il deploy non lo dice. Le API che il SA del
    deploy non può accendere da solo vanno abilitate prima, compresi
    `secretmanager`, `cloudscheduler` (la Function pianificata) e
    `firebaseextensions`.
@@ -112,6 +117,9 @@ Firebase crea `firebase-adminsdk-fbsvc@<progetto>.iam.gserviceaccount.com`.
    `service-<numero>@gcp-sa-pubsub.iam.gserviceaccount.com`, che nasce solo
    al primo uso e si fa nascere con `services.generateServiceIdentity`;
    `roles/run.invoker` e `roles/eventarc.eventReceiver` al SA di runtime).
+   Se un primo deploy fallisce a metà, le Functions di Firestore rimaste
+   create male vanno cancellate (`functions:delete`) prima di riprovare:
+   altrimenti il CLI le vede come HTTPS e rifiuta di cambiarle.
 2. **Functions gen2**: il SA del deploy deve poter «agire come» il SA di
    runtime (`<numero-progetto>-compute@developer.gserviceaccount.com`):
    `roles/iam.serviceAccountUser` concesso **sul SA di runtime**, non sul
