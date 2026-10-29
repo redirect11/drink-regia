@@ -171,7 +171,7 @@ export default function Backoffice() {
   const daApprovare = righe.filter((r) => r.stato === STATI.DA_APPROVARE)
 
   return (
-    <main className="pagina">
+    <main className="pagina larga">
       <div className="row-tra">
         <h2>Backoffice</h2>
         <div className="azioni">
@@ -266,165 +266,196 @@ export default function Backoffice() {
       {righe.length === 0 ? (
         <p className="muted">Nessun cliente.</p>
       ) : (
-        <table className="clienti">
-          <thead>
-            <tr>
-              <th>Locale</th>
-              <th>Email</th>
-              <th>Piano</th>
-              <th>Istanza</th>
-              <th>Progetto</th>
-              <th>Versione</th>
-              <th>Credito AI</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {righe.map(({ cliente: c, istanza, stato, cassetto }) => {
-              const credito = statoCredito(cassetto)
-              // Un locale registrato come esistente (la Tana) non passa per
-              // la flotta: da qui niente Aggiorna, Sospendi, Chiudi.
-              const daFlotta = istanza?.origine !== 'esistente'
-              return (
-              <tr key={c.uid} className={stato === STATI.ERRORE ? 'errore-riga' : ''}>
-                <td>
-                  <strong>{c.nome_locale}</strong>
-                  <div className="muted small">
-                    {c.slug}
-                    {istanza?.interna && ' · interna'}
-                    {!daFlotta && ' · esistente'}
-                  </div>
-                </td>
-                <td>
-                  {c.email}
-                  {c.fatturazione?.ragione_sociale && (
-                    <div className="muted small">
-                      {c.fatturazione.ragione_sociale} · P.IVA {c.fatturazione.partita_iva}
-                    </div>
-                  )}
-                  {contattoDi(c) && <div className="muted small">{contattoDi(c)}</div>}
-                </td>
-                <td>{c.piano ? `${PIANI[c.piano]?.nome || c.piano} · ${euro(prezzoMensile(c))}` : <span className="muted">—</span>}</td>
-                <td>
-                  {statoDetto(stato)}
-                  {istanza?.licenza_stato && istanza.licenza_stato !== 'attiva' && (
-                    <div className="errore small">
-                      {istanza.licenza_stato}
-                      {istanza.licenza_motivo ? ` · ${istanza.licenza_motivo}` : ''}
-                    </div>
-                  )}
-                </td>
-                <td>
-                  <code>{istanza?.progetto || progettoDi(c.slug)}</code>
-                </td>
-                <td>
-                  {istanza?.versione || <span className="muted">—</span>}
-                  {istanza?.ref && istanza.ref !== 'main' && <div className="muted small">da {istanza.ref}</div>}
-                  {aggiornamentoDetto(istanza?.aggiornamento) && (
-                    <div className={istanza.aggiornamento.stato === 'fallito' ? 'errore small' : 'muted small'}>
-                      {aggiornamentoDetto(istanza.aggiornamento)}
-                    </div>
-                  )}
-                  {daFlotta && stato === STATI.ATTIVA && !istanza?.interna && (
-                    <select
-                      className="small"
-                      aria-label={`Gruppo di rilascio di ${c.nome_locale}`}
-                      value={istanza?.gruppo_rilascio || 'generale'}
-                      onChange={(e) => azioneRilascio('gruppo', { slug: c.slug, gruppo: e.target.value })}
-                    >
-                      {GRUPPI.map((g) => (
-                        <option key={g.id} value={g.id}>
-                          {g.nome}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </td>
-                <td>
-                  {credito ? (
-                    <>
-                      <span data-testid={`credito-${c.slug}`}>{euroCent(credito.credito)}</span>
+        <ul className="locali" aria-label="Locali">
+          {righe.map(({ cliente: c, istanza, stato, cassetto }) => {
+            const credito = statoCredito(cassetto)
+            // Un locale registrato come esistente (la Tana) non passa per
+            // la flotta: da qui niente Aggiorna, Sospendi, Chiudi.
+            const daFlotta = istanza?.origine !== 'esistente'
+            const licenza = istanza?.licenza_stato || 'attiva'
+            const tono = licenza !== 'attiva' ? 'avviso' : TONO[stato] || 'neutro'
+            const aiVisibile = credito || stato === STATI.ATTIVA
+            return (
+              <li key={c.uid}>
+                <article className={`locale tono-${tono}`} aria-label={c.nome_locale}>
+                  <header className="locale-testa">
+                    <div>
+                      <h3>{c.nome_locale}</h3>
                       <div className="muted small">
-                        mese {euroCent(credito.spesoMese)} / {euroCent(credito.tetto)}
-                        {!credito.attivo && ' · spento'}
-                        {!credito.collegata && ' · senza chiave'}
+                        {c.slug}
+                        {istanza?.interna && ' · interna'}
+                        {!daFlotta && ' · esistente'}
                       </div>
-                    </>
-                  ) : (
-                    <span className="muted">—</span>
-                  )}
-                </td>
-                <td className="azioni-riga">
-                  <button type="button" className="btn ghost small" onClick={() => pianoAMano(c)}>
-                    Piano a mano
-                  </button>
-                  {(credito || stato === STATI.ATTIVA) && (
-                    <>
-                      <button type="button" className="btn ghost small" onClick={() => ricaricaAI(c)}>
-                        Ricarica AI
-                      </button>
-                      <button type="button" className="btn ghost small" onClick={() => tettoAI(c, credito?.tetto)}>
-                        Tetto AI
-                      </button>
-                      <button type="button" className="btn ghost small" onClick={() => chiaveAI(c, cassetto)}>
-                        Chiave AI
-                      </button>
-                      {credito && (
-                        <button type="button" className="btn ghost small" onClick={() => azioneAI(c, credito.attivo ? 'spegni' : 'accendi')}>
-                          {credito.attivo ? 'Spegni AI' : 'Accendi AI'}
+                    </div>
+                    <span className={`stato stato-${tono}`}>
+                      {licenza !== 'attiva' ? `${licenza}${istanza.licenza_motivo ? ` · ${istanza.licenza_motivo}` : ''}` : STATO_BREVE[stato] || statoDetto(stato)}
+                    </span>
+                  </header>
+
+                  <dl className="locale-dati">
+                    <div>
+                      <dt>Titolare</dt>
+                      <dd>
+                        {c.email}
+                        {c.fatturazione?.ragione_sociale && (
+                          <div className="muted small">
+                            {c.fatturazione.ragione_sociale} · P.IVA {c.fatturazione.partita_iva}
+                          </div>
+                        )}
+                        {contattoDi(c) && <div className="muted small">{contattoDi(c)}</div>}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Piano</dt>
+                      <dd>{c.piano ? `${PIANI[c.piano]?.nome || c.piano} · ${euro(prezzoMensile(c))}` : <span className="muted">—</span>}</dd>
+                    </div>
+                    <div>
+                      <dt>Progetto</dt>
+                      <dd>
+                        <code>{istanza?.progetto || progettoDi(c.slug)}</code>
+                        {istanza?.url && (
+                          <div className="small">
+                            <a href={istanza.url} target="_blank" rel="noreferrer">
+                              Apri l’app ↗
+                            </a>
+                          </div>
+                        )}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Versione</dt>
+                      <dd>
+                        {istanza?.versione || <span className="muted">—</span>}
+                        {istanza?.ref && istanza.ref !== 'main' && <div className="muted small">da {istanza.ref}</div>}
+                        {aggiornamentoDetto(istanza?.aggiornamento) && (
+                          <div className={istanza.aggiornamento.stato === 'fallito' ? 'errore small' : 'muted small'}>
+                            {aggiornamentoDetto(istanza.aggiornamento)}
+                          </div>
+                        )}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Credito AI</dt>
+                      <dd>
+                        {credito ? (
+                          <>
+                            <span data-testid={`credito-${c.slug}`}>{euroCent(credito.credito)}</span>
+                            <div className="muted small">
+                              mese {euroCent(credito.spesoMese)} / {euroCent(credito.tetto)}
+                              {!credito.attivo && ' · spento'}
+                              {!credito.collegata && ' · senza chiave'}
+                            </div>
+                          </>
+                        ) : (
+                          <span className="muted">—</span>
+                        )}
+                      </dd>
+                    </div>
+                    {daFlotta && stato === STATI.ATTIVA && !istanza?.interna && (
+                      <div>
+                        <dt>
+                          <label htmlFor={`gruppo-${c.slug}`}>Gruppo di rilascio</label>
+                        </dt>
+                        <dd>
+                          <select
+                            id={`gruppo-${c.slug}`}
+                            aria-label={`Gruppo di rilascio di ${c.nome_locale}`}
+                            value={istanza?.gruppo_rilascio || 'generale'}
+                            onChange={(e) => azioneRilascio('gruppo', { slug: c.slug, gruppo: e.target.value })}
+                          >
+                            {GRUPPI.map((g) => (
+                              <option key={g.id} value={g.id}>
+                                {g.nome}
+                              </option>
+                            ))}
+                          </select>
+                        </dd>
+                      </div>
+                    )}
+                  </dl>
+
+                  <footer className="locale-azioni">
+                    <div className="gruppo-azioni" aria-label="Istanza">
+                      {stato === STATI.ERRORE && (
+                        <button type="button" className="btn small" onClick={() => rilanciaAttivazione(c.slug).then(carica)}>
+                          Rilancia
                         </button>
                       )}
-                    </>
-                  )}
-                  {stato === STATI.ERRORE && (
-                    <button type="button" className="btn ghost small" onClick={() => rilanciaAttivazione(c.slug).then(carica)}>
-                      Rilancia
-                    </button>
-                  )}
-                  {daFlotta && stato === STATI.ATTIVA && (
-                    <button type="button" className="btn ghost small" onClick={() => aggiorna(c)}>
-                      Aggiorna
-                    </button>
-                  )}
-                  {daFlotta && istanza?.aggiornamento?.stato === 'fallito' && (
-                    <>
-                      <button type="button" className="btn ghost small" onClick={() => riprova(c, istanza.aggiornamento)}>
-                        Riprova
-                      </button>
-                      {TAG.test(istanza.aggiornamento.versione_precedente || '') && (
-                        <button
-                          type="button"
-                          className="btn ghost small"
-                          onClick={() => {
-                            if (window.confirm(`Riportare ${c.nome_locale} a ${istanza.aggiornamento.versione_precedente}?`)) azioneRilascio('indietro', { slug: c.slug })
-                          }}
-                        >
-                          Torna a {istanza.aggiornamento.versione_precedente}
+                      {daFlotta && stato === STATI.ATTIVA && (
+                        <button type="button" className="btn ghost small" onClick={() => aggiorna(c)}>
+                          Aggiorna
                         </button>
                       )}
-                    </>
-                  )}
-                  {daFlotta && stato === STATI.ATTIVA && (istanza?.licenza_stato || 'attiva') === 'attiva' && (
-                    <>
-                      <button type="button" className="btn ghost small" onClick={() => cambiaStato(c, 'sospesa')}>
-                        Sospendi
+                      {daFlotta && istanza?.aggiornamento?.stato === 'fallito' && (
+                        <>
+                          <button type="button" className="btn ghost small" onClick={() => riprova(c, istanza.aggiornamento)}>
+                            Riprova
+                          </button>
+                          {TAG.test(istanza.aggiornamento.versione_precedente || '') && (
+                            <button
+                              type="button"
+                              className="btn ghost small"
+                              onClick={() => {
+                                if (window.confirm(`Riportare ${c.nome_locale} a ${istanza.aggiornamento.versione_precedente}?`)) azioneRilascio('indietro', { slug: c.slug })
+                              }}
+                            >
+                              Torna a {istanza.aggiornamento.versione_precedente}
+                            </button>
+                          )}
+                        </>
+                      )}
+                      <button type="button" className="btn ghost small" onClick={() => pianoAMano(c)}>
+                        Piano a mano
                       </button>
-                      <button type="button" className="btn ghost small" onClick={() => cambiaStato(c, 'chiusa')}>
-                        Chiudi
-                      </button>
-                    </>
-                  )}
-                  {daFlotta && stato === STATI.ATTIVA && istanza?.licenza_stato && istanza.licenza_stato !== 'attiva' && (
-                    <button type="button" className="btn ghost small" onClick={() => cambiaStato(c, 'attiva')}>
-                      Riattiva
-                    </button>
-                  )}
-                </td>
-              </tr>
-              )
-            })}
-          </tbody>
-        </table>
+                    </div>
+
+                    {aiVisibile && (
+                      <div className="gruppo-azioni" aria-label="Credito AI">
+                        <span className="gruppo-nome muted small">AI</span>
+                        <button type="button" className="btn ghost small" onClick={() => ricaricaAI(c)}>
+                          Ricarica AI
+                        </button>
+                        <button type="button" className="btn ghost small" onClick={() => tettoAI(c, credito?.tetto)}>
+                          Tetto AI
+                        </button>
+                        <button type="button" className="btn ghost small" onClick={() => chiaveAI(c, cassetto)}>
+                          Chiave AI
+                        </button>
+                        {credito && (
+                          <button type="button" className="btn ghost small" onClick={() => azioneAI(c, credito.attivo ? 'spegni' : 'accendi')}>
+                            {credito.attivo ? 'Spegni AI' : 'Accendi AI'}
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {daFlotta && stato === STATI.ATTIVA && (
+                      // Sospendere e chiudere stanno a parte, lontano dalle
+                      // azioni di tutti i giorni (tana-drink, DESIGN.md,
+                      // guardrail 2: le azioni distruttive lontane dalle frequenti).
+                      <div className="gruppo-azioni pericolo" aria-label="Licenza">
+                        {licenza === 'attiva' ? (
+                          <>
+                            <button type="button" className="btn ghost small" onClick={() => cambiaStato(c, 'sospesa')}>
+                              Sospendi
+                            </button>
+                            <button type="button" className="btn ghost small" onClick={() => cambiaStato(c, 'chiusa')}>
+                              Chiudi
+                            </button>
+                          </>
+                        ) : (
+                          <button type="button" className="btn ghost small" onClick={() => cambiaStato(c, 'attiva')}>
+                            Riattiva
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </footer>
+                </article>
+              </li>
+            )
+          })}
+        </ul>
       )}
     </main>
   )
@@ -573,6 +604,24 @@ function LocaleEsistente({ onFatto, onErrore }) {
       </button>
     </form>
   )
+}
+
+// Lo stato in due parole e il suo colore, per l'admin: le frasi lunghe di
+// statoDetto sono quelle per il titolare.
+const STATO_BREVE = {
+  [STATI.DA_ATTIVARE]: 'Da attivare',
+  [STATI.DA_APPROVARE]: 'Da autorizzare',
+  [STATI.IN_CODA]: 'In coda',
+  [STATI.IN_CORSO]: 'In corso',
+  [STATI.ATTIVA]: 'Attiva',
+  [STATI.ERRORE]: 'Errore',
+}
+const TONO = {
+  [STATI.ATTIVA]: 'ok',
+  [STATI.ERRORE]: 'errore',
+  [STATI.IN_CODA]: 'attesa',
+  [STATI.IN_CORSO]: 'attesa',
+  [STATI.DA_APPROVARE]: 'avviso',
 }
 
 // In cima quello che chiede attenzione.

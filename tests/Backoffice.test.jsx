@@ -65,8 +65,8 @@ beforeEach(() => {
 describe('il backoffice', () => {
   it('elenca i clienti, prima chi ha un problema', async () => {
     mostra()
-    const righe = await screen.findAllByRole('row')
-    const nomi = righe.slice(1).map((r) => within(r).getByRole('cell', { name: /Bar/ }).textContent)
+    const righe = await screen.findAllByRole('article')
+    const nomi = righe.map((r) => within(r).getByRole('heading').textContent)
     expect(nomi[0]).toMatch(/Bar Rotto/)
     expect(nomi[2]).toMatch(/Bar Attivo/)
     const attivo = righe.find((r) => r.textContent.includes('Bar Attivo'))
@@ -87,9 +87,24 @@ describe('il backoffice', () => {
     const user = userEvent.setup()
     vi.spyOn(window, 'prompt').mockReturnValue('pagamento non ricevuto')
     mostra()
-    const attivo = (await screen.findAllByRole('row')).find((r) => r.textContent.includes('Bar Attivo'))
+    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
     await user.click(within(attivo).getByRole('button', { name: 'Sospendi' }))
     expect(db.impostaStatoIstanza).toHaveBeenCalledWith('bar-attivo', 'sospesa', 'pagamento non ricevuto')
+  })
+
+  // Un locale per scheda (29/10/2026): lo stato in due parole e colorato,
+  // l'app del locale a un clic, Sospendi e Chiudi in un gruppo a parte.
+  it('ogni locale è una scheda: stato breve, link all’app, azioni a gruppi', async () => {
+    db.elencoIstanze.mockResolvedValue({
+      'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', versione: 'v1.10.0', url: 'https://drinkpos-bar-attivo.web.app' },
+    })
+    mostra()
+    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
+    expect(within(attivo).getByText('Attiva')).toHaveClass('stato-ok')
+    expect(within(attivo).getByRole('link', { name: /Apri l’app/ })).toHaveAttribute('href', 'https://drinkpos-bar-attivo.web.app')
+    const licenza = within(attivo).getByLabelText('Licenza')
+    expect(within(licenza).getByRole('button', { name: 'Sospendi' })).toBeInTheDocument()
+    expect(within(licenza).queryByRole('button', { name: 'Aggiorna' })).toBeNull()
   })
 
   it('una sospesa lo dice col motivo e si riattiva', async () => {
@@ -98,7 +113,7 @@ describe('il backoffice', () => {
       'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', versione: 'v1.10.0', licenza_stato: 'sospesa', licenza_motivo: 'pagamento non ricevuto' },
     })
     mostra()
-    const sospeso = (await screen.findByText(/sospesa · pagamento non ricevuto/)).closest('tr')
+    const sospeso = (await screen.findByText(/sospesa · pagamento non ricevuto/)).closest('article')
     await user.click(within(sospeso).getByRole('button', { name: 'Riattiva' }))
     expect(db.impostaStatoIstanza).toHaveBeenLastCalledWith('bar-attivo', 'attiva', null)
   })
@@ -109,7 +124,7 @@ describe('il backoffice', () => {
   it('«Aggiorna» porta l’ultima versione a un locale; a tutti si arriva solo con un rilascio', async () => {
     const user = userEvent.setup()
     mostra()
-    const attivo = (await screen.findAllByRole('row')).find((r) => r.textContent.includes('Bar Attivo'))
+    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
     await user.click(within(attivo).getByRole('button', { name: 'Aggiorna' }))
     expect(db.aggiornaIstanza).toHaveBeenCalledWith('bar-attivo')
     expect(screen.queryByRole('button', { name: /Aggiorna tutte/ })).toBeNull()
@@ -119,7 +134,7 @@ describe('il backoffice', () => {
     const user = userEvent.setup()
     vi.spyOn(window, 'prompt').mockReturnValue('base')
     mostra()
-    const nuovo = (await screen.findAllByRole('row')).find((r) => r.textContent.includes('Bar Nuovo'))
+    const nuovo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Nuovo'))
     await user.click(within(nuovo).getByRole('button', { name: 'Piano a mano' }))
     expect(db.segnaPiano).toHaveBeenCalledWith('c', { piano: 'base', moduli: [], terminali: 1 })
   })
@@ -187,7 +202,7 @@ describe('il backoffice e il credito AI', () => {
     vi.spyOn(window, 'prompt').mockReturnValueOnce('15,5').mockReturnValueOnce('prima ricarica')
     mostra()
     expect(await screen.findByTestId('credito-bar-attivo')).toHaveTextContent('12,50 €')
-    const attivo = screen.getAllByRole('row').find((r) => r.textContent.includes('Bar Attivo'))
+    const attivo = screen.getAllByRole('article').find((r) => r.textContent.includes('Bar Attivo'))
     expect(attivo).toHaveTextContent('mese 3,00 € / 20,00 €')
     await user.click(within(attivo).getByRole('button', { name: 'Ricarica AI' }))
     expect(db.gestisciCassettoAI).toHaveBeenCalledWith('bar-attivo', 'ricarica', { importo: 15.5, nota: 'prima ricarica' })
@@ -199,7 +214,7 @@ describe('il backoffice e il credito AI', () => {
     db.gestisciCassettoAI.mockResolvedValueOnce({ ok: true, chiave: 'bar-attivo.segretolungo' })
     const conferma = vi.spyOn(window, 'confirm').mockReturnValue(true)
     mostra()
-    const attivo = (await screen.findAllByRole('row')).find((r) => r.textContent.includes('Bar Attivo'))
+    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
     await user.click(within(attivo).getByRole('button', { name: 'Chiave AI' }))
     expect(conferma).toHaveBeenCalled()
     expect(db.gestisciCassettoAI).toHaveBeenCalledWith('bar-attivo', 'chiave', {})
@@ -241,7 +256,7 @@ describe('il backoffice e il credito AI', () => {
       'tana-drink': { stato: 'attiva', progetto: 'tana-drink', origine: 'esistente', interna: true },
     })
     mostra()
-    const tana = (await screen.findAllByRole('row')).find((r) => r.textContent.includes('La Tana'))
+    const tana = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('La Tana'))
     expect(tana).toHaveTextContent('interna · esistente')
     expect(within(tana).queryByRole('button', { name: 'Aggiorna' })).toBeNull()
     expect(within(tana).queryByRole('button', { name: 'Sospendi' })).toBeNull()
@@ -333,7 +348,7 @@ describe('i rilasci a ondate nel backoffice', () => {
     })
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     mostra()
-    const attivo = (await screen.findAllByRole('row')).find((r) => r.textContent.includes('Bar Attivo'))
+    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
     expect(attivo).toHaveTextContent('Attiva')
     expect(attivo).toHaveTextContent('aggiornamento a v1.11.0 fallito: deploy interrotto')
     await user.click(within(attivo).getByRole('button', { name: 'Riprova' }))
@@ -345,7 +360,7 @@ describe('i rilasci a ondate nel backoffice', () => {
   it('un locale della flotta si mette nel gruppo pilota', async () => {
     const user = userEvent.setup()
     mostra()
-    const attivo = (await screen.findAllByRole('row')).find((r) => r.textContent.includes('Bar Attivo'))
+    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
     await user.selectOptions(within(attivo).getByRole('combobox', { name: 'Gruppo di rilascio di Bar Attivo' }), 'pilota')
     expect(db.gestisciRilascio).toHaveBeenCalledWith('gruppo', { slug: 'bar-attivo', gruppo: 'pilota' })
   })

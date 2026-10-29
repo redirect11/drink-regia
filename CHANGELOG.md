@@ -11,6 +11,9 @@ data.
   che l'app dichiara e gli agenti di Google che le sue Functions usano, e
   il deploy si riprova se Google non ha ancora finito di preparare i
   permessi (REQ-FLOTTA-013).
+- Il backoffice mostra un locale per scheda: nome e stato colorato in
+  alto, i dati in ordine, il link all'app del locale, le azioni a gruppi
+  con Sospendi e Chiudi separati dalle altre (REQ-FLOTTA-005).
 
 ## 0.2.0 (in lavorazione)
 
