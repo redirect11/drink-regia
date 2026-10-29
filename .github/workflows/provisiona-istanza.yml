@@ -204,6 +204,12 @@ jobs:
           npm ci --prefix app
           npm ci --prefix app/functions
 
+      # Il bucket di Storage dell'app: lo può creare solo l'API di Firebase,
+      # non il Terraform (scripts/storage-istanza.mjs). Senza, il deploy di
+      # storage.rules si ferma.
+      - name: Lo Storage del locale
+        run: node scripts/storage-istanza.mjs --project "$PROGETTO"
+
       - name: La cartella del cliente
         working-directory: app
         run: node scripts/genera-cliente.mjs --slug "$SLUG" --nome "$NOME"

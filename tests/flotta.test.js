@@ -112,12 +112,17 @@ describe('infra/istanza/main.tf', () => {
   })
 
   // L'app usa firebase/storage e il deploy pubblica storage.rules: senza il
-  // bucket la prima attivazione di prova si è fermata al deploy.
-  it('lo Storage dell’app nasce col progetto, e la build ne riceve il nome', () => {
+  // bucket la prima attivazione di prova si è fermata al deploy, e il
+  // Terraform non lo può creare (i nomi *.firebasestorage.app sono di
+  // Firebase): lo crea l'API di Firebase Storage, dal workflow.
+  it('lo Storage dell’app: l’API col progetto, il bucket dallo script prima del deploy', () => {
     expect(tf).toContain('"firebasestorage.googleapis.com"')
-    expect(tf).toContain('name                        = "${local.progetto}.firebasestorage.app"')
-    expect(tf).toContain('resource "google_firebase_storage_bucket" "storage"')
-    expect(tf).toContain('VITE_FIREBASE_STORAGE_BUCKET      = google_firebase_storage_bucket.storage.bucket_id')
+    expect(tf).not.toMatch(/resource "google_storage_bucket"/)
+    expect(tf).toContain('VITE_FIREBASE_STORAGE_BUCKET      = "${local.progetto}.firebasestorage.app"')
+    const nomi = passi(provisiona).map((s) => s.name)
+    expect(passo(provisiona, 'Lo Storage del locale').run).toBe('node scripts/storage-istanza.mjs --project "$PROGETTO"')
+    expect(nomi.indexOf('Lo Storage del locale')).toBeGreaterThan(nomi.indexOf('Dipendenze'))
+    expect(nomi.indexOf('Lo Storage del locale')).toBeLessThan(nomi.indexOf('Deploy regole, indici, Functions e hosting'))
   })
 })
 

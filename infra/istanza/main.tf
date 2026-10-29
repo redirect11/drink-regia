@@ -92,7 +92,7 @@ locals {
     "cloudscheduler.googleapis.com",
     "cloudbilling.googleapis.com",
     "firebaseextensions.googleapis.com",
-    # Lo Storage dell'app (sotto, google_firebase_storage_bucket).
+    # Lo Storage dell'app: il bucket lo crea scripts/storage-istanza.mjs.
     "firebasestorage.googleapis.com",
   ]
 }
@@ -134,26 +134,10 @@ resource "google_firestore_database" "db" {
   depends_on  = [google_firebase_project.firebase]
 }
 
-# Lo Storage dell'app (foto e file del locale: l'app usa firebase/storage,
-# e il deploy pubblica storage.rules). Senza il bucket predefinito il
-# deploy si ferma con «Firebase Storage has not been set up» (la prima
-# attivazione di prova, prova-bar, 29/10/2026). È il bucket
-# `<progetto>.firebasestorage.app` dei progetti Firebase nuovi, in Europa
-# come Firestore.
-resource "google_storage_bucket" "storage" {
-  provider                    = google-beta
-  project                     = google_project.istanza.project_id
-  name                        = "${local.progetto}.firebasestorage.app"
-  location                    = upper(var.regione)
-  uniform_bucket_level_access = true
-  depends_on                  = [google_firebase_project.firebase]
-}
-
-resource "google_firebase_storage_bucket" "storage" {
-  provider  = google-beta
-  project   = google_project.istanza.project_id
-  bucket_id = google_storage_bucket.storage.id
-}
+# Lo Storage dell'app (foto e file del locale) qui non c'è: il bucket
+# predefinito `<progetto>.firebasestorage.app` lo può creare solo l'API di
+# Firebase Storage, non Cloud Storage («Another user owns the domain»).
+# Lo crea scripts/storage-istanza.mjs dal workflow, dopo questo apply.
 
 resource "google_firebase_web_app" "app" {
   provider     = google-beta
@@ -247,7 +231,8 @@ output "config_web" {
     VITE_FIREBASE_API_KEY             = data.google_firebase_web_app_config.app.api_key
     VITE_FIREBASE_AUTH_DOMAIN         = data.google_firebase_web_app_config.app.auth_domain
     VITE_FIREBASE_PROJECT_ID          = google_project.istanza.project_id
-    VITE_FIREBASE_STORAGE_BUCKET      = google_firebase_storage_bucket.storage.bucket_id
+    # Il nome che storage-istanza.mjs dà al bucket (lo decide Firebase).
+    VITE_FIREBASE_STORAGE_BUCKET      = "${local.progetto}.firebasestorage.app"
     VITE_FIREBASE_MESSAGING_SENDER_ID = lookup(data.google_firebase_web_app_config.app, "messaging_sender_id", "")
     VITE_FIREBASE_APP_ID              = google_firebase_web_app.app.app_id
   }
