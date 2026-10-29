@@ -4,6 +4,12 @@ Una voce per ogni cambiamento visibile, nello stesso commit del
 cambiamento. La versione in cima è quella in lavorazione finché non ha la
 data.
 
+## Sul ramo `feature/backoffice-leggibile` (non ancora in una versione)
+
+- Il backoffice mostra un locale per scheda: nome e stato colorato in
+  alto, i dati in ordine, il link all'app del locale, le azioni a gruppi
+  con Sospendi e Chiudi separati dalle altre (REQ-FLOTTA-005).
+
 ## 0.2.0 (in lavorazione)
 
 - L'attivazione e l'aggiornamento dei locali partono dalla regia: il
