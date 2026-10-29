@@ -23,17 +23,23 @@ if (!FILE || !ENV) {
   process.exit(1)
 }
 
-// L'uscita di `apps:sdkconfig web` è JavaScript con dentro un oggetto
-// letterale: si ritaglia il blocco fra le graffe e si legge come JSON
-// dopo aver messo le virgolette alle chiavi.
+// L'uscita di `apps:sdkconfig web` oggi è JSON; le versioni vecchie del CLI
+// scrivevano JavaScript con un oggetto letterale. Si ritaglia il blocco fra
+// le graffe e si prova prima come JSON: le virgolette alle chiavi si mettono
+// solo se serve, e solo all'inizio di riga, perché l'appId («1:…:web:…»)
+// contiene dei due punti che una sostituzione libera rovinerebbe.
 const testo = readFileSync(FILE, 'utf8')
 const blocco = testo.slice(testo.indexOf('{'), testo.lastIndexOf('}') + 1)
 let config
 try {
-  config = JSON.parse(blocco.replace(/([a-zA-Z_]+)\s*:/g, '"$1":').replace(/,\s*}/g, '}'))
+  config = JSON.parse(blocco)
 } catch {
-  console.error('Il file non contiene una firebaseConfig leggibile.')
-  process.exit(1)
+  try {
+    config = JSON.parse(blocco.replace(/^(\s*)([a-zA-Z_]+)\s*:/gm, '$1"$2":').replace(/,\s*}/g, '}'))
+  } catch {
+    console.error('Il file non contiene una firebaseConfig leggibile.')
+    process.exit(1)
+  }
 }
 
 const SEGRETI = {
