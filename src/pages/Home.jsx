@@ -1,6 +1,9 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { NOME_PRODOTTO, SLOGAN, DESCRIZIONE, URL_DEMO, EMAIL_CONTATTI } from '../lib/prodotto.js'
-import { PIANI, MODULI, TERMINALE_IN_PIU, ATTIVAZIONE, euro } from '../lib/piani.js'
+import { MODULI, TERMINALE_IN_PIU, ATTIVAZIONE, euro } from '../lib/piani.js'
+import { osservaVendita } from '../lib/db.js'
+import { venditaPulita, pianiInVendita, moduloVisibile } from '../lib/vendita.js'
 
 // LA PRIMA PAGINA (REQ-FLOTTA-002): una landing page intera — cosa fa il
 // prodotto, per chi, come si attiva, i piani coi prezzi, le domande che
@@ -86,6 +89,9 @@ function Icona({ d }) {
 }
 
 export default function Home({ utente }) {
+  // Il Free e i moduli si mostrano solo se sono in vendita (REQ-FLOTTA-015).
+  const [vendita, setVendita] = useState(() => venditaPulita(null))
+  useEffect(() => osservaVendita(setVendita), [])
   return (
     <main className="landing">
       <section className="hero">
@@ -156,7 +162,7 @@ export default function Home({ utente }) {
           Importi al mese, IVA esclusa. L’attivazione si paga una volta: {euro(ATTIVAZIONE)}.
         </p>
         <div className="piani">
-          {Object.values(PIANI).map((p) => (
+          {pianiInVendita(vendita).map((p) => (
             <article className={`card piano${p.id === 'completo' ? ' in-evidenza' : ''}`} key={p.id} aria-label={`Piano ${p.nome}`}>
               {p.id === 'completo' && <span className="etichetta">Tutto incluso</span>}
               <h3>{p.nome}</h3>
@@ -175,7 +181,7 @@ export default function Home({ utente }) {
         <h3>Moduli in più sul piano Base</h3>
         <table className="moduli">
           <tbody>
-            {MODULI.map((m) => (
+            {MODULI.filter((m) => moduloVisibile(vendita, m.id)).map((m) => (
               <tr key={m.id}>
                 <th scope="row">{m.nome}</th>
                 <td className="muted">{m.descrizione}</td>

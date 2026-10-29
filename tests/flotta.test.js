@@ -69,8 +69,20 @@ describe.each(WORKFLOW)('%s', (_, w, corpo) => {
   it('il deploy si riprova due volte, a 90 secondi', () => {
     const deploy = passo(w, 'Deploy regole, indici, Functions e hosting').run
     expect(deploy).toContain('for tentativo in 1 2 3; do')
-    expect(deploy).toContain('npx firebase-tools deploy --only firestore,storage,functions,hosting --project "$PROGETTO" --force')
+    expect(deploy).toContain('npx firebase-tools deploy --only "$SOLO" --project "$PROGETTO" --force')
     expect(deploy).toContain('sleep 90')
+  })
+
+  // REQ-FLOTTA-015: il profilo leggero (il Free) pubblica solo regole e
+  // sito, e salta Storage e segreti: è quello che lo rende a costo zero.
+  it('col profilo leggero solo regole e sito; Storage e segreti solo col completo', () => {
+    expect(eventi(w).workflow_dispatch.inputs.profilo).toMatchObject({ type: 'choice', options: ['completo', 'leggero'], default: 'completo' })
+    expect(w.env.PROFILO).toBe('${{ inputs.profilo }}')
+    expect(passi(w)[0].run).toContain('[[ "$PROFILO" =~ ^(completo|leggero)$ ]]')
+    const deploy = passo(w, 'Deploy regole, indici, Functions e hosting').run
+    expect(deploy).toContain('if [ "$PROFILO" = "leggero" ]; then SOLO=firestore,hosting; else SOLO=firestore,storage,functions,hosting; fi')
+    for (const nome of ['Lo Storage del locale', "I segreti dell'app"]) expect(passo(w, nome).if).toBe("env.PROFILO == 'completo'")
+    expect(passo(w, 'Esito alla regia').run).toContain('profilo: process.env.PROFILO || null')
   })
 
   // Le Functions dell'app dichiarano dei segreti, e Firebase non le

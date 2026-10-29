@@ -78,6 +78,19 @@ service cloud.firestore {
       }
     }
 
+    // La vendita (REQ-FLOTTA-015): cosa è in vendita lo legge anche chi non
+    // ha fatto l'accesso (la prima pagina mostra il Free solo se lo è); lo
+    // cambia solo l'admin, e ogni cambio resta nello storico, che non si
+    // riscrive.
+    match /vendita/{doc} {
+      allow read: if true;
+      allow write: if admin();
+      match /storico/{voce} {
+        allow read, create: if admin();
+        allow update, delete: if false;
+      }
+    }
+
     // Le impostazioni della regia (REQ-FLOTTA-011): il deploy automatico.
     match /impostazioni/{doc} {
       allow read: if autenticato();

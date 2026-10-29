@@ -186,3 +186,8 @@ code { background: rgba(255, 255, 255, 0.06); padding: 1px 5px; border-radius: 5
 .ondate { margin: 8px 0; padding-left: 20px; }
 .ondate li { margin: 4px 0; }
 .ondata-attuale { font-weight: 600; }
+
+/* ── La vendita nel backoffice (REQ-FLOTTA-015) ── */
+.card.vendita { margin: 12px 0; }
+.card.vendita h3 { margin-top: 0; }
+.vendita-moduli { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 4px 12px; }

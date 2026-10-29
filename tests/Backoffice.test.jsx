@@ -33,8 +33,13 @@ const db = vi.hoisted(() => ({
   elencoRilasci: vi.fn(async () => []),
   gestisciRilascio: vi.fn(async () => ({ ok: true })),
   gestisciEliminazione: vi.fn(async () => ({ ok: true })),
+  osservaVendita: vi.fn((cb) => {
+    cb(regia.vendita)
+    return () => {}
+  }),
+  impostaVendita: vi.fn(async () => {}),
 }))
-const regia = vi.hoisted(() => ({ impostazioni: {} }))
+const regia = vi.hoisted(() => ({ impostazioni: {}, vendita: { free: false, moduli: {} } }))
 vi.mock('../src/lib/db.js', () => db)
 
 import Backoffice from '../src/pages/Backoffice.jsx'
@@ -403,5 +408,23 @@ describe('eliminare un locale dal backoffice', () => {
     expect(within(attivo).queryByRole('button', { name: 'Elimina…' })).toBeNull()
     await user.click(within(attivo).getByRole('button', { name: 'Annulla eliminazione' }))
     expect(db.gestisciEliminazione).toHaveBeenCalledWith('annulla', { slug: 'bar-attivo' })
+  })
+})
+
+// LA VENDITA (REQ-FLOTTA-015): l'admin mette in vendita il Free e i moduli,
+// con un clic.
+describe('la vendita nel backoffice', () => {
+  it('il Free parte spento; accenderlo e togliere un modulo scrivono la vendita', async () => {
+    const user = userEvent.setup()
+    regia.vendita = { free: false, moduli: { menu_tavoli: true, ordini_cliente: true, clienti: true, magazzino: true, statistiche: true, staff: true, sumup: true } }
+    mostra()
+    const vendita = await screen.findByRole('region', { name: 'Vendita' })
+    const free = within(vendita).getByLabelText('Piano Free in vendita')
+    expect(free).not.toBeChecked()
+    expect(vendita).toHaveTextContent(/Tienilo spento finché l’app non fa rispettare i suoi limiti/)
+    await user.click(free)
+    expect(db.impostaVendita).toHaveBeenCalledWith({ free: true })
+    await user.click(within(vendita).getByLabelText('Pagamenti con lettore SumUp'))
+    expect(db.impostaVendita).toHaveBeenCalledWith({ moduli: { sumup: false } })
   })
 })

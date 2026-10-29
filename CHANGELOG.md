@@ -6,6 +6,13 @@ data.
 
 ## 0.2.1 (in lavorazione)
 
+- Il piano Free: 0 €, un terminale, fino a 10 prodotti nel menù e 5 conti
+  aperti insieme, senza sconti e senza moduli, storico di 7 giorni. Si
+  sceglie dalla dashboard senza pagamento, e il locale nasce leggero, a
+  costo zero; quando il titolare passa a un piano a pagamento i limiti
+  cadono e il locale si completa da solo. Dal backoffice l'admin mette in
+  vendita o toglie il Free e ogni modulo; il Free parte fuori vendita
+  (REQ-FLOTTA-015).
 - La prima attivazione vera di un locale di prova (`prova-bar`, 29/10/2026)
   va fino in fondo: il progetto nasce con lo Storage dell'app, i segreti
   che l'app dichiara e gli agenti di Google che le sue Functions usano, e

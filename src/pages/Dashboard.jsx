@@ -87,6 +87,14 @@ export default function Dashboard({ utente }) {
               <span className="muted"> · moduli: {cliente.moduli.map((id) => MODULI.find((m) => m.id === id)?.nome || id).join(', ')}</span>
             )}
             {cliente.terminali > 1 && <span className="muted"> · {cliente.terminali} terminali</span>}
+            {/* I limiti del Free si dicono qui, chiari (REQ-FLOTTA-015). */}
+            {piano.limiti && (
+              <span className="muted small" data-testid="limiti-piano">
+                {' '}
+                · fino a {piano.limiti.prodotti_max} prodotti nel menù e {piano.limiti.conti_aperti_max} conti aperti insieme
+                {piano.limiti.sconti === false && ', senza sconti'}, storico degli ultimi {piano.limiti.storico_giorni} giorni
+              </span>
+            )}
           </p>
         ) : (
           <p className="muted">Nessun piano ancora: scegline uno qui sotto.</p>
@@ -118,9 +126,11 @@ export default function Dashboard({ utente }) {
         {errore && <p className="errore">{errore}</p>}
       </section>
       <CreditoAI slug={cliente.slug} istanzaAttiva={stato === STATI.ATTIVA} />
-      {/* Senza un abbonamento attivo si sceglie (o si rinnova) il piano. */}
-      {cliente.abbonamento?.stato !== 'attivo' && <SceltaPiano cliente={cliente} />}
-      {cliente.abbonamento?.stato === 'attivo' && <SceltaPiano cliente={cliente} modifica />}
+      {/* Senza un abbonamento attivo si sceglie (o si rinnova) il piano. Dal
+          Free a un piano a pagamento si passa dal Checkout, non da «modifica»
+          (REQ-FLOTTA-015). */}
+      {(cliente.abbonamento?.stato !== 'attivo' || cliente.abbonamento?.origine === 'gratuito') && <SceltaPiano cliente={cliente} />}
+      {cliente.abbonamento?.stato === 'attivo' && cliente.abbonamento?.origine !== 'gratuito' && <SceltaPiano cliente={cliente} modifica />}
       {new URLSearchParams(window.location.search).get('pagamento') === 'ok' && (
         <p className="muted small">Pagamento ricevuto: l’abbonamento compare qui sopra appena Stripe ce lo conferma, di solito in pochi secondi.</p>
       )}

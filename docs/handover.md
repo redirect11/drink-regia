@@ -433,6 +433,18 @@ L'elenco completo con i riferimenti al codice è in
    ogni locale registra il suo. `DOMINIO_ISTANZE` in `src/lib/prodotto.js`.
    Da decidere: il nome, e se i locali stanno sotto un livello dedicato
    (`<slug>.app.<dominio>`).
+17. **Il piano Free (REQ-FLOTTA-015)**, ramo `feature/piano-free` (parte da
+   `feature/elimina-locale`), scritto il 30/10/2026. Fatti: il piano nel
+   listino coi limiti, la licenza coi limiti, `scegliFree`, la vendita
+   dell'admin (Free e moduli), il profilo leggero nei workflow e il passaggio
+   al completo quando il locale compra, il buco di `cambiaScelta` chiuso.
+   Restano: in tana-drink le richieste di
+   [richieste-tana-drink-free.md](richieste-tana-drink-free.md) (finché non ci
+   sono, il Free resta fuori vendita); nella regia le prove dei moduli
+   scelte dall'admin e «Cambia piano» al posto di «Piano a mano»; il progetto
+   Free senza fatturazione (Spark), da provare su un progetto di prova col
+   permesso dell'utente. Il nome del prodotto è ancora da decidere
+   (candidati: Floorder, Floorista, Comandry).
 
 ---
 
@@ -461,6 +473,14 @@ moduli, la licenza nell'istanza e la Tana.
   mancano (`scripts/segreti-istanza.mjs`), senza mai sovrascriverli: il
   valore vero è del locale. Se l'app ne dichiara uno nuovo, si aggiunge
   lì, altrimenti Firebase non pubblica le Functions.
+- **I limiti del Free e il profilo leggero** (REQ-FLOTTA-015, dal
+  30/10/2026, per intero in [richieste-tana-drink-free.md](richieste-tana-drink-free.md)).
+  La regia scrive `settings/bar.licenza.limiti` = `{ prodotti_max: 10,
+  conti_aperti_max: 5, sconti: false, storico_giorni: 7, marchio: true }`
+  per il Free, e `null` per i piani a pagamento. L'app applica i limiti solo
+  se la voce c'è: senza, nessun limite (la Tana non ha la voce). Un locale
+  Free si pubblica col profilo leggero (`--only firestore,hosting`): l'app
+  deve lavorare senza le sue Functions e senza Storage.
 - **Id dei moduli.** `functions/piani.json` → `moduli[].id` e
   `functions/lib/licenza.js` (MAPPA, TUTTI) devono combaciare con
   `src/lib/licenza.js` (MODULI_PREMIUM) in tana-drink. Oggi: `menu_tavoli`, `ordini_cliente`, `clienti`,

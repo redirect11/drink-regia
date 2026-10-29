@@ -10,11 +10,12 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
 } from 'firebase/auth'
-import { doc, setDoc, getDoc, onSnapshot, collection, getDocs, orderBy, query, updateDoc, limit } from 'firebase/firestore'
+import { doc, setDoc, getDoc, onSnapshot, collection, getDocs, orderBy, query, updateDoc, limit, addDoc } from 'firebase/firestore'
 import { getFunctions, httpsCallable } from 'firebase/functions'
 import { auth, db, configurata, app } from './firebase.js'
 import { nuovoCliente } from './clienti.js'
 import { STATI } from './istanze.js'
+import { venditaPulita } from './vendita.js'
 
 const serve = () => {
   if (!configurata) throw new Error('La regia non è collegata a Firebase: mancano le variabili VITE_FIREBASE_*.')
@@ -289,6 +290,34 @@ export async function gestisciEliminazione(azione, dati = {}) {
 export async function scaricaArchivio() {
   serve()
   const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'scaricaArchivio')
+  const { data } = await fn({})
+  return data
+}
+
+// La vendita (REQ-FLOTTA-015): la legge anche chi non ha fatto l'accesso,
+// perché la prima pagina mostra il Free solo se è in vendita. Senza Firebase
+// (i test, una build senza variabili) vale la vendita predefinita.
+export function osservaVendita(cb) {
+  if (!configurata) {
+    cb(venditaPulita(null))
+    return () => {}
+  }
+  return onSnapshot(doc(db, 'vendita', 'listino'), (s) => cb(venditaPulita(s.exists() ? s.data() : null)), () => cb(venditaPulita(null)))
+}
+
+// L'admin cambia cosa è in vendita: { free: true } o { moduli: { sumup: false } }.
+// Ogni cambio resta nello storico, con chi l'ha fatto e quando.
+export async function impostaVendita(cambio, chi = auth?.currentUser?.email || null) {
+  serve()
+  const il = new Date().toISOString()
+  await setDoc(doc(db, 'vendita', 'listino'), { ...cambio, aggiornata_il: il, aggiornata_da: chi }, { merge: true })
+  await addDoc(collection(db, 'vendita', 'listino', 'storico'), { cambio, il, da: chi })
+}
+
+// Il titolare sceglie il Free: il server controlla che sia in vendita.
+export async function scegliFree() {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'scegliFree')
   const { data } = await fn({})
   return data
 }

@@ -21,12 +21,18 @@ const MAPPA = {
 }
 const TUTTI = ['menu_tavoli', 'ordini_cliente', 'clienti', 'magazzino', 'conta', 'fatture', 'scadenzario', 'statistiche', 'staff', 'sumup']
 
-// { conta: true, fatture: false, … } per una scelta.
+// { conta: true, fatture: false, … } per una scelta. Il Free non accende
+// nessun modulo, qualunque cosa porti la scelta (REQ-FLOTTA-015).
 function moduliLicenza({ piano = 'base', moduli = [] } = {}) {
   const p = listino.piani[piano] ? piano : 'base'
-  const accesi = p === 'completo' ? TUTTI : [...new Set((moduli || []).flatMap((m) => MAPPA[m] || []))]
+  const accesi = p === 'completo' ? TUTTI : listino.piani[p].gratuito ? [] : [...new Set((moduli || []).flatMap((m) => MAPPA[m] || []))]
   return Object.fromEntries(TUTTI.map((m) => [m, accesi.includes(m)]))
 }
+
+// I limiti del piano per l'app (REQ-FLOTTA-015): il Free li porta, gli
+// altri piani scrivono null, cioè nessun limite. Contratto con tana-drink
+// (handover §7): senza limiti scritti l'app non ne applica nessuno.
+const limitiLicenza = (piano) => listino.piani[piano]?.limiti || null
 
 // La patch per settings/bar dell'istanza quando il piano cambia.
 function patchLicenzaPiano(scelta, adesso = new Date()) {
@@ -35,6 +41,7 @@ function patchLicenzaPiano(scelta, adesso = new Date()) {
     'licenza.piano': p,
     'licenza.moduli': moduliLicenza({ piano: p, moduli: scelta?.moduli }),
     'licenza.terminali': Math.max(1, Number(scelta?.terminali) || 1),
+    'licenza.limiti': limitiLicenza(p),
     'licenza.scritta_il': adesso.toISOString(),
   }
 }
@@ -52,6 +59,7 @@ function licenzaIniziale(attuale, { piano = 'base', moduli = [], slug, nome, reg
       ...(attuale?.licenza || {}),
       piano: p,
       moduli: moduliLicenza({ piano: p, moduli }),
+      limiti: limitiLicenza(p),
       stato: attuale?.licenza?.stato || 'attiva',
       slug,
       regia_url: regiaUrl,

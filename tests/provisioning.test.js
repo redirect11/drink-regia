@@ -16,6 +16,13 @@ const ADESSO = new Date('2026-10-22T10:00:00Z')
 // Audit del 22/10/2026, C2: la richiesta la scrive il server, dal documento
 // del cliente, e solo con l'abbonamento attivo.
 describe('preparaRichiesta', () => {
+  // REQ-FLOTTA-015: la pulizia dei piani è quella di Stripe, e da sola
+  // farebbe del Free un Base: un locale gratis coi limiti del Base.
+  it('un cliente Free chiede l’attivazione col piano Free, senza moduli', () => {
+    const free = { ...cliente, piano: 'free', moduli: ['magazzino'], abbonamento: { stato: 'attivo', origine: 'gratuito' } }
+    expect(preparaRichiesta(free, { emailVerificata: true, adesso: ADESSO }).richiesta).toMatchObject({ piano: 'free', moduli: [] })
+  })
+
   // REQ-FLOTTA-014: Google non riusa l'id di un progetto cancellato.
   it('un locale eliminato non si riattiva da qui', () => {
     const esito = preparaRichiesta(cliente, { emailVerificata: true, istanza: { stato: 'eliminata' }, adesso: ADESSO })
@@ -83,8 +90,14 @@ describe('dispatchPayload', () => {
   it('è il corpo del workflow_dispatch, con gli input come stringhe', () => {
     expect(dispatchPayload(richiesta, { ref: 'main', app: 'v1.10.0', ambiente: 'test' })).toEqual({
       ref: 'main',
-      inputs: { slug: 'bar-mario', nome_locale: 'Bar Mario', piano: 'base', moduli: 'staff,magazzino', uid: 'u1', ref: 'v1.10.0', ambiente: 'test' },
+      inputs: { slug: 'bar-mario', nome_locale: 'Bar Mario', piano: 'base', moduli: 'staff,magazzino', uid: 'u1', ref: 'v1.10.0', ambiente: 'test', profilo: 'completo' },
     })
+  })
+
+  // REQ-FLOTTA-015: il Free nasce leggero, costo zero.
+  it('il Free parte col profilo leggero, gli altri col completo', () => {
+    expect(dispatchPayload({ ...richiesta, piano: 'free', moduli: [] }).inputs.profilo).toBe('leggero')
+    expect(dispatchPayload({ ...richiesta, piano: 'completo' }).inputs.profilo).toBe('completo')
   })
 
   it('senza indicazioni: il main della regia, il main dell’app, la produzione', () => {
@@ -106,9 +119,14 @@ describe('dispatchAggiornamento', () => {
   it('lancia aggiorna-istanza.yml con lo slug, la versione dell’app e l’ambiente', () => {
     expect(dispatchAggiornamento({ slug: 'bar-mario', nome_locale: 'Bar Mario' }, { ref: 'main', app: 'v1.10.0', ambiente: 'test' })).toEqual({
       ref: 'main',
-      inputs: { slug: 'bar-mario', nome_locale: 'Bar Mario', ref: 'v1.10.0', ambiente: 'test' },
+      inputs: { slug: 'bar-mario', nome_locale: 'Bar Mario', ref: 'v1.10.0', ambiente: 'test', profilo: 'completo' },
     })
     expect(() => dispatchAggiornamento({ slug: 'x' })).toThrow(/slug/)
+  })
+
+  it('il profilo si dice: leggero per un locale Free, completo quando compra', () => {
+    expect(dispatchAggiornamento({ slug: 'bar-mario' }, { profilo: 'leggero' }).inputs.profilo).toBe('leggero')
+    expect(dispatchAggiornamento({ slug: 'bar-mario' }, { profilo: 'boh' }).inputs.profilo).toBe('completo')
   })
 })
 
@@ -149,9 +167,12 @@ describe('esitoValido e documentoIstanza', () => {
       versione: 'v1.10.0',
       ambiente: 'produzione',
       ref: 'main',
+      profilo: null,
       errore: null,
       aggiornata_il: '2026-10-22T10:00:00.000Z',
     })
+    // Il profilo con cui il workflow l'ha pubblicata resta sull'istanza.
+    expect(documentoIstanza(esitoValido({ slug: 'bar-mario', stato: 'attiva', profilo: 'leggero' }), null).profilo).toBe('leggero')
   })
 
   it('un errore porta il suo messaggio, o uno di riserva', () => {

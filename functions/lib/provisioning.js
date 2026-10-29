@@ -6,6 +6,7 @@
 // index.js collega, questo decide, e si prova senza emulatori.
 
 const { sceltaPulita } = require('./abbonamento.js')
+const { eGratuito, profiloDi } = require('./free.js')
 
 const SLUG = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/
 const STATI = ['in coda', 'in corso', 'attiva', 'errore']
@@ -36,7 +37,9 @@ function preparaRichiesta(cliente, { istanza = null, richiesta = null, emailVeri
   // Un locale eliminato (REQ-FLOTTA-014) non rinasce da qui: Google non
   // riusa mai l'id di un progetto cancellato, drinkpos-<slug> non torna.
   if (istanza?.stato === 'eliminata') return no('Il locale è stato eliminato: per riaprirlo scrivici.')
-  const scelta = sceltaPulita(cliente)
+  // Il Free resta Free (REQ-FLOTTA-015): sceltaPulita è quella di Stripe,
+  // che conosce solo i piani a pagamento e farebbe del Free un Base.
+  const scelta = eGratuito(cliente.piano) ? { piano: 'free', moduli: [] } : sceltaPulita(cliente)
   return {
     ok: true,
     perche: null,
@@ -89,15 +92,26 @@ function dispatchPayload(richiesta, { ref = 'main', app = 'main', ambiente = 'pr
       uid: String(richiesta.uid || ''),
       ref: app,
       ambiente: ambienteValido(ambiente),
+      // Leggero per il Free (niente Functions, Storage, segreti: costo
+      // zero), completo per gli altri (REQ-FLOTTA-015).
+      profilo: profiloDi(richiesta.piano),
     },
   }
 }
 
+const PROFILI = ['leggero', 'completo']
+const profiloValido = (p) => (PROFILI.includes(p) ? p : 'completo')
+
 // L'aggiornamento di un'istanza (REQ-FLOTTA-009): stesso meccanismo, altro
-// workflow (aggiorna-istanza.yml), con la versione dell'app da pubblicare.
-function dispatchAggiornamento(istanza, { ref = 'main', app = 'main', ambiente = 'produzione' } = {}) {
+// workflow (aggiorna-istanza.yml), con la versione dell'app da pubblicare
+// e il profilo: quello che l'istanza ha, o «completo» quando un locale Free
+// passa a un piano a pagamento.
+function dispatchAggiornamento(istanza, { ref = 'main', app = 'main', ambiente = 'produzione', profilo = 'completo' } = {}) {
   if (!istanza || !SLUG.test(istanza.slug || '')) throw new Error('Istanza senza uno slug valido')
-  return { ref, inputs: { slug: istanza.slug, nome_locale: String(istanza.nome_locale || istanza.slug), ref: app, ambiente: ambienteValido(ambiente) } }
+  return {
+    ref,
+    inputs: { slug: istanza.slug, nome_locale: String(istanza.nome_locale || istanza.slug), ref: app, ambiente: ambienteValido(ambiente), profilo: profiloValido(profilo) },
+  }
 }
 
 // Si lancia solo una richiesta «in coda»: una «in corso» è già partita,
@@ -127,6 +141,8 @@ function esitoValido(body) {
     // Attivazione o aggiornamento (REQ-FLOTTA-012): il workflow può dirlo;
     // se non lo dice decide eAggiornamento, dallo stato dell'istanza.
     operazione: ['attivazione', 'aggiornamento'].includes(body.operazione) ? body.operazione : null,
+    // Con quale profilo è stato pubblicato (REQ-FLOTTA-015).
+    profilo: PROFILI.includes(body.profilo) ? body.profilo : null,
     errore: body.stato === 'errore' ? String(body.errore || (body.operazione === 'aggiornamento' ? 'Aggiornamento fallito' : 'Attivazione fallita')) : null,
   }
 }
@@ -161,6 +177,7 @@ function documentoAggiornamento(esito, prima = null, adesso = new Date()) {
     versione: riuscito ? esito.versione ?? prima?.versione ?? null : prima?.versione ?? null,
     ref: riuscito ? esito.ref ?? prima?.ref ?? null : prima?.ref ?? null,
     ambiente: esito.ambiente ?? prima?.ambiente ?? null,
+    profilo: riuscito ? esito.profilo ?? prima?.profilo ?? null : prima?.profilo ?? null,
     aggiornamento: {
       ...agg,
       ref: agg.ref ?? esito.ref ?? null,
@@ -184,6 +201,7 @@ function documentoIstanza(esito, prima = null, adesso = new Date()) {
     versione: esito.versione ?? prima?.versione ?? null,
     ambiente: esito.ambiente ?? prima?.ambiente ?? null,
     ref: esito.ref ?? prima?.ref ?? null,
+    profilo: esito.profilo ?? prima?.profilo ?? null,
     errore: esito.errore,
     aggiornata_il: adesso.toISOString(),
   }

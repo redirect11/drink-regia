@@ -19,6 +19,11 @@ vi.mock('../src/lib/db.js', () => ({
     return () => {}
   },
   esci: vi.fn(),
+  // La prima pagina legge la vendita (REQ-FLOTTA-015): qui quella di partenza.
+  osservaVendita: (cb) => {
+    cb(null)
+    return () => {}
+  },
 }))
 
 import App from '../src/App.jsx'

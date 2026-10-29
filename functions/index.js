@@ -31,6 +31,7 @@ const { initializeApp: initializeAppCon, getApps } = require('firebase-admin/app
 const { getAuth } = require('firebase-admin/auth')
 const ai = require('./lib/ai.js')
 const elim = require('./lib/eliminazione.js')
+const free = require('./lib/free.js')
 const { getStorage } = require('firebase-admin/storage')
 const { datiEsistente, documentiEsistente, DatiNonValidi, scriveLicenza } = require('./lib/esistente.js')
 
@@ -204,7 +205,11 @@ exports.creaCheckout = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
   const cliente = (await db.doc(`clienti/${uid}`).get()).data()
   if (!cliente) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
   const scelta = { piano: req.data?.piano, moduli: req.data?.moduli, terminali: req.data?.terminali }
-  const ritorno = String(req.data?.ritorno || '').replace(/\/$/, '')
+  // Un modulo che l'admin ha tolto dalla vendita non si compra di nuovo
+  // (REQ-FLOTTA-015); chi lo ha già lo tiene.
+  const fuori = free.moduliFuoriVendita(cliente, scelta, await vendita())
+  if (fuori.length) throw new HttpsError('failed-precondition', `Non più in vendita: ${fuori.join(', ')}.`)
+  const ritorno =String(req.data?.ritorno || '').replace(/\/$/, '')
   if (!/^https?:\/\//.test(ritorno)) throw new HttpsError('invalid-argument', 'Indirizzo di ritorno non valido.')
   const sessione = await stripe.checkout.sessions.create({
     mode: 'subscription',
@@ -311,7 +316,7 @@ exports.sospendiMorosi = onSchedule({ ...OPTS, schedule: '0 6 * * *', timeZone: 
 // Lancia l'aggiornamento di un locale e lo segna «in corso», con la
 // versione di prima (il tag a cui tornare se va male). Ritorna null se è
 // partito, o il perché se non è partito.
-async function lanciaAggiornamento(slug, ref, { rilascio = null, ritorno = false } = {}) {
+async function lanciaAggiornamento(slug, ref, { rilascio = null, ritorno = false, profilo = null } = {}) {
   const istRef = db.doc(`istanze/${slug}`)
   const ist = (await istRef.get()).data()
   if (!ist || ist.stato !== 'attiva') return 'L’istanza non è attiva.'
@@ -319,7 +324,7 @@ async function lanciaAggiornamento(slug, ref, { rilascio = null, ritorno = false
   // rilasci e il suo progetto: il workflow della flotta non lo tocca mai.
   if (ist.origine === 'esistente') return 'Questa installazione si aggiorna dal suo repository, non dalla flotta.'
   const cliente = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]?.data()
-  const res = await dispatchGitHub(WORKFLOW_AGGIORNA, dispatchAggiornamento({ slug, nome_locale: cliente?.nome_locale }, { ref: REF, app: ref, ambiente: AMBIENTE_FLOTTA }))
+  const res = await dispatchGitHub(WORKFLOW_AGGIORNA, dispatchAggiornamento({ slug, nome_locale: cliente?.nome_locale }, { ref: REF, app: ref, ambiente: AMBIENTE_FLOTTA, profilo: profilo || ist.profilo || 'completo' }))
   const adesso = new Date()
   if (res.status !== 204) {
     // Non è partito: si segna fallito, così il rilascio si ferma e si vede.
@@ -455,6 +460,8 @@ exports.cambiaScelta = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
   const cliente = (await db.doc(`clienti/${uid}`).get()).data()
   if (!cliente) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
   const scelta = { piano: req.data?.piano, moduli: req.data?.moduli, terminali: req.data?.terminali }
+  const fuori = free.moduliFuoriVendita(cliente, scelta, await vendita())
+  if (fuori.length) throw new HttpsError('failed-precondition', `Non più in vendita: ${fuori.join(', ')}.`)
   const sub = cliente.abbonamento?.stripe_subscription
   const stripe = stripeClient()
   if (sub && stripe) {
@@ -466,7 +473,11 @@ exports.cambiaScelta = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
     })
     return { ok: true, via: 'stripe' }
   }
-  if (cliente.abbonamento?.origine === 'manuale' || cliente.piano) {
+  // Da Free a un piano a pagamento si passa solo dal Checkout (REQ-FLOTTA-015):
+  // il ramo qui sotto scrive il piano senza pagamento, ed era la strada per
+  // avere il Base gratis. Resta per i clienti creati a mano dall'admin.
+  if (cliente.abbonamento?.origine === 'gratuito') throw new HttpsError('failed-precondition', 'Per passare a un piano a pagamento scegli il piano e vai al pagamento.')
+  if (cliente.abbonamento?.origine === 'manuale') {
     const pulita = metadatiDi(uid, scelta)
     await db.doc(`clienti/${uid}`).set(
       { piano: pulita.piano, moduli: pulita.moduli ? pulita.moduli.split(',') : [], terminali: Number(pulita.terminali) || 1 },
@@ -479,7 +490,7 @@ exports.cambiaScelta = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
 
 // La licenza dell'istanza segue il cliente: quando piano, moduli o
 // terminali cambiano e l'istanza è attiva, si riscrive settings/bar.licenza.
-exports.licenzaSegueIlPiano = onDocumentUpdated({ ...OPTS, document: 'clienti/{uid}' }, async (event) => {
+exports.licenzaSegueIlPiano = onDocumentUpdated({ ...OPTS, document: 'clienti/{uid}', secrets: [GITHUB_DISPATCH_TOKEN] }, async (event) => {
   const prima = event.data?.before?.data()
   const dopo = event.data?.after?.data()
   if (!dopo?.slug || !sceltaCambiata(prima, dopo)) return
@@ -487,6 +498,34 @@ exports.licenzaSegueIlPiano = onDocumentUpdated({ ...OPTS, document: 'clienti/{u
   if (!ist?.progetto || ist.stato !== 'attiva' || !scriveLicenza(ist)) return
   await firestoreDi(ist.progetto).doc('settings/bar').update(patchLicenzaPiano(dopo))
   await db.doc(`istanze/${dopo.slug}`).set({ licenza_piano: dopo.piano, licenza_scritta_il: new Date().toISOString() }, { merge: true })
+  // Un locale Free che compra (REQ-FLOTTA-015): la licenza ha già tolto i
+  // limiti; ora arrivano Functions, Storage e segreti, col profilo completo.
+  if (free.serveProfiloCompleto(ist, dopo)) {
+    const perche = await lanciaAggiornamento(dopo.slug, REF_APP, { profilo: 'completo' })
+    console.log(`[free] ${dopo.slug} verso il profilo completo: ${perche || 'partito'}`)
+  }
+})
+
+// ── IL PIANO FREE E LA VENDITA (REQ-FLOTTA-015) ───────────────────────
+// La vendita la decide l'admin (vendita/listino, dal backoffice): il Free
+// e ogni modulo si vendono o no. La regola che conta sta qui, sul server:
+// il sito nasconde quello che non è in vendita, ma il server lo rifiuta.
+async function vendita() {
+  return free.venditaPulita((await db.doc('vendita/listino').get()).data())
+}
+
+// Il titolare sceglie il Free: un abbonamento attivo a costo zero, senza
+// Stripe. Poi «Attiva» come per ogni piano; il workflow lo pubblica col
+// profilo leggero.
+exports.scegliFree = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Prima conferma la tua email.')
+  const cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data()
+  const ist = cliente?.slug ? (await db.doc(`istanze/${cliente.slug}`).get()).data() : null
+  const puo = free.puoScegliereFree(cliente, ist, await vendita())
+  if (!puo.ok) throw new HttpsError('failed-precondition', puo.perche)
+  await db.doc(`clienti/${req.auth.uid}`).set(free.sceltaFree(), { merge: true })
+  return { ok: true }
 })
 
 // ── L'ADMIN CREA UN LOCALE DA SÉ (REQ-FLOTTA-011) ─────────────────────
@@ -511,7 +550,9 @@ exports.creaCliente = onCall(OPTS, async (req) => {
     utente = await auth.createUser({ email, emailVerified: true })
   }
   const ora = new Date().toISOString()
-  const pulita = metadatiDi(utente.uid, { piano, moduli, terminali })
+  // Anche l'admin può creare un locale Free (REQ-FLOTTA-015): resta Free,
+  // perché metadatiDi è quella di Stripe e ne farebbe un Base.
+  const pulita = free.eGratuito(piano) ? { piano: 'free', moduli: '', terminali: '1' } : metadatiDi(utente.uid, { piano, moduli, terminali })
   const cliente = {
     uid: utente.uid,
     versione_schema: 2,
@@ -525,7 +566,7 @@ exports.creaCliente = onCall(OPTS, async (req) => {
     piano: pulita.piano,
     moduli: pulita.moduli ? pulita.moduli.split(',') : [],
     terminali: Number(pulita.terminali) || 1,
-    abbonamento: { stato: 'attivo', origine: 'manuale', dal: ora },
+    abbonamento: { stato: 'attivo', origine: free.eGratuito(piano) ? 'gratuito' : 'manuale', dal: ora },
     creato_da_admin: true,
     creato_il: ora,
   }

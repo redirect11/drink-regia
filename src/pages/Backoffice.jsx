@@ -18,7 +18,10 @@ import {
   elencoRilasci,
   gestisciRilascio,
   gestisciEliminazione,
+  osservaVendita,
+  impostaVendita,
 } from '../lib/db.js'
+import { venditaPulita } from '../lib/vendita.js'
 import { statoIstanza, statoDetto, STATI, progettoDi } from '../lib/istanze.js'
 import { PIANI, MODULI, prezzoMensile, euro } from '../lib/piani.js'
 import { contattoDi } from '../lib/clienti.js'
@@ -211,6 +214,7 @@ export default function Backoffice() {
           ? 'Deploy automatico acceso: «Attiva» di un titolare parte da solo.'
           : 'Deploy automatico spento: le richieste aspettano la tua autorizzazione qui sotto.'}
       </p>
+      <Vendita onErrore={setErrore} />
       {errore && <p className="errore">{errore}</p>}
 
       {nuovo && (
@@ -328,6 +332,7 @@ export default function Backoffice() {
                       <dt>Progetto</dt>
                       <dd>
                         <code>{istanza?.progetto || progettoDi(c.slug)}</code>
+                        {istanza?.profilo === 'leggero' && <div className="muted small">profilo leggero (Free)</div>}
                         {istanza?.url && (
                           <div className="small">
                             <a href={istanza.url} target="_blank" rel="noreferrer">
@@ -667,6 +672,40 @@ const TONO = {
   [STATI.IN_CODA]: 'attesa',
   [STATI.IN_CORSO]: 'attesa',
   [STATI.DA_APPROVARE]: 'avviso',
+}
+
+// LA VENDITA (REQ-FLOTTA-015, l'utente, 30/10/2026: «voglio poterlo
+// attivare e disattivare per la vendita come admin»). Il Free e ogni modulo
+// si mettono in vendita o si tolgono con un clic, senza deploy; chi li ha
+// già continua a usarli. Ogni cambio resta nello storico.
+function Vendita({ onErrore }) {
+  const [vendita, setVendita] = useState(() => venditaPulita(null))
+  useEffect(() => osservaVendita(setVendita), [])
+  const cambia = (cambio) => impostaVendita(cambio).catch((e) => onErrore(e.message))
+  return (
+    <section className="card vendita" aria-label="Vendita">
+      <h3>Vendita</h3>
+      <label className="opzione interruttore">
+        <input type="checkbox" checked={vendita.free} onChange={(e) => cambia({ free: e.target.checked })} />
+        Piano Free in vendita
+      </label>
+      <p className="muted small">
+        {vendita.free
+          ? 'Il Free compare nei prezzi e chi si registra lo può attivare.'
+          : 'Il Free non compare e non si attiva; i locali Free che ci sono continuano a lavorare. Tienilo spento finché l’app non fa rispettare i suoi limiti.'}
+      </p>
+      <h4>Moduli in vendita</h4>
+      <div className="vendita-moduli">
+        {MODULI.map((m) => (
+          <label key={m.id} className="opzione">
+            <input type="checkbox" checked={vendita.moduli[m.id]} onChange={(e) => cambia({ moduli: { [m.id]: e.target.checked } })} />
+            {m.nome}
+          </label>
+        ))}
+      </div>
+      <p className="muted small">Un modulo tolto dalla vendita non si compra più; chi lo ha lo tiene.</p>
+    </section>
+  )
 }
 
 // A che punto è l'eliminazione di un locale (REQ-FLOTTA-014), in una riga.

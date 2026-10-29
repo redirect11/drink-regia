@@ -35,8 +35,18 @@ describe('patchLicenzaPiano e sceltaCambiata', () => {
       'licenza.piano': 'base',
       'licenza.moduli': p['licenza.moduli'],
       'licenza.terminali': 2,
+      'licenza.limiti': null,
       'licenza.scritta_il': '2026-10-22T10:00:00.000Z',
     })
+  })
+
+  // REQ-FLOTTA-015: il Free porta i suoi limiti e nessun modulo; passando
+  // a un piano a pagamento i limiti tornano null, cioè nessuno.
+  it('il Free: nessun modulo, i limiti del piano; a pagamento i limiti spariscono', () => {
+    const free = patchLicenzaPiano({ piano: 'free', moduli: ['magazzino'] })
+    expect(Object.values(free['licenza.moduli']).every((v) => v === false)).toBe(true)
+    expect(free['licenza.limiti']).toEqual({ prodotti_max: 10, conti_aperti_max: 5, sconti: false, storico_giorni: 7, marchio: true })
+    expect(patchLicenzaPiano({ piano: 'completo' })['licenza.limiti']).toBeNull()
   })
 
   it('cambia se cambiano piano, moduli o terminali; l’ordine dei moduli non conta', () => {
@@ -58,6 +68,7 @@ describe('licenzaIniziale', () => {
     expect(p.licenza).toEqual({
       piano: 'base',
       moduli: moduliLicenza({ piano: 'base', moduli: ['staff'] }),
+      limiti: null,
       stato: 'attiva',
       slug: 'bar-mario',
       regia_url: 'https://drink-regia.web.app',
