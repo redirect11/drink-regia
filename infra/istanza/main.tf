@@ -216,6 +216,35 @@ resource "google_project_iam_member" "provisioning" {
   member  = "serviceAccount:${var.provisioning_sa_email}"
 }
 
+# Gli agenti di servizio che le Functions di Firestore usano (Eventarc
+# porta l'evento, Pub/Sub lo consegna). Google li fa nascere solo al primo
+# uso, e i loro permessi arrivano qualche minuto dopo: al primo deploy le
+# Functions con un trigger di Firestore si fermavano con «Permission denied
+# while using the Eventarc Service Agent» (prova-bar, 29/10/2026). Qui
+# nascono con il progetto, minuti prima del deploy; il workflow riprova
+# comunque il deploy se i permessi non sono ancora arrivati.
+resource "google_project_service_identity" "agenti" {
+  provider   = google-beta
+  for_each   = toset(["eventarc.googleapis.com", "pubsub.googleapis.com"])
+  project    = google_project.istanza.project_id
+  service    = each.value
+  depends_on = [google_project_service.api]
+}
+
+resource "google_project_iam_member" "agente_eventarc" {
+  provider = google-beta
+  project  = google_project.istanza.project_id
+  role     = "roles/eventarc.serviceAgent"
+  member   = "serviceAccount:${google_project_service_identity.agenti["eventarc.googleapis.com"].email}"
+}
+
+resource "google_project_iam_member" "agente_pubsub" {
+  provider = google-beta
+  project  = google_project.istanza.project_id
+  role     = "roles/iam.serviceAccountTokenCreator"
+  member   = "serviceAccount:${google_project_service_identity.agenti["pubsub.googleapis.com"].email}"
+}
+
 # La regia sospende e riattiva l'istanza scrivendo settings/bar.licenza
 # (REQ-FLOTTA-008): le serve di leggere e scrivere Firestore qui.
 resource "google_project_iam_member" "regia" {

@@ -62,6 +62,15 @@ describe.each(WORKFLOW)('%s', (_, w, corpo) => {
     expect(passo(w, 'Deploy regole, indici, Functions e hosting')['working-directory']).toBe('app')
   })
 
+  // Al primo deploy delle Functions i permessi degli agenti di Google
+  // arrivano dopo qualche minuto (prova-bar): il deploy si riprova.
+  it('il deploy si riprova due volte, a 90 secondi', () => {
+    const deploy = passo(w, 'Deploy regole, indici, Functions e hosting').run
+    expect(deploy).toContain('for tentativo in 1 2 3; do')
+    expect(deploy).toContain('npx firebase-tools deploy --only firestore,storage,functions,hosting --project "$PROGETTO" --force')
+    expect(deploy).toContain('sleep 90')
+  })
+
   // Le Functions dell'app dichiarano dei segreti, e Firebase non le
   // pubblica se ne manca uno (la prima attivazione di prova, SUMUP_API_KEY).
   it('i segreti dichiarati dall’app si creano prima del deploy', () => {
@@ -120,6 +129,12 @@ describe('infra/istanza/main.tf', () => {
   it('l’ambiente è produzione o test, ed è un’etichetta del progetto', () => {
     expect(variabile('ambiente')).toContain('contains(["produzione", "test"], var.ambiente)')
     expect(tf).toContain('ambiente = var.ambiente')
+  })
+
+  it('gli agenti di Eventarc e Pub/Sub nascono col progetto, con i loro ruoli', () => {
+    expect(tf).toContain('for_each   = toset(["eventarc.googleapis.com", "pubsub.googleapis.com"])')
+    expect(tf).toContain('role     = "roles/eventarc.serviceAgent"')
+    expect(tf).toContain('role     = "roles/iam.serviceAccountTokenCreator"')
   })
 
   // L'app usa firebase/storage e il deploy pubblica storage.rules: senza il

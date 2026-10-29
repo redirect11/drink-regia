@@ -236,7 +236,17 @@ jobs:
 
       - name: Deploy regole, indici, Functions e hosting
         working-directory: app
-        run: npx firebase-tools deploy --only firestore,storage,functions,hosting --project "$PROGETTO" --force
+        # Al primo deploy delle Functions di un progetto nuovo, i permessi
+        # degli agenti di Google arrivano qualche minuto dopo («Retry the
+        # deployment in a few minutes», prova-bar, 29/10/2026): si riprova
+        # due volte, a 90 secondi. Il deploy si può ripetere senza danni.
+        run: |
+          for tentativo in 1 2 3; do
+            if npx firebase-tools deploy --only firestore,storage,functions,hosting --project "$PROGETTO" --force; then exit 0; fi
+            if [ "$tentativo" = 3 ]; then exit 1; fi
+            echo "::warning::Deploy non riuscito al tentativo $tentativo: riprovo fra 90 secondi."
+            sleep 90
+          done
 
       - name: Licenza e nome del locale nell'istanza
         env:
