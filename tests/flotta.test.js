@@ -62,6 +62,17 @@ describe.each(WORKFLOW)('%s', (_, w, corpo) => {
     expect(passo(w, 'Deploy regole, indici, Functions e hosting')['working-directory']).toBe('app')
   })
 
+  // Le Functions dell'app dichiarano dei segreti, e Firebase non le
+  // pubblica se ne manca uno (la prima attivazione di prova, SUMUP_API_KEY).
+  it('i segreti dichiarati dall’app si creano prima del deploy', () => {
+    expect(w.env.SEGRETI_APP).toBe('SUMUP_API_KEY')
+    const nomi = passi(w).map((s) => s.name)
+    expect(passo(w, "I segreti dell'app").run).toBe('node scripts/segreti-istanza.mjs --project "$PROGETTO" --segreti "$SEGRETI_APP"')
+    expect(nomi.indexOf("I segreti dell'app")).toBeGreaterThan(nomi.indexOf('Dipendenze'))
+    expect(nomi.indexOf("I segreti dell'app")).toBeLessThan(nomi.indexOf('Deploy regole, indici, Functions e hosting'))
+    expect(passo(w, 'Dipendenze').run).toContain('npm ci --prefix functions')
+  })
+
   it('attivazione e aggiornamento dello stesso locale non si sovrappongono', () => {
     expect(w.concurrency).toEqual({ group: 'istanza-${{ inputs.slug }}', 'cancel-in-progress': false })
   })

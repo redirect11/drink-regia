@@ -53,6 +53,9 @@ env:
   REF_APP: ${{ inputs.ref }}
   AMBIENTE: ${{ inputs.ambiente }}
   PROGETTO: drinkpos-${{ inputs.slug }}
+  # I segreti che le Functions dell'app di tana-drink dichiarano
+  # (defineSecret): contratto con tana-drink, docs/handover.md §7.
+  SEGRETI_APP: SUMUP_API_KEY
 
 jobs:
   aggiorna:
@@ -78,6 +81,9 @@ jobs:
             echo "::warning::«$REF_APP» non è un rilascio (main o tag vX.Y.Z): va bene solo per provare."
           fi
 
+      # La regia: lo script dei segreti dell'app.
+      - uses: actions/checkout@v4
+
       # L'app dei locali, alla versione chiesta. tana-drink è pubblico.
       - uses: actions/checkout@v4
         with:
@@ -90,6 +96,7 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: |
+            functions/package-lock.json
             app/package-lock.json
             app/functions/package-lock.json
 
@@ -103,8 +110,14 @@ jobs:
 
       - name: Dipendenze
         run: |
+          npm ci --prefix functions
           npm ci --prefix app
           npm ci --prefix app/functions
+
+      # Una versione nuova dell'app può dichiarare un segreto in più: si crea
+      # col segnaposto prima del deploy (scripts/segreti-istanza.mjs).
+      - name: I segreti dell'app
+        run: node scripts/segreti-istanza.mjs --project "$PROGETTO" --segreti "$SEGRETI_APP"
 
       - name: La configurazione web dell'istanza
         working-directory: app

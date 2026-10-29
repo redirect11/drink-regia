@@ -77,6 +77,9 @@ env:
   REF_APP: ${{ inputs.ref }}
   AMBIENTE: ${{ inputs.ambiente }}
   PROGETTO: drinkpos-${{ inputs.slug }}
+  # I segreti che le Functions dell'app di tana-drink dichiarano
+  # (defineSecret): contratto con tana-drink, docs/handover.md §7.
+  SEGRETI_APP: SUMUP_API_KEY
 
 jobs:
   provisiona:
@@ -209,6 +212,12 @@ jobs:
       # storage.rules si ferma.
       - name: Lo Storage del locale
         run: node scripts/storage-istanza.mjs --project "$PROGETTO"
+
+      # I segreti che le Functions dell'app dichiarano: senza, Firebase non
+      # le pubblica. Si creano col segnaposto, mai sovrascritti
+      # (scripts/segreti-istanza.mjs).
+      - name: I segreti dell'app
+        run: node scripts/segreti-istanza.mjs --project "$PROGETTO" --segreti "$SEGRETI_APP"
 
       - name: La cartella del cliente
         working-directory: app
