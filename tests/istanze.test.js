@@ -4,7 +4,7 @@
 // a una parola piana, e la regola di quando si può chiedere l'attivazione.
 
 import { describe, it, expect } from 'vitest'
-import { STATI, statoIstanza, statoDetto, puoAttivare, nuovaRichiesta, progettoDi, urlDi } from '../src/lib/istanze.js'
+import { STATI, statoIstanza, statoDetto, puoAttivare, progettoDi, urlDi } from '../src/lib/istanze.js'
 
 describe('statoIstanza', () => {
   it('l’istanza vince sulla richiesta, e senza niente è «da attivare»', () => {
@@ -36,18 +36,14 @@ describe('puoAttivare', () => {
   })
 })
 
-describe('la richiesta e i nomi', () => {
-  it('la richiesta porta slug, piano e moduli, in coda', () => {
-    const r = nuovaRichiesta({ uid: 'u1', slug: 'bar-mario', nome_locale: 'Bar Mario', piano: 'base', moduli: ['staff'] }, new Date('2026-10-22T10:00:00Z'))
-    expect(r).toEqual({
-      uid: 'u1',
-      slug: 'bar-mario',
-      nome_locale: 'Bar Mario',
-      piano: 'base',
-      moduli: ['staff'],
-      stato: 'in coda',
-      chiesta_il: '2026-10-22T10:00:00.000Z',
-    })
+// La richiesta non la costruisce più il browser (audit del 22/10/2026, C2):
+// la scrive la Function, provata in tests/provisioning.test.js. Qui resta
+// come la dashboard racconta gli stati.
+describe('gli stati raccontati e i nomi', () => {
+  // REQ-FLOTTA-011: col deploy automatico spento la richiesta aspetta l'admin.
+  it('una richiesta «da approvare» si racconta, e non si chiede di nuovo', () => {
+    expect(statoDetto(STATI.DA_APPROVARE)).toMatch(/autorizzazione/)
+    expect(puoAttivare({ uid: 'u1', slug: 'bar-mario', piano: 'base' }, null, { stato: STATI.DA_APPROVARE }).ok).toBe(false)
   })
 
   it('il progetto e l’indirizzo nascono dallo slug', () => {

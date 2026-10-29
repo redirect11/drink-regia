@@ -1,13 +1,15 @@
 // ── LO STATO DI UN'ISTANZA (REQ-FLOTTA-004, REQ-FLOTTA-006) ───────────
 //
 // L'istanza di un cliente passa per pochi stati, e la dashboard li dice
-// con parole piane. Chi li scrive: il titolare (`in coda`, col tasto
-// Attiva), il provisioning (`in corso`, `attiva`, `errore`), l'admin.
+// con parole piane. Chi li scrive: la Function `chiediAttivazione` (`in
+// coda` o `da approvare`, col tasto Attiva), il provisioning (`in corso`,
+// `attiva`, `errore`), l'admin.
 
 import { DOMINIO_ISTANZE, PREFISSO_PROGETTI } from './prodotto.js'
 
 export const STATI = {
   DA_ATTIVARE: 'da attivare',
+  DA_APPROVARE: 'da approvare',
   IN_CODA: 'in coda',
   IN_CORSO: 'in corso',
   ATTIVA: 'attiva',
@@ -16,6 +18,7 @@ export const STATI = {
 
 const DETTO = {
   [STATI.DA_ATTIVARE]: 'Non ancora attivata',
+  [STATI.DA_APPROVARE]: 'In attesa di autorizzazione: ti avvisiamo quando parte',
   [STATI.IN_CODA]: 'In coda: l’attivazione parte a breve',
   [STATI.IN_CORSO]: 'Attivazione in corso (qualche minuto)',
   [STATI.ATTIVA]: 'Attiva',
@@ -38,7 +41,9 @@ export const urlDi = (slug) => `https://${slug}.${DOMINIO_ISTANZE}`
 
 // Si può chiedere l'attivazione? Serve un abbonamento valido (o un piano
 // segnato pagato a mano dall'admin, finché Stripe non c'è) e nessuna
-// attivazione già in viaggio.
+// attivazione già in viaggio. Questo decide solo se il tasto è acceso: la
+// regola che conta la rifà il server (functions/lib/provisioning.js,
+// preparaRichiesta), perché il browser non è di fiducia (audit C2).
 export function puoAttivare(cliente, istanza, richiesta, { emailVerificata = true } = {}) {
   const stato = statoIstanza(istanza, richiesta)
   if (stato !== STATI.DA_ATTIVARE && stato !== STATI.ERRORE) return { ok: false, perche: statoDetto(stato) }
@@ -48,17 +53,4 @@ export function puoAttivare(cliente, istanza, richiesta, { emailVerificata = tru
     return { ok: false, perche: 'L’abbonamento non risulta attivo.' }
   }
   return { ok: true, perche: null }
-}
-
-// La richiesta che il titolare scrive in richieste/{slug}.
-export function nuovaRichiesta(cliente, adesso = new Date()) {
-  return {
-    uid: cliente.uid,
-    slug: cliente.slug,
-    nome_locale: cliente.nome_locale,
-    piano: cliente.piano,
-    moduli: cliente.moduli || [],
-    stato: STATI.IN_CODA,
-    chiesta_il: adesso.toISOString(),
-  }
 }

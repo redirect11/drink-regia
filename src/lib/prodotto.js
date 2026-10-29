@@ -12,11 +12,20 @@ export const SLUG_PRODOTTO = 'drink'
 // prodotto. La regia è `drink-regia`, creata a parte.
 export const PREFISSO_PROGETTI = 'drinkpos'
 export const NOME_PRODOTTO = 'Drink'
-export const SLOGAN = 'Cassa, comande e magazzino per bar e cocktail bar.'
+export const SLOGAN = 'La cassa del locale, che lavora anche senza rete.'
 export const DESCRIZIONE =
-  'Un’installazione per ogni locale: i dati restano suoi. Si lavora anche senza rete, ' +
-  'le comande arrivano al banco, lo scontrino esce sulla stampante del bar.'
+  'Comande, conti, scontrino e magazzino in un’app che ogni locale ha tutta per sé: ' +
+  'una sua installazione, i suoi dati, il suo indirizzo. Pensata al banco di un cocktail bar, ' +
+  'con il locale pieno.'
 
 // Il dominio sotto cui nascono le istanze: <slug>.<DOMINIO_ISTANZE>. Da
 // confermare col dominio vero del prodotto.
 export const DOMINIO_ISTANZE = 'drink.app'
+
+// L'installazione dimostrativa (REQ-FLOTTA-001): un locale neutro, con il
+// menù pubblico, che la prima pagina può mostrare.
+export const URL_DEMO = 'https://drinkpos-demo.web.app'
+
+// Il contatto del prodotto. Segnaposto sul dominio delle istanze, come il
+// dominio: si cambia quando c'è quello vero.
+export const EMAIL_CONTATTI = `info@${DOMINIO_ISTANZE}`

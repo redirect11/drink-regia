@@ -1,0 +1,80 @@
+name: Deploy to Firebase
+
+# UN PUSH NON PUBBLICA. Pubblicano il tag o il lancio a mano:
+#   tag su un commit di `main`    → PRODUZIONE (drink-regia), con approvazione
+#   tag su qualsiasi altro commit → TEST (drink-regia-test), subito
+#   lancio a mano su un ramo      → TEST, senza tag
+# Il ramo non conta: conta dove sta il commit (job «Dove va»).
+# I segreti stanno nelle GitHub Environments «production» e «test», con
+# gli stessi nomi. L'approvazione è «Required reviewers» su «production».
+# Stesso modello di tana-drink, senza il ramo della flotta: la regia non
+# ha clienti da compilare, tutto quello che non è main va sul test.
+on:
+  push:
+    tags:
+      - '**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firebase-deploy
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Lint e test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+
+  destinazione:
+    name: Dove va
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      ambiente: ${{ steps.scelta.outputs.ambiente }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: scelta
+        run: |
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          if git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "ambiente=production" >> "$GITHUB_OUTPUT"
+            echo "${GITHUB_REF_NAME} è su main → PRODUZIONE (con approvazione)."
+          else
+            echo "ambiente=test" >> "$GITHUB_OUTPUT"
+            echo "${GITHUB_REF_NAME} non è su main → TEST."
+          fi
+
+  prova:
+    name: Test
+    needs: destinazione
+    if: needs.destinazione.outputs.ambiente == 'test'
+    uses: ./.github/workflows/deploy.yml
+    with:
+      ambiente: test
+      progetto: drink-regia-test
+      versione: ${{ github.ref_name }}
+    secrets: inherit
+
+  produzione:
+    name: Produzione
+    needs: destinazione
+    if: needs.destinazione.outputs.ambiente == 'production'
+    uses: ./.github/workflows/deploy.yml
+    with:
+      ambiente: production
+      progetto: drink-regia
+      versione: ${{ github.ref_name }}
+    secrets: inherit

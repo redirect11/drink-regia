@@ -5,7 +5,7 @@
 // Niente Stripe qui: index.js chiama l'SDK, questo decide, e si prova
 // senza chiavi.
 
-const listino = require('../../piani.json')
+const listino = require('../piani.json')
 
 const SCELTA_VALIDA = /^(base|completo)$/
 
@@ -60,6 +60,9 @@ function aggiornamentoDaEvento(tipo, oggetto, adesso = new Date()) {
   const ora = adesso.toISOString()
   const md = oggetto?.metadata || {}
   if (tipo === 'checkout.session.completed') {
+    // Una ricarica del credito AI (REQ-AI-003) è un pagamento singolo, non
+    // un abbonamento: la lavora ai.js, qui non deve toccare piano e stato.
+    if (md.tipo === 'ricarica_ai') return null
     if (!md.uid) return null
     return {
       uid: md.uid,
@@ -74,6 +77,20 @@ function aggiornamentoDaEvento(tipo, oggetto, adesso = new Date()) {
           stripe_subscription: oggetto.subscription || null,
           dal: ora,
         },
+      },
+    }
+  }
+  // Il piano cambiato da Stripe (REQ-FLOTTA-010): i metadati della
+  // subscription portano la scelta nuova.
+  if (tipo === 'customer.subscription.updated') {
+    if (!oggetto?.id || !md.piano) return null
+    return {
+      stripe_subscription: oggetto.id,
+      patch: {
+        piano: md.piano,
+        moduli: md.moduli ? md.moduli.split(',').filter(Boolean) : [],
+        terminali: Number(md.terminali) || 1,
+        'abbonamento.aggiornato_il': ora,
       },
     }
   }

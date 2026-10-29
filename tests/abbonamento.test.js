@@ -9,7 +9,7 @@ import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
 const { sceltaPulita, righeCheckout, metadatiDi, aggiornamentoDaEvento } = require('../functions/lib/abbonamento.js')
-const listino = require('../piani.json')
+const listino = require('../functions/piani.json')
 
 describe('sceltaPulita', () => {
   it('toglie moduli sconosciuti o già inclusi, e i terminali partono da 1', () => {
@@ -63,6 +63,12 @@ describe('aggiornamentoDaEvento', () => {
         abbonamento: { stato: 'attivo', origine: 'stripe', stripe_customer: 'cus_1', stripe_subscription: 'sub_1', dal: '2026-10-22T10:00:00.000Z' },
       },
     })
+  })
+
+  it('un abbonamento modificato porta la scelta nuova dai metadati (REQ-FLOTTA-010)', () => {
+    const a = aggiornamentoDaEvento('customer.subscription.updated', { id: 'sub_1', metadata: { piano: 'completo', moduli: '', terminali: '3' } }, ora)
+    expect(a).toEqual({ stripe_subscription: 'sub_1', patch: { piano: 'completo', moduli: [], terminali: 3, 'abbonamento.aggiornato_il': '2026-10-22T10:00:00.000Z' } })
+    expect(aggiornamentoDaEvento('customer.subscription.updated', { id: 'sub_1', metadata: {} }, ora)).toBeNull()
   })
 
   it('un pagamento fallito sospende, una disdetta chiude, un evento ignoto non fa niente', () => {

@@ -9,7 +9,7 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import '@testing-library/jest-dom/vitest'
 
-const db = vi.hoisted(() => ({ avviaPagamento: vi.fn() }))
+const db = vi.hoisted(() => ({ avviaPagamento: vi.fn(), cambiaScelta: vi.fn() }))
 vi.mock('../src/lib/db.js', () => db)
 
 import SceltaPiano from '../src/pages/SceltaPiano.jsx'
@@ -45,6 +45,17 @@ describe('la scelta del piano', () => {
     await user.click(screen.getByRole('button', { name: /Vai al pagamento/ }))
     expect(db.avviaPagamento).toHaveBeenCalledWith({ piano: 'base', moduli: ['staff'], terminali: 1 })
     expect(assign).toHaveBeenCalledWith('https://checkout.stripe.com/x')
+  })
+
+  it('in modifica «Aggiorna il piano» cambia la scelta senza passare dal Checkout', async () => {
+    const user = userEvent.setup()
+    db.cambiaScelta.mockResolvedValueOnce({ ok: true, via: 'stripe' })
+    render(<SceltaPiano cliente={{ uid: 'u1', piano: 'base', moduli: [] }} modifica vai={vi.fn()} />)
+    await user.click(screen.getByLabelText(/Completo/))
+    await user.click(screen.getByRole('button', { name: 'Aggiorna il piano' }))
+    expect(db.cambiaScelta).toHaveBeenCalledWith({ piano: 'completo', moduli: [], terminali: 1 })
+    expect(db.avviaPagamento).not.toHaveBeenCalled()
+    expect(await screen.findByText(/Piano aggiornato/)).toBeInTheDocument()
   })
 
   it('un rifiuto della Function si legge, e si può riprovare', async () => {

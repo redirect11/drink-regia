@@ -23,13 +23,50 @@ npm run lint
 npm run build
 ```
 
-Le variabili `VITE_FIREBASE_*` del progetto `drink-regia` vanno in un
-`.env` locale (non si committa) e nell'environment GitHub «regia». I
-segreti delle Functions (`GITHUB_DISPATCH_TOKEN`,
-`PROVISIONING_CALLBACK_SECRET`, `STRIPE_SECRET_KEY`,
-`STRIPE_WEBHOOK_SECRET`) si mettono con
-`firebase functions:secrets:set --project drink-regia`.
+**Due progetti Firebase**, come tana-drink: `drink-regia-test` per
+provare e `drink-regia` per la produzione. Un push non pubblica mai: un
+tag su un commit fuori da `main` (o il lancio a mano di «Deploy to
+Firebase») va sul test, un tag su `main` va in produzione dopo
+un'approvazione su GitHub (`docs/handover.md` §3,
+`docs/actions-come-tana-drink.md`). I segreti stanno nelle GitHub
+Environments `test` e `production`, stessi nomi e valori del loro
+progetto: i quattro `VITE_FIREBASE_*` (`scripts/segreti-environment.mjs`
+li mette dalla sdkconfig) e `FIREBASE_SERVICE_ACCOUNT`. In locale i
+`VITE_FIREBASE_*` vanno in un `.env` (non si committa). I segreti delle
+Functions (`GITHUB_DISPATCH_TOKEN`, `PROVISIONING_CALLBACK_SECRET`,
+`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`) si mettono con
+`firebase functions:secrets:set --project <progetto>`; la configurazione
+non segreta per progetto sta in `functions/.env.<progetto>`.
 
-I prezzi stanno in `piani.json`, in un posto solo. Il nome visibile del
+**Le issue nascono dal registro**: `scripts/generate-issues.mjs` legge
+`requirements/requirements.yaml` e `requirements/bugs.yaml` e apre,
+riallinea e chiude le issue su GitHub; la bacheca è il project
+«drink-regia» (n. 5) dell'account.
+
+**Il cassetto AI** (REQ-AI-003): le installazioni chiedono le funzioni AI
+alla Function `richiestaAI` della regia, con una chiave della regia; la
+regia controlla il credito del locale, chiama Claude con la sua chiave
+(`ANTHROPIC_API_KEY`, solo nei segreti delle Functions) e scala il costo.
+Credito, tetto mensile e storico stanno in `ai/{slug}`; il contratto con
+l'app è in `docs/handover.md` §7.
+
+**Il backoffice** si apre solo con un account che ha il claim `admin`.
+Ci si registra dal sito come un cliente qualsiasi, poi si dà il claim da
+qui, con le credenziali del progetto:
+
+```sh
+node scripts/admin-regia.mjs --email <la tua email>
+```
+
+e si esce e rientra dal sito. Prima di tutto questo, in console Firebase
+del progetto `drink-regia`, Authentication va avviata («Inizia») col
+provider Email/password acceso: senza, registrazione e accesso
+rispondono con un errore di configurazione.
+
+L'audit di sicurezza e privacy del 22/10/2026, con la lista delle cose
+da chiudere prima della prima attivazione reale, sta in
+[docs/audit-sicurezza-privacy.md](docs/audit-sicurezza-privacy.md).
+
+I prezzi stanno in `functions/piani.json`, in un posto solo. Il nome visibile del
 prodotto in `src/lib/prodotto.js`. I requisiti in
 `requirements/requirements.yaml`, coi test che li dimostrano.

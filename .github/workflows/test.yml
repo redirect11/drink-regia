@@ -1,0 +1,44 @@
+name: Tests
+
+# GIRA A OGNI PUSH, TRANNE SULLA LINEA DI RILASCIO (release/** è il posto
+# di lavoro quotidiano: i test lì si fanno in locale). Sulle pull request
+# verso develop e main gira anche la coverage. Un push non pubblica mai.
+# Stesso modello di tana-drink (docs/actions-come-tana-drink.md).
+on:
+  push:
+    branches:
+      - '**'
+      - '!release/**'
+  pull_request:
+    branches:
+      - develop
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Lint, test e build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - name: Test con coverage
+        if: github.event_name == 'pull_request'
+        run: npm run test:coverage
+      - name: Rapporto di coverage
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 14
