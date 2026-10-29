@@ -4,6 +4,14 @@ Una voce per ogni cambiamento visibile, nello stesso commit del
 cambiamento. La versione in cima è quella in lavorazione finché non ha la
 data.
 
+## 0.2.1 (in lavorazione)
+
+- La prima attivazione vera di un locale di prova (`prova-bar`, 29/10/2026)
+  va fino in fondo: il progetto nasce con lo Storage dell'app, i segreti
+  che l'app dichiara e gli agenti di Google che le sue Functions usano, e
+  il deploy si riprova se Google non ha ancora finito di preparare i
+  permessi (REQ-FLOTTA-013).
+
 ## 0.2.0 (in lavorazione)
 
 - L'attivazione e l'aggiornamento dei locali partono dalla regia: il
