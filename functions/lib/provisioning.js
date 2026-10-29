@@ -63,9 +63,18 @@ function richiestaCoerente(richiesta, cliente) {
   return { ok: true, perche: null }
 }
 
+// Quale regia lancia: decide l'environment del workflow (flotta o
+// flotta-test), e con lui l'account di fatturazione e l'indirizzo a cui
+// torna l'esito. Qualunque altro valore vale produzione.
+const AMBIENTI = ['produzione', 'test']
+const ambienteValido = (a) => (AMBIENTI.includes(a) ? a : 'produzione')
+
 // Il corpo della chiamata `POST /repos/{repo}/actions/workflows/{file}/dispatches`.
-// Gli input sono stringhe: GitHub non accetta altro.
-function dispatchPayload(richiesta, { ref = 'develop' } = {}) {
+// Gli input sono stringhe: GitHub non accetta altro. Due versioni diverse,
+// dal 29/10/2026 che i workflow stanno nella regia: `ref` in cima è il
+// ramo della regia che contiene il workflow (di norma main), `app` è la
+// versione di tana-drink da pubblicare (REQ-FLOTTA-009).
+function dispatchPayload(richiesta, { ref = 'main', app = 'main', ambiente = 'produzione' } = {}) {
   if (!richiesta || !SLUG.test(richiesta.slug || '')) throw new Error('Richiesta senza uno slug valido')
   return {
     ref,
@@ -75,18 +84,17 @@ function dispatchPayload(richiesta, { ref = 'develop' } = {}) {
       piano: String(richiesta.piano || 'base'),
       moduli: (richiesta.moduli || []).join(','),
       uid: String(richiesta.uid || ''),
-      // La versione dell'app da pubblicare (REQ-FLOTTA-009): il workflow la
-      // prende da qui, non dal ramo che contiene il file del workflow.
-      ref,
+      ref: app,
+      ambiente: ambienteValido(ambiente),
     },
   }
 }
 
 // L'aggiornamento di un'istanza (REQ-FLOTTA-009): stesso meccanismo, altro
 // workflow (aggiorna-istanza.yml), con la versione dell'app da pubblicare.
-function dispatchAggiornamento(istanza, { ref = 'main' } = {}) {
+function dispatchAggiornamento(istanza, { ref = 'main', app = 'main', ambiente = 'produzione' } = {}) {
   if (!istanza || !SLUG.test(istanza.slug || '')) throw new Error('Istanza senza uno slug valido')
-  return { ref, inputs: { slug: istanza.slug, nome_locale: String(istanza.nome_locale || istanza.slug), ref } }
+  return { ref, inputs: { slug: istanza.slug, nome_locale: String(istanza.nome_locale || istanza.slug), ref: app, ambiente: ambienteValido(ambiente) } }
 }
 
 // Si lancia solo una richiesta «in coda»: una «in corso» è già partita,

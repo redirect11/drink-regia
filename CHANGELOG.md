@@ -4,6 +4,14 @@ Una voce per ogni cambiamento visibile, nello stesso commit del
 cambiamento. La versione in cima è quella in lavorazione finché non ha la
 data.
 
+## Sul ramo `feature/flotta-nella-regia` (non ancora in una versione)
+
+- L'attivazione e l'aggiornamento dei locali partono dalla regia: il
+  Terraform e i workflow stanno qui, e l'app arriva da tana-drink alla
+  versione scelta. La regia di test lavora sui suoi locali di prova, col
+  suo account di fatturazione, e può sospenderli e chiuderli come la
+  produzione (REQ-FLOTTA-013).
+
 ## Sul ramo `feature/rilasci-a-ondate` (non ancora in una versione)
 
 - I rilasci di tana-drink arrivano ai locali a ondate: istanze di prova,

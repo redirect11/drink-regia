@@ -2,9 +2,9 @@
 //
 // Il piano e i moduli comprati nella regia (piani.json) diventano le
 // funzioni premium dell'app (src/lib/licenza.js in tana-drink: conta,
-// fatture, scadenzario). La stessa mappa sta in
-// tana-drink/scripts/licenza-istanza.mjs, che la scrive alla prima
-// attivazione; qui la si riscrive quando il piano cambia.
+// fatture, scadenzario). La prima volta la scrive il workflow
+// dell'attivazione (scripts/licenza-istanza.mjs, con licenzaIniziale);
+// poi la riscrivono le Functions quando il piano cambia.
 
 const listino = require('../piani.json')
 
@@ -39,10 +39,34 @@ function patchLicenzaPiano(scelta, adesso = new Date()) {
   }
 }
 
+// La prima licenza di un'istanza, dopo il deploy dell'attivazione o di un
+// aggiornamento: cosa scrivere in settings/bar dato quello che c'è già.
+// Lo stato (attiva, sospesa, chiusa: REQ-FLOTTA-008) non si tocca se la
+// regia l'ha già scritto: una riattivazione passa da lì, non da un deploy.
+// Il nome del locale si scrive solo se manca: lo cambia il locale.
+function licenzaIniziale(attuale, { piano = 'base', moduli = [], slug, nome, regiaUrl }, adesso = new Date()) {
+  const p = listino.piani[piano] ? piano : 'base'
+  const nomeLocale = String(nome || slug)
+  const patch = {
+    licenza: {
+      ...(attuale?.licenza || {}),
+      piano: p,
+      moduli: moduliLicenza({ piano: p, moduli }),
+      stato: attuale?.licenza?.stato || 'attiva',
+      slug,
+      regia_url: regiaUrl,
+      scritta_il: adesso.toISOString(),
+    },
+  }
+  if (!attuale?.venue_name) patch.venue_name = nomeLocale
+  if (!attuale?.venue_short_name) patch.venue_short_name = nomeLocale.length > 12 ? nomeLocale.split(/\s+/)[0] : nomeLocale
+  return patch
+}
+
 // È cambiato qualcosa che la licenza deve sapere?
 function sceltaCambiata(prima, dopo) {
   const chiave = (c) => JSON.stringify([c?.piano || null, [...(c?.moduli || [])].sort(), Number(c?.terminali) || 1])
   return chiave(prima) !== chiave(dopo)
 }
 
-module.exports = { moduliLicenza, patchLicenzaPiano, sceltaCambiata, TUTTI }
+module.exports = { moduliLicenza, patchLicenzaPiano, licenzaIniziale, sceltaCambiata, TUTTI }

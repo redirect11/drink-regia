@@ -22,16 +22,20 @@ prodotto. Prima pagina, registrazione e accesso dei titolari, dashboard
 del cliente, backoffice, abbonamento Stripe, Cloud Functions che lanciano
 l'attivazione di un'istanza e ne ricevono l'esito, regole Firestore della
 regia, listino (`functions/piani.json`), testi legali, questo documento.
+Dal 29/10/2026 anche la flotta (REQ-FLOTTA-013,
+[flotta-nella-regia.md](flotta-nella-regia.md)): il Terraform dei locali
+(`infra/istanza`), i workflow `provisiona-istanza.yml` e
+`aggiorna-istanza.yml`, lo script `scripts/licenza-istanza.mjs`.
 Progetto Firebase **`drink-regia`** (Hosting, Auth, Firestore
-`europe-west1`, Functions gen2 `europe-west1`).
+`europe-west1`, Functions gen2 `europe-west1`), e `drink-regia-test`.
 
 **Non tuo** (repository `redirect11/tana-drink`, pubblico, cartella
 `C:\Users\Daniele\git\tana-drink` e worktree `tana-drink-flotta` sul ramo
-`feature/flotta`): l'app dei locali, il Terraform delle istanze
-(`infra/istanza`), i workflow `provisiona-istanza.yml` e
-`aggiorna-istanza.yml`, gli script `licenza-istanza.mjs`,
-`abilita-accesso-email.mjs`, `ruoli-provisioning.mjs`, le cartelle
-`clienti/<slug>`. Quando una modifica della regia richiede un cambio di
+`feature/flotta`): l'app dei locali, i suoi script (`genera-cliente.mjs`,
+`abilita-accesso-email.mjs`, `ruoli-provisioning.mjs`), le cartelle
+`clienti/<slug>`. Lì restano anche le vecchie copie dei workflow della
+flotta e di `infra/istanza`, che la regia non usa più: toglierle è un
+lavoro di quella sessione. Quando una modifica della regia richiede un cambio di
 là (vedi §7, i contratti condivisi), **si scrive cosa serve e lo si
 chiede all'utente**, che lo porta nella sessione di tana-drink. Non si
 apre quel repository da qui per modificarlo.
@@ -386,14 +390,14 @@ L'elenco completo con i riferimenti al codice è in
    fatturazione; intanto apre un **secondo account di fatturazione per le
    prove** (il primo regge progetti in produzione e non si tocca). Su
    quello vanno `drink-regia-test` e i progetti delle istanze di prova:
-   in tana-drink il segreto `BILLING_ACCOUNT_ID` dell'environment
-   `flotta` punta al secondo account finché non ci sono locali veri, e
-   l'account di servizio del provisioning ha `roles/billing.user` su di
-   esso. Senza organizzazione i progetti delle istanze si creano a mano
-   (`drinkpos-<slug>`) e il workflow li importa. **L'organizzazione
-   Google** (Cloud Identity Free, su un dominio nostro verificato) toglie
-   questo passo: con `ORG_ID` il Terraform di tana-drink crea il progetto
-   da solo, in una cartella dei locali. Le organizzazioni nuove nascono
+   il segreto `BILLING_ACCOUNT_ID` dell'environment `flotta-test` della
+   regia (punto 14) punta al secondo account, e l'account di servizio del
+   provisioning ha `roles/billing.user` su di esso. Senza organizzazione
+   i progetti delle istanze si creano a mano (`drinkpos-<slug>`) e il
+   workflow li importa. **L'organizzazione Google** (Cloud Identity Free,
+   su un dominio nostro verificato) toglie questo passo: con `ORG_ID` il
+   Terraform della regia crea il progetto da solo, in una cartella dei
+   locali. Le organizzazioni nuove nascono
    con regole di sicurezza accese: `iam.allowedPolicyMemberDomains`
    blocca `allUsers`, quindi sulla cartella dei locali va allentata,
    altrimenti le Functions pubbliche delle istanze (callable e webhook)
@@ -402,6 +406,20 @@ L'elenco completo con i riferimenti al codice è in
    l'organizzazione (la strada giusta è Workload Identity Federation da
    GitHub, senza chiavi). I progetti di oggi possono restare fuori
    dall'organizzazione. Ogni passo si fa col permesso dell'utente.
+14. **La flotta nella regia (REQ-FLOTTA-013)**, ramo
+   `feature/flotta-nella-regia` (parte da `feature/rilasci-a-ondate`, va
+   unito dopo), scritto il 29/10/2026: il Terraform dei locali, i due
+   workflow e lo script della licenza stanno qui
+   ([flotta-nella-regia.md](flotta-nella-regia.md)). Restano, nell'ordine:
+   il ramo su `main` (GitHub lancia a comando solo i workflow del ramo
+   principale; senza tag su `main` la produzione non si pubblica); gli
+   environment `flotta` e `flotta-test` coi segreti e le variabili di
+   [infra/README.md](../infra/README.md), messi dall'utente; il token
+   `GITHUB_DISPATCH_TOKEN` nuovo, limitato a `redirect11/drink-regia`,
+   nelle Functions di ciascuna regia; la prima attivazione di prova con
+   uno slug `prova-…`. In tana-drink, da portare a quella sessione: via
+   `provisiona-istanza.yml`, `aggiorna-istanza.yml`, `infra/`,
+   `scripts/licenza-istanza.mjs` e i segreti della flotta.
 
 ---
 
@@ -410,33 +428,44 @@ L'elenco completo con i riferimenti al codice è in
 Se cambia uno di questi, cambia anche l'altro lato, **nello stesso
 giorno**, e lo si scrive all'utente perché lo porti nell'altra sessione.
 
+Dal 29/10/2026 (REQ-FLOTTA-013, [flotta-nella-regia.md](flotta-nella-regia.md))
+i workflow della flotta stanno nella regia: input del dispatch e callback
+dei locali sono roba nostra, provata da `tests/flotta.test.js`, non più un
+contratto. Con tana-drink restano l'app a un tag, la sua build, gli id dei
+moduli, la licenza nell'istanza e la Tana.
+
+- **La build di un locale** (`provisiona-istanza.yml`, `aggiorna-istanza.yml`
+  qui, sull'app scaricata in `app/`): `npm ci` nella radice e in
+  `functions/`; `node scripts/genera-cliente.mjs --slug … --nome …`;
+  `npm run build` con `BASE_PATH=/`, `CLIENTE=<slug>`,
+  `VITE_APP_ENV=production` e il `.env` con i `VITE_FIREBASE_*`;
+  `functions/.env.<progetto>` con `VENUE_NAME`;
+  `firebase deploy --only firestore,storage,functions,hosting`. Se
+  tana-drink cambia uno di questi comandi, cambiano i nostri workflow.
 - **Id dei moduli.** `functions/piani.json` → `moduli[].id` e
   `functions/lib/licenza.js` (MAPPA, TUTTI) devono combaciare con
-  `src/lib/licenza.js` (MODULI_PREMIUM) e `scripts/licenza-istanza.mjs`
-  in tana-drink. Oggi: `menu_tavoli`, `ordini_cliente`, `clienti`,
+  `src/lib/licenza.js` (MODULI_PREMIUM) in tana-drink. Oggi: `menu_tavoli`, `ordini_cliente`, `clienti`,
   `magazzino` (porta `conta`, `fatture`, `scadenzario`), `statistiche`,
   `staff`, `sumup`. Il modulo del lettore si chiama `sumup` e **non**
   `pagamenti`, perché `pagamenti` è la sezione della cassa nel
   gestionale e il nome uguale la spegneva col piano base.
-- **Input del dispatch** (`functions/lib/provisioning.js`,
-  `dispatchPayload` e l'equivalente per l'aggiornamento) ↔ `inputs` di
-  `provisiona-istanza.yml` e `aggiorna-istanza.yml`: `slug`,
-  `nome_locale`, `piano`, `moduli` (virgole), `uid`, `ref`. Lo slug ha lo
-  stesso regex ovunque: `^[a-z][a-z0-9-]{4,28}[a-z0-9]$`.
-- **Callback** `esitoProvisioning`: bearer `PROVISIONING_CALLBACK_SECRET`
-  (stesso valore nel repository tana-drink come segreto), corpo con
-  `slug`, `stato`, `progetto`, `url`, `errore`, `versione`, `ref`,
-  `ambiente` e, facoltativo, `operazione` (sotto, «Rilasci a ondate»).
+- **Slug**: lo stesso regex ovunque, `^[a-z][a-z0-9-]{4,28}[a-z0-9]$`
+  (Functions, workflow, Terraform, `genera-cliente.mjs` in tana-drink).
+- **Callback della Tana** `esitoProvisioning`: bearer
+  `PROVISIONING_CALLBACK_SECRET`, corpo con `slug`, `stato`, `progetto`,
+  `url`, `errore`, `versione`, `ref`, `ambiente`, `operazione` (sotto,
+  «Rilasci a ondate»). È l'unico esito che arriva ancora da tana-drink.
 - **Licenza nell'istanza**: `settings/bar.licenza` = `{ piano, moduli:
   {id: bool}, stato: attiva|sospesa|chiusa, motivo, dal, slug, regia_url,
-  scritta_il }`. La scrive `licenza-istanza.mjs` alla prima attivazione e
-  poi le Functions della regia (`impostaStatoIstanza`,
-  `licenzaSegueIlPiano`). L'app la legge in `src/lib/licenza.js`.
+  scritta_il }`. La scrive `scripts/licenza-istanza.mjs` della regia alla
+  prima attivazione (con `licenzaIniziale`) e poi le Functions della regia
+  (`impostaStatoIstanza`, `licenzaSegueIlPiano`). L'app la legge in
+  `src/lib/licenza.js`.
 - **Versione**: le istanze ricevono l'app di tana-drink al `ref` scelto
   dal backoffice (`main` o un tag `vX.Y.Z` di tana-drink); la regia ha
   la sua numerazione, indipendente.
 - **Nome del prodotto e prefisso dei progetti**: `src/lib/prodotto.js`
-  qui, `PREFISSO_PROGETTI = 'drinkpos'` anche in Terraform di tana-drink.
+  e `infra/istanza/main.tf` qui (`PREFISSO_PROGETTI = 'drinkpos'`).
 - **Cassetto AI** (REQ-AI-003, dal 24/10/2026). L'installazione non
   chiama mai il modello e non ha la chiave di Anthropic: una Function
   **dell'installazione** (mai il browser: i clienti del locale hanno
@@ -462,22 +491,15 @@ giorno**, e lo si scrive all'utente perché lo porti nell'altra sessione.
   assenti. Tutto è una **proposta da rivedere** prima di pubblicarla o
   registrarla. Gli schemi stanno in `functions/lib/ai.js`.
 - **Rilasci a ondate** (REQ-FLOTTA-012, dal 27/10/2026). La regia porta
-  un rilascio ai locali un'ondata alla volta e lancia
-  `aggiorna-istanza.yml` con gli stessi input di oggi (`slug`,
-  `nome_locale`, `ref`): **nessun input nuovo**, perché GitHub rifiuta
-  un dispatch con input che il workflow non dichiara. Il `ref` di un
-  rilascio è sempre un tag `vX.Y.Z`. Lato tana-drink servono tre cose:
+  un rilascio ai locali un'ondata alla volta con `aggiorna-istanza.yml`
+  (dal 29/10/2026 il suo, che manda già `"operazione"` nel callback). Il
+  `ref` di un rilascio è sempre un tag `vX.Y.Z` di tana-drink. Lato
+  tana-drink servono due cose:
   1. **Il tag e la versione combaciano.** La regia confronta la
      `versione` riferita (`v` + `package.json`) con il tag del rilascio,
      e usa la versione di prima come tag a cui tornare: il tag `vX.Y.Z`
      deve avere `package.json` a `X.Y.Z`.
-  2. **Il callback di `aggiorna-istanza.yml` dice cos'è**: nel corpo
-     `"operazione": "aggiornamento"` (e `"attivazione"` in
-     `provisiona-istanza.yml`). Facoltativo: senza, la regia tratta come
-     aggiornamento ogni esito su un'istanza già attiva. Con un
-     aggiornamento fallito lo stato dell'istanza non cambia più; si
-     segna solo `istanze/{slug}.aggiornamento`.
-  3. **La Tana riferisce la sua versione.** È un locale esistente: si
+  2. **La Tana riferisce la sua versione.** È un locale esistente: si
      pubblica dal suo repository, e l'ondata delle interne aspetta che
      riferisca il tag. Dopo un deploy di produzione riuscito, il
      workflow della Tana manda allo stesso callback

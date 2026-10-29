@@ -145,9 +145,10 @@ requirements:
     title: "Le Functions della regia lanciano l'attivazione di un'istanza e ne ricevono l'esito"
     area: "functions/index.js, functions/lib/provisioning.js, functions/.env, firestore.rules, src/lib/db.js (chiediAttivazione)"
     description: >
-      La parte della regia dell'attivazione automatica (il disegno intero e
-      il workflow stanno nel repository tana-drink, docs/flotta.md e
-      provisiona-istanza.yml).
+      La parte della regia dell'attivazione automatica. Dal 29/10/2026 anche
+      il workflow e il Terraform stanno qui (REQ-FLOTTA-013,
+      docs/flotta-nella-regia.md); il disegno intero resta in
+      tana-drink/docs/flotta.md.
       LA RICHIESTA LA SCRIVE IL SERVER (audit del 22/10/2026, falla C2:
       «Questo va assolutamente risolto», l'utente, 22/10/2026). La callable
       `chiediAttivazione` ignora il corpo della chiamata: rilegge
@@ -453,3 +454,34 @@ requirements:
       - tests/CreditoAI.test.jsx
       - tests/Backoffice.test.jsx
       - tests/abbonamento.test.js
+
+  - id: REQ-FLOTTA-013
+    title: "La flotta sta nella regia: Terraform, workflow e licenza dei locali, con un environment per ogni regia"
+    area: "infra/istanza/main.tf, infra/README.md, .github/workflows/provisiona-istanza.yml, .github/workflows/aggiorna-istanza.yml, scripts/licenza-istanza.mjs, functions/lib/licenza.js (licenzaIniziale), functions/lib/provisioning.js (dispatchPayload, dispatchAggiornamento), functions/index.js, functions/.env.<progetto>, docs/flotta-nella-regia.md"
+    description: >
+      L'utente, 29/10/2026: «questa roba dovrebbe essere in drink-regia».
+      Attivare e aggiornare i locali e' il mestiere della regia; tana-drink
+      da' solo l'app, a un tag. I workflow scaricano tana-drink al `ref`
+      chiesto in app/ e lo pubblicano nel progetto del locale. Ogni regia
+      lancia sul suo environment GitHub, scelto dall'input `ambiente`
+      (FLOTTA_AMBIENTE nelle Functions): `flotta` per drink-regia,
+      `flotta-test` per drink-regia-test, ognuno col suo account di
+      fatturazione, il suo callback, il suo indirizzo e il suo account per
+      la licenza (REGIA_SA_EMAIL, senza valore predefinito nel Terraform:
+      prima era fisso sulla produzione, e la regia di test non poteva
+      sospendere i suoi locali). Gli input che le Functions mandano sono
+      esattamente quelli dichiarati dai workflow; nei workflow entrano solo
+      come variabili d'ambiente e si controllano per primi (audit del
+      22/10/2026, C1). La prima licenza la scrive licenzaIniziale, la stessa
+      mappa delle Functions. Il callback dice l'operazione. Restano da fare,
+      fuori dal codice: il ramo su main (GitHub lancia a comando solo i
+      workflow del ramo principale), gli environment coi segreti, il token
+      limitato alla regia; in tana-drink, la rimozione dei vecchi workflow.
+    status: partial
+    generate_issue: true
+    labels: [flotta, regia, sicurezza]
+    priority: P1
+    test_cases:
+      - tests/flotta.test.js
+      - tests/licenza.test.js
+      - tests/provisioning.test.js

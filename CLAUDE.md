@@ -1,10 +1,12 @@
 # drink-regia — istruzioni per chi lavora qui (persone e agenti)
 
 Il sito del prodotto: prezzi, registrazione, dashboard dei clienti,
-backoffice, abbonamento, Functions di attivazione. Progetto Firebase
-`drink-regia`. L'app dei locali e l'attivazione (Terraform, workflow) stanno
-nel repository `tana-drink`: lì `docs/flotta.md` è il disegno intero, e le
-regole di lavoro sono le stesse di quel repository.
+backoffice, abbonamento, Functions di attivazione e, dal 29/10/2026, la
+flotta: il Terraform dei locali e i workflow che li attivano e li
+aggiornano ([docs/flotta-nella-regia.md](docs/flotta-nella-regia.md)).
+Progetto Firebase `drink-regia`. L'app dei locali sta nel repository
+`tana-drink`: lì `docs/flotta.md` è il disegno intero, e le regole di
+lavoro sono le stesse di quel repository.
 
 - **Prima di tutto, [docs/handover.md](docs/handover.md)**: perimetro,
   processo di rilascio, stato del progetto, lavori aperti e contratti

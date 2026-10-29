@@ -9,7 +9,10 @@
 //   PROVISIONING_CALLBACK_SECRET  il bearer che il workflow usa per l'esito
 //   ANTHROPIC_API_KEY             la nostra chiave di Claude (REQ-AI-003): sta
 //                                 solo qui, mai in un'installazione
-// Configurazione non segreta (.env): GITHUB_REPO (owner/repo), GITHUB_REF.
+// Configurazione non segreta (.env): GITHUB_REPO (il repository con i
+// workflow della flotta, dal 29/10/2026 la regia stessa), FLOTTA_REF (il
+// suo ramo con i workflow), APP_REF (la versione di tana-drink da
+// pubblicare), FLOTTA_AMBIENTE (produzione o test: quale environment).
 
 const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore')
 const { onRequest } = require('firebase-functions/v2/https')
@@ -39,12 +42,15 @@ const PROVISIONING_CALLBACK_SECRET = defineSecret('PROVISIONING_CALLBACK_SECRET'
 const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY')
 const STRIPE_WEBHOOK_SECRET = defineSecret('STRIPE_WEBHOOK_SECRET')
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY')
-const REPO = process.env.GITHUB_REPO || 'redirect11/tana-drink'
-const REF = process.env.GITHUB_REF || 'develop'
+const REPO = process.env.GITHUB_REPO || 'redirect11/drink-regia'
+const REF = process.env.FLOTTA_REF || 'main'
 const WORKFLOW = 'provisiona-istanza.yml'
 const WORKFLOW_AGGIORNA = 'aggiorna-istanza.yml'
 // La versione dell'app da pubblicare: di norma `main` (l'ultimo rilascio).
 const REF_APP = process.env.APP_REF || 'main'
+// La regia di test lancia sull'environment flotta-test: il suo account di
+// fatturazione, il suo callback, il suo account per la licenza.
+const AMBIENTE_FLOTTA = process.env.FLOTTA_AMBIENTE || 'produzione'
 
 async function dispatchGitHub(workflow, corpo) {
   return fetch(`https://api.github.com/repos/${REPO}/actions/workflows/${workflow}/dispatches`, {
@@ -71,7 +77,7 @@ async function lancia(richiesta) {
     await db.doc(`richieste/${richiesta.slug}`).set({ stato: 'errore', errore: `Lancio rifiutato: ${coerenza.perche}`, aggiornata_il: adesso }, { merge: true })
     return
   }
-  const corpo = dispatchPayload({ ...richiesta, nome_locale: cliente.nome_locale, piano: cliente.piano, moduli: cliente.moduli }, { ref: REF })
+  const corpo = dispatchPayload({ ...richiesta, nome_locale: cliente.nome_locale, piano: cliente.piano, moduli: cliente.moduli }, { ref: REF, app: REF_APP, ambiente: AMBIENTE_FLOTTA })
   const res = await fetch(`https://api.github.com/repos/${REPO}/actions/workflows/${WORKFLOW}/dispatches`, {
     method: 'POST',
     headers: {
@@ -301,7 +307,7 @@ async function lanciaAggiornamento(slug, ref, { rilascio = null, ritorno = false
   // rilasci e il suo progetto: il workflow della flotta non lo tocca mai.
   if (ist.origine === 'esistente') return 'Questa installazione si aggiorna dal suo repository, non dalla flotta.'
   const cliente = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]?.data()
-  const res = await dispatchGitHub(WORKFLOW_AGGIORNA, dispatchAggiornamento({ slug, nome_locale: cliente?.nome_locale }, { ref }))
+  const res = await dispatchGitHub(WORKFLOW_AGGIORNA, dispatchAggiornamento({ slug, nome_locale: cliente?.nome_locale }, { ref: REF, app: ref, ambiente: AMBIENTE_FLOTTA }))
   const adesso = new Date()
   if (res.status !== 204) {
     // Non è partito: si segna fallito, così il rilascio si ferma e si vede.

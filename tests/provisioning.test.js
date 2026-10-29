@@ -70,12 +70,25 @@ describe('richiestaCoerente', () => {
   })
 })
 
+// Dal 29/10/2026 i workflow stanno nella regia: `ref` in cima è il suo ramo
+// con i workflow, `inputs.ref` la versione di tana-drink, `ambiente` quale
+// regia lancia (l'environment flotta o flotta-test).
 describe('dispatchPayload', () => {
   it('è il corpo del workflow_dispatch, con gli input come stringhe', () => {
-    expect(dispatchPayload(richiesta, { ref: 'develop' })).toEqual({
-      ref: 'develop',
-      inputs: { slug: 'bar-mario', nome_locale: 'Bar Mario', piano: 'base', moduli: 'staff,magazzino', uid: 'u1', ref: 'develop' },
+    expect(dispatchPayload(richiesta, { ref: 'main', app: 'v1.10.0', ambiente: 'test' })).toEqual({
+      ref: 'main',
+      inputs: { slug: 'bar-mario', nome_locale: 'Bar Mario', piano: 'base', moduli: 'staff,magazzino', uid: 'u1', ref: 'v1.10.0', ambiente: 'test' },
     })
+  })
+
+  it('senza indicazioni: il main della regia, il main dell’app, la produzione', () => {
+    const corpo = dispatchPayload(richiesta)
+    expect(corpo.ref).toBe('main')
+    expect(corpo.inputs).toMatchObject({ ref: 'main', ambiente: 'produzione' })
+  })
+
+  it('un ambiente sconosciuto vale produzione', () => {
+    expect(dispatchPayload(richiesta, { ambiente: 'staging' }).inputs.ambiente).toBe('produzione')
   })
 
   it('senza uno slug valido non parte niente', () => {
@@ -84,10 +97,10 @@ describe('dispatchPayload', () => {
 })
 
 describe('dispatchAggiornamento', () => {
-  it('lancia aggiorna-istanza.yml con lo slug e la versione dell’app', () => {
-    expect(dispatchAggiornamento({ slug: 'bar-mario', nome_locale: 'Bar Mario' }, { ref: 'v1.10.0' })).toEqual({
-      ref: 'v1.10.0',
-      inputs: { slug: 'bar-mario', nome_locale: 'Bar Mario', ref: 'v1.10.0' },
+  it('lancia aggiorna-istanza.yml con lo slug, la versione dell’app e l’ambiente', () => {
+    expect(dispatchAggiornamento({ slug: 'bar-mario', nome_locale: 'Bar Mario' }, { ref: 'main', app: 'v1.10.0', ambiente: 'test' })).toEqual({
+      ref: 'main',
+      inputs: { slug: 'bar-mario', nome_locale: 'Bar Mario', ref: 'v1.10.0', ambiente: 'test' },
     })
     expect(() => dispatchAggiornamento({ slug: 'x' })).toThrow(/slug/)
   })
