@@ -7,6 +7,7 @@
 // poi la riscrivono le Functions quando il piano cambia.
 
 const listino = require('../piani.json')
+const { proveAttive } = require('./prove.js')
 
 // Stessi id nel listino e nell'app (REQ-LIC-002 in tana-drink); il
 // magazzino porta con sé i suoi tre moduli di dettaglio.
@@ -22,12 +23,18 @@ const MAPPA = {
 const TUTTI = ['menu_tavoli', 'ordini_cliente', 'clienti', 'magazzino', 'conta', 'fatture', 'scadenzario', 'statistiche', 'staff', 'sumup']
 
 // { conta: true, fatture: false, … } per una scelta. Il Free non accende
-// nessun modulo, qualunque cosa porti la scelta (REQ-FLOTTA-015).
-function moduliLicenza({ piano = 'base', moduli = [] } = {}) {
+// nessun modulo comprato, qualunque cosa porti la scelta (REQ-FLOTTA-015);
+// i moduli in prova si accendono per tutti, Free compreso: quali si possono
+// provare lo decide l'admin (REQ-FLOTTA-016).
+function moduliLicenza({ piano = 'base', moduli = [], prove = [] } = {}) {
   const p = listino.piani[piano] ? piano : 'base'
-  const accesi = p === 'completo' ? TUTTI : listino.piani[p].gratuito ? [] : [...new Set((moduli || []).flatMap((m) => MAPPA[m] || []))]
+  const comprati = listino.piani[p].gratuito ? [] : moduli || []
+  const accesi = p === 'completo' ? TUTTI : [...new Set([...comprati, ...(prove || [])].flatMap((m) => MAPPA[m] || []))]
   return Object.fromEntries(TUTTI.map((m) => [m, accesi.includes(m)]))
 }
+
+// Le prove ancora in corso, con la loro scadenza: { magazzino: '2026-…' }.
+const proveInCorso = (cliente, adesso) => Object.fromEntries(proveAttive(cliente, adesso).map((id) => [id, cliente.prove[id].scade_il]))
 
 // I limiti del piano per l'app (REQ-FLOTTA-015): il Free li porta, gli
 // altri piani scrivono null, cioè nessun limite. Contratto con tana-drink
@@ -39,9 +46,10 @@ function patchLicenzaPiano(scelta, adesso = new Date()) {
   const p = listino.piani[scelta?.piano] ? scelta.piano : 'base'
   return {
     'licenza.piano': p,
-    'licenza.moduli': moduliLicenza({ piano: p, moduli: scelta?.moduli }),
+    'licenza.moduli': moduliLicenza({ piano: p, moduli: scelta?.moduli, prove: proveAttive(scelta, adesso) }),
     'licenza.terminali': Math.max(1, Number(scelta?.terminali) || 1),
     'licenza.limiti': limitiLicenza(p),
+    'licenza.prove': proveInCorso(scelta, adesso),
     'licenza.scritta_il': adesso.toISOString(),
   }
 }
@@ -72,8 +80,10 @@ function licenzaIniziale(attuale, { piano = 'base', moduli = [], slug, nome, reg
 }
 
 // È cambiato qualcosa che la licenza deve sapere?
+// Anche una prova accesa o tolta (REQ-FLOTTA-016): la licenza la deve sapere.
 function sceltaCambiata(prima, dopo) {
-  const chiave = (c) => JSON.stringify([c?.piano || null, [...(c?.moduli || [])].sort(), Number(c?.terminali) || 1])
+  const prove = (c) => Object.entries(c?.prove || {}).map(([id, p]) => `${id}@${p?.scade_il}`).sort()
+  const chiave = (c) => JSON.stringify([c?.piano || null, [...(c?.moduli || [])].sort(), Number(c?.terminali) || 1, prove(c)])
   return chiave(prima) !== chiave(dopo)
 }
 

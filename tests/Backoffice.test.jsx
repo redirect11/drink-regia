@@ -15,7 +15,7 @@ const db = vi.hoisted(() => ({
   elencoClienti: vi.fn(),
   elencoIstanze: vi.fn(),
   elencoRichieste: vi.fn(),
-  segnaPiano: vi.fn(async () => {}),
+  cambiaPianoAdmin: vi.fn(async () => ({ ok: true })),
   rilanciaAttivazione: vi.fn(async () => {}),
   impostaStatoIstanza: vi.fn(async () => {}),
   aggiornaIstanza: vi.fn(async () => {}),
@@ -136,13 +136,33 @@ describe('il backoffice', () => {
     expect(screen.queryByRole('button', { name: /Aggiorna tutte/ })).toBeNull()
   })
 
-  it('un piano si segna a mano, finché non c’è Stripe', async () => {
+  // REQ-FLOTTA-016: «Cambia piano» al posto di «Piano a mano».
+  it('«Cambia piano»: senza Stripe si cambia fuori da Stripe, con piano, moduli e terminali', async () => {
     const user = userEvent.setup()
-    vi.spyOn(window, 'prompt').mockReturnValue('base')
     mostra()
     const nuovo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Nuovo'))
-    await user.click(within(nuovo).getByRole('button', { name: 'Piano a mano' }))
-    expect(db.segnaPiano).toHaveBeenCalledWith('c', { piano: 'base', moduli: [], terminali: 1 })
+    await user.click(within(nuovo).getByRole('button', { name: 'Cambia piano…' }))
+    const modulo = within(nuovo).getByRole('form', { name: 'Cambia piano di Bar Nuovo' })
+    expect(within(modulo).getByLabelText(/Con Stripe/)).toBeDisabled()
+    expect(within(modulo).getByLabelText(/Fuori da Stripe/)).toBeChecked()
+    await user.click(within(modulo).getByLabelText('Magazzino e fornitori'))
+    await user.click(within(modulo).getByRole('button', { name: 'Cambia piano' }))
+    expect(db.cambiaPianoAdmin).toHaveBeenCalledWith({ slug: 'bar-nuovo', piano: 'base', moduli: ['magazzino'], terminali: 1, modo: 'fuori' })
+  })
+
+  it('«Cambia piano» con un abbonamento Stripe propone Stripe; verso il Free spariscono moduli e terminali', async () => {
+    const user = userEvent.setup()
+    db.elencoClienti.mockResolvedValue([
+      { uid: 'a', slug: 'bar-attivo', nome_locale: 'Bar Attivo', email: 'a@x.it', piano: 'completo', creato_il: '2026-10-01', abbonamento: { stato: 'attivo', stripe_subscription: 'sub_1' } },
+    ])
+    mostra()
+    const attivo = (await screen.findAllByRole('article'))[0]
+    await user.click(within(attivo).getByRole('button', { name: 'Cambia piano…' }))
+    const modulo = within(attivo).getByRole('form', { name: 'Cambia piano di Bar Attivo' })
+    expect(within(modulo).getByLabelText(/Con Stripe/)).toBeChecked()
+    await user.selectOptions(within(modulo).getByLabelText('Piano'), 'free')
+    expect(within(modulo).queryByLabelText('Terminali')).toBeNull()
+    expect(within(modulo).queryByLabelText('Magazzino e fornitori')).toBeNull()
   })
 })
 
@@ -269,7 +289,7 @@ describe('il backoffice e il credito AI', () => {
     expect(within(tana).getByRole('button', { name: 'Ricarica AI' })).toBeInTheDocument()
     // Né un gruppo di rilascio: la Tana è sempre nell'ondata delle interne.
     expect(within(tana).queryByRole('combobox')).toBeNull()
-    await user.click(within(tana).getByRole('button', { name: 'Piano a mano' }))
+    await user.click(within(tana).getByRole('button', { name: 'Cambia piano…' }))
     expect(db.aggiornaIstanza).not.toHaveBeenCalled()
   })
 })
@@ -426,5 +446,22 @@ describe('la vendita nel backoffice', () => {
     expect(db.impostaVendita).toHaveBeenCalledWith({ free: true })
     await user.click(within(vendita).getByLabelText('Pagamenti con lettore SumUp'))
     expect(db.impostaVendita).toHaveBeenCalledWith({ moduli: { sumup: false } })
+  })
+})
+
+// LE PROVE DEI MODULI (REQ-FLOTTA-016): nel riquadro «Vendita» l'admin dice
+// per quanti giorni si prova ogni modulo; 0 vuol dire niente prova.
+describe('le prove nel backoffice', () => {
+  it('i giorni di prova si scrivono uscendo dal campo, e si puliscono', async () => {
+    const user = userEvent.setup()
+    regia.vendita = { free: false, moduli: {}, prove: { magazzino: 0 } }
+    mostra()
+    const vendita = await screen.findByRole('region', { name: 'Vendita' })
+    const giorni = within(vendita).getByLabelText('Giorni di prova di Magazzino e fornitori')
+    await user.clear(giorni)
+    await user.type(giorni, '14')
+    expect(db.impostaVendita).not.toHaveBeenCalled()
+    await user.tab()
+    expect(db.impostaVendita).toHaveBeenCalledWith({ prove: { magazzino: 14 } })
   })
 })

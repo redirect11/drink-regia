@@ -15,6 +15,7 @@
 // SPENTO, finché l'app (tana-drink) non fa rispettare i limiti.
 
 const listino = require('../piani.json')
+const { provePulite } = require('./prove.js')
 
 const piano = (id) => listino.piani[id] || null
 const eGratuito = (id) => piano(id)?.gratuito === true
@@ -23,11 +24,13 @@ const limitiDi = (id) => piano(id)?.limiti || null
 
 // Il documento vendita/listino come lo vede la regia: il Free è spento
 // finché l'admin non lo accende; un modulo è in vendita finché l'admin non
-// lo spegne.
+// lo spegne; un modulo si prova solo se l'admin gli ha dato dei giorni
+// (REQ-FLOTTA-016).
 function venditaPulita(doc) {
   return {
     free: doc?.free === true,
     moduli: Object.fromEntries(listino.moduli.map((m) => [m.id, doc?.moduli?.[m.id] !== false])),
+    prove: provePulite(doc),
   }
 }
 

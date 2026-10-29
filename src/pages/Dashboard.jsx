@@ -5,6 +5,7 @@ import { PIANI, MODULI, prezzoMensile, euro } from '../lib/piani.js'
 import SceltaPiano from './SceltaPiano.jsx'
 import CreditoAI from './CreditoAI.jsx'
 import ChiudiLocale from './ChiudiLocale.jsx'
+import ProveModuli from './ProveModuli.jsx'
 
 // LA DASHBOARD DEL TITOLARE (REQ-FLOTTA-004): il suo locale, il piano, lo
 // stato dell'istanza e, quando è attiva, l'indirizzo dell'app.
@@ -126,6 +127,7 @@ export default function Dashboard({ utente }) {
         {errore && <p className="errore">{errore}</p>}
       </section>
       <CreditoAI slug={cliente.slug} istanzaAttiva={stato === STATI.ATTIVA} />
+      <ProveModuli cliente={cliente} istanza={istanza} />
       {/* Senza un abbonamento attivo si sceglie (o si rinnova) il piano. Dal
           Free a un piano a pagamento si passa dal Checkout, non da «modifica»
           (REQ-FLOTTA-015). */}

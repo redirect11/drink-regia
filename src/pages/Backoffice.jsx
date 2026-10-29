@@ -3,7 +3,7 @@ import {
   elencoClienti,
   elencoIstanze,
   elencoRichieste,
-  segnaPiano,
+  cambiaPianoAdmin,
   rilanciaAttivazione,
   impostaStatoIstanza,
   aggiornaIstanza,
@@ -47,6 +47,8 @@ export default function Backoffice() {
   const [rilasci, setRilasci] = useState([])
   // Lo slug del locale col modulo «Elimina» aperto (REQ-FLOTTA-014).
   const [elimina, setElimina] = useState(null)
+  // Lo slug del locale col modulo «Cambia piano» aperto (REQ-FLOTTA-016).
+  const [cambia, setCambia] = useState(null)
 
   const carica = async () => {
     try {
@@ -78,12 +80,6 @@ export default function Backoffice() {
 
   const automatico = impostazioni.deploy_automatico !== false
 
-  const pianoAMano = async (c) => {
-    const piano = window.prompt('Piano (base | completo):', c.piano || 'base')
-    if (!piano || !PIANI[piano]) return
-    await segnaPiano(c.uid, { piano, moduli: c.moduli || [], terminali: c.terminali || 1 })
-    carica()
-  }
 
   // Sospendi, Riattiva, Chiudi (REQ-FLOTTA-008): l'app del locale si ferma
   // e lo dice; i dati restano. Il motivo lo legge il titolare.
@@ -430,8 +426,8 @@ export default function Backoffice() {
                           )}
                         </>
                       )}
-                      <button type="button" className="btn ghost small" onClick={() => pianoAMano(c)}>
-                        Piano a mano
+                      <button type="button" className="btn ghost small" onClick={() => setCambia(cambia === c.slug ? null : c.slug)}>
+                        Cambia piano…
                       </button>
                     </div>
 
@@ -489,6 +485,16 @@ export default function Backoffice() {
                       </div>
                     )}
                   </footer>
+                  {cambia === c.slug && (
+                    <CambiaPiano
+                      cliente={c}
+                      onFatto={() => {
+                        setCambia(null)
+                        carica()
+                      }}
+                      onErrore={setErrore}
+                    />
+                  )}
                   {elimina === c.slug && (
                     <EliminaLocale
                       cliente={c}
@@ -680,7 +686,7 @@ const TONO = {
 // già continua a usarli. Ogni cambio resta nello storico.
 function Vendita({ onErrore }) {
   const [vendita, setVendita] = useState(() => venditaPulita(null))
-  useEffect(() => osservaVendita(setVendita), [])
+  useEffect(() => osservaVendita((v) => setVendita(venditaPulita(v))), [])
   const cambia = (cambio) => impostaVendita(cambio).catch((e) => onErrore(e.message))
   return (
     <section className="card vendita" aria-label="Vendita">
@@ -694,17 +700,127 @@ function Vendita({ onErrore }) {
           ? 'Il Free compare nei prezzi e chi si registra lo può attivare.'
           : 'Il Free non compare e non si attiva; i locali Free che ci sono continuano a lavorare. Tienilo spento finché l’app non fa rispettare i suoi limiti.'}
       </p>
-      <h4>Moduli in vendita</h4>
+      <h4>Moduli in vendita e in prova</h4>
       <div className="vendita-moduli">
         {MODULI.map((m) => (
-          <label key={m.id} className="opzione">
-            <input type="checkbox" checked={vendita.moduli[m.id]} onChange={(e) => cambia({ moduli: { [m.id]: e.target.checked } })} />
-            {m.nome}
-          </label>
+          <div key={m.id} className="vendita-modulo">
+            <label className="opzione">
+              <input type="checkbox" checked={vendita.moduli[m.id]} onChange={(e) => cambia({ moduli: { [m.id]: e.target.checked } })} />
+              {m.nome}
+            </label>
+            <GiorniDiProva nome={m.nome} giorni={vendita.prove[m.id]} onCambio={(g) => cambia({ prove: { [m.id]: g } })} />
+          </div>
         ))}
       </div>
-      <p className="muted small">Un modulo tolto dalla vendita non si compra più; chi lo ha lo tiene.</p>
+      <p className="muted small">
+        Un modulo tolto dalla vendita non si compra più; chi lo ha lo tiene. I giorni di prova: 0 vuol dire che il modulo non si
+        prova; il titolare lo prova una volta sola, dalla sua dashboard (REQ-FLOTTA-016).
+      </p>
     </section>
+  )
+}
+
+// Quanti giorni si prova un modulo: si scrive quando si esce dal campo, non
+// a ogni tasto (ogni cambio della vendita finisce nello storico).
+function GiorniDiProva({ nome, giorni, onCambio }) {
+  const [valore, setValore] = useState(String(giorni))
+  useEffect(() => setValore(String(giorni)), [giorni])
+  const salva = () => {
+    const n = Math.max(0, Math.min(90, Math.floor(Number(valore) || 0)))
+    setValore(String(n))
+    if (n !== giorni) onCambio(n)
+  }
+  return (
+    <label className="giorni-prova">
+      prova
+      <input
+        type="number"
+        min={0}
+        max={90}
+        aria-label={`Giorni di prova di ${nome}`}
+        value={valore}
+        onChange={(e) => setValore(e.target.value)}
+        onBlur={salva}
+        onKeyDown={(e) => e.key === 'Enter' && salva()}
+      />
+      giorni
+    </label>
+  )
+}
+
+// «CAMBIA PIANO» DELL'ADMIN (REQ-FLOTTA-016), al posto di «Piano a mano»:
+// piano, moduli, terminali, e come si paga. Con Stripe l'abbonamento si
+// aggiorna con l'addebito proporzionale; fuori da Stripe (bonifico,
+// omaggio) si scrive direttamente. Il server rifiuta «fuori da Stripe» se
+// Stripe sta ancora addebitando.
+function CambiaPiano({ cliente, onFatto, onErrore }) {
+  const conStripe = Boolean(cliente.abbonamento?.stripe_subscription) && cliente.abbonamento?.stato !== 'disdetto'
+  const [piano, setPiano] = useState(cliente.piano || 'base')
+  const [moduli, setModuli] = useState(cliente.moduli || [])
+  const [terminali, setTerminali] = useState(cliente.terminali || 1)
+  const [modo, setModo] = useState(conStripe ? 'stripe' : 'fuori')
+  const [inCorso, setInCorso] = useState(false)
+  const p = PIANI[piano]
+  const inclusi = new Set(p.include)
+  const invia = async (e) => {
+    e.preventDefault()
+    setInCorso(true)
+    try {
+      await cambiaPianoAdmin({ slug: cliente.slug, piano, moduli: p.gratuito ? [] : moduli, terminali: p.gratuito ? 1 : terminali, modo })
+      onFatto()
+    } catch (err) {
+      onErrore(err.message)
+    } finally {
+      setInCorso(false)
+    }
+  }
+  return (
+    <form className="cambia-piano" onSubmit={invia} aria-label={`Cambia piano di ${cliente.nome_locale}`}>
+      <strong>Cambia piano di {cliente.nome_locale}</strong>
+      <label htmlFor={`cp-piano-${cliente.slug}`}>Piano</label>
+      <select id={`cp-piano-${cliente.slug}`} value={piano} onChange={(e) => setPiano(e.target.value)}>
+        {Object.values(PIANI).map((x) => (
+          <option key={x.id} value={x.id}>
+            {x.nome} · {euro(x.prezzo)} / mese
+          </option>
+        ))}
+      </select>
+      {!p.gratuito && (
+        <>
+          <div className="vendita-moduli">
+            {MODULI.map((m) => (
+              <label key={m.id} className="opzione">
+                <input
+                  type="checkbox"
+                  checked={inclusi.has(m.id) || moduli.includes(m.id)}
+                  disabled={inclusi.has(m.id)}
+                  onChange={(e) => setModuli((v) => (e.target.checked ? [...new Set([...v, m.id])] : v.filter((id) => id !== m.id)))}
+                />
+                {m.nome}
+              </label>
+            ))}
+          </div>
+          <label htmlFor={`cp-term-${cliente.slug}`}>Terminali</label>
+          <input id={`cp-term-${cliente.slug}`} type="number" min={1} max={10} value={terminali} onChange={(e) => setTerminali(Math.max(1, Number(e.target.value) || 1))} />
+        </>
+      )}
+      <p className="small">
+        Nuovo prezzo: <strong>{euro(prezzoMensile({ piano, moduli: p.gratuito ? [] : moduli, terminali: p.gratuito ? 1 : terminali }))}</strong> / mese
+      </p>
+      <label className="opzione">
+        <input type="radio" name={`modo-${cliente.slug}`} checked={modo === 'stripe'} disabled={!conStripe} onChange={() => setModo('stripe')} />
+        Con Stripe (addebito proporzionale){!conStripe && ' — il cliente non ha un abbonamento Stripe'}
+      </label>
+      <label className="opzione">
+        <input type="radio" name={`modo-${cliente.slug}`} checked={modo === 'fuori'} onChange={() => setModo('fuori')} />
+        Fuori da Stripe (bonifico, omaggio)
+      </label>
+      <div className="azioni">
+        <button type="submit" className="btn small" disabled={inCorso}>
+          {inCorso ? 'Un momento…' : 'Cambia piano'}
+        </button>
+      </div>
+    </form>
   )
 }
 

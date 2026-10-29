@@ -205,17 +205,6 @@ export async function elencoRichieste() {
   return Object.fromEntries(snap.docs.map((d) => [d.id, d.data()]))
 }
 
-// L'admin segna un piano pagato a mano (finché Stripe non c'è, REQ-FLOTTA-007).
-export async function segnaPiano(uid, { piano, moduli = [], terminali = 1 }) {
-  serve()
-  await updateDoc(doc(db, 'clienti', uid), {
-    piano,
-    moduli,
-    terminali,
-    abbonamento: { stato: 'attivo', origine: 'manuale', dal: new Date().toISOString() },
-  })
-}
-
 // L'admin rilancia un'attivazione fallita: la richiesta torna in coda.
 export async function rilanciaAttivazione(slug) {
   serve()
@@ -319,5 +308,21 @@ export async function scegliFree() {
   serve()
   const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'scegliFree')
   const { data } = await fn({})
+  return data
+}
+
+// Le prove dei moduli (REQ-FLOTTA-016): il titolare accende una prova.
+export async function provaModulo(modulo) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'provaModulo')
+  const { data } = await fn({ modulo })
+  return data
+}
+
+// «Cambia piano» dell'admin: { slug, piano, moduli, terminali, modo: 'stripe' | 'fuori' }.
+export async function cambiaPianoAdmin(dati) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'cambiaPianoAdmin')
+  const { data } = await fn(dati)
   return data
 }

@@ -8,10 +8,18 @@
 
 import { MODULI, PIANI } from './piani.js'
 
+// Le prove (REQ-FLOTTA-016): giorni interi fra 1 e 90; il resto è «niente
+// prova». La stessa pulizia di functions/lib/prove.js.
+const giorniDiProva = (g) => {
+  const n = Math.floor(Number(g) || 0)
+  return n >= 1 ? Math.min(n, 90) : 0
+}
+
 export function venditaPulita(doc) {
   return {
     free: doc?.free === true,
     moduli: Object.fromEntries(MODULI.map((m) => [m.id, doc?.moduli?.[m.id] !== false])),
+    prove: Object.fromEntries(MODULI.map((m) => [m.id, giorniDiProva(doc?.prove?.[m.id])])),
   }
 }
 

@@ -36,6 +36,7 @@ describe('patchLicenzaPiano e sceltaCambiata', () => {
       'licenza.moduli': p['licenza.moduli'],
       'licenza.terminali': 2,
       'licenza.limiti': null,
+      'licenza.prove': {},
       'licenza.scritta_il': '2026-10-22T10:00:00.000Z',
     })
   })

@@ -13,6 +13,11 @@ data.
   cadono e il locale si completa da solo. Dal backoffice l'admin mette in
   vendita o toglie il Free e ogni modulo; il Free parte fuori vendita
   (REQ-FLOTTA-015).
+- Le prove dei moduli: l'admin decide quali moduli si provano e per quanti
+  giorni; il titolare ne prova uno dalla dashboard, una volta sola, e alla
+  scadenza si spegne da solo se non lo aggiunge. Nel backoffice «Cambia
+  piano» prende il posto di «Piano a mano»: piano, moduli e terminali, con
+  Stripe o fuori da Stripe, e lo storico dei cambi (REQ-FLOTTA-016).
 - La prima attivazione vera di un locale di prova (`prova-bar`, 29/10/2026)
   va fino in fondo: il progetto nasce con lo Storage dell'app, i segreti
   che l'app dichiara e gli agenti di Google che le sue Functions usano, e

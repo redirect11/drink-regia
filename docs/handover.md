@@ -440,11 +440,15 @@ L'elenco completo con i riferimenti al codice è in
    al completo quando il locale compra, il buco di `cambiaScelta` chiuso.
    Restano: in tana-drink le richieste di
    [richieste-tana-drink-free.md](richieste-tana-drink-free.md) (finché non ci
-   sono, il Free resta fuori vendita); nella regia le prove dei moduli
-   scelte dall'admin e «Cambia piano» al posto di «Piano a mano»; il progetto
-   Free senza fatturazione (Spark), da provare su un progetto di prova col
+   sono, il Free resta fuori vendita); il progetto Free senza fatturazione
+   (Spark), da provare su un progetto di prova col
    permesso dell'utente. Il nome del prodotto è ancora da decidere
    (candidati: Floorder, Floorista, Comandry).
+18. **Le prove dei moduli e «Cambia piano» (REQ-FLOTTA-016)**, sullo stesso
+   ramo, 30/10/2026: i giorni di prova li decide l'admin nel riquadro
+   «Vendita»; il titolare prova un modulo una volta sola dalla dashboard;
+   ogni mattina `proveScadute` le spegne. «Cambia piano» al posto di «Piano
+   a mano», con Stripe o fuori da Stripe, e lo storico sul cliente.
 
 ---
 
@@ -481,6 +485,10 @@ moduli, la licenza nell'istanza e la Tana.
   se la voce c'è: senza, nessun limite (la Tana non ha la voce). Un locale
   Free si pubblica col profilo leggero (`--only firestore,hosting`): l'app
   deve lavorare senza le sue Functions e senza Storage.
+- **Le prove dei moduli** (REQ-FLOTTA-016): un modulo in prova è acceso in
+  `licenza.moduli` come uno comprato, e `licenza.prove` = `{ magazzino:
+  '<scadenza ISO>' }` dice fino a quando. L'app può mostrarlo («in prova
+  fino al…»); non deve fare altro, la scadenza la gestisce la regia.
 - **Id dei moduli.** `functions/piani.json` → `moduli[].id` e
   `functions/lib/licenza.js` (MAPPA, TUTTI) devono combaciare con
   `src/lib/licenza.js` (MODULI_PREMIUM) in tana-drink. Oggi: `menu_tavoli`, `ordini_cliente`, `clienti`,

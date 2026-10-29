@@ -556,9 +556,9 @@ requirements:
       backoffice (vendita/listino): il Free in vendita o no, ogni modulo in
       vendita o no, con lo storico dei cambi; spegnere la vendita chiude
       solo la porta d'ingresso, chi c'e' gia' continua. Il Free parte
-      spento. Da fare: le prove dei moduli e «Cambia piano» per l'admin;
-      il progetto Free senza fatturazione (Spark); lato tana-drink, i limiti
-      fatti rispettare dall'app e l'app senza Functions (handover §7).
+      spento. Le prove dei moduli e «Cambia piano» stanno in REQ-FLOTTA-016.
+      Da fare: il progetto Free senza fatturazione (Spark); lato tana-drink,
+      i limiti fatti rispettare dall'app e l'app senza Functions (handover §7).
     status: partial
     generate_issue: true
     labels: [prodotto, flotta, regia]
@@ -572,3 +572,34 @@ requirements:
       - tests/licenza.test.js
       - tests/provisioning.test.js
       - tests/flotta.test.js
+
+  - id: REQ-FLOTTA-016
+    title: "Le prove dei moduli scelte dall'admin, e «Cambia piano» dell'admin con Stripe o fuori da Stripe"
+    area: "functions/lib/prove.js, functions/lib/cambiopiano.js, functions/lib/licenza.js (prove), functions/lib/free.js (venditaPulita), functions/index.js (provaModulo, proveScadute, cambiaPianoAdmin), src/lib/vendita.js, src/lib/db.js, src/pages/ProveModuli.jsx, src/pages/Dashboard.jsx, src/pages/Backoffice.jsx (Vendita, GiorniDiProva, CambiaPiano)"
+    description: >
+      L'utente, 30/10/2026: «le prove dei moduli ma posso decidere io quali
+      mettere in attivazione trial». LE PROVE: nel riquadro «Vendita» del
+      backoffice l'admin da' a ogni modulo dei giorni di prova (0 = niente
+      prova, al massimo 90). Il titolare accende la prova dalla dashboard
+      (provaModulo), una volta sola per modulo, solo col locale attivo e non
+      sospeso, solo per un modulo in vendita che non ha gia'; anche sul Free.
+      La licenza accende il modulo e i suoi moduli di dettaglio fino alla
+      scadenza, e la scrive in licenza.prove; ogni mattina proveScadute
+      toglie le prove scadute e quelle dei moduli ormai comprati, e la
+      licenza segue. «CAMBIA PIANO» al posto di «Piano a mano», che scriveva
+      solo il piano e segnava pagato senza dirlo: piano, moduli e terminali,
+      e come si paga. Con Stripe si aggiorna l'abbonamento con l'addebito
+      proporzionale (il cliente lo scrive il webhook); fuori da Stripe
+      (bonifico, omaggio) si scrive direttamente con un abbonamento
+      manuale che lo dice. Mai fuori da Stripe con un abbonamento Stripe
+      che addebita ancora, mai il Free su Stripe. Ogni cambio va nello
+      storico del cliente (storico_piano).
+    status: implemented
+    generate_issue: false
+    labels: [prodotto, regia]
+    test_cases:
+      - tests/prove.test.js
+      - tests/cambiopiano.test.js
+      - tests/ProveModuli.test.jsx
+      - tests/Backoffice.test.jsx
+      - tests/licenza.test.js

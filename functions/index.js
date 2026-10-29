@@ -920,3 +920,67 @@ exports.scaricaArchivio = onCall(OPTS, async (req) => {
   })
   return { url, scade_il: ist.eliminazione.scade_il }
 })
+
+// ── LE PROVE DEI MODULI E «CAMBIA PIANO» DELL'ADMIN (REQ-FLOTTA-016) ───
+const prove = require('./lib/prove.js')
+const { cambioAdmin } = require('./lib/cambiopiano.js')
+
+// Il titolare accende la prova di un modulo: quali si provano e per quanti
+// giorni lo decide l'admin (vendita/listino). Una volta sola per modulo.
+// Scritta la prova, licenzaSegueIlPiano accende il modulo nell'istanza.
+exports.provaModulo = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  const ref = db.doc(`clienti/${req.auth.uid}`)
+  const cliente = (await ref.get()).data()
+  if (!cliente?.slug) throw new HttpsError('failed-precondition', 'Nessun locale collegato a questo account.')
+  const ist = (await db.doc(`istanze/${cliente.slug}`).get()).data()
+  const id = String(req.data?.modulo || '')
+  const adesso = new Date()
+  const puo = prove.puoProvare(cliente, ist, id, await vendita(), adesso)
+  if (!puo.ok) throw new HttpsError('failed-precondition', puo.perche)
+  await ref.update({
+    [`prove.${id}`]: { dal: adesso.toISOString(), scade_il: puo.scade_il, giorni: puo.giorni },
+    prove_fatte: FieldValue.arrayUnion(id),
+  })
+  return { ok: true, scade_il: puo.scade_il }
+})
+
+// Ogni mattina: le prove scadute, o dei moduli ormai comprati, si tolgono;
+// la licenza segue da sola (licenzaSegueIlPiano).
+exports.proveScadute = onSchedule({ ...OPTS, schedule: '30 5 * * *', timeZone: 'Europe/Rome' }, async () => {
+  const adesso = new Date()
+  for (const d of (await db.collection('clienti').get()).docs) {
+    const via = prove.proveDaTogliere(d.data(), adesso)
+    if (!via.length) continue
+    await d.ref.update(Object.fromEntries(via.map((id) => [`prove.${id}`, FieldValue.delete()])))
+    console.log(`[prove] ${d.data().slug}: tolte ${via.join(', ')}`)
+  }
+})
+
+// L'admin cambia piano, moduli e terminali di un locale: con Stripe
+// (l'abbonamento si aggiorna, il webhook scrive il cliente) o fuori da
+// Stripe (si scrive qui). Ogni cambio nello storico del cliente.
+exports.cambiaPianoAdmin = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const slug = String(req.data?.slug || '')
+  const doc = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]
+  if (!doc) throw new HttpsError('not-found', 'Cliente sconosciuto.')
+  const cliente = doc.data()
+  const c = cambioAdmin(cliente, req.data, { da: req.auth.token.email || req.auth.uid })
+  if (!c.ok) throw new HttpsError('failed-precondition', c.perche)
+  if (req.data.modo === 'stripe') {
+    const stripe = stripeClient()
+    if (!stripe) throw new HttpsError('failed-precondition', 'Stripe non è configurato.')
+    const sub = cliente.abbonamento.stripe_subscription
+    const attuale = await stripe.subscriptions.retrieve(sub)
+    await stripe.subscriptions.update(sub, {
+      items: [...attuale.items.data.map((i) => ({ id: i.id, deleted: true })), ...righeCheckout(c.scelta)],
+      metadata: metadatiDi(cliente.uid, c.scelta),
+      proration_behavior: 'create_prorations',
+    })
+  } else {
+    await doc.ref.set(c.cliente, { merge: true })
+  }
+  await doc.ref.update({ storico_piano: FieldValue.arrayUnion(c.storico) })
+  return { ok: true, modo: req.data.modo }
+})

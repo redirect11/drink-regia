@@ -15,7 +15,7 @@ import { venditaPulita, pianiInVendita, moduloVisibile, eGratuito } from '../lib
 // mostra, a meno che il cliente non lo abbia già.
 export default function SceltaPiano({ cliente, modifica = false, vai = (url) => window.location.assign(url) }) {
   const [vendita, setVendita] = useState(() => venditaPulita(null))
-  useEffect(() => osservaVendita(setVendita), [])
+  useEffect(() => osservaVendita((v) => setVendita(venditaPulita(v))), [])
   const [piano, setPiano] = useState(cliente.piano && !eGratuito(cliente.piano) ? cliente.piano : 'base')
   const [moduli, setModuli] = useState(cliente.moduli || [])
   const [terminali, setTerminali] = useState(cliente.terminali || 1)

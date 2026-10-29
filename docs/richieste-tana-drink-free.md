@@ -67,7 +67,20 @@ Quando il locale compra, la regia toglie i limiti dalla licenza e
 ripubblica il progetto col profilo completo (Functions, Storage, segreti):
 l'app non deve fare niente di speciale.
 
-## 3. Un test per ognuna
+## 3. Le prove dei moduli (facoltativo)
+
+Dal 30/10/2026 la regia fa provare i moduli (REQ-FLOTTA-016). Un modulo in
+prova è acceso in `licenza.moduli` come uno comprato: l'app non deve fare
+niente per farlo funzionare. In più `licenza.prove` dice fino a quando:
+
+```json
+"prove": { "magazzino": "2026-11-13T10:00:00.000Z" }
+```
+
+Se vuole, l'app lo mostra nella sezione del modulo («In prova fino al 13
+novembre»). Alla scadenza la regia spegne il modulo da sola.
+
+## 4. Un test per ognuna
 
 - i limiti valgono solo con la voce `limiti` nella licenza;
 - senza la voce, nessun limite: è il caso della Tana;

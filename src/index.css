@@ -191,3 +191,9 @@ code { background: rgba(255, 255, 255, 0.06); padding: 1px 5px; border-radius: 5
 .card.vendita { margin: 12px 0; }
 .card.vendita h3 { margin-top: 0; }
 .vendita-moduli { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 4px 12px; }
+.vendita-modulo { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.vendita-modulo .opzione { flex: 1; }
+.giorni-prova { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 0.85rem; white-space: nowrap; }
+.giorni-prova input { width: 4.5em; padding: 6px; }
+.cambia-piano { display: grid; gap: 8px; margin-top: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
+.cambia-piano label { margin: 0; }

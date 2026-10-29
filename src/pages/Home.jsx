@@ -91,7 +91,7 @@ function Icona({ d }) {
 export default function Home({ utente }) {
   // Il Free e i moduli si mostrano solo se sono in vendita (REQ-FLOTTA-015).
   const [vendita, setVendita] = useState(() => venditaPulita(null))
-  useEffect(() => osservaVendita(setVendita), [])
+  useEffect(() => osservaVendita((v) => setVendita(venditaPulita(v))), [])
   return (
     <main className="landing">
       <section className="hero">
