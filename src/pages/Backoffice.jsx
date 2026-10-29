@@ -12,10 +12,18 @@ import {
   autorizzaRichiesta,
   rifiutaRichiesta,
   creaClienteDaAdmin,
+  elencoCassettiAI,
+  gestisciCassettoAI,
+  registraLocaleEsistente,
+  elencoRilasci,
+  gestisciRilascio,
 } from '../lib/db.js'
 import { statoIstanza, statoDetto, STATI, progettoDi } from '../lib/istanze.js'
 import { PIANI, MODULI, prezzoMensile, euro } from '../lib/piani.js'
 import { contattoDi } from '../lib/clienti.js'
+import { statoCredito, euroCent } from '../lib/ai.js'
+import { GRUPPI, TAG, aggiornamentoDetto } from '../lib/rilasci.js'
+import Rilasci from './Rilasci.jsx'
 
 // IL BACKOFFICE (REQ-FLOTTA-005): tutti i clienti con piano, stato
 // dell'istanza, progetto, versione; le richieste in coda o in errore in
@@ -29,13 +37,26 @@ export default function Backoffice() {
   const [errore, setErrore] = useState(null)
   const [impostazioni, setImpostazioni] = useState({})
   const [nuovo, setNuovo] = useState(false)
+  const [esistente, setEsistente] = useState(false)
+  // La chiave AI appena creata: si vede una volta sola, qui (REQ-AI-003).
+  const [chiaveNuova, setChiaveNuova] = useState(null)
+  const [rilasci, setRilasci] = useState([])
 
   const carica = async () => {
     try {
-      const [clienti, istanze, richieste] = await Promise.all([elencoClienti(), elencoIstanze(), elencoRichieste()])
+      // I cassetti AI sono un di più: se non si leggono, il resto del
+      // backoffice deve lavorare lo stesso.
+      const [clienti, istanze, richieste, cassetti, elencoR] = await Promise.all([
+        elencoClienti(),
+        elencoIstanze(),
+        elencoRichieste(),
+        elencoCassettiAI().catch(() => ({})),
+        elencoRilasci().catch(() => []),
+      ])
+      setRilasci(elencoR)
       setRighe(
         clienti
-          .map((c) => ({ cliente: c, istanza: istanze[c.slug] || null, richiesta: richieste[c.slug] || null }))
+          .map((c) => ({ cliente: c, istanza: istanze[c.slug] || null, richiesta: richieste[c.slug] || null, cassetto: cassetti[c.slug] || null }))
           .map((r) => ({ ...r, stato: statoIstanza(r.istanza, r.richiesta) }))
           .sort((a, b) => peso(a.stato) - peso(b.stato))
       )
@@ -71,21 +92,32 @@ export default function Backoffice() {
     carica()
   }
 
-  // L'ultima versione dell'app a un locale, o a tutti quelli attivi
-  // (REQ-FLOTTA-009): l'app di base è tana-drink, i locali la seguono
-  // quando lo si decide.
+  // L'ultima versione dell'app a un locale (REQ-FLOTTA-009): per una
+  // correzione urgente su un locale solo. A tutti i locali un rilascio ci
+  // arriva a ondate (REQ-FLOTTA-012), dal riquadro «Rilasci»: un errore
+  // si vede sulle istanze di prova, non su tutti insieme.
   const aggiorna = async (c) => {
     try {
       await aggiornaIstanza(c.slug)
     } catch (e) {
       setErrore(e.message)
     }
+    carica()
   }
-  const aggiornaTutte = async () => {
-    const attive = righe.filter((r) => r.stato === STATI.ATTIVA)
-    if (!window.confirm(`Portare l’ultima versione a ${attive.length} locali attivi?`)) return
-    for (const r of attive) await aggiorna(r.cliente)
+  const azioneRilascio = async (azione, dati) => {
+    setErrore(null)
+    try {
+      const esito = await gestisciRilascio(azione, dati)
+      if (esito?.nonPartiti?.length) setErrore(`Non partiti: ${esito.nonPartiti.join('; ')}`)
+    } catch (e) {
+      setErrore(e.message)
+    }
+    carica()
   }
+  // Un aggiornamento fallito: si rilancia (nel rilascio, o da solo con lo
+  // stesso ref) oppure si torna alla versione di prima.
+  const riprova = (c, agg) =>
+    agg.rilascio ? azioneRilascio('riprova', { ref: agg.rilascio, slug: c.slug }) : aggiornaIstanza(c.slug, agg.ref).catch((e) => setErrore(e.message)).then(carica)
 
   const autorizza = async (c) => {
     try {
@@ -104,6 +136,34 @@ export default function Backoffice() {
       setErrore(e.message)
     }
     carica()
+  }
+
+  // Il cassetto AI di un locale (REQ-AI-003): ricarica a mano (la Tana la
+  // ricarichiamo noi), tetto del mese, acceso o spento, chiave.
+  const azioneAI = async (c, azione, extra = {}) => {
+    setErrore(null)
+    try {
+      const esito = await gestisciCassettoAI(c.slug, azione, extra)
+      if (esito?.chiave) setChiaveNuova({ nome: c.nome_locale, chiave: esito.chiave })
+    } catch (e) {
+      setErrore(e.message)
+    }
+    carica()
+  }
+  const ricaricaAI = (c) => {
+    const importo = window.prompt(`Euro da aggiungere al credito AI di ${c.nome_locale}:`, '10')
+    if (importo == null) return
+    const nota = window.prompt('Nota (facoltativa):', '') || ''
+    azioneAI(c, 'ricarica', { importo: Number(String(importo).replace(',', '.')), nota })
+  }
+  const tettoAI = (c, attuale) => {
+    const importo = window.prompt(`Tetto mensile del credito AI di ${c.nome_locale}, in euro:`, String(attuale ?? ''))
+    if (importo == null) return
+    azioneAI(c, 'tetto', { importo: Number(String(importo).replace(',', '.')) })
+  }
+  const chiaveAI = (c, cassetto) => {
+    if (cassetto?.chiave_creata_il && !window.confirm(`La chiave attuale di ${c.nome_locale} smette di funzionare subito. Continuare?`)) return
+    azioneAI(c, 'chiave')
   }
 
   if (righe === undefined) return <main className="pagina muted">Carico…</main>
@@ -126,11 +186,9 @@ export default function Backoffice() {
           <button type="button" className="btn ghost small" onClick={() => setNuovo((v) => !v)}>
             {nuovo ? 'Chiudi' : 'Nuovo locale'}
           </button>
-          {righe.some((r) => r.stato === STATI.ATTIVA) && (
-            <button type="button" className="btn ghost small" onClick={aggiornaTutte}>
-              Aggiorna tutte le istanze attive
-            </button>
-          )}
+          <button type="button" className="btn ghost small" onClick={() => setEsistente((v) => !v)}>
+            {esistente ? 'Chiudi' : 'Locale esistente'}
+          </button>
         </div>
       </div>
       <p className="muted small">
@@ -149,6 +207,36 @@ export default function Backoffice() {
           onErrore={setErrore}
         />
       )}
+
+      {esistente && (
+        <LocaleEsistente
+          onFatto={() => {
+            setEsistente(false)
+            carica()
+          }}
+          onErrore={setErrore}
+        />
+      )}
+
+      {chiaveNuova && (
+        <section className="card avviso" aria-label="Chiave AI nuova">
+          <h3>Chiave AI di {chiaveNuova.nome}</h3>
+          <p className="small">
+            Copiala adesso: non si vede più. Va tra i segreti dell’installazione, che la usa per chiamare la regia; la chiave precedente non
+            funziona più.
+          </p>
+          <code className="chiave" data-testid="chiave-ai">
+            {chiaveNuova.chiave}
+          </code>
+          <div className="azioni">
+            <button type="button" className="btn small" onClick={() => setChiaveNuova(null)}>
+              L’ho copiata
+            </button>
+          </div>
+        </section>
+      )}
+
+      <Rilasci rilasci={rilasci} onAzione={azioneRilascio} />
 
       {daApprovare.length > 0 && (
         <section className="card" aria-label="Richieste da autorizzare">
@@ -187,15 +275,25 @@ export default function Backoffice() {
               <th>Istanza</th>
               <th>Progetto</th>
               <th>Versione</th>
+              <th>Credito AI</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {righe.map(({ cliente: c, istanza, stato }) => (
+            {righe.map(({ cliente: c, istanza, stato, cassetto }) => {
+              const credito = statoCredito(cassetto)
+              // Un locale registrato come esistente (la Tana) non passa per
+              // la flotta: da qui niente Aggiorna, Sospendi, Chiudi.
+              const daFlotta = istanza?.origine !== 'esistente'
+              return (
               <tr key={c.uid} className={stato === STATI.ERRORE ? 'errore-riga' : ''}>
                 <td>
                   <strong>{c.nome_locale}</strong>
-                  <div className="muted small">{c.slug}</div>
+                  <div className="muted small">
+                    {c.slug}
+                    {istanza?.interna && ' · interna'}
+                    {!daFlotta && ' · esistente'}
+                  </div>
                 </td>
                 <td>
                   {c.email}
@@ -222,22 +320,91 @@ export default function Backoffice() {
                 <td>
                   {istanza?.versione || <span className="muted">—</span>}
                   {istanza?.ref && istanza.ref !== 'main' && <div className="muted small">da {istanza.ref}</div>}
+                  {aggiornamentoDetto(istanza?.aggiornamento) && (
+                    <div className={istanza.aggiornamento.stato === 'fallito' ? 'errore small' : 'muted small'}>
+                      {aggiornamentoDetto(istanza.aggiornamento)}
+                    </div>
+                  )}
+                  {daFlotta && stato === STATI.ATTIVA && !istanza?.interna && (
+                    <select
+                      className="small"
+                      aria-label={`Gruppo di rilascio di ${c.nome_locale}`}
+                      value={istanza?.gruppo_rilascio || 'generale'}
+                      onChange={(e) => azioneRilascio('gruppo', { slug: c.slug, gruppo: e.target.value })}
+                    >
+                      {GRUPPI.map((g) => (
+                        <option key={g.id} value={g.id}>
+                          {g.nome}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </td>
+                <td>
+                  {credito ? (
+                    <>
+                      <span data-testid={`credito-${c.slug}`}>{euroCent(credito.credito)}</span>
+                      <div className="muted small">
+                        mese {euroCent(credito.spesoMese)} / {euroCent(credito.tetto)}
+                        {!credito.attivo && ' · spento'}
+                        {!credito.collegata && ' · senza chiave'}
+                      </div>
+                    </>
+                  ) : (
+                    <span className="muted">—</span>
+                  )}
                 </td>
                 <td className="azioni-riga">
                   <button type="button" className="btn ghost small" onClick={() => pianoAMano(c)}>
                     Piano a mano
                   </button>
+                  {(credito || stato === STATI.ATTIVA) && (
+                    <>
+                      <button type="button" className="btn ghost small" onClick={() => ricaricaAI(c)}>
+                        Ricarica AI
+                      </button>
+                      <button type="button" className="btn ghost small" onClick={() => tettoAI(c, credito?.tetto)}>
+                        Tetto AI
+                      </button>
+                      <button type="button" className="btn ghost small" onClick={() => chiaveAI(c, cassetto)}>
+                        Chiave AI
+                      </button>
+                      {credito && (
+                        <button type="button" className="btn ghost small" onClick={() => azioneAI(c, credito.attivo ? 'spegni' : 'accendi')}>
+                          {credito.attivo ? 'Spegni AI' : 'Accendi AI'}
+                        </button>
+                      )}
+                    </>
+                  )}
                   {stato === STATI.ERRORE && (
                     <button type="button" className="btn ghost small" onClick={() => rilanciaAttivazione(c.slug).then(carica)}>
                       Rilancia
                     </button>
                   )}
-                  {stato === STATI.ATTIVA && (
+                  {daFlotta && stato === STATI.ATTIVA && (
                     <button type="button" className="btn ghost small" onClick={() => aggiorna(c)}>
                       Aggiorna
                     </button>
                   )}
-                  {stato === STATI.ATTIVA && (istanza?.licenza_stato || 'attiva') === 'attiva' && (
+                  {daFlotta && istanza?.aggiornamento?.stato === 'fallito' && (
+                    <>
+                      <button type="button" className="btn ghost small" onClick={() => riprova(c, istanza.aggiornamento)}>
+                        Riprova
+                      </button>
+                      {TAG.test(istanza.aggiornamento.versione_precedente || '') && (
+                        <button
+                          type="button"
+                          className="btn ghost small"
+                          onClick={() => {
+                            if (window.confirm(`Riportare ${c.nome_locale} a ${istanza.aggiornamento.versione_precedente}?`)) azioneRilascio('indietro', { slug: c.slug })
+                          }}
+                        >
+                          Torna a {istanza.aggiornamento.versione_precedente}
+                        </button>
+                      )}
+                    </>
+                  )}
+                  {daFlotta && stato === STATI.ATTIVA && (istanza?.licenza_stato || 'attiva') === 'attiva' && (
                     <>
                       <button type="button" className="btn ghost small" onClick={() => cambiaStato(c, 'sospesa')}>
                         Sospendi
@@ -247,14 +414,15 @@ export default function Backoffice() {
                       </button>
                     </>
                   )}
-                  {stato === STATI.ATTIVA && istanza?.licenza_stato && istanza.licenza_stato !== 'attiva' && (
+                  {daFlotta && stato === STATI.ATTIVA && istanza?.licenza_stato && istanza.licenza_stato !== 'attiva' && (
                     <button type="button" className="btn ghost small" onClick={() => cambiaStato(c, 'attiva')}>
                       Riattiva
                     </button>
                   )}
                 </td>
               </tr>
-            ))}
+              )
+            })}
           </tbody>
         </table>
       )}
@@ -336,6 +504,72 @@ function NuovoLocale({ onFatto, onErrore }) {
       </p>
       <button type="submit" className="btn" disabled={inCorso}>
         {inCorso ? 'Un momento…' : 'Crea il locale'}
+      </button>
+    </form>
+  )
+}
+
+// UN LOCALE CHE ESISTE GIÀ (REQ-AI-003): la Tana, o un altro locale che ha
+// già il suo progetto Firebase. Entra nella regia senza provisioning, con
+// piano completo, segnato interno di partenza: la sospensione automatica
+// lo salta e la regia non gli scrive la licenza (functions/lib/esistente.js).
+function LocaleEsistente({ onFatto, onErrore }) {
+  const [nome, setNome] = useState('')
+  const [slug, setSlug] = useState('')
+  const [email, setEmail] = useState('')
+  const [progetto, setProgetto] = useState('')
+  const [url, setUrl] = useState('')
+  const [interna, setInterna] = useState(true)
+  const [inCorso, setInCorso] = useState(false)
+
+  const invia = async (e) => {
+    e.preventDefault()
+    setInCorso(true)
+    try {
+      await registraLocaleEsistente({ nome_locale: nome, slug, email, progetto, url, interna })
+      onFatto()
+    } catch (err) {
+      onErrore(err.message)
+    } finally {
+      setInCorso(false)
+    }
+  }
+
+  return (
+    <form className="card" onSubmit={invia} aria-label="Locale esistente">
+      <h3>Locale esistente</h3>
+      <p className="muted small">
+        Per un locale che ha già la sua app e il suo progetto, come la Tana: non parte nessuna attivazione e la regia non tocca il suo
+        progetto. Serve a dargli il credito AI e a vederlo qui.
+      </p>
+      <div className="grid-2">
+        <div className="campo">
+          <label htmlFor="le-nome">Nome del locale</label>
+          <input id="le-nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
+        </div>
+        <div className="campo">
+          <label htmlFor="le-slug">Identificativo</label>
+          <input id="le-slug" value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="dal nome, se vuoto" />
+        </div>
+        <div className="campo">
+          <label htmlFor="le-email">Email del titolare</label>
+          <input id="le-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        </div>
+        <div className="campo">
+          <label htmlFor="le-progetto">Progetto Firebase</label>
+          <input id="le-progetto" value={progetto} onChange={(e) => setProgetto(e.target.value)} placeholder="tana-drink" required />
+        </div>
+        <div className="campo">
+          <label htmlFor="le-url">Indirizzo dell’app</label>
+          <input id="le-url" type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" required />
+        </div>
+      </div>
+      <label className="opzione">
+        <input type="checkbox" checked={interna} onChange={(e) => setInterna(e.target.checked)} />
+        Installazione interna (non si sospende per pagamenti, il credito AI lo ricarichiamo noi)
+      </label>
+      <button type="submit" className="btn" disabled={inCorso}>
+        {inCorso ? 'Un momento…' : 'Registra il locale'}
       </button>
     </form>
   )

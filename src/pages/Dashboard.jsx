@@ -3,6 +3,7 @@ import { osservaCliente, osservaIstanza, osservaRichiesta, chiediAttivazione, in
 import { statoIstanza, statoDetto, puoAttivare, urlDi, progettoDi, STATI } from '../lib/istanze.js'
 import { PIANI, MODULI, prezzoMensile, euro } from '../lib/piani.js'
 import SceltaPiano from './SceltaPiano.jsx'
+import CreditoAI from './CreditoAI.jsx'
 
 // LA DASHBOARD DEL TITOLARE (REQ-FLOTTA-004): il suo locale, il piano, lo
 // stato dell'istanza e, quando è attiva, l'indirizzo dell'app.
@@ -115,6 +116,7 @@ export default function Dashboard({ utente }) {
         )}
         {errore && <p className="errore">{errore}</p>}
       </section>
+      <CreditoAI slug={cliente.slug} istanzaAttiva={stato === STATI.ATTIVA} />
       {/* Senza un abbonamento attivo si sceglie (o si rinnova) il piano. */}
       {cliente.abbonamento?.stato !== 'attivo' && <SceltaPiano cliente={cliente} />}
       {cliente.abbonamento?.stato === 'attivo' && <SceltaPiano cliente={cliente} modifica />}

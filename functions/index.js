@@ -7,14 +7,20 @@
 // Segreti (firebase functions:secrets:set, progetto drink-regia):
 //   GITHUB_DISPATCH_TOKEN         token fine-grained con actions:write sul repo
 //   PROVISIONING_CALLBACK_SECRET  il bearer che il workflow usa per l'esito
-// Configurazione non segreta (.env): GITHUB_REPO (owner/repo), GITHUB_REF.
+//   ANTHROPIC_API_KEY             la nostra chiave di Claude (REQ-AI-003): sta
+//                                 solo qui, mai in un'installazione
+// Configurazione non segreta (.env): GITHUB_REPO (il repository con i
+// workflow della flotta, dal 29/10/2026 la regia stessa), FLOTTA_REF (il
+// suo ramo con i workflow), APP_REF (la versione di tana-drink da
+// pubblicare), FLOTTA_AMBIENTE (produzione o test: quale environment).
 
 const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore')
 const { onRequest } = require('firebase-functions/v2/https')
 const { defineSecret } = require('firebase-functions/params')
 const { initializeApp } = require('firebase-admin/app')
 const { getFirestore } = require('firebase-admin/firestore')
-const { preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, documentoIstanza, bearerValido } = require('./lib/provisioning.js')
+const { preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, eAggiornamento, documentoIstanza, documentoAggiornamento, bearerValido } = require('./lib/provisioning.js')
+const rilasci = require('./lib/rilasci.js')
 const { patchLicenzaPiano, sceltaCambiata } = require('./lib/licenza.js')
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
 const { FieldValue } = require('firebase-admin/firestore')
@@ -23,6 +29,8 @@ const { onSchedule } = require('firebase-functions/v2/scheduler')
 const { patchLicenza, daSospendere, STATI: STATI_LICENZA } = require('./lib/sospensione.js')
 const { initializeApp: initializeAppCon, getApps } = require('firebase-admin/app')
 const { getAuth } = require('firebase-admin/auth')
+const ai = require('./lib/ai.js')
+const { datiEsistente, documentiEsistente, DatiNonValidi, scriveLicenza } = require('./lib/esistente.js')
 
 initializeApp()
 const db = getFirestore()
@@ -33,12 +41,16 @@ const PROVISIONING_CALLBACK_SECRET = defineSecret('PROVISIONING_CALLBACK_SECRET'
 // quelle di PROVA (sk_test_…, whsec_…), poi quelle vere.
 const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY')
 const STRIPE_WEBHOOK_SECRET = defineSecret('STRIPE_WEBHOOK_SECRET')
-const REPO = process.env.GITHUB_REPO || 'redirect11/tana-drink'
-const REF = process.env.GITHUB_REF || 'develop'
+const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY')
+const REPO = process.env.GITHUB_REPO || 'redirect11/drink-regia'
+const REF = process.env.FLOTTA_REF || 'main'
 const WORKFLOW = 'provisiona-istanza.yml'
 const WORKFLOW_AGGIORNA = 'aggiorna-istanza.yml'
 // La versione dell'app da pubblicare: di norma `main` (l'ultimo rilascio).
 const REF_APP = process.env.APP_REF || 'main'
+// La regia di test lancia sull'environment flotta-test: il suo account di
+// fatturazione, il suo callback, il suo account per la licenza.
+const AMBIENTE_FLOTTA = process.env.FLOTTA_AMBIENTE || 'produzione'
 
 async function dispatchGitHub(workflow, corpo) {
   return fetch(`https://api.github.com/repos/${REPO}/actions/workflows/${workflow}/dispatches`, {
@@ -65,7 +77,7 @@ async function lancia(richiesta) {
     await db.doc(`richieste/${richiesta.slug}`).set({ stato: 'errore', errore: `Lancio rifiutato: ${coerenza.perche}`, aggiornata_il: adesso }, { merge: true })
     return
   }
-  const corpo = dispatchPayload({ ...richiesta, nome_locale: cliente.nome_locale, piano: cliente.piano, moduli: cliente.moduli }, { ref: REF })
+  const corpo = dispatchPayload({ ...richiesta, nome_locale: cliente.nome_locale, piano: cliente.piano, moduli: cliente.moduli }, { ref: REF, app: REF_APP, ambiente: AMBIENTE_FLOTTA })
   const res = await fetch(`https://api.github.com/repos/${REPO}/actions/workflows/${WORKFLOW}/dispatches`, {
     method: 'POST',
     headers: {
@@ -135,7 +147,7 @@ exports.rilanciaProvisioning = onDocumentUpdated(
   }
 )
 
-// L'esito dal workflow: POST con bearer, corpo { slug, stato, url, progetto, versione, errore }.
+// L'esito dal workflow: POST con bearer, corpo { slug, stato, url, progetto, versione, ref, ambiente, operazione, errore }.
 exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK_SECRET], cors: false }, async (req, res) => {
   if (req.method !== 'POST') return res.status(405).send('')
   if (!bearerValido(req.get('authorization'), PROVISIONING_CALLBACK_SECRET.value())) return res.status(401).send('')
@@ -143,6 +155,17 @@ exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK
   if (!esito) return res.status(400).json({ errore: 'esito non valido' })
   const ref = db.doc(`istanze/${esito.slug}`)
   const prima = (await ref.get()).data() || null
+  // Un aggiornamento non tocca lo stato dell'istanza né la richiesta di
+  // attivazione (REQ-FLOTTA-012); fa andare avanti, o fermare, il rilascio.
+  if (eAggiornamento(esito, prima)) {
+    await ref.set(documentoAggiornamento(esito, prima), { merge: true })
+    try {
+      await ricalcolaRilasci()
+    } catch (e) {
+      console.error('[rilasci] ricalcolo dopo esito:', e?.message || e)
+    }
+    return res.status(200).json({ ok: true, operazione: 'aggiornamento' })
+  }
   await ref.set(documentoIstanza(esito, prima), { merge: true })
   await db.doc(`richieste/${esito.slug}`).set({ stato: esito.stato, aggiornata_il: new Date().toISOString() }, { merge: true })
   res.status(200).json({ ok: true })
@@ -200,6 +223,15 @@ exports.stripeWebhook = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY, STRIPE
     console.error('[stripe] firma non valida:', e?.message)
     return res.status(400).send('')
   }
+  // Una ricarica del credito AI (REQ-AI-003): pagamento singolo, credito
+  // in più. Prima dell'abbonamento, che la ignora comunque.
+  if (evento.type === 'checkout.session.completed') {
+    const ricarica = ai.ricaricaDaSessione(evento.data?.object)
+    if (ricarica) {
+      const esito = await accreditaRicarica(ricarica, { origine: 'stripe' })
+      return res.status(200).json({ ok: true, ricarica: esito })
+    }
+  }
   const agg = aggiornamentoDaEvento(evento.type, evento.data?.object)
   if (!agg) return res.status(200).json({ ok: true, ignorato: evento.type })
   let uid = agg.uid
@@ -228,6 +260,9 @@ function firestoreDi(progetto) {
 async function scriviStatoIstanza(slug, stato, motivo) {
   const ist = (await db.doc(`istanze/${slug}`).get()).data()
   if (!ist?.progetto) throw new HttpsError('failed-precondition', 'Istanza senza progetto: non è ancora attiva.')
+  // Un locale registrato come esistente (la Tana, REQ-AI-003) non riceve
+  // la licenza dalla regia finché non lo si collega: «senza rompere niente».
+  if (!scriveLicenza(ist)) throw new HttpsError('failed-precondition', 'Questa installazione non riceve la licenza dalla regia: si gestisce dal suo progetto.')
   await firestoreDi(ist.progetto).doc('settings/bar').update(patchLicenza(stato, { motivo }))
   await db.doc(`istanze/${slug}`).set({ licenza_stato: stato, licenza_motivo: motivo || null, licenza_dal: new Date().toISOString() }, { merge: true })
 }
@@ -261,17 +296,140 @@ exports.sospendiMorosi = onSchedule({ ...OPTS, schedule: '0 6 * * *', timeZone: 
 // L'app di base è tana-drink: ogni rilascio si porta sui locali che si
 // decide dal backoffice («Aggiorna», «Aggiorna tutte»). La versione la
 // riferisce il workflow, con l'esito.
+// Lancia l'aggiornamento di un locale e lo segna «in corso», con la
+// versione di prima (il tag a cui tornare se va male). Ritorna null se è
+// partito, o il perché se non è partito.
+async function lanciaAggiornamento(slug, ref, { rilascio = null, ritorno = false } = {}) {
+  const istRef = db.doc(`istanze/${slug}`)
+  const ist = (await istRef.get()).data()
+  if (!ist || ist.stato !== 'attiva') return 'L’istanza non è attiva.'
+  // Un locale registrato come esistente (la Tana, REQ-AI-003) ha i suoi
+  // rilasci e il suo progetto: il workflow della flotta non lo tocca mai.
+  if (ist.origine === 'esistente') return 'Questa installazione si aggiorna dal suo repository, non dalla flotta.'
+  const cliente = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]?.data()
+  const res = await dispatchGitHub(WORKFLOW_AGGIORNA, dispatchAggiornamento({ slug, nome_locale: cliente?.nome_locale }, { ref: REF, app: ref, ambiente: AMBIENTE_FLOTTA }))
+  const adesso = new Date()
+  if (res.status !== 204) {
+    // Non è partito: si segna fallito, così il rilascio si ferma e si vede.
+    await istRef.set({ aggiornamento: { ...rilasci.aggiornamentoLanciato(ist, ref, { rilascio, ritorno, adesso }), stato: 'fallito', finito_il: adesso.toISOString(), errore: `GitHub ${res.status}: il workflow non è partito` } }, { merge: true })
+    return `GitHub ${res.status}`
+  }
+  await istRef.set({ aggiornamento: rilasci.aggiornamentoLanciato(ist, ref, { rilascio, ritorno, adesso }), aggiornamento_chiesto_il: adesso.toISOString(), aggiornamento_ref: ref }, { merge: true })
+  return null
+}
+
+async function tutteLeIstanze() {
+  return Object.fromEntries((await db.collection('istanze').get()).docs.map((d) => [d.id, d.data()]))
+}
+
+// Dopo ogni esito o azione: i rilasci aperti si fermano o si chiudono
+// (dopoEsito) e il riepilogo per il backoffice si riscrive.
+async function ricalcolaRilasci() {
+  const aperti = (await db.collection('rilasci').where('stato', 'in', rilasci.APERTI).get()).docs
+  if (!aperti.length) return
+  const istanze = await tutteLeIstanze()
+  for (const d of aperti) {
+    const r = rilasci.dopoEsito(d.data(), istanze) || d.data()
+    await d.ref.set(rilasci.conRiepilogo(r, istanze))
+  }
+}
+
 exports.aggiornaIstanza = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN] }, async (req) => {
   if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
   const slug = String(req.data?.slug || '')
-  const ist = (await db.doc(`istanze/${slug}`).get()).data()
-  if (!ist || ist.stato !== 'attiva') throw new HttpsError('failed-precondition', 'L’istanza non è attiva.')
-  const cliente = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]?.data()
   const ref = String(req.data?.ref || REF_APP)
-  const res = await dispatchGitHub(WORKFLOW_AGGIORNA, dispatchAggiornamento({ slug, nome_locale: cliente?.nome_locale }, { ref }))
-  if (res.status !== 204) throw new HttpsError('internal', `GitHub ${res.status}`)
-  await db.doc(`istanze/${slug}`).set({ aggiornamento_chiesto_il: new Date().toISOString(), aggiornamento_ref: ref }, { merge: true })
+  const perche = await lanciaAggiornamento(slug, ref)
+  if (perche) throw new HttpsError('failed-precondition', perche)
   return { ok: true, ref }
+})
+
+// ── I RILASCI A ONDATE (REQ-FLOTTA-012) ───────────────────────────────
+// Un rilascio alla volta. Azioni dell'admin:
+//   crea {ref}            fotografa le ondate per il tag vX.Y.Z
+//   avanza {ref}          avvia l'ondata successiva (la prima, o riprende
+//                         un rilascio fermo quando l'ondata è a posto)
+//   riprova {ref, slug}   rilancia un aggiornamento fallito
+//   indietro {slug}       riporta un locale alla versione di prima
+//   ferma {ref, perche}   nessuna ondata nuova finché non si riprende
+//   annulla {ref}         il rilascio si chiude qui (i locali restano
+//                         come sono)
+//   gruppo {slug, gruppo} prova, pilota o generale
+// Un'ondata grande lancia molti workflow uno dopo l'altro: tempo lungo.
+exports.gestisciRilascio = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN], timeoutSeconds: 540 }, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const { azione } = req.data || {}
+  const tag = String(req.data?.ref || '')
+  const slug = String(req.data?.slug || '')
+  const rilascioRef = rilasci.TAG.test(tag) ? db.doc(`rilasci/${tag}`) : null
+  const no = (perche) => {
+    throw new HttpsError('failed-precondition', perche)
+  }
+  try {
+    if (azione === 'gruppo') {
+      const gruppo = String(req.data?.gruppo || '')
+      if (!rilasci.GRUPPI.includes(gruppo)) no('Gruppo non valido.')
+      const ist = (await db.doc(`istanze/${slug}`).get()).data()
+      if (!ist) no('Istanza non trovata.')
+      await db.doc(`istanze/${slug}`).set({ gruppo_rilascio: gruppo }, { merge: true })
+      return { ok: true }
+    }
+    if (azione === 'indietro') {
+      const ist = (await db.doc(`istanze/${slug}`).get()).data()
+      const versione = rilasci.versioneDiRitorno(ist)
+      if (!versione) no('Non c’è una versione precedente a cui tornare.')
+      const perche = await lanciaAggiornamento(slug, versione, { rilascio: ist.aggiornamento?.rilascio || null, ritorno: true })
+      if (perche) no(perche)
+      await ricalcolaRilasci()
+      return { ok: true, ref: versione }
+    }
+    if (!rilascioRef) no('Un rilascio è un tag vX.Y.Z di tana-drink, non un ramo.')
+    if (azione === 'crea') {
+      const aperti = await db.collection('rilasci').where('stato', 'in', rilasci.APERTI).get()
+      if (!aperti.empty) no(`C’è già un rilascio aperto: ${aperti.docs[0].id}. Finiscilo o annullalo prima.`)
+      const esiste = (await rilascioRef.get()).data()
+      if (esiste && esiste.stato !== 'annullato') no(`Il rilascio ${tag} c’è già.`)
+      const istanze = await tutteLeIstanze()
+      const nuovo = rilasci.nuovoRilascio(tag, istanze, { da: req.auth.token.email || req.auth.uid })
+      await rilascioRef.set(rilasci.conRiepilogo(nuovo, istanze))
+      return { ok: true }
+    }
+    const rilascio = (await rilascioRef.get()).data()
+    if (!rilascio) no('Rilascio non trovato.')
+    if (azione === 'avanza') {
+      const istanze = await tutteLeIstanze()
+      const { rilascio: avanti, daLanciare } = rilasci.avanzamento(rilascio, istanze)
+      // Prima si scrive il rilascio, poi si lancia: un secondo clic trova
+      // l'ondata già partita e si ferma.
+      await rilascioRef.set(rilasci.conRiepilogo(avanti, istanze))
+      const nonPartiti = []
+      for (const s of daLanciare) {
+        const perche = await lanciaAggiornamento(s, tag, { rilascio: tag })
+        if (perche) nonPartiti.push(`${s}: ${perche}`)
+      }
+      await ricalcolaRilasci()
+      return { ok: true, ondata: avanti.ondate[avanti.ondata].nome, lanciati: daLanciare.length - nonPartiti.length, nonPartiti }
+    }
+    if (azione === 'riprova') {
+      if (!rilascio.ondate.some((o) => o.slugs.includes(slug))) no('Questo locale non è nel rilascio.')
+      const perche = await lanciaAggiornamento(slug, tag, { rilascio: tag })
+      if (perche) no(perche)
+      await ricalcolaRilasci()
+      return { ok: true }
+    }
+    if (azione === 'ferma' || azione === 'annulla') {
+      if (!rilasci.APERTI.includes(rilascio.stato)) no('Il rilascio non è aperto.')
+      const adesso = new Date().toISOString()
+      const patch = azione === 'ferma'
+        ? { stato: 'fermo', fermato_perche: String(req.data?.perche || 'Fermato dall’amministratore').slice(0, 200) }
+        : { stato: 'annullato', annullato_il: adesso }
+      await rilascioRef.set({ ...patch, aggiornato_il: adesso }, { merge: true })
+      return { ok: true }
+    }
+    no('Azione sconosciuta.')
+  } catch (e) {
+    if (e instanceof rilasci.RilascioNonValido) throw new HttpsError('failed-precondition', e.message)
+    throw e
+  }
 })
 
 // ── IL PIANO CHE CAMBIA (REQ-FLOTTA-010) ──────────────────────────────
@@ -314,7 +472,7 @@ exports.licenzaSegueIlPiano = onDocumentUpdated({ ...OPTS, document: 'clienti/{u
   const dopo = event.data?.after?.data()
   if (!dopo?.slug || !sceltaCambiata(prima, dopo)) return
   const ist = (await db.doc(`istanze/${dopo.slug}`).get()).data()
-  if (!ist?.progetto || ist.stato !== 'attiva') return
+  if (!ist?.progetto || ist.stato !== 'attiva' || !scriveLicenza(ist)) return
   await firestoreDi(ist.progetto).doc('settings/bar').update(patchLicenzaPiano(dopo))
   await db.doc(`istanze/${dopo.slug}`).set({ licenza_piano: dopo.piano, licenza_scritta_il: new Date().toISOString() }, { merge: true })
 })
@@ -364,4 +522,229 @@ exports.creaCliente = onCall(OPTS, async (req) => {
     await db.doc(`richieste/${slug}`).set({ uid: utente.uid, slug, nome_locale: nome, piano: cliente.piano, moduli: cliente.moduli, stato: 'in coda', chiesta_il: ora, chiesta_da: 'admin' })
   }
   return { uid: utente.uid, slug }
+})
+
+// ── IL CASSETTO AI (REQ-AI-003) ───────────────────────────────────────
+// Decisione dell'utente del 24/10/2026: un cassetto AI unico nella regia,
+// per tutti i locali compresa la Tana. Le installazioni chiedono a
+// `richiestaAI` con la loro chiave della regia; la regia controlla il
+// credito, chiama Claude con la NOSTRA chiave (ANTHROPIC_API_KEY, mai in
+// un'installazione) e scala il costo. La logica sta in lib/ai.js.
+
+// Caricato qui e non in cima, come Stripe: le altre Functions non ne hanno
+// bisogno e partono più leggere.
+const claude = () => {
+  const sdk = require('@anthropic-ai/sdk')
+  const Anthropic = sdk.default || sdk
+  return { Anthropic, client: new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() }) }
+}
+
+// Una ricarica (Stripe o a mano) diventa credito una volta sola: il
+// documento della ricarica ha l'id della sessione di Stripe, e se c'è già
+// il webhook ripetuto non accredita due volte (Stripe ripete gli eventi).
+async function accreditaRicarica(r, { origine, nota = null, da = null }) {
+  const cassettoRef = db.doc(`ai/${r.slug}`)
+  const ricaricaRef = cassettoRef.collection('ricariche').doc(r.sessione)
+  const ora = new Date()
+  return db.runTransaction(async (t) => {
+    const [gia, cassetto] = await Promise.all([t.get(ricaricaRef), t.get(cassettoRef)])
+    if (gia.exists) return 'già accreditata'
+    if (cassetto.exists) {
+      t.update(cassettoRef, { credito_microeuro: FieldValue.increment(r.importo_microeuro), ultima_ricarica_il: ora.toISOString() })
+    } else {
+      t.set(cassettoRef, {
+        ...ai.nuovoCassetto({ slug: r.slug, uid: r.uid, adesso: ora }),
+        credito_microeuro: r.importo_microeuro,
+        ultima_ricarica_il: ora.toISOString(),
+      })
+    }
+    t.set(ricaricaRef, { il: ora.toISOString(), importo_microeuro: r.importo_microeuro, origine, pacchetto: r.pacchetto || null, nota, da })
+    return 'accreditata'
+  })
+}
+
+// Il cassetto di un'istanza, creato se manca: serve all'admin per dare
+// credito, tetto o chiave a un'installazione che non ha ancora ricaricato.
+async function cassettoDi(slug) {
+  const ref = db.doc(`ai/${slug}`)
+  if ((await ref.get()).exists) return ref
+  const ist = (await db.doc(`istanze/${slug}`).get()).data()
+  if (!ist) throw new HttpsError('not-found', `Nessuna istanza «${slug}».`)
+  await ref.set(ai.nuovoCassetto({ slug, uid: ist.uid, interna: ist.interna === true }), { merge: true })
+  return ref
+}
+
+// La porta delle installazioni. POST con `Authorization: Bearer
+// <slug>.<segreto>` e il corpo di preparaMessaggio. Risponde 200 col
+// risultato, 400 se la richiesta è sbagliata, 401 se la chiave non va,
+// 402 se il credito o il tetto non bastano, 422 se il modello non ha dato
+// un risultato usabile (il consumo resta addebitato), 503 se Claude non
+// risponde. È HTTP e non callable perché a chiamarla è il server
+// dell'installazione, non un utente di questo sito.
+exports.richiestaAI = onRequest(
+  { ...OPTS, secrets: [ANTHROPIC_API_KEY], cors: false, timeoutSeconds: 300, memory: '512MiB', maxInstances: 10 },
+  async (req, res) => {
+    if (req.method !== 'POST') return res.status(405).json({ errore: 'Solo POST.' })
+    const chi = ai.leggiBearer(req.get('authorization'))
+    const riservato = chi ? (await db.doc(`ai/${chi.slug}/riservato/chiave`).get()).data() : null
+    if (!chi || !ai.chiaveGiusta(chi.segreto, riservato?.impronta)) return res.status(401).json({ errore: 'Chiave della regia non valida.' })
+
+    let messaggio
+    try {
+      messaggio = ai.preparaMessaggio(req.body)
+    } catch (e) {
+      if (e instanceof ai.RichiestaNonValida) return res.status(400).json({ errore: e.message })
+      throw e
+    }
+
+    const cassettoRef = db.doc(`ai/${chi.slug}`)
+    const prima = (await cassettoRef.get()).data()
+    const via = ai.puoChiedere(prima, ai.stimaMassimaMicroeuro(messaggio))
+    if (!via.ok) {
+      return res.status(402).json({ errore: via.perche, codice: via.codice, credito_eur: ai.inEuro(prima?.credito_microeuro) })
+    }
+
+    const { Anthropic, client } = claude()
+    let risposta
+    try {
+      risposta = await client.beta.messages.stream(ai.parametriClaude(messaggio)).finalMessage()
+    } catch (e) {
+      // Niente addebito: se la chiamata non è arrivata in fondo non c'è una
+      // usage da scalare. Il tipo dell'errore dice di chi è il problema.
+      const tipo = e instanceof Anthropic.APIError ? e.type || e.status : 'rete'
+      if (tipo === 'billing_error') {
+        // IL NOSTRO credito presso Anthropic è finito: va ricaricato dalla
+        // Console (o la ricarica automatica non è scattata). Riga cercabile
+        // nei log: «[ai] CREDITO ANTHROPIC».
+        console.error('[ai] CREDITO ANTHROPIC esaurito o pagamento rifiutato:', e.message)
+      } else {
+        console.error(`[ai] ${chi.slug} ${messaggio.tipo}: ${tipo}`, e?.message)
+      }
+      const riprova =
+        e instanceof Anthropic.RateLimitError || e instanceof Anthropic.InternalServerError || e instanceof Anthropic.APIConnectionError
+      return res.status(503).json({
+        errore: riprova ? 'Il servizio AI è occupato: riprova tra poco.' : 'Il servizio AI non è disponibile in questo momento.',
+        codice: 'servizio',
+      })
+    }
+
+    const costo = ai.costoMicroeuro(risposta)
+    const letta = ai.leggiRisposta(risposta)
+    const residuo = await db.runTransaction(async (t) => {
+      const snap = await t.get(cassettoRef)
+      const patch = ai.addebito(snap.data(), costo)
+      t.update(cassettoRef, patch)
+      t.set(cassettoRef.collection('consumi').doc(), ai.rigaConsumo({ tipo: messaggio.tipo, risposta, costo, esito: letta.ok ? 'ok' : letta.codice }))
+      return patch.credito_microeuro
+    })
+    const conti = { costo_eur: ai.inEuro(costo), credito_eur: ai.inEuro(residuo) }
+    if (!letta.ok) return res.status(422).json({ errore: letta.perche, codice: letta.codice, ...conti })
+    res.status(200).json({ ok: true, tipo: messaggio.tipo, risultato: letta.risultato, ...conti })
+  }
+)
+
+// Il titolare ricarica il credito AI dalla dashboard: una sessione di
+// Checkout per un pacchetto del listino (piani.json → ai.pacchetti). Il
+// credito arriva col webhook, a pagamento confermato.
+exports.creaRicaricaAI = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  const uid = req.auth.uid
+  const cliente = (await db.doc(`clienti/${uid}`).get()).data()
+  if (!cliente?.slug) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
+  const p = ai.pacchetto(req.data?.pacchetto)
+  if (!p) throw new HttpsError('invalid-argument', 'Pacchetto di ricarica sconosciuto.')
+  const ritorno = String(req.data?.ritorno || '').replace(/\/$/, '')
+  if (!/^https?:\/\//.test(ritorno)) throw new HttpsError('invalid-argument', 'Indirizzo di ritorno non valido.')
+  const stripe = stripeClient()
+  if (!stripe) throw new HttpsError('failed-precondition', 'Il pagamento online non è ancora attivo: scrivici all’email del prodotto.')
+  const metadata = ai.metadatiRicarica({ uid, slug: cliente.slug, p })
+  const sessione = await stripe.checkout.sessions.create({
+    mode: 'payment',
+    line_items: [ai.rigaRicarica(p)],
+    customer: cliente.abbonamento?.stripe_customer || undefined,
+    customer_email: cliente.abbonamento?.stripe_customer ? undefined : cliente.email,
+    client_reference_id: uid,
+    metadata,
+    payment_intent_data: { metadata },
+    success_url: `${ritorno}/dashboard?ricarica=ok`,
+    cancel_url: `${ritorno}/dashboard?ricarica=annullata`,
+    locale: 'it',
+  })
+  return { url: sessione.url }
+})
+
+// Dal backoffice, sul cassetto di un'installazione: ricarica a mano (la
+// Tana la ricarichiamo noi), tetto mensile, acceso o spento, e la chiave
+// che l'installazione usa per chiamare `richiestaAI`. La chiave si vede
+// una volta sola, qui: la regia ne tiene solo l'impronta.
+exports.gestisciCassettoAI = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const { slug, azione } = req.data || {}
+  if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(slug || '')) throw new HttpsError('invalid-argument', 'Slug non valido.')
+  const importo = Number(req.data?.importo)
+  const ref = await cassettoDi(slug)
+  const ora = new Date().toISOString()
+  if (azione === 'ricarica') {
+    if (!Number.isFinite(importo) || importo <= 0 || importo > 1000) throw new HttpsError('invalid-argument', 'Importo tra 0 e 1000 €.')
+    const cassetto = (await ref.get()).data()
+    const esito = await accreditaRicarica(
+      {
+        slug,
+        uid: cassetto.uid,
+        sessione: `manuale-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        importo_microeuro: ai.daEuro(importo),
+      },
+      { origine: 'manuale', nota: req.data?.nota ? String(req.data.nota).slice(0, 200) : null, da: req.auth.uid }
+    )
+    return { ok: true, esito }
+  }
+  if (azione === 'tetto') {
+    if (!Number.isFinite(importo) || importo < 0 || importo > 5000) throw new HttpsError('invalid-argument', 'Tetto tra 0 e 5000 €.')
+    await ref.update({ tetto_mensile_microeuro: ai.daEuro(importo), aggiornato_il: ora })
+    return { ok: true }
+  }
+  if (azione === 'accendi' || azione === 'spegni') {
+    await ref.update({ attivo: azione === 'accendi', aggiornato_il: ora })
+    return { ok: true }
+  }
+  if (azione === 'chiave') {
+    const { bearer, impronta } = ai.nuovaChiave(slug)
+    await db.doc(`ai/${slug}/riservato/chiave`).set({ impronta, creata_il: ora, da: req.auth.uid })
+    await ref.update({ chiave_creata_il: ora })
+    return { ok: true, chiave: bearer }
+  }
+  throw new HttpsError('invalid-argument', 'Azione sconosciuta.')
+})
+
+// Un locale che esiste già, senza provisioning (la Tana): cliente, istanza
+// segnata «interna» ed «esistente», cassetto AI vuoto. Nessuna richiesta di
+// attivazione: è quella che farebbe partire il workflow. Il perché sta in
+// lib/esistente.js.
+exports.registraLocaleEsistente = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  let d
+  try {
+    d = datiEsistente(req.data)
+  } catch (e) {
+    if (e instanceof DatiNonValidi) throw new HttpsError('invalid-argument', e.message)
+    throw e
+  }
+  const [stessoSlug, istanza] = await Promise.all([
+    db.collection('clienti').where('slug', '==', d.slug).limit(1).get(),
+    db.doc(`istanze/${d.slug}`).get(),
+  ])
+  if (!stessoSlug.empty || istanza.exists) throw new HttpsError('already-exists', `Esiste già un locale con identificativo ${d.slug}.`)
+  const auth = getAuth()
+  const utente = await auth.getUserByEmail(d.email).catch(() => auth.createUser({ email: d.email, emailVerified: true }))
+  if ((await db.doc(`clienti/${utente.uid}`).get()).exists) {
+    throw new HttpsError('already-exists', 'Questo account ha già un locale: usa un’altra email per il titolare.')
+  }
+  const adesso = new Date()
+  const { cliente, istanza: ist } = documentiEsistente(d, { uid: utente.uid, adesso })
+  const batch = db.batch()
+  batch.set(db.doc(`clienti/${utente.uid}`), cliente)
+  batch.set(db.doc(`istanze/${d.slug}`), ist)
+  batch.set(db.doc(`ai/${d.slug}`), ai.nuovoCassetto({ slug: d.slug, uid: utente.uid, interna: d.interna, adesso }))
+  await batch.commit()
+  return { uid: utente.uid, slug: d.slug }
 })

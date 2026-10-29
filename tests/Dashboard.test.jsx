@@ -26,7 +26,19 @@ const db = vi.hoisted(() => ({
   }),
   chiediAttivazione: vi.fn(async () => {}),
 }))
-vi.mock('../src/lib/db.js', () => ({ ...db, avviaPagamento: vi.fn(), cambiaScelta: vi.fn(async () => ({ ok: true })) }))
+vi.mock('../src/lib/db.js', () => ({
+  ...db,
+  avviaPagamento: vi.fn(),
+  cambiaScelta: vi.fn(async () => ({ ok: true })),
+  // Il credito AI (REQ-AI-003) ha i suoi test in CreditoAI.test.jsx: qui
+  // basta che la dashboard non si rompa senza cassetto.
+  osservaCassettoAI: (slug, cb) => {
+    cb(null)
+    return () => {}
+  },
+  ultimiConsumiAI: vi.fn(async () => []),
+  avviaRicaricaAI: vi.fn(),
+}))
 
 import Dashboard from '../src/pages/Dashboard.jsx'
 

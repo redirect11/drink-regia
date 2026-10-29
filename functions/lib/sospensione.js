@@ -28,6 +28,11 @@ function daSospendere(clienti, istanze, { adesso = new Date(), giorniDiGrazia = 
   for (const c of clienti || []) {
     const ist = istanze?.[c.slug]
     if (!ist || ist.stato !== 'attiva') continue
+    // Un'installazione interna (la Tana, REQ-AI-003, decisione dell'utente
+    // del 24/10/2026) non si sospende né si chiude da sola: «senza
+    // rompere niente». Il segno sta sull'istanza, che scrive solo l'admin,
+    // e non sul cliente, che il titolare può modificare.
+    if (ist.interna === true) continue
     const lic = ist.licenza_stato || 'attiva'
     const ab = c.abbonamento || {}
     if (ab.stato === 'in sospeso' && lic === 'attiva') {

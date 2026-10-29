@@ -63,9 +63,18 @@ function richiestaCoerente(richiesta, cliente) {
   return { ok: true, perche: null }
 }
 
+// Quale regia lancia: decide l'environment del workflow (flotta o
+// flotta-test), e con lui l'account di fatturazione e l'indirizzo a cui
+// torna l'esito. Qualunque altro valore vale produzione.
+const AMBIENTI = ['produzione', 'test']
+const ambienteValido = (a) => (AMBIENTI.includes(a) ? a : 'produzione')
+
 // Il corpo della chiamata `POST /repos/{repo}/actions/workflows/{file}/dispatches`.
-// Gli input sono stringhe: GitHub non accetta altro.
-function dispatchPayload(richiesta, { ref = 'develop' } = {}) {
+// Gli input sono stringhe: GitHub non accetta altro. Due versioni diverse,
+// dal 29/10/2026 che i workflow stanno nella regia: `ref` in cima è il
+// ramo della regia che contiene il workflow (di norma main), `app` è la
+// versione di tana-drink da pubblicare (REQ-FLOTTA-009).
+function dispatchPayload(richiesta, { ref = 'main', app = 'main', ambiente = 'produzione' } = {}) {
   if (!richiesta || !SLUG.test(richiesta.slug || '')) throw new Error('Richiesta senza uno slug valido')
   return {
     ref,
@@ -75,18 +84,17 @@ function dispatchPayload(richiesta, { ref = 'develop' } = {}) {
       piano: String(richiesta.piano || 'base'),
       moduli: (richiesta.moduli || []).join(','),
       uid: String(richiesta.uid || ''),
-      // La versione dell'app da pubblicare (REQ-FLOTTA-009): il workflow la
-      // prende da qui, non dal ramo che contiene il file del workflow.
-      ref,
+      ref: app,
+      ambiente: ambienteValido(ambiente),
     },
   }
 }
 
 // L'aggiornamento di un'istanza (REQ-FLOTTA-009): stesso meccanismo, altro
 // workflow (aggiorna-istanza.yml), con la versione dell'app da pubblicare.
-function dispatchAggiornamento(istanza, { ref = 'main' } = {}) {
+function dispatchAggiornamento(istanza, { ref = 'main', app = 'main', ambiente = 'produzione' } = {}) {
   if (!istanza || !SLUG.test(istanza.slug || '')) throw new Error('Istanza senza uno slug valido')
-  return { ref, inputs: { slug: istanza.slug, nome_locale: String(istanza.nome_locale || istanza.slug), ref } }
+  return { ref, inputs: { slug: istanza.slug, nome_locale: String(istanza.nome_locale || istanza.slug), ref: app, ambiente: ambienteValido(ambiente) } }
 }
 
 // Si lancia solo una richiesta «in coda»: una «in corso» è già partita,
@@ -98,7 +106,7 @@ function daLanciare(prima, dopo) {
   return prima.stato !== 'in coda' || (dopo.rilanciata_il && dopo.rilanciata_il !== prima.rilanciata_il)
 }
 
-// L'esito che il workflow manda: { slug, stato, url?, progetto?, versione?, errore? }.
+// L'esito che il workflow manda: { slug, stato, url?, progetto?, versione?, ref?, ambiente?, operazione?, errore? }.
 function esitoValido(body) {
   if (!body || typeof body !== 'object') return null
   if (!SLUG.test(body.slug || '')) return null
@@ -113,7 +121,52 @@ function esitoValido(body) {
     // dice, con il ramo o tag da cui l'ha compilata.
     ambiente: body.ambiente ? String(body.ambiente) : null,
     ref: body.ref ? String(body.ref) : null,
-    errore: body.stato === 'errore' ? String(body.errore || 'Attivazione fallita') : null,
+    // Attivazione o aggiornamento (REQ-FLOTTA-012): il workflow può dirlo;
+    // se non lo dice decide eAggiornamento, dallo stato dell'istanza.
+    operazione: ['attivazione', 'aggiornamento'].includes(body.operazione) ? body.operazione : null,
+    errore: body.stato === 'errore' ? String(body.errore || (body.operazione === 'aggiornamento' ? 'Aggiornamento fallito' : 'Attivazione fallita')) : null,
+  }
+}
+
+// UN ESITO SU UN'ISTANZA GIÀ ATTIVA È UN AGGIORNAMENTO (REQ-FLOTTA-012).
+// Prima ogni esito riscriveva lo stato: un aggiornamento fallito segnava
+// «errore» un locale che girava ancora con la versione di prima, e da lì
+// niente più Aggiorna, Sospendi o Chiudi. Un'attivazione parte solo da
+// un'istanza non attiva (IN_VIAGGIO), quindi un esito su un'istanza
+// attiva, o su un locale esistente che riferisce la sua versione, è
+// sempre un aggiornamento.
+function eAggiornamento(esito, prima) {
+  if (esito?.operazione === 'aggiornamento') return true
+  if (esito?.operazione === 'attivazione') return false
+  return prima?.stato === 'attiva' || prima?.origine === 'esistente'
+}
+
+// Il documento istanze/{slug} dopo l'esito di un aggiornamento: lo stato
+// dell'istanza non cambia; versione e ref cambiano solo se è riuscito.
+// Se è fallito il locale può avere una parte della versione nuova (le
+// regole sì, l'hosting no): lo dice il backoffice, e si riprova o si
+// torna indietro.
+function documentoAggiornamento(esito, prima = null, adesso = new Date()) {
+  const quando = adesso.toISOString()
+  const agg = prima?.aggiornamento || {}
+  const riuscito = esito.stato === 'attiva'
+  const fallito = esito.stato === 'errore'
+  const stato = riuscito ? 'riuscito' : fallito ? 'fallito' : 'in corso'
+  return {
+    ...(prima || {}),
+    slug: esito.slug,
+    versione: riuscito ? esito.versione ?? prima?.versione ?? null : prima?.versione ?? null,
+    ref: riuscito ? esito.ref ?? prima?.ref ?? null : prima?.ref ?? null,
+    ambiente: esito.ambiente ?? prima?.ambiente ?? null,
+    aggiornamento: {
+      ...agg,
+      ref: agg.ref ?? esito.ref ?? null,
+      stato,
+      versione: esito.versione ?? null,
+      finito_il: stato === 'in corso' ? null : quando,
+      errore: fallito ? (esito.errore === 'Attivazione fallita' ? 'Aggiornamento fallito' : esito.errore) : null,
+    },
+    aggiornata_il: quando,
   }
 }
 
@@ -144,4 +197,4 @@ function bearerValido(header, segreto) {
   return diff === 0
 }
 
-module.exports = { preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, documentoIstanza, bearerValido, STATI }
+module.exports = { preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, eAggiornamento, documentoIstanza, documentoAggiornamento, bearerValido, STATI }

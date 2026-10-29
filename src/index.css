@@ -141,3 +141,13 @@ code { background: rgba(255, 255, 255, 0.06); padding: 1px 5px; border-radius: 5
 .piede-marchio { font-size: 1.1rem; margin-bottom: 4px; }
 .piede-riga { max-width: 1080px; margin: 24px auto 0; padding-top: 14px; border-top: 1px solid var(--line); }
 @media (max-width: 760px) { .piede-colonne { grid-template-columns: 1fr 1fr; } }
+
+/* Il nastro «TEST» (REQ-DEV-002): sul sito di test si deve vedere subito che non è quello vero. */
+.nastro-test { position: sticky; top: 0; z-index: 11; text-align: center; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.04em; padding: 4px 12px; background: #b45309; color: #fff; }
+
+/* La chiave AI di un'installazione (REQ-AI-003): lunga, va a capo e si seleziona tutta. */
+.chiave { display: block; word-break: break-all; user-select: all; padding: 8px; margin: 8px 0; }
+/* I rilasci a ondate (REQ-FLOTTA-012): l'ondata in corso si distingue. */
+.ondate { margin: 8px 0; padding-left: 20px; }
+.ondate li { margin: 4px 0; }
+.ondata-attuale { font-weight: 600; }

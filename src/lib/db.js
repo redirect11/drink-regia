@@ -10,7 +10,7 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
 } from 'firebase/auth'
-import { doc, setDoc, getDoc, onSnapshot, collection, getDocs, orderBy, query, updateDoc } from 'firebase/firestore'
+import { doc, setDoc, getDoc, onSnapshot, collection, getDocs, orderBy, query, updateDoc, limit } from 'firebase/firestore'
 import { getFunctions, httpsCallable } from 'firebase/functions'
 import { auth, db, configurata, app } from './firebase.js'
 import { nuovoCliente } from './clienti.js'
@@ -169,6 +169,22 @@ export async function aggiornaIstanza(slug, ref = null) {
   return data
 }
 
+// I rilasci a ondate (REQ-FLOTTA-012): il più recente per primo.
+export async function elencoRilasci() {
+  serve()
+  const snap = await getDocs(collection(db, 'rilasci'))
+  return snap.docs.map((d) => d.data()).sort((a, b) => String(b.creato_il).localeCompare(String(a.creato_il)))
+}
+
+// crea, avanza, riprova, indietro, ferma, annulla, gruppo: le decide la
+// Function, che rilegge tutto.
+export async function gestisciRilascio(azione, dati = {}) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'gestisciRilascio', { timeout: 540_000 })
+  const { data } = await fn({ azione, ...dati })
+  return data
+}
+
 // ── backoffice ──
 export async function elencoClienti() {
   serve()
@@ -205,4 +221,56 @@ export async function rilanciaAttivazione(slug) {
   const r = await getDoc(doc(db, 'richieste', slug))
   if (!r.exists()) throw new Error('Richiesta non trovata')
   await updateDoc(doc(db, 'richieste', slug), { stato: STATI.IN_CODA, rilanciata_il: new Date().toISOString() })
+}
+
+// ── il cassetto AI (REQ-AI-003) ──
+// Lo scrivono solo le Functions; il titolare lo legge. Un cassetto che non
+// esiste ancora le regole lo negano (leggono il proprietario dal
+// documento): per il sito è «nessun cassetto», non un errore.
+export function osservaCassettoAI(slug, cb) {
+  serve()
+  return onSnapshot(
+    doc(db, 'ai', slug),
+    (s) => cb(s.exists() ? s.data() : null),
+    () => cb(null)
+  )
+}
+
+export async function ultimiConsumiAI(slug, quanti = 10) {
+  serve()
+  const snap = await getDocs(query(collection(db, 'ai', slug, 'consumi'), orderBy('il', 'desc'), limit(quanti)))
+  return snap.docs.map((d) => d.data())
+}
+
+// Il titolare compra un pacchetto: la Function apre il Checkout di Stripe,
+// e il credito arriva col webhook a pagamento confermato.
+export async function avviaRicaricaAI(pacchetto) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'creaRicaricaAI')
+  const { data } = await fn({ pacchetto, ritorno: window.location.origin })
+  if (!data?.url) throw new Error('La ricarica non è disponibile al momento: scrivici all’email del prodotto.')
+  return data
+}
+
+// L'admin: tutti i cassetti, e le azioni su uno (ricarica a mano, tetto,
+// acceso o spento, chiave dell'installazione).
+export async function elencoCassettiAI() {
+  serve()
+  const snap = await getDocs(collection(db, 'ai'))
+  return Object.fromEntries(snap.docs.map((d) => [d.id, d.data()]))
+}
+
+export async function gestisciCassettoAI(slug, azione, extra = {}) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'gestisciCassettoAI')
+  const { data } = await fn({ slug, azione, ...extra })
+  return data
+}
+
+// L'admin registra un locale che esiste già (la Tana): niente provisioning.
+export async function registraLocaleEsistente(dati) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'registraLocaleEsistente')
+  const { data } = await fn(dati)
+  return data
 }

@@ -73,6 +73,17 @@ describe('la barra', () => {
   })
 })
 
+// REQ-DEV-002: il sito di test si dice tale. Nei test VITE_APP_ENV manca,
+// come in locale: non è produzione, e il nastro c'è.
+describe('il nastro TEST e la versione', () => {
+  it('fuori dalla produzione c’è il nastro, e nel piè di pagina la versione di package.json', () => {
+    utenteOsservato = null
+    mostra()
+    expect(screen.getByRole('note')).toHaveTextContent(/^TEST · v\d+\.\d+\.\d+/)
+    expect(screen.getByTestId('versione')).toHaveTextContent(/^Versione v\d+\.\d+\.\d+/)
+  })
+})
+
 describe('il piè di pagina', () => {
   it('porta a termini, privacy, prezzi e contatto', () => {
     utenteOsservato = null

@@ -111,7 +111,7 @@ requirements:
       - tests/Backoffice.test.jsx
   - id: REQ-FLOTTA-007
     title: "L'abbonamento: Stripe Checkout nella regia, webhook che aggiorna il cliente, licenza che segue il piano"
-    area: "piani.json, src/lib/piani.js, src/pages/SceltaPiano.jsx, src/pages/Dashboard.jsx, src/lib/db.js (avviaPagamento), functions/index.js (creaCheckout, stripeWebhook), functions/lib/abbonamento.js"
+    area: "functions/piani.json, src/lib/piani.js, src/pages/SceltaPiano.jsx, src/pages/Dashboard.jsx, src/lib/db.js (avviaPagamento), functions/index.js (creaCheckout, stripeWebhook), functions/lib/abbonamento.js"
     description: >
       Il titolare sceglie piano, moduli in piu' e terminali nella dashboard
       (SceltaPiano: il prezzo del mese si aggiorna mentre sceglie), e «Vai
@@ -145,9 +145,10 @@ requirements:
     title: "Le Functions della regia lanciano l'attivazione di un'istanza e ne ricevono l'esito"
     area: "functions/index.js, functions/lib/provisioning.js, functions/.env, firestore.rules, src/lib/db.js (chiediAttivazione)"
     description: >
-      La parte della regia dell'attivazione automatica (il disegno intero e
-      il workflow stanno nel repository tana-drink, docs/flotta.md e
-      provisiona-istanza.yml).
+      La parte della regia dell'attivazione automatica. Dal 29/10/2026 anche
+      il workflow e il Terraform stanno qui (REQ-FLOTTA-013,
+      docs/flotta-nella-regia.md); il disegno intero resta in
+      tana-drink/docs/flotta.md.
       LA RICHIESTA LA SCRIVE IL SERVER (audit del 22/10/2026, falla C2:
       «Questo va assolutamente risolto», l'utente, 22/10/2026). La callable
       `chiediAttivazione` ignora il corpo della chiamata: rilegge
@@ -190,6 +191,66 @@ requirements:
     labels: [metodo]
     test_cases:
       - tests/requisiti.test.js
+  - id: REQ-DEV-002
+    title: "Le Actions come tana-drink: un push non pubblica, il tag va sul test o in produzione, con un progetto Firebase di test"
+    area: ".github/workflows/test.yml, firebase-hosting.yml, deploy.yml, vitest.config.mjs, src/App.jsx (nastro TEST), scripts/abilita-api.mjs, scripts/abilita-accesso-email.mjs, scripts/segreti-environment.mjs, functions/.env.<progetto>, functions/piani.json"
+    description: >
+      Lo stesso modello di pubblicazione di tana-drink
+      (docs/actions-come-tana-drink.md, l'utente, 22/10/2026: «replicare le
+      action, il sito di test con il suo db per le prove e il workflow»).
+      Un push su un ramo qualsiasi (tranne release/**) fa lint, test e
+      build e basta; una pull request verso develop o main anche la
+      coverage, con soglie per area in vitest.config.mjs che si alzano e
+      non si abbassano. Pubblicano solo il tag e il lancio a mano di «Deploy
+      to Firebase»: il job «Dove va» guarda dove sta il commit, su main e'
+      produzione (drink-regia, environment `production` con approvazione),
+      tutto il resto e' test (drink-regia-test, environment `test`). Il
+      deploy riusabile (deploy.yml) ha l'environment scritto a chiare
+      lettere e la guardia: se VITE_FIREBASE_PROJECT_ID non coincide col
+      progetto di destinazione si ferma. Il sito fuori dalla produzione
+      porta un nastro «TEST» con la versione, e il pie' di pagina dice la
+      versione pubblicata (VITE_APP_ENV, VITE_APP_VERSION dal deploy,
+      package.json come ripiego). Le Functions leggono la configurazione
+      per progetto da functions/.env.<progetto>. Gli script per un progetto
+      nuovo (API, Auth email, segreti dell'environment) usano il token del
+      Firebase CLI: niente gcloud, niente chiavi nel repository.
+      Firebase carica solo la cartella functions/: le Functions non
+      leggono file fuori da li', e il listino vive in functions/piani.json,
+      letto da li' anche dal sito (il primo deploy sul test, 29/10/2026,
+      non avviava nessuna Function: il listino stava nella radice, e una
+      copia fatta dal predeploy non arrivava nel pacchetto).
+      STATO AL 22/10/2026: codice e test fatti; il progetto
+      drink-regia-test, i service account del deploy, l'environment `test`
+      e i segreti si fanno col permesso dell'utente (docs/handover.md §5).
+    status: implemented
+    generate_issue: false
+    labels: [metodo, regia]
+    test_cases:
+      - tests/ci.test.js
+      - tests/App.test.jsx
+  - id: REQ-DEV-003
+    title: "Le issue nascono dal registro e la bacheca le segue, come in tana-drink"
+    area: "scripts/generate-issues.mjs, scripts/lib-requisiti.mjs, scripts/bacheca.mjs, .github/workflows/generate-issues.yml"
+    description: >
+      «Va creato anche il project su GitHub per gestire le issue come per
+      tana-drink» (l'utente, 22/10/2026). Script e workflow copiati da
+      tana-drink: a ogni push che tocca requirements/requirements.yaml o
+      requirements/bugs.yaml le voci con generate_issue: true diventano
+      issue «[ID] titolo», idempotenti per identificativo; una voce finita
+      porta la scheda su «Implemented» dai rami di lavoro, su «In test» da
+      develop (etichetta in-test), e chiude l'issue da main; una voce
+      scartata (deprecated, wontfix) chiude come «not planned». La bacheca
+      e' il project GitHub «drink-regia» (n. 5 dell'account redirect11),
+      creato il 22/10/2026 con le colonne di tana-drink (To triage,
+      Backlog, Ready, Implemented, In test, Done) e i campi Priority,
+      Severity, Size, collegato al repository. Le schede si muovono da sole
+      solo col segreto PROJECT_TOKEN (token personale con scope project,
+      lo mette l'utente); senza, le issue si aggiornano lo stesso.
+    status: implemented
+    generate_issue: false
+    labels: [metodo, regia]
+    test_cases:
+      - tests/issue.test.js
 
   - id: REQ-FLOTTA-008
     title: "Un'istanza si ferma: Sospendi, Riattiva e Chiudi dal backoffice, e la sospensione automatica di chi non paga"
@@ -217,7 +278,7 @@ requirements:
       - tests/Backoffice.test.jsx
 
   - id: REQ-FLOTTA-009
-    title: "Gli aggiornamenti dell'app arrivano ai locali che si decide: «Aggiorna» e «Aggiorna tutte» dal backoffice"
+    title: "Gli aggiornamenti dell'app arrivano ai locali che si decide: «Aggiorna» su un locale, i rilasci a ondate per tutti"
     area: "functions/index.js (aggiornaIstanza), functions/lib/provisioning.js (dispatchAggiornamento), src/pages/Backoffice.jsx, src/lib/db.js, functions/.env (APP_REF)"
     description: >
       «La versione dovrebbe seguire l'app di base, quindi mi aspetto che
@@ -231,8 +292,10 @@ requirements:
       workflow a ogni pubblicazione. Un rilascio di tana-drink non tocca i
       locali da solo: dal backoffice, «Aggiorna» su una riga porta a quel
       locale la versione in APP_REF (di norma `main`, l'ultimo rilascio;
-      finche' la flotta non e' merged, feature/flotta), «Aggiorna tutte le
-      istanze attive» la porta a tutti quelli attivi, con conferma. La
+      finche' la flotta non e' merged, feature/flotta): serve per una
+      correzione urgente su un locale solo. A tutti i locali un rilascio
+      arriva a ondate (REQ-FLOTTA-012), che hanno preso il posto di
+      «Aggiorna tutte le istanze attive» il 27/10/2026. La
       Function `aggiornaIstanza` (solo admin) lancia il workflow
       `aggiorna-istanza.yml` di tana-drink, che compila per quel locale,
       pubblica e riferisce la versione. Un tag passato come `ref` riporta
@@ -302,3 +365,123 @@ requirements:
       - tests/istanze.test.js
       - tests/provisioning.test.js
       - tests/Backoffice.test.jsx
+
+  - id: REQ-FLOTTA-012
+    title: "I rilasci arrivano ai locali a ondate: prova, interne, pilota, tutti; un aggiornamento fallito ferma il rilascio, non il locale"
+    area: "functions/lib/rilasci.js, functions/lib/provisioning.js (eAggiornamento, documentoAggiornamento), functions/index.js (gestisciRilascio, aggiornaIstanza, esitoProvisioning), firestore.rules (rilasci), src/pages/Rilasci.jsx, src/pages/Backoffice.jsx, src/lib/rilasci.js, src/lib/db.js"
+    description: >
+      «Gli aggiornamenti vanno fatti a ondate. Con molti progetti, un
+      rilascio va prima sul test, poi sulla Tana, poi su un primo gruppo,
+      poi su tutti. La regia deve sapere quale versione gira in ogni locale
+      e cosa fare se un aggiornamento fallisce. — Va bene gestiamolo»
+      (l'utente, 27/10/2026).
+      UN RILASCIO E' UN TAG vX.Y.Z di tana-drink, mai `main`: fra
+      un'ondata e l'altra `main` puo' andare avanti. Il backoffice lo crea
+      (riquadro «Rilasci», un rilascio aperto alla volta) e la Function
+      `gestisciRilascio` fotografa le ondate in `rilasci/{tag}`: prova
+      (gruppo «prova», istanze nostre), interna (interne ed esistenti, come
+      la Tana), pilota (gruppo «pilota»), generale (tutte le altre attive;
+      le chiuse no). Il gruppo lo sceglie l'admin, riga per riga.
+      UN'ONDATA ALLA VOLTA: la avvia l'admin, e solo quando quella prima e'
+      finita senza falliti, in corso o in attesa. Un locale esistente non
+      si lancia: pubblica dal suo repository e l'ondata aspetta che
+      riferisca la versione del tag.
+      UN AGGIORNAMENTO FALLITO non segna piu' l'istanza in «errore»: un
+      esito su un'istanza gia' attiva (o su un locale esistente, o con
+      `operazione: aggiornamento`) e' un aggiornamento, e scrive solo
+      `istanze/{slug}.aggiornamento` (stato, ref, versione di prima,
+      errore); versione e ref cambiano solo se e' riuscito. Il rilascio si
+      ferma con il perche'; dalla riga del locale si riprova o si torna
+      alla versione di prima (un tag), poi si riprende con l'ondata
+      successiva. L'ultima ondata finita chiude il rilascio.
+    status: implemented
+    generate_issue: false
+    labels: [prodotto, flotta, regia]
+    test_cases:
+      - tests/rilasci.test.js
+      - tests/Backoffice.test.jsx
+      - tests/provisioning.test.js
+
+  - id: REQ-AI-003
+    title: "Il cassetto AI nella regia: credito in euro per installazione, tetto mensile, ricarica con Stripe, e la Tana come locale esistente"
+    area: "functions/lib/ai.js, functions/lib/esistente.js, functions/index.js (richiestaAI, creaRicaricaAI, gestisciCassettoAI, registraLocaleEsistente, stripeWebhook), firestore.rules (ai/), functions/piani.json (ai), src/pages/CreditoAI.jsx, src/pages/Backoffice.jsx, src/lib/ai.js"
+    description: >
+      La parte della regia di REQ-AI-003 di tana-drink. Decisione
+      dell'utente del 24/10/2026: «un cassetto AI unico nella regia, per
+      tutti i locali compresa la Tana».
+      IL CREDITO: per installazione, in `ai/{slug}`, in micro-euro interi
+      (credito, tetto mensile, speso del mese che riparte il primo del mese
+      a mezzanotte italiana), con lo storico in `ai/{slug}/consumi` (tipo,
+      modello, token, costo, esito: mai il contenuto) e in
+      `ai/{slug}/ricariche`. Lo scrivono solo le Functions; il titolare lo
+      legge nella dashboard, l'admin lo governa dal backoffice (ricarica a
+      mano, tetto, acceso o spento, chiave).
+      LA PORTA: `richiestaAI`, HTTP, chiamata dal server dell'installazione
+      con `Authorization: Bearer <slug>.<segreto>`; la regia tiene solo
+      l'impronta SHA-256 del segreto, in `ai/{slug}/riservato/chiave`, che
+      nessun client legge. Accetta due richieste sole, `descrizione`
+      (REQ-AI-002 di tana-drink) e `fattura` (REQ-AI-001: foto o PDF in
+      base64), mai testo libero. Prima di chiamare controlla che il caso
+      peggiore (tutti i token d'uscita permessi) stia nel credito e nel
+      tetto; chiama Claude con la chiave della regia (`ANTHROPIC_API_KEY`,
+      mai in un'installazione), modello del listino, output strutturati,
+      fallback «default» di Anthropic; scala il costo vero dalla usage
+      (per tentativo, al prezzo del modello che l'ha eseguito, cambio e
+      ricarico del listino, per eccesso). Un credito finito ferma solo
+      l'AI: risponde 402 e l'app lavora come sempre.
+      LA RICARICA: a pacchetti (piani.json → ai.pacchetti), Checkout di
+      Stripe in modalita' pagamento; il webhook accredita l'importo
+      incassato una volta sola per sessione. IPOTESI in attesa della
+      decisione dell'utente («pacchetti o consumo: da decidere»).
+      LA TANA: `registraLocaleEsistente` la registra senza provisioning
+      (nessuna richiesta), col suo progetto, piano completo, istanza
+      `interna` ed `esistente` con `licenza_dalla_regia: false`: la
+      sospensione dei morosi la salta, la regia non le scrive la licenza,
+      e Aggiorna, Sospendi e Chiudi non la toccano.
+      DA DECIDERE CON L'UTENTE: pacchetti o consumo, il ricarico, il cambio,
+      gli importi dei pacchetti e il tetto predefinito (oggi segnaposto in
+      piani.json, ricarico 1 = al costo).
+      LATO APP (tana-drink): una Function dell'installazione che chiama
+      `richiestaAI` con la chiave nei suoi segreti; contratto in
+      docs/handover.md §7.
+    status: partial
+    generate_issue: true
+    labels: [ai, regia, prodotto]
+    priority: P3
+    test_cases:
+      - tests/ai.test.js
+      - tests/esistente.test.js
+      - tests/CreditoAI.test.jsx
+      - tests/Backoffice.test.jsx
+      - tests/abbonamento.test.js
+
+  - id: REQ-FLOTTA-013
+    title: "La flotta sta nella regia: Terraform, workflow e licenza dei locali, con un environment per ogni regia"
+    area: "infra/istanza/main.tf, infra/README.md, .github/workflows/provisiona-istanza.yml, .github/workflows/aggiorna-istanza.yml, scripts/licenza-istanza.mjs, functions/lib/licenza.js (licenzaIniziale), functions/lib/provisioning.js (dispatchPayload, dispatchAggiornamento), functions/index.js, functions/.env.<progetto>, docs/flotta-nella-regia.md"
+    description: >
+      L'utente, 29/10/2026: «questa roba dovrebbe essere in drink-regia».
+      Attivare e aggiornare i locali e' il mestiere della regia; tana-drink
+      da' solo l'app, a un tag. I workflow scaricano tana-drink al `ref`
+      chiesto in app/ e lo pubblicano nel progetto del locale. Ogni regia
+      lancia sul suo environment GitHub, scelto dall'input `ambiente`
+      (FLOTTA_AMBIENTE nelle Functions): `flotta` per drink-regia,
+      `flotta-test` per drink-regia-test, ognuno col suo account di
+      fatturazione, il suo callback, il suo indirizzo e il suo account per
+      la licenza (REGIA_SA_EMAIL, senza valore predefinito nel Terraform:
+      prima era fisso sulla produzione, e la regia di test non poteva
+      sospendere i suoi locali). Gli input che le Functions mandano sono
+      esattamente quelli dichiarati dai workflow; nei workflow entrano solo
+      come variabili d'ambiente e si controllano per primi (audit del
+      22/10/2026, C1). La prima licenza la scrive licenzaIniziale, la stessa
+      mappa delle Functions. Il callback dice l'operazione. Restano da fare,
+      fuori dal codice: il ramo su main (GitHub lancia a comando solo i
+      workflow del ramo principale), gli environment coi segreti, il token
+      limitato alla regia; in tana-drink, la rimozione dei vecchi workflow.
+    status: partial
+    generate_issue: true
+    labels: [flotta, regia, sicurezza]
+    priority: P1
+    test_cases:
+      - tests/flotta.test.js
+      - tests/licenza.test.js
+      - tests/provisioning.test.js

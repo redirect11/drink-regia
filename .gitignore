@@ -6,3 +6,7 @@ dist
 coverage
 .firebase
 *.log
+!functions/.env.*
+.terraform/
+*.tfstate
+*.tfstate.*

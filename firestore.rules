@@ -22,8 +22,11 @@ service cloud.firestore {
         && request.resource.data.fatturazione.partita_iva.matches('^[0-9]{11}$')
         && request.resource.data.consensi.termini_il is string
         && request.resource.data.consensi.privacy_il is string;
+      // `interna` ed `esistente` (REQ-AI-003) li mette solo l'admin: un
+      // titolare che se li scrivesse da sé uscirebbe dalla sospensione dei
+      // morosi. La sospensione legge comunque il segno sull'istanza.
       allow update: if admin()
-        || (mio(uid) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['piano', 'abbonamento', 'uid', 'slug']));
+        || (mio(uid) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['piano', 'abbonamento', 'uid', 'slug', 'interna', 'esistente']));
       allow delete: if admin();
     }
 
@@ -45,6 +48,34 @@ service cloud.firestore {
       allow read: if admin() || (autenticato() && resource.data.uid == request.auth.uid);
       allow create: if false;
       allow update, delete: if admin();
+    }
+
+    // I rilasci a ondate (REQ-FLOTTA-012): li scrive solo la Function
+    // `gestisciRilascio` e l'esito del workflow; l'admin li legge.
+    match /rilasci/{tag} {
+      allow read: if admin();
+      allow write: if false;
+    }
+
+    // Il cassetto AI di un'installazione (REQ-AI-003): credito, tetto,
+    // speso del mese, lo storico dei consumi e delle ricariche. Lo scrivono
+    // solo le Functions (Admin SDK, fuori da queste regole): il titolare lo
+    // legge, nessun client lo tocca. L'impronta della chiave
+    // dell'installazione sta in `riservato`, che non legge nessuno.
+    match /ai/{slug} {
+      allow read: if admin() || (autenticato() && resource.data.uid == request.auth.uid);
+      allow write: if false;
+      match /consumi/{id} {
+        allow read: if admin() || (autenticato() && get(/databases/$(database)/documents/ai/$(slug)).data.uid == request.auth.uid);
+        allow write: if false;
+      }
+      match /ricariche/{id} {
+        allow read: if admin() || (autenticato() && get(/databases/$(database)/documents/ai/$(slug)).data.uid == request.auth.uid);
+        allow write: if false;
+      }
+      match /riservato/{doc} {
+        allow read, write: if false;
+      }
     }
 
     // Le impostazioni della regia (REQ-FLOTTA-011): il deploy automatico.

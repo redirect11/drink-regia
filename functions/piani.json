@@ -71,5 +71,22 @@
     }
   },
   "terminale_in_piu": 12,
-  "attivazione": 250
+  "attivazione": 250,
+  "ai": {
+    "_nota": "Il credito AI (REQ-AI-003). I prezzi dei modelli sono quelli di Anthropic, in dollari per milione di token (ottobre 2026): si aggiornano quando Anthropic li cambia. Il cambio, il ricarico, i pacchetti di ricarica e il tetto mensile sono DA DECIDERE con l'utente: qui ci sono segnaposto (ricarico 1 = al costo). Importi in euro, IVA esclusa.",
+    "modello": "claude-opus-5-5",
+    "prezzi_usd_per_milione": {
+      "claude-opus-5-5": { "input": 4, "output": 20, "cache_lettura": 0.2 },
+      "claude-opus-5": { "input": 5, "output": 25, "cache_lettura": 0.5 },
+      "claude-opus-4-8": { "input": 5, "output": 25, "cache_lettura": 0.5 }
+    },
+    "cambio_eur_per_usd": 0.87,
+    "ricarico": 1,
+    "tetto_mensile_predefinito": 20,
+    "pacchetti": [
+      { "id": "ai-10", "importo": 10 },
+      { "id": "ai-25", "importo": 25 },
+      { "id": "ai-50", "importo": 50 }
+    ]
+  }
 }
