@@ -18,6 +18,9 @@
   },
   "functions": {
     "source": "functions",
-    "runtime": "nodejs22"
+    "runtime": "nodejs22",
+    "predeploy": [
+      "node -e \"const p=require('path'),d=process.env.RESOURCE_DIR;require('fs').copyFileSync(p.join(d,'..','piani.json'),p.join(d,'piani.json'))\""
+    ]
   }
 }

@@ -13,7 +13,7 @@
 // resti che a fine anno non tornano col conto di Anthropic.
 
 const crypto = require('node:crypto')
-const listino = require('../../piani.json')
+const listino = require('./listino')
 
 const AI = listino.ai
 const MICRO = 1_000_000

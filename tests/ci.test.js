@@ -8,8 +8,8 @@
 // che nessuno se ne accorga prima del deploy.
 
 import { describe, it, expect } from 'vitest'
-import { readFileSync, existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { readFileSync, existsSync, readdirSync } from 'node:fs'
+import { join, resolve, dirname, relative, sep } from 'node:path'
 import { load } from 'js-yaml'
 
 const leggi = (nome) => readFileSync(join(process.cwd(), '.github/workflows', nome), 'utf8')
@@ -86,5 +86,38 @@ describe('deploy.yml: l’environment scritto a chiare lettere e la guardia sul 
     expect(pubblica).not.toMatch(/drink-regia/)
     const build = passi.find((s) => s.name === 'Build')
     expect(build.env.VITE_APP_ENV).toMatch(/production.*'test'/)
+  })
+})
+
+// Firebase carica solo la cartella functions/: un require che ne esce
+// funziona nei test e sul server non trova il file, e nessuna Function si
+// avvia (il primo deploy sul test, 29/10/2026, con «../../piani.json»).
+describe('le Functions pubblicate hanno tutto quello che leggono', () => {
+  const FUNCTIONS = resolve(process.cwd(), 'functions')
+  const sorgenti = (dir) =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+      e.name === 'node_modules' ? [] : e.isDirectory() ? sorgenti(join(dir, e.name)) : e.name.endsWith('.js') ? [join(dir, e.name)] : [],
+    )
+
+  it('nessun require di functions/ esce da functions/, tranne quello del listino', () => {
+    const fuori = sorgenti(FUNCTIONS).flatMap((f) =>
+      [...readFileSync(f, 'utf8').matchAll(/require\('(\.[^']*)'\)/g)]
+        .map((m) => m[1])
+        .filter((spec) => !resolve(dirname(f), spec).startsWith(FUNCTIONS + sep))
+        .map((spec) => `${relative(FUNCTIONS, f)}: ${spec}`),
+    )
+    // listino.js prova l'originale e ripiega sulla copia del predeploy.
+    expect(fuori).toEqual([`${join('lib', 'listino.js')}: ../../piani.json`])
+  })
+
+  it('il predeploy copia piani.json dentro functions/, e la copia non va in git', () => {
+    const firebase = JSON.parse(readFileSync(join(process.cwd(), 'firebase.json'), 'utf8'))
+    expect(firebase.functions.predeploy.join(' ')).toContain("copyFileSync(p.join(d,'..','piani.json'),p.join(d,'piani.json'))")
+    expect(readFileSync(join(process.cwd(), '.gitignore'), 'utf8')).toMatch(/^functions\/piani\.json\r?$/m)
+  })
+
+  it('il listino delle Functions è piani.json', async () => {
+    const { default: listino } = await import('../functions/lib/listino.js')
+    expect(listino).toEqual(JSON.parse(readFileSync(join(process.cwd(), 'piani.json'), 'utf8')))
   })
 })
