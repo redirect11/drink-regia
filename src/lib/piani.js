@@ -1,13 +1,13 @@
 // ── I PIANI E I PREZZI (REQ-FLOTTA-002) ───────────────────────────────
 //
-// I numeri stanno in regia/piani.json, letto anche dalle Functions
+// I numeri stanno in functions/piani.json, letto anche dalle Functions
 // (abbonamento.js): un posto solo, DA CONFERMARE con l'utente prima di
 // pubblicare. Il piano base è la porta d'ingresso; il margine sta nei
 // moduli, che sono le stesse funzioni premium della licenza
 // (src/lib/licenza.js nell'app): quello che si compra qui è quello che
 // l'istanza accende.
 
-import listino from '../../piani.json'
+import listino from '../../functions/piani.json'
 
 export const MODULI = listino.moduli
 export const PIANI = listino.piani

@@ -5,7 +5,7 @@
 // Niente Stripe qui: index.js chiama l'SDK, questo decide, e si prova
 // senza chiavi.
 
-const listino = require('./listino')
+const listino = require('../piani.json')
 
 const SCELTA_VALIDA = /^(base|completo)$/
 

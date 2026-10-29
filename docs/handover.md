@@ -21,7 +21,7 @@ quadro: lì non si lavora da questa sessione).
 prodotto. Prima pagina, registrazione e accesso dei titolari, dashboard
 del cliente, backoffice, abbonamento Stripe, Cloud Functions che lanciano
 l'attivazione di un'istanza e ne ricevono l'esito, regole Firestore della
-regia, listino (`piani.json`), testi legali, questo documento.
+regia, listino (`functions/piani.json`), testi legali, questo documento.
 Progetto Firebase **`drink-regia`** (Hosting, Auth, Firestore
 `europe-west1`, Functions gen2 `europe-west1`).
 
@@ -55,7 +55,7 @@ Sono le stesse di tana-drink, adattate. Per esteso in `CLAUDE.md`.
   token GitHub, `sdkconfig`: passano per file nella scratchpad e `gh
   secret set` / `firebase functions:secrets:set`, e non si stampano mai.
   Se l'utente incolla una credenziale, non si usa e non si salva.
-- **Prezzi** (`piani.json`) e **nome del prodotto** (`src/lib/prodotto.js`)
+- **Prezzi** (`functions/piani.json`) e **nome del prodotto** (`src/lib/prodotto.js`)
   si cambiano solo su decisione dell'utente. Oggi sono segnaposto.
 - **I test sono la specifica** e il registro `requirements/requirements.yaml`
   è la mappa: ogni richiesta lavorata nasce o aggiorna la sua voce
@@ -224,7 +224,7 @@ src/pages/SceltaPiano.jsx   piano, moduli, terminali, totale mensile
 src/pages/Backoffice.jsx    admin: clienti, richieste, istanze, deploy automatico, Nuovo locale
 src/pages/Legali.jsx        Termini e Privacy (struttura con segnaposto TITOLARE)
 src/lib/prodotto.js         nome, slogan, dominio, URL demo, email contatti (segnaposto)
-src/lib/piani.js            listino da piani.json: prezzoMensile, moduliDellaScelta, euro
+src/lib/piani.js            listino da functions/piani.json: prezzoMensile, moduliDellaScelta, euro
 src/lib/clienti.js          il documento cliente (schema 2), slug dal nome, nomi riservati
 src/lib/validazione.js      P.IVA, CF, email, password (10 caratteri con cifra), consensi
 src/lib/db.js               Auth e Firestore lato client; callable
@@ -237,7 +237,7 @@ functions/lib/sospensione.js   chi sospendere e chiudere
 functions/lib/licenza.js       piano+moduli -> licenza.moduli dell'istanza
 functions/.env              GITHUB_REPO, GITHUB_REF, APP_REF (non segreti, committato)
 firestore.rules             clienti, istanze, richieste, impostazioni
-piani.json                  piani, moduli, terminale in più, attivazione
+functions/piani.json        piani, moduli, terminale in più, attivazione
 scripts/admin-regia.mjs     dà o toglie il claim admin a un account
 scripts/abilita-api.mjs, abilita-accesso-email.mjs, lib-firestore.js  un progetto nuovo, dalla riga di comando (token del Firebase CLI)
 scripts/segreti-environment.mjs  i VITE_FIREBASE_* di un environment GitHub dalla sdkconfig
@@ -369,7 +369,7 @@ L'elenco completo con i riferimenti al codice è in
 11. **Il cassetto AI (REQ-AI-003)**, ramo `feature/cassetto-ai`, scritto e
    provato il 24/10. Restano: le decisioni dell'utente (pacchetti o
    consumo, ricarico, cambio, importi dei pacchetti, tetto predefinito:
-   oggi segnaposto in `piani.json`); la chiave `ANTHROPIC_API_KEY` nei
+   oggi segnaposto in `functions/piani.json`); la chiave `ANTHROPIC_API_KEY` nei
    segreti delle Functions; la Tana registrata dal backoffice («Locale
    esistente») e la sua chiave della regia; il lato app in tana-drink
    (contratto in §7). Il ramo non va in `release/0.1.0` finché la chiave
@@ -409,7 +409,7 @@ L'elenco completo con i riferimenti al codice è in
 Se cambia uno di questi, cambia anche l'altro lato, **nello stesso
 giorno**, e lo si scrive all'utente perché lo porti nell'altra sessione.
 
-- **Id dei moduli.** `piani.json` → `moduli[].id` e
+- **Id dei moduli.** `functions/piani.json` → `moduli[].id` e
   `functions/lib/licenza.js` (MAPPA, TUTTI) devono combaciare con
   `src/lib/licenza.js` (MODULI_PREMIUM) e `scripts/licenza-istanza.mjs`
   in tana-drink. Oggi: `menu_tavoli`, `ordini_cliente`, `clienti`,

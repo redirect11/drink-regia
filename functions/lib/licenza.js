@@ -6,7 +6,7 @@
 // tana-drink/scripts/licenza-istanza.mjs, che la scrive alla prima
 // attivazione; qui la si riscrive quando il piano cambia.
 
-const listino = require('./listino')
+const listino = require('../piani.json')
 
 // Stessi id nel listino e nell'app (REQ-LIC-002 in tana-drink); il
 // magazzino porta con sé i suoi tre moduli di dettaglio.

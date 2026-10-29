@@ -9,7 +9,7 @@ import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
 const { sceltaPulita, righeCheckout, metadatiDi, aggiornamentoDaEvento } = require('../functions/lib/abbonamento.js')
-const listino = require('../piani.json')
+const listino = require('../functions/piani.json')
 
 describe('sceltaPulita', () => {
   it('toglie moduli sconosciuti o già inclusi, e i terminali partono da 1', () => {

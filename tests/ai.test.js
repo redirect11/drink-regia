@@ -10,7 +10,7 @@ import { createRequire } from 'node:module'
 const require = createRequire(import.meta.url)
 const ai = require('../functions/lib/ai.js')
 const { aggiornamentoDaEvento } = require('../functions/lib/abbonamento.js')
-const listino = require('../piani.json')
+const listino = require('../functions/piani.json')
 
 const AI = listino.ai
 const ADESSO = new Date('2026-10-24T10:00:00Z')

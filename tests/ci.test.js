@@ -99,25 +99,23 @@ describe('le Functions pubblicate hanno tutto quello che leggono', () => {
       e.name === 'node_modules' ? [] : e.isDirectory() ? sorgenti(join(dir, e.name)) : e.name.endsWith('.js') ? [join(dir, e.name)] : [],
     )
 
-  it('nessun require di functions/ esce da functions/, tranne quello del listino', () => {
+  it('nessun require di functions/ esce da functions/', () => {
     const fuori = sorgenti(FUNCTIONS).flatMap((f) =>
       [...readFileSync(f, 'utf8').matchAll(/require\('(\.[^']*)'\)/g)]
         .map((m) => m[1])
         .filter((spec) => !resolve(dirname(f), spec).startsWith(FUNCTIONS + sep))
         .map((spec) => `${relative(FUNCTIONS, f)}: ${spec}`),
     )
-    // listino.js prova l'originale e ripiega sulla copia del predeploy.
-    expect(fuori).toEqual([`${join('lib', 'listino.js')}: ../../piani.json`])
+    expect(fuori).toEqual([])
   })
 
-  it('il predeploy copia piani.json dentro functions/, e la copia non va in git', () => {
-    const firebase = JSON.parse(readFileSync(join(process.cwd(), 'firebase.json'), 'utf8'))
-    expect(firebase.functions.predeploy.join(' ')).toContain("copyFileSync(p.join(d,'..','piani.json'),p.join(d,'piani.json'))")
-    expect(readFileSync(join(process.cwd(), '.gitignore'), 'utf8')).toMatch(/^functions\/piani\.json\r?$/m)
-  })
-
-  it('il listino delle Functions è piani.json', async () => {
-    const { default: listino } = await import('../functions/lib/listino.js')
-    expect(listino).toEqual(JSON.parse(readFileSync(join(process.cwd(), 'piani.json'), 'utf8')))
+  // Una copia fatta dal predeploy non arriva nel pacchetto (provato il
+  // 29/10/2026): il listino vive dentro functions/, e il sito lo legge da lì.
+  it('il listino è uno solo, functions/piani.json, e il sito legge quello', () => {
+    expect(existsSync(join(process.cwd(), 'functions', 'piani.json'))).toBe(true)
+    expect(existsSync(join(process.cwd(), 'piani.json'))).toBe(false)
+    for (const f of ['src/lib/piani.js', 'src/lib/ai.js']) {
+      expect(readFileSync(join(process.cwd(), f), 'utf8')).toContain("from '../../functions/piani.json'")
+    }
   })
 })

@@ -25,7 +25,7 @@ regole di lavoro sono le stesse di quel repository.
 - **Non si scrive in produzione di propria iniziativa.** `firebase deploy`
   su `drink-regia` solo col via libera; gli script e le prove vanno sugli
   emulatori.
-- **I prezzi** (`piani.json`) e **il nome del prodotto** (`src/lib/prodotto.js`)
+- **I prezzi** (`functions/piani.json`) e **il nome del prodotto** (`src/lib/prodotto.js`)
   si cambiano solo su decisione dell'utente.
 - La regia **non contiene mai i dati operativi dei locali**: solo account,
   piani, abbonamenti, stato delle istanze.

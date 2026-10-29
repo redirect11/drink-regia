@@ -111,7 +111,7 @@ requirements:
       - tests/Backoffice.test.jsx
   - id: REQ-FLOTTA-007
     title: "L'abbonamento: Stripe Checkout nella regia, webhook che aggiorna il cliente, licenza che segue il piano"
-    area: "piani.json, src/lib/piani.js, src/pages/SceltaPiano.jsx, src/pages/Dashboard.jsx, src/lib/db.js (avviaPagamento), functions/index.js (creaCheckout, stripeWebhook), functions/lib/abbonamento.js"
+    area: "functions/piani.json, src/lib/piani.js, src/pages/SceltaPiano.jsx, src/pages/Dashboard.jsx, src/lib/db.js (avviaPagamento), functions/index.js (creaCheckout, stripeWebhook), functions/lib/abbonamento.js"
     description: >
       Il titolare sceglie piano, moduli in piu' e terminali nella dashboard
       (SceltaPiano: il prezzo del mese si aggiorna mentre sceglie), e «Vai
@@ -192,7 +192,7 @@ requirements:
       - tests/requisiti.test.js
   - id: REQ-DEV-002
     title: "Le Actions come tana-drink: un push non pubblica, il tag va sul test o in produzione, con un progetto Firebase di test"
-    area: ".github/workflows/test.yml, firebase-hosting.yml, deploy.yml, vitest.config.mjs, src/App.jsx (nastro TEST), scripts/abilita-api.mjs, scripts/abilita-accesso-email.mjs, scripts/segreti-environment.mjs, functions/.env.<progetto>, functions/lib/listino.js, firebase.json (predeploy)"
+    area: ".github/workflows/test.yml, firebase-hosting.yml, deploy.yml, vitest.config.mjs, src/App.jsx (nastro TEST), scripts/abilita-api.mjs, scripts/abilita-accesso-email.mjs, scripts/segreti-environment.mjs, functions/.env.<progetto>, functions/piani.json"
     description: >
       Lo stesso modello di pubblicazione di tana-drink
       (docs/actions-come-tana-drink.md, l'utente, 22/10/2026: «replicare le
@@ -214,10 +214,10 @@ requirements:
       nuovo (API, Auth email, segreti dell'environment) usano il token del
       Firebase CLI: niente gcloud, niente chiavi nel repository.
       Firebase carica solo la cartella functions/: le Functions non
-      leggono file fuori da li', e il listino (piani.json, nella radice
-      perche' lo legge anche il sito) arriva con una copia fatta dal
-      predeploy di firebase.json, letta da functions/lib/listino.js (il
-      primo deploy sul test, 29/10/2026, non avviava nessuna Function).
+      leggono file fuori da li', e il listino vive in functions/piani.json,
+      letto da li' anche dal sito (il primo deploy sul test, 29/10/2026,
+      non avviava nessuna Function: il listino stava nella radice, e una
+      copia fatta dal predeploy non arrivava nel pacchetto).
       STATO AL 22/10/2026: codice e test fatti; il progetto
       drink-regia-test, i service account del deploy, l'environment `test`
       e i segreti si fanno col permesso dell'utente (docs/handover.md §5).
@@ -403,7 +403,7 @@ requirements:
 
   - id: REQ-AI-003
     title: "Il cassetto AI nella regia: credito in euro per installazione, tetto mensile, ricarica con Stripe, e la Tana come locale esistente"
-    area: "functions/lib/ai.js, functions/lib/esistente.js, functions/index.js (richiestaAI, creaRicaricaAI, gestisciCassettoAI, registraLocaleEsistente, stripeWebhook), firestore.rules (ai/), piani.json (ai), src/pages/CreditoAI.jsx, src/pages/Backoffice.jsx, src/lib/ai.js"
+    area: "functions/lib/ai.js, functions/lib/esistente.js, functions/index.js (richiestaAI, creaRicaricaAI, gestisciCassettoAI, registraLocaleEsistente, stripeWebhook), firestore.rules (ai/), functions/piani.json (ai), src/pages/CreditoAI.jsx, src/pages/Backoffice.jsx, src/lib/ai.js"
     description: >
       La parte della regia di REQ-AI-003 di tana-drink. Decisione
       dell'utente del 24/10/2026: «un cassetto AI unico nella regia, per

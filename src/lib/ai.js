@@ -6,7 +6,7 @@
 // mezzanotte italiana, come sul server: se il documento è fermo al mese
 // scorso, lo speso di questo mese è zero.
 
-import listino from '../../piani.json'
+import listino from '../../functions/piani.json'
 
 export const PACCHETTI_AI = listino.ai.pacchetti
 const TETTO_PREDEFINITO = listino.ai.tetto_mensile_predefinito

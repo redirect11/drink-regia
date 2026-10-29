@@ -7,4 +7,3 @@ coverage
 .firebase
 *.log
 !functions/.env.*
-functions/piani.json
