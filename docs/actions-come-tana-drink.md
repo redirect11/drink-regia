@@ -99,12 +99,28 @@ Firebase crea `firebase-adminsdk-fbsvc@<progetto>.iam.gserviceaccount.com`.
 1. **Ruoli** sul progetto (console → IAM, o lo stesso approccio REST di
    `scripts/ruoli-provisioning.mjs` in tana-drink): `roles/firebase.admin`
    (copre hosting, regole, Functions), `roles/serviceusage.serviceUsageConsumer`,
-   `roles/datastore.indexAdmin`, `roles/firebaserules.admin`.
+   `roles/datastore.indexAdmin`, `roles/firebaserules.admin`,
+   `roles/secretmanager.admin` (il deploy controlla che i segreti delle
+   Functions esistano e dà al SA di runtime il permesso di leggerli: senza,
+   si ferma con `secretmanager.secrets.get` negato). Le API che il SA del
+   deploy non può accendere da solo vanno abilitate prima, compresi
+   `secretmanager`, `cloudscheduler` (la Function pianificata) e
+   `firebaseextensions`.
+   Al primo deploy delle Functions il CLI vuole dare tre ruoli agli
+   agenti di servizio e, se non è proprietario, si ferma: vanno dati prima
+   (`roles/iam.serviceAccountTokenCreator` all'agente Pub/Sub
+   `service-<numero>@gcp-sa-pubsub.iam.gserviceaccount.com`, che nasce solo
+   al primo uso e si fa nascere con `services.generateServiceIdentity`;
+   `roles/run.invoker` e `roles/eventarc.eventReceiver` al SA di runtime).
 2. **Functions gen2**: il SA del deploy deve poter «agire come» il SA di
    runtime (`<numero-progetto>-compute@developer.gserviceaccount.com`):
    `roles/iam.serviceAccountUser` concesso **sul SA di runtime**, non sul
    progetto. Senza, il deploy fallisce con `iam.serviceaccounts.actAs`.
    Il numero di progetto lo dà `npx firebase-tools projects:list`.
+   Lo stesso ruolo serve **anche sul SA di App Engine**
+   (`<progetto>@appspot.gserviceaccount.com`): il CLI lo controlla per le
+   Functions pianificate (`sospendiMorosi`) e senza si ferma con
+   `iam.serviceAccounts.ActAs` (provato su `drink-regia-test`, 29/10/2026).
 3. **Chiave JSON** del SA (console → IAM → Service account → Chiavi →
    Aggiungi chiave), scaricata in un file nella scratchpad e messa
    nell'environment GitHub:
