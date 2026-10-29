@@ -29,7 +29,14 @@ requirements:
       evidenza e i moduli; sei domande frequenti apribili; il blocco dei
       contatti; pie' di pagina a colonne con termini, privacy e email.
       Nessuna richiesta esterna (icone inline, immagine servita dal sito).
-    status: implemented
+      IL RIFACIMENTO (l'utente, 29/10/2026: «dovrebbe essere piu' moderna…
+      con slogan migliori… sia in inglese che in italiano»): la pagina nuova
+      e' descritta in DESIGN.md — percorso problema, promessa, prove,
+      prezzo, dubbi, azione; i tre pilastri (non si ferma, e' tuo, fatto
+      per il servizio); schermate vere dell'app; testi persuasivi ma
+      verificabili; italiano su `/` e inglese su `/en`, coi testi in file
+      per lingua. Da fare; prima le decisioni del §9 di DESIGN.md.
+    status: partial
     generate_issue: false
     labels: [prodotto, flotta, regia]
     test_cases:
