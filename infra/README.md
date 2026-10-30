@@ -69,6 +69,19 @@ soltanto.
    Il workflow usa `gcloud`: il runner di GitHub ce l'ha, e lo autentica
    `google-github-actions/auth` con la stessa chiave di provisioning.
 
+I ruoli del service account di provisioning (punti 1, 3, 4 e 5) li dà
+`scripts/ruoli-provisioning.mjs`, lanciato da una persona col suo accesso:
+
+```sh
+node scripts/ruoli-provisioning.mjs --sa provisioning@drink-regia.iam.gserviceaccount.com \
+  --billing <id> --bucket drink-regia-tfstate --bucket drink-regia-archivio \
+  --progetto drinkpos-<slug>
+```
+
+`--billing` vale per un account alla volta; `--bucket` e `--progetto` si
+ripetono. Quelli dell'account di runtime sul bucket degli archivi restano
+da dare a mano.
+
 ## I due profili
 
 La variabile `profilo` (input omonimo dei workflow) decide che cosa nasce:

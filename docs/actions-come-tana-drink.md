@@ -97,7 +97,7 @@ Firebase crea `firebase-adminsdk-fbsvc@<progetto>.iam.gserviceaccount.com`.
 `drink-regia-test` e per `drink-regia`. Per ciascuno:
 
 1. **Ruoli** sul progetto (console → IAM, o lo stesso approccio REST di
-   `scripts/ruoli-provisioning.mjs` in tana-drink): `roles/firebase.admin`
+   `scripts/ruoli-provisioning.mjs`): `roles/firebase.admin`
    (copre hosting, regole, Functions), `roles/serviceusage.serviceUsageConsumer`,
    `roles/datastore.indexAdmin`, `roles/firebaserules.admin`,
    `roles/secretmanager.admin` (il deploy controlla che i segreti delle
@@ -178,9 +178,8 @@ environment*), senza reviewer.
   `GITHUB_DISPATCH_TOKEN` vedi sotto.
 - **Configurazione non segreta per progetto**: Firebase legge
   `functions/.env.<progetto>` sopra `functions/.env`. Creare
-  `functions/.env.drink-regia-test` con `GITHUB_REF` e `APP_REF` al ramo
-  che si vuole provare (oggi `feature/flotta`), e `functions/.env.drink-regia`
-  con `main` quando la flotta sarà merged. Committati tutti e due: non
+  `functions/.env.drink-regia-test` con `FLOTTA_REF` e `APP_REF` a
+  `develop`, e `functions/.env.drink-regia` con `APP_REF=main`. Committati tutti e due: non
   contengono segreti.
 - **Il test non deve creare istanze vere senza volerlo.** Oggi
   `avviaProvisioning` lancia il workflow di tana-drink, che crea un
