@@ -228,6 +228,12 @@ describe('le Functions lanciano i workflow della regia', () => {
     expect(env('functions/.env')).toMatchObject({ GITHUB_REPO: 'redirect11/drink-regia', FLOTTA_REF: 'main', FLOTTA_AMBIENTE: 'produzione' })
   })
 
+  // 30/10/2026: il test segue develop, anche nei workflow della flotta.
+  it('la regia di test lancia i workflow da develop, la produzione da main', () => {
+    expect(env('functions/.env.drink-regia-test')).toMatchObject({ FLOTTA_REF: 'develop', FLOTTA_AMBIENTE: 'test' })
+    expect(env('functions/.env.drink-regia').FLOTTA_REF ?? env('functions/.env').FLOTTA_REF).toBe('main')
+  })
+
   it('la regia di test lancia sull’environment di test, la produzione sul suo', () => {
     expect(env('functions/.env.drink-regia-test').FLOTTA_AMBIENTE).toBe('test')
     expect(env('functions/.env.drink-regia').FLOTTA_AMBIENTE).toBe('produzione')
