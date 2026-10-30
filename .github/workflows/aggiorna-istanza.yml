@@ -305,7 +305,7 @@ jobs:
       # LA DEMO (REQ-FLOTTA-019): il database chiuso a tutti, al posto delle
       # regole dell'app. Nella build della demo i dati sono di prova e quello
       # che fa chi prova resta nel suo browser
-      # (docs/richieste-tana-drink-demo.md): se l'app sbagliasse, il server
+      # (docs/modalita-demo.md di tana-drink): se l'app sbagliasse, il server
       # direbbe comunque di no.
       - name: Le regole della demo
         if: env.PROGETTO == 'drinkpos-demo'

@@ -480,9 +480,9 @@ L'elenco completo con i riferimenti al codice è in
    `feature/demo-sola-lettura`, 30/10/2026. La modalità demo la decide la
    build `CLIENTE=demo`, non un interruttore. La regia pubblica la demo
    sempre leggera e col database chiuso a tutti (`infra/demo/firestore.rules`).
-   Restano: in tana-drink le richieste di
-   [richieste-tana-drink-demo.md](richieste-tana-drink-demo.md) (finché non
-   ci sono, `drinkpos-demo` non si aggiorna dalla regia), poi la demo
+   Restano: in tana-drink la modalità demo (REQ-FLOTTA-019 e
+   `docs/modalita-demo.md`, ramo `feature/modalita-demo`; finché non è su
+   `main`, `drinkpos-demo` non si aggiorna dalla regia), poi la demo
    registrata nella regia di produzione come locale esistente. Dopo la
    demo: l’accesso di assistenza della regia ai locali, a tempo e
    registrato, insieme al DPA.

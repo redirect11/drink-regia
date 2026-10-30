@@ -781,7 +781,7 @@ requirements:
 
   - id: REQ-FLOTTA-019
     title: "La demo della prima pagina è in sola lettura: dati di prova nella build, la sessione nel browser, il database chiuso"
-    area: ".github/workflows/aggiorna-istanza.yml, infra/demo/firestore.rules, docs/richieste-tana-drink-demo.md"
+    area: ".github/workflows/aggiorna-istanza.yml, infra/demo/firestore.rules"
     description: >
       «Il sito demo che si apre dalla home dovrebbe essere in sola lettura
       sul backend e la sessione vive solo in locale. Bisogna aggiungere dei
@@ -790,8 +790,8 @@ requirements:
       «sì va bene» (l'utente, 30/10/2026). La modalità demo la decide la
       build CLIENTE=demo di tana-drink: dati di prova inventati nella
       build, nessuna lettura o scrittura verso il database, quello che fa
-      chi prova resta nel suo browser (richiesta a tana-drink in
-      docs/richieste-tana-drink-demo.md). Nessuno la accende o la spegne
+      chi prova resta nel suo browser (in tana-drink, REQ-FLOTTA-019 e
+      docs/modalita-demo.md). Nessuno la accende o la spegne
       su un locale. Dalla regia: aggiorna-istanza.yml pubblica la build
       della demo solo su drinkpos-demo e drinkpos-demo solo con quella,
       sempre col profilo leggero, e al posto delle regole dell'app
