@@ -1,0 +1,15 @@
+rules_version = '2';
+
+// LE REGOLE DELLA DEMO (REQ-FLOTTA-019). La demo pubblica non usa il
+// database: i dati di prova sono nella build (CLIENTE=demo di tana-drink)
+// e quello che fa chi prova resta nel suo browser. Il database di
+// drinkpos-demo resta chiuso a tutti, così nemmeno un'app sbagliata o un
+// client scritto a mano possono leggerci o scriverci. Il workflow
+// aggiorna-istanza.yml le pubblica al posto di quelle dell'app.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{documento=**} {
+      allow read, write: if false;
+    }
+  }
+}

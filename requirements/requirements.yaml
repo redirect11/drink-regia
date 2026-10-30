@@ -779,3 +779,30 @@ requirements:
       - tests/db.test.js
       - tests/Backoffice.test.jsx
 
+  - id: REQ-FLOTTA-019
+    title: "La demo della prima pagina è in sola lettura: dati di prova nella build, la sessione nel browser, il database chiuso"
+    area: ".github/workflows/aggiorna-istanza.yml, infra/demo/firestore.rules, docs/richieste-tana-drink-demo.md"
+    description: >
+      «Il sito demo che si apre dalla home dovrebbe essere in sola lettura
+      sul backend e la sessione vive solo in locale. Bisogna aggiungere dei
+      dati di test e bisogna renderlo in qualche modo sicuro» e, sulla
+      proposta di una demo decisa dalla build e non da un interruttore,
+      «sì va bene» (l'utente, 30/10/2026). La modalità demo la decide la
+      build CLIENTE=demo di tana-drink: dati di prova inventati nella
+      build, nessuna lettura o scrittura verso il database, quello che fa
+      chi prova resta nel suo browser (richiesta a tana-drink in
+      docs/richieste-tana-drink-demo.md). Nessuno la accende o la spegne
+      su un locale. Dalla regia: aggiorna-istanza.yml pubblica la build
+      della demo solo su drinkpos-demo e drinkpos-demo solo con quella,
+      sempre col profilo leggero, e al posto delle regole dell'app
+      pubblica infra/demo/firestore.rules, che chiude il database a tutti.
+      drinkpos-demo non si elimina (REQ-FLOTTA-014). Resta da fare: la
+      modalità demo in tana-drink, poi registrare la demo nella regia di
+      produzione come locale esistente (progetto drinkpos-demo, cartella
+      demo, aggiornamenti dalla regia) e aggiornarla da lì.
+    status: partial
+    generate_issue: false
+    labels: [prodotto, flotta, regia, sicurezza]
+    test_cases:
+      - tests/flotta.test.js
+

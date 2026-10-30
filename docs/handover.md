@@ -476,6 +476,16 @@ L'elenco completo con i riferimenti al codice è in
    acceso dal backoffice** per provare Stripe in modalità test; in
    produzione si accende quando si è pronti a ricevere i pagamenti (chiavi
    live, webhook). Spento, i titolari chiedono di essere contattati.
+20. **La demo in sola lettura (REQ-FLOTTA-019)**, ramo
+   `feature/demo-sola-lettura`, 30/10/2026. La modalità demo la decide la
+   build `CLIENTE=demo`, non un interruttore. La regia pubblica la demo
+   sempre leggera e col database chiuso a tutti (`infra/demo/firestore.rules`).
+   Restano: in tana-drink le richieste di
+   [richieste-tana-drink-demo.md](richieste-tana-drink-demo.md) (finché non
+   ci sono, `drinkpos-demo` non si aggiorna dalla regia), poi la demo
+   registrata nella regia di produzione come locale esistente. Dopo la
+   demo: l’accesso di assistenza della regia ai locali, a tempo e
+   registrato, insieme al DPA.
 
 ---
 

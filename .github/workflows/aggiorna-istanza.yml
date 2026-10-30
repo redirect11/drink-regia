@@ -78,7 +78,9 @@ env:
   NOME: ${{ inputs.nome_locale || inputs.slug }}
   REF_APP: ${{ inputs.ref }}
   AMBIENTE: ${{ inputs.ambiente }}
-  PROFILO: ${{ inputs.profilo }}
+  # La demo (REQ-FLOTTA-019) è sempre leggera: niente Functions, Storage,
+  # segreti né Terraform, qualunque profilo abbia l'istanza.
+  PROFILO: ${{ inputs.progetto == 'drinkpos-demo' && 'leggero' || inputs.profilo }}
   PROGETTO: ${{ inputs.progetto || format('drinkpos-{0}', inputs.slug) }}
   CLIENTE_APP: ${{ inputs.cliente || inputs.slug }}
   BUILD_PUBBLICA: ${{ inputs.build }}
@@ -104,6 +106,12 @@ jobs:
           # I progetti della regia non sono mai un locale (functions/lib/esistente.js).
           if [ "$PROGETTO" = "drink-regia" ] || [ "$PROGETTO" = "drink-regia-test" ]; then echo "::error::$PROGETTO è un progetto della regia."; exit 1; fi
           [[ "$CLIENTE_APP" =~ ^[a-z][a-z0-9-]{1,29}$ ]] || { echo "::error::cartella del cliente non valida."; exit 1; }
+          # La demo (REQ-FLOTTA-019): la sua build va solo sul suo progetto, e
+          # il suo progetto riceve solo la sua build. Un locale vero con la
+          # build della demo mostrerebbe dati finti; la demo con una build
+          # vera scriverebbe in un database pubblico.
+          if [ "$PROGETTO" = "drinkpos-demo" ] && [ "$CLIENTE_APP" != "demo" ]; then echo "::error::drinkpos-demo riceve solo la build della demo (cartella demo)."; exit 1; fi
+          if [ "$CLIENTE_APP" = "demo" ] && [ "$PROGETTO" != "drinkpos-demo" ]; then echo "::error::La build della demo va solo su drinkpos-demo."; exit 1; fi
           # Solo le chiavi pubbliche previste, con valori semplici: arrivano
           # nel .env della build, e non devono poterci scrivere altro.
           node -e '
@@ -283,7 +291,7 @@ jobs:
           VITE_APP_ENV: production
           # L'app sa di essere leggera anche prima di leggere la licenza
           # (tana-drink, REQ-LIC-004): niente Functions, Storage, SumUp.
-          VITE_PROFILO: ${{ inputs.profilo }}
+          VITE_PROFILO: ${{ env.PROFILO }}
         run: npm run build
 
       # Se tana-drink ha già il .env di quel progetto (la Tana: nome del
@@ -293,6 +301,15 @@ jobs:
         run: |
           if [ -f "app/functions/.env.$PROGETTO" ]; then echo "app/functions/.env.$PROGETTO c'è già: non lo tocco."; exit 0; fi
           printf 'VENUE_NAME=%s\n' "$NOME" > "app/functions/.env.$PROGETTO"
+
+      # LA DEMO (REQ-FLOTTA-019): il database chiuso a tutti, al posto delle
+      # regole dell'app. Nella build della demo i dati sono di prova e quello
+      # che fa chi prova resta nel suo browser
+      # (docs/richieste-tana-drink-demo.md): se l'app sbagliasse, il server
+      # direbbe comunque di no.
+      - name: Le regole della demo
+        if: env.PROGETTO == 'drinkpos-demo'
+        run: cp infra/demo/firestore.rules app/firestore.rules
 
       - name: Deploy regole, indici, Functions e hosting
         working-directory: app
