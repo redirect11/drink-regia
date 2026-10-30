@@ -8,6 +8,8 @@ import Backoffice from './pages/Backoffice.jsx'
 import { Termini, Privacy } from './pages/Legali.jsx'
 import { osservaUtente, esci } from './lib/db.js'
 import { NOME_PRODOTTO, EMAIL_CONTATTI, URL_DEMO } from './lib/prodotto.js'
+import { LINGUE, NOMI_LINGUE, leggiPreferenza, linguaDelPercorso, percorsoDellaLingua, salvaPreferenza } from './lib/lingua.js'
+import { testi } from './i18n/index.js'
 
 // Il nastro «TEST» e la versione (REQ-DEV-002): il sito di test
 // (drink-regia-test) deve dirsi tale a chi lo guarda, come in tana-drink.
@@ -17,14 +19,42 @@ import { NOME_PRODOTTO, EMAIL_CONTATTI, URL_DEMO } from './lib/prodotto.js'
 const PRODUZIONE = import.meta.env.VITE_APP_ENV === 'production'
 const VERSIONE = import.meta.env.VITE_APP_VERSION || __APP_VERSION__
 
-// Le voci del menù della prima pagina (REQ-FLOTTA-002): sono ancore
-// dentro Home, raggiungibili anche dalle altre pagine con «/#…».
-const VOCI = [
-  ['funzioni', 'Funzioni'],
-  ['come-funziona', 'Come funziona'],
-  ['prezzi', 'Prezzi'],
-  ['domande', 'Domande'],
-]
+// Le voci del menù della prima pagina (REQ-FLOTTA-002, DESIGN.md §5.0):
+// ancore dentro Home, raggiungibili anche dalle altre pagine con «/#…»
+// (o «/en#…» sulla pagina inglese). Gli id delle sezioni sono gli stessi
+// nelle due lingue.
+const VOCI = ['funzioni', 'prezzi', 'domande']
+
+// La prima pagina italiana. Chi ha scelto l'inglese col selettore ci torna
+// in inglese (la preferenza ricordata, DESIGN.md §6); la lingua del browser
+// da sola non sposta nessuno, la propone l'avviso dentro Home.
+function PrimaPagina({ utente, lingua }) {
+  const { hash } = useLocation()
+  if (lingua === 'it' && leggiPreferenza() === 'en') return <Navigate to={{ pathname: '/en', hash }} replace />
+  return <Home utente={utente} lingua={lingua} />
+}
+
+// Il selettore IT / EN, nella barra e nel piè di pagina della prima
+// pagina. Scegliere una lingua è la sola cosa che la ricorda.
+function SceltaLingua({ lingua, etichetta }) {
+  return (
+    <div className="scelta-lingua" role="group" aria-label={etichetta}>
+      {LINGUE.map((l) => (
+        <Link
+          key={l}
+          to={percorsoDellaLingua(l)}
+          lang={l}
+          hrefLang={l}
+          aria-current={l === lingua ? 'true' : undefined}
+          onClick={() => salvaPreferenza(l)}
+        >
+          {l.toUpperCase()}
+          <span className="solo-lettori"> – {NOMI_LINGUE[l]}</span>
+        </Link>
+      ))}
+    </div>
+  )
+}
 
 export default function App() {
   const [utente, setUtente] = useState(undefined) // undefined = non ancora saputo
@@ -35,6 +65,21 @@ export default function App() {
   useEffect(() => setMenuAperto(false), [posizione])
 
   const pronto = utente !== undefined
+  // La lingua viene dall'indirizzo: inglese solo la prima pagina su /en; il
+  // resto del sito per ora è solo in italiano.
+  const lingua = linguaDelPercorso(posizione.pathname)
+  const t = testi(lingua)
+  const primaPagina = posizione.pathname === '/' || lingua === 'en'
+  const casa = percorsoDellaLingua(lingua)
+  // Dalla pagina inglese, i link verso le pagine solo in italiano lo dicono,
+  // al browser (hreflang) e a chi legge.
+  const versoItaliano = lingua === 'it' ? {} : { hrefLang: 'it' }
+  const inItaliano = t.piede.inItaliano ? (
+    <>
+      {' '}
+      <span className="small">{t.piede.inItaliano}</span>
+    </>
+  ) : null
   return (
     <div className="regia">
       {!PRODUZIONE && (
@@ -43,36 +88,41 @@ export default function App() {
         </div>
       )}
       <header className="barra">
-        <Link to="/" className="marchio">
+        <Link to={casa} className="marchio">
           <span className="marchio-punto" aria-hidden="true" />
           {NOME_PRODOTTO}
         </Link>
-        <button
-          type="button"
-          className="menu-tasto"
-          aria-expanded={menuAperto}
-          aria-controls="menu-principale"
-          onClick={() => setMenuAperto((a) => !a)}
-        >
-          Menu
-        </button>
-        <nav id="menu-principale" className={menuAperto ? 'aperto' : ''} aria-label="Principale">
-          {VOCI.map(([id, testo]) => (
-            <a key={id} href={`/#${id}`}>
-              {testo}
+        <div className="barra-destra">
+          {primaPagina && <SceltaLingua lingua={lingua} etichetta={t.barra.lingua} />}
+          <button
+            type="button"
+            className="menu-tasto"
+            aria-expanded={menuAperto}
+            aria-controls="menu-principale"
+            onClick={() => setMenuAperto((a) => !a)}
+          >
+            {t.barra.menu}
+          </button>
+        </div>
+        <nav id="menu-principale" className={menuAperto ? 'aperto' : ''} aria-label={t.barra.principale}>
+          {VOCI.map((id) => (
+            <a key={id} href={`${casa}#${id}`}>
+              {t.barra[id]}
             </a>
           ))}
-          {utente && <Link to="/dashboard">Dashboard</Link>}
-          {utente?.admin && <Link to="/backoffice">Backoffice</Link>}
+          {utente && <Link to="/dashboard">{t.barra.dashboard}</Link>}
+          {utente?.admin && <Link to="/backoffice">{t.barra.backoffice}</Link>}
           {utente ? (
             <button type="button" className="link" onClick={esci}>
-              Esci
+              {t.barra.esci}
             </button>
           ) : (
             <>
-              <Link to="/accedi">Accedi</Link>
-              <Link to="/registrati" className="btn small">
-                Registra il locale
+              <Link to="/accedi" {...versoItaliano}>
+                {t.barra.accedi}
+              </Link>
+              <Link to="/registrati" className="btn small" {...versoItaliano}>
+                {t.barra.attiva}
               </Link>
             </>
           )}
@@ -80,7 +130,9 @@ export default function App() {
       </header>
       {pronto && (
         <Routes>
-          <Route path="/" element={<Home utente={utente} />} />
+          {/* key: le due lingue sono due pagine, ognuna col suo stato (l'avviso della lingua). */}
+          <Route path="/" element={<PrimaPagina key="it" utente={utente} lingua="it" />} />
+          <Route path="/en" element={<PrimaPagina key="en" utente={utente} lingua="en" />} />
           <Route path="/registrati" element={utente ? <Navigate to="/dashboard" replace /> : <Registrati />} />
           <Route path="/accedi" element={utente ? <Navigate to="/dashboard" replace /> : <Accedi />} />
           <Route path="/dashboard" element={utente ? <Dashboard utente={utente} /> : <Navigate to="/accedi" replace />} />
@@ -94,31 +146,46 @@ export default function App() {
         <div className="piede-colonne">
           <div>
             <div className="marchio piede-marchio">{NOME_PRODOTTO}</div>
-            <p className="muted small">Un’installazione per ogni locale. I dati restano suoi.</p>
+            <p className="muted small">{t.piede.descrizione}</p>
+            {primaPagina && <SceltaLingua lingua={lingua} etichetta={t.barra.lingua} />}
           </div>
           <div>
-            <h4>Prodotto</h4>
-            <a href="/#funzioni">Funzioni</a>
-            <a href="/#prezzi">Prezzi</a>
+            <h2 className="piede-titolo">{t.piede.prodotto}</h2>
+            <a href={`${casa}#funzioni`}>{t.piede.funzioni}</a>
+            <a href={`${casa}#prezzi`}>{t.piede.prezzi}</a>
             <a href={URL_DEMO} target="_blank" rel="noreferrer">
-              Installazione dimostrativa
+              {t.piede.demo}
             </a>
           </div>
           <div>
-            <h4>Account</h4>
-            <Link to="/accedi">Accedi</Link>
-            <Link to="/registrati">Registra il locale</Link>
+            <h2 className="piede-titolo">{t.piede.account}</h2>
+            <Link to="/accedi" {...versoItaliano}>
+              {t.piede.accedi}
+              {inItaliano}
+            </Link>
+            <Link to="/registrati" {...versoItaliano}>
+              {t.piede.registrati}
+              {inItaliano}
+            </Link>
           </div>
           <div>
-            <h4>Informazioni</h4>
-            <Link to="/termini">Termini di servizio</Link>
-            <Link to="/privacy">Privacy</Link>
+            <h2 className="piede-titolo">{t.piede.informazioni}</h2>
+            <Link to="/termini" {...versoItaliano}>
+              {t.piede.termini}
+              {inItaliano}
+            </Link>
+            <Link to="/privacy" {...versoItaliano}>
+              {t.piede.privacy}
+              {inItaliano}
+            </Link>
             <a href={`mailto:${EMAIL_CONTATTI}`}>{EMAIL_CONTATTI}</a>
           </div>
         </div>
         <p className="muted small piede-riga">
-          © {new Date().getFullYear()} {NOME_PRODOTTO}. Importi IVA esclusa. Lo scontrino sulla stampante termica non è uno
-          scontrino fiscale. <span data-testid="versione">Versione {VERSIONE}</span>
+          © {new Date().getFullYear()} {NOME_PRODOTTO}. {t.piede.nota}{' '}
+          <span data-testid="versione">
+            {t.piede.versione} {VERSIONE}
+          </span>
         </p>
       </footer>
     </div>

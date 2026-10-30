@@ -8,7 +8,7 @@
 requirements:
   - id: REQ-FLOTTA-002
     title: "La regia: il sito del prodotto con i prezzi, in un progetto Firebase suo (drink-regia)"
-    area: "regia/ (app React + Vite a se', con package.json, firebase.json e test propri), src/lib/piani.js, src/lib/prodotto.js"
+    area: "regia/ (app React + Vite a se', con package.json, firebase.json e test propri), src/lib/piani.js, src/lib/prodotto.js, src/pages/Home.jsx, src/App.jsx, src/lib/lingua.js, src/lib/comparsa.js, src/i18n/, src/index.css, DESIGN.md"
     description: >
       «Ci serve un sito/front page con prices/registrazione/login/
       backoffice/dashboard» (l'utente, 21/10/2026). La regia e' una
@@ -29,13 +29,47 @@ requirements:
       evidenza e i moduli; sei domande frequenti apribili; il blocco dei
       contatti; pie' di pagina a colonne con termini, privacy e email.
       Nessuna richiesta esterna (icone inline, immagine servita dal sito).
-    status: implemented
+      IL RIFACIMENTO (l'utente, 29/10/2026: «dovrebbe essere piu' moderna…
+      con slogan migliori… sia in inglese che in italiano»): la pagina nuova
+      e' descritta in DESIGN.md — percorso problema, promessa, prove,
+      prezzo, dubbi, azione; i tre pilastri (non si ferma, e' tuo, fatto
+      per il servizio); schermate vere dell'app; testi persuasivi ma
+      verificabili; italiano su `/` e inglese su `/en`, coi testi in file
+      per lingua.
+      FATTO IL 30/10/2026 (ramo feature/home-nuova): la pagina segue il §5
+      di DESIGN.md con il titolo A; il pubblico e' la ristorazione in
+      generale, bar e ristoranti (l'utente: il prodotto prende le comande e
+      tiene conti e cassa, non e' solo per bar), e i testi lo dicono. Titolo
+      di primo livello = la promessa, non il nome del prodotto; sezioni in
+      ordine problema, pilastri, funzioni (con l'etichetta del modulo che le
+      porta, nascoste se il modulo non e' in vendita), passi, prezzi (piani,
+      tabella dei moduli con la colonna del Completo, la convenienza del
+      Completo calcolata dal listino, la nota sullo scontrino non fiscale),
+      domande, chiusura. Playfair Display servita dal sito per h1 e h2; la
+      foto del banco come sfondo; dissolvenza delle sezioni spenta con
+      prefers-reduced-motion (src/lib/comparsa.js). LE DUE LINGUE
+      (src/lib/lingua.js, src/i18n/home.it.js e home.en.js con le stesse
+      chiavi): la lingua viene dall'indirizzo; selettore IT / EN nella barra
+      e nel pie' di pagina della prima pagina, che ricorda la scelta in
+      localStorage (se il browser non lascia, la pagina va lo stesso); chi
+      ha scelto l'inglese e torna su `/` va su `/en`; la lingua del browser
+      propone l'altra pagina con un avviso, mai un reindirizzamento, e una
+      terza lingua ripiega sull'italiano; `<html lang>`, titolo, descrizione
+      e link hreflang per lingua; importi «24 €» e «€24». Registrazione,
+      dashboard, backoffice e testi legali restano in italiano, e la pagina
+      inglese lo dice. RESTA (DESIGN.md §9): le quattro schermate vere
+      dell'app, la scelta del titolo (A, B o C), il nome del prodotto, la
+      prova sociale, la verifica Lighthouse sul telefono.
+    status: partial
     generate_issue: false
     labels: [prodotto, flotta, regia]
     test_cases:
       - tests/piani.test.js
       - tests/Home.test.jsx
       - tests/App.test.jsx
+      - tests/HomeLingua.test.jsx
+      - tests/lingua.test.js
+      - tests/comparsa.test.js
   - id: REQ-FLOTTA-003
     title: "Registrazione e accesso del titolare: account con email verificata, dati del locale, di fatturazione e del referente"
     area: "src/pages/Registrati.jsx, src/pages/Accedi.jsx, src/pages/Legali.jsx, src/lib/clienti.js, src/lib/validazione.js, src/lib/db.js, firestore.rules"

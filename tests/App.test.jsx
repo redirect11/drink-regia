@@ -41,16 +41,19 @@ describe('la barra', () => {
     utenteOsservato = null
     mostra()
     const menu = screen.getByRole('navigation', { name: 'Principale' })
+    // La home nuova (DESIGN.md §5.0, 30/10/2026): il menù ha tre voci —
+    // Funzioni, Prezzi, Domande — e il bottone dice l'azione, «Attiva il tuo
+    // locale», al posto di «Registra il locale». «Come funziona» resta una
+    // sezione della pagina, non una voce del menù.
     for (const [testo, ancora] of [
       ['Funzioni', '/#funzioni'],
-      ['Come funziona', '/#come-funziona'],
       ['Prezzi', '/#prezzi'],
       ['Domande', '/#domande'],
     ]) {
       expect(within(menu).getByRole('link', { name: testo })).toHaveAttribute('href', ancora)
     }
     expect(within(menu).getByRole('link', { name: 'Accedi' })).toHaveAttribute('href', '/accedi')
-    expect(within(menu).getByRole('link', { name: 'Registra il locale' })).toHaveAttribute('href', '/registrati')
+    expect(within(menu).getByRole('link', { name: 'Attiva il tuo locale' })).toHaveAttribute('href', '/registrati')
     expect(within(menu).queryByRole('link', { name: 'Dashboard' })).toBeNull()
   })
 

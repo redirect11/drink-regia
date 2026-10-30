@@ -6,6 +6,16 @@ data.
 
 ## 0.2.1 (in lavorazione)
 
+- La prima pagina è nuova, in italiano e in inglese. Il titolo dice la
+  promessa («La serata non si ferma. Nemmeno quando cade il Wi-Fi.»), e la
+  pagina segue un percorso: il problema, i tre pilastri (non si ferma, i
+  dati sono tuoi, fatta per il servizio), le funzioni con il modulo che le
+  porta, i tre passi, i prezzi con la tabella dei moduli e quanto conviene
+  il Completo, le domande, l'ultima azione. Parla a bar e ristoranti. La
+  versione inglese sta su `/en`; il selettore IT / EN nella barra e nel piè
+  di pagina ricorda la scelta, e chi ha il browser in inglese vede un
+  avviso che gliela propone. Registrazione, dashboard e testi legali
+  restano in italiano (REQ-FLOTTA-002).
 - I pagamenti online si accendono dal backoffice («Pagamenti online con
   Stripe» nel riquadro «Vendita»), e partono spenti. Spenti, chi sceglie
   un piano a pagamento ci lascia un recapito invece di pagare; le
