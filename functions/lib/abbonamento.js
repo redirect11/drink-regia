@@ -9,6 +9,14 @@ const listino = require('../piani.json')
 
 const SCELTA_VALIDA = /^(base|completo)$/
 
+// Una chiave di Stripe vera: segreta (sk_) o ristretta (rk_), di test o
+// live. In produzione il segreto nasce col segnaposto «non-configurato»
+// finché non ci sono le chiavi live (30/10/2026): senza questo controllo la
+// regia creerebbe un client Stripe con una chiave che non esiste, e ogni
+// chiamata fallirebbe con un errore di Stripe invece di dire che Stripe
+// non è configurato.
+const chiaveStripeVera = (chiave) => /^(sk|rk)_(test|live)_[A-Za-z0-9]+$/.test(String(chiave || '').trim())
+
 // La scelta pulita: piano noto, moduli noti e non già inclusi, terminali
 // da 1 in su.
 function sceltaPulita({ piano = 'base', moduli = [], terminali = 1 } = {}) {
@@ -111,4 +119,4 @@ function aggiornamentoDaEvento(tipo, oggetto, adesso = new Date()) {
   return null
 }
 
-module.exports = { sceltaPulita, righeCheckout, metadatiDi, aggiornamentoDaEvento }
+module.exports = { chiaveStripeVera, sceltaPulita, righeCheckout, metadatiDi, aggiornamentoDaEvento }
