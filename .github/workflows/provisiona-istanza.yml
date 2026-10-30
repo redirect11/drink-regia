@@ -164,6 +164,14 @@ jobs:
               exit 1
             fi
           fi
+          # Il ramo che l'app mostra accanto alla versione (vite.config.js di
+          # tana-drink lo prende da GIT_BRANCH, come fa il deploy della Tana):
+          # col checkout di un tag git non lo sa da sé.
+          git fetch --no-tags -q origin +refs/heads/main:refs/remotes/origin/main +refs/heads/develop:refs/remotes/origin/develop
+          if git merge-base --is-ancestor HEAD origin/main; then RAMO=main
+          elif git merge-base --is-ancestor HEAD origin/develop; then RAMO=develop
+          else RAMO="$REF_APP"; fi
+          echo "GIT_BRANCH=$RAMO" >> "$GITHUB_ENV"
 
       - uses: actions/setup-node@v4
         with:

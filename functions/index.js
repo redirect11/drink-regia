@@ -34,7 +34,7 @@ const elim = require('./lib/eliminazione.js')
 const free = require('./lib/free.js')
 const contatti = require('./lib/contatti.js')
 const { getStorage } = require('firebase-admin/storage')
-const { datiEsistente, documentiEsistente, DatiNonValidi, scriveLicenza } = require('./lib/esistente.js')
+const { datiEsistente, documentiEsistente, DatiNonValidi, scriveLicenza, gestioneEsistente } = require('./lib/esistente.js')
 
 initializeApp()
 const db = getFirestore()
@@ -325,11 +325,15 @@ async function lanciaAggiornamento(slug, ref, { rilascio = null, ritorno = false
   const istRef = db.doc(`istanze/${slug}`)
   const ist = (await istRef.get()).data()
   if (!ist || ist.stato !== 'attiva') return 'L’istanza non è attiva.'
-  // Un locale registrato come esistente (la Tana, REQ-AI-003) ha i suoi
-  // rilasci e il suo progetto: il workflow della flotta non lo tocca mai.
-  if (ist.origine === 'esistente') return 'Questa installazione si aggiorna dal suo repository, non dalla flotta.'
+  // Un locale registrato come esistente (la Tana, REQ-AI-003) si aggiorna
+  // dal suo repository, finché l'admin non lo affida alla regia
+  // (REQ-FLOTTA-018): allora il workflow della flotta pubblica sul SUO
+  // progetto, con la sua cartella in clienti/ e le sue chiavi della build.
+  if (!rilasci.daFlotta(ist)) return 'Questa installazione si aggiorna dal suo repository, non dalla flotta.'
+  const esistente = ist.origine === 'esistente'
   const cliente = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]?.data()
-  const res = await dispatchGitHub(WORKFLOW_AGGIORNA, dispatchAggiornamento({ slug, nome_locale: cliente?.nome_locale }, { ref: REF, app: ref, ambiente: AMBIENTE_FLOTTA, profilo: profilo || ist.profilo || 'completo' }))
+  const datiIstanza = { slug, nome_locale: cliente?.nome_locale, ...(esistente ? { progetto: ist.progetto, cliente: ist.cliente, build: ist.build } : {}) }
+  const res = await dispatchGitHub(WORKFLOW_AGGIORNA, dispatchAggiornamento(datiIstanza, { ref: REF, app: ref, ambiente: AMBIENTE_FLOTTA, profilo: profilo || ist.profilo || 'completo' }))
   const adesso = new Date()
   if (res.status !== 204) {
     // Non è partito: si segna fallito, così il rilascio si ferma e si vede.
@@ -795,6 +799,26 @@ exports.gestisciCassettoAI = onCall(OPTS, async (req) => {
 // segnata «interna» ed «esistente», cassetto AI vuoto. Nessuna richiesta di
 // attivazione: è quella che farebbe partire il workflow. Il perché sta in
 // lib/esistente.js.
+// Un locale esistente già registrato passa agli aggiornamenti dalla regia,
+// o torna a pubblicare da sé, senza rifare la registrazione
+// (REQ-FLOTTA-018). `build` si riscrive per intero: una chiave tolta sparisce.
+exports.impostaAggiornamentiEsistente = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const slug = String(req.data?.slug || '')
+  const ref = db.doc(`istanze/${slug}`)
+  const ist = (await ref.get()).data()
+  if (!ist || ist.origine !== 'esistente') throw new HttpsError('failed-precondition', 'Vale solo per un locale registrato come esistente.')
+  let g
+  try {
+    g = gestioneEsistente(req.data, { slug })
+  } catch (e) {
+    if (e instanceof DatiNonValidi) throw new HttpsError('invalid-argument', e.message)
+    throw e
+  }
+  await ref.update({ ...g, aggiornata_il: new Date().toISOString() })
+  return { ok: true, ...g }
+})
+
 exports.registraLocaleEsistente = onCall(OPTS, async (req) => {
   if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
   let d

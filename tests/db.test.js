@@ -93,6 +93,7 @@ const FUNCTIONS = [
   ['gestisciRilascio', ['avanza', { id: 'r1' }], 'gestisciRilascio', { azione: 'avanza', id: 'r1' }],
   ['gestisciCassettoAI', ['bar', 'ricarica', { importo: 5 }], 'gestisciCassettoAI', { slug: 'bar', azione: 'ricarica', importo: 5 }],
   ['registraLocaleEsistente', [{ slug: 'tana' }], 'registraLocaleEsistente', { slug: 'tana' }],
+  ['impostaAggiornamentiEsistente', [{ slug: 'tana-drink', aggiornamenti_dalla_regia: true }], 'impostaAggiornamentiEsistente', { slug: 'tana-drink', aggiornamenti_dalla_regia: true }],
   ['gestisciEliminazione', ['chiedi', { slug: 'bar' }], 'gestisciEliminazione', { azione: 'chiedi', slug: 'bar' }],
   ['scaricaArchivio', [], 'scaricaArchivio', {}],
   ['scegliFree', [], 'scegliFree', {}],

@@ -23,7 +23,11 @@ export const SEZIONI = [
 
 // Un locale registrato come esistente (la Tana) non passa per la flotta:
 // i suoi aggiornamenti non sono nostri.
-const daFlotta = (istanza) => istanza?.origine !== 'esistente'
+// Chi aggiorna la regia: i locali della flotta, e un locale esistente che
+// l'admin le ha affidato (REQ-FLOTTA-018). La stessa regola delle
+// Functions (functions/lib/rilasci.js, daFlotta).
+export const aggiornaLaRegia = (istanza) => istanza?.origine !== 'esistente' || istanza?.aggiornamenti_dalla_regia === true
+const daFlotta = aggiornaLaRegia
 const licenzaDi = (r) => r.istanza?.licenza_stato || 'attiva'
 const eliminazioneFallita = (r) => r.istanza?.eliminazione?.stato === 'fallita'
 export const aggiornamentoFallito = (r) => daFlotta(r.istanza) && r.istanza?.aggiornamento?.stato === 'fallito'

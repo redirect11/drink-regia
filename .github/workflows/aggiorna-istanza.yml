@@ -47,6 +47,24 @@ on:
         type: choice
         options: [completo, leggero]
         default: completo
+      # Un locale esistente aggiornato dalla regia, come la Tana
+      # (REQ-FLOTTA-018): il suo progetto, la sua cartella in clienti/ e
+      # le chiavi pubbliche della build. Vuoti per i locali della flotta.
+      progetto:
+        description: 'Il progetto Firebase, se non è drinkpos-<slug> (un locale esistente)'
+        required: false
+        type: string
+        default: ''
+      cliente:
+        description: 'La cartella in clienti/ di tana-drink, se non è lo slug'
+        required: false
+        type: string
+        default: ''
+      build:
+        description: 'Le chiavi pubbliche della build, in JSON (VAPID, reCAPTCHA, Analytics)'
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -61,7 +79,10 @@ env:
   REF_APP: ${{ inputs.ref }}
   AMBIENTE: ${{ inputs.ambiente }}
   PROFILO: ${{ inputs.profilo }}
-  PROGETTO: drinkpos-${{ inputs.slug }}
+  PROGETTO: ${{ inputs.progetto || format('drinkpos-{0}', inputs.slug) }}
+  CLIENTE_APP: ${{ inputs.cliente || inputs.slug }}
+  BUILD_PUBBLICA: ${{ inputs.build }}
+  ESISTENTE: ${{ inputs.progetto != '' }}
   # I segreti che le Functions dell'app di tana-drink dichiarano
   # (defineSecret): contratto con tana-drink, docs/handover.md §7.
   SEGRETI_APP: SUMUP_API_KEY
@@ -79,6 +100,20 @@ jobs:
           [[ "$AMBIENTE" =~ ^(produzione|test)$ ]] || { echo "::error::ambiente non valido."; exit 1; }
           [[ "$PROFILO" =~ ^(completo|leggero)$ ]] || { echo "::error::profilo non valido."; exit 1; }
           if [ ${#NOME} -gt 80 ] || [[ "$NOME" =~ [[:cntrl:]] ]]; then echo "::error::Nome del locale non valido."; exit 1; fi
+          [[ "$PROGETTO" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]] || { echo "::error::progetto non valido."; exit 1; }
+          # I progetti della regia non sono mai un locale (functions/lib/esistente.js).
+          if [ "$PROGETTO" = "drink-regia" ] || [ "$PROGETTO" = "drink-regia-test" ]; then echo "::error::$PROGETTO è un progetto della regia."; exit 1; fi
+          [[ "$CLIENTE_APP" =~ ^[a-z][a-z0-9-]{1,29}$ ]] || { echo "::error::cartella del cliente non valida."; exit 1; }
+          # Solo le chiavi pubbliche previste, con valori semplici: arrivano
+          # nel .env della build, e non devono poterci scrivere altro.
+          node -e '
+            const t = process.env.BUILD_PUBBLICA || "";
+            if (!t) process.exit(0);
+            let j; try { j = JSON.parse(t) } catch { console.error("::error::build non è JSON."); process.exit(1) }
+            const ok = ["VITE_FIREBASE_MEASUREMENT_ID", "VITE_FIREBASE_VAPID_KEY", "VITE_RECAPTCHA_SITE_KEY"];
+            if (!j || typeof j !== "object" || Array.isArray(j)) { console.error("::error::build non è un oggetto."); process.exit(1) }
+            for (const [k, v] of Object.entries(j)) if (!ok.includes(k) || !/^[A-Za-z0-9_-]{1,200}$/.test(String(v))) { console.error("::error::chiave della build non valida: " + k); process.exit(1) }
+          '
 
       # APP DI PRODUZIONE (REQ-FLOTTA-009): un locale della regia di
       # produzione riceve solo rilasci — `main` o un tag `vX.Y.Z` — e la
@@ -128,6 +163,14 @@ jobs:
               exit 1
             fi
           fi
+          # Il ramo che l'app mostra accanto alla versione (vite.config.js di
+          # tana-drink lo prende da GIT_BRANCH, come fa il deploy della Tana):
+          # col checkout di un tag git non lo sa da sé.
+          git fetch --no-tags -q origin +refs/heads/main:refs/remotes/origin/main +refs/heads/develop:refs/remotes/origin/develop
+          if git merge-base --is-ancestor HEAD origin/main; then RAMO=main
+          elif git merge-base --is-ancestor HEAD origin/develop; then RAMO=develop
+          else RAMO="$REF_APP"; fi
+          echo "GIT_BRANCH=$RAMO" >> "$GITHUB_ENV"
 
       - uses: actions/setup-node@v4
         with:
@@ -159,8 +202,10 @@ jobs:
           terraform_version: '1.9.8'
           terraform_wrapper: false
 
+      # Un locale esistente non ha stato Terraform e non ne avrà: il suo
+      # progetto l'ha fatto chi lo gestiva prima (REQ-FLOTTA-018).
       - name: Il profilo completo nel progetto
-        if: env.PROFILO == 'completo'
+        if: env.PROFILO == 'completo' && env.ESISTENTE != 'true'
         working-directory: infra/istanza
         env:
           TFSTATE_BUCKET: ${{ vars.TFSTATE_BUCKET }}
@@ -216,27 +261,38 @@ jobs:
             const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
             const c = j.result?.sdkConfig || j.result || j;
             if (!c.projectId) { console.error("Config non trovata."); process.exit(1); }
-            const righe = [["VITE_FIREBASE_API_KEY", c.apiKey], ["VITE_FIREBASE_AUTH_DOMAIN", c.authDomain], ["VITE_FIREBASE_PROJECT_ID", c.projectId], ["VITE_FIREBASE_STORAGE_BUCKET", c.storageBucket || ""], ["VITE_FIREBASE_MESSAGING_SENDER_ID", c.messagingSenderId || ""], ["VITE_FIREBASE_APP_ID", c.appId]];
-            require("fs").writeFileSync(process.argv[2], righe.map(([k, v]) => `${k}=${v}`).join("\n") + "\n");
+            const righe = [["VITE_FIREBASE_API_KEY", c.apiKey], ["VITE_FIREBASE_AUTH_DOMAIN", c.authDomain], ["VITE_FIREBASE_PROJECT_ID", c.projectId], ["VITE_FIREBASE_STORAGE_BUCKET", c.storageBucket || ""], ["VITE_FIREBASE_MESSAGING_SENDER_ID", c.messagingSenderId || ""], ["VITE_FIREBASE_APP_ID", c.appId], ["VITE_FIREBASE_MEASUREMENT_ID", c.measurementId || ""]];
+            // Le chiavi pubbliche che il progetto non dice (REQ-FLOTTA-018),
+            // già controllate in «Input validi»: vincono su quelle di sopra.
+            const build = process.env.BUILD_PUBBLICA ? JSON.parse(process.env.BUILD_PUBBLICA) : {};
+            const tutte = Object.entries({ ...Object.fromEntries(righe), ...build });
+            require("fs").writeFileSync(process.argv[2], tutte.map(([k, v]) => `${k}=${v}`).join("\n") + "\n");
           ' "$RUNNER_TEMP/sdk.json" "$GITHUB_WORKSPACE/app/.env"
 
+      # La cartella c'è già per un cliente curato a mano (clienti/tana):
+      # genera-cliente.mjs allora non la tocca.
       - name: La cartella del cliente
         working-directory: app
-        run: node scripts/genera-cliente.mjs --slug "$SLUG" --nome "$NOME"
+        run: node scripts/genera-cliente.mjs --slug "$CLIENTE_APP" --nome "$NOME"
 
       - name: Build
         working-directory: app
         env:
           BASE_PATH: /
-          CLIENTE: ${{ inputs.slug }}
+          CLIENTE: ${{ inputs.cliente || inputs.slug }}
           VITE_APP_ENV: production
           # L'app sa di essere leggera anche prima di leggere la licenza
           # (tana-drink, REQ-LIC-004): niente Functions, Storage, SumUp.
           VITE_PROFILO: ${{ inputs.profilo }}
         run: npm run build
 
+      # Se tana-drink ha già il .env di quel progetto (la Tana: nome del
+      # locale e app id di SumUp) vale quello: riscriverlo col solo nome
+      # fermerebbe SumUp.
       - name: Functions .env del progetto
-        run: printf 'VENUE_NAME=%s\n' "$NOME" > "app/functions/.env.$PROGETTO"
+        run: |
+          if [ -f "app/functions/.env.$PROGETTO" ]; then echo "app/functions/.env.$PROGETTO c'è già: non lo tocco."; exit 0; fi
+          printf 'VENUE_NAME=%s\n' "$NOME" > "app/functions/.env.$PROGETTO"
 
       - name: Deploy regole, indici, Functions e hosting
         working-directory: app

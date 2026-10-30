@@ -265,6 +265,15 @@ export async function registraLocaleEsistente(dati) {
   return data
 }
 
+// Un locale esistente affidato alla regia per gli aggiornamenti, o
+// restituito al suo repository (REQ-FLOTTA-018).
+export async function impostaAggiornamentiEsistente(dati) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'impostaAggiornamentiEsistente')
+  const { data } = await fn(dati)
+  return data
+}
+
 // L'eliminazione di un locale (REQ-FLOTTA-014). Il titolare: «chiedi»
 // (chiude e programma a 30 giorni) e «annulla». L'admin: «chiedi» con
 // slug e subito, e «annulla». Si conferma col nome dell'app.

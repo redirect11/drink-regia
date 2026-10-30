@@ -23,6 +23,7 @@ import {
   impostaVendita,
   elencoContatti,
   segnaContatto,
+  impostaAggiornamentiEsistente,
 } from '../lib/db.js'
 import { venditaPulita } from '../lib/vendita.js'
 import { statoIstanza, statoDetto, STATI, progettoDi } from '../lib/istanze.js'
@@ -30,7 +31,7 @@ import { PIANI, MODULI, prezzoMensile, euro } from '../lib/piani.js'
 import { contattoDi } from '../lib/clienti.js'
 import { statoCredito, euroCent } from '../lib/ai.js'
 import { GRUPPI, TAG, aggiornamentoDetto } from '../lib/rilasci.js'
-import { BASE, SEZIONI, VISTE, aggiornamentoFallito, contiDelBackoffice, filtraLocali } from '../lib/backoffice.js'
+import { BASE, SEZIONI, VISTE, aggiornamentoFallito, aggiornaLaRegia, contiDelBackoffice, filtraLocali } from '../lib/backoffice.js'
 import Rilasci from './Rilasci.jsx'
 
 // IL BACKOFFICE (REQ-FLOTTA-005): tutti i clienti con piano, stato
@@ -416,9 +417,13 @@ function AzioniAggiornamento({ cliente: c, istanza, az }) {
 function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaAperto, onElimina, onFatto }) {
   const { cliente: c, istanza, stato, cassetto } = riga
   const credito = statoCredito(cassetto)
-  // Un locale registrato come esistente (la Tana) non passa per
-  // la flotta: da qui niente Aggiorna, Sospendi, Chiudi.
+  // Un locale registrato come esistente (la Tana) non passa per la
+  // flotta: da qui niente Sospendi e Chiudi, la licenza è del suo progetto.
+  // Gli aggiornamenti sì, se l'admin li ha affidati alla regia
+  // (REQ-FLOTTA-018).
   const daFlotta = istanza?.origine !== 'esistente'
+  const aggiornabile = aggiornaLaRegia(istanza)
+  const [gestioneAperta, setGestioneAperta] = useState(false)
   const licenza = istanza?.licenza_stato || 'attiva'
   const tono = licenza !== 'attiva' ? 'avviso' : TONO[stato] || 'neutro'
   const aiVisibile = credito || stato === STATI.ATTIVA
@@ -532,7 +537,7 @@ function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaApert
               Rilancia
             </button>
           )}
-          {daFlotta && stato === STATI.ATTIVA && (
+          {aggiornabile && stato === STATI.ATTIVA && (
             // «Aggiorna» da solo non diceva cosa fa (l'utente, 30/10/2026):
             // il testo accanto lo dice sempre, non solo al passaggio del mouse,
             // e il lettore di schermo lo legge col bottone (aria-describedby).
@@ -546,11 +551,28 @@ function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaApert
               </span>
             </>
           )}
-          {daFlotta && istanza?.aggiornamento?.stato === 'fallito' && <AzioniAggiornamento cliente={c} istanza={istanza} az={az} />}
+          {aggiornabile && istanza?.aggiornamento?.stato === 'fallito' && <AzioniAggiornamento cliente={c} istanza={istanza} az={az} />}
           <button type="button" className="btn ghost small" onClick={onCambia}>
             Cambia piano…
           </button>
+          {!daFlotta && (
+            <button type="button" className="btn ghost small" aria-expanded={gestioneAperta} onClick={() => setGestioneAperta((v) => !v)}>
+              Chi la pubblica…
+            </button>
+          )}
         </div>
+
+        {!daFlotta && gestioneAperta && (
+          <GestioneEsistente
+            cliente={c}
+            istanza={istanza}
+            onErrore={az.onErrore}
+            onFatto={() => {
+              setGestioneAperta(false)
+              az.carica()
+            }}
+          />
+        )}
 
         {aiVisibile && (
           <div className="gruppo-azioni" aria-label="Credito AI">
@@ -624,6 +646,67 @@ function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaApert
 // e le richieste di contatto dei titolari (REQ-FLOTTA-017). L'interruttore
 // del deploy automatico sta qui perché decide se le attivazioni passano di
 // qui o no.
+// CHI PUBBLICA UN LOCALE ESISTENTE (REQ-FLOTTA-018). Di norma il suo
+// repository (la Tana: il deploy di tana-drink). Affidato alla regia,
+// «Aggiorna subito» e i rilasci lo aggiornano come gli altri, sul suo
+// progetto; il deploy del suo repository resta possibile. Servono la
+// cartella in clienti/ di tana-drink e le chiavi pubbliche della build
+// che il progetto non dice da sé: senza, l'app partirebbe senza notifiche
+// e senza App Check.
+const CHIAVI_BUILD = [
+  ['VITE_FIREBASE_VAPID_KEY', 'Chiave VAPID delle notifiche'],
+  ['VITE_RECAPTCHA_SITE_KEY', 'Chiave reCAPTCHA di App Check'],
+  ['VITE_FIREBASE_MEASUREMENT_ID', 'Id di Analytics (se diverso da quello del progetto)'],
+]
+
+function GestioneEsistente({ cliente: c, istanza, onFatto, onErrore }) {
+  const [dallaRegia, setDallaRegia] = useState(istanza?.aggiornamenti_dalla_regia === true)
+  const [cartella, setCartella] = useState(istanza?.cliente || c.slug)
+  const [build, setBuild] = useState(() => Object.fromEntries(CHIAVI_BUILD.map(([k]) => [k, istanza?.build?.[k] || ''])))
+  const [inCorso, setInCorso] = useState(false)
+
+  const invia = async (e) => {
+    e.preventDefault()
+    setInCorso(true)
+    try {
+      await impostaAggiornamentiEsistente({ slug: c.slug, aggiornamenti_dalla_regia: dallaRegia, cliente: cartella.trim(), build })
+      onFatto()
+    } catch (err) {
+      onErrore(err.message)
+    } finally {
+      setInCorso(false)
+    }
+  }
+
+  return (
+    <form className="card" onSubmit={invia} aria-label={`Chi pubblica ${c.nome_locale}`}>
+      <h4>Chi pubblica {c.nome_locale}</h4>
+      <label className="riga">
+        <input type="checkbox" checked={dallaRegia} onChange={(e) => setDallaRegia(e.target.checked)} />
+        La aggiorna la regia, con «Aggiorna subito» e i rilasci
+      </label>
+      <p className="muted small">
+        Sul progetto {istanza?.progetto || '—'}. La pubblicazione dal suo repository resta possibile, e la licenza resta del suo progetto.
+      </p>
+      <label>
+        Cartella in clienti/ dell’app
+        <input value={cartella} onChange={(e) => setCartella(e.target.value)} required />
+      </label>
+      {CHIAVI_BUILD.map(([chiave, nome]) => (
+        <label key={chiave}>
+          {nome}
+          <input value={build[chiave]} onChange={(e) => setBuild((b) => ({ ...b, [chiave]: e.target.value }))} spellCheck={false} />
+        </label>
+      ))}
+      <div className="azioni">
+        <button type="submit" className="btn small" disabled={inCorso}>
+          {inCorso ? 'Salvo…' : 'Salva'}
+        </button>
+      </div>
+    </form>
+  )
+}
+
 function SezioneRichieste({ automatico, onAutomatico, daApprovare, contatti, onAutorizza, onRifiuta, onSegna }) {
   return (
     <>

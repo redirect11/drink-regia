@@ -739,3 +739,43 @@ requirements:
       - tests/SceltaPiano.test.jsx
       - tests/CreditoAI.test.jsx
       - tests/Backoffice.test.jsx
+  - id: REQ-FLOTTA-018
+    title: "La Tana si aggiorna dalla regia come gli altri locali, sul suo progetto, e resta pubblicabile da tana-drink"
+    area: "functions/lib/esistente.js (gestioneEsistente), functions/lib/rilasci.js (daFlotta), functions/lib/provisioning.js (dispatchAggiornamento), functions/index.js (lanciaAggiornamento, impostaAggiornamentiEsistente), .github/workflows/aggiorna-istanza.yml, src/lib/db.js"
+    description: >
+      «Se voglio per esempio fare modifiche a tana-drink però non passare
+      per il solito deploy ma aggiornare tramite il backoffice di regia,
+      come possiamo fare?» e, fra le due strade proposte, «io farei la A»
+      (l'utente, 30/10/2026): la Tana diventa un locale che la regia
+      aggiorna come gli altri. «Voglio sempre la possibilità di deployare
+      sulla Tana in produzione anche da GitHub»: il deploy di tana-drink
+      resta com'è, e la Tana di test continua a ricevere i tag di develop
+      da lì. Il codice nasce sempre in tana-drink e passa dalla sua CI;
+      la regia sceglie solo quale versione pubblicare, e dove.
+      Un locale registrato come esistente ha `aggiornamenti_dalla_regia`
+      (di norma false: pubblica da sé), `cliente` (la cartella in clienti/
+      di tana-drink: la Tana è `tana`) e `build`, le chiavi pubbliche che
+      il progetto non dice da sé (VAPID delle notifiche, reCAPTCHA di App
+      Check, Analytics), validate in regia e di nuovo nel workflow.
+      Affidato alla regia, entra nelle ondate (resta nell'«interna») e
+      «Aggiorna» lo lancia; aggiorna-istanza.yml pubblica sul suo progetto,
+      non tocca mai Terraform, non riscrive il .env delle Functions che
+      tana-drink ha già (l'app id di SumUp) e passa alla build il ramo
+      come il deploy della Tana. I progetti della regia non sono mai un
+      locale. La licenza resta del suo progetto (licenza_dalla_regia).
+      Nel backoffice, sulla scheda di un locale esistente, «Chi la
+      pubblica…» affida o restituisce gli aggiornamenti, con la cartella e
+      le chiavi; affidata, la scheda ha «Aggiorna subito» ma non Sospendi
+      e Chiudi. Resta da fare: i ruoli del provisioning sui progetti della
+      Tana (col permesso dell'utente) e la prova su tana-drink-test.
+    status: partial
+    generate_issue: false
+    labels: [prodotto, flotta, regia]
+    test_cases:
+      - tests/esistente.test.js
+      - tests/rilasci.test.js
+      - tests/provisioning.test.js
+      - tests/flotta.test.js
+      - tests/db.test.js
+      - tests/Backoffice.test.jsx
+

@@ -9,7 +9,8 @@
 //   1. prova     le istanze di prova (nostre, senza clienti veri);
 //   2. interna   le installazioni interne, come la Tana: se è un locale
 //                esistente si aggiorna dal suo repository, e qui si
-//                aspetta che riferisca la versione;
+//                aspetta che riferisca la versione; se l'admin l'ha
+//                affidato alla regia (REQ-FLOTTA-018) lo aggiorna la regia;
 //   3. pilota    i locali che hanno accettato di ricevere prima;
 //   4. generale  tutti gli altri.
 // Un'ondata parte solo quando l'admin la avvia e quella prima è finita
@@ -28,7 +29,9 @@ const APERTI = ['in corso', 'fermo']
 
 class RilascioNonValido extends Error {}
 
-const daFlotta = (ist) => ist?.origine !== 'esistente'
+// Chi aggiorna la regia: i locali della flotta, e un locale esistente
+// che l'admin le ha affidato (REQ-FLOTTA-018).
+const daFlotta = (ist) => ist?.origine !== 'esistente' || ist?.aggiornamenti_dalla_regia === true
 
 function ondataDi(ist) {
   if (ist?.interna === true || !daFlotta(ist)) return 'interna'
@@ -163,6 +166,7 @@ function versioneDiRitorno(ist) {
 }
 
 module.exports = {
+  daFlotta,
   TAG,
   ONDATE,
   GRUPPI,
