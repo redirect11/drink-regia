@@ -13,6 +13,11 @@ Leggi nell'ordine: questo file, [CLAUDE.md](../CLAUDE.md), [README.md](../README
 `docs/flotta.md` e `docs/architettura-prodotto.md` (solo per capire il
 quadro: lì non si lavora da questa sessione).
 
+Per un prodotto nuovo dell'azienda, con la sua regia (il disegno deciso il
+30/10/2026: Organizzazione col nome dell'azienda, vetrina, una regia per
+prodotto): [nuovo-prodotto.md](nuovo-prodotto.md) e la scheda
+[template-prodotto.md](template-prodotto.md).
+
 ---
 
 ## 1. Perimetro: cosa è tuo e cosa no
