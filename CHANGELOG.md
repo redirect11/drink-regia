@@ -6,6 +6,10 @@ data.
 
 ## 0.3.0 (in lavorazione)
 
+- La demo della prima pagina non scrive più nel suo database: la regia la
+  pubblica sempre leggera e con il database chiuso a tutti, e la build
+  della demo va solo sul suo progetto. I dati di prova e la sessione nel
+  browser arrivano con la modalità demo di tana-drink (REQ-FLOTTA-019).
 - Il backoffice è diviso in sezioni, con un sotto-menù: «Locali» (le schede,
   con la ricerca e la vista per stato), «Richieste» (deploy automatico,
   attivazioni da autorizzare, richieste di contatto), «Rilasci» (i rilasci a

@@ -79,7 +79,9 @@ describe.each(WORKFLOW)('%s', (_, w, corpo) => {
   // sito, e salta Storage e segreti: è quello che lo rende a costo zero.
   it('col profilo leggero solo regole e sito; Storage e segreti solo col completo', () => {
     expect(eventi(w).workflow_dispatch.inputs.profilo).toMatchObject({ type: 'choice', options: ['completo', 'leggero'], default: 'completo' })
-    expect(w.env.PROFILO).toBe('${{ inputs.profilo }}')
+    // La demo è sempre leggera (REQ-FLOTTA-019): solo nell'aggiornamento,
+    // perché drinkpos-demo non si attiva dalla regia.
+    expect(w.env.PROFILO).toBe(w === aggiorna ? "${{ inputs.progetto == 'drinkpos-demo' && 'leggero' || inputs.profilo }}" : '${{ inputs.profilo }}')
     expect(passi(w)[0].run).toContain('[[ "$PROFILO" =~ ^(completo|leggero)$ ]]')
     const deploy = passo(w, 'Deploy regole, indici, Functions e hosting').run
     expect(deploy).toContain('if [ "$PROFILO" = "leggero" ]; then SOLO=firestore,hosting; else SOLO=firestore,storage,functions,hosting; fi')
@@ -93,7 +95,7 @@ describe.each(WORKFLOW)('%s', (_, w, corpo) => {
     // L'aggiornamento può compilare per una cartella che non è lo slug
     // (la Tana è clienti/tana, REQ-FLOTTA-018); l'attivazione no.
     const cliente = w === aggiorna ? '${{ inputs.cliente || inputs.slug }}' : '${{ inputs.slug }}'
-    expect(passo(w, 'Build').env).toMatchObject({ CLIENTE: cliente, VITE_PROFILO: '${{ inputs.profilo }}' })
+    expect(passo(w, 'Build').env).toMatchObject({ CLIENTE: cliente, VITE_PROFILO: '${{ env.PROFILO }}' })
   })
 
   // Le Functions dell'app dichiarano dei segreti, e Firebase non le
@@ -233,6 +235,35 @@ describe('aggiorna-istanza.yml: un locale esistente, come la Tana', () => {
     const run = passo(aggiorna, 'Functions .env del progetto').run
     expect(run).toMatch(/^if \[ -f "app\/functions\/\.env\.\$PROGETTO" \]; then[^\n]*exit 0; fi\n/)
     expect(run).toContain(`printf 'VENUE_NAME=%s\\n' "$NOME" > "app/functions/.env.$PROGETTO"`)
+  })
+})
+
+// LA DEMO PUBBLICA (REQ-FLOTTA-019): la si apre dalla prima pagina, quindi
+// chiunque. La build della demo non usa il database; qui la regia si
+// assicura che il database di drinkpos-demo resti chiuso e che la build
+// della demo e il suo progetto non si mescolino con quelli di un locale.
+describe('aggiorna-istanza.yml: la demo', () => {
+  it('la build della demo solo su drinkpos-demo, e drinkpos-demo solo con quella', () => {
+    const run = passo(aggiorna, 'Input validi').run
+    expect(run).toMatch(/if \[ "\$PROGETTO" = "drinkpos-demo" \] && \[ "\$CLIENTE_APP" != "demo" \]; then[^\n]*exit 1; fi/)
+    expect(run).toMatch(/if \[ "\$CLIENTE_APP" = "demo" \] && \[ "\$PROGETTO" != "drinkpos-demo" \]; then[^\n]*exit 1; fi/)
+  })
+
+  it('sempre col profilo leggero: niente Functions, Storage, segreti né Terraform', () => {
+    expect(aggiorna.env.PROFILO).toBe("${{ inputs.progetto == 'drinkpos-demo' && 'leggero' || inputs.profilo }}")
+    // La build sa lo stesso profilo che si pubblica.
+    expect(passo(aggiorna, 'Build').env.VITE_PROFILO).toBe('${{ env.PROFILO }}')
+  })
+
+  it('il database chiuso a tutti, pubblicato al posto delle regole dell’app, prima del deploy', () => {
+    const regole = passo(aggiorna, 'Le regole della demo')
+    expect(regole.if).toBe("env.PROGETTO == 'drinkpos-demo'")
+    expect(regole.run).toBe('cp infra/demo/firestore.rules app/firestore.rules')
+    const nomi = passi(aggiorna).map((s) => s.name)
+    expect(nomi.indexOf('Le regole della demo')).toBe(nomi.indexOf('Deploy regole, indici, Functions e hosting') - 1)
+    const testo = leggi('infra/demo/firestore.rules').replace(/\/\/.*$/gm, '')
+    expect(testo).toMatch(/match \/\{documento=\*\*\} \{\s*allow read, write: if false;\s*\}/)
+    expect(testo.match(/allow /g)).toHaveLength(1)
   })
 })
 
