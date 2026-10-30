@@ -70,7 +70,14 @@ L'app su un profilo leggero deve:
   serve**. Se serve, va detto alla regia: il profilo leggero va rivisto.
 
 Come capisce l'app di essere leggera: `licenza.piano === 'free'`, oppure
-una variabile di build che la regia può passare, se a tana-drink serve.
+la variabile di build `VITE_PROFILO=leggero`, che la regia passa a ogni
+build dei workflow delle istanze (`VITE_PROFILO` = il profilo).
+
+**Fatto in tana-drink il 30/10/2026** (PR #239 e #240, REQ-LIC-003,
+REQ-LIC-004). Una cosa da sapere: con un solo terminale
+`risolviNumeroDuplicato` non serve, ma se il titolare apre l'app su due
+dispositivi insieme può capitare, di rado, un numero del giorno doppio che
+nessuno corregge. Non rompe i conti.
 
 Quando il locale compra, la regia toglie i limiti dalla licenza e
 ripubblica il progetto col profilo completo (Functions, Storage, segreti):

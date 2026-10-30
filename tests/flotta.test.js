@@ -85,6 +85,12 @@ describe.each(WORKFLOW)('%s', (_, w, corpo) => {
     expect(passo(w, 'Esito alla regia').run).toContain('profilo: process.env.PROFILO || null')
   })
 
+  // tana-drink, REQ-LIC-004 (30/10/2026): l'app sa di essere leggera già
+  // dalla build, prima di leggere la licenza.
+  it('la build dice il profilo all’app', () => {
+    expect(passo(w, 'Build').env).toMatchObject({ CLIENTE: '${{ inputs.slug }}', VITE_PROFILO: '${{ inputs.profilo }}' })
+  })
+
   // Le Functions dell'app dichiarano dei segreti, e Firebase non le
   // pubblica se ne manca uno (la prima attivazione di prova, SUMUP_API_KEY).
   it('i segreti dichiarati dall’app si creano prima del deploy', () => {
@@ -230,7 +236,7 @@ describe('le Functions lanciano i workflow della regia', () => {
 
   // 30/10/2026: il test segue develop, anche nei workflow della flotta.
   it('la regia di test lancia i workflow da develop, la produzione da main', () => {
-    expect(env('functions/.env.drink-regia-test')).toMatchObject({ FLOTTA_REF: 'develop', FLOTTA_AMBIENTE: 'test' })
+    expect(env('functions/.env.drink-regia-test')).toMatchObject({ FLOTTA_REF: 'develop', APP_REF: 'develop', FLOTTA_AMBIENTE: 'test' })
     expect(env('functions/.env.drink-regia').FLOTTA_REF ?? env('functions/.env').FLOTTA_REF).toBe('main')
   })
 
