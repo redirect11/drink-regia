@@ -274,6 +274,22 @@ input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--
    colorato, poi i dati in una griglia che va a capo da sola, in fondo le
    azioni a gruppi: Sospendi e Chiudi a destra, lontano dalle altre. ── */
 .pagina.larga { max-width: 1200px; }
+/* ── Il sotto-menù del backoffice (REQ-FLOTTA-005; l'utente, 30/10/2026:
+   «Così è tutto troppo caotico»). Una riga di voci che sul telefono scorre
+   di lato dentro sé stessa: la pagina non scorre mai in orizzontale. La
+   voce attiva ha la riga oro; il contatore dice che dietro c'è da fare. ── */
+.sotto-menu { display: flex; gap: 4px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; border-bottom: 1px solid var(--line); margin: 8px 0 16px; }
+.sotto-menu a { flex: none; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; color: var(--muted); text-decoration: none; white-space: nowrap; border-bottom: 2px solid transparent; }
+.sotto-menu a:hover { color: var(--text); }
+.sotto-menu a[aria-current='page'] { color: var(--accent-2); border-bottom-color: var(--accent); }
+.conta { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--accent); color: #1a1a1a; font-size: 0.75rem; font-weight: 700; }
+.bo-sezione { display: grid; gap: 12px; }
+.bo-sezione > * { min-width: 0; }
+.filtri-locali { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; }
+@media (max-width: 560px) { .filtri-locali { grid-template-columns: 1fr; } }
+.bo-sezione .locali { margin-top: 0; }
+/* Cosa fa «Aggiorna subito», accanto al bottone e sempre visibile. */
+.spiega-azione { flex: 1 1 16rem; }
 .locali { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 12px; }
 .locale { background: var(--bg-2); border: 1px solid var(--line); border-left: 3px solid var(--line); border-radius: var(--raggio); padding: 16px 18px; display: grid; gap: 14px; }
 .locale.tono-ok { border-left-color: #5fd3a1; }

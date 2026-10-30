@@ -241,7 +241,8 @@ src/pages/Registrati.jsx    registrazione a 4 passi (locale, fatturazione, refer
 src/pages/Accedi.jsx        email e password; recupero password
 src/pages/Dashboard.jsx     il titolare: locale, piano, stato dell'istanza, attivazione, cambio piano
 src/pages/SceltaPiano.jsx   piano, moduli, terminali, totale mensile
-src/pages/Backoffice.jsx    admin: clienti, richieste, istanze, deploy automatico, Nuovo locale
+src/pages/Backoffice.jsx    admin, in sezioni sotto /backoffice/*: locali, richieste, rilasci, vendita, nuovo locale
+src/lib/backoffice.js       le sezioni del backoffice, i contatori del sotto-menù, i filtri dei locali
 src/pages/Legali.jsx        Termini e Privacy (struttura con segnaposto TITOLARE)
 src/lib/prodotto.js         nome, slogan, dominio, URL demo, email contatti (segnaposto)
 src/lib/piani.js            listino da functions/piani.json: prezzoMensile, moduliDellaScelta, euro

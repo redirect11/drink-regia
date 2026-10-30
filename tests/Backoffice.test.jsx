@@ -4,11 +4,19 @@
 // IL BACKOFFICE (REQ-FLOTTA-005): tutti i clienti con piano, stato,
 // progetto e versione; quello che chiede attenzione sta in cima; da qui si
 // rilancia un'attivazione fallita e si segna un piano a mano.
+//
+// Dal 30/10/2026 il backoffice è diviso in sezioni con un sotto-menù
+// (l'utente: «puoi separare le varie sezioni del backoffice magari in sotto
+// menu? Così è tutto troppo caotico»). I test di prima restano gli stessi
+// nella sostanza; cambia solo l'indirizzo da cui partono: ognuno apre la
+// sezione dove la cosa ora sta (mostra('/backoffice/…')), e «Nuovo locale» e
+// «Locale esistente» non si aprono più con un bottone, sono la sezione
+// «Nuovo locale».
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import '@testing-library/jest-dom/vitest'
 
 const db = vi.hoisted(() => ({
@@ -47,10 +55,19 @@ vi.mock('../src/lib/db.js', () => db)
 import Backoffice from '../src/pages/Backoffice.jsx'
 
 const FUTURO = { v7_startTransition: true, v7_relativeSplatPath: true }
-const mostra = () =>
+// Dove si è arrivati, per i test delle rotte.
+function Dove() {
+  const { pathname, search } = useLocation()
+  return <output data-testid="dove">{pathname + search}</output>
+}
+// Come in App.jsx: il backoffice risponde a /backoffice e alle sue sotto-rotte.
+const mostra = (percorso = '/backoffice/locali') =>
   render(
-    <MemoryRouter future={FUTURO}>
-      <Backoffice />
+    <MemoryRouter initialEntries={[percorso]} future={FUTURO}>
+      <Routes>
+        <Route path="/backoffice/*" element={<Backoffice />} />
+      </Routes>
+      <Dove />
     </MemoryRouter>
   )
 
@@ -112,7 +129,7 @@ describe('il backoffice', () => {
     expect(within(attivo).getByRole('link', { name: /Apri l’app/ })).toHaveAttribute('href', 'https://drinkpos-bar-attivo.web.app')
     const licenza = within(attivo).getByLabelText('Licenza')
     expect(within(licenza).getByRole('button', { name: 'Sospendi' })).toBeInTheDocument()
-    expect(within(licenza).queryByRole('button', { name: 'Aggiorna' })).toBeNull()
+    expect(within(licenza).queryByRole('button', { name: /Aggiorna/ })).toBeNull()
   })
 
   it('una sospesa lo dice col motivo e si riattiva', async () => {
@@ -128,12 +145,14 @@ describe('il backoffice', () => {
 
   // REQ-FLOTTA-009: l'app di base è tana-drink; un aggiornamento si porta
   // a un locale solo con «Aggiorna». A tutti ci arriva a ondate
-  // (REQ-FLOTTA-012): «Aggiorna tutte» non c'è più.
+  // (REQ-FLOTTA-012): «Aggiorna tutte» non c'è più. Dal 30/10/2026 il
+  // bottone si chiama «Aggiorna subito» e dice accanto cosa fa (sotto,
+  // «il bottone Aggiorna dice cosa fa»).
   it('«Aggiorna» porta l’ultima versione a un locale; a tutti si arriva solo con un rilascio', async () => {
     const user = userEvent.setup()
     mostra()
     const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
-    await user.click(within(attivo).getByRole('button', { name: 'Aggiorna' }))
+    await user.click(within(attivo).getByRole('button', { name: 'Aggiorna subito' }))
     expect(db.aggiornaIstanza).toHaveBeenCalledWith('bar-attivo')
     expect(screen.queryByRole('button', { name: /Aggiorna tutte/ })).toBeNull()
   })
@@ -170,9 +189,10 @@ describe('il backoffice', () => {
 
 // REQ-FLOTTA-011: l'admin governa i deploy e crea locali da sé.
 describe('il backoffice governa i deploy', () => {
+  // Interruttore e richieste da autorizzare stanno in «Richieste» (30/10/2026).
   it('l’interruttore del deploy automatico è acceso di partenza e si spegne', async () => {
     const user = userEvent.setup()
-    mostra()
+    mostra('/backoffice/richieste')
     const interruttore = await screen.findByLabelText('Deploy automatico')
     expect(interruttore).toBeChecked()
     await user.click(interruttore)
@@ -183,7 +203,7 @@ describe('il backoffice governa i deploy', () => {
     const user = userEvent.setup()
     regia.impostazioni = { deploy_automatico: false }
     db.elencoRichieste.mockResolvedValue({ 'bar-nuovo': { stato: 'da approvare', piano: 'base', chiesta_il: '2026-10-22T10:00:00Z' } })
-    mostra()
+    mostra('/backoffice/richieste')
     const sezione = await screen.findByRole('region', { name: 'Richieste da autorizzare' })
     expect(sezione).toHaveTextContent(/Bar Nuovo/)
     expect(screen.getByText(/aspettano la tua autorizzazione/)).toBeInTheDocument()
@@ -194,11 +214,12 @@ describe('il backoffice governa i deploy', () => {
     expect(db.rifiutaRichiesta).toHaveBeenCalledWith('bar-nuovo', 'dati incompleti')
   })
 
+  // Il modulo è la sezione «Nuovo locale»: niente bottone per aprirlo; fatto,
+  // si torna all'elenco dei locali (30/10/2026).
   it('«Nuovo locale» crea il cliente con piano, moduli e attivazione subito', async () => {
     const user = userEvent.setup()
-    mostra()
-    await user.click(await screen.findByRole('button', { name: 'Nuovo locale' }))
-    const modulo = screen.getByRole('form', { name: 'Nuovo locale' })
+    mostra('/backoffice/nuovo')
+    const modulo = await screen.findByRole('form', { name: 'Nuovo locale' })
     await user.type(within(modulo).getByLabelText('Nome del locale'), 'Bar Creato')
     await user.type(within(modulo).getByLabelText('Email del titolare'), 'creato@example.it')
     await user.click(within(modulo).getByLabelText(/Personale e ore/))
@@ -211,6 +232,7 @@ describe('il backoffice governa i deploy', () => {
       terminali: 1,
       attiva_subito: true,
     })
+    await waitFor(() => expect(screen.getByTestId('dove')).toHaveTextContent('/backoffice/locali'))
   })
 })
 
@@ -253,9 +275,8 @@ describe('il backoffice e il credito AI', () => {
 
   it('«Locale esistente» registra la Tana senza provisioning', async () => {
     const user = userEvent.setup()
-    mostra()
-    await user.click(await screen.findByRole('button', { name: 'Locale esistente' }))
-    const modulo = screen.getByRole('form', { name: 'Locale esistente' })
+    mostra('/backoffice/nuovo')
+    const modulo = await screen.findByRole('form', { name: 'Locale esistente' })
     await user.type(within(modulo).getByLabelText('Nome del locale'), 'La Tana del Coniglio')
     await user.type(within(modulo).getByLabelText('Identificativo'), 'tana-drink')
     await user.type(within(modulo).getByLabelText('Email del titolare'), 'tana@example.it')
@@ -286,7 +307,7 @@ describe('il backoffice e il credito AI', () => {
     mostra()
     const tana = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('La Tana'))
     expect(tana).toHaveTextContent('interna · esistente')
-    expect(within(tana).queryByRole('button', { name: 'Aggiorna' })).toBeNull()
+    expect(within(tana).queryByRole('button', { name: /Aggiorna/ })).toBeNull()
     expect(within(tana).queryByRole('button', { name: 'Sospendi' })).toBeNull()
     expect(within(tana).getByRole('button', { name: 'Ricarica AI' })).toBeInTheDocument()
     // Né un gruppo di rilascio: la Tana è sempre nell'ondata delle interne.
@@ -322,7 +343,7 @@ describe('i rilasci a ondate nel backoffice', () => {
     const user = userEvent.setup()
     vi.spyOn(window, 'prompt').mockReturnValueOnce('main').mockReturnValueOnce('v1.11.0')
     vi.spyOn(window, 'alert').mockImplementation(() => {})
-    mostra()
+    mostra('/backoffice/rilasci')
     const riquadro = await screen.findByRole('region', { name: 'Rilasci' })
     await user.click(within(riquadro).getByRole('button', { name: 'Nuovo rilascio' }))
     // «main» cambia fra un'ondata e l'altra: non è un rilascio.
@@ -336,7 +357,7 @@ describe('i rilasci a ondate nel backoffice', () => {
     const user = userEvent.setup()
     db.elencoRilasci.mockResolvedValue([rilascio()])
     vi.spyOn(window, 'confirm').mockReturnValue(true)
-    mostra()
+    mostra('/backoffice/rilasci')
     const riquadro = await screen.findByRole('region', { name: 'Rilasci' })
     expect(await within(riquadro).findByText('v1.11.0')).toBeInTheDocument()
     expect(riquadro).toHaveTextContent('Istanze di prova')
@@ -356,7 +377,7 @@ describe('i rilasci a ondate nel backoffice', () => {
         perche_fermo: 'Nell’ondata «prova» ci sono aggiornamenti falliti: riprova o torna alla versione di prima.',
       }),
     ])
-    mostra()
+    mostra('/backoffice/rilasci')
     const riquadro = await screen.findByRole('region', { name: 'Rilasci' })
     expect(await within(riquadro).findByText(/Aggiornamento fallito: bar-prova/)).toBeInTheDocument()
     expect(riquadro).toHaveTextContent('riprova o torna alla versione di prima')
@@ -439,7 +460,7 @@ describe('la vendita nel backoffice', () => {
   it('il Free parte spento; accenderlo e togliere un modulo scrivono la vendita', async () => {
     const user = userEvent.setup()
     regia.vendita = { free: false, moduli: { menu_tavoli: true, ordini_cliente: true, clienti: true, magazzino: true, statistiche: true, staff: true, sumup: true } }
-    mostra()
+    mostra('/backoffice/vendita')
     const vendita = await screen.findByRole('region', { name: 'Vendita' })
     const free = within(vendita).getByLabelText('Piano Free in vendita')
     expect(free).not.toBeChecked()
@@ -457,7 +478,7 @@ describe('le prove nel backoffice', () => {
   it('i giorni di prova si scrivono uscendo dal campo, e si puliscono', async () => {
     const user = userEvent.setup()
     regia.vendita = { free: false, moduli: {}, prove: { magazzino: 0 } }
-    mostra()
+    mostra('/backoffice/vendita')
     const vendita = await screen.findByRole('region', { name: 'Vendita' })
     const giorni = within(vendita).getByLabelText('Giorni di prova di Magazzino e fornitori')
     await user.clear(giorni)
@@ -474,7 +495,7 @@ describe('i pagamenti online e le richieste di contatto', () => {
   it('l’interruttore dei pagamenti online scrive la vendita e dice cosa succede', async () => {
     const user = userEvent.setup()
     regia.vendita = { free: false, moduli: {} }
-    mostra()
+    mostra('/backoffice/vendita')
     const vendita = await screen.findByRole('region', { name: 'Vendita' })
     const pagamenti = within(vendita).getByLabelText('Pagamenti online con Stripe')
     expect(pagamenti).not.toBeChecked()
@@ -489,7 +510,7 @@ describe('i pagamenti online e le richieste di contatto', () => {
       { uid: 'u9', email: 'bar@example.com', nome_locale: 'Bar Nove', telefono: '+39 333 1234567', nota: 'Di mattina', scelta: { piano: 'base', moduli: ['staff'], terminali: 2 }, stato: 'aperta', chiesta_il: '2026-10-30T10:00:00.000Z' },
       { uid: 'u8', email: 'otto@example.com', scelta: { piano: 'completo', moduli: [], terminali: 1 }, stato: 'gestita', chiesta_il: '2026-10-29T10:00:00.000Z', gestita_il: '2026-10-29T12:00:00.000Z' },
     ]
-    mostra()
+    mostra('/backoffice/richieste')
     const sezione = await screen.findByRole('region', { name: 'Richieste di contatto' })
     expect(sezione).toHaveTextContent('1 da gestire')
     expect(sezione).toHaveTextContent('Bar Nove')
@@ -501,5 +522,231 @@ describe('i pagamenti online e le richieste di contatto', () => {
     await user.click(within(sezione).getByRole('button', { name: 'Riapri' }))
     expect(db.segnaContatto).toHaveBeenCalledWith('u8', 'aperta')
     regia.contatti = []
+  })
+})
+
+// LE SEZIONI (REQ-FLOTTA-005, l'utente, 30/10/2026: «puoi separare le varie
+// sezioni del backoffice magari in sotto menu? Così è tutto troppo
+// caotico»). Un sotto-menù con cinque voci, ognuna col suo indirizzo; i dati
+// si leggono una volta; un contatore sulle voci dove c'è da fare.
+describe('le sezioni del backoffice', () => {
+  const menu = async () => screen.findByRole('navigation', { name: 'Sezioni del backoffice' })
+
+  it('il sotto-menù ha cinque voci, ognuna col suo indirizzo, e /backoffice porta a «Locali»', async () => {
+    mostra('/backoffice')
+    const nav = await menu()
+    const voci = within(nav).getAllByRole('link')
+    // Il primo nodo è il nome della voce; dopo, se c'è, il contatore.
+    expect(voci.map((v) => [v.firstChild.textContent, v.getAttribute('href')])).toEqual([
+      ['Locali', '/backoffice/locali'],
+      ['Richieste', '/backoffice/richieste'],
+      ['Rilasci', '/backoffice/rilasci'],
+      ['Vendita', '/backoffice/vendita'],
+      ['Nuovo locale', '/backoffice/nuovo'],
+    ])
+    await waitFor(() => expect(screen.getByTestId('dove')).toHaveTextContent('/backoffice/locali'))
+    expect(within(nav).getByRole('link', { name: /^Locali/ })).toHaveAttribute('aria-current', 'page')
+    expect(within(nav).getByRole('link', { name: 'Rilasci' })).not.toHaveAttribute('aria-current')
+    expect(await screen.findAllByRole('article')).toHaveLength(3)
+  })
+
+  it('ogni voce apre la sua sezione e solo quella; i dati non si rileggono', async () => {
+    const user = userEvent.setup()
+    mostra()
+    const nav = await menu()
+    await screen.findAllByRole('article')
+    // In «Locali» non ci sono vendita, rilasci, moduli di creazione.
+    expect(screen.queryByRole('region', { name: 'Vendita' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Rilasci' })).toBeNull()
+    expect(screen.queryByRole('form', { name: 'Nuovo locale' })).toBeNull()
+
+    await user.click(within(nav).getByRole('link', { name: 'Rilasci' }))
+    expect(screen.getByTestId('dove')).toHaveTextContent('/backoffice/rilasci')
+    expect(within(nav).getByRole('link', { name: 'Rilasci' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('region', { name: 'Rilasci' })).toBeInTheDocument()
+    expect(screen.queryAllByRole('article')).toHaveLength(0)
+
+    await user.click(within(nav).getByRole('link', { name: 'Vendita' }))
+    expect(screen.getByRole('region', { name: 'Vendita' })).toBeInTheDocument()
+    await user.click(within(nav).getByRole('link', { name: 'Richieste' }))
+    expect(screen.getByLabelText('Deploy automatico')).toBeInTheDocument()
+    expect(screen.getByText('Nessuna attivazione da autorizzare.')).toBeInTheDocument()
+    expect(screen.getByText('Nessuna richiesta di contatto.')).toBeInTheDocument()
+    await user.click(within(nav).getByRole('link', { name: 'Nuovo locale' }))
+    expect(screen.getByRole('form', { name: 'Nuovo locale' })).toBeInTheDocument()
+    expect(screen.getByRole('form', { name: 'Locale esistente' })).toBeInTheDocument()
+
+    expect(db.elencoClienti).toHaveBeenCalledTimes(1)
+    expect(db.elencoContatti).toHaveBeenCalledTimes(1)
+  })
+
+  it('un indirizzo che non c’è porta a «Locali»', async () => {
+    mostra('/backoffice/boh')
+    await screen.findAllByRole('article')
+    expect(screen.getByTestId('dove')).toHaveTextContent('/backoffice/locali')
+  })
+
+  it('un errore resta nella sezione in cui è nato', async () => {
+    const user = userEvent.setup()
+    db.aggiornaIstanza.mockRejectedValueOnce(new Error('GitHub 500'))
+    mostra()
+    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
+    await user.click(within(attivo).getByRole('button', { name: 'Aggiorna subito' }))
+    expect(await screen.findByText('GitHub 500')).toBeInTheDocument()
+    await user.click(within(await menu()).getByRole('link', { name: 'Vendita' }))
+    expect(screen.queryByText('GitHub 500')).toBeNull()
+  })
+
+  it('senza niente da fare le voci non hanno contatori', async () => {
+    db.elencoIstanze.mockResolvedValue({ 'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo' } })
+    mostra()
+    const nav = await menu()
+    await screen.findAllByRole('article')
+    expect(nav.querySelectorAll('.conta')).toHaveLength(0)
+  })
+
+  it('i contatori: attivazioni fallite in «Locali», da autorizzare e contatti aperti in «Richieste», aggiornamenti falliti in «Rilasci»', async () => {
+    db.elencoIstanze.mockResolvedValue({
+      'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', aggiornamento: { ref: 'v1.11.0', stato: 'fallito', versione_precedente: 'v1.10.0' } },
+      'bar-rotto': { stato: 'errore', errore: 'quota progetti' },
+    })
+    db.elencoRichieste.mockResolvedValue({ 'bar-nuovo': { stato: 'da approvare', piano: 'base' } })
+    regia.contatti = [
+      { uid: 'u9', email: 'nove@example.com', scelta: { piano: 'base' }, stato: 'aperta', chiesta_il: '2026-10-30T10:00:00.000Z' },
+      { uid: 'u8', email: 'otto@example.com', scelta: { piano: 'base' }, stato: 'gestita', chiesta_il: '2026-10-29T10:00:00.000Z' },
+    ]
+    mostra()
+    const nav = await menu()
+    expect(await within(nav).findByRole('link', { name: /^Richieste\s*, 2 da gestire$/ })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: /^Locali\s*, 1 da gestire$/ })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: /^Rilasci\s*, 1 da gestire$/ })).toBeInTheDocument()
+    // Il numero si vede; la frase intera è per chi usa un lettore di schermo.
+    expect(within(within(nav).getByRole('link', { name: /^Richieste/ })).getByText('2')).toHaveAttribute('aria-hidden', 'true')
+    expect(within(nav).getByRole('link', { name: 'Vendita' })).toBeInTheDocument()
+    regia.contatti = []
+  })
+
+  it('in «Rilasci» gli aggiornamenti falliti stanno tutti insieme, e si riprovano da lì', async () => {
+    const user = userEvent.setup()
+    db.elencoIstanze.mockResolvedValue({
+      'bar-attivo': {
+        stato: 'attiva',
+        progetto: 'drinkpos-bar-attivo',
+        aggiornamento: { ref: 'v1.11.0', stato: 'fallito', errore: 'deploy interrotto', versione_precedente: 'v1.10.0' },
+      },
+    })
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    mostra('/backoffice/rilasci')
+    const falliti = await screen.findByRole('region', { name: 'Aggiornamenti falliti' })
+    expect(falliti).toHaveTextContent('Bar Attivo')
+    expect(falliti).toHaveTextContent('aggiornamento a v1.11.0 fallito: deploy interrotto')
+    // Fuori da un rilascio, «Riprova» rilancia lo stesso ref su quel locale.
+    await user.click(within(falliti).getByRole('button', { name: 'Riprova' }))
+    expect(db.aggiornaIstanza).toHaveBeenCalledWith('bar-attivo', 'v1.11.0')
+    await user.click(within(falliti).getByRole('button', { name: 'Torna a v1.10.0' }))
+    expect(db.gestisciRilascio).toHaveBeenCalledWith('indietro', { slug: 'bar-attivo' })
+  })
+
+  it('senza aggiornamenti falliti «Rilasci» non ne mostra l’elenco', async () => {
+    mostra('/backoffice/rilasci')
+    await screen.findByRole('region', { name: 'Rilasci' })
+    expect(screen.queryByRole('region', { name: 'Aggiornamenti falliti' })).toBeNull()
+  })
+})
+
+// L'ELENCO DEI LOCALI si cerca e si filtra per stato; i filtri stanno
+// nell'indirizzo, così un elenco filtrato si condivide.
+describe('cercare e filtrare i locali', () => {
+  const nomi = () => screen.queryAllByRole('article').map((a) => within(a).getByRole('heading').textContent)
+
+  it('la ricerca trova per nome, identificativo o email, e finisce nell’indirizzo', async () => {
+    const user = userEvent.setup()
+    mostra()
+    await screen.findAllByRole('article')
+    expect(screen.getByTestId('quanti-locali')).toHaveTextContent('3 locali')
+    await user.type(screen.getByRole('searchbox', { name: 'Cerca' }), 'rotto')
+    expect(nomi()).toEqual(['Bar Rotto'])
+    expect(screen.getByTestId('quanti-locali')).toHaveTextContent('1 di 3 locali')
+    expect(screen.getByTestId('dove')).toHaveTextContent('/backoffice/locali?cerca=rotto')
+    await user.clear(screen.getByRole('searchbox', { name: 'Cerca' }))
+    await user.type(screen.getByRole('searchbox', { name: 'Cerca' }), 'c@x.it')
+    expect(nomi()).toEqual(['Bar Nuovo'])
+    await user.clear(screen.getByRole('searchbox', { name: 'Cerca' }))
+    expect(nomi()).toHaveLength(3)
+    expect(screen.getByTestId('dove').textContent).toBe('/backoffice/locali')
+  })
+
+  it('la vista per stato conta i locali e li filtra', async () => {
+    const user = userEvent.setup()
+    mostra()
+    await screen.findAllByRole('article')
+    const vista = screen.getByRole('combobox', { name: 'Stato' })
+    expect(within(vista).getByRole('option', { name: 'Da seguire (1)' })).toBeInTheDocument()
+    expect(within(vista).getByRole('option', { name: 'In attivazione (1)' })).toBeInTheDocument()
+    await user.selectOptions(vista, 'attivi')
+    expect(nomi()).toEqual(['Bar Attivo'])
+    expect(screen.getByTestId('dove')).toHaveTextContent('/backoffice/locali?vista=attivi')
+    await user.selectOptions(vista, 'eliminati')
+    expect(screen.getByText('Nessun locale con questi filtri.')).toBeInTheDocument()
+    await user.selectOptions(vista, 'tutti')
+    expect(nomi()).toHaveLength(3)
+  })
+
+  it('un link con la vista apre l’elenco già filtrato; una vista sconosciuta mostra tutti', async () => {
+    db.elencoIstanze.mockResolvedValue({
+      'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', licenza_stato: 'sospesa' },
+      'bar-rotto': { stato: 'errore' },
+    })
+    const { unmount } = mostra('/backoffice/locali?vista=fermi')
+    await screen.findByRole('combobox', { name: 'Stato' })
+    expect(nomi()).toEqual(['Bar Attivo'])
+    unmount()
+    mostra('/backoffice/locali?vista=boh')
+    await screen.findAllByRole('article')
+    expect(nomi()).toHaveLength(3)
+    expect(screen.getByRole('combobox', { name: 'Stato' })).toHaveValue('tutti')
+  })
+
+  it('senza clienti lo dice', async () => {
+    db.elencoClienti.mockResolvedValue([])
+    mostra()
+    expect(await screen.findByText('Nessun cliente.')).toBeInTheDocument()
+  })
+})
+
+// «AGGIORNA» DICE COSA FA (l'utente, 30/10/2026: oggi non dice cosa fa).
+// Lancia aggiornaIstanza, che porta a quel locale solo la versione
+// dell'app scelta dalla regia (APP_REF): una correzione urgente; a tutti un
+// rilascio arriva a ondate da «Rilasci». Il testo sta accanto al bottone,
+// sempre visibile, e l'esito dice il ref che la Function restituisce.
+describe('il bottone Aggiorna dice cosa fa', () => {
+  it('accanto al bottone c’è cosa fa, ed è la sua descrizione per chi usa un lettore di schermo', async () => {
+    mostra()
+    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
+    const tasto = within(attivo).getByRole('button', { name: 'Aggiorna subito' })
+    expect(tasto).toHaveAccessibleDescription(/solo questo locale, all’ultima versione dell’app, per una correzione urgente/)
+    expect(tasto).toHaveAccessibleDescription(/A tutti i locali la porta un rilascio, a ondate/)
+    expect(within(attivo).getByRole('link', { name: 'Rilasci' })).toHaveAttribute('href', '/backoffice/rilasci')
+    // Il nome del ramo non è scritto nella pagina: lo decide la Function.
+    expect(attivo).not.toHaveTextContent(/\bdevelop\b/)
+  })
+
+  it('l’esito dice il ref che la Function ha lanciato', async () => {
+    const user = userEvent.setup()
+    db.aggiornaIstanza.mockResolvedValueOnce({ ok: true, ref: 'develop' })
+    mostra()
+    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
+    await user.click(within(attivo).getByRole('button', { name: 'Aggiorna subito' }))
+    expect(db.aggiornaIstanza).toHaveBeenCalledWith('bar-attivo')
+    expect(await within(attivo).findByRole('status')).toHaveTextContent('Aggiornamento a develop partito: quando il workflow finisce, la versione nuova compare qui.')
+  })
+
+  it('senza ref nella risposta l’esito lo tace', async () => {
+    const user = userEvent.setup()
+    db.aggiornaIstanza.mockResolvedValueOnce({ ok: true })
+    mostra()
+    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
+    await user.click(within(attivo).getByRole('button', { name: 'Aggiorna subito' }))
+    expect(await within(attivo).findByRole('status')).toHaveTextContent(/^Aggiornamento partito:/)
   })
 })

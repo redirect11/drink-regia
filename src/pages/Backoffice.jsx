@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   elencoClienti,
   elencoIstanze,
@@ -29,28 +30,37 @@ import { PIANI, MODULI, prezzoMensile, euro } from '../lib/piani.js'
 import { contattoDi } from '../lib/clienti.js'
 import { statoCredito, euroCent } from '../lib/ai.js'
 import { GRUPPI, TAG, aggiornamentoDetto } from '../lib/rilasci.js'
+import { BASE, SEZIONI, VISTE, aggiornamentoFallito, contiDelBackoffice, filtraLocali } from '../lib/backoffice.js'
 import Rilasci from './Rilasci.jsx'
 
 // IL BACKOFFICE (REQ-FLOTTA-005): tutti i clienti con piano, stato
-// dell'istanza, progetto, versione; le richieste in coda o in errore in
-// cima. Solo col claim admin (App.jsx non ci fa arrivare gli altri, e le
-// regole Firestore non gli darebbero comunque i dati).
+// dell'istanza, progetto, versione. Solo col claim admin (App.jsx non ci fa
+// arrivare gli altri, su ogni sotto-rotta, e le regole Firestore non gli
+// darebbero comunque i dati).
 //
 // E GOVERNA I DEPLOY (REQ-FLOTTA-011): l'interruttore del deploy automatico,
 // le richieste da autorizzare quando è spento, un locale creato da qui.
+//
+// IN SEZIONI (l'utente, 30/10/2026: «puoi separare le varie sezioni del
+// backoffice magari in sotto menu? Così è tutto troppo caotico»): Locali,
+// Richieste, Rilasci, Vendita, Nuovo locale, ognuna col suo indirizzo
+// sotto /backoffice (src/lib/backoffice.js). I dati si leggono qui, una
+// volta per tutte le sezioni: passare da una all'altra non rilegge niente,
+// e i contatori del sotto-menù li hanno già.
 export default function Backoffice() {
   const [righe, setRighe] = useState(undefined)
   const [errore, setErrore] = useState(null)
   const [impostazioni, setImpostazioni] = useState({})
-  const [nuovo, setNuovo] = useState(false)
-  const [esistente, setEsistente] = useState(false)
   // La chiave AI appena creata: si vede una volta sola, qui (REQ-AI-003).
   const [chiaveNuova, setChiaveNuova] = useState(null)
   const [rilasci, setRilasci] = useState([])
-  // Lo slug del locale col modulo «Elimina» aperto (REQ-FLOTTA-014).
-  const [elimina, setElimina] = useState(null)
-  // Lo slug del locale col modulo «Cambia piano» aperto (REQ-FLOTTA-016).
-  const [cambia, setCambia] = useState(null)
+  // Le richieste di contatto (REQ-FLOTTA-017): lette qui e non nella loro
+  // sezione, perché il contatore di «Richieste» le conta da ogni sezione.
+  const [contatti, setContatti] = useState([])
+  // Lo slug -> il ref che «Aggiorna subito» ha lanciato, per dirlo sulla scheda.
+  const [lanciati, setLanciati] = useState({})
+  const vai = useNavigate()
+  const { pathname } = useLocation()
 
   const carica = async () => {
     try {
@@ -75,13 +85,24 @@ export default function Backoffice() {
       setRighe([])
     }
   }
+  const caricaContatti = useCallback(
+    () =>
+      elencoContatti()
+        .then((elenco) => setContatti(elenco || []))
+        .catch((e) => setErrore(e.message)),
+    []
+  )
   useEffect(() => {
     carica()
   }, [])
+  useEffect(() => {
+    caricaContatti()
+  }, [caricaContatti])
   useEffect(() => osservaImpostazioniRegia(setImpostazioni), [])
+  // Un errore riguarda la sezione in cui è nato: cambiando sezione si toglie.
+  useEffect(() => setErrore(null), [pathname])
 
   const automatico = impostazioni.deploy_automatico !== false
-
 
   // Sospendi, Riattiva, Chiudi (REQ-FLOTTA-008): l'app del locale si ferma
   // e lo dice; i dati restano. Il motivo lo legge il titolare.
@@ -110,11 +131,16 @@ export default function Backoffice() {
 
   // L'ultima versione dell'app a un locale (REQ-FLOTTA-009): per una
   // correzione urgente su un locale solo. A tutti i locali un rilascio ci
-  // arriva a ondate (REQ-FLOTTA-012), dal riquadro «Rilasci»: un errore
-  // si vede sulle istanze di prova, non su tutti insieme.
+  // arriva a ondate (REQ-FLOTTA-012), dalla sezione «Rilasci»: un errore
+  // si vede sulle istanze di prova, non su tutti insieme. La Function
+  // aggiornaIstanza sceglie da sé la versione (APP_REF della regia: develop
+  // di tana-drink sulla regia di test, main in produzione) e la restituisce:
+  // la scheda la dice senza che il sito debba saperla in anticipo.
   const aggiorna = async (c) => {
+    setErrore(null)
     try {
-      await aggiornaIstanza(c.slug)
+      const esito = await aggiornaIstanza(c.slug)
+      setLanciati((v) => ({ ...v, [c.slug]: esito?.ref || '' }))
     } catch (e) {
       setErrore(e.message)
     }
@@ -134,6 +160,9 @@ export default function Backoffice() {
   // stesso ref) oppure si torna alla versione di prima.
   const riprova = (c, agg) =>
     agg.rilascio ? azioneRilascio('riprova', { ref: agg.rilascio, slug: c.slug }) : aggiornaIstanza(c.slug, agg.ref).catch((e) => setErrore(e.message)).then(carica)
+  const indietro = (c, agg) => {
+    if (window.confirm(`Riportare ${c.nome_locale} a ${agg.versione_precedente}?`)) azioneRilascio('indietro', { slug: c.slug })
+  }
 
   const autorizza = async (c) => {
     try {
@@ -153,6 +182,10 @@ export default function Backoffice() {
     }
     carica()
   }
+  const segna = (c, stato) =>
+    segnaContatto(c.uid, stato)
+      .then(caricaContatti)
+      .catch((e) => setErrore(e.message))
 
   // Il cassetto AI di un locale (REQ-AI-003): ricarica a mano (la Tana la
   // ricarichiamo noi), tetto del mese, acceso o spento, chiave.
@@ -185,56 +218,19 @@ export default function Backoffice() {
   if (righe === undefined) return <main className="pagina muted">Carico…</main>
 
   const daApprovare = righe.filter((r) => r.stato === STATI.DA_APPROVARE)
+  // Le azioni di una scheda, le stesse da «Locali» e da «Rilasci».
+  const az = { carica, cambiaStato, annullaEliminazione, aggiorna, azioneRilascio, riprova, indietro, azioneAI, ricaricaAI, tettoAI, chiaveAI, onErrore: setErrore }
+  // Dopo «Crea il locale» o «Registra il locale» si va a vederlo in elenco.
+  const creato = () => {
+    carica()
+    vai(`${BASE}/locali`)
+  }
 
   return (
     <main className="pagina larga">
-      <div className="row-tra">
-        <h2>Backoffice</h2>
-        <div className="azioni">
-          <label className="opzione interruttore">
-            <input
-              type="checkbox"
-              checked={automatico}
-              onChange={(e) => impostaDeployAutomatico(e.target.checked).catch((err) => setErrore(err.message))}
-            />
-            Deploy automatico
-          </label>
-          <button type="button" className="btn ghost small" onClick={() => setNuovo((v) => !v)}>
-            {nuovo ? 'Chiudi' : 'Nuovo locale'}
-          </button>
-          <button type="button" className="btn ghost small" onClick={() => setEsistente((v) => !v)}>
-            {esistente ? 'Chiudi' : 'Locale esistente'}
-          </button>
-        </div>
-      </div>
-      <p className="muted small">
-        {automatico
-          ? 'Deploy automatico acceso: «Attiva» di un titolare parte da solo.'
-          : 'Deploy automatico spento: le richieste aspettano la tua autorizzazione qui sotto.'}
-      </p>
-      <Vendita onErrore={setErrore} />
-      <Contatti onErrore={setErrore} />
+      <h2>Backoffice</h2>
+      <SottoMenu conti={contiDelBackoffice(righe, contatti)} />
       {errore && <p className="errore">{errore}</p>}
-
-      {nuovo && (
-        <NuovoLocale
-          onFatto={() => {
-            setNuovo(false)
-            carica()
-          }}
-          onErrore={setErrore}
-        />
-      )}
-
-      {esistente && (
-        <LocaleEsistente
-          onFatto={() => {
-            setEsistente(false)
-            carica()
-          }}
-          onErrore={setErrore}
-        />
-      )}
 
       {chiaveNuova && (
         <section className="card avviso" aria-label="Chiave AI nuova">
@@ -254,7 +250,396 @@ export default function Backoffice() {
         </section>
       )}
 
-      <Rilasci rilasci={rilasci} onAzione={azioneRilascio} />
+      <div className="bo-sezione">
+        <Routes>
+          <Route index element={<Navigate to={`${BASE}/locali`} replace />} />
+          <Route path="locali" element={<SezioneLocali righe={righe} az={az} lanciati={lanciati} />} />
+          <Route
+            path="richieste"
+            element={
+              <SezioneRichieste
+                automatico={automatico}
+                onAutomatico={(acceso) => impostaDeployAutomatico(acceso).catch((err) => setErrore(err.message))}
+                daApprovare={daApprovare}
+                contatti={contatti}
+                onAutorizza={autorizza}
+                onRifiuta={rifiuta}
+                onSegna={segna}
+              />
+            }
+          />
+          <Route
+            path="rilasci"
+            element={
+              <>
+                <Rilasci rilasci={rilasci} onAzione={azioneRilascio} />
+                <AggiornamentiFalliti righe={righe} az={az} />
+              </>
+            }
+          />
+          <Route path="vendita" element={<Vendita onErrore={setErrore} />} />
+          <Route
+            path="nuovo"
+            element={
+              <>
+                <NuovoLocale onFatto={creato} onErrore={setErrore} />
+                <LocaleEsistente onFatto={creato} onErrore={setErrore} />
+              </>
+            }
+          />
+          {/* Un indirizzo che non c'è (un link vecchio) porta all'elenco, non a una pagina vuota. */}
+          <Route path="*" element={<Navigate to={`${BASE}/locali`} replace />} />
+        </Routes>
+      </div>
+    </main>
+  )
+}
+
+// IL SOTTO-MENÙ: una riga di link, la voce attiva con aria-current (lo
+// mette NavLink). Sul telefono la riga scorre di lato dentro sé stessa e la
+// pagina resta ferma (index.css, .sotto-menu). Il contatore si legge anche
+// a voce: «Richieste, 2 da gestire».
+function SottoMenu({ conti }) {
+  return (
+    <nav className="sotto-menu" aria-label="Sezioni del backoffice">
+      {SEZIONI.map((s) => (
+        <NavLink key={s.id} to={`${BASE}/${s.id}`}>
+          {s.nome}
+          {conti[s.id] > 0 && (
+            <span className="conta">
+              <span aria-hidden="true">{conti[s.id]}</span>
+              <span className="solo-lettori">{`, ${conti[s.id]} da gestire`}</span>
+            </span>
+          )}
+        </NavLink>
+      ))}
+    </nav>
+  )
+}
+
+// «LOCALI»: l'elenco delle schede, con la ricerca e la vista per stato.
+// Ricerca e vista stanno nell'indirizzo (?cerca=…&vista=…), così un elenco
+// filtrato si condivide; si scrivono con replace, per non riempire la
+// cronologia a ogni tasto.
+function SezioneLocali({ righe, az, lanciati }) {
+  const [parametri, setParametri] = useSearchParams()
+  // Lo slug del locale col modulo «Cambia piano» aperto (REQ-FLOTTA-016).
+  const [cambia, setCambia] = useState(null)
+  // Lo slug del locale col modulo «Elimina» aperto (REQ-FLOTTA-014).
+  const [elimina, setElimina] = useState(null)
+  const vista = parametri.get('vista') || 'tutti'
+  const cerca = parametri.get('cerca') || ''
+  const filtra = (chiave, valore) =>
+    setParametri(
+      (p) => {
+        const n = new URLSearchParams(p)
+        if (valore && valore !== 'tutti') n.set(chiave, valore)
+        else n.delete(chiave)
+        return n
+      },
+      { replace: true }
+    )
+
+  if (righe.length === 0) return <p className="muted">Nessun cliente.</p>
+  const mostrate = filtraLocali(righe, { vista, cerca })
+  const chiudi = () => {
+    setCambia(null)
+    setElimina(null)
+    az.carica()
+  }
+
+  return (
+    <>
+      <div className="filtri-locali" role="search" aria-label="Cerca tra i locali">
+        <div className="campo">
+          <label htmlFor="bo-cerca">Cerca</label>
+          <input id="bo-cerca" type="search" value={cerca} placeholder="nome, identificativo o email" onChange={(e) => filtra('cerca', e.target.value)} />
+        </div>
+        <div className="campo">
+          <label htmlFor="bo-vista">Stato</label>
+          <select id="bo-vista" value={VISTE.some((v) => v.id === vista) ? vista : 'tutti'} onChange={(e) => filtra('vista', e.target.value)}>
+            {VISTE.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.nome} ({righe.filter(v.vale).length})
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <p className="muted small" data-testid="quanti-locali">
+        {mostrate.length === righe.length ? `${righe.length} locali` : `${mostrate.length} di ${righe.length} locali`}
+      </p>
+      {mostrate.length === 0 ? (
+        <p className="muted">Nessun locale con questi filtri.</p>
+      ) : (
+        <ul className="locali" aria-label="Locali">
+          {mostrate.map((r) => (
+            <li key={r.cliente.uid}>
+              <SchedaLocale
+                riga={r}
+                az={az}
+                lanciato={lanciati[r.cliente.slug]}
+                cambiaAperto={cambia === r.cliente.slug}
+                onCambia={() => setCambia(cambia === r.cliente.slug ? null : r.cliente.slug)}
+                eliminaAperto={elimina === r.cliente.slug}
+                onElimina={() => setElimina(elimina === r.cliente.slug ? null : r.cliente.slug)}
+                onFatto={chiudi}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  )
+}
+
+// Riprova e Torna alla versione di prima, per un aggiornamento fallito: le
+// stesse sulla scheda del locale e nell'elenco dei falliti di «Rilasci».
+function AzioniAggiornamento({ cliente: c, istanza, az }) {
+  const agg = istanza.aggiornamento
+  return (
+    <>
+      <button type="button" className="btn ghost small" onClick={() => az.riprova(c, agg)}>
+        Riprova
+      </button>
+      {TAG.test(agg.versione_precedente || '') && (
+        <button type="button" className="btn ghost small" onClick={() => az.indietro(c, agg)}>
+          Torna a {agg.versione_precedente}
+        </button>
+      )}
+    </>
+  )
+}
+
+// UN LOCALE PER SCHEDA (29/10/2026): nome e stato breve colorato in alto,
+// i dati in una griglia, le azioni a gruppi in fondo.
+function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaAperto, onElimina, onFatto }) {
+  const { cliente: c, istanza, stato, cassetto } = riga
+  const credito = statoCredito(cassetto)
+  // Un locale registrato come esistente (la Tana) non passa per
+  // la flotta: da qui niente Aggiorna, Sospendi, Chiudi.
+  const daFlotta = istanza?.origine !== 'esistente'
+  const licenza = istanza?.licenza_stato || 'attiva'
+  const tono = licenza !== 'attiva' ? 'avviso' : TONO[stato] || 'neutro'
+  const aiVisibile = credito || stato === STATI.ATTIVA
+  return (
+    <article className={`locale tono-${tono}`} aria-label={c.nome_locale}>
+      <header className="locale-testa">
+        <div>
+          <h3>{c.nome_locale}</h3>
+          <div className="muted small">
+            {c.slug}
+            {istanza?.interna && ' · interna'}
+            {!daFlotta && ' · esistente'}
+          </div>
+        </div>
+        <span className={`stato stato-${tono}`}>
+          {licenza !== 'attiva' ? `${licenza}${istanza.licenza_motivo ? ` · ${istanza.licenza_motivo}` : ''}` : STATO_BREVE[stato] || statoDetto(stato)}
+        </span>
+      </header>
+
+      <dl className="locale-dati">
+        <div>
+          <dt>Titolare</dt>
+          <dd>
+            {c.email}
+            {c.fatturazione?.ragione_sociale && (
+              <div className="muted small">
+                {c.fatturazione.ragione_sociale} · P.IVA {c.fatturazione.partita_iva}
+              </div>
+            )}
+            {contattoDi(c) && <div className="muted small">{contattoDi(c)}</div>}
+          </dd>
+        </div>
+        <div>
+          <dt>Piano</dt>
+          <dd>{c.piano ? `${PIANI[c.piano]?.nome || c.piano} · ${euro(prezzoMensile(c))}` : <span className="muted">—</span>}</dd>
+        </div>
+        <div>
+          <dt>Progetto</dt>
+          <dd>
+            <code>{istanza?.progetto || progettoDi(c.slug)}</code>
+            {istanza?.profilo === 'leggero' && <div className="muted small">profilo leggero (Free)</div>}
+            {istanza?.url && (
+              <div className="small">
+                <a href={istanza.url} target="_blank" rel="noreferrer">
+                  Apri l’app ↗
+                </a>
+              </div>
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt>Versione</dt>
+          <dd>
+            {istanza?.versione || <span className="muted">—</span>}
+            {istanza?.ref && istanza.ref !== 'main' && <div className="muted small">da {istanza.ref}</div>}
+            {aggiornamentoDetto(istanza?.aggiornamento) && (
+              <div className={istanza.aggiornamento.stato === 'fallito' ? 'errore small' : 'muted small'}>{aggiornamentoDetto(istanza.aggiornamento)}</div>
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt>Credito AI</dt>
+          <dd>
+            {credito ? (
+              <>
+                <span data-testid={`credito-${c.slug}`}>{euroCent(credito.credito)}</span>
+                <div className="muted small">
+                  mese {euroCent(credito.spesoMese)} / {euroCent(credito.tetto)}
+                  {!credito.attivo && ' · spento'}
+                  {!credito.collegata && ' · senza chiave'}
+                </div>
+              </>
+            ) : (
+              <span className="muted">—</span>
+            )}
+          </dd>
+        </div>
+        {eliminazioneDetta(istanza) && (
+          <div>
+            <dt>Eliminazione</dt>
+            <dd className={istanza.eliminazione.stato === 'fallita' ? 'errore' : ''}>{eliminazioneDetta(istanza)}</dd>
+          </div>
+        )}
+        {daFlotta && stato === STATI.ATTIVA && !istanza?.interna && (
+          <div>
+            <dt>
+              <label htmlFor={`gruppo-${c.slug}`}>Gruppo di rilascio</label>
+            </dt>
+            <dd>
+              <select
+                id={`gruppo-${c.slug}`}
+                aria-label={`Gruppo di rilascio di ${c.nome_locale}`}
+                value={istanza?.gruppo_rilascio || 'generale'}
+                onChange={(e) => az.azioneRilascio('gruppo', { slug: c.slug, gruppo: e.target.value })}
+              >
+                {GRUPPI.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.nome}
+                  </option>
+                ))}
+              </select>
+            </dd>
+          </div>
+        )}
+      </dl>
+
+      <footer className="locale-azioni">
+        <div className="gruppo-azioni" aria-label="Istanza">
+          {stato === STATI.ERRORE && (
+            <button type="button" className="btn small" onClick={() => rilanciaAttivazione(c.slug).then(az.carica)}>
+              Rilancia
+            </button>
+          )}
+          {daFlotta && stato === STATI.ATTIVA && (
+            // «Aggiorna» da solo non diceva cosa fa (l'utente, 30/10/2026):
+            // il testo accanto lo dice sempre, non solo al passaggio del mouse,
+            // e il lettore di schermo lo legge col bottone (aria-describedby).
+            <>
+              <button type="button" className="btn ghost small" aria-describedby={`aggiorna-${c.slug}`} onClick={() => az.aggiorna(c)}>
+                Aggiorna subito
+              </button>
+              <span id={`aggiorna-${c.slug}`} className="muted small spiega-azione">
+                solo questo locale, all’ultima versione dell’app, per una correzione urgente. A tutti i locali la porta un rilascio, a ondate (
+                <Link to={`${BASE}/rilasci`}>Rilasci</Link>).
+              </span>
+            </>
+          )}
+          {daFlotta && istanza?.aggiornamento?.stato === 'fallito' && <AzioniAggiornamento cliente={c} istanza={istanza} az={az} />}
+          <button type="button" className="btn ghost small" onClick={onCambia}>
+            Cambia piano…
+          </button>
+        </div>
+
+        {aiVisibile && (
+          <div className="gruppo-azioni" aria-label="Credito AI">
+            <span className="gruppo-nome muted small">AI</span>
+            <button type="button" className="btn ghost small" onClick={() => az.ricaricaAI(c)}>
+              Ricarica AI
+            </button>
+            <button type="button" className="btn ghost small" onClick={() => az.tettoAI(c, credito?.tetto)}>
+              Tetto AI
+            </button>
+            <button type="button" className="btn ghost small" onClick={() => az.chiaveAI(c, cassetto)}>
+              Chiave AI
+            </button>
+            {credito && (
+              <button type="button" className="btn ghost small" onClick={() => az.azioneAI(c, credito.attivo ? 'spegni' : 'accendi')}>
+                {credito.attivo ? 'Spegni AI' : 'Accendi AI'}
+              </button>
+            )}
+          </div>
+        )}
+
+        {daFlotta && stato === STATI.ATTIVA && (
+          // Sospendere e chiudere stanno a parte, lontano dalle
+          // azioni di tutti i giorni (tana-drink, DESIGN.md,
+          // guardrail 2: le azioni distruttive lontane dalle frequenti).
+          <div className="gruppo-azioni pericolo" aria-label="Licenza">
+            {licenza === 'attiva' ? (
+              <>
+                <button type="button" className="btn ghost small" onClick={() => az.cambiaStato(c, 'sospesa')}>
+                  Sospendi
+                </button>
+                <button type="button" className="btn ghost small" onClick={() => az.cambiaStato(c, 'chiusa')}>
+                  Chiudi
+                </button>
+              </>
+            ) : (
+              <>
+                <button type="button" className="btn ghost small" onClick={() => az.cambiaStato(c, 'attiva')}>
+                  Riattiva
+                </button>
+                {licenza === 'chiusa' && !['programmata', 'in coda', 'in corso'].includes(istanza?.eliminazione?.stato) && (
+                  <button type="button" className="btn ghost small" onClick={onElimina}>
+                    Elimina…
+                  </button>
+                )}
+                {istanza?.eliminazione?.stato === 'programmata' && (
+                  <button type="button" className="btn ghost small" onClick={() => az.annullaEliminazione(c)}>
+                    Annulla eliminazione
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </footer>
+      {lanciato !== undefined && (
+        // L'esito della chiamata: il workflow è partito, non è finito.
+        // Quando finisce, la versione nuova compare in «Versione».
+        <p className="small" role="status">
+          Aggiornamento {lanciato ? `a ${lanciato} ` : ''}partito: quando il workflow finisce, la versione nuova compare qui.
+        </p>
+      )}
+      {cambiaAperto && <CambiaPiano cliente={c} onFatto={onFatto} onErrore={az.onErrore} />}
+      {eliminaAperto && <EliminaLocale cliente={c} istanza={istanza} onFatto={onFatto} onErrore={az.onErrore} />}
+    </article>
+  )
+}
+
+// «RICHIESTE»: tutto quello che aspetta una risposta dell'admin. Le
+// attivazioni da autorizzare (col deploy automatico spento, REQ-FLOTTA-011)
+// e le richieste di contatto dei titolari (REQ-FLOTTA-017). L'interruttore
+// del deploy automatico sta qui perché decide se le attivazioni passano di
+// qui o no.
+function SezioneRichieste({ automatico, onAutomatico, daApprovare, contatti, onAutorizza, onRifiuta, onSegna }) {
+  return (
+    <>
+      <section className="card" aria-label="Attivazioni">
+        <h3>Attivazioni</h3>
+        <label className="opzione interruttore">
+          <input type="checkbox" checked={automatico} onChange={(e) => onAutomatico(e.target.checked)} />
+          Deploy automatico
+        </label>
+        <p className="muted small">
+          {automatico
+            ? 'Deploy automatico acceso: «Attiva» di un titolare parte da solo.'
+            : 'Deploy automatico spento: le richieste aspettano la tua autorizzazione qui sotto.'}
+        </p>
+        {daApprovare.length === 0 && <p className="muted small">Nessuna attivazione da autorizzare.</p>}
+      </section>
 
       {daApprovare.length > 0 && (
         <section className="card" aria-label="Richieste da autorizzare">
@@ -269,10 +654,10 @@ export default function Backoffice() {
                 </div>
               </span>
               <span className="azioni-riga">
-                <button type="button" className="btn small" onClick={() => autorizza(c)}>
+                <button type="button" className="btn small" onClick={() => onAutorizza(c)}>
                   Autorizza
                 </button>
-                <button type="button" className="btn ghost small" onClick={() => rifiuta(c)}>
+                <button type="button" className="btn ghost small" onClick={() => onRifiuta(c)}>
                   Rifiuta
                 </button>
               </span>
@@ -281,241 +666,34 @@ export default function Backoffice() {
         </section>
       )}
 
-      {righe.length === 0 ? (
-        <p className="muted">Nessun cliente.</p>
-      ) : (
-        <ul className="locali" aria-label="Locali">
-          {righe.map(({ cliente: c, istanza, stato, cassetto }) => {
-            const credito = statoCredito(cassetto)
-            // Un locale registrato come esistente (la Tana) non passa per
-            // la flotta: da qui niente Aggiorna, Sospendi, Chiudi.
-            const daFlotta = istanza?.origine !== 'esistente'
-            const licenza = istanza?.licenza_stato || 'attiva'
-            const tono = licenza !== 'attiva' ? 'avviso' : TONO[stato] || 'neutro'
-            const aiVisibile = credito || stato === STATI.ATTIVA
-            return (
-              <li key={c.uid}>
-                <article className={`locale tono-${tono}`} aria-label={c.nome_locale}>
-                  <header className="locale-testa">
-                    <div>
-                      <h3>{c.nome_locale}</h3>
-                      <div className="muted small">
-                        {c.slug}
-                        {istanza?.interna && ' · interna'}
-                        {!daFlotta && ' · esistente'}
-                      </div>
-                    </div>
-                    <span className={`stato stato-${tono}`}>
-                      {licenza !== 'attiva' ? `${licenza}${istanza.licenza_motivo ? ` · ${istanza.licenza_motivo}` : ''}` : STATO_BREVE[stato] || statoDetto(stato)}
-                    </span>
-                  </header>
+      {contatti.length > 0 ? <Contatti elenco={contatti} onSegna={onSegna} /> : <p className="muted small">Nessuna richiesta di contatto.</p>}
+    </>
+  )
+}
 
-                  <dl className="locale-dati">
-                    <div>
-                      <dt>Titolare</dt>
-                      <dd>
-                        {c.email}
-                        {c.fatturazione?.ragione_sociale && (
-                          <div className="muted small">
-                            {c.fatturazione.ragione_sociale} · P.IVA {c.fatturazione.partita_iva}
-                          </div>
-                        )}
-                        {contattoDi(c) && <div className="muted small">{contattoDi(c)}</div>}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Piano</dt>
-                      <dd>{c.piano ? `${PIANI[c.piano]?.nome || c.piano} · ${euro(prezzoMensile(c))}` : <span className="muted">—</span>}</dd>
-                    </div>
-                    <div>
-                      <dt>Progetto</dt>
-                      <dd>
-                        <code>{istanza?.progetto || progettoDi(c.slug)}</code>
-                        {istanza?.profilo === 'leggero' && <div className="muted small">profilo leggero (Free)</div>}
-                        {istanza?.url && (
-                          <div className="small">
-                            <a href={istanza.url} target="_blank" rel="noreferrer">
-                              Apri l’app ↗
-                            </a>
-                          </div>
-                        )}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Versione</dt>
-                      <dd>
-                        {istanza?.versione || <span className="muted">—</span>}
-                        {istanza?.ref && istanza.ref !== 'main' && <div className="muted small">da {istanza.ref}</div>}
-                        {aggiornamentoDetto(istanza?.aggiornamento) && (
-                          <div className={istanza.aggiornamento.stato === 'fallito' ? 'errore small' : 'muted small'}>
-                            {aggiornamentoDetto(istanza.aggiornamento)}
-                          </div>
-                        )}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Credito AI</dt>
-                      <dd>
-                        {credito ? (
-                          <>
-                            <span data-testid={`credito-${c.slug}`}>{euroCent(credito.credito)}</span>
-                            <div className="muted small">
-                              mese {euroCent(credito.spesoMese)} / {euroCent(credito.tetto)}
-                              {!credito.attivo && ' · spento'}
-                              {!credito.collegata && ' · senza chiave'}
-                            </div>
-                          </>
-                        ) : (
-                          <span className="muted">—</span>
-                        )}
-                      </dd>
-                    </div>
-                    {eliminazioneDetta(istanza) && (
-                      <div>
-                        <dt>Eliminazione</dt>
-                        <dd className={istanza.eliminazione.stato === 'fallita' ? 'errore' : ''}>{eliminazioneDetta(istanza)}</dd>
-                      </div>
-                    )}
-                    {daFlotta && stato === STATI.ATTIVA && !istanza?.interna && (
-                      <div>
-                        <dt>
-                          <label htmlFor={`gruppo-${c.slug}`}>Gruppo di rilascio</label>
-                        </dt>
-                        <dd>
-                          <select
-                            id={`gruppo-${c.slug}`}
-                            aria-label={`Gruppo di rilascio di ${c.nome_locale}`}
-                            value={istanza?.gruppo_rilascio || 'generale'}
-                            onChange={(e) => azioneRilascio('gruppo', { slug: c.slug, gruppo: e.target.value })}
-                          >
-                            {GRUPPI.map((g) => (
-                              <option key={g.id} value={g.id}>
-                                {g.nome}
-                              </option>
-                            ))}
-                          </select>
-                        </dd>
-                      </div>
-                    )}
-                  </dl>
-
-                  <footer className="locale-azioni">
-                    <div className="gruppo-azioni" aria-label="Istanza">
-                      {stato === STATI.ERRORE && (
-                        <button type="button" className="btn small" onClick={() => rilanciaAttivazione(c.slug).then(carica)}>
-                          Rilancia
-                        </button>
-                      )}
-                      {daFlotta && stato === STATI.ATTIVA && (
-                        <button type="button" className="btn ghost small" onClick={() => aggiorna(c)}>
-                          Aggiorna
-                        </button>
-                      )}
-                      {daFlotta && istanza?.aggiornamento?.stato === 'fallito' && (
-                        <>
-                          <button type="button" className="btn ghost small" onClick={() => riprova(c, istanza.aggiornamento)}>
-                            Riprova
-                          </button>
-                          {TAG.test(istanza.aggiornamento.versione_precedente || '') && (
-                            <button
-                              type="button"
-                              className="btn ghost small"
-                              onClick={() => {
-                                if (window.confirm(`Riportare ${c.nome_locale} a ${istanza.aggiornamento.versione_precedente}?`)) azioneRilascio('indietro', { slug: c.slug })
-                              }}
-                            >
-                              Torna a {istanza.aggiornamento.versione_precedente}
-                            </button>
-                          )}
-                        </>
-                      )}
-                      <button type="button" className="btn ghost small" onClick={() => setCambia(cambia === c.slug ? null : c.slug)}>
-                        Cambia piano…
-                      </button>
-                    </div>
-
-                    {aiVisibile && (
-                      <div className="gruppo-azioni" aria-label="Credito AI">
-                        <span className="gruppo-nome muted small">AI</span>
-                        <button type="button" className="btn ghost small" onClick={() => ricaricaAI(c)}>
-                          Ricarica AI
-                        </button>
-                        <button type="button" className="btn ghost small" onClick={() => tettoAI(c, credito?.tetto)}>
-                          Tetto AI
-                        </button>
-                        <button type="button" className="btn ghost small" onClick={() => chiaveAI(c, cassetto)}>
-                          Chiave AI
-                        </button>
-                        {credito && (
-                          <button type="button" className="btn ghost small" onClick={() => azioneAI(c, credito.attivo ? 'spegni' : 'accendi')}>
-                            {credito.attivo ? 'Spegni AI' : 'Accendi AI'}
-                          </button>
-                        )}
-                      </div>
-                    )}
-
-                    {daFlotta && stato === STATI.ATTIVA && (
-                      // Sospendere e chiudere stanno a parte, lontano dalle
-                      // azioni di tutti i giorni (tana-drink, DESIGN.md,
-                      // guardrail 2: le azioni distruttive lontane dalle frequenti).
-                      <div className="gruppo-azioni pericolo" aria-label="Licenza">
-                        {licenza === 'attiva' ? (
-                          <>
-                            <button type="button" className="btn ghost small" onClick={() => cambiaStato(c, 'sospesa')}>
-                              Sospendi
-                            </button>
-                            <button type="button" className="btn ghost small" onClick={() => cambiaStato(c, 'chiusa')}>
-                              Chiudi
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button type="button" className="btn ghost small" onClick={() => cambiaStato(c, 'attiva')}>
-                              Riattiva
-                            </button>
-                            {licenza === 'chiusa' && !['programmata', 'in coda', 'in corso'].includes(istanza?.eliminazione?.stato) && (
-                              <button type="button" className="btn ghost small" onClick={() => setElimina(elimina === c.slug ? null : c.slug)}>
-                                Elimina…
-                              </button>
-                            )}
-                            {istanza?.eliminazione?.stato === 'programmata' && (
-                              <button type="button" className="btn ghost small" onClick={() => annullaEliminazione(c)}>
-                                Annulla eliminazione
-                              </button>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </footer>
-                  {cambia === c.slug && (
-                    <CambiaPiano
-                      cliente={c}
-                      onFatto={() => {
-                        setCambia(null)
-                        carica()
-                      }}
-                      onErrore={setErrore}
-                    />
-                  )}
-                  {elimina === c.slug && (
-                    <EliminaLocale
-                      cliente={c}
-                      istanza={istanza}
-                      onFatto={() => {
-                        setElimina(null)
-                        carica()
-                      }}
-                      onErrore={setErrore}
-                    />
-                  )}
-                </article>
-              </li>
-            )
-          })}
-        </ul>
-      )}
-    </main>
+// GLI AGGIORNAMENTI FALLITI, in «Rilasci»: il contatore della voce li
+// conta, e qui si vedono tutti insieme senza cercarli fra le schede.
+function AggiornamentiFalliti({ righe, az }) {
+  const falliti = righe.filter(aggiornamentoFallito)
+  if (!falliti.length) return null
+  return (
+    <section className="card" aria-label="Aggiornamenti falliti">
+      <h3>Aggiornamenti falliti</h3>
+      <p className="muted small">Il locale resta attivo. Si riprova, o lo si riporta alla versione di prima.</p>
+      <ul className="contatti">
+        {falliti.map(({ cliente: c, istanza }) => (
+          <li key={c.uid}>
+            <span>
+              <strong>{c.nome_locale}</strong> <span className="muted small">{c.slug}</span>
+            </span>
+            <span className="errore small">{aggiornamentoDetto(istanza.aggiornamento)}</span>
+            <span className="gruppo-azioni">
+              <AzioniAggiornamento cliente={c} istanza={istanza} az={az} />
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }
 
@@ -701,7 +879,7 @@ function Vendita({ onErrore }) {
       <p className="muted small">
         {vendita.pagamenti_online
           ? 'Chi sceglie un piano a pagamento va al Checkout di Stripe, e la ricarica AI si paga online.'
-          : 'Niente Checkout: chi sceglie un piano a pagamento ci lascia un recapito (Richieste di contatto, qui sotto). Si concorda il pagamento e si attiva il piano con «Cambia piano», fuori da Stripe.'}
+          : 'Niente Checkout: chi sceglie un piano a pagamento ci lascia un recapito (nella sezione «Richieste»). Si concorda il pagamento e si attiva il piano con «Cambia piano», fuori da Stripe.'}
       </p>
       <label className="opzione interruttore">
         <input type="checkbox" checked={vendita.free} onChange={(e) => cambia({ free: e.target.checked })} />
@@ -735,21 +913,10 @@ function Vendita({ onErrore }) {
 // LE RICHIESTE DI CONTATTO (REQ-FLOTTA-017): coi pagamenti online spenti
 // il titolare sceglie il piano e lascia un recapito. L'admin lo contatta,
 // concorda il pagamento, attiva il piano con «Cambia piano» fuori da Stripe
-// sulla scheda del locale, e segna la richiesta gestita.
-function Contatti({ onErrore }) {
-  const [elenco, setElenco] = useState(null)
-  // Si rilegge l'elenco a ogni richiesta segnata.
-  const [giro, setGiro] = useState(0)
-  useEffect(() => {
-    elencoContatti()
-      .then(setElenco)
-      .catch((e) => onErrore(e.message))
-  }, [giro, onErrore])
-  if (!elenco?.length) return null
-  const segna = (c, stato) =>
-    segnaContatto(c.uid, stato)
-      .then(() => setGiro((g) => g + 1))
-      .catch((e) => onErrore(e.message))
+// sulla scheda del locale, e segna la richiesta gestita. L'elenco lo legge
+// il Backoffice, che lo conta per il sotto-menù, e lo rilegge dopo ogni
+// richiesta segnata.
+function Contatti({ elenco, onSegna: segna }) {
   const aperte = elenco.filter((c) => c.stato === 'aperta')
   return (
     <section className="card" aria-label="Richieste di contatto">
