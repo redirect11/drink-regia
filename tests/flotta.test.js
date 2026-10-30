@@ -114,6 +114,17 @@ describe.each(WORKFLOW)('%s', (_, w, corpo) => {
   })
 })
 
+describe('aggiorna-istanza.yml: la configurazione web è quella del sito', () => {
+  // drinkpos-prova-free, 30/10/2026: con due app web nel progetto
+  // `apps:sdkconfig` senza id si fermava.
+  it('prende l’app collegata al sito, e se il comando fallisce mostra perché', () => {
+    const run = passo(aggiorna, 'La configurazione web dell’istanza'.replace('’', "'")).run
+    expect(run).toContain('npx firebase-tools hosting:sites:get "$PROGETTO" --project "$PROGETTO" --json')
+    expect(run).toContain('npx firebase-tools apps:sdkconfig web $APP_ID --project "$PROGETTO" --json')
+    expect(run).toContain('|| { cat "$RUNNER_TEMP/sdk.json"; exit 1; }')
+  })
+})
+
 describe('provisiona-istanza.yml: il Terraform con i valori dell’environment', () => {
   // drinkpos-prova-free, 30/10/2026: il database aperto a mano fermava
   // l'apply con «Database already exists».
