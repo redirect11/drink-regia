@@ -146,7 +146,7 @@ requirements:
       - tests/Dashboard.test.jsx
   - id: REQ-FLOTTA-005
     title: "Il backoffice: l'elenco dei clienti e delle istanze, per chi ha il claim admin"
-    area: "src/pages/Backoffice.jsx, firestore.rules"
+    area: "src/pages/Backoffice.jsx, src/lib/backoffice.js, src/App.jsx (rotta /backoffice/*), src/index.css (.sotto-menu), firestore.rules"
     description: >
       Una pagina protetta dal claim `admin` dell'Auth della regia: tutti i
       clienti con piano, stato dell'istanza, progetto, versione pubblicata
@@ -159,11 +159,42 @@ requirements:
       una griglia che va a capo da sola, il link all'app del locale, le
       azioni a gruppi (istanza e piano, credito AI, licenza), con Sospendi
       e Chiudi a parte, a destra.
+      IN SEZIONI, CON UN SOTTO-MENÙ (l'utente, 30/10/2026: «puoi separare le
+      varie sezioni del backoffice magari in sotto menu? Così è tutto troppo
+      caotico»). Cinque sezioni, ognuna col suo indirizzo, e /backoffice
+      porta alla prima: «Locali» (/backoffice/locali: le schede, con la
+      ricerca per nome, identificativo o email e la vista per stato — tutti,
+      da seguire, attivi, in attivazione, sospesi o chiusi, eliminati —
+      nell'indirizzo, così un elenco filtrato si condivide), «Richieste»
+      (/backoffice/richieste: l'interruttore del deploy automatico, le
+      attivazioni da autorizzare, le richieste di contatto), «Rilasci»
+      (/backoffice/rilasci: i rilasci a ondate e gli aggiornamenti falliti
+      tutti insieme, con Riprova e Torna indietro), «Vendita»
+      (/backoffice/vendita: pagamenti online, Free, moduli e giorni di
+      prova), «Nuovo locale» (/backoffice/nuovo: nuovo ed esistente; fatto,
+      si torna all'elenco). Il controllo del claim admin vale per ogni
+      sotto-rotta; un indirizzo che non c'è porta a «Locali». Il sotto-menù è
+      un `nav` con aria-label, la voce attiva ha aria-current, e sul
+      telefono la riga scorre di lato dentro sé stessa senza far scorrere la
+      pagina. Un contatore sulla voce quando c'è da fare, contato una volta
+      sola dove si risolve: attivazioni fallite ed eliminazioni non riuscite
+      in «Locali», attivazioni da autorizzare e contatti aperti in
+      «Richieste», aggiornamenti falliti in «Rilasci». I dati si leggono una
+      volta per tutte le sezioni.
+      «AGGIORNA» DICE COSA FA (stessa data): il bottone è «Aggiorna subito»,
+      e accanto, sempre visibile e come sua descrizione accessibile, dice che
+      porta solo quel locale all'ultima versione dell'app, per una
+      correzione urgente, mentre a tutti un rilascio arriva a ondate da
+      «Rilasci». La versione la sceglie la Function `aggiornaIstanza`
+      (APP_REF: develop di tana-drink sulla regia di test, main in
+      produzione) e la pagina non la scrive; l'esito dice il ref che la
+      Function restituisce.
     status: implemented
     generate_issue: false
     labels: [prodotto, flotta, regia]
     test_cases:
       - tests/Backoffice.test.jsx
+      - tests/App.test.jsx
   - id: REQ-FLOTTA-007
     title: "L'abbonamento: Stripe Checkout nella regia, webhook che aggiorna il cliente, licenza che segue il piano"
     area: "functions/piani.json, src/lib/piani.js, src/pages/SceltaPiano.jsx, src/pages/Dashboard.jsx, src/lib/db.js (avviaPagamento), functions/index.js (creaCheckout, stripeWebhook), functions/lib/abbonamento.js"

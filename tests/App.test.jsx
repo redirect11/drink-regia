@@ -24,6 +24,18 @@ vi.mock('../src/lib/db.js', () => ({
     cb(null)
     return () => {}
   },
+  // Quello che il backoffice legge, per le prove delle sue sotto-rotte
+  // (REQ-FLOTTA-005): un backoffice vuoto basta.
+  elencoClienti: async () => [],
+  elencoIstanze: async () => ({}),
+  elencoRichieste: async () => ({}),
+  elencoCassettiAI: async () => ({}),
+  elencoRilasci: async () => [],
+  elencoContatti: async () => [],
+  osservaImpostazioniRegia: (cb) => {
+    cb({})
+    return () => {}
+  },
 }))
 
 import App from '../src/App.jsx'
@@ -102,5 +114,37 @@ describe('il piè di pagina', () => {
     expect(within(piede).getByRole('link', { name: 'Prezzi' })).toHaveAttribute('href', '/#prezzi')
     expect(within(piede).getByRole('link', { name: /@/ })).toHaveAttribute('href', expect.stringMatching(/^mailto:/))
     expect(within(piede).getByText(/non è uno scontrino fiscale/)).toBeInTheDocument()
+  })
+})
+
+// IL BACKOFFICE È SOLO DELL'ADMIN, IN OGNI SEZIONE (REQ-FLOTTA-005). Dal
+// 30/10/2026 il backoffice ha sotto-rotte (/backoffice/locali, …/rilasci,
+// …): il controllo del claim admin in App.jsx deve valere per tutte, non
+// solo per /backoffice.
+describe('le sotto-rotte del backoffice', () => {
+  const SOTTO = ['/backoffice', '/backoffice/locali', '/backoffice/richieste', '/backoffice/rilasci', '/backoffice/vendita', '/backoffice/nuovo']
+
+  it.each(SOTTO)('%s: chi non è dentro, o non è admin, torna alla prima pagina', async (percorso) => {
+    for (const utente of [null, { uid: 'u1', admin: false }]) {
+      utenteOsservato = utente
+      const { unmount } = mostra(percorso)
+      expect(screen.queryByRole('navigation', { name: 'Sezioni del backoffice' })).toBeNull()
+      expect(await screen.findByRole('heading', { level: 1 })).toBeInTheDocument()
+      unmount()
+    }
+  })
+
+  it.each(SOTTO.slice(1))('%s: l’admin ci entra, con la voce giusta attiva', async (percorso) => {
+    utenteOsservato = { uid: 'u1', admin: true }
+    mostra(percorso)
+    const nav = await screen.findByRole('navigation', { name: 'Sezioni del backoffice' })
+    expect(within(nav).getByRole('link', { current: 'page' })).toHaveAttribute('href', percorso)
+  })
+
+  it('/backoffice porta l’admin a «Locali»', async () => {
+    utenteOsservato = { uid: 'u1', admin: true }
+    mostra('/backoffice')
+    const nav = await screen.findByRole('navigation', { name: 'Sezioni del backoffice' })
+    expect(await within(nav).findByRole('link', { current: 'page' })).toHaveAttribute('href', '/backoffice/locali')
   })
 })

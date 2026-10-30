@@ -136,7 +136,8 @@ export default function App() {
           <Route path="/registrati" element={utente ? <Navigate to="/dashboard" replace /> : <Registrati />} />
           <Route path="/accedi" element={utente ? <Navigate to="/dashboard" replace /> : <Accedi />} />
           <Route path="/dashboard" element={utente ? <Dashboard utente={utente} /> : <Navigate to="/accedi" replace />} />
-          <Route path="/backoffice" element={utente?.admin ? <Backoffice /> : <Navigate to="/" replace />} />
+          {/* Le sezioni del backoffice (REQ-FLOTTA-005, 30/10/2026) sono sotto-rotte: «/*» le porta tutte a Backoffice, e il controllo del claim admin vale per ognuna. */}
+          <Route path="/backoffice/*" element={utente?.admin ? <Backoffice /> : <Navigate to="/" replace />} />
           <Route path="/termini" element={<Termini />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -6,6 +6,16 @@ data.
 
 ## 0.3.0 (in lavorazione)
 
+- Il backoffice è diviso in sezioni, con un sotto-menù: «Locali» (le schede,
+  con la ricerca e la vista per stato), «Richieste» (deploy automatico,
+  attivazioni da autorizzare, richieste di contatto), «Rilasci» (i rilasci a
+  ondate e gli aggiornamenti falliti), «Vendita» e «Nuovo locale». Ogni
+  sezione ha il suo indirizzo, quindi il tasto indietro e i link funzionano;
+  un numero accanto alla voce dice quando c'è qualcosa da fare. Sulla scheda
+  di un locale «Aggiorna» diventa «Aggiorna subito» e dice accanto cosa fa:
+  porta solo quel locale all'ultima versione dell'app, mentre a tutti un
+  rilascio arriva a ondate; l'esito dice la versione lanciata
+  (REQ-FLOTTA-005).
 - La prima pagina è nuova, in italiano e in inglese. Il titolo dice la
   promessa («La serata non si ferma. Nemmeno quando cade il Wi-Fi.»), e la
   pagina segue un percorso: il problema, i tre pilastri (lavora anche senza
