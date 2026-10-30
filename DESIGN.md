@@ -82,7 +82,7 @@ che non si fermano nemmeno quando il Wi-Fi cade, e che sono solo tuoi.*
 
 | Pilastro | Cosa vuol dire | La prova |
 |---|---|---|
-| Non si ferma | conti, comande e incassi continuano senza rete | è la prima regola dell'app; si sincronizza da sola al ritorno della rete |
+| Lavora anche senza rete | conti, comande e incassi continuano quando la rete cade | è la prima regola dell'app (tana-drink, REQ-OFFLINE-001 e 006); le modifiche partono da sole al ritorno della rete. Non «non si ferma mai»: i Termini dicono «senza garanzia di continuità assoluta» |
 | È tuo | ogni locale ha un'installazione separata, con il suo database e il suo indirizzo | un progetto per locale, isolato (docs/flotta-nella-regia.md) |
 | Pensato per il servizio | comanda al banco, scontrino sulla stampante, magazzino che si scala dalle ricette | nato al banco di un cocktail bar |
 
@@ -165,7 +165,18 @@ L'oro `--accent` sul bottone ha il testo scuro `#1a1a1a`, mai bianco.
 ## 5. La pagina, sezione per sezione
 
 Ogni sezione ha un compito. I testi qui sotto sono quelli da usare; le
-alternative dei titoli sono marcate, la scelta la fa l'utente (§9).
+alternative dei titoli sono marcate, la scelta la fa l'utente (§9). I
+testi pubblicati stanno in `src/i18n/home.it.js` e `home.en.js`: se le due
+versioni divergono, vale il codice, e questo file si riallinea.
+
+**I numeri non si scrivono qui.** Dove un testo cita un prezzo c'è un
+segnaposto — `{base}`, `{completo}`, `{attivazione}`, `{terminale}`,
+`{da}` — che la pagina riempie da `functions/piani.json`.
+
+**Le frasi devono reggere ai Termini** (`src/pages/Legali.jsx`) e a quello
+che succede oggi in produzione (revisione della PR #20, 30/10/2026):
+niente «non si ferma mai», nessuna promessa sui dati che i Termini non
+fanno, e l'attivazione detta «automatica» solo quando lo è.
 
 ### 5.0 La barra in alto
 
@@ -191,13 +202,16 @@ fare adesso.
 | sottotitolo | Comande, conti, cassa, menù digitale e magazzino in un'unica app pensata per il servizio, al banco e in sala. Ogni locale ha la sua installazione e i suoi dati, separati da tutti gli altri. | Orders, bills, till, a digital menu and stock control in one app built for service, at the bar and on the floor. Every venue gets its own installation and its own data, kept apart from everyone else's. |
 | bottone principale | Attiva il tuo locale | Get started |
 | bottone secondario | Prova la demo | Try the live demo |
-| sotto i bottoni | Da 24 € al mese · Abbonamento mensile · Attivazione automatica | From €24 a month · Monthly subscription · Automatic setup |
+| sotto i bottoni | Da {da} al mese · Abbonamento mensile · Attivazione automatica *oppure* Attivazione concordata con noi | From {da} a month · Monthly subscription · Automatic setup *or* Setup arranged with us |
 
 Il titolo A è consigliato perché si appoggia al pilastro che nessuno
 nell'abbonamento promette, ed è una scena che ogni titolare ha vissuto.
-Ogni frase della riga sotto i bottoni è verificabile: «da 24 €» viene da
-`piani.json`, «mensile» dai termini, «automatica» dal workflow
-dell'attivazione. Niente tempi («in pochi minuti»): l'attivazione dura un
+Ogni frase della riga sotto i bottoni è verificabile: «da …» viene da
+`piani.json` (il piano a pagamento meno caro), «mensile» dai termini.
+«Automatica» si scrive solo se i pagamenti online sono accesi o il Free è
+in vendita (la vendita del backoffice): con tutti e due spenti, come parte
+la produzione, chi sceglie un piano ci lascia un recapito e l'attivazione
+si concorda (REQ-FLOTTA-017), e la pagina lo dice. Niente tempi («in pochi minuti»): l'attivazione dura un
 quarto d'ora, e finché non c'è l'organizzazione Google ha un passo a mano.
 
 ### 5.2 Il problema
@@ -209,7 +223,7 @@ larghezza, testo grande, niente card.
 |---|---|
 | **Venerdì sera, locale pieno.** | **Friday night, a full house.** |
 | La rete salta e la cassa si blocca. Una comanda si perde tra la sala e il banco. A fine serata nessuno sa quante bottiglie sono uscite davvero. | The network drops and the till freezes. An order gets lost between the tables and the bar. At closing time nobody knows how many bottles actually went out. |
-| Lo abbiamo vissuto al nostro banco. Per questo l'abbiamo costruita così. | We lived it behind our own bar. That's why we built it this way. |
+| L'app è nata al banco di un cocktail bar, proprio per serate così. | The app was born behind a cocktail bar, for exactly these nights. |
 
 ### 5.3 I tre pilastri
 
@@ -218,7 +232,7 @@ parole e due righe.
 
 | Italiano | English |
 |---|---|
-| **Non si ferma mai.** Conti, comande e incassi continuano anche senza rete. Quando la connessione torna, tutto si allinea da solo. | **It never stops.** Tabs, orders and payments carry on without a connection. When it comes back, everything syncs on its own. |
+| **Lavora anche senza rete.** Comande, conti e incassi continuano quando la rete cade: le modifiche restano sul dispositivo e partono da sole appena la connessione torna. | **Keeps working offline.** Orders, bills and payments carry on when the network drops: changes stay on the device and go out on their own once the connection is back. |
 | **I tuoi dati sono solo tuoi.** Ogni locale ha la sua installazione, il suo database e il suo indirizzo. Nessun altro locale li vede. | **Your data stays yours.** Every venue has its own installation, its own database and its own address. No other venue can see it. |
 | **Fatta per il servizio.** Nata al banco di un cocktail bar, pensata per lavorare in fretta con il locale pieno, al banco e in sala. | **Built for service.** Born behind a cocktail bar, designed for working fast on a full night, at the bar and on the floor. |
 
@@ -230,12 +244,17 @@ che dice il vantaggio, una frase, tre punti brevi.
 
 **1. Conti e comande**
 - IT — *Dalla comanda al conto, senza passaggi in più.* La comanda arriva
-  al banco e si stampa da sola; il conto si chiude in contanti o con
-  carta. · Comanda stampata al banco · Contanti e carta · Più terminali
-  sulla stessa cassa
-- EN — *From order to bill, with no extra steps.* Orders reach the bar and
-  print on their own; bills are settled in cash or by card. · Orders
-  printed at the bar · Cash and card · Several devices on the same till
+  al banco e, se lo scegli, si stampa da sola; il conto si chiude in
+  contanti o con carta. · Comanda stampata al banco · Contanti e carta ·
+  Altri terminali a {terminale} al mese
+- EN — *From order to bill, with no extra steps.* Orders reach the bar and,
+  if you choose, print on their own; bills are settled in cash or by card.
+  · Orders printed at the bar · Cash and card · Extra devices at
+  {terminale} a month
+
+La stampa automatica è una scelta del locale (tana-drink, REQ-STAMPA-001);
+il Base ha un terminale e gli altri si pagano: «più terminali sulla
+stessa cassa» sotto «Nel piano Base» li faceva sembrare inclusi.
 
 **2. Menù digitale e ordini dal tavolo**
 - IT — *Il menù sul telefono del cliente.* Il QR sul tavolo apre il menù
@@ -247,12 +266,18 @@ che dice il vantaggio, una frase, tre punti brevi.
   · Always up to date · Orders go straight to the bar · No app to download
 
 **3. Magazzino**
-- IT — *Il magazzino si aggiorna a ogni vendita.* Ogni vendita scarica gli
-  ingredienti della ricetta: sai cosa sta finendo prima che finisca. ·
-  Giacenze e scorte minime · Inventario periodico · Fatture dei fornitori
-- EN — *Stock updates with every sale.* Each sale deducts the recipe's
-  ingredients, so you know what's running low before it runs out. ·
-  Stock levels and minimums · Periodic stock counts · Supplier invoices
+- IT — *Il magazzino segue le comande.* Ogni comanda preparata scarica gli
+  ingredienti della sua ricetta, e la soglia di riordino ti dice cosa sta
+  finendo. · Giacenze e soglie di riordino · Inventario periodico ·
+  Fatture dei fornitori
+- EN — *Stock follows your orders.* Every order that is prepared deducts
+  the ingredients of its recipe, and the reorder threshold tells you what
+  is running low. · Stock levels and reorder thresholds · Periodic stock
+  counts · Supplier invoices
+
+Lo scarico avviene quando la comanda è pronta, o alla riscossione se il
+locale non segue gli stati (tana-drink, REQ-MAG-003); l'avviso è la soglia
+di riordino del prodotto (REQ-MAG-006).
 
 **4. Statistiche**
 - IT — *I numeri della serata, chiari.* Incassi per serata e periodo,
@@ -278,9 +303,13 @@ momento del prezzo.
 
 | Italiano | English |
 |---|---|
-| **1. Registra il locale.** Nome, dati di fatturazione e un referente. Cinque minuti. | **1. Register your venue.** Name, billing details and a contact person. Five minutes. |
+| **1. Registra il locale.** Nome, dati di fatturazione e un referente, poi la conferma dell'email. | **1. Register your venue.** Name, billing details and a contact person, then confirm your email. |
 | **2. Scegli il piano.** Parti dal Base e aggiungi i moduli quando ti servono, anche dopo. | **2. Choose your plan.** Start with Base and add modules whenever you need them. |
 | **3. Apri la cassa.** La tua installazione nasce da sola, con il suo indirizzo. Entri dal tablet e lavori. | **3. Open the till.** Your installation is created automatically, at its own address. Log in from your tablet and start working. |
+| *(attivazione concordata)* **3. Apri la cassa.** Ci accordiamo sul pagamento e attiviamo la tua installazione, con il suo indirizzo. Entri dal tablet e lavori. | **3. Open the till.** We agree on payment and activate your installation, at its own address. Log in from your tablet and start working. |
+
+Il terzo passo ha due versioni, con la stessa regola di «automatica» del
+§5.1. Niente tempi («cinque minuti»): nessuno li ha misurati.
 
 ### 5.6 Prezzi
 
@@ -290,19 +319,24 @@ decisione dell'utente).
 
 | | Italiano | English |
 |---|---|---|
-| titolo | Prezzi chiari. Paghi solo quello che usi. | Simple pricing. Pay only for what you use. |
-| sotto | Abbonamento mensile, IVA esclusa. Attivazione una tantum: 250 €. | Monthly subscription, VAT excluded. One-off activation: €250. |
-| Base | **Base** — 24 €/mese. Per partire: cassa, comande, scontrino, menù, lavoro senza rete. 1 terminale. | **Base** — €24/month. To get started: till, orders, receipts, menu, offline mode. 1 device. |
-| Completo | **Completo** — 69 €/mese. Etichetta: **Tutto incluso**. Tutti i moduli, 2 terminali. | **Complete** — €69/month. Label: **Everything included**. Every module, 2 devices. |
-| bottoni | Inizia con Base · Inizia con Completo | Start with Base · Start with Complete |
+| titolo | Un piano al mese, e i moduli che scegli. | A monthly plan, and the modules you choose. |
+| sotto | Abbonamento mensile, IVA esclusa. Attivazione una tantum: {attivazione}. | Monthly subscription, VAT excluded. One-off activation: {attivazione}. |
+| Base | **Base** — {base}/mese. Per partire: cassa, comande, scontrino, menù, lavoro senza rete. {terminali del Base}. | **Base** — {base}/month. To get started: till, orders, receipts, menu, offline mode. {devices}. |
+| Completo | **Completo** — {completo}/mese. Etichetta: **Tutto incluso**. Tutti i moduli, {terminali del Completo}. | **Completo** — {completo}/month. Label: **Everything included**. Every module, {devices}. |
+| bottoni | Inizia con Base · Inizia con Completo | Start with Base · Start with Completo |
+
+Il titolo era «Prezzi chiari. Paghi solo quello che usi.»: non era esatto
+(c'è un canone fisso, l'attivazione, e il Completo è un pacchetto) e
+suonava da venditore. I nomi dei piani vengono dal listino anche in
+inglese: sono nomi propri del prodotto, e si cambiano in un posto solo.
 
 L'etichetta del Completo è «Tutto incluso», non «Il più scelto»: quella
 si scrive solo quando i numeri dei clienti lo dicono davvero.
 
 Sotto le due card: la tabella dei moduli, con una colonna per il prezzo
 sul Base e una spunta (`--ok`) per il Completo. Una riga sola dice quanto
-conviene il Completo: la somma dei moduli sul Base contro 69 €, calcolata
-dal listino, mai scritta a mano.
+conviene il Completo: la somma dei moduli sul Base contro il prezzo del
+Completo, calcolata dal listino, mai scritta a mano.
 
 Nota obbligatoria, in piccolo ma leggibile (`--muted` va bene perché il
 punto è ripetuto nelle domande):
@@ -318,18 +352,22 @@ punto è ripetuto nelle domande):
 **Compito:** rispondere alle obiezioni, in ordine di peso. Risposte di due
 o tre frasi, la prima frase risponde subito.
 
-1. **I miei dati sono al sicuro?** / **Is my data safe?**
-   IT — Sì. Ogni locale ha un'installazione separata, con il suo database:
-   nessun altro locale la vede. Noi entriamo solo per manutenzione e
-   aggiornamenti, come scritto nei termini.
-   EN — Yes. Every venue has a separate installation with its own
-   database, and no other venue can see it. We only access it for
-   maintenance and updates, as stated in the terms.
+1. **Chi vede i dati del mio locale?** / **Who can see my venue's data?**
+   IT — Nessun altro locale. Ogni locale ha un'installazione separata, con
+   il suo database. I dati sono del locale, e noi li trattiamo solo per
+   erogare il servizio, come scritto nei termini.
+   EN — No other venue. Every venue has a separate installation with its
+   own database. The data belongs to the venue, and we process it only to
+   provide the service, as stated in the terms.
+   *(«li tratta solo per erogare il servizio» è la formula dei Termini, §6;
+   «entriamo solo per manutenzione» i Termini non lo scrivono.)*
 2. **E se cade la connessione?** / **What if the internet goes down?**
    IT — La cassa continua a lavorare. Conti, comande e incassi restano sul
-   dispositivo e si sincronizzano da soli quando la rete torna.
-   EN — The till keeps working. Tabs, orders and payments stay on the
-   device and sync automatically once you're back online.
+   dispositivo e si sincronizzano da soli quando la rete torna. I
+   pagamenti con il lettore SumUp, invece, hanno bisogno della rete.
+   EN — The till keeps working. Bills, orders and payments stay on the
+   device and sync automatically once you are back online. Payments with
+   the SumUp reader, however, need a connection.
 3. **Lo scontrino è fiscale?** / **Are the receipts fiscal receipts?**
    IT — No. È un conto di cortesia su stampante termica. Lo scontrino
    fiscale resta del registratore telematico del locale, che l'app non
@@ -344,17 +382,29 @@ o tre frasi, la prima frase risponde subito.
    EN — A tablet or phone with an up-to-date browser. For receipts, a
    networked Epson thermal printer; for cards, a SumUp reader.
 5. **Posso cambiare piano o disdire?** / **Can I change plan or cancel?**
-   IT — Sì, dalla tua pagina, quando vuoi: l'abbonamento è mensile. Dopo la
-   disdetta i dati restano consultabili per il periodo scritto nei
-   termini.
-   EN — Yes, from your account, at any time: it's a monthly subscription.
-   After cancelling, your data stays available for the period set out in
-   the terms.
-6. **Chi pensa agli aggiornamenti?** / **Who takes care of updates?**
-   IT — Noi. L'app migliora di continuo e gli aggiornamenti arrivano alla
-   tua installazione senza che tu faccia niente.
-   EN — We do. The app keeps improving, and updates reach your
-   installation without you lifting a finger.
+   IT — Sì. Il cambio di piano si chiede dalla tua pagina. L'abbonamento è
+   mensile e si disdice in qualunque momento: il servizio resta attivo
+   fino alla fine del periodo già pagato.
+   EN — Yes. You request a change of plan from your account. The
+   subscription is monthly and can be cancelled at any time: the service
+   stays active until the end of the period already paid.
+   *(Termini §7. «Si chiede»: con i pagamenti online spenti il cambio
+   passa dall'admin.)*
+6. **Cosa succede ai dati se chiudo il locale?** / **What happens to my data if I close my venue?**
+   IT — Chiudendo l'installazione dalla tua pagina l'app si ferma subito,
+   e dopo 30 giorni i dati vengono cancellati; fino ad allora la chiusura
+   si può annullare. Prima della cancellazione facciamo un backup
+   completo, che puoi scaricare dalla tua pagina per 180 giorni.
+   EN — When you close the installation from your account, the app stops
+   straight away, and the data is deleted after 30 days; until then you
+   can undo the closure. Before deletion we make a full backup, which you
+   can download from your account for 180 days.
+   *(Termini §6: disdire e chiudere sono due cose diverse.)*
+7. **Chi pensa agli aggiornamenti?** / **Who takes care of updates?**
+   IT — Noi. Gli aggiornamenti arrivano alla tua installazione senza che
+   tu debba fare niente, e senza interruzioni programmate.
+   EN — We do. Updates reach your installation without you having to do
+   anything, and without scheduled downtime.
 
 ### 5.8 La chiusura
 
@@ -384,8 +434,8 @@ Accedi), il selettore di lingua, la versione pubblicata (c'è già).
   `src/i18n/home.en.js`), con le stesse chiavi; nessuna frase scritta
   dentro i componenti. Un test controlla che le due lingue abbiano le
   stesse chiavi.
-- **Prezzi e numeri**: dal listino, formattati per lingua («24 €» in
-  italiano, «€24» in inglese) da `importo()` in `src/lib/lingua.js`, a
+- **Prezzi e numeri**: dal listino, formattati per lingua («N €» in
+  italiano, «€N» in inglese) da `importo()` in `src/lib/lingua.js`, a
   mano come `euro()`: il Node della CI non ha i dati di lingua.
 - **Come è fatto** (30/10/2026): `src/lib/lingua.js` sceglie la lingua
   dall'indirizzo, legge e scrive la preferenza in `localStorage` (con
@@ -429,24 +479,27 @@ Accedi), il selettore di lingua, la versione pubblicata (c'è già).
 
 ## 8. Quando è fatta
 
-- [ ] Ogni sezione del §5, nell'ordine, in tutte e due le lingue.
-- [ ] Nessun testo scritto nei componenti; un test confronta le chiavi.
-- [ ] Prezzi e confronto Base/Completo calcolati dal listino.
-- [ ] Quattro schermate vere dell'app, in WebP, con dimensioni scritte.
-- [ ] Contrasto AA controllato su testo, bottoni e testo oro.
-- [ ] Con `prefers-reduced-motion` niente movimento.
-- [ ] LCP < 2,5 s sul telefono (Lighthouse, profilo mobile).
-- [ ] `/en` con `lang`, `hreflang`, titolo e descrizione in inglese.
-- [ ] La nota sullo scontrino non fiscale c'è, in tutte e due le lingue.
-- [ ] `tests/Home.test.jsx` aggiornato; REQ-FLOTTA-002 aggiornato.
-
-Stato al 30/10/2026 (ramo `feature/home-nuova`): fatti tutti tranne le
-schermate (decisione §9.5; la foto del banco resta in JPEG, 50 KB) e la
-misura Lighthouse, che va fatta sul sito di test. Il contrasto è
-calcolato sui token: testo secondario su `--bg-3` 5,9:1, oro `--accent-2`
-su `--bg` 12:1, testo scuro sul bottone 8,9:1, velo della prima schermata
-all'88% perché anche sul punto più chiaro della foto il testo secondario
-resti sopra 4,5:1.
+- [x] Ogni sezione del §5, nell'ordine, in tutte e due le lingue.
+- [x] Nessun testo scritto nei componenti; un test confronta le chiavi.
+- [x] Prezzi e confronto Base/Completo calcolati dal listino.
+- [ ] Quattro schermate vere dell'app, in WebP, con dimensioni scritte
+      (aspetta la decisione del §9.5; la foto del banco resta in JPEG,
+      50 KB).
+- [x] Contrasto AA controllato su testo, bottoni e testo oro (calcolato
+      sui token: testo secondario su `--bg-3` 5,9:1, oro `--accent-2` su
+      `--bg` 12:1, testo scuro sul bottone 8,9:1; il velo della prima
+      schermata all'88% tiene il testo secondario sopra 4,5:1 anche sul
+      punto più chiaro della foto). Non misurato con uno strumento sulla
+      pagina.
+- [x] Con `prefers-reduced-motion` niente movimento.
+- [ ] LCP < 2,5 s sul telefono (Lighthouse, profilo mobile): da misurare
+      sul sito di test.
+- [x] `/en` con `lang`, `hreflang`, titolo e descrizione in inglese (scritti
+      dal JavaScript: vedi il limite al §9.6).
+- [x] La nota sullo scontrino non fiscale c'è, in tutte e due le lingue.
+- [x] `tests/Home.test.jsx` aggiornato; REQ-FLOTTA-002 aggiornato.
+- [x] Le frasi reggono ai Termini e alla produzione di oggi (revisione
+      della PR #20).
 
 ## 9. Da decidere con l'utente
 
@@ -459,3 +512,11 @@ resti sopra 4,5:1.
 4. **Una prova gratuita**: oggi non c'è. Se arriva, cambia il bottone
    principale («Prova gratis 14 giorni» / «Start your free trial»).
 5. **Le schermate**: dalla demo, o dalla Tana con i dati oscurati.
+6. **`/en` per chi non esegue JavaScript** (anteprime dei link nei social e
+   nelle chat, alcuni crawler): il sito è un'app a pagina singola, e
+   `index.html` è lo stesso per tutte le rotte, in italiano. Lingua,
+   titolo, descrizione e `hreflang` di `/en` li scrive il JavaScript, quindi
+   chi non lo esegue vede `/en` in italiano. Google esegue il JavaScript e
+   legge la versione giusta. È un limite accettato per ora; la soluzione è
+   generare in build un `en/index.html` con i meta in inglese (Hosting lo
+   serve prima della riscrittura su `/index.html`). Da decidere se e quando.

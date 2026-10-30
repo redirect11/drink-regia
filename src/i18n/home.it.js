@@ -74,20 +74,30 @@ export default {
     da: 'Da {prezzo} al mese',
     free: 'Piano Free per provare',
     mensile: 'Abbonamento mensile',
+    // L'attivazione è automatica solo se si paga online o si parte dal Free;
+    // con i pagamenti online spenti (come in produzione all'avvio) la
+    // richiesta passa da noi (REQ-FLOTTA-017). Home sceglie la frase giusta.
     automatica: 'Attivazione automatica',
+    concordata: 'Attivazione concordata con noi',
   },
   problema: {
     titolo: 'Venerdì sera, locale pieno.',
     testo:
       'La rete salta e la cassa si blocca. Una comanda si perde tra la sala e il banco. A fine serata nessuno sa quante bottiglie sono uscite davvero.',
-    chiusa: 'Lo abbiamo vissuto al nostro banco. Per questo l’abbiamo costruita così.',
+    // Neutro finché l'utente non decide se nominare il locale dove l'app è
+    // nata (DESIGN.md §9.3).
+    chiusa: 'L’app è nata al banco di un cocktail bar, proprio per serate così.',
   },
   pilastri: {
     titolo: 'Su cosa puoi contare',
     voci: [
       {
-        titolo: 'Non si ferma mai.',
-        testo: 'Conti, comande e incassi continuano anche senza rete. Quando la connessione torna, tutto si allinea da solo.',
+        // «Non si ferma mai» prometteva più dei Termini («senza garanzia di
+        // continuità assoluta», Legali.jsx §5). Si dice quello che l'app fa
+        // davvero (tana-drink, REQ-OFFLINE-001 e 006): le scritture restano
+        // sul dispositivo e partono al ritorno della rete.
+        titolo: 'Lavora anche senza rete.',
+        testo: 'Comande, conti e incassi continuano quando la rete cade: le modifiche restano sul dispositivo e partono da sole appena la connessione torna.',
       },
       {
         titolo: 'I tuoi dati sono solo tuoi.',
@@ -110,8 +120,10 @@ export default {
       conti: {
         occhiello: 'Conti e comande',
         titolo: 'Dalla comanda al conto, senza passaggi in più.',
-        testo: 'La comanda arriva al banco e si stampa da sola; il conto si chiude in contanti o con carta.',
-        punti: ['Comanda stampata al banco', 'Contanti e carta', 'Più terminali sulla stessa cassa'],
+        // La stampa automatica è una scelta del locale (tana-drink,
+        // REQ-STAMPA-001); il Base ha un terminale, gli altri si pagano a parte.
+        testo: 'La comanda arriva al banco e, se lo scegli, si stampa da sola; il conto si chiude in contanti o con carta.',
+        punti: ['Comanda stampata al banco', 'Contanti e carta', 'Altri terminali a {terminale} al mese'],
       },
       menu: {
         occhiello: 'Menù digitale e ordini dal tavolo',
@@ -121,9 +133,12 @@ export default {
       },
       magazzino: {
         occhiello: 'Magazzino',
-        titolo: 'Il magazzino si aggiorna a ogni vendita.',
-        testo: 'Ogni vendita scarica gli ingredienti della ricetta: sai cosa sta finendo prima che finisca.',
-        punti: ['Giacenze e scorte minime', 'Inventario periodico', 'Fatture dei fornitori'],
+        // Si scarica quando la comanda è pronta, o alla riscossione se il
+        // locale non segue gli stati (tana-drink, REQ-MAG-003); l'avviso è la
+        // soglia di riordino del prodotto (REQ-MAG-006).
+        titolo: 'Il magazzino segue le comande.',
+        testo: 'Ogni comanda preparata scarica gli ingredienti della sua ricetta, e la soglia di riordino ti dice cosa sta finendo.',
+        punti: ['Giacenze e soglie di riordino', 'Inventario periodico', 'Fatture dei fornitori'],
       },
       statistiche: {
         occhiello: 'Statistiche',
@@ -140,16 +155,19 @@ export default {
   passi: {
     titolo: 'Come si comincia',
     voci: [
-      { titolo: 'Registra il locale.', testo: 'Nome, dati di fatturazione e un referente. Cinque minuti.' },
+      { titolo: 'Registra il locale.', testo: 'Nome, dati di fatturazione e un referente, poi la conferma dell’email.' },
       { titolo: 'Scegli il piano.', testo: 'Parti dal {base} e aggiungi i moduli quando ti servono, anche dopo.' },
       {
         titolo: 'Apri la cassa.',
         testo: 'La tua installazione nasce da sola, con il suo indirizzo. Entri dal tablet e lavori.',
+        concordata: 'Ci accordiamo sul pagamento e attiviamo la tua installazione, con il suo indirizzo. Entri dal tablet e lavori.',
       },
     ],
   },
   prezzi: {
-    titolo: 'Prezzi chiari. Paghi solo quello che usi.',
+    // Descrittivo: c'è un canone fisso, l'attivazione e il Completo a
+    // pacchetto, quindi «paghi solo quello che usi» non era esatto.
+    titolo: 'Un piano al mese, e i moduli che scegli.',
     sotto: 'Abbonamento mensile, IVA esclusa. Attivazione una tantum: {attivazione}.',
     alMese: '/ mese',
     piano: 'Piano {nome}',
@@ -194,12 +212,14 @@ export default {
     titolo: 'Domande frequenti',
     voci: [
       [
-        'I miei dati sono al sicuro?',
-        'Sì. Ogni locale ha un’installazione separata, con il suo database: nessun altro locale la vede. Noi entriamo solo per manutenzione e aggiornamenti, come scritto nei termini.',
+        // Le risposte sui dati dicono quello che dicono i Termini
+        // (Legali.jsx §5, §6 e §7), con le loro parole.
+        'Chi vede i dati del mio locale?',
+        'Nessun altro locale. Ogni locale ha un’installazione separata, con il suo database. I dati sono del locale, e noi li trattiamo solo per erogare il servizio, come scritto nei termini.',
       ],
       [
         'E se cade la connessione?',
-        'La cassa continua a lavorare. Conti, comande e incassi restano sul dispositivo e si sincronizzano da soli quando la rete torna.',
+        'La cassa continua a lavorare. Conti, comande e incassi restano sul dispositivo e si sincronizzano da soli quando la rete torna. I pagamenti con il lettore SumUp, invece, hanno bisogno della rete.',
       ],
       [
         'Lo scontrino è fiscale?',
@@ -211,11 +231,15 @@ export default {
       ],
       [
         'Posso cambiare piano o disdire?',
-        'Sì, dalla tua pagina, quando vuoi: l’abbonamento è mensile. Dopo la disdetta i dati restano consultabili per il periodo scritto nei termini.',
+        'Sì. Il cambio di piano si chiede dalla tua pagina. L’abbonamento è mensile e si disdice in qualunque momento: il servizio resta attivo fino alla fine del periodo già pagato.',
+      ],
+      [
+        'Cosa succede ai dati se chiudo il locale?',
+        'Chiudendo l’installazione dalla tua pagina l’app si ferma subito, e dopo 30 giorni i dati vengono cancellati; fino ad allora la chiusura si può annullare. Prima della cancellazione facciamo un backup completo, che puoi scaricare dalla tua pagina per 180 giorni.',
       ],
       [
         'Chi pensa agli aggiornamenti?',
-        'Noi. L’app migliora di continuo e gli aggiornamenti arrivano alla tua installazione senza che tu faccia niente.',
+        'Noi. Gli aggiornamenti arrivano alla tua installazione senza che tu debba fare niente, e senza interruzioni programmate.',
       ],
     ],
   },

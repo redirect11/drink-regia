@@ -57,9 +57,25 @@ requirements:
       terza lingua ripiega sull'italiano; `<html lang>`, titolo, descrizione
       e link hreflang per lingua; importi «24 €» e «€24». Registrazione,
       dashboard, backoffice e testi legali restano in italiano, e la pagina
-      inglese lo dice. RESTA (DESIGN.md §9): le quattro schermate vere
-      dell'app, la scelta del titolo (A, B o C), il nome del prodotto, la
-      prova sociale, la verifica Lighthouse sul telefono.
+      inglese lo dice.
+      REVISIONE DELLA PR #20 (30/10/2026): le frasi reggono ai Termini e
+      alla produzione di oggi — «Lavora anche senza rete» invece di «Non si
+      ferma mai» (Termini §5); le domande sui dati con la formula dei
+      Termini (§6) e la chiusura distinta dalla disdetta (30 giorni, backup
+      scaricabile per 180); «Attivazione automatica» e «nasce da sola» solo
+      con i pagamenti online accesi o il Free in vendita, altrimenti
+      l'attivazione concordata (REQ-FLOTTA-017); i terminali in più col
+      prezzo del listino; il titolo dei prezzi descrittivo; la prova
+      sociale neutra; stampa automatica, soglie di riordino e
+      registrazione dette come sono in tana-drink; i nomi dei piani dal
+      listino anche in inglese. La comparsa delle sezioni nasconde solo gli
+      elementi che osserva (un modulo rimesso in vendita a pagina aperta
+      si vede subito); `/EN` vale `/en`; se il browser non lascia salvare
+      la lingua, la scelta vecchia si toglie e la nuova vale in memoria. Il
+      preload del font solo sulla prima pagina, il peso 600 tolto.
+      RESTA (DESIGN.md §9): le quattro schermate vere dell'app, la scelta
+      del titolo (A, B o C), il nome del prodotto, la prova sociale, `/en`
+      per chi non esegue JavaScript, la verifica Lighthouse sul telefono.
     status: partial
     generate_issue: false
     labels: [prodotto, flotta, regia]

@@ -19,7 +19,9 @@ const CHIAVE = 'regia.lingua'
 export const linguaValida = (l) => LINGUE.includes(l)
 
 // La lingua dell'indirizzo: `/en` e tutto quello che sta sotto è inglese.
-export const linguaDelPercorso = (percorso = '') => (/^\/en(\/|$)/.test(String(percorso)) ? 'en' : PREDEFINITA)
+// Senza badare alle maiuscole, come React Router: `/EN` apre la pagina
+// inglese, e la barra e il piè di pagina devono essere inglesi anche lì.
+export const linguaDelPercorso = (percorso = '') => (/^\/en(\/|$)/i.test(String(percorso)) ? 'en' : PREDEFINITA)
 
 export const percorsoDellaLingua = (lingua) => (lingua === 'en' ? '/en' : '/')
 
@@ -42,7 +44,14 @@ export function linguaDelBrowser(lingue = []) {
 // La preferenza ricordata. localStorage può mancare o rifiutarsi (finestra
 // privata, cookie bloccati): allora non c'è preferenza, e la pagina va lo
 // stesso.
+// La scelta che il browser non ha lasciato salvare resta in memoria, per
+// archivio, e vince su quella salvata prima: senza, chi passava a IT con
+// l'archivio pieno (o in sola lettura) teneva il vecchio «en» e veniva
+// rimandato su /en a ogni visita di `/`.
+const nonSalvate = new WeakMap()
+
 export function leggiPreferenza(archivio = globalThis.localStorage) {
+  if (archivio && nonSalvate.has(archivio)) return nonSalvate.get(archivio)
   try {
     const v = archivio?.getItem(CHIAVE)
     return linguaValida(v) ? v : null
@@ -55,8 +64,16 @@ export function salvaPreferenza(lingua, archivio = globalThis.localStorage) {
   if (!linguaValida(lingua)) return false
   try {
     archivio.setItem(CHIAVE, lingua)
+    nonSalvate.delete(archivio)
     return true
   } catch {
+    // Almeno non resti la scelta vecchia; e questa vale finché la pagina è aperta.
+    try {
+      archivio.removeItem(CHIAVE)
+    } catch {
+      // nemmeno togliere: resta la scelta in memoria
+    }
+    if (archivio && typeof archivio === 'object') nonSalvate.set(archivio, lingua)
     return false
   }
 }

@@ -52,6 +52,9 @@ describe('la lingua della pagina', () => {
     expect(linguaDelPercorso('/en/')).toBe('en')
     expect(linguaDelPercorso('/')).toBe('it')
     expect(linguaDelPercorso('/entra')).toBe('it')
+    // Come React Router, senza badare alle maiuscole.
+    expect(linguaDelPercorso('/EN')).toBe('en')
+    expect(linguaDelPercorso('/En/')).toBe('en')
     expect(linguaDelPercorso('/registrati')).toBe('it')
     expect(linguaDelPercorso()).toBe('it')
     expect(percorsoDellaLingua('en')).toBe('/en')
@@ -93,6 +96,46 @@ describe('la preferenza ricordata', () => {
     expect(leggiPreferenza(rifiuta)).toBeNull()
     expect(salvaPreferenza('en', rifiuta)).toBe(false)
     expect(leggiPreferenza(null)).toBeNull()
+  })
+
+  // Revisione PR #20: con l'archivio che rifiuta di scrivere restava il
+  // vecchio «en», e chi sceglieva IT veniva rimandato su /en per sempre.
+  it('se la scrittura fallisce, toglie la scelta vecchia e ricorda la nuova finché la pagina è aperta', () => {
+    const dati = { 'regia.lingua': 'en' }
+    const pieno = {
+      getItem: (k) => dati[k] ?? null,
+      setItem: () => {
+        throw new Error('QuotaExceededError')
+      },
+      removeItem: (k) => delete dati[k],
+    }
+    expect(leggiPreferenza(pieno)).toBe('en')
+    expect(salvaPreferenza('it', pieno)).toBe(false)
+    expect(dati['regia.lingua']).toBeUndefined()
+    expect(leggiPreferenza(pieno)).toBe('it')
+  })
+
+  it('se non si può nemmeno togliere, la scelta in memoria vince su quella salvata', () => {
+    const bloccato = { getItem: () => 'en', setItem: rifiuta.setItem, removeItem: rifiuta.setItem }
+    expect(salvaPreferenza('it', bloccato)).toBe(false)
+    expect(leggiPreferenza(bloccato)).toBe('it')
+  })
+
+  it('una scrittura riuscita dopo un fallimento torna a valere', () => {
+    let rotto = true
+    const dati = {}
+    const a = {
+      getItem: (k) => dati[k] ?? null,
+      setItem: (k, v) => {
+        if (rotto) throw new Error('QuotaExceededError')
+        dati[k] = v
+      },
+      removeItem: (k) => delete dati[k],
+    }
+    salvaPreferenza('it', a)
+    rotto = false
+    expect(salvaPreferenza('en', a)).toBe(true)
+    expect(leggiPreferenza(a)).toBe('en')
   })
 
   it('di suo usa localStorage', () => {
@@ -219,7 +262,7 @@ describe('i testi della prima pagina', () => {
         expect(f, `${lingua}: ${f}`).not.toMatch(/\d\s?€|€\s?\d/)
         expect(f, `${lingua}: ${f}`).not.toContain('!')
         expect(f, `${lingua}: ${f}`).not.toMatch(
-          /sblocca|acquista ora|scopri|il migliore|rivoluzionari|unlock|buy now|discover|the best|revolutionary|limited time/i
+          /sblocca|acquista ora|scopri|il migliore|rivoluzionari|paghi solo quello che usi|non si ferma mai|unlock|buy now|discover|the best|revolutionary|limited time|pay only for what you use|never stops/i
         )
       }
     }

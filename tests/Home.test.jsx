@@ -115,6 +115,10 @@ describe('la prima pagina', () => {
     const magazzino = MODULI.find((m) => m.id === 'magazzino')
     expect(screen.getByText(`Modulo ${magazzino.nome}`)).toBeInTheDocument()
     expect(screen.getByText(`Nel piano ${PIANI.base.nome}`)).toBeInTheDocument()
+    // Il Base ha un terminale: gli altri si pagano, e il prezzo viene dal
+    // listino (revisione PR #20: «Più terminali sulla stessa cassa» sotto
+    // «Nel piano Base» lasciava credere che fossero inclusi).
+    expect(screen.getByText(`Altri terminali a ${TERMINALE_IN_PIU} € al mese`)).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: it_.funzioni.voci.magazzino.titolo })).toBeInTheDocument()
   })
 

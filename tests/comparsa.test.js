@@ -51,18 +51,37 @@ describe('le sezioni che entrano', () => {
     const f = finestraFinta()
     const radice = pagina()
     const smetti = osservaComparsa(radice, f)
-    expect(radice.classList.contains('con-comparsa')).toBe(true)
     const [o] = f.osservatori
     expect([...o.osservati].map((e) => e.id)).toEqual(['a', 'b'])
-    const a = radice.querySelector('#a')
+    const [a, b, c] = ['#a', '#b', '#c'].map((q) => radice.querySelector(q))
+    // In attesa (nascosti dal CSS) solo quelli osservati; chi non è marcato no.
+    expect(a.classList.contains('in-attesa')).toBe(true)
+    expect(c.classList.contains('in-attesa')).toBe(false)
     o.entra(a, false)
     expect(a.classList.contains('comparso')).toBe(false)
     o.entra(a)
     expect(a.classList.contains('comparso')).toBe(true)
+    expect(a.classList.contains('in-attesa')).toBe(false)
     expect(o.osservati.has(a)).toBe(false)
     smetti()
     expect(o.spento).toBe(true)
-    expect(radice.classList.contains('con-comparsa')).toBe(false)
+    // Smettendo di osservare, chi aspettava ancora torna visibile.
+    expect(b.classList.contains('in-attesa')).toBe(false)
+  })
+
+  // Il difetto trovato in revisione (PR #20): un elemento montato dopo il
+  // primo giro (un modulo rimesso in vendita a pagina aperta) restava a
+  // opacità zero, perché nascondeva la classe sulla radice e nessuno lo
+  // osservava. Ora si nasconde solo chi è osservato.
+  it('un elemento montato dopo è visibile da subito', () => {
+    const f = finestraFinta()
+    const radice = pagina()
+    osservaComparsa(radice, f)
+    const nuovo = document.createElement('article')
+    nuovo.setAttribute('data-comparsa', '')
+    radice.appendChild(nuovo)
+    expect(nuovo.classList.contains('in-attesa')).toBe(false)
+    expect(radice.classList.length).toBe(0)
   })
 
   it('con meno movimento richiesto non fa niente', () => {
@@ -70,13 +89,13 @@ describe('le sezioni che entrano', () => {
     const radice = pagina()
     osservaComparsa(radice, f)()
     expect(f.osservatori).toHaveLength(0)
-    expect(radice.classList.contains('con-comparsa')).toBe(false)
+    expect(radice.querySelector('.in-attesa')).toBeNull()
   })
 
   it('senza IntersectionObserver, o senza pagina, non fa niente', () => {
     const radice = pagina()
     osservaComparsa(radice, {})()
-    expect(radice.classList.contains('con-comparsa')).toBe(false)
+    expect(radice.querySelector('.in-attesa')).toBeNull()
     expect(osservaComparsa(null, finestraFinta())).toBeTypeOf('function')
   })
 
