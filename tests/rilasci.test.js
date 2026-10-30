@@ -64,6 +64,22 @@ describe('un rilascio nasce da un tag, con le ondate in ordine', () => {
   })
 })
 
+// REQ-FLOTTA-018: la Tana affidata alla regia resta nell'ondata interna,
+// ma l'aggiornamento lo lancia la regia invece di aspettarlo.
+describe('un locale esistente affidato alla regia', () => {
+  it('lo aggiorna la regia, nella sua ondata; senza l’affidamento si aspetta la versione', () => {
+    expect(r.daFlotta({ origine: 'esistente' })).toBe(false)
+    expect(r.daFlotta({ origine: 'esistente', aggiornamenti_dalla_regia: true })).toBe(true)
+    expect(r.daFlotta({ stato: 'attiva' })).toBe(true)
+    const istanze = { ...flotta(), 'tana-drink': { ...flotta()['tana-drink'], aggiornamenti_dalla_regia: true } }
+    let ril = r.nuovoRilascio('v1.11.0', istanze)
+    expect(ril.ondate.map((o) => o.nome)).toEqual(['prova', 'interna', 'pilota', 'generale'])
+    ril = r.avanzamento(ril, istanze).rilascio
+    istanze['demo-prova'].aggiornamento = { rilascio: 'v1.11.0', stato: 'riuscito' }
+    expect(r.avanzamento(ril, istanze).daLanciare).toEqual(['tana-drink'])
+  })
+})
+
 describe('un’ondata alla volta', () => {
   it('la prima parte subito; la seconda solo quando la prima è finita', () => {
     const istanze = flotta()

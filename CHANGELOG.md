@@ -16,6 +16,11 @@ data.
   porta solo quel locale all'ultima versione dell'app, mentre a tutti un
   rilascio arriva a ondate; l'esito dice la versione lanciata
   (REQ-FLOTTA-005).
+- La Tana si può affidare alla regia per gli aggiornamenti: entra nelle
+  ondate dei rilasci e «Aggiorna» la porta alla versione scelta, sul suo
+  progetto, senza perdere SumUp, notifiche, App Check e Analytics. Il
+  deploy da tana-drink resta, per il test e per la produzione. Di norma
+  un locale esistente continua a pubblicare da sé (REQ-FLOTTA-018).
 - La prima pagina è nuova, in italiano e in inglese. Il titolo dice la
   promessa («La serata non si ferma. Nemmeno quando cade il Wi-Fi.»), e la
   pagina segue un percorso: il problema, i tre pilastri (lavora anche senza

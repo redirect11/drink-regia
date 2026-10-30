@@ -119,9 +119,17 @@ describe('dispatchAggiornamento', () => {
   it('lancia aggiorna-istanza.yml con lo slug, la versione dell’app e l’ambiente', () => {
     expect(dispatchAggiornamento({ slug: 'bar-mario', nome_locale: 'Bar Mario' }, { ref: 'main', app: 'v1.10.0', ambiente: 'test' })).toEqual({
       ref: 'main',
-      inputs: { slug: 'bar-mario', nome_locale: 'Bar Mario', ref: 'v1.10.0', ambiente: 'test', profilo: 'completo' },
+      inputs: { slug: 'bar-mario', nome_locale: 'Bar Mario', ref: 'v1.10.0', ambiente: 'test', profilo: 'completo', progetto: '', cliente: '', build: '' },
     })
     expect(() => dispatchAggiornamento({ slug: 'x' })).toThrow(/slug/)
+  })
+
+  // REQ-FLOTTA-018: la Tana sul suo progetto, con la sua cartella e le sue
+  // chiavi pubbliche, in una stringa sola (gli input di GitHub sono stringhe).
+  it('per un locale esistente manda progetto, cartella e chiavi della build', () => {
+    const tana = { slug: 'tana-drink', nome_locale: 'La Tana del Coniglio', progetto: 'tana-drink', cliente: 'tana', build: { VITE_RECAPTCHA_SITE_KEY: 'abc' } }
+    expect(dispatchAggiornamento(tana, { app: 'v1.10.0' }).inputs).toMatchObject({ progetto: 'tana-drink', cliente: 'tana', build: '{"VITE_RECAPTCHA_SITE_KEY":"abc"}' })
+    expect(dispatchAggiornamento({ ...tana, build: {} }).inputs.build).toBe('')
   })
 
   it('il profilo si dice: leggero per un locale Free, completo quando compra', () => {

@@ -110,7 +110,18 @@ function dispatchAggiornamento(istanza, { ref = 'main', app = 'main', ambiente =
   if (!istanza || !SLUG.test(istanza.slug || '')) throw new Error('Istanza senza uno slug valido')
   return {
     ref,
-    inputs: { slug: istanza.slug, nome_locale: String(istanza.nome_locale || istanza.slug), ref: app, ambiente: ambienteValido(ambiente), profilo: profiloValido(profilo) },
+    inputs: {
+      slug: istanza.slug,
+      nome_locale: String(istanza.nome_locale || istanza.slug),
+      ref: app,
+      ambiente: ambienteValido(ambiente),
+      profilo: profiloValido(profilo),
+      // Solo per un locale esistente aggiornato dalla regia (REQ-FLOTTA-018):
+      // vuoti, il workflow usa drinkpos-<slug> e la cartella <slug>.
+      progetto: String(istanza.progetto || ''),
+      cliente: String(istanza.cliente || ''),
+      build: istanza.build && Object.keys(istanza.build).length ? JSON.stringify(istanza.build) : '',
+    },
   }
 }
 

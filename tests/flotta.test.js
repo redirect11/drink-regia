@@ -26,6 +26,7 @@ const provisiona = load(leggi('.github/workflows/provisiona-istanza.yml'))
 const aggiorna = load(leggi('.github/workflows/aggiorna-istanza.yml'))
 const elimina = load(leggi('.github/workflows/elimina-istanza.yml'))
 const { dispatchEliminazione } = require('../functions/lib/eliminazione.js')
+const { CHIAVI_BUILD } = require('../functions/lib/esistente.js')
 const job = (w) => Object.values(w.jobs)[0]
 const passi = (w) => job(w).steps
 const passo = (w, nome) => passi(w).find((s) => s.name === nome)
@@ -89,7 +90,10 @@ describe.each(WORKFLOW)('%s', (_, w, corpo) => {
   // tana-drink, REQ-LIC-004 (30/10/2026): l'app sa di essere leggera già
   // dalla build, prima di leggere la licenza.
   it('la build dice il profilo all’app', () => {
-    expect(passo(w, 'Build').env).toMatchObject({ CLIENTE: '${{ inputs.slug }}', VITE_PROFILO: '${{ inputs.profilo }}' })
+    // L'aggiornamento può compilare per una cartella che non è lo slug
+    // (la Tana è clienti/tana, REQ-FLOTTA-018); l'attivazione no.
+    const cliente = w === aggiorna ? '${{ inputs.cliente || inputs.slug }}' : '${{ inputs.slug }}'
+    expect(passo(w, 'Build').env).toMatchObject({ CLIENTE: cliente, VITE_PROFILO: '${{ inputs.profilo }}' })
   })
 
   // Le Functions dell'app dichiarano dei segreti, e Firebase non le
@@ -123,9 +127,11 @@ describe.each(WORKFLOW)('%s: l’app di produzione di quel locale', (_, w) => {
   const app = () => passi(w).findIndex((s) => s.with?.repository === 'redirect11/tana-drink')
 
   it('il progetto è drinkpos-<slug>, la build è di produzione e per quel cliente', () => {
-    expect(w.env.PROGETTO).toBe('drinkpos-${{ inputs.slug }}')
+    // Un progetto diverso solo per un locale esistente (REQ-FLOTTA-018),
+    // e solo nell'aggiornamento: un locale nuovo nasce sempre drinkpos-<slug>.
+    expect(w.env.PROGETTO).toBe(w === aggiorna ? "${{ inputs.progetto || format('drinkpos-{0}', inputs.slug) }}" : 'drinkpos-${{ inputs.slug }}')
     const build = passo(w, 'Build')
-    expect(build.env).toMatchObject({ CLIENTE: '${{ inputs.slug }}', VITE_APP_ENV: 'production' })
+    expect(build.env).toMatchObject({ CLIENTE: w === aggiorna ? '${{ inputs.cliente || inputs.slug }}' : '${{ inputs.slug }}', VITE_APP_ENV: 'production' })
     expect(build.run).toBe('npm run build')
   })
 
@@ -178,10 +184,55 @@ describe.each(WORKFLOW)('%s: l’app di produzione di quel locale', (_, w) => {
     expect(i).toBeLessThan(nomi().indexOf('Credenziali di provisioning'))
   })
 
+  it('il ramo dell’app arriva alla build, come nel deploy della Tana', () => {
+    const run = passo(w, "La versione dell'app va bene per questa regia?").run
+    expect(run).toMatch(/if git merge-base --is-ancestor HEAD origin\/main; then RAMO=main\n\s*elif git merge-base --is-ancestor HEAD origin\/develop; then RAMO=develop\n\s*else RAMO="\$REF_APP"; fi/)
+    expect(run).toContain('echo "GIT_BRANCH=$RAMO" >> "$GITHUB_ENV"')
+  })
+
   it('un’app che non sa compilare per un cliente (la 1.9.x) si ferma, su tutte e due le regie', () => {
     const controllo = passo(w, "La versione dell'app va bene per questa regia?").run
     const primo = controllo.slice(0, controllo.indexOf('if [ "$AMBIENTE"'))
     expect(primo).toMatch(/if \[ ! -f scripts\/genera-cliente\.mjs \]; then[\s\S]*exit 1/)
+  })
+})
+
+// UN LOCALE ESISTENTE AGGIORNATO DALLA REGIA (REQ-FLOTTA-018): la Tana
+// sul suo progetto, con la sua cartella e le sue chiavi, e senza perdere
+// niente di quello che il suo deploy di tana-drink le dava.
+describe('aggiorna-istanza.yml: un locale esistente, come la Tana', () => {
+  const validi = () => passo(aggiorna, 'Input validi').run
+
+  it('progetto e cartella si controllano, e i progetti della regia non sono mai un locale', () => {
+    expect(validi()).toMatch(/\[\[ "\$PROGETTO" =~ \^\[a-z\]\[a-z0-9-\]\{4,28\}\[a-z0-9\]\$ \]\]/)
+    expect(validi()).toMatch(/"\$PROGETTO" = "drink-regia" \] \|\| \[ "\$PROGETTO" = "drink-regia-test" \];[^\n]*exit 1/)
+    expect(validi()).toMatch(/\[\[ "\$CLIENTE_APP" =~ \^\[a-z\]\[a-z0-9-\]\{1,29\}\$ \]\]/)
+    expect(aggiorna.env.CLIENTE_APP).toBe('${{ inputs.cliente || inputs.slug }}')
+  })
+
+  it('le chiavi della build: solo quelle pubbliche previste, con valori semplici', () => {
+    expect(validi()).toContain('["VITE_FIREBASE_MEASUREMENT_ID", "VITE_FIREBASE_VAPID_KEY", "VITE_RECAPTCHA_SITE_KEY"]')
+    expect(validi()).toContain('/^[A-Za-z0-9_-]{1,200}$/')
+    // Le stesse della regia: una chiave in più qui o là non passerebbe.
+    expect(CHIAVI_BUILD).toEqual(['VITE_FIREBASE_MEASUREMENT_ID', 'VITE_FIREBASE_VAPID_KEY', 'VITE_RECAPTCHA_SITE_KEY'])
+  })
+
+  it('nel .env della build le chiavi del locale e Analytics dal progetto', () => {
+    const run = passo(aggiorna, "La configurazione web dell'istanza").run
+    expect(run).toContain('["VITE_FIREBASE_MEASUREMENT_ID", c.measurementId || ""]')
+    expect(run).toContain('...Object.fromEntries(righe), ...build')
+  })
+
+  it('la cartella del cliente è quella del locale', () => {
+    expect(passo(aggiorna, 'La cartella del cliente').run).toBe('node scripts/genera-cliente.mjs --slug "$CLIENTE_APP" --nome "$NOME"')
+  })
+
+  // La Tana ha in tana-drink functions/.env.tana-drink con l'app id di
+  // SumUp: riscritto col solo nome, SumUp si fermerebbe.
+  it('il .env delle Functions che tana-drink ha già non si riscrive', () => {
+    const run = passo(aggiorna, 'Functions .env del progetto').run
+    expect(run).toMatch(/^if \[ -f "app\/functions\/\.env\.\$PROGETTO" \]; then[^\n]*exit 0; fi\n/)
+    expect(run).toContain(`printf 'VENUE_NAME=%s\\n' "$NOME" > "app/functions/.env.$PROGETTO"`)
   })
 })
 
@@ -285,7 +336,9 @@ describe('infra/istanza/main.tf', () => {
 
     it('l’aggiornamento completa col Terraform solo un locale della regia ancora leggero', () => {
       const p = passo(aggiorna, 'Il profilo completo nel progetto')
-      expect(p.if).toBe("env.PROFILO == 'completo'")
+      // Un locale esistente non ha stato Terraform: non si tocca mai.
+      expect(p.if).toBe("env.PROFILO == 'completo' && env.ESISTENTE != 'true'")
+      expect(aggiorna.env.ESISTENTE).toBe("${{ inputs.progetto != '' }}")
       expect(p.env.TF_VAR_profilo).toBe('completo')
       expect(p.run).toContain('if ! terraform state show google_project.istanza')
       expect(p.run).toContain(`grep -qF 'google_project_service.api["cloudfunctions.googleapis.com"]'`)

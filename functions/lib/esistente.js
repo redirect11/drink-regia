@@ -36,6 +36,36 @@ function slugDaNome(nome) {
 
 class DatiNonValidi extends Error {}
 
+// UN LOCALE ESISTENTE AGGIORNATO DALLA REGIA (REQ-FLOTTA-018, l'utente il
+// 30/10/2026: «io farei la A»). Di norma un locale esistente pubblica da
+// sé, dal suo repository. Con `aggiornamenti_dalla_regia` lo aggiorna la
+// regia come gli altri, col workflow della flotta, ma sul SUO progetto.
+// Servono due cose che per un locale della flotta vengono dallo slug: la
+// cartella in clienti/ di tana-drink (la Tana è `tana`, troppo corto per
+// essere uno slug della regia) e le chiavi pubbliche della build che il
+// progetto non sa dire da sé (notifiche, App Check, Analytics). Sono
+// pubbliche: finiscono comunque nell'app pubblicata, non sono segreti.
+const CARTELLA = /^[a-z][a-z0-9-]{1,29}$/
+const CHIAVI_BUILD = ['VITE_FIREBASE_MEASUREMENT_ID', 'VITE_FIREBASE_VAPID_KEY', 'VITE_RECAPTCHA_SITE_KEY']
+const VALORE_BUILD = /^[A-Za-z0-9_-]{1,200}$/
+// I progetti della regia non sono mai un locale: un errore di battitura
+// pubblicherebbe l'app dei locali sopra il sito.
+const PROGETTI_DELLA_REGIA = ['drink-regia', 'drink-regia-test']
+
+function gestioneEsistente(dati, { slug }) {
+  const cliente = String(dati?.cliente || '').trim() || slug
+  if (!CARTELLA.test(cliente)) throw new DatiNonValidi(`Cartella del cliente «${cliente}» non valida: minuscole, cifre e trattini.`)
+  const build = {}
+  for (const [chiave, v] of Object.entries(dati?.build || {})) {
+    if (!CHIAVI_BUILD.includes(chiave)) throw new DatiNonValidi(`La chiave «${chiave}» non è una di quelle della build.`)
+    const valore = String(v ?? '').trim()
+    if (!valore) continue
+    if (!VALORE_BUILD.test(valore)) throw new DatiNonValidi(`Il valore di ${chiave} non è valido.`)
+    build[chiave] = valore
+  }
+  return { aggiornamenti_dalla_regia: dati?.aggiornamenti_dalla_regia === true, cliente, build }
+}
+
 // I dati controllati: { nome_locale, email, progetto, url, slug? }.
 function datiEsistente(dati) {
   const nome = String(dati?.nome_locale || '').trim().slice(0, 80)
@@ -48,8 +78,9 @@ function datiEsistente(dati) {
   if (!SLUG.test(slug)) throw new DatiNonValidi(`Identificativo «${slug}» non valido: minuscole, cifre e trattini, da 6 a 30 caratteri.`)
   if (!EMAIL.test(email)) throw new DatiNonValidi('Email del titolare non valida.')
   if (!PROGETTO.test(progetto)) throw new DatiNonValidi(`Progetto Firebase «${progetto}» non valido.`)
+  if (PROGETTI_DELLA_REGIA.includes(progetto)) throw new DatiNonValidi(`«${progetto}» è un progetto della regia, non di un locale.`)
   if (!/^https:\/\/[^\s/]+/.test(url)) throw new DatiNonValidi('L’indirizzo dell’app deve cominciare con https://.')
-  return { nome, slug, email, progetto, url, terminali, interna: dati?.interna !== false }
+  return { nome, slug, email, progetto, url, terminali, interna: dati?.interna !== false, gestione: gestioneEsistente(dati, { slug }) }
 }
 
 // I tre documenti: clienti/{uid}, istanze/{slug} e il cassetto ai/{slug}
@@ -86,6 +117,7 @@ function documentiEsistente(d, { uid, adesso = new Date() }) {
       origine: 'esistente',
       interna: d.interna,
       licenza_dalla_regia: false,
+      ...d.gestione,
       errore: null,
       registrata_il: ora,
       aggiornata_il: ora,
@@ -98,4 +130,4 @@ function documentiEsistente(d, { uid, adesso = new Date() }) {
 // quelle registrate come esistenti finché non le si collega.
 const scriveLicenza = (istanza) => istanza?.licenza_dalla_regia !== false
 
-module.exports = { slugDaNome, DatiNonValidi, datiEsistente, documentiEsistente, scriveLicenza }
+module.exports = { slugDaNome, DatiNonValidi, datiEsistente, documentiEsistente, scriveLicenza, gestioneEsistente, CHIAVI_BUILD }
