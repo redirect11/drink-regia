@@ -78,6 +78,27 @@ service cloud.firestore {
       }
     }
 
+    // La vendita (REQ-FLOTTA-015): cosa è in vendita lo legge anche chi non
+    // ha fatto l'accesso (la prima pagina mostra il Free solo se lo è); lo
+    // cambia solo l'admin, e ogni cambio resta nello storico, che non si
+    // riscrive.
+    // Le richieste di contatto coi pagamenti spenti (REQ-FLOTTA-017): le
+    // scrive la Function chiediContatto; l'admin le segna gestite.
+    match /contatti/{uid} {
+      allow read: if admin() || (request.auth != null && request.auth.uid == uid);
+      allow update: if admin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stato', 'gestita_il', 'gestita_da']);
+      allow create, delete: if false;
+    }
+
+    match /vendita/{doc} {
+      allow read: if true;
+      allow write: if admin();
+      match /storico/{voce} {
+        allow read, create: if admin();
+        allow update, delete: if false;
+      }
+    }
+
     // Le impostazioni della regia (REQ-FLOTTA-011): il deploy automatico.
     match /impostazioni/{doc} {
       allow read: if autenticato();

@@ -1,16 +1,18 @@
 name: Deploy to Firebase
 
-# UN PUSH NON PUBBLICA. Pubblicano il tag o il lancio a mano:
-#   tag su un commit di `main`    → PRODUZIONE (drink-regia), con approvazione
-#   tag su qualsiasi altro commit → TEST (drink-regia-test), subito
-#   lancio a mano su un ramo      → TEST, senza tag
-# Il ramo non conta: conta dove sta il commit (job «Dove va»).
-# I segreti stanno nelle GitHub Environments «production» e «test», con
-# gli stessi nomi. L'approvazione è «Required reviewers» su «production».
-# Stesso modello di tana-drink, senza il ramo della flotta: la regia non
-# ha clienti da compilare, tutto quello che non è main va sul test.
+# DOVE VA (decisione dell'utente del 30/10/2026):
+#   push su `develop`             → TEST (drink-regia-test), subito
+#   tag su un commit di `main`    → PRODUZIONE (drink-regia)
+#   tag fuori da `main`           → nessun deploy: si ferma e lo dice
+#   lancio a mano su un ramo      → TEST, per provare un ramo di lavoro
+# In produzione si va solo col tag su main: né un push né un lancio a mano
+# ci arrivano, nemmeno su main. Il test segue develop, cioè quello che
+# andrà nel prossimo rilascio. I segreti stanno nelle GitHub Environments
+# «production» e «test», con gli stessi nomi.
 on:
   push:
+    branches:
+      - develop
     tags:
       - '**'
   workflow_dispatch:
@@ -48,13 +50,19 @@ jobs:
           fetch-depth: 0
       - id: scelta
         run: |
-          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
-          if git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
-            echo "ambiente=production" >> "$GITHUB_OUTPUT"
-            echo "${GITHUB_REF_NAME} è su main → PRODUZIONE (con approvazione)."
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            # `main` non arriva col checkout di un tag: va chiesto a parte.
+            git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+            if git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+              echo "ambiente=production" >> "$GITHUB_OUTPUT"
+              echo "Il tag ${GITHUB_REF_NAME} è su main → PRODUZIONE."
+            else
+              echo "::error::Il tag ${GITHUB_REF_NAME} non è su main: in produzione va solo un tag su main, e il test segue develop. Nessun deploy."
+              exit 1
+            fi
           else
             echo "ambiente=test" >> "$GITHUB_OUTPUT"
-            echo "${GITHUB_REF_NAME} non è su main → TEST."
+            echo "${GITHUB_REF_NAME} è un ramo → TEST."
           fi
 
   prova:

@@ -10,11 +10,12 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
 } from 'firebase/auth'
-import { doc, setDoc, getDoc, onSnapshot, collection, getDocs, orderBy, query, updateDoc, limit } from 'firebase/firestore'
+import { doc, setDoc, getDoc, onSnapshot, collection, getDocs, orderBy, query, updateDoc, limit, addDoc } from 'firebase/firestore'
 import { getFunctions, httpsCallable } from 'firebase/functions'
 import { auth, db, configurata, app } from './firebase.js'
 import { nuovoCliente } from './clienti.js'
 import { STATI } from './istanze.js'
+import { venditaPulita } from './vendita.js'
 
 const serve = () => {
   if (!configurata) throw new Error('La regia non è collegata a Firebase: mancano le variabili VITE_FIREBASE_*.')
@@ -204,17 +205,6 @@ export async function elencoRichieste() {
   return Object.fromEntries(snap.docs.map((d) => [d.id, d.data()]))
 }
 
-// L'admin segna un piano pagato a mano (finché Stripe non c'è, REQ-FLOTTA-007).
-export async function segnaPiano(uid, { piano, moduli = [], terminali = 1 }) {
-  serve()
-  await updateDoc(doc(db, 'clienti', uid), {
-    piano,
-    moduli,
-    terminali,
-    abbonamento: { stato: 'attivo', origine: 'manuale', dal: new Date().toISOString() },
-  })
-}
-
 // L'admin rilancia un'attivazione fallita: la richiesta torna in coda.
 export async function rilanciaAttivazione(slug) {
   serve()
@@ -271,6 +261,99 @@ export async function gestisciCassettoAI(slug, azione, extra = {}) {
 export async function registraLocaleEsistente(dati) {
   serve()
   const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'registraLocaleEsistente')
+  const { data } = await fn(dati)
+  return data
+}
+
+// L'eliminazione di un locale (REQ-FLOTTA-014). Il titolare: «chiedi»
+// (chiude e programma a 30 giorni) e «annulla». L'admin: «chiedi» con
+// slug e subito, e «annulla». Si conferma col nome dell'app.
+export async function gestisciEliminazione(azione, dati = {}) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'gestisciEliminazione')
+  const { data } = await fn({ azione, ...dati })
+  return data
+}
+
+// Il link, valido 15 minuti, per scaricare l'archivio del proprio locale.
+export async function scaricaArchivio() {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'scaricaArchivio')
+  const { data } = await fn({})
+  return data
+}
+
+// La vendita (REQ-FLOTTA-015): la legge anche chi non ha fatto l'accesso,
+// perché la prima pagina mostra il Free solo se è in vendita. Senza Firebase
+// (i test, una build senza variabili) vale la vendita predefinita.
+export function osservaVendita(cb) {
+  if (!configurata) {
+    cb(venditaPulita(null))
+    return () => {}
+  }
+  return onSnapshot(doc(db, 'vendita', 'listino'), (s) => cb(venditaPulita(s.exists() ? s.data() : null)), () => cb(venditaPulita(null)))
+}
+
+// L'admin cambia cosa è in vendita: { free: true } o { moduli: { sumup: false } }.
+// Ogni cambio resta nello storico, con chi l'ha fatto e quando.
+export async function impostaVendita(cambio, chi = auth?.currentUser?.email || null) {
+  serve()
+  const il = new Date().toISOString()
+  await setDoc(doc(db, 'vendita', 'listino'), { ...cambio, aggiornata_il: il, aggiornata_da: chi }, { merge: true })
+  await addDoc(collection(db, 'vendita', 'listino', 'storico'), { cambio, il, da: chi })
+}
+
+// Coi pagamenti online spenti (REQ-FLOTTA-017) il titolare chiede di
+// essere contattato: { piano, moduli, terminali, telefono, nota }.
+export async function chiediContatto(dati) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'chiediContatto')
+  const { data } = await fn(dati)
+  return data
+}
+
+// La richiesta di contatto del titolare, se c'è.
+export function osservaContatto(uid, cb) {
+  if (!configurata || !uid) {
+    cb(null)
+    return () => {}
+  }
+  return onSnapshot(doc(db, 'contatti', uid), (s) => cb(s.exists() ? s.data() : null), () => cb(null))
+}
+
+// L'admin: le richieste di contatto, le più recenti prima.
+export async function elencoContatti() {
+  serve()
+  const snap = await getDocs(query(collection(db, 'contatti'), orderBy('chiesta_il', 'desc')))
+  return snap.docs.map((d) => ({ uid: d.id, ...d.data() }))
+}
+
+// L'admin segna una richiesta come gestita (o la riapre).
+export async function segnaContatto(uid, stato, chi = auth?.currentUser?.email || null) {
+  serve()
+  await updateDoc(doc(db, 'contatti', uid), { stato, gestita_il: stato === 'gestita' ? new Date().toISOString() : null, gestita_da: stato === 'gestita' ? chi : null })
+}
+
+// Il titolare sceglie il Free: il server controlla che sia in vendita.
+export async function scegliFree() {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'scegliFree')
+  const { data } = await fn({})
+  return data
+}
+
+// Le prove dei moduli (REQ-FLOTTA-016): il titolare accende una prova.
+export async function provaModulo(modulo) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'provaModulo')
+  const { data } = await fn({ modulo })
+  return data
+}
+
+// «Cambia piano» dell'admin: { slug, piano, moduli, terminali, modo: 'stripe' | 'fuori' }.
+export async function cambiaPianoAdmin(dati) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'cambiaPianoAdmin')
   const { data } = await fn(dati)
   return data
 }

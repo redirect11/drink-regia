@@ -104,6 +104,11 @@ requirements:
       si rilancia un'attivazione fallita e si segna un abbonamento pagato a
       mano (finche' Stripe non c'e', REQ-FLOTTA-007). La regia vede
       aggregati e stati, mai i dati operativi dei locali.
+      Dal 29/10/2026 un locale per scheda (l'utente: «puoi migliorare la
+      visualizzazione?»): nome e stato breve colorato in alto, i dati in
+      una griglia che va a capo da sola, il link all'app del locale, le
+      azioni a gruppi (istanza e piano, credito AI, licenza), con Sospendi
+      e Chiudi a parte, a destra.
     status: implemented
     generate_issue: false
     labels: [prodotto, flotta, regia]
@@ -192,7 +197,7 @@ requirements:
     test_cases:
       - tests/requisiti.test.js
   - id: REQ-DEV-002
-    title: "Le Actions come tana-drink: un push non pubblica, il tag va sul test o in produzione, con un progetto Firebase di test"
+    title: "Le Actions della regia: develop va sul test, il tag su main in produzione, con un progetto Firebase di test"
     area: ".github/workflows/test.yml, firebase-hosting.yml, deploy.yml, vitest.config.mjs, src/App.jsx (nastro TEST), scripts/abilita-api.mjs, scripts/abilita-accesso-email.mjs, scripts/segreti-environment.mjs, functions/.env.<progetto>, functions/piani.json"
     description: >
       Lo stesso modello di pubblicazione di tana-drink
@@ -201,10 +206,15 @@ requirements:
       Un push su un ramo qualsiasi (tranne release/**) fa lint, test e
       build e basta; una pull request verso develop o main anche la
       coverage, con soglie per area in vitest.config.mjs che si alzano e
-      non si abbassano. Pubblicano solo il tag e il lancio a mano di «Deploy
-      to Firebase»: il job «Dove va» guarda dove sta il commit, su main e'
-      produzione (drink-regia, environment `production` con approvazione),
-      tutto il resto e' test (drink-regia-test, environment `test`). Il
+      non si abbassano. Dal 30/10/2026 (decisione dell'utente: «develop per
+      test e main per produzione», «il rilascio in produzione solo tag sul
+      main») un push su develop va sul test (drink-regia-test, environment
+      `test`); in produzione (drink-regia, environment `production`) va
+      solo un tag su un commit di main; un tag fuori da main non pubblica
+      niente, il job «Dove va» si ferma e lo dice; il lancio a mano di
+      «Deploy to Firebase» su un ramo va sul test. La regia di test lancia i
+      workflow della flotta da develop (functions/.env.drink-regia-test,
+      FLOTTA_REF), la produzione da main. Il
       deploy riusabile (deploy.yml) ha l'environment scritto a chiare
       lettere e la guardia: se VITE_FIREBASE_PROJECT_ID non coincide col
       progetto di destinazione si ferma. Il sito fuori dalla produzione
@@ -485,3 +495,155 @@ requirements:
       - tests/flotta.test.js
       - tests/licenza.test.js
       - tests/provisioning.test.js
+
+  - id: REQ-FLOTTA-014
+    title: "Eliminare un locale e il suo progetto, sempre dopo un backup completo e verificato che scarica solo il titolare"
+    area: "functions/lib/eliminazione.js, functions/index.js (gestisciEliminazione, eliminazioniProgrammate, scaricaArchivio, esitoProvisioning), .github/workflows/elimina-istanza.yml, scripts/archivia-istanza.mjs, src/pages/ChiudiLocale.jsx, src/pages/Dashboard.jsx, src/pages/Backoffice.jsx (EliminaLocale), src/lib/istanze.js (ELIMINATA), src/pages/Legali.jsx"
+    description: >
+      Decisioni dell'utente del 29/10/2026. IL TITOLARE, dalla sua dashboard,
+      chiude il locale e ne chiede la cancellazione: l'app si ferma subito,
+      l'abbonamento si disdice a fine periodo, la cancellazione parte dopo
+      30 giorni; fino ad allora la annulla e il locale torna com'era (e la
+      disdetta si toglie). Non puo' chiederla subito, ne' annullare una
+      chiusura decisa dall'admin. L'ADMIN, solo per un locale gia' chiuso,
+      sceglie fra subito e 30 giorni dalla chiusura, e annulla qualunque
+      cancellazione programmata. Mai per un locale esistente, interno o per
+      la demo. Tutti e due confermano scrivendo il nome dell'app
+      (drinkpos-<slug>). IL BACKUP E' OBBLIGATORIO: elimina-istanza.yml fa
+      il backup leggibile (dati.json con tutte le collezioni e i tipi,
+      utenti.json senza password, i file dello Storage, manifesto.json, in
+      archivio.zip) e l'export nativo di Firestore, li mette nel bucket
+      degli archivi, verifica zip, manifesto ed export completo, e SOLO
+      DOPO cancella il progetto e lo stato di Terraform; senza verifica il
+      progetto resta. La regia rifiuta un esito «eliminata» senza archivio.
+      L'ARCHIVIO resta 180 giorni (regola del bucket) e lo scarica solo il
+      titolare del locale, dalla dashboard, con un link firmato di 15
+      minuti: per quei dati il locale e' titolare del trattamento e noi
+      responsabili (GDPR art. 28); nemmeno l'admin ha il pulsante. Ogni
+      mattina eliminazioniProgrammate lancia quelle arrivate alla data, se
+      il locale e' ancora chiuso. Un locale eliminato non si riattiva
+      (Google non riusa l'id di un progetto cancellato). Termini e privacy
+      lo dicono; il DPA, quando c'e', deve dire lo stesso. Da fare fuori dal
+      codice: i bucket degli archivi e i loro permessi (infra/README.md).
+    status: partial
+    generate_issue: true
+    labels: [flotta, regia, privacy]
+    priority: P1
+    test_cases:
+      - tests/eliminazione.test.js
+      - tests/ChiudiLocale.test.jsx
+      - tests/Backoffice.test.jsx
+      - tests/flotta.test.js
+      - tests/provisioning.test.js
+
+  - id: REQ-FLOTTA-015
+    title: "Il piano Free, coi suoi limiti e il profilo leggero a costo zero, e la vendita decisa dall'admin"
+    area: "functions/piani.json (piani.free), functions/lib/free.js, functions/lib/licenza.js (limiti), functions/lib/provisioning.js (profilo), functions/index.js (scegliFree, vendita, cambiaScelta, creaCheckout, licenzaSegueIlPiano, creaCliente), .github/workflows/provisiona-istanza.yml, .github/workflows/aggiorna-istanza.yml, infra/istanza/main.tf (profilo), firestore.rules (vendita), src/lib/vendita.js, src/lib/db.js, src/pages/Home.jsx, src/pages/SceltaPiano.jsx, src/pages/Dashboard.jsx, src/pages/Backoffice.jsx (Vendita)"
+    description: >
+      Decisioni dell'utente del 30/10/2026: un piano gratuito di tipo «free
+      con limiti», chiamato Free, con funzioni «base base base» perche',
+      provata l'app completa, comprare sia quasi necessario; 10 prodotti nel
+      menu', 5 conti aperti insieme, niente sconti, storico di 7 giorni, il
+      marchio; nessun modulo; un terminale. Il Free e' un piano del listino
+      (piani.json, 0 €) e non passa mai da Stripe: il titolare lo sceglie
+      dalla dashboard (scegliFree, solo con l'email confermata, solo per chi
+      non ha gia' un abbonamento) e poi attiva il locale come per ogni
+      piano. La licenza porta i limiti all'app (licenza.limiti); i piani a
+      pagamento scrivono limiti null, cioe' nessuno. IL PROFILO LEGGERO: un
+      locale Free si pubblica con solo regole e sito, senza Functions,
+      Storage e segreti, che sono quello che costa anche da fermo; il
+      workflow lo dice nell'esito e la regia lo segna sull'istanza. Quando
+      il titolare compra, la licenza toglie i limiti e licenzaSegueIlPiano
+      lancia l'aggiornamento col profilo completo. Da Free a un piano a
+      pagamento si passa solo dal Checkout: cambiaScelta lo rifiuta (era la
+      strada per avere il Base gratis), e la richiesta di attivazione non
+      trasforma piu' il Free in Base. LA VENDITA la decide l'admin dal
+      backoffice (vendita/listino): il Free in vendita o no, ogni modulo in
+      vendita o no, con lo storico dei cambi; spegnere la vendita chiude
+      solo la porta d'ingresso, chi c'e' gia' continua. Il Free parte
+      spento. Le prove dei moduli e «Cambia piano» stanno in REQ-FLOTTA-016.
+      Il Free lo usa solo il titolare (limiti.utenti_max 1): senza Functions
+      non c'e' staffAdmin, che crea gli account dello staff. IL PROGETTO
+      LEGGERO HA LA FATTURAZIONE: provato il 30/10/2026 su
+      drinkpos-prova-free, senza fatturazione Google non accende l'accesso
+      con email (initializeAuth: BILLING_NOT_ENABLED; la guida Firebase a
+      Terraform chiede il Blaze). Il Terraform col profilo leggero accende
+      solo le API di database, regole, sito e accesso, senza le API e gli
+      agenti delle Functions; aggiorna-istanza.yml, quando un locale della
+      regia ancora leggero passa al completo, rifa' l'apply col completo
+      prima del deploy. Da fare lato tana-drink: i limiti fatti rispettare
+      dall'app e l'app senza Functions (handover §7).
+    status: partial
+    generate_issue: true
+    labels: [prodotto, flotta, regia]
+    priority: P2
+    test_cases:
+      - tests/free.test.js
+      - tests/HomeVendita.test.jsx
+      - tests/SceltaPiano.test.jsx
+      - tests/Dashboard.test.jsx
+      - tests/Backoffice.test.jsx
+      - tests/licenza.test.js
+      - tests/provisioning.test.js
+      - tests/flotta.test.js
+
+  - id: REQ-FLOTTA-016
+    title: "Le prove dei moduli scelte dall'admin, e «Cambia piano» dell'admin con Stripe o fuori da Stripe"
+    area: "functions/lib/prove.js, functions/lib/cambiopiano.js, functions/lib/licenza.js (prove), functions/lib/free.js (venditaPulita), functions/index.js (provaModulo, proveScadute, cambiaPianoAdmin), src/lib/vendita.js, src/lib/db.js, src/pages/ProveModuli.jsx, src/pages/Dashboard.jsx, src/pages/Backoffice.jsx (Vendita, GiorniDiProva, CambiaPiano)"
+    description: >
+      L'utente, 30/10/2026: «le prove dei moduli ma posso decidere io quali
+      mettere in attivazione trial». LE PROVE: nel riquadro «Vendita» del
+      backoffice l'admin da' a ogni modulo dei giorni di prova (0 = niente
+      prova, al massimo 90). Il titolare accende la prova dalla dashboard
+      (provaModulo), una volta sola per modulo, solo col locale attivo e non
+      sospeso, solo per un modulo in vendita che non ha gia'; anche sul Free.
+      La licenza accende il modulo e i suoi moduli di dettaglio fino alla
+      scadenza, e la scrive in licenza.prove; ogni mattina proveScadute
+      toglie le prove scadute e quelle dei moduli ormai comprati, e la
+      licenza segue. «CAMBIA PIANO» al posto di «Piano a mano», che scriveva
+      solo il piano e segnava pagato senza dirlo: piano, moduli e terminali,
+      e come si paga. Con Stripe si aggiorna l'abbonamento con l'addebito
+      proporzionale (il cliente lo scrive il webhook); fuori da Stripe
+      (bonifico, omaggio) si scrive direttamente con un abbonamento
+      manuale che lo dice. Mai fuori da Stripe con un abbonamento Stripe
+      che addebita ancora, mai il Free su Stripe. Ogni cambio va nello
+      storico del cliente (storico_piano).
+    status: implemented
+    generate_issue: false
+    labels: [prodotto, regia]
+    test_cases:
+      - tests/prove.test.js
+      - tests/cambiopiano.test.js
+      - tests/ProveModuli.test.jsx
+      - tests/Backoffice.test.jsx
+      - tests/licenza.test.js
+
+  - id: REQ-FLOTTA-017
+    title: "I pagamenti online si accendono dal backoffice; spenti, il titolare chiede di essere contattato e il piano lo attiva l'admin"
+    area: "functions/lib/contatti.js, functions/lib/free.js (venditaPulita), functions/index.js (creaCheckout, creaRicaricaAI, chiediContatto), firestore.rules (contatti), src/lib/vendita.js, src/lib/db.js, src/pages/SceltaPiano.jsx, src/pages/CreditoAI.jsx, src/pages/Backoffice.jsx (Vendita, Contatti), src/pages/Legali.jsx"
+    description: >
+      L'utente, 30/10/2026: «Mi serve qualcosa per bloccare i pagamenti se
+      non siamo ancora pronti a riceverli ma ci possono contattare per
+      attivazione e pagamento tramite altri mezzi sempre dopo contatto
+      telefonico o email». Nel riquadro «Vendita» del backoffice
+      l'interruttore «Pagamenti online con Stripe», SPENTO finché l'admin
+      non lo accende (vendita/listino.pagamenti_online). Spento: la scelta
+      del piano non porta al Checkout ma chiede un recapito (telefono e
+      nota facoltativi) e scrive una richiesta di contatto (chiediContatto,
+      con l'email confermata; una per cliente, la nuova sostituisce la
+      vecchia); creaCheckout e creaRicaricaAI rifiutano anche se chiamate
+      a mano; la ricarica AI dice di scriverci. Le richieste stanno nel
+      backoffice, con piano, moduli, terminali, prezzo e recapito, e si
+      segnano gestite; il piano lo attiva l'admin con «Cambia piano» fuori
+      da Stripe (REQ-FLOTTA-016). Il Free e il cambio di un abbonamento che
+      c'e' gia' non passano dal contatto. I termini dicono che si paga
+      anche con i mezzi concordati.
+    status: implemented
+    generate_issue: false
+    labels: [prodotto, regia]
+    test_cases:
+      - tests/contatti.test.js
+      - tests/db.test.js
+      - tests/SceltaPiano.test.jsx
+      - tests/CreditoAI.test.jsx
+      - tests/Backoffice.test.jsx

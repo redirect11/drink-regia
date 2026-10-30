@@ -24,12 +24,16 @@ const rilasci = require('./lib/rilasci.js')
 const { patchLicenzaPiano, sceltaCambiata } = require('./lib/licenza.js')
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
 const { FieldValue } = require('firebase-admin/firestore')
-const { righeCheckout, metadatiDi, aggiornamentoDaEvento } = require('./lib/abbonamento.js')
+const { chiaveStripeVera, righeCheckout, metadatiDi, aggiornamentoDaEvento } = require('./lib/abbonamento.js')
 const { onSchedule } = require('firebase-functions/v2/scheduler')
 const { patchLicenza, daSospendere, STATI: STATI_LICENZA } = require('./lib/sospensione.js')
 const { initializeApp: initializeAppCon, getApps } = require('firebase-admin/app')
 const { getAuth } = require('firebase-admin/auth')
 const ai = require('./lib/ai.js')
+const elim = require('./lib/eliminazione.js')
+const free = require('./lib/free.js')
+const contatti = require('./lib/contatti.js')
+const { getStorage } = require('firebase-admin/storage')
 const { datiEsistente, documentiEsistente, DatiNonValidi, scriveLicenza } = require('./lib/esistente.js')
 
 initializeApp()
@@ -46,6 +50,7 @@ const REPO = process.env.GITHUB_REPO || 'redirect11/drink-regia'
 const REF = process.env.FLOTTA_REF || 'main'
 const WORKFLOW = 'provisiona-istanza.yml'
 const WORKFLOW_AGGIORNA = 'aggiorna-istanza.yml'
+const WORKFLOW_ELIMINA = 'elimina-istanza.yml'
 // La versione dell'app da pubblicare: di norma `main` (l'ultimo rilascio).
 const REF_APP = process.env.APP_REF || 'main'
 // La regia di test lancia sull'environment flotta-test: il suo account di
@@ -151,6 +156,15 @@ exports.rilanciaProvisioning = onDocumentUpdated(
 exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK_SECRET], cors: false }, async (req, res) => {
   if (req.method !== 'POST') return res.status(405).send('')
   if (!bearerValido(req.get('authorization'), PROVISIONING_CALLBACK_SECRET.value())) return res.status(401).send('')
+  // L'esito di un'eliminazione (REQ-FLOTTA-014) ha campi e stati suoi.
+  if (req.body?.operazione === 'eliminazione') {
+    const fine = elim.esitoEliminazione(req.body)
+    if (!fine) return res.status(400).json({ errore: 'esito non valido' })
+    const ref = db.doc(`istanze/${fine.slug}`)
+    const prima = (await ref.get()).data() || null
+    await ref.set(elim.documentoEliminazione(fine, prima), { merge: true })
+    return res.status(200).json({ ok: true, operazione: 'eliminazione' })
+  }
   const esito = esitoValido(req.body)
   if (!esito) return res.status(400).json({ errore: 'esito non valido' })
   const ref = db.doc(`istanze/${esito.slug}`)
@@ -175,7 +189,7 @@ exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK
 
 const stripeClient = () => {
   const chiave = STRIPE_SECRET_KEY.value()
-  if (!chiave) return null
+  if (!chiaveStripeVera(chiave)) return null
   // Caricato qui e non in cima: senza chiave la regia lavora lo stesso.
   const Stripe = require('stripe')
   return new Stripe(chiave)
@@ -192,7 +206,15 @@ exports.creaCheckout = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
   const cliente = (await db.doc(`clienti/${uid}`).get()).data()
   if (!cliente) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
   const scelta = { piano: req.data?.piano, moduli: req.data?.moduli, terminali: req.data?.terminali }
-  const ritorno = String(req.data?.ritorno || '').replace(/\/$/, '')
+  const inVendita = await vendita()
+  // Pagamenti online spenti (REQ-FLOTTA-017): il sito non mostra il
+  // Checkout, e il server non lo apre comunque.
+  if (!contatti.pagamentiOnline(inVendita)) throw new HttpsError('failed-precondition', PAGAMENTI_SPENTI)
+  // Un modulo che l'admin ha tolto dalla vendita non si compra di nuovo
+  // (REQ-FLOTTA-015); chi lo ha già lo tiene.
+  const fuori = free.moduliFuoriVendita(cliente, scelta, inVendita)
+  if (fuori.length) throw new HttpsError('failed-precondition', `Non più in vendita: ${fuori.join(', ')}.`)
+  const ritorno =String(req.data?.ritorno || '').replace(/\/$/, '')
   if (!/^https?:\/\//.test(ritorno)) throw new HttpsError('invalid-argument', 'Indirizzo di ritorno non valido.')
   const sessione = await stripe.checkout.sessions.create({
     mode: 'subscription',
@@ -299,7 +321,7 @@ exports.sospendiMorosi = onSchedule({ ...OPTS, schedule: '0 6 * * *', timeZone: 
 // Lancia l'aggiornamento di un locale e lo segna «in corso», con la
 // versione di prima (il tag a cui tornare se va male). Ritorna null se è
 // partito, o il perché se non è partito.
-async function lanciaAggiornamento(slug, ref, { rilascio = null, ritorno = false } = {}) {
+async function lanciaAggiornamento(slug, ref, { rilascio = null, ritorno = false, profilo = null } = {}) {
   const istRef = db.doc(`istanze/${slug}`)
   const ist = (await istRef.get()).data()
   if (!ist || ist.stato !== 'attiva') return 'L’istanza non è attiva.'
@@ -307,7 +329,7 @@ async function lanciaAggiornamento(slug, ref, { rilascio = null, ritorno = false
   // rilasci e il suo progetto: il workflow della flotta non lo tocca mai.
   if (ist.origine === 'esistente') return 'Questa installazione si aggiorna dal suo repository, non dalla flotta.'
   const cliente = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]?.data()
-  const res = await dispatchGitHub(WORKFLOW_AGGIORNA, dispatchAggiornamento({ slug, nome_locale: cliente?.nome_locale }, { ref: REF, app: ref, ambiente: AMBIENTE_FLOTTA }))
+  const res = await dispatchGitHub(WORKFLOW_AGGIORNA, dispatchAggiornamento({ slug, nome_locale: cliente?.nome_locale }, { ref: REF, app: ref, ambiente: AMBIENTE_FLOTTA, profilo: profilo || ist.profilo || 'completo' }))
   const adesso = new Date()
   if (res.status !== 204) {
     // Non è partito: si segna fallito, così il rilascio si ferma e si vede.
@@ -443,6 +465,8 @@ exports.cambiaScelta = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
   const cliente = (await db.doc(`clienti/${uid}`).get()).data()
   if (!cliente) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
   const scelta = { piano: req.data?.piano, moduli: req.data?.moduli, terminali: req.data?.terminali }
+  const fuori = free.moduliFuoriVendita(cliente, scelta, await vendita())
+  if (fuori.length) throw new HttpsError('failed-precondition', `Non più in vendita: ${fuori.join(', ')}.`)
   const sub = cliente.abbonamento?.stripe_subscription
   const stripe = stripeClient()
   if (sub && stripe) {
@@ -454,7 +478,11 @@ exports.cambiaScelta = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
     })
     return { ok: true, via: 'stripe' }
   }
-  if (cliente.abbonamento?.origine === 'manuale' || cliente.piano) {
+  // Da Free a un piano a pagamento si passa solo dal Checkout (REQ-FLOTTA-015):
+  // il ramo qui sotto scrive il piano senza pagamento, ed era la strada per
+  // avere il Base gratis. Resta per i clienti creati a mano dall'admin.
+  if (cliente.abbonamento?.origine === 'gratuito') throw new HttpsError('failed-precondition', 'Per passare a un piano a pagamento scegli il piano e vai al pagamento.')
+  if (cliente.abbonamento?.origine === 'manuale') {
     const pulita = metadatiDi(uid, scelta)
     await db.doc(`clienti/${uid}`).set(
       { piano: pulita.piano, moduli: pulita.moduli ? pulita.moduli.split(',') : [], terminali: Number(pulita.terminali) || 1 },
@@ -467,7 +495,7 @@ exports.cambiaScelta = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
 
 // La licenza dell'istanza segue il cliente: quando piano, moduli o
 // terminali cambiano e l'istanza è attiva, si riscrive settings/bar.licenza.
-exports.licenzaSegueIlPiano = onDocumentUpdated({ ...OPTS, document: 'clienti/{uid}' }, async (event) => {
+exports.licenzaSegueIlPiano = onDocumentUpdated({ ...OPTS, document: 'clienti/{uid}', secrets: [GITHUB_DISPATCH_TOKEN] }, async (event) => {
   const prima = event.data?.before?.data()
   const dopo = event.data?.after?.data()
   if (!dopo?.slug || !sceltaCambiata(prima, dopo)) return
@@ -475,6 +503,49 @@ exports.licenzaSegueIlPiano = onDocumentUpdated({ ...OPTS, document: 'clienti/{u
   if (!ist?.progetto || ist.stato !== 'attiva' || !scriveLicenza(ist)) return
   await firestoreDi(ist.progetto).doc('settings/bar').update(patchLicenzaPiano(dopo))
   await db.doc(`istanze/${dopo.slug}`).set({ licenza_piano: dopo.piano, licenza_scritta_il: new Date().toISOString() }, { merge: true })
+  // Un locale Free che compra (REQ-FLOTTA-015): la licenza ha già tolto i
+  // limiti; ora arrivano Functions, Storage e segreti, col profilo completo.
+  if (free.serveProfiloCompleto(ist, dopo)) {
+    const perche = await lanciaAggiornamento(dopo.slug, REF_APP, { profilo: 'completo' })
+    console.log(`[free] ${dopo.slug} verso il profilo completo: ${perche || 'partito'}`)
+  }
+})
+
+// ── IL PIANO FREE E LA VENDITA (REQ-FLOTTA-015) ───────────────────────
+// La vendita la decide l'admin (vendita/listino, dal backoffice): il Free
+// e ogni modulo si vendono o no. La regola che conta sta qui, sul server:
+// il sito nasconde quello che non è in vendita, ma il server lo rifiuta.
+async function vendita() {
+  return free.venditaPulita((await db.doc('vendita/listino').get()).data())
+}
+
+// ── PAGAMENTI ONLINE SPENTI: LA RICHIESTA DI CONTATTO (REQ-FLOTTA-017) ─
+// Il titolare sceglie il piano e lascia un recapito; l'admin lo contatta,
+// concorda il pagamento e attiva il piano con «Cambia piano» fuori da
+// Stripe. Una richiesta aperta per cliente: una nuova la sostituisce.
+const PAGAMENTI_SPENTI = 'I pagamenti online non sono ancora attivi: chiedi di essere contattato dalla dashboard, e attiviamo il piano con te.'
+exports.chiediContatto = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Prima conferma la tua email.')
+  const cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data()
+  const r = contatti.richiestaContatto(cliente && { uid: req.auth.uid, ...cliente }, req.data, await vendita())
+  if (!r.ok) throw new HttpsError('failed-precondition', r.perche)
+  await db.doc(`contatti/${req.auth.uid}`).set(r.documento)
+  return { ok: true }
+})
+
+// Il titolare sceglie il Free: un abbonamento attivo a costo zero, senza
+// Stripe. Poi «Attiva» come per ogni piano; il workflow lo pubblica col
+// profilo leggero.
+exports.scegliFree = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Prima conferma la tua email.')
+  const cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data()
+  const ist = cliente?.slug ? (await db.doc(`istanze/${cliente.slug}`).get()).data() : null
+  const puo = free.puoScegliereFree(cliente, ist, await vendita())
+  if (!puo.ok) throw new HttpsError('failed-precondition', puo.perche)
+  await db.doc(`clienti/${req.auth.uid}`).set(free.sceltaFree(), { merge: true })
+  return { ok: true }
 })
 
 // ── L'ADMIN CREA UN LOCALE DA SÉ (REQ-FLOTTA-011) ─────────────────────
@@ -499,7 +570,9 @@ exports.creaCliente = onCall(OPTS, async (req) => {
     utente = await auth.createUser({ email, emailVerified: true })
   }
   const ora = new Date().toISOString()
-  const pulita = metadatiDi(utente.uid, { piano, moduli, terminali })
+  // Anche l'admin può creare un locale Free (REQ-FLOTTA-015): resta Free,
+  // perché metadatiDi è quella di Stripe e ne farebbe un Base.
+  const pulita = free.eGratuito(piano) ? { piano: 'free', moduli: '', terminali: '1' } : metadatiDi(utente.uid, { piano, moduli, terminali })
   const cliente = {
     uid: utente.uid,
     versione_schema: 2,
@@ -513,7 +586,7 @@ exports.creaCliente = onCall(OPTS, async (req) => {
     piano: pulita.piano,
     moduli: pulita.moduli ? pulita.moduli.split(',') : [],
     terminali: Number(pulita.terminali) || 1,
-    abbonamento: { stato: 'attivo', origine: 'manuale', dal: ora },
+    abbonamento: { stato: 'attivo', origine: free.eGratuito(piano) ? 'gratuito' : 'manuale', dal: ora },
     creato_da_admin: true,
     creato_il: ora,
   }
@@ -653,6 +726,8 @@ exports.creaRicaricaAI = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async
   if (!cliente?.slug) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
   const p = ai.pacchetto(req.data?.pacchetto)
   if (!p) throw new HttpsError('invalid-argument', 'Pacchetto di ricarica sconosciuto.')
+  // Anche la ricarica passa da Stripe: coi pagamenti spenti la fa l'admin.
+  if (!contatti.pagamentiOnline(await vendita())) throw new HttpsError('failed-precondition', PAGAMENTI_SPENTI)
   const ritorno = String(req.data?.ritorno || '').replace(/\/$/, '')
   if (!/^https?:\/\//.test(ritorno)) throw new HttpsError('invalid-argument', 'Indirizzo di ritorno non valido.')
   const stripe = stripeClient()
@@ -747,4 +822,187 @@ exports.registraLocaleEsistente = onCall(OPTS, async (req) => {
   batch.set(db.doc(`ai/${d.slug}`), ai.nuovoCassetto({ slug: d.slug, uid: utente.uid, interna: d.interna, adesso }))
   await batch.commit()
   return { uid: utente.uid, slug: d.slug }
+})
+
+// ── L'ELIMINAZIONE DI UN LOCALE (REQ-FLOTTA-014) ───────────────────────
+//
+// Decisioni dell'utente del 29/10/2026. Il TITOLARE, dalla sua dashboard,
+// chiude il locale e ne chiede la cancellazione, che parte fra 30 giorni;
+// finché non parte la può annullare, e il locale torna com'era. Solo
+// l'ADMIN può chiederla subito (o anche lui a 30 giorni), e solo per un
+// locale già chiuso. Tutti e due confermano scrivendo il nome dell'app.
+// Il lavoro lo fa elimina-istanza.yml: prima il backup verificato, poi
+// l'eliminazione. Le regole stanno in lib/eliminazione.js.
+
+async function lanciaEliminazione(slug) {
+  const res = await dispatchGitHub(WORKFLOW_ELIMINA, elim.dispatchEliminazione(slug, { ref: REF, ambiente: AMBIENTE_FLOTTA }))
+  const ref = db.doc(`istanze/${slug}`)
+  if (res.status !== 204) {
+    await ref.set({ eliminazione: { stato: 'fallita', errore: `GitHub ${res.status}: il workflow non è partito`, finito_il: new Date().toISOString() } }, { merge: true })
+    return `GitHub ${res.status}`
+  }
+  await ref.set({ eliminazione: { stato: 'in corso', lanciata_il: new Date().toISOString() } }, { merge: true })
+  return null
+}
+
+// Disdetta a fine periodo, o il suo contrario: chi chiude il locale non
+// paga il mese dopo, chi ci ripensa torna come prima.
+async function disdettaAFinePeriodo(cliente, disdici) {
+  const sub = cliente?.abbonamento?.stripe_subscription
+  const stripe = stripeClient()
+  if (!sub || !stripe) return
+  await stripe.subscriptions.update(sub, { cancel_at_period_end: disdici })
+}
+
+exports.gestisciEliminazione = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN, STRIPE_SECRET_KEY] }, async (req) => {
+  if (!req.auth) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  const admin = req.auth.token?.admin === true
+  const { azione, conferma, subito = false } = req.data || {}
+  const adesso = new Date()
+
+  // Di quale locale si parla: l'admin lo nomina, il titolare è il suo.
+  let slug
+  let cliente
+  if (admin) {
+    slug = String(req.data?.slug || '')
+    if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(slug)) throw new HttpsError('invalid-argument', 'Slug non valido.')
+    cliente = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]?.data() || null
+  } else {
+    cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data() || null
+    slug = cliente?.slug
+    if (!slug) throw new HttpsError('failed-precondition', 'Nessun locale collegato a questo account.')
+  }
+  const istRef = db.doc(`istanze/${slug}`)
+  const ist = (await istRef.get()).data() || null
+
+  if (azione === 'chiedi' && !admin) {
+    const puo = elim.puoChiedereTitolare(ist)
+    if (!puo.ok) throw new HttpsError('failed-precondition', puo.perche)
+    if (!elim.confermaValida(ist, conferma)) throw new HttpsError('invalid-argument', `Per confermare scrivi ${ist.progetto}.`)
+    const richiesta = elim.richiestaTitolare(ist, { da: req.auth.token.email || req.auth.uid, adesso })
+    await scriviStatoIstanza(slug, 'chiusa', 'chiusura chiesta dal titolare')
+    await istRef.set({ eliminazione: richiesta }, { merge: true })
+    await disdettaAFinePeriodo(cliente, true).catch((e) => console.error(`[eliminazione] ${slug}, disdetta:`, e?.message || e))
+    return { ok: true, quando: richiesta.quando }
+  }
+
+  if (azione === 'chiedi' && admin) {
+    const puo = elim.puoEliminare(ist)
+    if (!puo.ok) throw new HttpsError('failed-precondition', puo.perche)
+    if (!elim.confermaValida(ist, conferma)) throw new HttpsError('invalid-argument', `Per confermare scrivi ${ist.progetto}.`)
+    const richiesta = elim.eliminazioneChiesta(ist, { subito: Boolean(subito), da: req.auth.token.email || req.auth.uid, adesso })
+    await istRef.set({ eliminazione: richiesta }, { merge: true })
+    if (!subito) return { ok: true, quando: richiesta.quando }
+    const perche = await lanciaEliminazione(slug)
+    if (perche) throw new HttpsError('unavailable', `Il backup e l’eliminazione non sono partiti: ${perche}.`)
+    return { ok: true, quando: richiesta.quando }
+  }
+
+  if (azione === 'annulla') {
+    const puo = elim.puoAnnullare(ist, admin ? 'admin' : 'titolare')
+    if (!puo.ok) throw new HttpsError('failed-precondition', puo.perche)
+    const e = ist.eliminazione
+    await istRef.set({ eliminazione: { ...e, stato: 'annullata', annullata_il: adesso.toISOString(), annullata_da: req.auth.token.email || req.auth.uid } }, { merge: true })
+    // Una chiusura chiesta dal titolare si annulla tornando com'era.
+    if (e.richiedente === 'titolare') {
+      await scriviStatoIstanza(slug, e.licenza_prima || 'attiva', e.licenza_prima === 'sospesa' ? 'pagamento non ricevuto' : null)
+      await disdettaAFinePeriodo(cliente, false).catch((err) => console.error(`[eliminazione] ${slug}, disdetta:`, err?.message || err))
+    }
+    return { ok: true }
+  }
+
+  throw new HttpsError('invalid-argument', 'Azione sconosciuta.')
+})
+
+// Ogni mattina: le cancellazioni programmate arrivate alla data partono.
+exports.eliminazioniProgrammate = onSchedule({ ...OPTS, schedule: '0 5 * * *', timeZone: 'Europe/Rome', secrets: [GITHUB_DISPATCH_TOKEN] }, async () => {
+  for (const slug of elim.daEliminareOggi(await tutteLeIstanze())) {
+    const perche = await lanciaEliminazione(slug).catch((e) => e?.message || String(e))
+    console.log(`[eliminazione] ${slug}: ${perche || 'partita'}`)
+  }
+})
+
+// L'archivio di un locale eliminato lo scarica SOLO il suo titolare
+// (decisione dell'utente del 29/10/2026): per quei dati il locale è
+// titolare del trattamento. Nemmeno l'admin ha questo pulsante. Il link
+// vale 15 minuti; l'archivio stesso si cancella dopo 180 giorni.
+exports.scaricaArchivio = onCall(OPTS, async (req) => {
+  if (!req.auth) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Conferma prima la tua email.')
+  const cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data()
+  if (!cliente?.slug || cliente.uid && cliente.uid !== req.auth.uid) throw new HttpsError('permission-denied', 'Nessun locale collegato a questo account.')
+  const ist = (await db.doc(`istanze/${cliente.slug}`).get()).data()
+  if (!elim.archivioScaricabile(ist)) throw new HttpsError('not-found', 'Non c’è un archivio da scaricare, o è scaduto.')
+  const { bucket, zip } = ist.eliminazione.archivio
+  const [url] = await getStorage().bucket(bucket).file(zip).getSignedUrl({
+    version: 'v4',
+    action: 'read',
+    expires: Date.now() + 15 * 60 * 1000,
+    responseDisposition: `attachment; filename="${cliente.slug}-archivio.zip"`,
+  })
+  return { url, scade_il: ist.eliminazione.scade_il }
+})
+
+// ── LE PROVE DEI MODULI E «CAMBIA PIANO» DELL'ADMIN (REQ-FLOTTA-016) ───
+const prove = require('./lib/prove.js')
+const { cambioAdmin } = require('./lib/cambiopiano.js')
+
+// Il titolare accende la prova di un modulo: quali si provano e per quanti
+// giorni lo decide l'admin (vendita/listino). Una volta sola per modulo.
+// Scritta la prova, licenzaSegueIlPiano accende il modulo nell'istanza.
+exports.provaModulo = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  const ref = db.doc(`clienti/${req.auth.uid}`)
+  const cliente = (await ref.get()).data()
+  if (!cliente?.slug) throw new HttpsError('failed-precondition', 'Nessun locale collegato a questo account.')
+  const ist = (await db.doc(`istanze/${cliente.slug}`).get()).data()
+  const id = String(req.data?.modulo || '')
+  const adesso = new Date()
+  const puo = prove.puoProvare(cliente, ist, id, await vendita(), adesso)
+  if (!puo.ok) throw new HttpsError('failed-precondition', puo.perche)
+  await ref.update({
+    [`prove.${id}`]: { dal: adesso.toISOString(), scade_il: puo.scade_il, giorni: puo.giorni },
+    prove_fatte: FieldValue.arrayUnion(id),
+  })
+  return { ok: true, scade_il: puo.scade_il }
+})
+
+// Ogni mattina: le prove scadute, o dei moduli ormai comprati, si tolgono;
+// la licenza segue da sola (licenzaSegueIlPiano).
+exports.proveScadute = onSchedule({ ...OPTS, schedule: '30 5 * * *', timeZone: 'Europe/Rome' }, async () => {
+  const adesso = new Date()
+  for (const d of (await db.collection('clienti').get()).docs) {
+    const via = prove.proveDaTogliere(d.data(), adesso)
+    if (!via.length) continue
+    await d.ref.update(Object.fromEntries(via.map((id) => [`prove.${id}`, FieldValue.delete()])))
+    console.log(`[prove] ${d.data().slug}: tolte ${via.join(', ')}`)
+  }
+})
+
+// L'admin cambia piano, moduli e terminali di un locale: con Stripe
+// (l'abbonamento si aggiorna, il webhook scrive il cliente) o fuori da
+// Stripe (si scrive qui). Ogni cambio nello storico del cliente.
+exports.cambiaPianoAdmin = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const slug = String(req.data?.slug || '')
+  const doc = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]
+  if (!doc) throw new HttpsError('not-found', 'Cliente sconosciuto.')
+  const cliente = doc.data()
+  const c = cambioAdmin(cliente, req.data, { da: req.auth.token.email || req.auth.uid })
+  if (!c.ok) throw new HttpsError('failed-precondition', c.perche)
+  if (req.data.modo === 'stripe') {
+    const stripe = stripeClient()
+    if (!stripe) throw new HttpsError('failed-precondition', 'Stripe non è configurato.')
+    const sub = cliente.abbonamento.stripe_subscription
+    const attuale = await stripe.subscriptions.retrieve(sub)
+    await stripe.subscriptions.update(sub, {
+      items: [...attuale.items.data.map((i) => ({ id: i.id, deleted: true })), ...righeCheckout(c.scelta)],
+      metadata: metadatiDi(cliente.uid, c.scelta),
+      proration_behavior: 'create_prorations',
+    })
+  } else {
+    await doc.ref.set(c.cliente, { merge: true })
+  }
+  await doc.ref.update({ storico_piano: FieldValue.arrayUnion(c.storico) })
+  return { ok: true, modo: req.data.modo }
 })

@@ -69,23 +69,45 @@ variable "provisioning_sa_email" {
   default     = ""
 }
 
+# IL PROFILO (REQ-FLOTTA-015). Il leggero è il piano Free: Firestore, sito
+# e accesso, che restano nelle soglie gratuite di Google. La fatturazione
+# resta collegata anche qui: senza, Google non accende l'accesso con email
+# (initializeAuth: BILLING_NOT_ENABLED, provato su drinkpos-prova-free il
+# 30/10/2026; la guida Firebase a Terraform chiede il Blaze). Il costo da
+# fermo viene da Functions, build, immagini e Storage, e il leggero non li
+# ha. Quando il locale compra, lo stesso apply col profilo completo aggiunge
+# il resto (aggiorna-istanza.yml).
+variable "profilo" {
+  description = "completo (Functions, Storage, segreti) | leggero (il piano Free: solo Firestore, sito e accesso)."
+  type        = string
+  default     = "completo"
+  validation {
+    condition     = contains(["completo", "leggero"], var.profilo)
+    error_message = "profilo è completo o leggero."
+  }
+}
+
 locals {
   # Il prefisso è quello di src/lib/prodotto.js (PREFISSO_PROGETTI).
   progetto = "drinkpos-${var.slug}"
-  api = [
+  completo = var.profilo == "completo"
+  api_base = [
     "firebase.googleapis.com",
     "firestore.googleapis.com",
+    "firebaserules.googleapis.com",
     "identitytoolkit.googleapis.com",
     "firebasehosting.googleapis.com",
+    "serviceusage.googleapis.com",
+    "firebaseappcheck.googleapis.com",
+  ]
+  api_completo = [
     "cloudfunctions.googleapis.com",
     "cloudbuild.googleapis.com",
     "artifactregistry.googleapis.com",
     "run.googleapis.com",
     "eventarc.googleapis.com",
     "pubsub.googleapis.com",
-    "serviceusage.googleapis.com",
     "storage.googleapis.com",
-    "firebaseappcheck.googleapis.com",
     # Quelle che il primo deploy delle Functions cerca (provato sul test
     # della regia, 29/10/2026, docs/actions-come-tana-drink.md §3).
     "secretmanager.googleapis.com",
@@ -95,6 +117,7 @@ locals {
     # Lo Storage dell'app: il bucket lo crea scripts/storage-istanza.mjs.
     "firebasestorage.googleapis.com",
   ]
+  api = concat(local.api_base, local.completo ? local.api_completo : [])
 }
 
 resource "google_project" "istanza" {
@@ -108,6 +131,7 @@ resource "google_project" "istanza" {
     prodotto = "drink"
     slug     = var.slug
     ambiente = var.ambiente
+    profilo  = var.profilo
   }
 }
 
@@ -222,10 +246,11 @@ resource "google_project_iam_member" "provisioning" {
 # Functions con un trigger di Firestore si fermavano con «Permission denied
 # while using the Eventarc Service Agent» (prova-bar, 29/10/2026). Qui
 # nascono con il progetto, minuti prima del deploy; il workflow riprova
-# comunque il deploy se i permessi non sono ancora arrivati.
+# comunque il deploy se i permessi non sono ancora arrivati. Il profilo
+# leggero non ha Functions, quindi nemmeno loro.
 resource "google_project_service_identity" "agenti" {
   provider   = google-beta
-  for_each   = toset(["eventarc.googleapis.com", "pubsub.googleapis.com"])
+  for_each   = local.completo ? toset(["eventarc.googleapis.com", "pubsub.googleapis.com"]) : toset([])
   project    = google_project.istanza.project_id
   service    = each.value
   depends_on = [google_project_service.api]
@@ -233,6 +258,7 @@ resource "google_project_service_identity" "agenti" {
 
 resource "google_project_iam_member" "agente_eventarc" {
   provider = google-beta
+  count    = local.completo ? 1 : 0
   project  = google_project.istanza.project_id
   role     = "roles/eventarc.serviceAgent"
   member   = "serviceAccount:${google_project_service_identity.agenti["eventarc.googleapis.com"].email}"
@@ -240,9 +266,22 @@ resource "google_project_iam_member" "agente_eventarc" {
 
 resource "google_project_iam_member" "agente_pubsub" {
   provider = google-beta
+  count    = local.completo ? 1 : 0
   project  = google_project.istanza.project_id
   role     = "roles/iam.serviceAccountTokenCreator"
   member   = "serviceAccount:${google_project_service_identity.agenti["pubsub.googleapis.com"].email}"
+}
+
+# I locali attivati prima del profilo (prova-bar) hanno nello stato i due
+# permessi senza indice: si spostano, senza toglierli e rimetterli.
+moved {
+  from = google_project_iam_member.agente_eventarc
+  to   = google_project_iam_member.agente_eventarc[0]
+}
+
+moved {
+  from = google_project_iam_member.agente_pubsub
+  to   = google_project_iam_member.agente_pubsub[0]
 }
 
 # La regia sospende e riattiva l'istanza scrivendo settings/bar.licenza

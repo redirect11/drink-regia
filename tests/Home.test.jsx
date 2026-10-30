@@ -4,10 +4,17 @@
 // LA PRIMA PAGINA (REQ-FLOTTA-002): cosa fa il prodotto, i piani coi
 // prezzi, il tasto per registrarsi. Tono del mestiere, niente urla.
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import '@testing-library/jest-dom/vitest'
+
+// La prima pagina legge la vendita da db.js (REQ-FLOTTA-015). Qui si usa la
+// vendita predefinita, come senza Firebase, e db.js non si carica: caricato
+// davvero, la coverage di src/lib conta come non provate tutte le sue
+// funzioni, che parlano con Firebase e si provano dai componenti.
+vi.mock('../src/lib/db.js', () => ({ osservaVendita: (cb) => (cb(null), () => {}) }))
+
 import Home from '../src/pages/Home.jsx'
 import { PIANI, MODULI } from '../src/lib/piani.js'
 import { NOME_PRODOTTO } from '../src/lib/prodotto.js'
@@ -22,10 +29,13 @@ describe('la prima pagina', () => {
       </MemoryRouter>
     )
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(NOME_PRODOTTO)
-    for (const p of Object.values(PIANI)) {
+    for (const p of Object.values(PIANI).filter((x) => !x.gratuito)) {
       const scheda = screen.getByRole('article', { name: `Piano ${p.nome}` })
       expect(scheda).toHaveTextContent(`${p.prezzo} €`)
     }
+    // Il Free si mostra solo se l'admin lo mette in vendita (REQ-FLOTTA-015):
+    // senza, la pagina non lo nomina (tests/HomeVendita.test.jsx).
+    expect(screen.queryByRole('article', { name: 'Piano Free' })).toBeNull()
     // I moduli stanno nella tabella dei prezzi (lo stesso nome può comparire
     // anche tra le funzioni raccontate sopra).
     const tabella = within(screen.getByRole('table'))

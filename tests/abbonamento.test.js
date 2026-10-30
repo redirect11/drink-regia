@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest'
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
-const { sceltaPulita, righeCheckout, metadatiDi, aggiornamentoDaEvento } = require('../functions/lib/abbonamento.js')
+const { chiaveStripeVera, sceltaPulita, righeCheckout, metadatiDi, aggiornamentoDaEvento } = require('../functions/lib/abbonamento.js')
 const listino = require('../functions/piani.json')
 
 describe('sceltaPulita', () => {
@@ -79,5 +79,16 @@ describe('aggiornamentoDaEvento', () => {
     })
     expect(aggiornamentoDaEvento('charge.refunded', { id: 'ch_1' }, ora)).toBeNull()
     expect(aggiornamentoDaEvento('checkout.session.completed', { metadata: {} }, ora)).toBeNull()
+  })
+})
+
+// In produzione il segreto di Stripe nasce col segnaposto finché non ci
+// sono le chiavi live (30/10/2026): un segnaposto vale «non configurato».
+describe('la chiave di Stripe', () => {
+  it('vera: segreta o ristretta, di test o live', () => {
+    for (const k of ['sk_test_abc123', 'sk_live_ABC123', 'rk_live_x9', ' sk_test_abc ']) expect(chiaveStripeVera(k)).toBe(true)
+  })
+  it('il segnaposto, il vuoto e le chiavi pubbliche non sono chiavi', () => {
+    for (const k of ['non-configurato', '', null, undefined, 'pk_live_abc', 'sk_abc', 'whsec_abc']) expect(chiaveStripeVera(k)).toBe(false)
   })
 })

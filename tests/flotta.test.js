@@ -23,6 +23,8 @@ const leggi = (f) => readFileSync(join(process.cwd(), f), 'utf8')
 const eventi = (w) => w.on ?? w[true]
 const provisiona = load(leggi('.github/workflows/provisiona-istanza.yml'))
 const aggiorna = load(leggi('.github/workflows/aggiorna-istanza.yml'))
+const elimina = load(leggi('.github/workflows/elimina-istanza.yml'))
+const { dispatchEliminazione } = require('../functions/lib/eliminazione.js')
 const job = (w) => Object.values(w.jobs)[0]
 const passi = (w) => job(w).steps
 const passo = (w, nome) => passi(w).find((s) => s.name === nome)
@@ -67,8 +69,26 @@ describe.each(WORKFLOW)('%s', (_, w, corpo) => {
   it('il deploy si riprova due volte, a 90 secondi', () => {
     const deploy = passo(w, 'Deploy regole, indici, Functions e hosting').run
     expect(deploy).toContain('for tentativo in 1 2 3; do')
-    expect(deploy).toContain('npx firebase-tools deploy --only firestore,storage,functions,hosting --project "$PROGETTO" --force')
+    expect(deploy).toContain('npx firebase-tools deploy --only "$SOLO" --project "$PROGETTO" --force')
     expect(deploy).toContain('sleep 90')
+  })
+
+  // REQ-FLOTTA-015: il profilo leggero (il Free) pubblica solo regole e
+  // sito, e salta Storage e segreti: è quello che lo rende a costo zero.
+  it('col profilo leggero solo regole e sito; Storage e segreti solo col completo', () => {
+    expect(eventi(w).workflow_dispatch.inputs.profilo).toMatchObject({ type: 'choice', options: ['completo', 'leggero'], default: 'completo' })
+    expect(w.env.PROFILO).toBe('${{ inputs.profilo }}')
+    expect(passi(w)[0].run).toContain('[[ "$PROFILO" =~ ^(completo|leggero)$ ]]')
+    const deploy = passo(w, 'Deploy regole, indici, Functions e hosting').run
+    expect(deploy).toContain('if [ "$PROFILO" = "leggero" ]; then SOLO=firestore,hosting; else SOLO=firestore,storage,functions,hosting; fi')
+    for (const nome of ['Lo Storage del locale', "I segreti dell'app"]) expect(passo(w, nome).if).toBe("env.PROFILO == 'completo'")
+    expect(passo(w, 'Esito alla regia').run).toContain('profilo: process.env.PROFILO || null')
+  })
+
+  // tana-drink, REQ-LIC-004 (30/10/2026): l'app sa di essere leggera già
+  // dalla build, prima di leggere la licenza.
+  it('la build dice il profilo all’app', () => {
+    expect(passo(w, 'Build').env).toMatchObject({ CLIENTE: '${{ inputs.slug }}', VITE_PROFILO: '${{ inputs.profilo }}' })
   })
 
   // Le Functions dell'app dichiarano dei segreti, e Firebase non le
@@ -94,7 +114,27 @@ describe.each(WORKFLOW)('%s', (_, w, corpo) => {
   })
 })
 
+describe('aggiorna-istanza.yml: la configurazione web è quella del sito', () => {
+  // drinkpos-prova-free, 30/10/2026: con due app web nel progetto
+  // `apps:sdkconfig` senza id si fermava.
+  it('prende l’app collegata al sito, e se il comando fallisce mostra perché', () => {
+    const run = passo(aggiorna, 'La configurazione web dell’istanza'.replace('’', "'")).run
+    expect(run).toContain('npx firebase-tools hosting:sites:get "$PROGETTO" --project "$PROGETTO" --json')
+    expect(run).toContain('npx firebase-tools apps:sdkconfig web $APP_ID --project "$PROGETTO" --json')
+    expect(run).toContain('|| { cat "$RUNNER_TEMP/sdk.json"; exit 1; }')
+  })
+})
+
 describe('provisiona-istanza.yml: il Terraform con i valori dell’environment', () => {
+  // drinkpos-prova-free, 30/10/2026: il database aperto a mano fermava
+  // l'apply con «Database already exists».
+  it('un progetto creato a mano entra nello stato, e il suo Firestore se c’è già', () => {
+    const run = passo(provisiona, 'Importa il progetto se esiste già').run
+    expect(run).toContain('terraform import -input=false google_project.istanza "$PROGETTO"')
+    expect(run).toContain('if ! terraform state show google_firestore_database.db')
+    expect(run).toContain('terraform import -input=false google_firestore_database.db "projects/$PROGETTO/databases/(default)"')
+  })
+
   it('l’account della regia che scrive la licenza e l’ambiente arrivano al Terraform', () => {
     for (const nome of ['Importa il progetto se esiste già', 'Terraform apply']) {
       expect(passo(provisiona, nome).env).toMatchObject({
@@ -131,10 +171,56 @@ describe('infra/istanza/main.tf', () => {
     expect(tf).toContain('ambiente = var.ambiente')
   })
 
-  it('gli agenti di Eventarc e Pub/Sub nascono col progetto, con i loro ruoli', () => {
-    expect(tf).toContain('for_each   = toset(["eventarc.googleapis.com", "pubsub.googleapis.com"])')
+  it('gli agenti di Eventarc e Pub/Sub nascono col progetto completo, con i loro ruoli', () => {
+    expect(tf).toContain('for_each   = local.completo ? toset(["eventarc.googleapis.com", "pubsub.googleapis.com"]) : toset([])')
     expect(tf).toContain('role     = "roles/eventarc.serviceAgent"')
     expect(tf).toContain('role     = "roles/iam.serviceAccountTokenCreator"')
+    expect(tf.match(/count {4}= local\.completo \? 1 : 0/g)).toHaveLength(2)
+    // prova-bar ha i due permessi nello stato senza indice: si spostano.
+    expect(tf).toContain('to   = google_project_iam_member.agente_eventarc[0]')
+    expect(tf).toContain('to   = google_project_iam_member.agente_pubsub[0]')
+  })
+
+  // REQ-FLOTTA-015, provato su drinkpos-prova-free il 30/10/2026: senza
+  // fatturazione Google non accende l'accesso con email (BILLING_NOT_ENABLED),
+  // quindi anche il leggero ha l'account di fatturazione; risparmia sulle
+  // API e sugli agenti delle Functions, che sono quello che costa.
+  describe('il profilo', () => {
+    const lista = (nome) => tf.match(new RegExp(`${nome} = \\[([\\s\\S]*?)\\]`))[1].match(/"[a-z.]+"/g).map((s) => s.slice(1, -1))
+
+    it('è completo o leggero, completo se non si dice, ed è un’etichetta del progetto', () => {
+      expect(variabile('profilo')).toContain('default     = "completo"')
+      expect(variabile('profilo')).toContain('contains(["completo", "leggero"], var.profilo)')
+      expect(tf).toContain('profilo  = var.profilo')
+    })
+
+    it('il leggero ha database, regole, sito e accesso, e non le API delle Functions', () => {
+      expect(lista('api_base')).toEqual(expect.arrayContaining(['firebase.googleapis.com', 'firestore.googleapis.com', 'firebaserules.googleapis.com', 'identitytoolkit.googleapis.com', 'firebasehosting.googleapis.com']))
+      for (const api of ['cloudfunctions.googleapis.com', 'cloudbuild.googleapis.com', 'artifactregistry.googleapis.com', 'run.googleapis.com', 'cloudscheduler.googleapis.com', 'firebasestorage.googleapis.com']) {
+        expect(lista('api_base')).not.toContain(api)
+        expect(lista('api_completo')).toContain(api)
+      }
+      expect(tf).toContain('api = concat(local.api_base, local.completo ? local.api_completo : [])')
+    })
+
+    it('la fatturazione e l’accesso con email valgono per tutti e due', () => {
+      expect(tf).toContain('billing_account = var.billing_account')
+      expect(tf).toMatch(/resource "google_identity_platform_config" "auth" \{\s+provider = google-beta\s+project {2}= google_project.istanza.project_id/)
+    })
+
+    it('l’attivazione passa il profilo al Terraform', () => {
+      for (const nome of ['Importa il progetto se esiste già', 'Terraform apply']) expect(passo(provisiona, nome).env.TF_VAR_profilo).toBe('${{ inputs.profilo }}')
+    })
+
+    it('l’aggiornamento completa col Terraform solo un locale della regia ancora leggero', () => {
+      const p = passo(aggiorna, 'Il profilo completo nel progetto')
+      expect(p.if).toBe("env.PROFILO == 'completo'")
+      expect(p.env.TF_VAR_profilo).toBe('completo')
+      expect(p.run).toContain('if ! terraform state show google_project.istanza')
+      expect(p.run).toContain(`grep -qF 'google_project_service.api["cloudfunctions.googleapis.com"]'`)
+      const nomi = passi(aggiorna).map((s) => s.name)
+      expect(nomi.indexOf('Il profilo completo nel progetto')).toBeLessThan(nomi.indexOf('Lo Storage del locale'))
+    })
   })
 
   // L'app usa firebase/storage e il deploy pubblica storage.rules: senza il
@@ -159,8 +245,59 @@ describe('le Functions lanciano i workflow della regia', () => {
     expect(env('functions/.env')).toMatchObject({ GITHUB_REPO: 'redirect11/drink-regia', FLOTTA_REF: 'main', FLOTTA_AMBIENTE: 'produzione' })
   })
 
+  // 30/10/2026: il test segue develop, anche nei workflow della flotta.
+  it('la regia di test lancia i workflow da develop, la produzione da main', () => {
+    expect(env('functions/.env.drink-regia-test')).toMatchObject({ FLOTTA_REF: 'develop', APP_REF: 'develop', FLOTTA_AMBIENTE: 'test' })
+    expect(env('functions/.env.drink-regia').FLOTTA_REF ?? env('functions/.env').FLOTTA_REF).toBe('main')
+  })
+
   it('la regia di test lancia sull’environment di test, la produzione sul suo', () => {
     expect(env('functions/.env.drink-regia-test').FLOTTA_AMBIENTE).toBe('test')
     expect(env('functions/.env.drink-regia').FLOTTA_AMBIENTE).toBe('produzione')
+  })
+})
+
+// L'ELIMINAZIONE (REQ-FLOTTA-014): il backup completo e verificato viene
+// PRIMA di qualunque cancellazione, e senza verifica il progetto resta.
+describe('elimina-istanza.yml', () => {
+  const nomi = passi(elimina).map((s) => s.name || s.uses)
+  const prima = (a, b) => expect(nomi.indexOf(a), `${a} prima di ${b}`).toBeLessThan(nomi.indexOf(b))
+
+  it('parte solo a comando, con gli input che la regia manda, sull’environment della sua regia', () => {
+    expect(Object.keys(eventi(elimina))).toEqual(['workflow_dispatch'])
+    expect(Object.keys(eventi(elimina).workflow_dispatch.inputs).sort()).toEqual(Object.keys(dispatchEliminazione('prova-bar').inputs).sort())
+    expect(job(elimina).environment).toBe("${{ inputs.ambiente == 'test' && 'flotta-test' || 'flotta' }}")
+    expect(elimina.concurrency.group).toBe('istanza-${{ inputs.slug }}')
+  })
+
+  it('gli input non entrano nei comandi, e la demo non si elimina', () => {
+    for (const s of passi(elimina)) expect(s.run || '', s.name).not.toMatch(/\$\{\{\s*(inputs|github\.event\.inputs)\./)
+    expect(passi(elimina)[0].run).toContain('drinkpos-demo')
+  })
+
+  it('l’ordine: backup leggibile, export nativo, archivio, verifica, e solo dopo l’eliminazione', () => {
+    prima('Il backup leggibile', "L'export nativo del database")
+    prima("L'export nativo del database", "Nell'archivio")
+    prima("Nell'archivio", 'Il backup è completo?')
+    prima('Il backup è completo?', 'Elimina il progetto')
+    prima('Elimina il progetto', 'Lo stato di Terraform')
+  })
+
+  it('senza backup verificato niente si cancella', () => {
+    expect(passo(elimina, 'Il backup è completo?').run).toContain('echo "VERIFICATO=si" >> "$GITHUB_ENV"')
+    expect(passo(elimina, 'Elimina il progetto').if).toBe("env.VERIFICATO == 'si'")
+    expect(passo(elimina, 'Lo stato di Terraform').if).toBe("env.VERIFICATO == 'si'")
+    // La verifica guarda lo zip, il manifesto e l'export nativo completo.
+    const verifica = passo(elimina, 'Il backup è completo?').run
+    expect(verifica).toContain('$BYTE_ZIP')
+    expect(verifica).toContain('manifesto.json')
+    expect(verifica).toContain('overall_export_metadata')
+  })
+
+  it('l’esito torna alla regia sempre, con l’archivio solo se è eliminata', () => {
+    const esito = passo(elimina, 'Esito alla regia')
+    expect(esito.if).toBe('always()')
+    expect(esito.run).toContain('operazione: "eliminazione"')
+    expect(esito.run).toContain('stato === "eliminata" ?')
   })
 })

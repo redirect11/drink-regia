@@ -15,7 +15,7 @@ const db = vi.hoisted(() => ({
   elencoClienti: vi.fn(),
   elencoIstanze: vi.fn(),
   elencoRichieste: vi.fn(),
-  segnaPiano: vi.fn(async () => {}),
+  cambiaPianoAdmin: vi.fn(async () => ({ ok: true })),
   rilanciaAttivazione: vi.fn(async () => {}),
   impostaStatoIstanza: vi.fn(async () => {}),
   aggiornaIstanza: vi.fn(async () => {}),
@@ -32,8 +32,16 @@ const db = vi.hoisted(() => ({
   registraLocaleEsistente: vi.fn(async () => ({ uid: 't', slug: 'tana-drink' })),
   elencoRilasci: vi.fn(async () => []),
   gestisciRilascio: vi.fn(async () => ({ ok: true })),
+  gestisciEliminazione: vi.fn(async () => ({ ok: true })),
+  osservaVendita: vi.fn((cb) => {
+    cb(regia.vendita)
+    return () => {}
+  }),
+  impostaVendita: vi.fn(async () => {}),
+  elencoContatti: vi.fn(async () => regia.contatti),
+  segnaContatto: vi.fn(async () => {}),
 }))
-const regia = vi.hoisted(() => ({ impostazioni: {} }))
+const regia = vi.hoisted(() => ({ impostazioni: {}, vendita: { free: false, moduli: {} }, contatti: [] }))
 vi.mock('../src/lib/db.js', () => db)
 
 import Backoffice from '../src/pages/Backoffice.jsx'
@@ -65,8 +73,8 @@ beforeEach(() => {
 describe('il backoffice', () => {
   it('elenca i clienti, prima chi ha un problema', async () => {
     mostra()
-    const righe = await screen.findAllByRole('row')
-    const nomi = righe.slice(1).map((r) => within(r).getByRole('cell', { name: /Bar/ }).textContent)
+    const righe = await screen.findAllByRole('article')
+    const nomi = righe.map((r) => within(r).getByRole('heading').textContent)
     expect(nomi[0]).toMatch(/Bar Rotto/)
     expect(nomi[2]).toMatch(/Bar Attivo/)
     const attivo = righe.find((r) => r.textContent.includes('Bar Attivo'))
@@ -87,9 +95,24 @@ describe('il backoffice', () => {
     const user = userEvent.setup()
     vi.spyOn(window, 'prompt').mockReturnValue('pagamento non ricevuto')
     mostra()
-    const attivo = (await screen.findAllByRole('row')).find((r) => r.textContent.includes('Bar Attivo'))
+    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
     await user.click(within(attivo).getByRole('button', { name: 'Sospendi' }))
     expect(db.impostaStatoIstanza).toHaveBeenCalledWith('bar-attivo', 'sospesa', 'pagamento non ricevuto')
+  })
+
+  // Un locale per scheda (29/10/2026): lo stato in due parole e colorato,
+  // l'app del locale a un clic, Sospendi e Chiudi in un gruppo a parte.
+  it('ogni locale è una scheda: stato breve, link all’app, azioni a gruppi', async () => {
+    db.elencoIstanze.mockResolvedValue({
+      'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', versione: 'v1.10.0', url: 'https://drinkpos-bar-attivo.web.app' },
+    })
+    mostra()
+    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
+    expect(within(attivo).getByText('Attiva')).toHaveClass('stato-ok')
+    expect(within(attivo).getByRole('link', { name: /Apri l’app/ })).toHaveAttribute('href', 'https://drinkpos-bar-attivo.web.app')
+    const licenza = within(attivo).getByLabelText('Licenza')
+    expect(within(licenza).getByRole('button', { name: 'Sospendi' })).toBeInTheDocument()
+    expect(within(licenza).queryByRole('button', { name: 'Aggiorna' })).toBeNull()
   })
 
   it('una sospesa lo dice col motivo e si riattiva', async () => {
@@ -98,7 +121,7 @@ describe('il backoffice', () => {
       'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', versione: 'v1.10.0', licenza_stato: 'sospesa', licenza_motivo: 'pagamento non ricevuto' },
     })
     mostra()
-    const sospeso = (await screen.findByText(/sospesa · pagamento non ricevuto/)).closest('tr')
+    const sospeso = (await screen.findByText(/sospesa · pagamento non ricevuto/)).closest('article')
     await user.click(within(sospeso).getByRole('button', { name: 'Riattiva' }))
     expect(db.impostaStatoIstanza).toHaveBeenLastCalledWith('bar-attivo', 'attiva', null)
   })
@@ -109,19 +132,39 @@ describe('il backoffice', () => {
   it('«Aggiorna» porta l’ultima versione a un locale; a tutti si arriva solo con un rilascio', async () => {
     const user = userEvent.setup()
     mostra()
-    const attivo = (await screen.findAllByRole('row')).find((r) => r.textContent.includes('Bar Attivo'))
+    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
     await user.click(within(attivo).getByRole('button', { name: 'Aggiorna' }))
     expect(db.aggiornaIstanza).toHaveBeenCalledWith('bar-attivo')
     expect(screen.queryByRole('button', { name: /Aggiorna tutte/ })).toBeNull()
   })
 
-  it('un piano si segna a mano, finché non c’è Stripe', async () => {
+  // REQ-FLOTTA-016: «Cambia piano» al posto di «Piano a mano».
+  it('«Cambia piano»: senza Stripe si cambia fuori da Stripe, con piano, moduli e terminali', async () => {
     const user = userEvent.setup()
-    vi.spyOn(window, 'prompt').mockReturnValue('base')
     mostra()
-    const nuovo = (await screen.findAllByRole('row')).find((r) => r.textContent.includes('Bar Nuovo'))
-    await user.click(within(nuovo).getByRole('button', { name: 'Piano a mano' }))
-    expect(db.segnaPiano).toHaveBeenCalledWith('c', { piano: 'base', moduli: [], terminali: 1 })
+    const nuovo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Nuovo'))
+    await user.click(within(nuovo).getByRole('button', { name: 'Cambia piano…' }))
+    const modulo = within(nuovo).getByRole('form', { name: 'Cambia piano di Bar Nuovo' })
+    expect(within(modulo).getByLabelText(/Con Stripe/)).toBeDisabled()
+    expect(within(modulo).getByLabelText(/Fuori da Stripe/)).toBeChecked()
+    await user.click(within(modulo).getByLabelText('Magazzino e fornitori'))
+    await user.click(within(modulo).getByRole('button', { name: 'Cambia piano' }))
+    expect(db.cambiaPianoAdmin).toHaveBeenCalledWith({ slug: 'bar-nuovo', piano: 'base', moduli: ['magazzino'], terminali: 1, modo: 'fuori' })
+  })
+
+  it('«Cambia piano» con un abbonamento Stripe propone Stripe; verso il Free spariscono moduli e terminali', async () => {
+    const user = userEvent.setup()
+    db.elencoClienti.mockResolvedValue([
+      { uid: 'a', slug: 'bar-attivo', nome_locale: 'Bar Attivo', email: 'a@x.it', piano: 'completo', creato_il: '2026-10-01', abbonamento: { stato: 'attivo', stripe_subscription: 'sub_1' } },
+    ])
+    mostra()
+    const attivo = (await screen.findAllByRole('article'))[0]
+    await user.click(within(attivo).getByRole('button', { name: 'Cambia piano…' }))
+    const modulo = within(attivo).getByRole('form', { name: 'Cambia piano di Bar Attivo' })
+    expect(within(modulo).getByLabelText(/Con Stripe/)).toBeChecked()
+    await user.selectOptions(within(modulo).getByLabelText('Piano'), 'free')
+    expect(within(modulo).queryByLabelText('Terminali')).toBeNull()
+    expect(within(modulo).queryByLabelText('Magazzino e fornitori')).toBeNull()
   })
 })
 
@@ -187,7 +230,7 @@ describe('il backoffice e il credito AI', () => {
     vi.spyOn(window, 'prompt').mockReturnValueOnce('15,5').mockReturnValueOnce('prima ricarica')
     mostra()
     expect(await screen.findByTestId('credito-bar-attivo')).toHaveTextContent('12,50 €')
-    const attivo = screen.getAllByRole('row').find((r) => r.textContent.includes('Bar Attivo'))
+    const attivo = screen.getAllByRole('article').find((r) => r.textContent.includes('Bar Attivo'))
     expect(attivo).toHaveTextContent('mese 3,00 € / 20,00 €')
     await user.click(within(attivo).getByRole('button', { name: 'Ricarica AI' }))
     expect(db.gestisciCassettoAI).toHaveBeenCalledWith('bar-attivo', 'ricarica', { importo: 15.5, nota: 'prima ricarica' })
@@ -199,7 +242,7 @@ describe('il backoffice e il credito AI', () => {
     db.gestisciCassettoAI.mockResolvedValueOnce({ ok: true, chiave: 'bar-attivo.segretolungo' })
     const conferma = vi.spyOn(window, 'confirm').mockReturnValue(true)
     mostra()
-    const attivo = (await screen.findAllByRole('row')).find((r) => r.textContent.includes('Bar Attivo'))
+    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
     await user.click(within(attivo).getByRole('button', { name: 'Chiave AI' }))
     expect(conferma).toHaveBeenCalled()
     expect(db.gestisciCassettoAI).toHaveBeenCalledWith('bar-attivo', 'chiave', {})
@@ -241,14 +284,14 @@ describe('il backoffice e il credito AI', () => {
       'tana-drink': { stato: 'attiva', progetto: 'tana-drink', origine: 'esistente', interna: true },
     })
     mostra()
-    const tana = (await screen.findAllByRole('row')).find((r) => r.textContent.includes('La Tana'))
+    const tana = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('La Tana'))
     expect(tana).toHaveTextContent('interna · esistente')
     expect(within(tana).queryByRole('button', { name: 'Aggiorna' })).toBeNull()
     expect(within(tana).queryByRole('button', { name: 'Sospendi' })).toBeNull()
     expect(within(tana).getByRole('button', { name: 'Ricarica AI' })).toBeInTheDocument()
     // Né un gruppo di rilascio: la Tana è sempre nell'ondata delle interne.
     expect(within(tana).queryByRole('combobox')).toBeNull()
-    await user.click(within(tana).getByRole('button', { name: 'Piano a mano' }))
+    await user.click(within(tana).getByRole('button', { name: 'Cambia piano…' }))
     expect(db.aggiornaIstanza).not.toHaveBeenCalled()
   })
 })
@@ -333,7 +376,7 @@ describe('i rilasci a ondate nel backoffice', () => {
     })
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     mostra()
-    const attivo = (await screen.findAllByRole('row')).find((r) => r.textContent.includes('Bar Attivo'))
+    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
     expect(attivo).toHaveTextContent('Attiva')
     expect(attivo).toHaveTextContent('aggiornamento a v1.11.0 fallito: deploy interrotto')
     await user.click(within(attivo).getByRole('button', { name: 'Riprova' }))
@@ -345,8 +388,118 @@ describe('i rilasci a ondate nel backoffice', () => {
   it('un locale della flotta si mette nel gruppo pilota', async () => {
     const user = userEvent.setup()
     mostra()
-    const attivo = (await screen.findAllByRole('row')).find((r) => r.textContent.includes('Bar Attivo'))
+    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
     await user.selectOptions(within(attivo).getByRole('combobox', { name: 'Gruppo di rilascio di Bar Attivo' }), 'pilota')
     expect(db.gestisciRilascio).toHaveBeenCalledWith('gruppo', { slug: 'bar-attivo', gruppo: 'pilota' })
+  })
+})
+
+// L'ELIMINAZIONE (REQ-FLOTTA-014): solo un locale chiuso, solo l'admin può
+// scegliere «subito», sempre scrivendo il nome dell'app.
+describe('eliminare un locale dal backoffice', () => {
+  it('un locale chiuso si elimina subito, confermando col nome dell’app', async () => {
+    const user = userEvent.setup()
+    db.elencoIstanze.mockResolvedValue({
+      'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', versione: 'v1.10.0', licenza_stato: 'chiusa', licenza_motivo: 'chiusura' },
+    })
+    mostra()
+    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
+    await user.click(within(attivo).getByRole('button', { name: 'Elimina…' }))
+    const modulo = within(attivo).getByRole('form', { name: 'Elimina Bar Attivo' })
+    await user.click(within(modulo).getByLabelText(/Subito/))
+    const tasto = within(modulo).getByRole('button', { name: 'Backup ed elimina subito' })
+    expect(tasto).toBeDisabled()
+    await user.type(within(modulo).getByLabelText(/Per confermare scrivi/), 'drinkpos-bar-attivo')
+    await user.click(tasto)
+    expect(db.gestisciEliminazione).toHaveBeenCalledWith('chiedi', { slug: 'bar-attivo', conferma: 'drinkpos-bar-attivo', subito: true })
+  })
+
+  it('un locale aperto non ha «Elimina»; una programmata si vede e si annulla', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    db.elencoIstanze.mockResolvedValue({
+      'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', licenza_stato: 'chiusa', eliminazione: { stato: 'programmata', quando: '2026-11-28T10:00:00Z', richiedente: 'titolare' } },
+      'bar-rotto': { stato: 'attiva', progetto: 'drinkpos-bar-rotto' },
+    })
+    mostra()
+    const schede = await screen.findAllByRole('article')
+    const rotto = schede.find((r) => r.textContent.includes('Bar Rotto'))
+    expect(within(rotto).queryByRole('button', { name: 'Elimina…' })).toBeNull()
+    const attivo = schede.find((r) => r.textContent.includes('Bar Attivo'))
+    expect(attivo).toHaveTextContent(/Programmata per il .* \(chiesta dal titolare\)/)
+    expect(within(attivo).queryByRole('button', { name: 'Elimina…' })).toBeNull()
+    await user.click(within(attivo).getByRole('button', { name: 'Annulla eliminazione' }))
+    expect(db.gestisciEliminazione).toHaveBeenCalledWith('annulla', { slug: 'bar-attivo' })
+  })
+})
+
+// LA VENDITA (REQ-FLOTTA-015): l'admin mette in vendita il Free e i moduli,
+// con un clic.
+describe('la vendita nel backoffice', () => {
+  it('il Free parte spento; accenderlo e togliere un modulo scrivono la vendita', async () => {
+    const user = userEvent.setup()
+    regia.vendita = { free: false, moduli: { menu_tavoli: true, ordini_cliente: true, clienti: true, magazzino: true, statistiche: true, staff: true, sumup: true } }
+    mostra()
+    const vendita = await screen.findByRole('region', { name: 'Vendita' })
+    const free = within(vendita).getByLabelText('Piano Free in vendita')
+    expect(free).not.toBeChecked()
+    expect(vendita).toHaveTextContent(/Tienilo spento finché l’app non fa rispettare i suoi limiti/)
+    await user.click(free)
+    expect(db.impostaVendita).toHaveBeenCalledWith({ free: true })
+    await user.click(within(vendita).getByLabelText('Pagamenti con lettore SumUp'))
+    expect(db.impostaVendita).toHaveBeenCalledWith({ moduli: { sumup: false } })
+  })
+})
+
+// LE PROVE DEI MODULI (REQ-FLOTTA-016): nel riquadro «Vendita» l'admin dice
+// per quanti giorni si prova ogni modulo; 0 vuol dire niente prova.
+describe('le prove nel backoffice', () => {
+  it('i giorni di prova si scrivono uscendo dal campo, e si puliscono', async () => {
+    const user = userEvent.setup()
+    regia.vendita = { free: false, moduli: {}, prove: { magazzino: 0 } }
+    mostra()
+    const vendita = await screen.findByRole('region', { name: 'Vendita' })
+    const giorni = within(vendita).getByLabelText('Giorni di prova di Magazzino e fornitori')
+    await user.clear(giorni)
+    await user.type(giorni, '14')
+    expect(db.impostaVendita).not.toHaveBeenCalled()
+    await user.tab()
+    expect(db.impostaVendita).toHaveBeenCalledWith({ prove: { magazzino: 14 } })
+  })
+})
+
+// REQ-FLOTTA-017: i pagamenti online si accendono dal backoffice; spenti,
+// le richieste di contatto dei titolari stanno qui, con piano e recapito.
+describe('i pagamenti online e le richieste di contatto', () => {
+  it('l’interruttore dei pagamenti online scrive la vendita e dice cosa succede', async () => {
+    const user = userEvent.setup()
+    regia.vendita = { free: false, moduli: {} }
+    mostra()
+    const vendita = await screen.findByRole('region', { name: 'Vendita' })
+    const pagamenti = within(vendita).getByLabelText('Pagamenti online con Stripe')
+    expect(pagamenti).not.toBeChecked()
+    expect(vendita).toHaveTextContent(/Niente Checkout/)
+    await user.click(pagamenti)
+    expect(db.impostaVendita).toHaveBeenCalledWith({ pagamenti_online: true })
+  })
+
+  it('le richieste aperte si contano, dicono piano e recapito, e si segnano gestite', async () => {
+    const user = userEvent.setup()
+    regia.contatti = [
+      { uid: 'u9', email: 'bar@example.com', nome_locale: 'Bar Nove', telefono: '+39 333 1234567', nota: 'Di mattina', scelta: { piano: 'base', moduli: ['staff'], terminali: 2 }, stato: 'aperta', chiesta_il: '2026-10-30T10:00:00.000Z' },
+      { uid: 'u8', email: 'otto@example.com', scelta: { piano: 'completo', moduli: [], terminali: 1 }, stato: 'gestita', chiesta_il: '2026-10-29T10:00:00.000Z', gestita_il: '2026-10-29T12:00:00.000Z' },
+    ]
+    mostra()
+    const sezione = await screen.findByRole('region', { name: 'Richieste di contatto' })
+    expect(sezione).toHaveTextContent('1 da gestire')
+    expect(sezione).toHaveTextContent('Bar Nove')
+    expect(sezione).toHaveTextContent('+39 333 1234567')
+    expect(sezione).toHaveTextContent('«Di mattina»')
+    expect(within(sezione).getByRole('link', { name: '+39 333 1234567' })).toHaveAttribute('href', 'tel:+393331234567')
+    await user.click(within(sezione).getByRole('button', { name: 'Segna gestita' }))
+    expect(db.segnaContatto).toHaveBeenCalledWith('u9', 'gestita')
+    await user.click(within(sezione).getByRole('button', { name: 'Riapri' }))
+    expect(db.segnaContatto).toHaveBeenCalledWith('u8', 'aperta')
+    regia.contatti = []
   })
 })

@@ -11,7 +11,9 @@ name: Aggiorna istanza
 #      stanno nel suo database) e compila CLIENTE=<slug>;
 #   3. pubblica regole, indici, Functions e hosting;
 #   4. riferisce alla regia la versione pubblicata.
-# Niente Terraform: il progetto esiste già.
+# Il Terraform gira solo per un locale Free che passa al profilo completo:
+# il suo progetto riceve le API e gli agenti delle Functions (REQ-FLOTTA-015).
+# Per tutti gli altri il progetto esiste già com'è.
 #
 # Sta nella regia dal 29/10/2026, come provisiona-istanza.yml: environment
 # «flotta» o «flotta-test» secondo `ambiente`, input solo come variabili
@@ -39,6 +41,12 @@ on:
         type: choice
         options: [produzione, test]
         default: produzione
+      profilo:
+        description: 'leggero (il piano Free: solo database e sito, costo zero) o completo (Functions, Storage, segreti)'
+        required: false
+        type: choice
+        options: [completo, leggero]
+        default: completo
 
 permissions:
   contents: read
@@ -52,6 +60,7 @@ env:
   NOME: ${{ inputs.nome_locale || inputs.slug }}
   REF_APP: ${{ inputs.ref }}
   AMBIENTE: ${{ inputs.ambiente }}
+  PROFILO: ${{ inputs.profilo }}
   PROGETTO: drinkpos-${{ inputs.slug }}
   # I segreti che le Functions dell'app di tana-drink dichiarano
   # (defineSecret): contratto con tana-drink, docs/handover.md §7.
@@ -68,6 +77,7 @@ jobs:
           [[ "$SLUG" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]] || { echo "::error::Slug non valido."; exit 1; }
           [[ "$REF_APP" =~ ^[A-Za-z0-9._/-]{1,100}$ ]] || { echo "::error::ref non valido."; exit 1; }
           [[ "$AMBIENTE" =~ ^(produzione|test)$ ]] || { echo "::error::ambiente non valido."; exit 1; }
+          [[ "$PROFILO" =~ ^(completo|leggero)$ ]] || { echo "::error::profilo non valido."; exit 1; }
           if [ ${#NOME} -gt 80 ] || [[ "$NOME" =~ [[:cntrl:]] ]]; then echo "::error::Nome del locale non valido."; exit 1; fi
 
       # APP DI PRODUZIONE (REQ-FLOTTA-009): un locale riceve solo rilasci —
@@ -107,6 +117,44 @@ jobs:
           if [ -z "$SA_JSON" ]; then echo "::error::Manca il segreto PROVISIONING_SA_JSON (infra/README.md)."; exit 1; fi
           echo "$SA_JSON" > "$RUNNER_TEMP/sa.json"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
+          echo "PROVISIONING_SA_EMAIL=$(node -e "console.log(JSON.parse(process.argv[1]).client_email)" "$SA_JSON")" >> "$GITHUB_ENV"
+
+      # DA LEGGERO A COMPLETO (REQ-FLOTTA-015). Un locale Free nasce senza le
+      # API delle Functions: quando compra, l'apply col profilo completo le
+      # accende e crea gli agenti di Google, prima di Storage, segreti e
+      # deploy. Si riconosce dallo stato: un progetto della regia senza
+      # l'API delle Functions. Un progetto senza stato (un locale esistente,
+      # come la Tana) non lo ha creato la regia e non si tocca.
+      - uses: hashicorp/setup-terraform@v3
+        if: env.PROFILO == 'completo'
+        with:
+          terraform_version: '1.9.8'
+          terraform_wrapper: false
+
+      - name: Il profilo completo nel progetto
+        if: env.PROFILO == 'completo'
+        working-directory: infra/istanza
+        env:
+          TFSTATE_BUCKET: ${{ vars.TFSTATE_BUCKET }}
+          TF_VAR_slug: ${{ inputs.slug }}
+          TF_VAR_ambiente: ${{ inputs.ambiente }}
+          TF_VAR_billing_account: ${{ secrets.BILLING_ACCOUNT_ID }}
+          TF_VAR_org_id: ${{ vars.ORG_ID }}
+          TF_VAR_regia_sa_email: ${{ vars.REGIA_SA_EMAIL }}
+          TF_VAR_provisioning_sa_email: ${{ env.PROVISIONING_SA_EMAIL }}
+          TF_VAR_profilo: completo
+        run: |
+          if [ -z "$TFSTATE_BUCKET" ]; then echo "::error::Manca la variabile TFSTATE_BUCKET nell'environment (infra/README.md)."; exit 1; fi
+          terraform init -input=false \
+            -backend-config="bucket=$TFSTATE_BUCKET" \
+            -backend-config="prefix=istanze/$SLUG"
+          if ! terraform state show google_project.istanza >/dev/null 2>&1; then
+            echo "Nessuno stato Terraform per $SLUG: il progetto non l'ha creato la regia, non si tocca."; exit 0
+          fi
+          if terraform state list | grep -qF 'google_project_service.api["cloudfunctions.googleapis.com"]'; then
+            echo "Il progetto è già completo."; exit 0
+          fi
+          terraform apply -input=false -auto-approve
 
       - name: Dipendenze
         run: |
@@ -116,13 +164,26 @@ jobs:
 
       # Una versione nuova dell'app può dichiarare un segreto in più: si crea
       # col segnaposto prima del deploy (scripts/segreti-istanza.mjs).
+      # Un locale Free che compra passa qui al profilo completo: il suo
+      # Storage nasce adesso (REQ-FLOTTA-015). Se c'è già non fa niente.
+      - name: Lo Storage del locale
+        if: env.PROFILO == 'completo'
+        run: node scripts/storage-istanza.mjs --project "$PROGETTO"
+
       - name: I segreti dell'app
+        if: env.PROFILO == 'completo'
         run: node scripts/segreti-istanza.mjs --project "$PROGETTO" --segreti "$SEGRETI_APP"
 
+      # LA WEB APP DEL SITO, non «una» web app: con più app web nel progetto
+      # `apps:sdkconfig` senza id si ferma (drinkpos-prova-free, 30/10/2026:
+      # una app creata a mano accanto a quella di Terraform). Il sito sa la
+      # sua (Terraform la collega con app_id); se non la dice, si va senza id.
       - name: La configurazione web dell'istanza
         working-directory: app
         run: |
-          npx firebase-tools apps:sdkconfig web --project "$PROGETTO" --json > "$RUNNER_TEMP/sdk.json"
+          APP_ID=$(npx firebase-tools hosting:sites:get "$PROGETTO" --project "$PROGETTO" --json | node -e 'try { console.log(JSON.parse(require("fs").readFileSync(0, "utf8")).result?.appId || "") } catch { console.log("") }')
+          echo "Web app del sito: ${APP_ID:-non indicata}"
+          npx firebase-tools apps:sdkconfig web $APP_ID --project "$PROGETTO" --json > "$RUNNER_TEMP/sdk.json" || { cat "$RUNNER_TEMP/sdk.json"; exit 1; }
           node -e '
             const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
             const c = j.result?.sdkConfig || j.result || j;
@@ -141,6 +202,9 @@ jobs:
           BASE_PATH: /
           CLIENTE: ${{ inputs.slug }}
           VITE_APP_ENV: production
+          # L'app sa di essere leggera anche prima di leggere la licenza
+          # (tana-drink, REQ-LIC-004): niente Functions, Storage, SumUp.
+          VITE_PROFILO: ${{ inputs.profilo }}
         run: npm run build
 
       - name: Functions .env del progetto
@@ -153,8 +217,11 @@ jobs:
         # deployment in a few minutes», prova-bar, 29/10/2026): si riprova
         # due volte, a 90 secondi. Il deploy si può ripetere senza danni.
         run: |
+          # Il profilo leggero (il Free, REQ-FLOTTA-015) pubblica solo regole e
+          # sito: niente Functions né Storage, che sono quello che costa.
+          if [ "$PROFILO" = "leggero" ]; then SOLO=firestore,hosting; else SOLO=firestore,storage,functions,hosting; fi
           for tentativo in 1 2 3; do
-            if npx firebase-tools deploy --only firestore,storage,functions,hosting --project "$PROGETTO" --force; then exit 0; fi
+            if npx firebase-tools deploy --only "$SOLO" --project "$PROGETTO" --force; then exit 0; fi
             if [ "$tentativo" = 3 ]; then exit 1; fi
             echo "::warning::Deploy non riuscito al tentativo $tentativo: riprovo fra 90 secondi."
             sleep 90
@@ -177,7 +244,7 @@ jobs:
             const [url, secret, slug, stato, progetto, versione, errore] = process.argv.slice(1);
             fetch(url, { method: "POST", headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
               body: JSON.stringify({ slug, stato, progetto, versione: versione || null, errore: errore || null,
-                ambiente: "produzione", operazione: "aggiornamento", ref: process.env.REF_APP || null }) })
+                ambiente: "produzione", operazione: "aggiornamento", profilo: process.env.PROFILO || null, ref: process.env.REF_APP || null }) })
               .then((r) => { console.log("regia:", r.status); if (r.status >= 300) process.exit(1); })
           ' "$CALLBACK_URL" "$CALLBACK_SECRET" "$SLUG" "$STATO" "$PROGETTO" "${VERSIONE:-}" "$ERR"
 

@@ -13,6 +13,17 @@ Leggi nell'ordine: questo file, [CLAUDE.md](../CLAUDE.md), [README.md](../README
 `docs/flotta.md` e `docs/architettura-prodotto.md` (solo per capire il
 quadro: lì non si lavora da questa sessione).
 
+Per un prodotto nuovo dell'azienda, con la sua regia (il disegno deciso il
+30/10/2026: Organizzazione col nome dell'azienda, vetrina, una regia per
+prodotto): [nuovo-prodotto.md](nuovo-prodotto.md) e la scheda
+[template-prodotto.md](template-prodotto.md).
+
+Come sono fatte infrastruttura e pipeline: [architettura.md](architettura.md).
+Dove si vuole arrivare (servizi base, statistiche aggregate, marketing tra
+prodotti): [sviluppi-futuri.md](sviluppi-futuri.md), con la prima proposta di
+[modello-di-business.md](modello-di-business.md). Il punto su saas-portal
+prima di archiviarlo: [saas-portal.md](saas-portal.md).
+
 ---
 
 ## 1. Perimetro: cosa è tuo e cosa no
@@ -117,18 +128,23 @@ e ci si lavora. `package.json` è a `0.1.0`: la prima pubblicazione sarà
 il tag `v0.1.0-beta` su `develop` (sul test) e poi `v0.1.0` su `main`
 (produzione); subito dopo il ramo di lavoro passa a `0.2.0-beta`.
 
-### A pubblicare è il tag, non il push (il modello di tana-drink)
+### Il test segue develop, la produzione il tag su main
+
+Decisione dell'utente del 30/10/2026: un push su `develop` va sul test, in
+produzione va solo un tag su `main`. Prima pubblicava solo il tag, anche
+sul test.
 
 Tre workflow, gli stessi di tana-drink (`docs/actions-come-tana-drink.md`
 è il disegno, `tests/ci.test.js` li legge e li controlla):
 
 | Cosa si fa | Cosa succede |
 |---|---|
-| push su un ramo qualsiasi (tranne `release/**`) | `test.yml`: lint, test, build. Nessun deploy. |
+| push su un ramo qualsiasi (tranne `release/**`) | `test.yml`: lint, test, build. |
+| push su `develop` (cioè un merge di una PR) | in più va sul **test** (`drink-regia-test`), subito |
 | pull request verso `develop` o `main` | lint, test, build **e coverage** (`npm run test:coverage`, soglie in `vitest.config.mjs`: un cricchetto, si alzano e non si abbassano) |
 | lancio a mano di «Deploy to Firebase» su un ramo | va sul **test** (`drink-regia-test`), subito |
-| tag su un commit **non** in `main` | va sul **test**, subito |
-| tag su un commit **di `main`** | va in **produzione** (`drink-regia`), dopo l'approvazione a mano su GitHub (Actions → il run → Review deployments) |
+| tag su un commit **non** in `main` | **nessun deploy**: il job «Dove va» si ferma e lo dice |
+| tag su un commit **di `main`** | va in **produzione** (`drink-regia`). L'approvazione a mano non c'è (GitHub Free, §6) |
 
 Il ramo non conta: conta **dove sta il commit taggato** (job «Dove va» di
 `firebase-hosting.yml`, con `git merge-base --is-ancestor`). Il deploy
@@ -406,20 +422,59 @@ L'elenco completo con i riferimenti al codice è in
    l'organizzazione (la strada giusta è Workload Identity Federation da
    GitHub, senza chiavi). I progetti di oggi possono restare fuori
    dall'organizzazione. Ogni passo si fa col permesso dell'utente.
-14. **La flotta nella regia (REQ-FLOTTA-013)**, ramo
-   `feature/flotta-nella-regia` (parte da `feature/rilasci-a-ondate`, va
-   unito dopo), scritto il 29/10/2026: il Terraform dei locali, i due
-   workflow e lo script della licenza stanno qui
-   ([flotta-nella-regia.md](flotta-nella-regia.md)). Restano, nell'ordine:
-   il ramo su `main` (GitHub lancia a comando solo i workflow del ramo
-   principale; senza tag su `main` la produzione non si pubblica); gli
-   environment `flotta` e `flotta-test` coi segreti e le variabili di
-   [infra/README.md](../infra/README.md), messi dall'utente; il token
-   `GITHUB_DISPATCH_TOKEN` nuovo, limitato a `redirect11/drink-regia`,
-   nelle Functions di ciascuna regia; la prima attivazione di prova con
-   uno slug `prova-…`. In tana-drink, da portare a quella sessione: via
-   `provisiona-istanza.yml`, `aggiorna-istanza.yml`, `infra/`,
-   `scripts/licenza-istanza.mjs` e i segreti della flotta.
+14. **La flotta nella regia (REQ-FLOTTA-013)**: su `main` dalla 0.2.0 e
+   0.2.1 (PR #4–#7), environment `flotta` e `flotta-test` coi segreti,
+   token limitato alla regia. Provata il 29/10/2026 con la prima
+   attivazione vera (`prova-bar` sulla regia di test, run 40946898455):
+   istanza attiva su https://drinkpos-prova-bar.web.app. Da provare ancora:
+   un'attivazione su un progetto del tutto nuovo (su `prova-bar` il bucket
+   di Storage l'avevo creato a mano e gli agenti di Google erano già nati).
+   In tana-drink, da portare a quella sessione: via `provisiona-istanza.yml`,
+   `aggiorna-istanza.yml`, `infra/`, `scripts/licenza-istanza.mjs` e i
+   segreti della flotta.
+15. **Eliminare un locale (REQ-FLOTTA-014)**, ramo `feature/elimina-locale`
+   (parte da `feature/backoffice-leggibile`, PR #8), scritto il 29/10/2026.
+   Prima di usarlo, col permesso dell'utente: i due bucket degli archivi e
+   i loro permessi ([infra/README.md](../infra/README.md), punto 5), la
+   variabile `ARCHIVIO_BUCKET` nei due environment. Poi la prova su
+   `prova-bar`: chiudere, eliminare subito dal backoffice di test, scaricare
+   l'archivio dalla dashboard del titolare. Il DPA, quando si scrive, deve
+   dire le stesse durate dei termini (30 giorni, archivio 180).
+16. **Il dominio** (domanda dell'utente del 29/10/2026: regia su
+   `regiadrink.it`, locali su `<slug>.regiadrink.it`). Quando c'è: DNS su
+   Cloud DNS in `drink-regia`; il dominio della regia una volta sul sito
+   `drink-regia`; nel Terraform dei locali `google_firebase_hosting_custom_domain`
+   e `google_dns_record_set` per `<slug>.<dominio>`, e il dominio fra quelli
+   autorizzati di Auth. Firebase non accetta un `*.` diviso fra progetti:
+   ogni locale registra il suo. `DOMINIO_ISTANZE` in `src/lib/prodotto.js`.
+   Da decidere: il nome, e se i locali stanno sotto un livello dedicato
+   (`<slug>.app.<dominio>`).
+17. **Il piano Free (REQ-FLOTTA-015)**, ramo `feature/piano-free` (parte da
+   `feature/elimina-locale`), scritto il 30/10/2026. Fatti: il piano nel
+   listino coi limiti, la licenza coi limiti, `scegliFree`, la vendita
+   dell'admin (Free e moduli), il profilo leggero nei workflow e il passaggio
+   al completo quando il locale compra, il buco di `cambiaScelta` chiuso.
+   Restano: in tana-drink le richieste di
+   [richieste-tana-drink-free.md](richieste-tana-drink-free.md) (finché non ci
+   sono, il Free resta fuori vendita). Il progetto senza fatturazione
+   (Spark) è stato provato il 30/10/2026 su `drinkpos-prova-free` e non
+   regge: Google non accende l'accesso con email (`BILLING_NOT_ENABLED`).
+   Il profilo leggero ha quindi la fatturazione, ma nel Terraform solo
+   database, regole, sito e accesso (infra/README.md, «I due profili»); il
+   Free è a un solo utente, il titolare (`limiti.utenti_max: 1`), perché
+   senza Functions non c'è `staffAdmin`. Il nome del prodotto è ancora da decidere
+   (candidati: Floorder, Floorista, Comandry).
+18. **Le prove dei moduli e «Cambia piano» (REQ-FLOTTA-016)**, sullo stesso
+   ramo, 30/10/2026: i giorni di prova li decide l'admin nel riquadro
+   «Vendita»; il titolare prova un modulo una volta sola dalla dashboard;
+   ogni mattina `proveScadute` le spegne. «Cambia piano» al posto di «Piano
+   a mano», con Stripe o fuori da Stripe, e lo storico sul cliente.
+19. **I pagamenti online spenti (REQ-FLOTTA-017)**, ramo
+   `feature/pagamenti-online`, 30/10/2026. L'interruttore «Pagamenti online
+   con Stripe» parte spento: **dopo il deploy, sulla regia di test va
+   acceso dal backoffice** per provare Stripe in modalità test; in
+   produzione si accende quando si è pronti a ricevere i pagamenti (chiavi
+   live, webhook). Spento, i titolari chiedono di essere contattati.
 
 ---
 
@@ -448,6 +503,21 @@ moduli, la licenza nell'istanza e la Tana.
   mancano (`scripts/segreti-istanza.mjs`), senza mai sovrascriverli: il
   valore vero è del locale. Se l'app ne dichiara uno nuovo, si aggiunge
   lì, altrimenti Firebase non pubblica le Functions.
+- **I limiti del Free e il profilo leggero** (REQ-FLOTTA-015, dal
+  30/10/2026, per intero in [richieste-tana-drink-free.md](richieste-tana-drink-free.md)).
+  La regia scrive `settings/bar.licenza.limiti` = `{ prodotti_max: 10,
+  conti_aperti_max: 5, sconti: false, storico_giorni: 7, utenti_max: 1,
+  marchio: true }`
+  per il Free, e `null` per i piani a pagamento. L'app applica i limiti solo
+  se la voce c'è: senza, nessun limite (la Tana non ha la voce). Un locale
+  Free si pubblica col profilo leggero (`--only firestore,hosting`): l'app
+  deve lavorare senza le sue Functions e senza Storage. La regia passa anche
+  `VITE_PROFILO` (completo o leggero) a ogni build delle istanze. Fatto in
+  tana-drink il 30/10/2026 (PR #239, #240: REQ-LIC-003, REQ-LIC-004).
+- **Le prove dei moduli** (REQ-FLOTTA-016): un modulo in prova è acceso in
+  `licenza.moduli` come uno comprato, e `licenza.prove` = `{ magazzino:
+  '<scadenza ISO>' }` dice fino a quando. L'app può mostrarlo («in prova
+  fino al…»); non deve fare altro, la scadenza la gestisce la regia.
 - **Id dei moduli.** `functions/piani.json` → `moduli[].id` e
   `functions/lib/licenza.js` (MAPPA, TUTTI) devono combaciare con
   `src/lib/licenza.js` (MODULI_PREMIUM) in tana-drink. Oggi: `menu_tavoli`, `ordini_cliente`, `clienti`,

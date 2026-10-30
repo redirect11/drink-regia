@@ -123,8 +123,43 @@ input[aria-invalid='true'], select[aria-invalid='true'] { border-color: var(--er
 .legale h2 { margin-top: 24px; }
 input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; }
 .errore { color: var(--errore); }
-.errore-riga td { background: rgba(231, 76, 60, 0.08); }
-.azioni-riga { white-space: nowrap; }
+/* ── Il backoffice: un locale per scheda (l'utente, 29/10/2026: «puoi
+   migliorare la visualizzazione?»). La tabella a otto colonne stringeva
+   tutto e mandava i pulsanti fuori dalla pagina. In alto nome e stato
+   colorato, poi i dati in una griglia che va a capo da sola, in fondo le
+   azioni a gruppi: Sospendi e Chiudi a destra, lontano dalle altre. ── */
+.pagina.larga { max-width: 1200px; }
+.locali { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 12px; }
+.locale { background: var(--bg-2); border: 1px solid var(--line); border-left: 3px solid var(--line); border-radius: var(--raggio); padding: 16px 18px; display: grid; gap: 14px; }
+.locale.tono-ok { border-left-color: #5fd3a1; }
+.locale.tono-errore { border-left-color: var(--errore); background: linear-gradient(90deg, rgba(231, 76, 60, 0.07), var(--bg-2) 45%); }
+.locale.tono-attesa { border-left-color: var(--accent); }
+.locale.tono-avviso { border-left-color: #e67e22; }
+.locale-testa { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.locale-testa h3 { margin: 0; font-size: 1.1rem; }
+.stato { font-size: 0.8rem; font-weight: 600; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); white-space: nowrap; }
+.stato-ok { color: #5fd3a1; border-color: rgba(95, 211, 161, 0.4); background: rgba(95, 211, 161, 0.08); }
+.stato-errore { color: #ff8a7a; border-color: rgba(231, 76, 60, 0.5); background: rgba(231, 76, 60, 0.1); }
+.stato-attesa { color: var(--accent); border-color: rgba(227, 178, 60, 0.4); background: var(--accent-soft); }
+.stato-avviso { color: #f0a35e; border-color: rgba(230, 126, 34, 0.45); background: rgba(230, 126, 34, 0.1); }
+.locale-dati { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px 20px; margin: 0; }
+.locale-dati dt { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 4px; }
+.locale-dati dt label { display: inline; margin: 0; font-size: inherit; color: inherit; }
+.locale-dati dd { margin: 0; overflow-wrap: anywhere; }
+.locale-dati select { padding: 6px 8px; }
+.locale-azioni { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; border-top: 1px solid var(--line); padding-top: 12px; }
+.gruppo-azioni { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.gruppo-azioni.pericolo { margin-left: auto; }
+.gruppo-azioni.pericolo .btn:hover { border-color: var(--errore); color: #ff8a7a; }
+.gruppo-nome { margin-right: 2px; }
+
+/* ── Chiudere e cancellare un locale (REQ-FLOTTA-014): bordo e tasto
+   rossi, perché è il solo gesto della regia che non si annulla. ── */
+.zona-pericolo { border-color: rgba(231, 76, 60, 0.5); margin-top: 24px; }
+.btn.pericolo { background: var(--errore); border-color: var(--errore); color: #fff; }
+.btn.pericolo:disabled { opacity: 0.45; }
+.elimina-form { display: grid; gap: 8px; margin-top: 10px; padding: 12px; border: 1px solid rgba(231, 76, 60, 0.5); border-radius: 10px; }
+.elimina-form label { margin: 0; }
 .scelta-piani { display: grid; gap: 8px; margin: 8px 0; }
 .opzione { display: block; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; margin: 4px 0; color: var(--text); font-size: 1rem; cursor: pointer; }
 .opzione.scelta { border-color: var(--accent); }
@@ -151,3 +186,20 @@ code { background: rgba(255, 255, 255, 0.06); padding: 1px 5px; border-radius: 5
 .ondate { margin: 8px 0; padding-left: 20px; }
 .ondate li { margin: 4px 0; }
 .ondata-attuale { font-weight: 600; }
+
+/* ── La vendita nel backoffice (REQ-FLOTTA-015) ── */
+.card.vendita { margin: 12px 0; }
+.card.vendita h3 { margin-top: 0; }
+.vendita-moduli { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 4px 12px; }
+.vendita-modulo { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.vendita-modulo .opzione { flex: 1; }
+.giorni-prova { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 0.85rem; white-space: nowrap; }
+.giorni-prova input { width: 4.5em; padding: 6px; }
+/* Le richieste di contatto coi pagamenti spenti (REQ-FLOTTA-017). */
+.contatto { display: grid; gap: 6px; margin: 8px 0; }
+.contatto textarea { font: inherit; padding: 8px; }
+.contatti { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.contatti li { display: grid; gap: 4px; justify-items: start; }
+.contatti li.gestita { opacity: 0.6; }
+.cambia-piano { display: grid; gap: 8px; margin-top: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
+.cambia-piano label { margin: 0; }

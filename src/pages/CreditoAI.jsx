@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
-import { osservaCassettoAI, ultimiConsumiAI, avviaRicaricaAI } from '../lib/db.js'
+import { osservaCassettoAI, ultimiConsumiAI, avviaRicaricaAI, osservaVendita } from '../lib/db.js'
+import { venditaPulita } from '../lib/vendita.js'
+import { EMAIL_CONTATTI } from '../lib/prodotto.js'
 import { PACCHETTI_AI, statoCredito, euroCent, daMicro, tipoDetto, esitoDetto } from '../lib/ai.js'
 
 // IL CREDITO AI DEL LOCALE (REQ-AI-003): quanto resta, quanto si è speso
@@ -13,6 +15,9 @@ export default function CreditoAI({ slug, istanzaAttiva, vai = (url) => window.l
   const [consumi, setConsumi] = useState([])
   const [inCorso, setInCorso] = useState(null)
   const [errore, setErrore] = useState(null)
+  // Coi pagamenti online spenti (REQ-FLOTTA-017) la ricarica la fa l'admin.
+  const [vendita, setVendita] = useState(() => venditaPulita(null))
+  useEffect(() => osservaVendita((v) => setVendita(venditaPulita(v))), [])
 
   useEffect(() => osservaCassettoAI(slug, setCassetto), [slug])
   useEffect(() => {
@@ -62,6 +67,11 @@ export default function CreditoAI({ slug, istanzaAttiva, vai = (url) => window.l
 
       {s?.interna ? (
         <p className="muted small">Installazione interna: il credito lo ricarica la regia.</p>
+      ) : !vendita.pagamenti_online ? (
+        <p className="muted small" data-testid="ricarica-a-mano">
+          I pagamenti online non sono ancora attivi: per ricaricare scrivici a <a href={`mailto:${EMAIL_CONTATTI}`}>{EMAIL_CONTATTI}</a>, e
+          il credito lo aggiungiamo noi.
+        </p>
       ) : (
         <div className="azioni">
           {PACCHETTI_AI.map((p) => (
