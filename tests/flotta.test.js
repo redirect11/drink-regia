@@ -109,6 +109,15 @@ describe.each(WORKFLOW)('%s', (_, w, corpo) => {
 })
 
 describe('provisiona-istanza.yml: il Terraform con i valori dell’environment', () => {
+  // drinkpos-prova-free, 30/10/2026: il database aperto a mano fermava
+  // l'apply con «Database already exists».
+  it('un progetto creato a mano entra nello stato, e il suo Firestore se c’è già', () => {
+    const run = passo(provisiona, 'Importa il progetto se esiste già').run
+    expect(run).toContain('terraform import -input=false google_project.istanza "$PROGETTO"')
+    expect(run).toContain('if ! terraform state show google_firestore_database.db')
+    expect(run).toContain('terraform import -input=false google_firestore_database.db "projects/$PROGETTO/databases/(default)"')
+  })
+
   it('l’account della regia che scrive la licenza e l’ambiente arrivano al Terraform', () => {
     for (const nome of ['Importa il progetto se esiste già', 'Terraform apply']) {
       expect(passo(provisiona, nome).env).toMatchObject({

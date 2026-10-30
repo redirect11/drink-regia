@@ -172,6 +172,10 @@ jobs:
       # SENZA ORGANIZZAZIONE il service account non può creare progetti: il
       # progetto lo ha creato l'utente (firebase projects:create) e qui si
       # importa, una volta, nello stato. Con ORG_ID lo crea Terraform.
+      # Anche il database: chi crea il progetto a mano può aver aperto
+      # Firestore dalla console, e Terraform si fermerebbe con «Database
+      # already exists» (drinkpos-prova-free, 30/10/2026). Se non c'è,
+      # l'import non trova niente e lo crea l'apply.
       - name: Importa il progetto se esiste già
         working-directory: infra/istanza
         env:
@@ -184,10 +188,18 @@ jobs:
           TF_VAR_provisioning_sa_email: ${{ env.PROVISIONING_SA_EMAIL }}
           TF_VAR_profilo: ${{ inputs.profilo }}
         run: |
-          if terraform state show google_project.istanza >/dev/null 2>&1; then exit 0; fi
-          if [ -z "$ORG_ID" ]; then
-            terraform import -input=false google_project.istanza "$PROGETTO" \
-              || { echo "::error::Senza ORG_ID il progetto $PROGETTO va creato prima a mano (infra/README.md)."; exit 1; }
+          if ! terraform state show google_project.istanza >/dev/null 2>&1; then
+            if [ -z "$ORG_ID" ]; then
+              terraform import -input=false google_project.istanza "$PROGETTO" \
+                || { echo "::error::Senza ORG_ID il progetto $PROGETTO va creato prima a mano (infra/README.md)."; exit 1; }
+            else
+              exit 0
+            fi
+          fi
+          if ! terraform state show google_firestore_database.db >/dev/null 2>&1; then
+            if terraform import -input=false google_firestore_database.db "projects/$PROGETTO/databases/(default)" >/dev/null 2>&1; then
+              echo "Firestore c'era già: importato nello stato."
+            fi
           fi
 
       - name: Terraform apply
