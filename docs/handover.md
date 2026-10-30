@@ -117,18 +117,23 @@ e ci si lavora. `package.json` è a `0.1.0`: la prima pubblicazione sarà
 il tag `v0.1.0-beta` su `develop` (sul test) e poi `v0.1.0` su `main`
 (produzione); subito dopo il ramo di lavoro passa a `0.2.0-beta`.
 
-### A pubblicare è il tag, non il push (il modello di tana-drink)
+### Il test segue develop, la produzione il tag su main
+
+Decisione dell'utente del 30/10/2026: un push su `develop` va sul test, in
+produzione va solo un tag su `main`. Prima pubblicava solo il tag, anche
+sul test.
 
 Tre workflow, gli stessi di tana-drink (`docs/actions-come-tana-drink.md`
 è il disegno, `tests/ci.test.js` li legge e li controlla):
 
 | Cosa si fa | Cosa succede |
 |---|---|
-| push su un ramo qualsiasi (tranne `release/**`) | `test.yml`: lint, test, build. Nessun deploy. |
+| push su un ramo qualsiasi (tranne `release/**`) | `test.yml`: lint, test, build. |
+| push su `develop` (cioè un merge di una PR) | in più va sul **test** (`drink-regia-test`), subito |
 | pull request verso `develop` o `main` | lint, test, build **e coverage** (`npm run test:coverage`, soglie in `vitest.config.mjs`: un cricchetto, si alzano e non si abbassano) |
 | lancio a mano di «Deploy to Firebase» su un ramo | va sul **test** (`drink-regia-test`), subito |
-| tag su un commit **non** in `main` | va sul **test**, subito |
-| tag su un commit **di `main`** | va in **produzione** (`drink-regia`), dopo l'approvazione a mano su GitHub (Actions → il run → Review deployments) |
+| tag su un commit **non** in `main` | **nessun deploy**: il job «Dove va» si ferma e lo dice |
+| tag su un commit **di `main`** | va in **produzione** (`drink-regia`). L'approvazione a mano non c'è (GitHub Free, §6) |
 
 Il ramo non conta: conta **dove sta il commit taggato** (job «Dove va» di
 `firebase-hosting.yml`, con `git merge-base --is-ancestor`). Il deploy
