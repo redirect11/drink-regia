@@ -32,6 +32,7 @@ const { getAuth } = require('firebase-admin/auth')
 const ai = require('./lib/ai.js')
 const elim = require('./lib/eliminazione.js')
 const free = require('./lib/free.js')
+const contatti = require('./lib/contatti.js')
 const { getStorage } = require('firebase-admin/storage')
 const { datiEsistente, documentiEsistente, DatiNonValidi, scriveLicenza } = require('./lib/esistente.js')
 
@@ -205,9 +206,13 @@ exports.creaCheckout = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
   const cliente = (await db.doc(`clienti/${uid}`).get()).data()
   if (!cliente) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
   const scelta = { piano: req.data?.piano, moduli: req.data?.moduli, terminali: req.data?.terminali }
+  const inVendita = await vendita()
+  // Pagamenti online spenti (REQ-FLOTTA-017): il sito non mostra il
+  // Checkout, e il server non lo apre comunque.
+  if (!contatti.pagamentiOnline(inVendita)) throw new HttpsError('failed-precondition', PAGAMENTI_SPENTI)
   // Un modulo che l'admin ha tolto dalla vendita non si compra di nuovo
   // (REQ-FLOTTA-015); chi lo ha già lo tiene.
-  const fuori = free.moduliFuoriVendita(cliente, scelta, await vendita())
+  const fuori = free.moduliFuoriVendita(cliente, scelta, inVendita)
   if (fuori.length) throw new HttpsError('failed-precondition', `Non più in vendita: ${fuori.join(', ')}.`)
   const ritorno =String(req.data?.ritorno || '').replace(/\/$/, '')
   if (!/^https?:\/\//.test(ritorno)) throw new HttpsError('invalid-argument', 'Indirizzo di ritorno non valido.')
@@ -514,6 +519,21 @@ async function vendita() {
   return free.venditaPulita((await db.doc('vendita/listino').get()).data())
 }
 
+// ── PAGAMENTI ONLINE SPENTI: LA RICHIESTA DI CONTATTO (REQ-FLOTTA-017) ─
+// Il titolare sceglie il piano e lascia un recapito; l'admin lo contatta,
+// concorda il pagamento e attiva il piano con «Cambia piano» fuori da
+// Stripe. Una richiesta aperta per cliente: una nuova la sostituisce.
+const PAGAMENTI_SPENTI = 'I pagamenti online non sono ancora attivi: chiedi di essere contattato dalla dashboard, e attiviamo il piano con te.'
+exports.chiediContatto = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Prima conferma la tua email.')
+  const cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data()
+  const r = contatti.richiestaContatto(cliente && { uid: req.auth.uid, ...cliente }, req.data, await vendita())
+  if (!r.ok) throw new HttpsError('failed-precondition', r.perche)
+  await db.doc(`contatti/${req.auth.uid}`).set(r.documento)
+  return { ok: true }
+})
+
 // Il titolare sceglie il Free: un abbonamento attivo a costo zero, senza
 // Stripe. Poi «Attiva» come per ogni piano; il workflow lo pubblica col
 // profilo leggero.
@@ -706,6 +726,8 @@ exports.creaRicaricaAI = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async
   if (!cliente?.slug) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
   const p = ai.pacchetto(req.data?.pacchetto)
   if (!p) throw new HttpsError('invalid-argument', 'Pacchetto di ricarica sconosciuto.')
+  // Anche la ricarica passa da Stripe: coi pagamenti spenti la fa l'admin.
+  if (!contatti.pagamentiOnline(await vendita())) throw new HttpsError('failed-precondition', PAGAMENTI_SPENTI)
   const ritorno = String(req.data?.ritorno || '').replace(/\/$/, '')
   if (!/^https?:\/\//.test(ritorno)) throw new HttpsError('invalid-argument', 'Indirizzo di ritorno non valido.')
   const stripe = stripeClient()

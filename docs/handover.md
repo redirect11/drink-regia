@@ -458,6 +458,12 @@ L'elenco completo con i riferimenti al codice è in
    «Vendita»; il titolare prova un modulo una volta sola dalla dashboard;
    ogni mattina `proveScadute` le spegne. «Cambia piano» al posto di «Piano
    a mano», con Stripe o fuori da Stripe, e lo storico sul cliente.
+19. **I pagamenti online spenti (REQ-FLOTTA-017)**, ramo
+   `feature/pagamenti-online`, 30/10/2026. L'interruttore «Pagamenti online
+   con Stripe» parte spento: **dopo il deploy, sulla regia di test va
+   acceso dal backoffice** per provare Stripe in modalità test; in
+   produzione si accende quando si è pronti a ricevere i pagamenti (chiavi
+   live, webhook). Spento, i titolari chiedono di essere contattati.
 
 ---
 

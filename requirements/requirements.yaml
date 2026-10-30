@@ -617,3 +617,33 @@ requirements:
       - tests/ProveModuli.test.jsx
       - tests/Backoffice.test.jsx
       - tests/licenza.test.js
+
+  - id: REQ-FLOTTA-017
+    title: "I pagamenti online si accendono dal backoffice; spenti, il titolare chiede di essere contattato e il piano lo attiva l'admin"
+    area: "functions/lib/contatti.js, functions/lib/free.js (venditaPulita), functions/index.js (creaCheckout, creaRicaricaAI, chiediContatto), firestore.rules (contatti), src/lib/vendita.js, src/lib/db.js, src/pages/SceltaPiano.jsx, src/pages/CreditoAI.jsx, src/pages/Backoffice.jsx (Vendita, Contatti), src/pages/Legali.jsx"
+    description: >
+      L'utente, 30/10/2026: «Mi serve qualcosa per bloccare i pagamenti se
+      non siamo ancora pronti a riceverli ma ci possono contattare per
+      attivazione e pagamento tramite altri mezzi sempre dopo contatto
+      telefonico o email». Nel riquadro «Vendita» del backoffice
+      l'interruttore «Pagamenti online con Stripe», SPENTO finché l'admin
+      non lo accende (vendita/listino.pagamenti_online). Spento: la scelta
+      del piano non porta al Checkout ma chiede un recapito (telefono e
+      nota facoltativi) e scrive una richiesta di contatto (chiediContatto,
+      con l'email confermata; una per cliente, la nuova sostituisce la
+      vecchia); creaCheckout e creaRicaricaAI rifiutano anche se chiamate
+      a mano; la ricarica AI dice di scriverci. Le richieste stanno nel
+      backoffice, con piano, moduli, terminali, prezzo e recapito, e si
+      segnano gestite; il piano lo attiva l'admin con «Cambia piano» fuori
+      da Stripe (REQ-FLOTTA-016). Il Free e il cambio di un abbonamento che
+      c'e' gia' non passano dal contatto. I termini dicono che si paga
+      anche con i mezzi concordati.
+    status: implemented
+    generate_issue: false
+    labels: [prodotto, regia]
+    test_cases:
+      - tests/contatti.test.js
+      - tests/db.test.js
+      - tests/SceltaPiano.test.jsx
+      - tests/CreditoAI.test.jsx
+      - tests/Backoffice.test.jsx

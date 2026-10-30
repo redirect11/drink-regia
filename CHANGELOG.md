@@ -6,6 +6,13 @@ data.
 
 ## 0.2.1 (in lavorazione)
 
+- I pagamenti online si accendono dal backoffice («Pagamenti online con
+  Stripe» nel riquadro «Vendita»), e partono spenti. Spenti, chi sceglie
+  un piano a pagamento ci lascia un recapito invece di pagare; le
+  richieste stanno nel backoffice, il pagamento si concorda e il piano si
+  attiva con «Cambia piano» fuori da Stripe. Anche la ricarica AI la fa
+  l'admin. Termini aggiornati (REQ-FLOTTA-017).
+
 - Il piano Free: 0 €, un terminale, fino a 10 prodotti nel menù e 5 conti
   aperti insieme, solo il titolare (niente staff), senza sconti e senza
   moduli, storico di 7 giorni. Si

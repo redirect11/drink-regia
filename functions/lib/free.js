@@ -29,6 +29,9 @@ const limitiDi = (id) => piano(id)?.limiti || null
 function venditaPulita(doc) {
   return {
     free: doc?.free === true,
+    // I pagamenti con Stripe (REQ-FLOTTA-017): spenti finché l'admin non li
+    // accende, perché in produzione si apre quando si è pronti a riceverli.
+    pagamenti_online: doc?.pagamenti_online === true,
     moduli: Object.fromEntries(listino.moduli.map((m) => [m.id, doc?.moduli?.[m.id] !== false])),
     prove: provePulite(doc),
   }

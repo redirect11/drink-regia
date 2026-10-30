@@ -39,10 +39,16 @@ vi.mock('../src/lib/db.js', () => ({
   ultimiConsumiAI: vi.fn(async () => []),
   avviaRicaricaAI: vi.fn(),
   // La vendita (REQ-FLOTTA-015): qui il Free è in vendita.
+  // E i pagamenti online accesi (REQ-FLOTTA-017).
   osservaVendita: (cb) => {
-    cb({ free: true, moduli: {} })
+    cb({ free: true, pagamenti_online: true, moduli: {} })
     return () => {}
   },
+  osservaContatto: (uid, cb) => {
+    cb(null)
+    return () => {}
+  },
+  chiediContatto: vi.fn(),
   scegliFree: vi.fn(async () => ({ ok: true })),
   gestisciEliminazione: vi.fn(),
   scaricaArchivio: vi.fn(),
