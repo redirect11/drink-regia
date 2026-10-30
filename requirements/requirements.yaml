@@ -643,6 +643,7 @@ requirements:
     labels: [prodotto, regia]
     test_cases:
       - tests/contatti.test.js
+      - tests/db.test.js
       - tests/SceltaPiano.test.jsx
       - tests/CreditoAI.test.jsx
       - tests/Backoffice.test.jsx
