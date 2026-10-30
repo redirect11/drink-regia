@@ -13,6 +13,17 @@ Leggi nell'ordine: questo file, [CLAUDE.md](../CLAUDE.md), [README.md](../README
 `docs/flotta.md` e `docs/architettura-prodotto.md` (solo per capire il
 quadro: lì non si lavora da questa sessione).
 
+Per un prodotto nuovo dell'azienda, con la sua regia (il disegno deciso il
+30/10/2026: Organizzazione col nome dell'azienda, vetrina, una regia per
+prodotto): [nuovo-prodotto.md](nuovo-prodotto.md) e la scheda
+[template-prodotto.md](template-prodotto.md).
+
+Come sono fatte infrastruttura e pipeline: [architettura.md](architettura.md).
+Dove si vuole arrivare (servizi base, statistiche aggregate, marketing tra
+prodotti): [sviluppi-futuri.md](sviluppi-futuri.md), con la prima proposta di
+[modello-di-business.md](modello-di-business.md). Il punto su saas-portal
+prima di archiviarlo: [saas-portal.md](saas-portal.md).
+
 ---
 
 ## 1. Perimetro: cosa è tuo e cosa no
