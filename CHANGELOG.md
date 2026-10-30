@@ -6,6 +6,12 @@ data.
 
 ## 0.2.1 (30/10/2026, la prima in produzione: comprende la 0.2.0 e la 0.1.0)
 
+- In produzione un locale riceve solo l'app che è già uscita in produzione
+  (su `main` di tana-drink), e l'attivazione si ferma prima di creare il
+  progetto se quella versione dell'app non sa compilare per un cliente.
+  Sulla regia di test resta `develop`. Lo script che dà i ruoli al
+  service account di provisioning sta ora nella regia (REQ-FLOTTA-006,
+  REQ-FLOTTA-009).
 - I pagamenti online si accendono dal backoffice («Pagamenti online con
   Stripe» nel riquadro «Vendita»), e partono spenti. Spenti, chi sceglie
   un piano a pagamento ci lascia un recapito invece di pagare; le

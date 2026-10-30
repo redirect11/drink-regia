@@ -228,9 +228,9 @@ job «Dove va».
 | `generate-issues.yml` | a ogni cambio del registro | le issue dai registri |
 
 I locali clienti **non** si pubblicano da tana-drink: lì ci sono solo le
-credenziali della Tana. La build per cliente sta arrivando in `develop`
-(docs/richieste-tana-drink-rami.md); finché non c'è, le regie usano il
-ramo `feature/flotta`.
+credenziali della Tana. La build per cliente è in `develop` dal
+30/10/2026 (docs/richieste-tana-drink-rami.md): la regia di test compila
+i locali da `develop`, la produzione da `main`, dove arriva con la 1.10.
 
 ### Il percorso di una modifica
 

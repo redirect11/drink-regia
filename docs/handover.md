@@ -41,12 +41,12 @@ Progetto Firebase **`drink-regia`** (Hosting, Auth, Firestore
 `europe-west1`, Functions gen2 `europe-west1`), e `drink-regia-test`.
 
 **Non tuo** (repository `redirect11/tana-drink`, pubblico, cartella
-`C:\Users\Daniele\git\tana-drink` e worktree `tana-drink-flotta` sul ramo
-`feature/flotta`): l'app dei locali, i suoi script (`genera-cliente.mjs`,
-`abilita-accesso-email.mjs`, `ruoli-provisioning.mjs`), le cartelle
-`clienti/<slug>`. Lì restano anche le vecchie copie dei workflow della
-flotta e di `infra/istanza`, che la regia non usa più: toglierle è un
-lavoro di quella sessione. Quando una modifica della regia richiede un cambio di
+`C:\Users\Daniele\git\tana-drink`): l'app dei locali, il suo
+`scripts/genera-cliente.mjs`, le cartelle `clienti/<slug>`. La build per
+cliente è in `develop` di tana-drink dal 30/10/2026, e il ramo
+`feature/flotta` è chiuso: quello che ancora serviva
+(`ruoli-provisioning.mjs`, i controlli dei workflow) è passato qui, il
+resto c'era già. Quando una modifica della regia richiede un cambio di
 là (vedi §7, i contratti condivisi), **si scrive cosa serve e lo si
 chiede all'utente**, che lo porta nella sessione di tana-drink. Non si
 apre quel repository da qui per modificarlo.
@@ -325,7 +325,7 @@ canale di anteprima col via libera.
 | Environment GitHub `production` | segreti `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID`; **manca `FIREBASE_SERVICE_ACCOUNT`** (chiave del SA di deploy: senza, il deploy da tag fallisce) |
 | Segreti delle Functions | `PROVISIONING_CALLBACK_SECRET` presente; **mancano `GITHUB_DISPATCH_TOKEN`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`** e, dal ramo `feature/cassetto-ai` (24/10), **`ANTHROPIC_API_KEY`**: senza, il deploy delle Functions si ferma |
 | Cassetto AI (REQ-AI-003) | **scritto, non pubblicato**, sul ramo `feature/cassetto-ai`. La chiave Anthropic e la ricarica automatica del credito Anthropic sono da impostare nella Console di Claude (vedi §7, «Cassetto AI») |
-| `functions/.env` | `GITHUB_REPO=redirect11/tana-drink`, `GITHUB_REF` e `APP_REF` = `feature/flotta` (temporaneo: a `main` quando la flotta è merged) |
+| `functions/.env` | `GITHUB_REPO=redirect11/drink-regia`, `FLOTTA_REF=main`, `APP_REF=main`: in produzione solo quello che è su `main` di tana-drink, quindi niente attivazioni finché la 1.10 non ci arriva. Il test usa `develop` (`functions/.env.drink-regia-test`) |
 | Segnaposto da decidere (utente) | nome del prodotto «Drink», prezzi, email `info@drink.app`, dominio `drink.app`, dati della società in `Legali.jsx` |
 
 Progetti collegati: `drinkpos-demo` (istanza dimostrativa,
