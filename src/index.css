@@ -2,9 +2,8 @@
 
 /* Playfair Display per i titoli della prima pagina (DESIGN.md §4): la firma
    di casa, la usa anche l'app. Servita dal sito (public/fonts, licenza OFL
-   in OFL.txt), niente font da servizi esterni; solo i pesi 600 e 700 e solo
+   in OFL.txt), niente font da servizi esterni; solo il peso 700, l'unico che i titoli usano, e solo
    i caratteri latini, che bastano a italiano e inglese (€ compreso). */
-@font-face { font-family: 'Playfair Display'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/playfair-display-latin-600-normal.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
 @font-face { font-family: 'Playfair Display'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/playfair-display-latin-700-normal.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
 
 :root {
@@ -236,14 +235,15 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 }
 
 /* Le sezioni che entrano (src/lib/comparsa.js): una dissolvenza di 12px,
-   250ms, una volta sola; con meno movimento richiesto, niente. */
+   250ms, una volta sola; con meno movimento richiesto, niente. Nasconde
+   solo gli elementi che lo script sta osservando (classe in-attesa). */
 [data-comparsa] { transition: opacity 0.25s ease-out, transform 0.25s ease-out; }
-.con-comparsa [data-comparsa]:not(.comparso) { opacity: 0; transform: translateY(12px); }
+.in-attesa { opacity: 0; transform: translateY(12px); }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .btn, [data-comparsa] { transition: none; }
   .btn:hover { transform: none; }
-  .con-comparsa [data-comparsa]:not(.comparso) { opacity: 1; transform: none; }
+  .in-attesa { opacity: 1; transform: none; }
 }
 
 /* I prezzi e le tabelle delle altre pagine (scelta del piano, backoffice). */

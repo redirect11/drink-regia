@@ -5,7 +5,11 @@
 // parole, con le parole del glossario di DESIGN.md (conto = bill, comanda =
 // order, cassa = till, terminale = device, magazzino = stock). I nomi e le
 // descrizioni dei moduli sono tradotti qui, per id: il listino
-// (functions/piani.json) resta in italiano e tiene solo i numeri.
+// (functions/piani.json) resta in italiano e tiene solo i numeri. I nomi
+// dei piani invece vengono dal listino, come in italiano: sono nomi propri
+// del prodotto, e si cambiano in un posto solo.
+
+import { PIANI } from '../lib/piani.js'
 
 export default {
   meta: {
@@ -63,19 +67,20 @@ export default {
     free: 'Free plan to try it out',
     mensile: 'Monthly subscription',
     automatica: 'Automatic setup',
+    concordata: 'Setup arranged with us',
   },
   problema: {
     titolo: 'Friday night, a full house.',
     testo:
       'The network drops and the till freezes. An order gets lost between the tables and the bar. At closing time nobody knows how many bottles actually went out.',
-    chiusa: 'We lived it behind our own bar. That’s why we built it this way.',
+    chiusa: 'The app was born behind a cocktail bar, for exactly these nights.',
   },
   pilastri: {
     titolo: 'What you can count on',
     voci: [
       {
-        titolo: 'It never stops.',
-        testo: 'Bills, orders and payments carry on without a connection. When it comes back, everything syncs on its own.',
+        titolo: 'Keeps working offline.',
+        testo: 'Orders, bills and payments carry on when the network drops: changes stay on the device and go out on their own once the connection is back.',
       },
       {
         titolo: 'Your data stays yours.',
@@ -98,8 +103,8 @@ export default {
       conti: {
         occhiello: 'Bills and orders',
         titolo: 'From order to bill, with no extra steps.',
-        testo: 'Orders reach the bar and print on their own; bills are settled in cash or by card.',
-        punti: ['Orders printed at the bar', 'Cash and card', 'Several devices on the same till'],
+        testo: 'Orders reach the bar and, if you choose, print on their own; bills are settled in cash or by card.',
+        punti: ['Orders printed at the bar', 'Cash and card', 'Extra devices at {terminale} a month'],
       },
       menu: {
         occhiello: 'Digital menu and table ordering',
@@ -109,9 +114,9 @@ export default {
       },
       magazzino: {
         occhiello: 'Stock',
-        titolo: 'Stock updates with every sale.',
-        testo: 'Each sale deducts the recipe’s ingredients, so you know what is running low before it runs out.',
-        punti: ['Stock levels and minimums', 'Periodic stock counts', 'Supplier invoices'],
+        titolo: 'Stock follows your orders.',
+        testo: 'Every order that is prepared deducts the ingredients of its recipe, and the reorder threshold tells you what is running low.',
+        punti: ['Stock levels and reorder thresholds', 'Periodic stock counts', 'Supplier invoices'],
       },
       statistiche: {
         occhiello: 'Statistics',
@@ -128,16 +133,17 @@ export default {
   passi: {
     titolo: 'How to get started',
     voci: [
-      { titolo: 'Register your venue.', testo: 'Name, billing details and a contact person. Five minutes.' },
+      { titolo: 'Register your venue.', testo: 'Name, billing details and a contact person, then confirm your email.' },
       { titolo: 'Choose your plan.', testo: 'Start with {base} and add modules whenever you need them.' },
       {
         titolo: 'Open the till.',
         testo: 'Your installation is created automatically, at its own address. Log in from your tablet and start working.',
+        concordata: 'We agree on payment and activate your installation, at its own address. Log in from your tablet and start working.',
       },
     ],
   },
   prezzi: {
-    titolo: 'Simple pricing. Pay only for what you use.',
+    titolo: 'A monthly plan, and the modules you choose.',
     sotto: 'Monthly subscription, VAT excluded. One-off activation: {attivazione}.',
     alMese: '/ month',
     piano: '{nome} plan',
@@ -146,16 +152,16 @@ export default {
     terminali: { uno: '{n} device', piu: '{n} devices' },
     piani: {
       free: {
-        nome: 'Free',
+        nome: PIANI.free.nome,
         descrizione:
           'To try the service: till and orders, up to {prodotti} items on the menu and {conti} open bills at a time, no modules. {terminali}.',
       },
       base: {
-        nome: 'Base',
+        nome: PIANI.base.nome,
         descrizione: 'To get started: till, orders, receipts on the printer, menu and offline mode. {terminali}.',
       },
       completo: {
-        nome: 'Complete',
+        nome: PIANI.completo.nome,
         descrizione: 'Every module, from the digital menu to stock control, already included. {terminali}.',
       },
     },
@@ -210,12 +216,12 @@ export default {
     titolo: 'Frequently asked questions',
     voci: [
       [
-        'Is my data safe?',
-        'Yes. Every venue has a separate installation with its own database, and no other venue can see it. We only access it for maintenance and updates, as stated in the terms.',
+        'Who can see my venue’s data?',
+        'No other venue. Every venue has a separate installation with its own database. The data belongs to the venue, and we process it only to provide the service, as stated in the terms.',
       ],
       [
         'What if the internet goes down?',
-        'The till keeps working. Bills, orders and payments stay on the device and sync automatically once you are back online.',
+        'The till keeps working. Bills, orders and payments stay on the device and sync automatically once you are back online. Payments with the SumUp reader, however, need a connection.',
       ],
       [
         'Are the receipts fiscal receipts?',
@@ -227,11 +233,15 @@ export default {
       ],
       [
         'Can I change plan or cancel?',
-        'Yes, from your account, at any time: it is a monthly subscription. After cancelling, your data stays available for the period set out in the terms.',
+        'Yes. You request a change of plan from your account. The subscription is monthly and can be cancelled at any time: the service stays active until the end of the period already paid.',
+      ],
+      [
+        'What happens to my data if I close my venue?',
+        'When you close the installation from your account, the app stops straight away, and the data is deleted after 30 days; until then you can undo the closure. Before deletion we make a full backup, which you can download from your account for 180 days.',
       ],
       [
         'Who takes care of updates?',
-        'We do. The app keeps improving, and updates reach your installation without you having to do anything.',
+        'We do. Updates reach your installation without you having to do anything, and without scheduled downtime.',
       ],
     ],
   },

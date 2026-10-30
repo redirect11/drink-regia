@@ -5,8 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0e0e15" />
     <meta name="description" content="Comande, conti, cassa, menù digitale e magazzino per bar e ristoranti. Funziona anche senza rete; ogni locale ha la sua installazione e i suoi dati." />
-    <!-- Il titolo della prima pagina è in Playfair Display (DESIGN.md §4): il peso 700 si chiede subito, perché è la parte più grande della prima schermata. -->
-    <link rel="preload" href="/fonts/playfair-display-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <!-- Il titolo della prima pagina è in Playfair Display (DESIGN.md §4): il
+         peso 700 si chiede subito, perché è la parte più grande della prima
+         schermata. Solo sulla prima pagina (/ e /en): index.html è lo stesso
+         per tutte le rotte, e sulle altre il font non serve, quindi un
+         preload fisso scaricherebbe 23 KB per niente (e Chrome lo segnala). -->
+    <script>
+      if (/^\/(en\/?)?$/i.test(location.pathname)) {
+        var l = document.createElement('link')
+        l.rel = 'preload'; l.as = 'font'; l.type = 'font/woff2'; l.crossOrigin = 'anonymous'
+        l.href = '/fonts/playfair-display-latin-700-normal.woff2'
+        document.head.appendChild(l)
+      }
+    </script>
     <title>Drink</title>
   </head>
   <body>

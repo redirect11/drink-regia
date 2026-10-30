@@ -27,6 +27,7 @@ import App from '../src/App.jsx'
 import en from '../src/i18n/home.en.js'
 import it_ from '../src/i18n/home.it.js'
 import { PIANI, MODULI } from '../src/lib/piani.js'
+import { salvaPreferenza } from '../src/lib/lingua.js'
 
 const FUTURO = { v7_startTransition: true, v7_relativeSplatPath: true }
 const mostra = (percorso = '/') =>
@@ -39,6 +40,9 @@ const browser = (lingue) => Object.defineProperty(navigator, 'languages', { valu
 const titolo = () => screen.getByRole('heading', { level: 1 })
 
 beforeEach(() => {
+  // Una scrittura riuscita cancella la scelta tenuta in memoria da un test
+  // in cui il browser non lasciava salvare (src/lib/lingua.js).
+  salvaPreferenza('it')
   localStorage.clear()
   browser(['it-IT', 'it'])
 })
@@ -56,9 +60,9 @@ describe('la pagina inglese', () => {
     expect(within(menu).getByRole('link', { name: 'Features' })).toHaveAttribute('href', '/en#funzioni')
     expect(within(menu).getByRole('link', { name: 'Pricing' })).toHaveAttribute('href', '/en#prezzi')
     expect(within(menu).getByRole('link', { name: 'Get started' })).toHaveAttribute('href', '/registrati')
-    // Gli importi all'inglese, dal listino.
-    expect(screen.getByRole('article', { name: 'Complete plan' })).toHaveTextContent(`€${PIANI.completo.prezzo}`)
-    expect(screen.getByRole('article', { name: 'Base plan' })).toHaveTextContent(`€${PIANI.base.prezzo}`)
+    // Gli importi all'inglese, dal listino; i nomi dei piani anche, come in italiano.
+    expect(screen.getByRole('article', { name: `${PIANI.completo.nome} plan` })).toHaveTextContent(`€${PIANI.completo.prezzo}`)
+    expect(screen.getByRole('article', { name: `${PIANI.base.nome} plan` })).toHaveTextContent(`€${PIANI.base.prezzo}`)
     const tabella = within(screen.getByRole('table'))
     for (const m of MODULI) expect(tabella.getByText(en.moduli[m.id].nome)).toBeInTheDocument()
     expect(screen.getByText(en.prezzi.notaScontrino)).toBeInTheDocument()
@@ -77,6 +81,17 @@ describe('la pagina inglese', () => {
     mostra('/')
     expect(titolo()).toHaveTextContent(it_.hero.titolo)
     expect(screen.queryByText(/in Italian/)).toBeNull()
+  })
+})
+
+describe('l’indirizzo con le maiuscole', () => {
+  // Revisione PR #20: React Router apre /EN come /en, e la barra deve
+  // parlare la stessa lingua della pagina.
+  it('/EN è la pagina inglese, barra compresa', () => {
+    mostra('/EN')
+    expect(titolo()).toHaveTextContent(en.hero.titolo)
+    expect(screen.getByRole('navigation', { name: 'Main' })).toBeInTheDocument()
+    expect(document.documentElement).toHaveAttribute('lang', 'en')
   })
 })
 
@@ -131,11 +146,30 @@ describe('la preferenza ricordata', () => {
   })
 
   it('se il browser non lascia ricordare, la pagina si apre lo stesso in italiano', () => {
-    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+    vi.spyOn(localStorage, 'getItem').mockImplementation(() => {
       throw new Error('SecurityError')
     })
     mostra('/')
     expect(titolo()).toHaveTextContent(it_.hero.titolo)
+  })
+})
+
+describe('il browser che non lascia salvare la scelta', () => {
+  // Revisione PR #20: col vecchio «en» salvato e la scrittura che fallisce,
+  // chi sceglieva IT tornava su /en. Ora il vecchio si toglie e la scelta
+  // nuova vale finché la pagina è aperta.
+  it('scegliere IT resta su IT anche se la scrittura fallisce', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem('regia.lingua', 'en')
+    vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+      throw new Error('QuotaExceededError')
+    })
+    mostra('/')
+    expect(titolo()).toHaveTextContent(en.hero.titolo)
+    const [barra] = screen.getAllByRole('group', { name: 'Language' })
+    await user.click(within(barra).getByRole('link', { name: /IT/ }))
+    expect(titolo()).toHaveTextContent(it_.hero.titolo)
+    expect(localStorage.getItem('regia.lingua')).toBeNull()
   })
 })
 

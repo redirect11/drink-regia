@@ -3,16 +3,20 @@
 
 // LA VENDITA NELLA PRIMA PAGINA (REQ-FLOTTA-015): il Free compare fra i
 // prezzi solo se l'admin lo mette in vendita, e un modulo tolto dalla
-// vendita sparisce dalla tabella.
+// vendita sparisce dalla tabella. E l'attivazione si dice automatica solo
+// quando lo è: pagamenti online accesi, o il Free in vendita.
 
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, within, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import '@testing-library/jest-dom/vitest'
 
-const stato = vi.hoisted(() => ({ vendita: null }))
+// `richiama` è l'ascolto della vendita: un test lo usa per cambiare la
+// vendita a pagina aperta, come fa Firestore quando l'admin la tocca.
+const stato = vi.hoisted(() => ({ vendita: null, richiama: null }))
 vi.mock('../src/lib/db.js', () => ({
   osservaVendita: (cb) => {
+    stato.richiama = cb
     cb(stato.vendita)
     return () => {}
   },
@@ -20,6 +24,7 @@ vi.mock('../src/lib/db.js', () => ({
 
 import Home from '../src/pages/Home.jsx'
 import { venditaPulita } from '../src/lib/vendita.js'
+import it_ from '../src/i18n/home.it.js'
 
 const FUTURO = { v7_startTransition: true, v7_relativeSplatPath: true }
 const mostra = () =>
@@ -62,5 +67,46 @@ describe('la vendita nella prima pagina', () => {
     expect(screen.getByRole('heading', { name: 'I numeri della serata, chiari.' })).toBeInTheDocument()
     // Senza personale e SumUp, la riga delle funzioni minori non c'è.
     expect(document.querySelector('.funzioni-minori')).toBeNull()
+  })
+
+  // Revisione PR #20: in produzione pagamenti online e Free partono spenti,
+  // e la richiesta passa dall'admin. «Automatica» lì non è vera.
+  it('con pagamenti online e Free spenti l’attivazione si concorda, non è automatica', () => {
+    stato.vendita = venditaPulita(null)
+    mostra()
+    const fatti = within(screen.getByRole('list', { name: 'In breve' }))
+    expect(fatti.getByText(it_.hero.concordata)).toBeInTheDocument()
+    expect(fatti.queryByText(it_.hero.automatica)).toBeNull()
+    expect(screen.getByText(it_.passi.voci[2].concordata)).toBeInTheDocument()
+    expect(screen.queryByText(it_.passi.voci[2].testo)).toBeNull()
+  })
+
+  it('con i pagamenti online accesi l’attivazione è automatica', () => {
+    stato.vendita = venditaPulita({ pagamenti_online: true })
+    mostra()
+    expect(within(screen.getByRole('list', { name: 'In breve' })).getByText(it_.hero.automatica)).toBeInTheDocument()
+    expect(screen.getByText(it_.passi.voci[2].testo)).toBeInTheDocument()
+  })
+
+  it('col Free in vendita l’attivazione è automatica', () => {
+    stato.vendita = venditaPulita({ free: true })
+    mostra()
+    expect(within(screen.getByRole('list', { name: 'In breve' })).getByText(it_.hero.automatica)).toBeInTheDocument()
+    expect(screen.getByText(it_.passi.voci[2].testo)).toBeInTheDocument()
+  })
+
+  // Revisione PR #20: un elemento montato dopo il primo giro restava a
+  // opacità zero (src/lib/comparsa.js). Il magazzino rimesso in vendita a
+  // pagina aperta deve vedersi subito.
+  it('una funzione che torna in vendita a pagina aperta si vede subito', () => {
+    stato.vendita = venditaPulita({ moduli: { magazzino: false } })
+    mostra()
+    const titolo = it_.funzioni.voci.magazzino.titolo
+    expect(screen.queryByRole('heading', { name: titolo })).toBeNull()
+    // Le sezioni del primo giro sono osservate (e aspettano di comparire).
+    expect(document.getElementById('problema')).toHaveClass('in-attesa')
+    act(() => stato.richiama(venditaPulita(null)))
+    const nuova = screen.getByRole('heading', { name: titolo }).closest('article')
+    expect(nuova).not.toHaveClass('in-attesa')
   })
 })

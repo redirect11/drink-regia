@@ -137,6 +137,11 @@ export default function Home({ utente, lingua = 'it' }) {
   useEffect(() => osservaComparsa(radice.current), [])
 
   const piani = pianiInVendita(vendita)
+  // L'attivazione è automatica solo se si paga online o si parte dal Free.
+  // Con i pagamenti online spenti (così parte la produzione) chi sceglie un
+  // piano ci lascia un recapito e l'attivazione si concorda (REQ-FLOTTA-017):
+  // la pagina non promette quello che oggi non succede.
+  const automatica = vendita.pagamenti_online || vendita.free
   const daPrezzo = Math.min(...Object.values(PIANI).filter((p) => !p.gratuito).map((p) => p.prezzo))
   const moduliVisibili = MODULI.filter((m) => moduloVisibile(vendita, m.id))
   const funzioni = FUNZIONI.filter((f) => !f.moduli.length || f.moduli.some((id) => moduloVisibile(vendita, id)))
@@ -194,7 +199,7 @@ export default function Home({ utente, lingua = 'it' }) {
             {vendita.free && <li>{t.hero.free}</li>}
             <li>{interpola(t.hero.da, { prezzo: euro(daPrezzo) })}</li>
             <li>{t.hero.mensile}</li>
-            <li>{t.hero.automatica}</li>
+            <li>{automatica ? t.hero.automatica : t.hero.concordata}</li>
           </ul>
           {t.soloItaliano && <p className="nota-lingua">{t.soloItaliano}</p>}
         </div>
@@ -255,7 +260,7 @@ export default function Home({ utente, lingua = 'it' }) {
                       {v.punti.map((p) => (
                         <li key={p}>
                           <Icona d={SPUNTA} className="icona spunta" />
-                          {p}
+                          {interpola(p, { terminale: euro(TERMINALE_IN_PIU) })}
                         </li>
                       ))}
                     </ul>
@@ -294,7 +299,7 @@ export default function Home({ utente, lingua = 'it' }) {
                   {i + 1}
                 </span>
                 <h3>{p.titolo}</h3>
-                <p>{interpola(p.testo, { base: nomeBase })}</p>
+                <p>{interpola(automatica || !p.concordata ? p.testo : p.concordata, { base: nomeBase })}</p>
               </li>
             ))}
           </ol>
