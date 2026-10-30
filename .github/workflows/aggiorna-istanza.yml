@@ -174,10 +174,16 @@ jobs:
         if: env.PROFILO == 'completo'
         run: node scripts/segreti-istanza.mjs --project "$PROGETTO" --segreti "$SEGRETI_APP"
 
+      # LA WEB APP DEL SITO, non «una» web app: con più app web nel progetto
+      # `apps:sdkconfig` senza id si ferma (drinkpos-prova-free, 30/10/2026:
+      # una app creata a mano accanto a quella di Terraform). Il sito sa la
+      # sua (Terraform la collega con app_id); se non la dice, si va senza id.
       - name: La configurazione web dell'istanza
         working-directory: app
         run: |
-          npx firebase-tools apps:sdkconfig web --project "$PROGETTO" --json > "$RUNNER_TEMP/sdk.json"
+          APP_ID=$(npx firebase-tools hosting:sites:get "$PROGETTO" --project "$PROGETTO" --json | node -e 'try { console.log(JSON.parse(require("fs").readFileSync(0, "utf8")).result?.appId || "") } catch { console.log("") }')
+          echo "Web app del sito: ${APP_ID:-non indicata}"
+          npx firebase-tools apps:sdkconfig web $APP_ID --project "$PROGETTO" --json > "$RUNNER_TEMP/sdk.json" || { cat "$RUNNER_TEMP/sdk.json"; exit 1; }
           node -e '
             const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
             const c = j.result?.sdkConfig || j.result || j;
