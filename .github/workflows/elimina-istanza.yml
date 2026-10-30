@@ -1,0 +1,154 @@
+name: Elimina istanza
+
+# L'ELIMINAZIONE DEFINITIVA DI UN LOCALE (REQ-FLOTTA-014, decisioni
+# dell'utente del 29/10/2026). La lancia la regia (eliminaIstanza, o
+# eliminazioniProgrammate 30 giorni dopo la chiusura) quando l'admin l'ha
+# chiesta per un locale già chiuso, scrivendo il nome dell'app. In ordine,
+# e ogni passo solo se il precedente è riuscito:
+#   1. BACKUP: il backup leggibile (dati.json, utenti.json, file/,
+#      manifesto.json, in un archivio.zip) e l'export nativo di Firestore;
+#   2. ARCHIVIO: tutto nel bucket degli archivi (ARCHIVIO_BUCKET), che lo
+#      tiene 180 giorni e poi lo cancella da solo;
+#   3. VERIFICA: lo zip e il manifesto caricati, l'export nativo completo;
+#      se qualcosa manca il workflow si ferma e il progetto NON si tocca;
+#   4. ELIMINAZIONE: il progetto Google (recuperabile da Google per 30
+#      giorni) e lo stato di Terraform;
+#   5. l'esito alla regia, sempre, con il percorso dell'archivio.
+#
+# Stessi environment della flotta (flotta, flotta-test) e stessa regola
+# sugli input: solo variabili d'ambiente, controllati per primi.
+on:
+  workflow_dispatch:
+    inputs:
+      slug:
+        description: 'Lo slug del locale da eliminare (deve essere chiuso nella regia)'
+        required: true
+        type: string
+      ambiente:
+        description: 'Quale regia: produzione (environment flotta) o test (flotta-test)'
+        required: false
+        type: choice
+        options: [produzione, test]
+        default: produzione
+
+permissions:
+  contents: read
+
+concurrency:
+  group: istanza-${{ inputs.slug }}
+  cancel-in-progress: false
+
+env:
+  SLUG: ${{ inputs.slug }}
+  AMBIENTE: ${{ inputs.ambiente }}
+  PROGETTO: drinkpos-${{ inputs.slug }}
+
+jobs:
+  elimina:
+    name: Elimina ${{ inputs.slug }} (${{ inputs.ambiente }})
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.ambiente == 'test' && 'flotta-test' || 'flotta' }}
+    steps:
+      - name: Input validi
+        run: |
+          [[ "$SLUG" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]] || { echo "::error::Slug non valido."; exit 1; }
+          [[ "$AMBIENTE" =~ ^(produzione|test)$ ]] || { echo "::error::ambiente non valido."; exit 1; }
+          # La demo si mostra nella prima pagina: non si elimina mai da qui.
+          if [ "$PROGETTO" = "drinkpos-demo" ]; then echo "::error::La demo non si elimina."; exit 1; fi
+
+      - name: La configurazione dell'environment
+        env:
+          ARCHIVIO_BUCKET: ${{ vars.ARCHIVIO_BUCKET }}
+          TFSTATE_BUCKET: ${{ vars.TFSTATE_BUCKET }}
+          REGIA_CALLBACK_URL: ${{ vars.REGIA_CALLBACK_URL }}
+        run: |
+          for v in ARCHIVIO_BUCKET TFSTATE_BUCKET REGIA_CALLBACK_URL; do
+            if [ -z "${!v}" ]; then echo "::error::Manca la variabile $v nell'environment (infra/README.md)."; exit 1; fi
+          done
+          echo "PERCORSO=istanze/$SLUG/$(date -u +%Y-%m-%dT%H-%M-%SZ)" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.PROVISIONING_SA_JSON }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Dipendenze
+        run: npm ci --prefix functions
+
+      # 1. BACKUP. Prima il leggibile, poi l'export nativo: lo script salta
+      # il prefisso dell'export, che finisce nello stesso bucket.
+      - name: Il backup leggibile
+        run: |
+          node scripts/archivia-istanza.mjs --project "$PROGETTO" --slug "$SLUG" --out "$RUNNER_TEMP/archivio"
+          (cd "$RUNNER_TEMP/archivio" && zip -qr "$RUNNER_TEMP/archivio.zip" .)
+          echo "BYTE_ZIP=$(stat -c %s "$RUNNER_TEMP/archivio.zip")" >> "$GITHUB_ENV"
+
+      - name: L'export nativo del database
+        run: |
+          gcloud firestore export "gs://$PROGETTO.firebasestorage.app/_backup-eliminazione/$PERCORSO" \
+            --project "$PROGETTO" --database='(default)'
+
+      # 2. ARCHIVIO.
+      - name: Nell'archivio
+        env:
+          ARCHIVIO_BUCKET: ${{ vars.ARCHIVIO_BUCKET }}
+        run: |
+          gcloud storage cp "$RUNNER_TEMP/archivio.zip" "gs://$ARCHIVIO_BUCKET/$PERCORSO/archivio.zip"
+          gcloud storage cp "$RUNNER_TEMP/archivio/manifesto.json" "gs://$ARCHIVIO_BUCKET/$PERCORSO/manifesto.json"
+          gcloud storage cp -r "gs://$PROGETTO.firebasestorage.app/_backup-eliminazione/$PERCORSO/*" "gs://$ARCHIVIO_BUCKET/$PERCORSO/firestore-nativo/"
+
+      # 3. VERIFICA: senza, il progetto non si tocca.
+      - name: Il backup è completo?
+        env:
+          ARCHIVIO_BUCKET: ${{ vars.ARCHIVIO_BUCKET }}
+        run: |
+          set -e
+          caricato=$(gcloud storage ls -l "gs://$ARCHIVIO_BUCKET/$PERCORSO/archivio.zip" | awk 'NR==1 {print $1}')
+          if [ "$caricato" != "$BYTE_ZIP" ]; then echo "::error::Lo zip nell'archivio è di $caricato byte, quello fatto di $BYTE_ZIP: non elimino."; exit 1; fi
+          gcloud storage ls "gs://$ARCHIVIO_BUCKET/$PERCORSO/manifesto.json" > /dev/null
+          if ! gcloud storage ls -r "gs://$ARCHIVIO_BUCKET/$PERCORSO/firestore-nativo/" | grep -q 'overall_export_metadata$'; then
+            echo "::error::L'export nativo nell'archivio non è completo: non elimino."; exit 1
+          fi
+          echo "CONTEGGI=$(node -e 'console.log(JSON.stringify(require(process.argv[1]).conteggi))' "$RUNNER_TEMP/archivio/manifesto.json")" >> "$GITHUB_ENV"
+          echo "VERIFICATO=si" >> "$GITHUB_ENV"
+          echo "Backup verificato: gs://$ARCHIVIO_BUCKET/$PERCORSO"
+
+      # 4. ELIMINAZIONE, solo col backup verificato.
+      - name: Elimina il progetto
+        if: env.VERIFICATO == 'si'
+        run: gcloud projects delete "$PROGETTO" --quiet
+
+      - name: Lo stato di Terraform
+        if: env.VERIFICATO == 'si'
+        env:
+          TFSTATE_BUCKET: ${{ vars.TFSTATE_BUCKET }}
+        run: gcloud storage rm -r "gs://$TFSTATE_BUCKET/istanze/$SLUG/" || echo "Nessuno stato di Terraform per $SLUG."
+
+      # 5. L'esito alla regia, sempre.
+      - name: Esito alla regia
+        if: always()
+        env:
+          CALLBACK_URL: ${{ vars.REGIA_CALLBACK_URL }}
+          CALLBACK_SECRET: ${{ secrets.PROVISIONING_CALLBACK_SECRET }}
+          ARCHIVIO_BUCKET: ${{ vars.ARCHIVIO_BUCKET }}
+          ESITO_JOB: ${{ job.status }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          if [ -z "$CALLBACK_URL" ]; then echo "Nessuna REGIA_CALLBACK_URL: esito non inviato."; exit 0; fi
+          if [ "$ESITO_JOB" = "success" ]; then STATO=eliminata; ERR=""; else STATO=errore; ERR="Eliminazione $ESITO_JOB: GitHub Actions run $RUN_ID. Il progetto è stato eliminato solo se il backup era verificato."; fi
+          node -e '
+            const [url, secret, slug, stato, bucket, percorso, byte, conteggi, errore] = process.argv.slice(1);
+            const archivio = stato === "eliminata" ? { bucket, percorso, zip: `${percorso}/archivio.zip`, byte: Number(byte) || null, conteggi: conteggi ? JSON.parse(conteggi) : null } : null;
+            fetch(url, { method: "POST", headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ slug, operazione: "eliminazione", stato, archivio, errore: errore || null }) })
+              .then((r) => { console.log("regia:", r.status); if (r.status >= 300) process.exit(1); })
+          ' "$CALLBACK_URL" "$CALLBACK_SECRET" "$SLUG" "$STATO" "$ARCHIVIO_BUCKET" "${PERCORSO:-}" "${BYTE_ZIP:-}" "${CONTEGGI:-}" "$ERR"

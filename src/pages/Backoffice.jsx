@@ -3,7 +3,7 @@ import {
   elencoClienti,
   elencoIstanze,
   elencoRichieste,
-  segnaPiano,
+  cambiaPianoAdmin,
   rilanciaAttivazione,
   impostaStatoIstanza,
   aggiornaIstanza,
@@ -17,7 +17,11 @@ import {
   registraLocaleEsistente,
   elencoRilasci,
   gestisciRilascio,
+  gestisciEliminazione,
+  osservaVendita,
+  impostaVendita,
 } from '../lib/db.js'
+import { venditaPulita } from '../lib/vendita.js'
 import { statoIstanza, statoDetto, STATI, progettoDi } from '../lib/istanze.js'
 import { PIANI, MODULI, prezzoMensile, euro } from '../lib/piani.js'
 import { contattoDi } from '../lib/clienti.js'
@@ -41,6 +45,10 @@ export default function Backoffice() {
   // La chiave AI appena creata: si vede una volta sola, qui (REQ-AI-003).
   const [chiaveNuova, setChiaveNuova] = useState(null)
   const [rilasci, setRilasci] = useState([])
+  // Lo slug del locale col modulo «Elimina» aperto (REQ-FLOTTA-014).
+  const [elimina, setElimina] = useState(null)
+  // Lo slug del locale col modulo «Cambia piano» aperto (REQ-FLOTTA-016).
+  const [cambia, setCambia] = useState(null)
 
   const carica = async () => {
     try {
@@ -72,12 +80,6 @@ export default function Backoffice() {
 
   const automatico = impostazioni.deploy_automatico !== false
 
-  const pianoAMano = async (c) => {
-    const piano = window.prompt('Piano (base | completo):', c.piano || 'base')
-    if (!piano || !PIANI[piano]) return
-    await segnaPiano(c.uid, { piano, moduli: c.moduli || [], terminali: c.terminali || 1 })
-    carica()
-  }
 
   // Sospendi, Riattiva, Chiudi (REQ-FLOTTA-008): l'app del locale si ferma
   // e lo dice; i dati restano. Il motivo lo legge il titolare.
@@ -86,6 +88,18 @@ export default function Backoffice() {
     if (stato !== 'attiva' && motivo == null) return
     try {
       await impostaStatoIstanza(c.slug, stato, motivo)
+    } catch (e) {
+      setErrore(e.message)
+    }
+    carica()
+  }
+
+  // Annullare un'eliminazione programmata: l'admin le annulla tutte; il
+  // locale resta chiuso finché non lo si riattiva (REQ-FLOTTA-014).
+  const annullaEliminazione = async (c) => {
+    if (!window.confirm(`Annullare l’eliminazione di ${c.nome_locale}?`)) return
+    try {
+      await gestisciEliminazione('annulla', { slug: c.slug })
     } catch (e) {
       setErrore(e.message)
     }
@@ -196,6 +210,7 @@ export default function Backoffice() {
           ? 'Deploy automatico acceso: «Attiva» di un titolare parte da solo.'
           : 'Deploy automatico spento: le richieste aspettano la tua autorizzazione qui sotto.'}
       </p>
+      <Vendita onErrore={setErrore} />
       {errore && <p className="errore">{errore}</p>}
 
       {nuovo && (
@@ -313,6 +328,7 @@ export default function Backoffice() {
                       <dt>Progetto</dt>
                       <dd>
                         <code>{istanza?.progetto || progettoDi(c.slug)}</code>
+                        {istanza?.profilo === 'leggero' && <div className="muted small">profilo leggero (Free)</div>}
                         {istanza?.url && (
                           <div className="small">
                             <a href={istanza.url} target="_blank" rel="noreferrer">
@@ -351,6 +367,12 @@ export default function Backoffice() {
                         )}
                       </dd>
                     </div>
+                    {eliminazioneDetta(istanza) && (
+                      <div>
+                        <dt>Eliminazione</dt>
+                        <dd className={istanza.eliminazione.stato === 'fallita' ? 'errore' : ''}>{eliminazioneDetta(istanza)}</dd>
+                      </div>
+                    )}
                     {daFlotta && stato === STATI.ATTIVA && !istanza?.interna && (
                       <div>
                         <dt>
@@ -404,8 +426,8 @@ export default function Backoffice() {
                           )}
                         </>
                       )}
-                      <button type="button" className="btn ghost small" onClick={() => pianoAMano(c)}>
-                        Piano a mano
+                      <button type="button" className="btn ghost small" onClick={() => setCambia(cambia === c.slug ? null : c.slug)}>
+                        Cambia piano…
                       </button>
                     </div>
 
@@ -444,13 +466,46 @@ export default function Backoffice() {
                             </button>
                           </>
                         ) : (
-                          <button type="button" className="btn ghost small" onClick={() => cambiaStato(c, 'attiva')}>
-                            Riattiva
-                          </button>
+                          <>
+                            <button type="button" className="btn ghost small" onClick={() => cambiaStato(c, 'attiva')}>
+                              Riattiva
+                            </button>
+                            {licenza === 'chiusa' && !['programmata', 'in coda', 'in corso'].includes(istanza?.eliminazione?.stato) && (
+                              <button type="button" className="btn ghost small" onClick={() => setElimina(elimina === c.slug ? null : c.slug)}>
+                                Elimina…
+                              </button>
+                            )}
+                            {istanza?.eliminazione?.stato === 'programmata' && (
+                              <button type="button" className="btn ghost small" onClick={() => annullaEliminazione(c)}>
+                                Annulla eliminazione
+                              </button>
+                            )}
+                          </>
                         )}
                       </div>
                     )}
                   </footer>
+                  {cambia === c.slug && (
+                    <CambiaPiano
+                      cliente={c}
+                      onFatto={() => {
+                        setCambia(null)
+                        carica()
+                      }}
+                      onErrore={setErrore}
+                    />
+                  )}
+                  {elimina === c.slug && (
+                    <EliminaLocale
+                      cliente={c}
+                      istanza={istanza}
+                      onFatto={() => {
+                        setElimina(null)
+                        carica()
+                      }}
+                      onErrore={setErrore}
+                    />
+                  )}
                 </article>
               </li>
             )
@@ -615,6 +670,7 @@ const STATO_BREVE = {
   [STATI.IN_CORSO]: 'In corso',
   [STATI.ATTIVA]: 'Attiva',
   [STATI.ERRORE]: 'Errore',
+  [STATI.ELIMINATA]: 'Eliminata',
 }
 const TONO = {
   [STATI.ATTIVA]: 'ok',
@@ -624,6 +680,211 @@ const TONO = {
   [STATI.DA_APPROVARE]: 'avviso',
 }
 
+// LA VENDITA (REQ-FLOTTA-015, l'utente, 30/10/2026: «voglio poterlo
+// attivare e disattivare per la vendita come admin»). Il Free e ogni modulo
+// si mettono in vendita o si tolgono con un clic, senza deploy; chi li ha
+// già continua a usarli. Ogni cambio resta nello storico.
+function Vendita({ onErrore }) {
+  const [vendita, setVendita] = useState(() => venditaPulita(null))
+  useEffect(() => osservaVendita((v) => setVendita(venditaPulita(v))), [])
+  const cambia = (cambio) => impostaVendita(cambio).catch((e) => onErrore(e.message))
+  return (
+    <section className="card vendita" aria-label="Vendita">
+      <h3>Vendita</h3>
+      <label className="opzione interruttore">
+        <input type="checkbox" checked={vendita.free} onChange={(e) => cambia({ free: e.target.checked })} />
+        Piano Free in vendita
+      </label>
+      <p className="muted small">
+        {vendita.free
+          ? 'Il Free compare nei prezzi e chi si registra lo può attivare.'
+          : 'Il Free non compare e non si attiva; i locali Free che ci sono continuano a lavorare. Tienilo spento finché l’app non fa rispettare i suoi limiti.'}
+      </p>
+      <h4>Moduli in vendita e in prova</h4>
+      <div className="vendita-moduli">
+        {MODULI.map((m) => (
+          <div key={m.id} className="vendita-modulo">
+            <label className="opzione">
+              <input type="checkbox" checked={vendita.moduli[m.id]} onChange={(e) => cambia({ moduli: { [m.id]: e.target.checked } })} />
+              {m.nome}
+            </label>
+            <GiorniDiProva nome={m.nome} giorni={vendita.prove[m.id]} onCambio={(g) => cambia({ prove: { [m.id]: g } })} />
+          </div>
+        ))}
+      </div>
+      <p className="muted small">
+        Un modulo tolto dalla vendita non si compra più; chi lo ha lo tiene. I giorni di prova: 0 vuol dire che il modulo non si
+        prova; il titolare lo prova una volta sola, dalla sua dashboard (REQ-FLOTTA-016).
+      </p>
+    </section>
+  )
+}
+
+// Quanti giorni si prova un modulo: si scrive quando si esce dal campo, non
+// a ogni tasto (ogni cambio della vendita finisce nello storico).
+function GiorniDiProva({ nome, giorni, onCambio }) {
+  const [valore, setValore] = useState(String(giorni))
+  useEffect(() => setValore(String(giorni)), [giorni])
+  const salva = () => {
+    const n = Math.max(0, Math.min(90, Math.floor(Number(valore) || 0)))
+    setValore(String(n))
+    if (n !== giorni) onCambio(n)
+  }
+  return (
+    <label className="giorni-prova">
+      prova
+      <input
+        type="number"
+        min={0}
+        max={90}
+        aria-label={`Giorni di prova di ${nome}`}
+        value={valore}
+        onChange={(e) => setValore(e.target.value)}
+        onBlur={salva}
+        onKeyDown={(e) => e.key === 'Enter' && salva()}
+      />
+      giorni
+    </label>
+  )
+}
+
+// «CAMBIA PIANO» DELL'ADMIN (REQ-FLOTTA-016), al posto di «Piano a mano»:
+// piano, moduli, terminali, e come si paga. Con Stripe l'abbonamento si
+// aggiorna con l'addebito proporzionale; fuori da Stripe (bonifico,
+// omaggio) si scrive direttamente. Il server rifiuta «fuori da Stripe» se
+// Stripe sta ancora addebitando.
+function CambiaPiano({ cliente, onFatto, onErrore }) {
+  const conStripe = Boolean(cliente.abbonamento?.stripe_subscription) && cliente.abbonamento?.stato !== 'disdetto'
+  const [piano, setPiano] = useState(cliente.piano || 'base')
+  const [moduli, setModuli] = useState(cliente.moduli || [])
+  const [terminali, setTerminali] = useState(cliente.terminali || 1)
+  const [modo, setModo] = useState(conStripe ? 'stripe' : 'fuori')
+  const [inCorso, setInCorso] = useState(false)
+  const p = PIANI[piano]
+  const inclusi = new Set(p.include)
+  const invia = async (e) => {
+    e.preventDefault()
+    setInCorso(true)
+    try {
+      await cambiaPianoAdmin({ slug: cliente.slug, piano, moduli: p.gratuito ? [] : moduli, terminali: p.gratuito ? 1 : terminali, modo })
+      onFatto()
+    } catch (err) {
+      onErrore(err.message)
+    } finally {
+      setInCorso(false)
+    }
+  }
+  return (
+    <form className="cambia-piano" onSubmit={invia} aria-label={`Cambia piano di ${cliente.nome_locale}`}>
+      <strong>Cambia piano di {cliente.nome_locale}</strong>
+      <label htmlFor={`cp-piano-${cliente.slug}`}>Piano</label>
+      <select id={`cp-piano-${cliente.slug}`} value={piano} onChange={(e) => setPiano(e.target.value)}>
+        {Object.values(PIANI).map((x) => (
+          <option key={x.id} value={x.id}>
+            {x.nome} · {euro(x.prezzo)} / mese
+          </option>
+        ))}
+      </select>
+      {!p.gratuito && (
+        <>
+          <div className="vendita-moduli">
+            {MODULI.map((m) => (
+              <label key={m.id} className="opzione">
+                <input
+                  type="checkbox"
+                  checked={inclusi.has(m.id) || moduli.includes(m.id)}
+                  disabled={inclusi.has(m.id)}
+                  onChange={(e) => setModuli((v) => (e.target.checked ? [...new Set([...v, m.id])] : v.filter((id) => id !== m.id)))}
+                />
+                {m.nome}
+              </label>
+            ))}
+          </div>
+          <label htmlFor={`cp-term-${cliente.slug}`}>Terminali</label>
+          <input id={`cp-term-${cliente.slug}`} type="number" min={1} max={10} value={terminali} onChange={(e) => setTerminali(Math.max(1, Number(e.target.value) || 1))} />
+        </>
+      )}
+      <p className="small">
+        Nuovo prezzo: <strong>{euro(prezzoMensile({ piano, moduli: p.gratuito ? [] : moduli, terminali: p.gratuito ? 1 : terminali }))}</strong> / mese
+      </p>
+      <label className="opzione">
+        <input type="radio" name={`modo-${cliente.slug}`} checked={modo === 'stripe'} disabled={!conStripe} onChange={() => setModo('stripe')} />
+        Con Stripe (addebito proporzionale){!conStripe && ' — il cliente non ha un abbonamento Stripe'}
+      </label>
+      <label className="opzione">
+        <input type="radio" name={`modo-${cliente.slug}`} checked={modo === 'fuori'} onChange={() => setModo('fuori')} />
+        Fuori da Stripe (bonifico, omaggio)
+      </label>
+      <div className="azioni">
+        <button type="submit" className="btn small" disabled={inCorso}>
+          {inCorso ? 'Un momento…' : 'Cambia piano'}
+        </button>
+      </div>
+    </form>
+  )
+}
+
+// A che punto è l'eliminazione di un locale (REQ-FLOTTA-014), in una riga.
+const giorno = (iso) => new Date(iso).toLocaleDateString('it-IT')
+function eliminazioneDetta(istanza) {
+  const e = istanza?.eliminazione
+  if (!e || e.stato === 'annullata') return null
+  const chi = e.richiedente === 'titolare' ? ' (chiesta dal titolare)' : ''
+  if (e.stato === 'programmata') return `Programmata per il ${giorno(e.quando)}${chi}`
+  if (e.stato === 'in coda' || e.stato === 'in corso') return 'Backup ed eliminazione in corso'
+  if (e.stato === 'fallita') return `Non riuscita: ${e.errore || 'vedi il workflow'}. Il progetto c’è ancora.`
+  if (e.stato === 'eliminata') return `Eliminata il ${giorno(e.finito_il)} · archivio fino al ${giorno(e.scade_il)}, lo scarica solo il titolare`
+  return null
+}
+
+// IL MODULO «ELIMINA» (REQ-FLOTTA-014, l'utente, 29/10/2026): solo l'admin
+// può scegliere «subito»; in tutti e due i casi il workflow fa prima il
+// backup e lo verifica. Per confermare si scrive il nome dell'app.
+function EliminaLocale({ cliente, istanza, onFatto, onErrore }) {
+  const [subito, setSubito] = useState(false)
+  const [conferma, setConferma] = useState('')
+  const [inCorso, setInCorso] = useState(false)
+  const progetto = istanza?.progetto || progettoDi(cliente.slug)
+  const invia = async (e) => {
+    e.preventDefault()
+    setInCorso(true)
+    try {
+      await gestisciEliminazione('chiedi', { slug: cliente.slug, conferma, subito })
+      onFatto()
+    } catch (err) {
+      onErrore(err.message)
+    } finally {
+      setInCorso(false)
+    }
+  }
+  return (
+    <form className="elimina-form" onSubmit={invia} aria-label={`Elimina ${cliente.nome_locale}`}>
+      <strong>Eliminare {cliente.nome_locale} e il suo progetto?</strong>
+      <p className="muted small">
+        Prima si fa il backup completo (database, file, utenti) e si verifica; senza backup verificato il progetto non si tocca.
+        L’archivio resta 180 giorni e lo scarica solo il titolare.
+      </p>
+      <label className="opzione">
+        <input type="radio" name={`quando-${cliente.slug}`} checked={!subito} onChange={() => setSubito(false)} />
+        Fra 30 giorni dalla chiusura
+      </label>
+      <label className="opzione">
+        <input type="radio" name={`quando-${cliente.slug}`} checked={subito} onChange={() => setSubito(true)} />
+        Subito, appena il backup è verificato
+      </label>
+      <label htmlFor={`conferma-${cliente.slug}`}>
+        Per confermare scrivi <code>{progetto}</code>
+      </label>
+      <input id={`conferma-${cliente.slug}`} value={conferma} onChange={(e) => setConferma(e.target.value)} autoComplete="off" />
+      <div className="azioni">
+        <button type="submit" className="btn pericolo small" disabled={inCorso || conferma.trim() !== progetto}>
+          {subito ? 'Backup ed elimina subito' : 'Programma l’eliminazione'}
+        </button>
+      </div>
+    </form>
+  )
+}
+
 // In cima quello che chiede attenzione.
-const PESI = { [STATI.ERRORE]: 0, [STATI.DA_APPROVARE]: 1, [STATI.IN_CODA]: 2, [STATI.IN_CORSO]: 3, [STATI.DA_ATTIVARE]: 4, [STATI.ATTIVA]: 5 }
+const PESI = { [STATI.ERRORE]: 0, [STATI.DA_APPROVARE]: 1, [STATI.IN_CODA]: 2, [STATI.IN_CORSO]: 3, [STATI.DA_ATTIVARE]: 4, [STATI.ATTIVA]: 5, [STATI.ELIMINATA]: 8 }
 const peso = (s) => PESI[s] ?? 9

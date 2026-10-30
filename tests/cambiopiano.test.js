@@ -1,0 +1,48 @@
+'use strict'
+
+// «CAMBIA PIANO» DELL'ADMIN (REQ-FLOTTA-016): piano, moduli e terminali,
+// con Stripe (addebito proporzionale) o fuori da Stripe (bonifico, omaggio);
+// mai fuori da Stripe con un abbonamento Stripe che continua ad addebitare;
+// ogni cambio nello storico.
+
+import { describe, it, expect } from 'vitest'
+import { createRequire } from 'node:module'
+
+const require = createRequire(import.meta.url)
+const { cambioAdmin } = require('../functions/lib/cambiopiano.js')
+
+const adesso = new Date('2026-10-30T10:00:00Z')
+const conStripe = { uid: 'u1', piano: 'base', moduli: [], abbonamento: { stato: 'attivo', stripe_subscription: 'sub_1' } }
+const aMano = { uid: 'u2', piano: 'base', moduli: [], abbonamento: { stato: 'attivo', origine: 'manuale' } }
+const free = { uid: 'u3', piano: 'free', moduli: [], abbonamento: { stato: 'attivo', origine: 'gratuito' } }
+
+describe('cambia piano dall’admin', () => {
+  it('con Stripe: la scelta pulita, niente da scrivere sul cliente (lo fa il webhook), e lo storico', () => {
+    const c = cambioAdmin(conStripe, { piano: 'base', moduli: ['magazzino', 'boh'], terminali: 2, modo: 'stripe' }, { da: 'admin@x.it', adesso })
+    expect(c).toMatchObject({ ok: true, scelta: { piano: 'base', moduli: ['magazzino'], terminali: 2 }, cliente: null })
+    expect(c.storico).toEqual({ il: '2026-10-30T10:00:00.000Z', da: 'admin@x.it', modo: 'stripe', piano: 'base', moduli: ['magazzino'], terminali: 2 })
+  })
+
+  it('fuori da Stripe: si scrive il piano con un abbonamento manuale che lo dice', () => {
+    const c = cambioAdmin(free, { piano: 'completo', modo: 'fuori' }, { adesso })
+    expect(c.cliente).toMatchObject({ piano: 'completo', abbonamento: { stato: 'attivo', origine: 'manuale', nota: expect.stringMatching(/fuori da Stripe/) } })
+  })
+
+  it('verso il Free, fuori da Stripe: abbonamento gratuito, senza moduli', () => {
+    const c = cambioAdmin(aMano, { piano: 'free', moduli: ['staff'], modo: 'fuori' }, { adesso })
+    expect(c.cliente).toMatchObject({ piano: 'free', moduli: [], terminali: 1, abbonamento: { origine: 'gratuito' } })
+  })
+
+  it('no: Stripe senza abbonamento, il Free su Stripe, fuori da Stripe con Stripe che addebita', () => {
+    expect(cambioAdmin(aMano, { piano: 'completo', modo: 'stripe' }).perche).toMatch(/non ha un abbonamento Stripe/)
+    expect(cambioAdmin(conStripe, { piano: 'free', modo: 'stripe' }).perche).toMatch(/non passa da Stripe/)
+    expect(cambioAdmin(conStripe, { piano: 'completo', modo: 'fuori' }).perche).toMatch(/disdicilo prima/)
+    expect(cambioAdmin({ ...conStripe, abbonamento: { ...conStripe.abbonamento, stato: 'disdetto' } }, { piano: 'completo', modo: 'fuori' }).ok).toBe(true)
+  })
+
+  it('no: piano o modo sconosciuti, cliente mancante', () => {
+    expect(cambioAdmin(aMano, { piano: 'oro', modo: 'fuori' }).perche).toMatch(/Piano sconosciuto/)
+    expect(cambioAdmin(aMano, { piano: 'base' }).perche).toMatch(/come si paga/)
+    expect(cambioAdmin(null, { piano: 'base', modo: 'fuori' }).ok).toBe(false)
+  })
+})

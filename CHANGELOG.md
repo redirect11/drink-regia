@@ -6,6 +6,21 @@ data.
 
 ## 0.2.1 (in lavorazione)
 
+- Il piano Free: 0 €, un terminale, fino a 10 prodotti nel menù e 5 conti
+  aperti insieme, solo il titolare (niente staff), senza sconti e senza
+  moduli, storico di 7 giorni. Si
+  sceglie dalla dashboard senza pagamento, e il locale nasce leggero, a
+  costo zero; quando il titolare passa a un piano a pagamento i limiti
+  cadono e il locale si completa da solo. Dal backoffice l'admin mette in
+  vendita o toglie il Free e ogni modulo; il Free parte fuori vendita.
+  Il progetto di un locale Free ha la fatturazione collegata (senza,
+  Google non accende l'accesso con email) ma solo database, sito e
+  accesso, dentro le soglie gratuite (REQ-FLOTTA-015).
+- Le prove dei moduli: l'admin decide quali moduli si provano e per quanti
+  giorni; il titolare ne prova uno dalla dashboard, una volta sola, e alla
+  scadenza si spegne da solo se non lo aggiunge. Nel backoffice «Cambia
+  piano» prende il posto di «Piano a mano»: piano, moduli e terminali, con
+  Stripe o fuori da Stripe, e lo storico dei cambi (REQ-FLOTTA-016).
 - La prima attivazione vera di un locale di prova (`prova-bar`, 29/10/2026)
   va fino in fondo: il progetto nasce con lo Storage dell'app, i segreti
   che l'app dichiara e gli agenti di Google che le sue Functions usano, e
@@ -14,6 +29,12 @@ data.
 - Il backoffice mostra un locale per scheda: nome e stato colorato in
   alto, i dati in ordine, il link all'app del locale, le azioni a gruppi
   con Sospendi e Chiudi separati dalle altre (REQ-FLOTTA-005).
+- Un locale si può eliminare col suo progetto, sempre dopo un backup
+  completo e verificato. Il titolare lo chiede dalla sua dashboard: l'app
+  si ferma subito, la cancellazione arriva dopo 30 giorni e fino ad allora
+  si annulla. L'admin, per un locale già chiuso, la fa anche subito. Si
+  conferma scrivendo il nome dell'app. Il backup resta 180 giorni e lo
+  scarica solo il titolare. Termini e privacy aggiornati (REQ-FLOTTA-014).
 
 ## 0.2.0 (in lavorazione)
 

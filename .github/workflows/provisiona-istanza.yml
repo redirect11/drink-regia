@@ -59,6 +59,12 @@ on:
         type: choice
         options: [produzione, test]
         default: produzione
+      profilo:
+        description: 'leggero (il piano Free: solo database e sito, costo zero) o completo (Functions, Storage, segreti)'
+        required: false
+        type: choice
+        options: [completo, leggero]
+        default: completo
 
 permissions:
   contents: read
@@ -76,6 +82,7 @@ env:
   UID_TITOLARE: ${{ inputs.uid }}
   REF_APP: ${{ inputs.ref }}
   AMBIENTE: ${{ inputs.ambiente }}
+  PROFILO: ${{ inputs.profilo }}
   PROGETTO: drinkpos-${{ inputs.slug }}
   # I segreti che le Functions dell'app di tana-drink dichiarano
   # (defineSecret): contratto con tana-drink, docs/handover.md §7.
@@ -90,11 +97,12 @@ jobs:
       - name: Input validi
         run: |
           [[ "$SLUG" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]] || { echo "::error::Slug non valido."; exit 1; }
-          [[ "$PIANO" =~ ^(base|completo)$ ]] || { echo "::error::Piano non valido."; exit 1; }
+          [[ "$PIANO" =~ ^(free|base|completo)$ ]] || { echo "::error::Piano non valido."; exit 1; }
           [[ "$MODULI" =~ ^[a-z_,]*$ ]] || { echo "::error::Moduli non validi."; exit 1; }
           [[ "$UID_TITOLARE" =~ ^[A-Za-z0-9]*$ ]] || { echo "::error::uid non valido."; exit 1; }
           [[ "$REF_APP" =~ ^[A-Za-z0-9._/-]{1,100}$ ]] || { echo "::error::ref non valido."; exit 1; }
           [[ "$AMBIENTE" =~ ^(produzione|test)$ ]] || { echo "::error::ambiente non valido."; exit 1; }
+          [[ "$PROFILO" =~ ^(completo|leggero)$ ]] || { echo "::error::profilo non valido."; exit 1; }
           if [ -z "$NOME" ] || [ ${#NOME} -gt 80 ] || [[ "$NOME" =~ [[:cntrl:]] ]]; then echo "::error::Nome del locale non valido."; exit 1; fi
 
       # APP DI PRODUZIONE (REQ-FLOTTA-009): un locale riceve solo rilasci —
@@ -164,6 +172,10 @@ jobs:
       # SENZA ORGANIZZAZIONE il service account non può creare progetti: il
       # progetto lo ha creato l'utente (firebase projects:create) e qui si
       # importa, una volta, nello stato. Con ORG_ID lo crea Terraform.
+      # Anche il database: chi crea il progetto a mano può aver aperto
+      # Firestore dalla console, e Terraform si fermerebbe con «Database
+      # already exists» (drinkpos-prova-free, 30/10/2026). Se non c'è,
+      # l'import non trova niente e lo crea l'apply.
       - name: Importa il progetto se esiste già
         working-directory: infra/istanza
         env:
@@ -174,11 +186,20 @@ jobs:
           TF_VAR_org_id: ${{ vars.ORG_ID }}
           TF_VAR_regia_sa_email: ${{ vars.REGIA_SA_EMAIL }}
           TF_VAR_provisioning_sa_email: ${{ env.PROVISIONING_SA_EMAIL }}
+          TF_VAR_profilo: ${{ inputs.profilo }}
         run: |
-          if terraform state show google_project.istanza >/dev/null 2>&1; then exit 0; fi
-          if [ -z "$ORG_ID" ]; then
-            terraform import -input=false google_project.istanza "$PROGETTO" \
-              || { echo "::error::Senza ORG_ID il progetto $PROGETTO va creato prima a mano (infra/README.md)."; exit 1; }
+          if ! terraform state show google_project.istanza >/dev/null 2>&1; then
+            if [ -z "$ORG_ID" ]; then
+              terraform import -input=false google_project.istanza "$PROGETTO" \
+                || { echo "::error::Senza ORG_ID il progetto $PROGETTO va creato prima a mano (infra/README.md)."; exit 1; }
+            else
+              exit 0
+            fi
+          fi
+          if ! terraform state show google_firestore_database.db >/dev/null 2>&1; then
+            if terraform import -input=false google_firestore_database.db "projects/$PROGETTO/databases/(default)" >/dev/null 2>&1; then
+              echo "Firestore c'era già: importato nello stato."
+            fi
           fi
 
       - name: Terraform apply
@@ -190,6 +211,9 @@ jobs:
           TF_VAR_org_id: ${{ vars.ORG_ID }}
           TF_VAR_regia_sa_email: ${{ vars.REGIA_SA_EMAIL }}
           TF_VAR_provisioning_sa_email: ${{ env.PROVISIONING_SA_EMAIL }}
+          # Il leggero (il Free) nasce senza le API e gli agenti delle
+          # Functions, ma con la fatturazione: l'accesso con email la chiede.
+          TF_VAR_profilo: ${{ inputs.profilo }}
         run: terraform apply -input=false -auto-approve
 
       - name: Il .env della build dal progetto nuovo
@@ -211,12 +235,14 @@ jobs:
       # non il Terraform (scripts/storage-istanza.mjs). Senza, il deploy di
       # storage.rules si ferma.
       - name: Lo Storage del locale
+        if: env.PROFILO == 'completo'
         run: node scripts/storage-istanza.mjs --project "$PROGETTO"
 
       # I segreti che le Functions dell'app dichiarano: senza, Firebase non
       # le pubblica. Si creano col segnaposto, mai sovrascritti
       # (scripts/segreti-istanza.mjs).
       - name: I segreti dell'app
+        if: env.PROFILO == 'completo'
         run: node scripts/segreti-istanza.mjs --project "$PROGETTO" --segreti "$SEGRETI_APP"
 
       - name: La cartella del cliente
@@ -241,8 +267,11 @@ jobs:
         # deployment in a few minutes», prova-bar, 29/10/2026): si riprova
         # due volte, a 90 secondi. Il deploy si può ripetere senza danni.
         run: |
+          # Il profilo leggero (il Free, REQ-FLOTTA-015) pubblica solo regole e
+          # sito: niente Functions né Storage, che sono quello che costa.
+          if [ "$PROFILO" = "leggero" ]; then SOLO=firestore,hosting; else SOLO=firestore,storage,functions,hosting; fi
           for tentativo in 1 2 3; do
-            if npx firebase-tools deploy --only firestore,storage,functions,hosting --project "$PROGETTO" --force; then exit 0; fi
+            if npx firebase-tools deploy --only "$SOLO" --project "$PROGETTO" --force; then exit 0; fi
             if [ "$tentativo" = 3 ]; then exit 1; fi
             echo "::warning::Deploy non riuscito al tentativo $tentativo: riprovo fra 90 secondi."
             sleep 90
@@ -274,7 +303,7 @@ jobs:
             const [url, secret, slug, stato, u, progetto, versione, errore] = process.argv.slice(1);
             fetch(url, { method: "POST", headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
               body: JSON.stringify({ slug, stato, url: u || null, progetto, versione: versione || null, errore: errore || null,
-                ambiente: "produzione", operazione: "attivazione", ref: process.env.REF_APP || null }) })
+                ambiente: "produzione", operazione: "attivazione", profilo: process.env.PROFILO || null, ref: process.env.REF_APP || null }) })
               .then((r) => { console.log("regia:", r.status); if (r.status >= 300) process.exit(1); })
           ' "$CALLBACK_URL" "$CALLBACK_SECRET" "$SLUG" "$STATO" "${URL_ISTANZA:-}" "$PROGETTO" "${VERSIONE:-}" "$ERR"
 

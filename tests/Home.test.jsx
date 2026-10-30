@@ -22,10 +22,13 @@ describe('la prima pagina', () => {
       </MemoryRouter>
     )
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(NOME_PRODOTTO)
-    for (const p of Object.values(PIANI)) {
+    for (const p of Object.values(PIANI).filter((x) => !x.gratuito)) {
       const scheda = screen.getByRole('article', { name: `Piano ${p.nome}` })
       expect(scheda).toHaveTextContent(`${p.prezzo} €`)
     }
+    // Il Free si mostra solo se l'admin lo mette in vendita (REQ-FLOTTA-015):
+    // senza, la pagina non lo nomina (tests/HomeVendita.test.jsx).
+    expect(screen.queryByRole('article', { name: 'Piano Free' })).toBeNull()
     // I moduli stanno nella tabella dei prezzi (lo stesso nome può comparire
     // anche tra le funzioni raccontate sopra).
     const tabella = within(screen.getByRole('table'))
