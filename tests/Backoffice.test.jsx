@@ -38,6 +38,7 @@ const db = vi.hoisted(() => ({
   elencoCassettiAI: vi.fn(async () => ({})),
   gestisciCassettoAI: vi.fn(async () => ({ ok: true })),
   registraLocaleEsistente: vi.fn(async () => ({ uid: 't', slug: 'tana-drink' })),
+  impostaAggiornamentiEsistente: vi.fn(async () => ({ ok: true })),
   elencoRilasci: vi.fn(async () => []),
   gestisciRilascio: vi.fn(async () => ({ ok: true })),
   gestisciEliminazione: vi.fn(async () => ({ ok: true })),
@@ -307,13 +308,68 @@ describe('il backoffice e il credito AI', () => {
     mostra()
     const tana = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('La Tana'))
     expect(tana).toHaveTextContent('interna · esistente')
-    expect(within(tana).queryByRole('button', { name: /Aggiorna/ })).toBeNull()
+    expect(within(tana).queryByRole('button', { name: /^Aggiorna subito/ })).toBeNull()
     expect(within(tana).queryByRole('button', { name: 'Sospendi' })).toBeNull()
     expect(within(tana).getByRole('button', { name: 'Ricarica AI' })).toBeInTheDocument()
     // Né un gruppo di rilascio: la Tana è sempre nell'ondata delle interne.
     expect(within(tana).queryByRole('combobox')).toBeNull()
     await user.click(within(tana).getByRole('button', { name: 'Cambia piano…' }))
     expect(db.aggiornaIstanza).not.toHaveBeenCalled()
+  })
+
+  // REQ-FLOTTA-018: «io farei la A» (l'utente, 30/10/2026).
+  it('affidata alla regia, la Tana si aggiorna da qui; Sospendi e Chiudi restano fuori', async () => {
+    const user = userEvent.setup()
+    db.elencoClienti.mockResolvedValue([{ uid: 't', slug: 'tana-drink', nome_locale: 'La Tana', email: 't@x.it', piano: 'completo', creato_il: '2026-10-24' }])
+    db.elencoIstanze.mockResolvedValue({
+      'tana-drink': { stato: 'attiva', progetto: 'tana-drink', origine: 'esistente', interna: true, aggiornamenti_dalla_regia: true, cliente: 'tana' },
+    })
+    mostra()
+    const tana = await screen.findByRole('article', { name: 'La Tana' })
+    await user.click(within(tana).getByRole('button', { name: /^Aggiorna subito/ }))
+    expect(db.aggiornaIstanza).toHaveBeenCalledWith('tana-drink')
+    expect(within(tana).queryByRole('button', { name: 'Sospendi' })).toBeNull()
+    expect(within(tana).queryByRole('button', { name: 'Chiudi' })).toBeNull()
+  })
+
+  it('«Chi la pubblica…» affida la Tana alla regia con la sua cartella e le chiavi della build', async () => {
+    const user = userEvent.setup()
+    db.elencoClienti.mockResolvedValue([{ uid: 't', slug: 'tana-drink', nome_locale: 'La Tana', email: 't@x.it', piano: 'completo', creato_il: '2026-10-24' }])
+    db.elencoIstanze.mockResolvedValue({
+      'tana-drink': { stato: 'attiva', progetto: 'tana-drink', origine: 'esistente', interna: true, build: { VITE_FIREBASE_VAPID_KEY: 'vapid-1' } },
+    })
+    mostra()
+    const tana = await screen.findByRole('article', { name: 'La Tana' })
+    await user.click(within(tana).getByRole('button', { name: 'Chi la pubblica…' }))
+    const modulo = within(tana).getByRole('form', { name: 'Chi pubblica La Tana' })
+    expect(within(modulo).getByLabelText('Cartella in clienti/ dell’app')).toHaveValue('tana-drink')
+    expect(within(modulo).getByLabelText('Chiave VAPID delle notifiche')).toHaveValue('vapid-1')
+    await user.click(within(modulo).getByRole('checkbox'))
+    await user.clear(within(modulo).getByLabelText('Cartella in clienti/ dell’app'))
+    await user.type(within(modulo).getByLabelText('Cartella in clienti/ dell’app'), 'tana')
+    await user.type(within(modulo).getByLabelText('Chiave reCAPTCHA di App Check'), '6Lc-abc')
+    await user.click(within(modulo).getByRole('button', { name: 'Salva' }))
+    expect(db.impostaAggiornamentiEsistente).toHaveBeenCalledWith({
+      slug: 'tana-drink',
+      aggiornamenti_dalla_regia: true,
+      cliente: 'tana',
+      build: { VITE_FIREBASE_VAPID_KEY: 'vapid-1', VITE_RECAPTCHA_SITE_KEY: '6Lc-abc', VITE_FIREBASE_MEASUREMENT_ID: '' },
+    })
+    // Finito, il modulo si chiude e i dati si rileggono.
+    expect(within(tana).queryByRole('form', { name: 'Chi pubblica La Tana' })).toBeNull()
+  })
+
+  it('un errore nel salvare si vede, e il modulo resta aperto', async () => {
+    const user = userEvent.setup()
+    db.impostaAggiornamentiEsistente.mockRejectedValueOnce(new Error('Cartella del cliente «X» non valida'))
+    db.elencoClienti.mockResolvedValue([{ uid: 't', slug: 'tana-drink', nome_locale: 'La Tana', email: 't@x.it', piano: 'completo', creato_il: '2026-10-24' }])
+    db.elencoIstanze.mockResolvedValue({ 'tana-drink': { stato: 'attiva', progetto: 'tana-drink', origine: 'esistente', interna: true } })
+    mostra()
+    const tana = await screen.findByRole('article', { name: 'La Tana' })
+    await user.click(within(tana).getByRole('button', { name: 'Chi la pubblica…' }))
+    await user.click(within(tana).getByRole('button', { name: 'Salva' }))
+    expect(await screen.findByText(/Cartella del cliente «X» non valida/)).toBeInTheDocument()
+    expect(within(tana).getByRole('form', { name: 'Chi pubblica La Tana' })).toBeInTheDocument()
   })
 })
 

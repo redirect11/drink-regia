@@ -763,9 +763,11 @@ requirements:
       tana-drink ha già (l'app id di SumUp) e passa alla build il ramo
       come il deploy della Tana. I progetti della regia non sono mai un
       locale. La licenza resta del suo progetto (licenza_dalla_regia).
-      Resta da fare: i campi nel backoffice (dopo il suo riordino), i
-      ruoli del provisioning sui progetti della Tana (col permesso
-      dell'utente), la prova su tana-drink-test.
+      Nel backoffice, sulla scheda di un locale esistente, «Chi la
+      pubblica…» affida o restituisce gli aggiornamenti, con la cartella e
+      le chiavi; affidata, la scheda ha «Aggiorna subito» ma non Sospendi
+      e Chiudi. Resta da fare: i ruoli del provisioning sui progetti della
+      Tana (col permesso dell'utente) e la prova su tana-drink-test.
     status: partial
     generate_issue: false
     labels: [prodotto, flotta, regia]
@@ -775,4 +777,5 @@ requirements:
       - tests/provisioning.test.js
       - tests/flotta.test.js
       - tests/db.test.js
+      - tests/Backoffice.test.jsx
 
