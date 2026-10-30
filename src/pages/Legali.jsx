@@ -15,7 +15,7 @@ export function Termini() {
   return (
     <main className="pagina legale">
       <h1>Termini di servizio</h1>
-      <p className="muted small">Ultimo aggiornamento: 22 ottobre 2026</p>
+      <p className="muted small">Ultimo aggiornamento: 29 ottobre 2026</p>
       <h2>1. Il servizio</h2>
       <p>
         {NOME_PRODOTTO} è un software per la gestione di cassa, comande, magazzino e statistiche di un locale, fornito da{' '}
@@ -49,8 +49,11 @@ export function Termini() {
       <h2>6. Dati del locale</h2>
       <p>
         I dati inseriti nell’app (ordini, magazzino, incassi, personale) sono del locale, che ne è titolare. Il fornitore li
-        tratta solo per erogare il servizio. Alla cessazione, il locale può chiedere l’esportazione dei dati; l’installazione
-        viene chiusa dopo 30 giorni.
+        tratta solo per erogare il servizio. Il locale può chiudere l’installazione dalla propria pagina: l’app si ferma
+        subito e, 30 giorni dopo, l’installazione e i suoi dati vengono cancellati definitivamente. Fino alla cancellazione la
+        chiusura si può annullare dalla stessa pagina. Prima della cancellazione il fornitore esegue un backup completo dei
+        dati, che il locale può scaricare dalla propria pagina per 180 giorni; trascorso questo periodo il backup viene
+        cancellato. Il fornitore può cancellare un’installazione già chiusa anche prima dei 30 giorni, sempre dopo il backup.
       </p>
       <h2>7. Recesso e disdetta</h2>
       <p>
@@ -67,7 +70,7 @@ export function Privacy() {
   return (
     <main className="pagina legale">
       <h1>Informativa sulla privacy</h1>
-      <p className="muted small">Ai sensi degli articoli 13 e 14 del Regolamento (UE) 2016/679. Ultimo aggiornamento: 22 ottobre 2026</p>
+      <p className="muted small">Ai sensi degli articoli 13 e 14 del Regolamento (UE) 2016/679. Ultimo aggiornamento: 29 ottobre 2026</p>
       <h2>Titolare del trattamento</h2>
       <p>
         {TITOLARE.nome}, {TITOLARE.indirizzo}, {TITOLARE.email}.
@@ -83,7 +86,9 @@ export function Privacy() {
       <p>
         I dati sono conservati su infrastruttura Google Cloud nella regione europea, per la durata del contratto e per i
         termini di legge sulla fatturazione (dieci anni per i documenti fiscali). I dati operativi del locale stanno in
-        un’installazione separata di cui il locale è titolare, e il fornitore agisce da responsabile del trattamento.
+        un’installazione separata di cui il locale è titolare, e il fornitore agisce da responsabile del trattamento. Quando
+        un’installazione viene cancellata, il suo backup è conservato per 180 giorni in un archivio separato, nella regione
+        europea, accessibile per il download solo al titolare del locale; poi viene cancellato.
       </p>
       <h2>A chi vengono comunicati</h2>
       <p>

@@ -4,7 +4,8 @@
 Firebase, Firestore, Hosting, web app e Auth. Lo applica il workflow
 `.github/workflows/provisiona-istanza.yml` a ogni attivazione
 (REQ-FLOTTA-006); `aggiorna-istanza.yml` pubblica una versione nuova
-dell'app senza Terraform (REQ-FLOTTA-009). Il perché sta in
+dell'app (REQ-FLOTTA-009), col Terraform solo per un locale Free che
+passa al profilo completo. Il perché sta in
 [docs/flotta-nella-regia.md](../docs/flotta-nella-regia.md).
 
 Lo stato di Terraform sta nel bucket GCS `drink-regia-tfstate`, una
@@ -27,6 +28,7 @@ regia di test (`drink-regia-test`) su `flotta-test`. Lo sceglie l'input
 | `REGIA_URL` | variabile | `https://drink-regia.web.app` | `https://drink-regia-test.web.app` |
 | `REGIA_SA_EMAIL` | variabile | `600871952552-compute@developer.gserviceaccount.com` | `246268671867-compute@developer.gserviceaccount.com` |
 | `ORG_ID` | variabile, facoltativa | l'organizzazione Google Cloud | la stessa |
+| `ARCHIVIO_BUCKET` | variabile | `drink-regia-archivio` (nel progetto `drink-regia`) | `drink-regia-test-archivio` (nel progetto `drink-regia-test`) |
 
 `REGIA_SA_EMAIL` è l'account con cui girano le Functions di quella regia:
 il Terraform gli dà `roles/datastore.user` sul locale, così la regia può
@@ -52,6 +54,37 @@ soltanto.
    provisioning il ruolo «Proprietario». Il workflow lo importa e lo
    completa; se manca, si ferma e lo dice. Con `ORG_ID` lo crea Terraform,
    e chi crea il progetto ne è proprietario.
+5. **Il bucket degli archivi** di ciascuna regia (REQ-FLOTTA-014,
+   `elimina-istanza.yml`), creato una volta:
+   - nome come in `ARCHIVIO_BUCKET`, regione `europe-west1`, accesso
+     uniforme, accesso pubblico **impedito**;
+   - una regola del ciclo di vita: **elimina gli oggetti dopo 180 giorni**
+     (è la durata scritta nei termini e nella privacy);
+   - `provisioning@drink-regia`: «Amministratore oggetti Storage» sul
+     bucket (ci scrive il backup);
+   - l'account di runtime delle Functions di quella regia
+     (`REGIA_SA_EMAIL`): «Visualizzatore oggetti Storage» sul bucket, e
+     «Creatore token account di servizio» **su se stesso**, per firmare il
+     link di download che `scaricaArchivio` dà al titolare. Nessun altro.
+   Il workflow usa `gcloud`: il runner di GitHub ce l'ha, e lo autentica
+   `google-github-actions/auth` con la stessa chiave di provisioning.
+
+## I due profili
+
+La variabile `profilo` (input omonimo dei workflow) decide che cosa nasce:
+
+- **completo**, il predefinito: tutte le API, gli agenti di Eventarc e
+  Pub/Sub, poi Storage, segreti e Functions dal workflow;
+- **leggero**, il piano Free (REQ-FLOTTA-015): solo le API di Firebase,
+  Firestore, regole, Hosting, accesso e App Check, senza le API e gli
+  agenti delle Functions. Anche il leggero ha l'account di fatturazione:
+  senza, Google non accende l'accesso con email (`BILLING_NOT_ENABLED`,
+  provato su `drinkpos-prova-free` il 30/10/2026). Il costo resta zero
+  perché database, sito e accesso stanno nelle soglie gratuite.
+
+Quando un locale Free compra, `aggiorna-istanza.yml` col profilo completo
+rifà l'apply se nello stato manca l'API delle Functions. Un progetto
+senza stato (un locale esistente, come la Tana) non lo tocca.
 
 ## Gli slug di prova
 

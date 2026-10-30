@@ -45,6 +45,24 @@
     }
   ],
   "piani": {
+    "free": {
+      "id": "free",
+      "nome": "Free",
+      "prezzo": 0,
+      "gratuito": true,
+      "descrizione": "Per provare il servizio: cassa e comande con un terminale, fino a 10 prodotti nel menù e 5 conti aperti insieme. Lo usa solo il titolare, senza account per lo staff. Senza sconti e senza moduli; storico delle vendite degli ultimi 7 giorni.",
+      "include": [],
+      "terminali": 1,
+      "profilo": "leggero",
+      "limiti": {
+        "prodotti_max": 10,
+        "conti_aperti_max": 5,
+        "sconti": false,
+        "storico_giorni": 7,
+        "utenti_max": 1,
+        "marchio": true
+      }
+    },
     "base": {
       "id": "base",
       "nome": "Base",

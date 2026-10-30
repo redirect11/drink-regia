@@ -38,6 +38,14 @@ vi.mock('../src/lib/db.js', () => ({
   },
   ultimiConsumiAI: vi.fn(async () => []),
   avviaRicaricaAI: vi.fn(),
+  // La vendita (REQ-FLOTTA-015): qui il Free è in vendita.
+  osservaVendita: (cb) => {
+    cb({ free: true, moduli: {} })
+    return () => {}
+  },
+  scegliFree: vi.fn(async () => ({ ok: true })),
+  gestisciEliminazione: vi.fn(),
+  scaricaArchivio: vi.fn(),
 }))
 
 import Dashboard from '../src/pages/Dashboard.jsx'
@@ -114,5 +122,18 @@ describe('la dashboard', () => {
     mostra()
     expect(screen.getByTestId('stato-istanza')).toHaveTextContent(/In coda/)
     expect(screen.queryByRole('button', { name: /Attiva l’istanza/ })).toBeNull()
+  })
+})
+
+// REQ-FLOTTA-015: un cliente Free vede i limiti del suo piano, e sotto la
+// scelta per passare a pagamento, col Checkout e non con «modifica».
+describe('la dashboard di un cliente Free', () => {
+  it('dice i limiti del Free e propone i piani a pagamento', () => {
+    stato.cliente = { ...stato.cliente, piano: 'free', moduli: [], terminali: 1, abbonamento: { stato: 'attivo', origine: 'gratuito' } }
+    mostra()
+    expect(screen.getByTestId('limiti-piano')).toHaveTextContent('fino a 10 prodotti nel menù e 5 conti aperti insieme, solo il titolare, senza sconti')
+    expect(screen.getByRole('heading', { name: 'Scegli il piano' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Cambia piano o moduli' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Vai al pagamento' })).toBeInTheDocument()
   })
 })

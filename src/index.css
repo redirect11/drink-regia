@@ -152,6 +152,14 @@ input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--
 .gruppo-azioni.pericolo { margin-left: auto; }
 .gruppo-azioni.pericolo .btn:hover { border-color: var(--errore); color: #ff8a7a; }
 .gruppo-nome { margin-right: 2px; }
+
+/* ── Chiudere e cancellare un locale (REQ-FLOTTA-014): bordo e tasto
+   rossi, perché è il solo gesto della regia che non si annulla. ── */
+.zona-pericolo { border-color: rgba(231, 76, 60, 0.5); margin-top: 24px; }
+.btn.pericolo { background: var(--errore); border-color: var(--errore); color: #fff; }
+.btn.pericolo:disabled { opacity: 0.45; }
+.elimina-form { display: grid; gap: 8px; margin-top: 10px; padding: 12px; border: 1px solid rgba(231, 76, 60, 0.5); border-radius: 10px; }
+.elimina-form label { margin: 0; }
 .scelta-piani { display: grid; gap: 8px; margin: 8px 0; }
 .opzione { display: block; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; margin: 4px 0; color: var(--text); font-size: 1rem; cursor: pointer; }
 .opzione.scelta { border-color: var(--accent); }
@@ -178,3 +186,14 @@ code { background: rgba(255, 255, 255, 0.06); padding: 1px 5px; border-radius: 5
 .ondate { margin: 8px 0; padding-left: 20px; }
 .ondate li { margin: 4px 0; }
 .ondata-attuale { font-weight: 600; }
+
+/* ── La vendita nel backoffice (REQ-FLOTTA-015) ── */
+.card.vendita { margin: 12px 0; }
+.card.vendita h3 { margin-top: 0; }
+.vendita-moduli { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 4px 12px; }
+.vendita-modulo { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.vendita-modulo .opzione { flex: 1; }
+.giorni-prova { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 0.85rem; white-space: nowrap; }
+.giorni-prova input { width: 4.5em; padding: 6px; }
+.cambia-piano { display: grid; gap: 8px; margin-top: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
+.cambia-piano label { margin: 0; }
