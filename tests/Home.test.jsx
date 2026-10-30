@@ -4,10 +4,17 @@
 // LA PRIMA PAGINA (REQ-FLOTTA-002): cosa fa il prodotto, i piani coi
 // prezzi, il tasto per registrarsi. Tono del mestiere, niente urla.
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import '@testing-library/jest-dom/vitest'
+
+// La prima pagina legge la vendita da db.js (REQ-FLOTTA-015). Qui si usa la
+// vendita predefinita, come senza Firebase, e db.js non si carica: caricato
+// davvero, la coverage di src/lib conta come non provate tutte le sue
+// funzioni, che parlano con Firebase e si provano dai componenti.
+vi.mock('../src/lib/db.js', () => ({ osservaVendita: (cb) => (cb(null), () => {}) }))
+
 import Home from '../src/pages/Home.jsx'
 import { PIANI, MODULI } from '../src/lib/piani.js'
 import { NOME_PRODOTTO } from '../src/lib/prodotto.js'
