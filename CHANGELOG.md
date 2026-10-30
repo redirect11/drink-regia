@@ -4,7 +4,7 @@ Una voce per ogni cambiamento visibile, nello stesso commit del
 cambiamento. La versione in cima è quella in lavorazione finché non ha la
 data.
 
-## 0.2.1 (in lavorazione)
+## 0.3.0 (in lavorazione)
 
 - La prima pagina è nuova, in italiano e in inglese. Il titolo dice la
   promessa («La serata non si ferma. Nemmeno quando cade il Wi-Fi.»), e la
@@ -16,6 +16,15 @@ data.
   di pagina ricorda la scelta, e chi ha il browser in inglese vede un
   avviso che gliela propone. Registrazione, dashboard e testi legali
   restano in italiano (REQ-FLOTTA-002).
+
+## 0.2.1 (30/10/2026, la prima in produzione: comprende la 0.2.0 e la 0.1.0)
+
+- In produzione un locale riceve solo l'app che è già uscita in produzione
+  (su `main` di tana-drink), e l'attivazione si ferma prima di creare il
+  progetto se quella versione dell'app non sa compilare per un cliente.
+  Sulla regia di test resta `develop`. Lo script che dà i ruoli al
+  service account di provisioning sta ora nella regia (REQ-FLOTTA-006,
+  REQ-FLOTTA-009).
 - I pagamenti online si accendono dal backoffice («Pagamenti online con
   Stripe» nel riquadro «Vendita»), e partono spenti. Spenti, chi sceglie
   un piano a pagamento ci lascia un recapito invece di pagare; le
@@ -53,7 +62,7 @@ data.
   conferma scrivendo il nome dell'app. Il backup resta 180 giorni e lo
   scarica solo il titolare. Termini e privacy aggiornati (REQ-FLOTTA-014).
 
-## 0.2.0 (in lavorazione)
+## 0.2.0 (mai pubblicata da sola: è dentro la 0.2.1)
 
 - L'attivazione e l'aggiornamento dei locali partono dalla regia: il
   Terraform e i workflow stanno qui, e l'app arriva da tana-drink alla
@@ -77,7 +86,7 @@ data.
   «Locale esistente» registra un locale che ha già la sua app, come la
   Tana, senza attivazione e senza toccarne il progetto (REQ-AI-003).
 
-## 0.1.0 (non ancora pubblicata)
+## 0.1.0 (mai pubblicata da sola: è dentro la 0.2.1)
 
 - Il sito di test (`drink-regia-test.web.app`) porta un nastro «TEST» con
   la versione, e il piè di pagina dice la versione pubblicata anche in

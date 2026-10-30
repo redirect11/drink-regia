@@ -105,15 +105,20 @@ jobs:
           [[ "$PROFILO" =~ ^(completo|leggero)$ ]] || { echo "::error::profilo non valido."; exit 1; }
           if [ -z "$NOME" ] || [ ${#NOME} -gt 80 ] || [[ "$NOME" =~ [[:cntrl:]] ]]; then echo "::error::Nome del locale non valido."; exit 1; fi
 
-      # APP DI PRODUZIONE (REQ-FLOTTA-009): un locale riceve solo rilasci —
-      # `main` o un tag `vX.Y.Z` — e la build è di produzione. Un ramo di
-      # lavoro passa solo con un avviso: serve finché la flotta non è merged.
+      # APP DI PRODUZIONE (REQ-FLOTTA-009): un locale della regia di
+      # produzione riceve solo rilasci — `main` o un tag `vX.Y.Z` — e la
+      # build è di produzione. Un ramo di lavoro (`develop`) passa solo
+      # sulla regia di test, con un avviso. «In produzione solo il tag su
+      # main» (l'utente, 30/10/2026).
       - name: È un rilascio?
         run: |
           if [ "$REF_APP" = "main" ] || [[ "$REF_APP" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Rilascio: $REF_APP"
+          elif [ "$AMBIENTE" = "test" ]; then
+            echo "::warning::«$REF_APP» non è un rilascio (main o tag vX.Y.Z): va bene solo sulla regia di test."
           else
-            echo "::warning::«$REF_APP» non è un rilascio (main o tag vX.Y.Z): va bene solo per provare."
+            echo "::error::«$REF_APP» non è un rilascio (main o tag vX.Y.Z): in produzione un locale riceve solo rilasci."
+            exit 1
           fi
 
       - name: La configurazione dell'environment
@@ -131,11 +136,34 @@ jobs:
       - uses: actions/checkout@v4
 
       # L'app dei locali, alla versione chiesta. tana-drink è pubblico.
+      # Con tutta la storia: serve a sapere se la versione sta su main.
       - uses: actions/checkout@v4
         with:
           repository: redirect11/tana-drink
           ref: ${{ inputs.ref }}
           path: app
+          fetch-depth: 0
+
+      # Un tag vX.Y.Z di tana-drink nasce su develop e pubblica il test
+      # della Tana; diventa produzione quando il suo commit arriva su main
+      # (tana-drink, docs/gitflow.md). Una regia di produzione pubblica
+      # solo quello che è già su main. E l'app deve saper compilare per un
+      # cliente, cosa che la 1.9.x non sa: meglio fermarsi qui che dopo
+      # aver creato il progetto.
+      - name: La versione dell'app va bene per questa regia?
+        working-directory: app
+        run: |
+          if [ ! -f scripts/genera-cliente.mjs ]; then
+            echo "::error::«$REF_APP» di tana-drink non sa compilare per un cliente (manca scripts/genera-cliente.mjs): serve la 1.10 o una successiva."
+            exit 1
+          fi
+          if [ "$AMBIENTE" = "produzione" ]; then
+            git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+            if ! git merge-base --is-ancestor HEAD origin/main; then
+              echo "::error::«$REF_APP» non è ancora su main di tana-drink: in produzione va solo quello che è uscito in produzione."
+              exit 1
+            fi
+          fi
 
       - uses: actions/setup-node@v4
         with:

@@ -81,8 +81,12 @@ contiene il deploy delle istanze:
 
 ## Quando è fatto
 
-- [ ] Su `develop` di tana-drink: `node scripts/genera-cliente.mjs --slug prova-x --nome "Prova"` e `CLIENTE=prova-x npm run build` funzionano.
+- [x] Su `develop` di tana-drink: `node scripts/genera-cliente.mjs --slug prova-x --nome "Prova"` e `CLIENTE=prova-x npm run build` funzionano.
 - [ ] La Tana di test, pubblicata da `develop`, è identica a prima.
-- [ ] Un tag su `main` con la build per cliente.
-- [ ] La regia mette `APP_REF=develop` sul test e `APP_REF=main` (poi il
-      tag del rilascio) in produzione, e `feature/flotta` si chiude.
+- [ ] Un tag su `main` con la build per cliente (la 1.10 non va ancora in
+      produzione: decisione dell'utente del 30/10/2026).
+- [x] La regia mette `APP_REF=develop` sul test e `APP_REF=main` in
+      produzione, e `feature/flotta` si chiude (30/10/2026). Quello che
+      ancora serviva è passato nella regia: `ruoli-provisioning.mjs` e i
+      controlli di `provisionaIstanza.test.js`. `elimina-istanza.mjs` no:
+      lo sostituisce `elimina-istanza.yml`, che prima fa il backup.
