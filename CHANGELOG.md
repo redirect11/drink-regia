@@ -4,7 +4,7 @@ Una voce per ogni cambiamento visibile, nello stesso commit del
 cambiamento. La versione in cima è quella in lavorazione finché non ha la
 data.
 
-## 0.2.1 (in lavorazione)
+## 0.2.1 (30/10/2026, la prima in produzione: comprende la 0.2.0 e la 0.1.0)
 
 - I pagamenti online si accendono dal backoffice («Pagamenti online con
   Stripe» nel riquadro «Vendita»), e partono spenti. Spenti, chi sceglie
@@ -43,7 +43,7 @@ data.
   conferma scrivendo il nome dell'app. Il backup resta 180 giorni e lo
   scarica solo il titolare. Termini e privacy aggiornati (REQ-FLOTTA-014).
 
-## 0.2.0 (in lavorazione)
+## 0.2.0 (mai pubblicata da sola: è dentro la 0.2.1)
 
 - L'attivazione e l'aggiornamento dei locali partono dalla regia: il
   Terraform e i workflow stanno qui, e l'app arriva da tana-drink alla
@@ -67,7 +67,7 @@ data.
   «Locale esistente» registra un locale che ha già la sua app, come la
   Tana, senza attivazione e senza toccarne il progetto (REQ-AI-003).
 
-## 0.1.0 (non ancora pubblicata)
+## 0.1.0 (mai pubblicata da sola: è dentro la 0.2.1)
 
 - Il sito di test (`drink-regia-test.web.app`) porta un nastro «TEST» con
   la versione, e il piè di pagina dice la versione pubblicata anche in
