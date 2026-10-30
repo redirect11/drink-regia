@@ -178,11 +178,16 @@ requirements:
       lib/provisioning.js, provata senza emulatori.
       Segreti delle Functions: GITHUB_DISPATCH_TOKEN,
       PROVISIONING_CALLBACK_SECRET. Non ancora provato per intero.
+      I ruoli del service account di provisioning (fatturazione, bucket,
+      progetti dei locali) li dà scripts/ruoli-provisioning.mjs, lanciato
+      da una persona; la regola pura sta in scripts/lib-iam.js. Portato
+      da tana-drink col ramo feature/flotta, chiuso il 30/10/2026.
     status: implemented
     generate_issue: false
     labels: [prodotto, flotta, regia]
     test_cases:
       - tests/provisioning.test.js
+      - tests/flotta.test.js
 
   - id: REQ-DEV-001
     title: "Requisiti e test si tengono per mano anche qui"
@@ -278,8 +283,8 @@ requirements:
       `istanze/{slug}` tiene `licenza_stato` e `licenza_motivo` per il
       backoffice. Cosa fa l'app quando e' sospesa sta nel repository
       tana-drink (REQ-FLOTTA-008 di la'): si ferma, lo dice, i dati restano.
-      La cancellazione vera del progetto e' un gesto a mano, dopo i 30
-      giorni promessi (scripts/elimina-istanza.mjs in tana-drink).
+      La cancellazione vera del progetto, dopo i 30 giorni promessi, la fa
+      elimina-istanza.yml, e solo dopo il backup verificato (REQ-FLOTTA-014).
     status: implemented
     generate_issue: false
     labels: [prodotto, flotta, regia]
@@ -301,21 +306,27 @@ requirements:
       `istanze/{slug}.versione` la versione dell'app che ha, riferita dal
       workflow a ogni pubblicazione. Un rilascio di tana-drink non tocca i
       locali da solo: dal backoffice, «Aggiorna» su una riga porta a quel
-      locale la versione in APP_REF (di norma `main`, l'ultimo rilascio;
-      finche' la flotta non e' merged, feature/flotta): serve per una
+      locale la versione in APP_REF (in produzione `main`, l'ultimo
+      uscito; sul test `develop`): serve per una
       correzione urgente su un locale solo. A tutti i locali un rilascio
       arriva a ondate (REQ-FLOTTA-012), che hanno preso il posto di
       «Aggiorna tutte le istanze attive» il 27/10/2026. La
       Function `aggiornaIstanza` (solo admin) lancia il workflow
-      `aggiorna-istanza.yml` di tana-drink, che compila per quel locale,
+      `aggiorna-istanza.yml` della regia, che compila per quel locale,
       pubblica e riferisce la versione. Un tag passato come `ref` riporta
       un locale a una versione precedente.
+      «In produzione solo il tag su main» (l'utente, 30/10/2026): sulla
+      regia di produzione i workflow accettano solo un rilascio (main o un
+      tag vX.Y.Z) il cui commit sta su main di tana-drink, e si fermano
+      prima di creare qualcosa se l'app non sa compilare per un cliente.
+      Un ramo (develop) passa solo sulla regia di test.
     status: implemented
     generate_issue: false
     labels: [prodotto, flotta, regia]
     test_cases:
       - tests/provisioning.test.js
       - tests/Backoffice.test.jsx
+      - tests/flotta.test.js
 
   - id: REQ-FLOTTA-010
     title: "I servizi premium si comprano e si cambiano dalla dashboard, e la licenza dell'istanza li accende"
