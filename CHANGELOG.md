@@ -7,12 +7,15 @@ data.
 ## 0.2.1 (in lavorazione)
 
 - Il piano Free: 0 €, un terminale, fino a 10 prodotti nel menù e 5 conti
-  aperti insieme, senza sconti e senza moduli, storico di 7 giorni. Si
+  aperti insieme, solo il titolare (niente staff), senza sconti e senza
+  moduli, storico di 7 giorni. Si
   sceglie dalla dashboard senza pagamento, e il locale nasce leggero, a
   costo zero; quando il titolare passa a un piano a pagamento i limiti
   cadono e il locale si completa da solo. Dal backoffice l'admin mette in
-  vendita o toglie il Free e ogni modulo; il Free parte fuori vendita
-  (REQ-FLOTTA-015).
+  vendita o toglie il Free e ogni modulo; il Free parte fuori vendita.
+  Il progetto di un locale Free ha la fatturazione collegata (senza,
+  Google non accende l'accesso con email) ma solo database, sito e
+  accesso, dentro le soglie gratuite (REQ-FLOTTA-015).
 - Le prove dei moduli: l'admin decide quali moduli si provano e per quanti
   giorni; il titolare ne prova uno dalla dashboard, una volta sola, e alla
   scadenza si spegne da solo se non lo aggiunge. Nel backoffice «Cambia

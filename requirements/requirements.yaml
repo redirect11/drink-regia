@@ -533,7 +533,7 @@ requirements:
 
   - id: REQ-FLOTTA-015
     title: "Il piano Free, coi suoi limiti e il profilo leggero a costo zero, e la vendita decisa dall'admin"
-    area: "functions/piani.json (piani.free), functions/lib/free.js, functions/lib/licenza.js (limiti), functions/lib/provisioning.js (profilo), functions/index.js (scegliFree, vendita, cambiaScelta, creaCheckout, licenzaSegueIlPiano, creaCliente), .github/workflows/provisiona-istanza.yml, .github/workflows/aggiorna-istanza.yml, firestore.rules (vendita), src/lib/vendita.js, src/lib/db.js, src/pages/Home.jsx, src/pages/SceltaPiano.jsx, src/pages/Dashboard.jsx, src/pages/Backoffice.jsx (Vendita)"
+    area: "functions/piani.json (piani.free), functions/lib/free.js, functions/lib/licenza.js (limiti), functions/lib/provisioning.js (profilo), functions/index.js (scegliFree, vendita, cambiaScelta, creaCheckout, licenzaSegueIlPiano, creaCliente), .github/workflows/provisiona-istanza.yml, .github/workflows/aggiorna-istanza.yml, infra/istanza/main.tf (profilo), firestore.rules (vendita), src/lib/vendita.js, src/lib/db.js, src/pages/Home.jsx, src/pages/SceltaPiano.jsx, src/pages/Dashboard.jsx, src/pages/Backoffice.jsx (Vendita)"
     description: >
       Decisioni dell'utente del 30/10/2026: un piano gratuito di tipo «free
       con limiti», chiamato Free, con funzioni «base base base» perche',
@@ -557,8 +557,17 @@ requirements:
       vendita o no, con lo storico dei cambi; spegnere la vendita chiude
       solo la porta d'ingresso, chi c'e' gia' continua. Il Free parte
       spento. Le prove dei moduli e «Cambia piano» stanno in REQ-FLOTTA-016.
-      Da fare: il progetto Free senza fatturazione (Spark); lato tana-drink,
-      i limiti fatti rispettare dall'app e l'app senza Functions (handover §7).
+      Il Free lo usa solo il titolare (limiti.utenti_max 1): senza Functions
+      non c'e' staffAdmin, che crea gli account dello staff. IL PROGETTO
+      LEGGERO HA LA FATTURAZIONE: provato il 30/10/2026 su
+      drinkpos-prova-free, senza fatturazione Google non accende l'accesso
+      con email (initializeAuth: BILLING_NOT_ENABLED; la guida Firebase a
+      Terraform chiede il Blaze). Il Terraform col profilo leggero accende
+      solo le API di database, regole, sito e accesso, senza le API e gli
+      agenti delle Functions; aggiorna-istanza.yml, quando un locale della
+      regia ancora leggero passa al completo, rifa' l'apply col completo
+      prima del deploy. Da fare lato tana-drink: i limiti fatti rispettare
+      dall'app e l'app senza Functions (handover §7).
     status: partial
     generate_issue: true
     labels: [prodotto, flotta, regia]

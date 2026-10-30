@@ -182,6 +182,7 @@ jobs:
           TF_VAR_org_id: ${{ vars.ORG_ID }}
           TF_VAR_regia_sa_email: ${{ vars.REGIA_SA_EMAIL }}
           TF_VAR_provisioning_sa_email: ${{ env.PROVISIONING_SA_EMAIL }}
+          TF_VAR_profilo: ${{ inputs.profilo }}
         run: |
           if terraform state show google_project.istanza >/dev/null 2>&1; then exit 0; fi
           if [ -z "$ORG_ID" ]; then
@@ -198,6 +199,9 @@ jobs:
           TF_VAR_org_id: ${{ vars.ORG_ID }}
           TF_VAR_regia_sa_email: ${{ vars.REGIA_SA_EMAIL }}
           TF_VAR_provisioning_sa_email: ${{ env.PROVISIONING_SA_EMAIL }}
+          # Il leggero (il Free) nasce senza le API e gli agenti delle
+          # Functions, ma con la fatturazione: l'accesso con email la chiede.
+          TF_VAR_profilo: ${{ inputs.profilo }}
         run: terraform apply -input=false -auto-approve
 
       - name: Il .env della build dal progetto nuovo

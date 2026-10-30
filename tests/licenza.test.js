@@ -46,7 +46,7 @@ describe('patchLicenzaPiano e sceltaCambiata', () => {
   it('il Free: nessun modulo, i limiti del piano; a pagamento i limiti spariscono', () => {
     const free = patchLicenzaPiano({ piano: 'free', moduli: ['magazzino'] })
     expect(Object.values(free['licenza.moduli']).every((v) => v === false)).toBe(true)
-    expect(free['licenza.limiti']).toEqual({ prodotti_max: 10, conti_aperti_max: 5, sconti: false, storico_giorni: 7, marchio: true })
+    expect(free['licenza.limiti']).toEqual({ prodotti_max: 10, conti_aperti_max: 5, sconti: false, storico_giorni: 7, utenti_max: 1, marchio: true })
     expect(patchLicenzaPiano({ piano: 'completo' })['licenza.limiti']).toBeNull()
   })
 

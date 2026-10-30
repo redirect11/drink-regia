@@ -11,7 +11,9 @@ name: Aggiorna istanza
 #      stanno nel suo database) e compila CLIENTE=<slug>;
 #   3. pubblica regole, indici, Functions e hosting;
 #   4. riferisce alla regia la versione pubblicata.
-# Niente Terraform: il progetto esiste già.
+# Il Terraform gira solo per un locale Free che passa al profilo completo:
+# il suo progetto riceve le API e gli agenti delle Functions (REQ-FLOTTA-015).
+# Per tutti gli altri il progetto esiste già com'è.
 #
 # Sta nella regia dal 29/10/2026, come provisiona-istanza.yml: environment
 # «flotta» o «flotta-test» secondo `ambiente`, input solo come variabili
@@ -115,6 +117,44 @@ jobs:
           if [ -z "$SA_JSON" ]; then echo "::error::Manca il segreto PROVISIONING_SA_JSON (infra/README.md)."; exit 1; fi
           echo "$SA_JSON" > "$RUNNER_TEMP/sa.json"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
+          echo "PROVISIONING_SA_EMAIL=$(node -e "console.log(JSON.parse(process.argv[1]).client_email)" "$SA_JSON")" >> "$GITHUB_ENV"
+
+      # DA LEGGERO A COMPLETO (REQ-FLOTTA-015). Un locale Free nasce senza le
+      # API delle Functions: quando compra, l'apply col profilo completo le
+      # accende e crea gli agenti di Google, prima di Storage, segreti e
+      # deploy. Si riconosce dallo stato: un progetto della regia senza
+      # l'API delle Functions. Un progetto senza stato (un locale esistente,
+      # come la Tana) non lo ha creato la regia e non si tocca.
+      - uses: hashicorp/setup-terraform@v3
+        if: env.PROFILO == 'completo'
+        with:
+          terraform_version: '1.9.8'
+          terraform_wrapper: false
+
+      - name: Il profilo completo nel progetto
+        if: env.PROFILO == 'completo'
+        working-directory: infra/istanza
+        env:
+          TFSTATE_BUCKET: ${{ vars.TFSTATE_BUCKET }}
+          TF_VAR_slug: ${{ inputs.slug }}
+          TF_VAR_ambiente: ${{ inputs.ambiente }}
+          TF_VAR_billing_account: ${{ secrets.BILLING_ACCOUNT_ID }}
+          TF_VAR_org_id: ${{ vars.ORG_ID }}
+          TF_VAR_regia_sa_email: ${{ vars.REGIA_SA_EMAIL }}
+          TF_VAR_provisioning_sa_email: ${{ env.PROVISIONING_SA_EMAIL }}
+          TF_VAR_profilo: completo
+        run: |
+          if [ -z "$TFSTATE_BUCKET" ]; then echo "::error::Manca la variabile TFSTATE_BUCKET nell'environment (infra/README.md)."; exit 1; fi
+          terraform init -input=false \
+            -backend-config="bucket=$TFSTATE_BUCKET" \
+            -backend-config="prefix=istanze/$SLUG"
+          if ! terraform state show google_project.istanza >/dev/null 2>&1; then
+            echo "Nessuno stato Terraform per $SLUG: il progetto non l'ha creato la regia, non si tocca."; exit 0
+          fi
+          if terraform state list | grep -qF 'google_project_service.api["cloudfunctions.googleapis.com"]'; then
+            echo "Il progetto è già completo."; exit 0
+          fi
+          terraform apply -input=false -auto-approve
 
       - name: Dipendenze
         run: |

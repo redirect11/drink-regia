@@ -131,7 +131,7 @@ describe('la dashboard di un cliente Free', () => {
   it('dice i limiti del Free e propone i piani a pagamento', () => {
     stato.cliente = { ...stato.cliente, piano: 'free', moduli: [], terminali: 1, abbonamento: { stato: 'attivo', origine: 'gratuito' } }
     mostra()
-    expect(screen.getByTestId('limiti-piano')).toHaveTextContent('fino a 10 prodotti nel menù e 5 conti aperti insieme, senza sconti')
+    expect(screen.getByTestId('limiti-piano')).toHaveTextContent('fino a 10 prodotti nel menù e 5 conti aperti insieme, solo il titolare, senza sconti')
     expect(screen.getByRole('heading', { name: 'Scegli il piano' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Cambia piano o moduli' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Vai al pagamento' })).toBeInTheDocument()

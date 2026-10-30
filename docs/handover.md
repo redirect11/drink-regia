@@ -480,7 +480,8 @@ moduli, la licenza nell'istanza e la Tana.
 - **I limiti del Free e il profilo leggero** (REQ-FLOTTA-015, dal
   30/10/2026, per intero in [richieste-tana-drink-free.md](richieste-tana-drink-free.md)).
   La regia scrive `settings/bar.licenza.limiti` = `{ prodotti_max: 10,
-  conti_aperti_max: 5, sconti: false, storico_giorni: 7, marchio: true }`
+  conti_aperti_max: 5, sconti: false, storico_giorni: 7, utenti_max: 1,
+  marchio: true }`
   per il Free, e `null` per i piani a pagamento. L'app applica i limiti solo
   se la voce c'è: senza, nessun limite (la Tana non ha la voce). Un locale
   Free si pubblica col profilo leggero (`--only firestore,hosting`): l'app

@@ -19,6 +19,7 @@ La regia scrive in `settings/bar.licenza` dell'istanza, accanto a `piano` e
   "conti_aperti_max": 5,
   "sconti": false,
   "storico_giorni": 7,
+  "utenti_max": 1,
   "marchio": true
 }
 ```
@@ -36,6 +37,7 @@ Quando `limiti` c'è, l'app:
 | `conti_aperti_max` | non lascia aprire un conto oltre il numero di conti aperti nello stesso momento | «Nel piano Free puoi avere al massimo 5 conti aperti insieme.» |
 | `sconti: false` | nasconde o spegne sconti, omaggi e maggiorazioni sul conto | — |
 | `storico_giorni` | mostra vendite e conti chiusi solo degli ultimi N giorni; i dati più vecchi restano nel database, non si vedono | «Nel piano Free lo storico mostra gli ultimi 7 giorni.» |
+| `utenti_max: 1` | l'app la usa solo il titolare: niente account dello staff. Il comando per aggiungere un collaboratore si nasconde o dice che è dei piani a pagamento (senza Functions `staffAdmin` non c'è comunque) | «Nel piano Free l'app la usa solo il titolare. Per aggiungere lo staff passa a un piano a pagamento.» |
 | `marchio: true` | una riga in fondo allo scontrino e al menù digitale: «Creato con [nome del prodotto]» | — |
 
 Ogni messaggio porta all'indirizzo della regia (`licenza.regia_url`),
@@ -57,6 +59,13 @@ L'app su un profilo leggero deve:
   della chiamata allo staff, `autoAdvancePaid`, il webhook di SumUp;
 - **non chiamare Storage**: niente caricamento del logo o di file. Il
   comando si nasconde, oppure dice che è dei piani a pagamento;
+- **non chiamare `staffAdmin`**: crea gli account dello staff, e nel Free
+  non c'è. Il Free è a un solo utente, il titolare (`limiti.utenti_max: 1`,
+  decisione del 30/10/2026); il titolare entra con l'account creato alla
+  registrazione;
+- **non contare sui pagamenti SumUp** (`createPaymentCheckout`,
+  `readerCheckout`, `paymentWebhook`, `autoAdvancePaid` e le altre): nel
+  Free il conto si chiude a mano, come pagato in contanti o fuori dall'app;
 - **confermare che con un solo terminale `risolviNumeroDuplicato` non
   serve**. Se serve, va detto alla regia: il profilo leggero va rivisto.
 
@@ -84,4 +93,5 @@ novembre»). Alla scadenza la regia spegne il modulo da sola.
 
 - i limiti valgono solo con la voce `limiti` nella licenza;
 - senza la voce, nessun limite: è il caso della Tana;
-- l'app parte e funziona senza Functions né Storage.
+- l'app parte e funziona senza Functions né Storage;
+- con `utenti_max: 1` non si aggiunge staff.

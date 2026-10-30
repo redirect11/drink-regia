@@ -145,10 +145,56 @@ describe('infra/istanza/main.tf', () => {
     expect(tf).toContain('ambiente = var.ambiente')
   })
 
-  it('gli agenti di Eventarc e Pub/Sub nascono col progetto, con i loro ruoli', () => {
-    expect(tf).toContain('for_each   = toset(["eventarc.googleapis.com", "pubsub.googleapis.com"])')
+  it('gli agenti di Eventarc e Pub/Sub nascono col progetto completo, con i loro ruoli', () => {
+    expect(tf).toContain('for_each   = local.completo ? toset(["eventarc.googleapis.com", "pubsub.googleapis.com"]) : toset([])')
     expect(tf).toContain('role     = "roles/eventarc.serviceAgent"')
     expect(tf).toContain('role     = "roles/iam.serviceAccountTokenCreator"')
+    expect(tf.match(/count {4}= local\.completo \? 1 : 0/g)).toHaveLength(2)
+    // prova-bar ha i due permessi nello stato senza indice: si spostano.
+    expect(tf).toContain('to   = google_project_iam_member.agente_eventarc[0]')
+    expect(tf).toContain('to   = google_project_iam_member.agente_pubsub[0]')
+  })
+
+  // REQ-FLOTTA-015, provato su drinkpos-prova-free il 30/10/2026: senza
+  // fatturazione Google non accende l'accesso con email (BILLING_NOT_ENABLED),
+  // quindi anche il leggero ha l'account di fatturazione; risparmia sulle
+  // API e sugli agenti delle Functions, che sono quello che costa.
+  describe('il profilo', () => {
+    const lista = (nome) => tf.match(new RegExp(`${nome} = \\[([\\s\\S]*?)\\]`))[1].match(/"[a-z.]+"/g).map((s) => s.slice(1, -1))
+
+    it('è completo o leggero, completo se non si dice, ed è un’etichetta del progetto', () => {
+      expect(variabile('profilo')).toContain('default     = "completo"')
+      expect(variabile('profilo')).toContain('contains(["completo", "leggero"], var.profilo)')
+      expect(tf).toContain('profilo  = var.profilo')
+    })
+
+    it('il leggero ha database, regole, sito e accesso, e non le API delle Functions', () => {
+      expect(lista('api_base')).toEqual(expect.arrayContaining(['firebase.googleapis.com', 'firestore.googleapis.com', 'firebaserules.googleapis.com', 'identitytoolkit.googleapis.com', 'firebasehosting.googleapis.com']))
+      for (const api of ['cloudfunctions.googleapis.com', 'cloudbuild.googleapis.com', 'artifactregistry.googleapis.com', 'run.googleapis.com', 'cloudscheduler.googleapis.com', 'firebasestorage.googleapis.com']) {
+        expect(lista('api_base')).not.toContain(api)
+        expect(lista('api_completo')).toContain(api)
+      }
+      expect(tf).toContain('api = concat(local.api_base, local.completo ? local.api_completo : [])')
+    })
+
+    it('la fatturazione e l’accesso con email valgono per tutti e due', () => {
+      expect(tf).toContain('billing_account = var.billing_account')
+      expect(tf).toMatch(/resource "google_identity_platform_config" "auth" \{\s+provider = google-beta\s+project {2}= google_project.istanza.project_id/)
+    })
+
+    it('l’attivazione passa il profilo al Terraform', () => {
+      for (const nome of ['Importa il progetto se esiste già', 'Terraform apply']) expect(passo(provisiona, nome).env.TF_VAR_profilo).toBe('${{ inputs.profilo }}')
+    })
+
+    it('l’aggiornamento completa col Terraform solo un locale della regia ancora leggero', () => {
+      const p = passo(aggiorna, 'Il profilo completo nel progetto')
+      expect(p.if).toBe("env.PROFILO == 'completo'")
+      expect(p.env.TF_VAR_profilo).toBe('completo')
+      expect(p.run).toContain('if ! terraform state show google_project.istanza')
+      expect(p.run).toContain(`grep -qF 'google_project_service.api["cloudfunctions.googleapis.com"]'`)
+      const nomi = passi(aggiorna).map((s) => s.name)
+      expect(nomi.indexOf('Il profilo completo nel progetto')).toBeLessThan(nomi.indexOf('Lo Storage del locale'))
+    })
   })
 
   // L'app usa firebase/storage e il deploy pubblica storage.rules: senza il

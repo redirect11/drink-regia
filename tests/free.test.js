@@ -19,7 +19,7 @@ const inVendita = f.venditaPulita({ free: true })
 describe('il listino', () => {
   it('il Free è gratuito, a un terminale, senza moduli, col profilo leggero e i limiti decisi', () => {
     expect(listino.piani.free).toMatchObject({ nome: 'Free', prezzo: 0, gratuito: true, terminali: 1, include: [], profilo: 'leggero' })
-    expect(f.limitiDi('free')).toEqual({ prodotti_max: 10, conti_aperti_max: 5, sconti: false, storico_giorni: 7, marchio: true })
+    expect(f.limitiDi('free')).toEqual({ prodotti_max: 10, conti_aperti_max: 5, sconti: false, storico_giorni: 7, utenti_max: 1, marchio: true })
     expect(f.eGratuito('free')).toBe(true)
     expect(f.eGratuito('base')).toBe(false)
   })

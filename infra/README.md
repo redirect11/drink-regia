@@ -4,7 +4,8 @@
 Firebase, Firestore, Hosting, web app e Auth. Lo applica il workflow
 `.github/workflows/provisiona-istanza.yml` a ogni attivazione
 (REQ-FLOTTA-006); `aggiorna-istanza.yml` pubblica una versione nuova
-dell'app senza Terraform (REQ-FLOTTA-009). Il perché sta in
+dell'app (REQ-FLOTTA-009), col Terraform solo per un locale Free che
+passa al profilo completo. Il perché sta in
 [docs/flotta-nella-regia.md](../docs/flotta-nella-regia.md).
 
 Lo stato di Terraform sta nel bucket GCS `drink-regia-tfstate`, una
@@ -67,6 +68,23 @@ soltanto.
      link di download che `scaricaArchivio` dà al titolare. Nessun altro.
    Il workflow usa `gcloud`: il runner di GitHub ce l'ha, e lo autentica
    `google-github-actions/auth` con la stessa chiave di provisioning.
+
+## I due profili
+
+La variabile `profilo` (input omonimo dei workflow) decide che cosa nasce:
+
+- **completo**, il predefinito: tutte le API, gli agenti di Eventarc e
+  Pub/Sub, poi Storage, segreti e Functions dal workflow;
+- **leggero**, il piano Free (REQ-FLOTTA-015): solo le API di Firebase,
+  Firestore, regole, Hosting, accesso e App Check, senza le API e gli
+  agenti delle Functions. Anche il leggero ha l'account di fatturazione:
+  senza, Google non accende l'accesso con email (`BILLING_NOT_ENABLED`,
+  provato su `drinkpos-prova-free` il 30/10/2026). Il costo resta zero
+  perché database, sito e accesso stanno nelle soglie gratuite.
+
+Quando un locale Free compra, `aggiorna-istanza.yml` col profilo completo
+rifà l'apply se nello stato manca l'API delle Functions. Un progetto
+senza stato (un locale esistente, come la Tana) non lo tocca.
 
 ## Gli slug di prova
 
