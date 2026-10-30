@@ -196,6 +196,9 @@ jobs:
           BASE_PATH: /
           CLIENTE: ${{ inputs.slug }}
           VITE_APP_ENV: production
+          # L'app sa di essere leggera anche prima di leggere la licenza
+          # (tana-drink, REQ-LIC-004): niente Functions, Storage, SumUp.
+          VITE_PROFILO: ${{ inputs.profilo }}
         run: npm run build
 
       - name: Functions .env del progetto

@@ -511,7 +511,9 @@ moduli, la licenza nell'istanza e la Tana.
   per il Free, e `null` per i piani a pagamento. L'app applica i limiti solo
   se la voce c'è: senza, nessun limite (la Tana non ha la voce). Un locale
   Free si pubblica col profilo leggero (`--only firestore,hosting`): l'app
-  deve lavorare senza le sue Functions e senza Storage.
+  deve lavorare senza le sue Functions e senza Storage. La regia passa anche
+  `VITE_PROFILO` (completo o leggero) a ogni build delle istanze. Fatto in
+  tana-drink il 30/10/2026 (PR #239, #240: REQ-LIC-003, REQ-LIC-004).
 - **Le prove dei moduli** (REQ-FLOTTA-016): un modulo in prova è acceso in
   `licenza.moduli` come uno comprato, e `licenza.prove` = `{ magazzino:
   '<scadenza ISO>' }` dice fino a quando. L'app può mostrarlo («in prova
