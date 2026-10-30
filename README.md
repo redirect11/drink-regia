@@ -24,10 +24,10 @@ npm run build
 ```
 
 **Due progetti Firebase**, come tana-drink: `drink-regia-test` per
-provare e `drink-regia` per la produzione. Un push non pubblica mai: un
-tag su un commit fuori da `main` (o il lancio a mano di «Deploy to
-Firebase») va sul test, un tag su `main` va in produzione dopo
-un'approvazione su GitHub (`docs/handover.md` §3,
+provare e `drink-regia` per la produzione. Un push su `develop` va sul
+test; in produzione va solo un tag su `main`, e un tag fuori da `main`
+non pubblica niente. Il lancio a mano di «Deploy to Firebase» su un ramo
+va sul test (`docs/handover.md` §3,
 `docs/actions-come-tana-drink.md`). I segreti stanno nelle GitHub
 Environments `test` e `production`, stessi nomi e valori del loro
 progetto: i quattro `VITE_FIREBASE_*` (`scripts/segreti-environment.mjs`

@@ -197,7 +197,7 @@ requirements:
     test_cases:
       - tests/requisiti.test.js
   - id: REQ-DEV-002
-    title: "Le Actions come tana-drink: un push non pubblica, il tag va sul test o in produzione, con un progetto Firebase di test"
+    title: "Le Actions della regia: develop va sul test, il tag su main in produzione, con un progetto Firebase di test"
     area: ".github/workflows/test.yml, firebase-hosting.yml, deploy.yml, vitest.config.mjs, src/App.jsx (nastro TEST), scripts/abilita-api.mjs, scripts/abilita-accesso-email.mjs, scripts/segreti-environment.mjs, functions/.env.<progetto>, functions/piani.json"
     description: >
       Lo stesso modello di pubblicazione di tana-drink
@@ -206,10 +206,15 @@ requirements:
       Un push su un ramo qualsiasi (tranne release/**) fa lint, test e
       build e basta; una pull request verso develop o main anche la
       coverage, con soglie per area in vitest.config.mjs che si alzano e
-      non si abbassano. Pubblicano solo il tag e il lancio a mano di «Deploy
-      to Firebase»: il job «Dove va» guarda dove sta il commit, su main e'
-      produzione (drink-regia, environment `production` con approvazione),
-      tutto il resto e' test (drink-regia-test, environment `test`). Il
+      non si abbassano. Dal 30/10/2026 (decisione dell'utente: «develop per
+      test e main per produzione», «il rilascio in produzione solo tag sul
+      main») un push su develop va sul test (drink-regia-test, environment
+      `test`); in produzione (drink-regia, environment `production`) va
+      solo un tag su un commit di main; un tag fuori da main non pubblica
+      niente, il job «Dove va» si ferma e lo dice; il lancio a mano di
+      «Deploy to Firebase» su un ramo va sul test. La regia di test lancia i
+      workflow della flotta da develop (functions/.env.drink-regia-test,
+      FLOTTA_REF), la produzione da main. Il
       deploy riusabile (deploy.yml) ha l'environment scritto a chiare
       lettere e la guardia: se VITE_FIREBASE_PROJECT_ID non coincide col
       progetto di destinazione si ferma. Il sito fuori dalla produzione

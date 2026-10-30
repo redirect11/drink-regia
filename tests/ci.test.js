@@ -38,18 +38,26 @@ describe('test.yml: i test a ogni push, mai un deploy', () => {
   })
 })
 
-describe('firebase-hosting.yml: pubblicano il tag e il lancio a mano', () => {
-  it('parte solo da un tag o da workflow_dispatch', () => {
+// Decisione dell'utente del 30/10/2026: il test segue develop, in
+// produzione va solo il tag su main.
+describe('firebase-hosting.yml: develop va sul test, il tag su main in produzione', () => {
+  it('parte da un push su develop, da un tag o da workflow_dispatch', () => {
     const on = eventi(hosting)
     expect(Object.keys(on).sort()).toEqual(['push', 'workflow_dispatch'])
-    expect(on.push).toEqual({ tags: ['**'] })
+    expect(on.push).toEqual({ branches: ['develop'], tags: ['**'] })
   })
 
-  it('«Dove va»: su main è produzione, tutto il resto è test', () => {
+  it('«Dove va»: solo un tag su main è produzione; un tag fuori da main si ferma; un ramo va sul test', () => {
     const scelta = hosting.jobs.destinazione.steps.find((s) => s.id === 'scelta').run
-    expect(scelta).toMatch(/is-ancestor "\$GITHUB_SHA" origin\/main[\s\S]*ambiente=production/)
-    expect(scelta).toMatch(/else\s+echo "ambiente=test"/)
-    expect(scelta).not.toMatch(/develop|release|hotfix/)
+    expect(scelta).toMatch(/if \[ "\$GITHUB_REF_TYPE" = "tag" \]; then[\s\S]*is-ancestor "\$GITHUB_SHA" origin\/main[\s\S]*ambiente=production/)
+    const ultimoElse = scelta.lastIndexOf('else')
+    // Il tag fuori da main non pubblica da nessuna parte.
+    const tagFuori = scelta.slice(scelta.indexOf('ambiente=production'), ultimoElse)
+    expect(tagFuori).toMatch(/exit 1/)
+    expect(tagFuori).not.toMatch(/ambiente=test/)
+    // Un ramo (develop, o un lancio a mano) va sul test, mai in produzione.
+    expect(scelta.slice(ultimoElse)).toMatch(/echo "ambiente=test"/)
+    expect(scelta.slice(ultimoElse)).not.toMatch(/production/)
   })
 
   it('il test va su drink-regia-test, la produzione su drink-regia, tutti e due col deploy riusabile', () => {
