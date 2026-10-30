@@ -440,9 +440,13 @@ L'elenco completo con i riferimenti al codice è in
    al completo quando il locale compra, il buco di `cambiaScelta` chiuso.
    Restano: in tana-drink le richieste di
    [richieste-tana-drink-free.md](richieste-tana-drink-free.md) (finché non ci
-   sono, il Free resta fuori vendita); il progetto Free senza fatturazione
-   (Spark), da provare su un progetto di prova col
-   permesso dell'utente. Il nome del prodotto è ancora da decidere
+   sono, il Free resta fuori vendita). Il progetto senza fatturazione
+   (Spark) è stato provato il 30/10/2026 su `drinkpos-prova-free` e non
+   regge: Google non accende l'accesso con email (`BILLING_NOT_ENABLED`).
+   Il profilo leggero ha quindi la fatturazione, ma nel Terraform solo
+   database, regole, sito e accesso (infra/README.md, «I due profili»); il
+   Free è a un solo utente, il titolare (`limiti.utenti_max: 1`), perché
+   senza Functions non c'è `staffAdmin`. Il nome del prodotto è ancora da decidere
    (candidati: Floorder, Floorista, Comandry).
 18. **Le prove dei moduli e «Cambia piano» (REQ-FLOTTA-016)**, sullo stesso
    ramo, 30/10/2026: i giorni di prova li decide l'admin nel riquadro
