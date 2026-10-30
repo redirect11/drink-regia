@@ -63,8 +63,11 @@ lo decide l'utente (§9).
 
 ## 3. Per chi è, e cosa promettiamo
 
-**Chi legge:** il titolare o il gestore di un bar, un cocktail bar o un
-locale serale, con 1–3 postazioni. Oggi usa un registratore di cassa,
+**Chi legge:** il titolare o il gestore di un locale della ristorazione —
+un bar, un cocktail bar, un ristorante, una pizzeria —, con 1–3
+postazioni. L'utente, 30/10/2026: il prodotto prende le comande e tiene
+conti e cassa nella ristorazione in generale, non è solo per bar (e non è
+un POS: lo scontrino fiscale resta del registratore del locale). Oggi usa un registratore di cassa,
 un gestionale generico, carta e fogli Excel. Decide da solo o con un
 socio, spesso dal telefono, tra un servizio e l'altro.
 
@@ -181,11 +184,11 @@ fare adesso.
 
 | | Italiano | English |
 |---|---|---|
-| occhiello | Gestionale per bar e cocktail bar | Management app for bars and cocktail bars |
+| occhiello | Comande, conti e cassa per bar e ristoranti | Orders, bills and till for bars and restaurants |
 | titolo **A** (consigliato) | La serata non si ferma. Nemmeno quando cade il Wi-Fi. | The night keeps going. Even when the Wi-Fi doesn't. |
 | titolo B | Tutto il tuo locale in un tablet. E resta tuo. | Your whole bar on one tablet. And it stays yours. |
 | titolo C | Meno tempo alla cassa. Più tempo al banco. | Less time at the till. More time behind the bar. |
-| sottotitolo | Cassa, comande, menù digitale e magazzino in un'unica app pensata per il servizio serale. Ogni locale ha la sua installazione e i suoi dati, separati da tutti gli altri. | Tabs, orders, a digital menu and stock control in one app built for evening service. Every venue gets its own installation and its own data, kept apart from everyone else's. |
+| sottotitolo | Comande, conti, cassa, menù digitale e magazzino in un'unica app pensata per il servizio, al banco e in sala. Ogni locale ha la sua installazione e i suoi dati, separati da tutti gli altri. | Orders, bills, till, a digital menu and stock control in one app built for service, at the bar and on the floor. Every venue gets its own installation and its own data, kept apart from everyone else's. |
 | bottone principale | Attiva il tuo locale | Get started |
 | bottone secondario | Prova la demo | Try the live demo |
 | sotto i bottoni | Da 24 € al mese · Abbonamento mensile · Attivazione automatica | From €24 a month · Monthly subscription · Automatic setup |
@@ -204,8 +207,8 @@ larghezza, testo grande, niente card.
 
 | Italiano | English |
 |---|---|
-| **Venerdì, mezzanotte, locale pieno.** | **Friday, midnight, packed house.** |
-| La rete salta e la cassa si blocca. Una comanda si perde tra il banco e il tavolo. A fine serata nessuno sa quanto gin è uscito davvero. | The network drops and the till freezes. An order gets lost between the bar and the table. At closing time nobody knows how much gin actually went out. |
+| **Venerdì sera, locale pieno.** | **Friday night, a full house.** |
+| La rete salta e la cassa si blocca. Una comanda si perde tra la sala e il banco. A fine serata nessuno sa quante bottiglie sono uscite davvero. | The network drops and the till freezes. An order gets lost between the tables and the bar. At closing time nobody knows how many bottles actually went out. |
 | Lo abbiamo vissuto al nostro banco. Per questo l'abbiamo costruita così. | We lived it behind our own bar. That's why we built it this way. |
 
 ### 5.3 I tre pilastri
@@ -217,7 +220,7 @@ parole e due righe.
 |---|---|
 | **Non si ferma mai.** Conti, comande e incassi continuano anche senza rete. Quando la connessione torna, tutto si allinea da solo. | **It never stops.** Tabs, orders and payments carry on without a connection. When it comes back, everything syncs on its own. |
 | **I tuoi dati sono solo tuoi.** Ogni locale ha la sua installazione, il suo database e il suo indirizzo. Nessun altro locale li vede. | **Your data stays yours.** Every venue has its own installation, its own database and its own address. No other venue can see it. |
-| **Fatta per il servizio.** Nata al banco di un cocktail bar, pensata per lavorare in fretta con il locale pieno. | **Built for service.** Born behind a cocktail bar, designed for working fast on a full night. |
+| **Fatta per il servizio.** Nata al banco di un cocktail bar, pensata per lavorare in fretta con il locale pieno, al banco e in sala. | **Built for service.** Born behind a cocktail bar, designed for working fast on a full night, at the bar and on the floor. |
 
 ### 5.4 Le funzioni
 
@@ -244,10 +247,10 @@ che dice il vantaggio, una frase, tre punti brevi.
   · Always up to date · Orders go straight to the bar · No app to download
 
 **3. Magazzino**
-- IT — *Il magazzino si aggiorna a ogni drink.* Ogni vendita scarica gli
+- IT — *Il magazzino si aggiorna a ogni vendita.* Ogni vendita scarica gli
   ingredienti della ricetta: sai cosa sta finendo prima che finisca. ·
   Giacenze e scorte minime · Inventario periodico · Fatture dei fornitori
-- EN — *Stock updates with every drink.* Each sale deducts the recipe's
+- EN — *Stock updates with every sale.* Each sale deducts the recipe's
   ingredients, so you know what's running low before it runs out. ·
   Stock levels and minimums · Periodic stock counts · Supplier invoices
 
@@ -381,8 +384,16 @@ Accedi), il selettore di lingua, la versione pubblicata (c'è già).
   `src/i18n/home.en.js`), con le stesse chiavi; nessuna frase scritta
   dentro i componenti. Un test controlla che le due lingue abbiano le
   stesse chiavi.
-- **Prezzi e numeri**: dal listino, formattati per lingua
-  (`Intl.NumberFormat`: «24 €» in italiano, «€24» in inglese).
+- **Prezzi e numeri**: dal listino, formattati per lingua («24 €» in
+  italiano, «€24» in inglese) da `importo()` in `src/lib/lingua.js`, a
+  mano come `euro()`: il Node della CI non ha i dati di lingua.
+- **Come è fatto** (30/10/2026): `src/lib/lingua.js` sceglie la lingua
+  dall'indirizzo, legge e scrive la preferenza in `localStorage` (con
+  `try/catch`: se il browser non lascia, non c'è preferenza e la pagina
+  va lo stesso) e propone la lingua del browser, con ripiego
+  sull'italiano per le altre lingue. Solo la preferenza scelta col
+  selettore o con l'avviso porta da `/` a `/en`. Il selettore sta sulla
+  prima pagina soltanto, perché il resto del sito è in italiano.
 - **Il resto del sito** (registrazione, dashboard, termini, privacy) per
   ora resta in italiano. Dalla home inglese, i link che portano lì lo
   dicono («in Italian»). La traduzione dei testi legali va rivista da un
@@ -428,6 +439,14 @@ Accedi), il selettore di lingua, la versione pubblicata (c'è già).
 - [ ] `/en` con `lang`, `hreflang`, titolo e descrizione in inglese.
 - [ ] La nota sullo scontrino non fiscale c'è, in tutte e due le lingue.
 - [ ] `tests/Home.test.jsx` aggiornato; REQ-FLOTTA-002 aggiornato.
+
+Stato al 30/10/2026 (ramo `feature/home-nuova`): fatti tutti tranne le
+schermate (decisione §9.5; la foto del banco resta in JPEG, 50 KB) e la
+misura Lighthouse, che va fatta sul sito di test. Il contrasto è
+calcolato sui token: testo secondario su `--bg-3` 5,9:1, oro `--accent-2`
+su `--bg` 12:1, testo scuro sul bottone 8,9:1, velo della prima schermata
+all'88% perché anche sul punto più chiaro della foto il testo secondario
+resti sopra 4,5:1.
 
 ## 9. Da decidere con l'utente
 

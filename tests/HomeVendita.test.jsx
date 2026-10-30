@@ -43,5 +43,24 @@ describe('la vendita nella prima pagina', () => {
     expect(tabella.queryByText('Pagamenti con lettore SumUp')).toBeNull()
     expect(tabella.getByText('Magazzino e fornitori')).toBeInTheDocument()
     expect(screen.queryByRole('article', { name: 'Piano Free' })).toBeNull()
+    // Sparisce anche fra le funzioni raccontate: niente etichetta di un
+    // modulo che non si può comprare (DESIGN.md §5.4).
+    expect(screen.queryByText('Modulo Pagamenti con lettore SumUp')).toBeNull()
+    expect(screen.getByText('Modulo Magazzino e fornitori')).toBeInTheDocument()
+  })
+
+  it('col Free in vendita la prima schermata lo dice', () => {
+    stato.vendita = venditaPulita({ free: true })
+    mostra()
+    expect(within(screen.getByRole('list', { name: 'In breve' })).getByText('Piano Free per provare')).toBeInTheDocument()
+  })
+
+  it('una funzione i cui moduli sono tutti fuori vendita non si racconta', () => {
+    stato.vendita = venditaPulita({ moduli: { magazzino: false, staff: false, sumup: false } })
+    mostra()
+    expect(screen.queryByRole('heading', { name: 'Il magazzino si aggiorna a ogni vendita.' })).toBeNull()
+    expect(screen.getByRole('heading', { name: 'I numeri della serata, chiari.' })).toBeInTheDocument()
+    // Senza personale e SumUp, la riga delle funzioni minori non c'è.
+    expect(document.querySelector('.funzioni-minori')).toBeNull()
   })
 })
