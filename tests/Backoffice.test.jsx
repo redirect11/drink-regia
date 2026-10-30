@@ -38,8 +38,10 @@ const db = vi.hoisted(() => ({
     return () => {}
   }),
   impostaVendita: vi.fn(async () => {}),
+  elencoContatti: vi.fn(async () => regia.contatti),
+  segnaContatto: vi.fn(async () => {}),
 }))
-const regia = vi.hoisted(() => ({ impostazioni: {}, vendita: { free: false, moduli: {} } }))
+const regia = vi.hoisted(() => ({ impostazioni: {}, vendita: { free: false, moduli: {} }, contatti: [] }))
 vi.mock('../src/lib/db.js', () => db)
 
 import Backoffice from '../src/pages/Backoffice.jsx'
@@ -463,5 +465,41 @@ describe('le prove nel backoffice', () => {
     expect(db.impostaVendita).not.toHaveBeenCalled()
     await user.tab()
     expect(db.impostaVendita).toHaveBeenCalledWith({ prove: { magazzino: 14 } })
+  })
+})
+
+// REQ-FLOTTA-017: i pagamenti online si accendono dal backoffice; spenti,
+// le richieste di contatto dei titolari stanno qui, con piano e recapito.
+describe('i pagamenti online e le richieste di contatto', () => {
+  it('l’interruttore dei pagamenti online scrive la vendita e dice cosa succede', async () => {
+    const user = userEvent.setup()
+    regia.vendita = { free: false, moduli: {} }
+    mostra()
+    const vendita = await screen.findByRole('region', { name: 'Vendita' })
+    const pagamenti = within(vendita).getByLabelText('Pagamenti online con Stripe')
+    expect(pagamenti).not.toBeChecked()
+    expect(vendita).toHaveTextContent(/Niente Checkout/)
+    await user.click(pagamenti)
+    expect(db.impostaVendita).toHaveBeenCalledWith({ pagamenti_online: true })
+  })
+
+  it('le richieste aperte si contano, dicono piano e recapito, e si segnano gestite', async () => {
+    const user = userEvent.setup()
+    regia.contatti = [
+      { uid: 'u9', email: 'bar@example.com', nome_locale: 'Bar Nove', telefono: '+39 333 1234567', nota: 'Di mattina', scelta: { piano: 'base', moduli: ['staff'], terminali: 2 }, stato: 'aperta', chiesta_il: '2026-10-30T10:00:00.000Z' },
+      { uid: 'u8', email: 'otto@example.com', scelta: { piano: 'completo', moduli: [], terminali: 1 }, stato: 'gestita', chiesta_il: '2026-10-29T10:00:00.000Z', gestita_il: '2026-10-29T12:00:00.000Z' },
+    ]
+    mostra()
+    const sezione = await screen.findByRole('region', { name: 'Richieste di contatto' })
+    expect(sezione).toHaveTextContent('1 da gestire')
+    expect(sezione).toHaveTextContent('Bar Nove')
+    expect(sezione).toHaveTextContent('+39 333 1234567')
+    expect(sezione).toHaveTextContent('«Di mattina»')
+    expect(within(sezione).getByRole('link', { name: '+39 333 1234567' })).toHaveAttribute('href', 'tel:+393331234567')
+    await user.click(within(sezione).getByRole('button', { name: 'Segna gestita' }))
+    expect(db.segnaContatto).toHaveBeenCalledWith('u9', 'gestita')
+    await user.click(within(sezione).getByRole('button', { name: 'Riapri' }))
+    expect(db.segnaContatto).toHaveBeenCalledWith('u8', 'aperta')
+    regia.contatti = []
   })
 })

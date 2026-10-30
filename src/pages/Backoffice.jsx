@@ -20,6 +20,8 @@ import {
   gestisciEliminazione,
   osservaVendita,
   impostaVendita,
+  elencoContatti,
+  segnaContatto,
 } from '../lib/db.js'
 import { venditaPulita } from '../lib/vendita.js'
 import { statoIstanza, statoDetto, STATI, progettoDi } from '../lib/istanze.js'
@@ -211,6 +213,7 @@ export default function Backoffice() {
           : 'Deploy automatico spento: le richieste aspettano la tua autorizzazione qui sotto.'}
       </p>
       <Vendita onErrore={setErrore} />
+      <Contatti onErrore={setErrore} />
       {errore && <p className="errore">{errore}</p>}
 
       {nuovo && (
@@ -692,6 +695,15 @@ function Vendita({ onErrore }) {
     <section className="card vendita" aria-label="Vendita">
       <h3>Vendita</h3>
       <label className="opzione interruttore">
+        <input type="checkbox" checked={vendita.pagamenti_online} onChange={(e) => cambia({ pagamenti_online: e.target.checked })} />
+        Pagamenti online con Stripe
+      </label>
+      <p className="muted small">
+        {vendita.pagamenti_online
+          ? 'Chi sceglie un piano a pagamento va al Checkout di Stripe, e la ricarica AI si paga online.'
+          : 'Niente Checkout: chi sceglie un piano a pagamento ci lascia un recapito (Richieste di contatto, qui sotto). Si concorda il pagamento e si attiva il piano con «Cambia piano», fuori da Stripe.'}
+      </p>
+      <label className="opzione interruttore">
         <input type="checkbox" checked={vendita.free} onChange={(e) => cambia({ free: e.target.checked })} />
         Piano Free in vendita
       </label>
@@ -716,6 +728,56 @@ function Vendita({ onErrore }) {
         Un modulo tolto dalla vendita non si compra più; chi lo ha lo tiene. I giorni di prova: 0 vuol dire che il modulo non si
         prova; il titolare lo prova una volta sola, dalla sua dashboard (REQ-FLOTTA-016).
       </p>
+    </section>
+  )
+}
+
+// LE RICHIESTE DI CONTATTO (REQ-FLOTTA-017): coi pagamenti online spenti
+// il titolare sceglie il piano e lascia un recapito. L'admin lo contatta,
+// concorda il pagamento, attiva il piano con «Cambia piano» fuori da Stripe
+// sulla scheda del locale, e segna la richiesta gestita.
+function Contatti({ onErrore }) {
+  const [elenco, setElenco] = useState(null)
+  // Si rilegge l'elenco a ogni richiesta segnata.
+  const [giro, setGiro] = useState(0)
+  useEffect(() => {
+    elencoContatti()
+      .then(setElenco)
+      .catch((e) => onErrore(e.message))
+  }, [giro, onErrore])
+  if (!elenco?.length) return null
+  const segna = (c, stato) =>
+    segnaContatto(c.uid, stato)
+      .then(() => setGiro((g) => g + 1))
+      .catch((e) => onErrore(e.message))
+  const aperte = elenco.filter((c) => c.stato === 'aperta')
+  return (
+    <section className="card" aria-label="Richieste di contatto">
+      <h3>Richieste di contatto {aperte.length > 0 && <span className="muted small">· {aperte.length} da gestire</span>}</h3>
+      <ul className="contatti">
+        {elenco.map((c) => (
+          <li key={c.uid} className={c.stato === 'aperta' ? 'aperta' : 'gestita'}>
+            <strong>{c.nome_locale || c.email}</strong> · {PIANI[c.scelta?.piano]?.nome || c.scelta?.piano}
+            {c.scelta?.moduli?.length > 0 && ` + ${c.scelta.moduli.map((id) => MODULI.find((m) => m.id === id)?.nome || id).join(', ')}`}
+            {c.scelta?.terminali > 1 && ` · ${c.scelta.terminali} terminali`} · {euro(prezzoMensile(c.scelta || {}))} / mese
+            <div className="muted small">
+              <a href={`mailto:${c.email}`}>{c.email}</a>
+              {c.telefono && (
+                <>
+                  {' · '}
+                  <a href={`tel:${c.telefono.replace(/[^+0-9]/g, '')}`}>{c.telefono}</a>
+                </>
+              )}
+              {' · '}chiesta il {new Date(c.chiesta_il).toLocaleDateString('it-IT')}
+              {c.stato === 'gestita' && c.gestita_il && ` · gestita il ${new Date(c.gestita_il).toLocaleDateString('it-IT')}`}
+            </div>
+            {c.nota && <div className="small">«{c.nota}»</div>}
+            <button type="button" className="btn ghost small" onClick={() => segna(c, c.stato === 'aperta' ? 'gestita' : 'aperta')}>
+              {c.stato === 'aperta' ? 'Segna gestita' : 'Riapri'}
+            </button>
+          </li>
+        ))}
+      </ul>
     </section>
   )
 }

@@ -10,7 +10,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import '@testing-library/jest-dom/vitest'
 
-const stato = vi.hoisted(() => ({ cassetto: null }))
+const stato = vi.hoisted(() => ({ cassetto: null, vendita: { pagamenti_online: true } }))
 const db = vi.hoisted(() => ({
   osservaCassettoAI: vi.fn((slug, cb) => {
     cb(stato.cassetto)
@@ -18,6 +18,10 @@ const db = vi.hoisted(() => ({
   }),
   ultimiConsumiAI: vi.fn(async () => []),
   avviaRicaricaAI: vi.fn(async () => ({ url: 'https://checkout.stripe.com/c/pay/x' })),
+  osservaVendita: vi.fn((cb) => {
+    cb(stato.vendita)
+    return () => {}
+  }),
 }))
 vi.mock('../src/lib/db.js', () => db)
 
@@ -27,6 +31,7 @@ import { meseDi, euroCent, statoCredito, PACCHETTI_AI } from '../src/lib/ai.js'
 beforeEach(() => {
   vi.clearAllMocks()
   stato.cassetto = null
+  stato.vendita = { pagamenti_online: true }
 })
 
 describe('il credito AI nella dashboard', () => {
@@ -94,5 +99,17 @@ describe('i conti in euro', () => {
     expect(euroCent(0)).toBe('0,00 €')
     expect(statoCredito({ credito_microeuro: 1_000_000, mese: '2000-01', speso_mese_microeuro: 9_000_000 }).spesoMese).toBe(0)
     expect(statoCredito(null)).toBeNull()
+  })
+})
+
+// REQ-FLOTTA-017: anche la ricarica passa da Stripe; coi pagamenti spenti
+// non si mostra, e la fa l'admin.
+describe('il credito AI coi pagamenti online spenti', () => {
+  it('niente tasti di ricarica: si scrive, e ricarica l’admin', async () => {
+    stato.vendita = {}
+    stato.cassetto = { credito: 500, tetto: 2000, attivo: true, speso_mese: {} }
+    render(<CreditoAI slug="bar-mario" istanzaAttiva />)
+    expect(await screen.findByTestId('ricarica-a-mano')).toHaveTextContent('I pagamenti online non sono ancora attivi')
+    expect(screen.queryByRole('button', { name: /Ricarica/ })).not.toBeInTheDocument()
   })
 })
