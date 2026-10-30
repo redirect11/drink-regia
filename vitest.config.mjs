@@ -29,7 +29,9 @@ export default defineConfig({
       thresholds: {
         'functions/lib/**/*.js': { statements: 96, branches: 70, functions: 95, lines: 96 },
         'src/*.{js,jsx}': { statements: 85, branches: 90, functions: 60, lines: 85 },
-        'src/lib/**': { statements: 57, branches: 80, functions: 90, lines: 57 },
+        // 30/10/2026: db.js ha il suo test (tests/db.test.js), src/lib misura
+        // 97,3/88,1/98,9/97,3.
+        'src/lib/**': { statements: 96, branches: 86, functions: 97, lines: 96 },
         'src/pages/**': { statements: 80, branches: 80, functions: 70, lines: 80 },
       },
     },

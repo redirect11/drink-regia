@@ -303,6 +303,37 @@ export async function impostaVendita(cambio, chi = auth?.currentUser?.email || n
   await addDoc(collection(db, 'vendita', 'listino', 'storico'), { cambio, il, da: chi })
 }
 
+// Coi pagamenti online spenti (REQ-FLOTTA-017) il titolare chiede di
+// essere contattato: { piano, moduli, terminali, telefono, nota }.
+export async function chiediContatto(dati) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'chiediContatto')
+  const { data } = await fn(dati)
+  return data
+}
+
+// La richiesta di contatto del titolare, se c'è.
+export function osservaContatto(uid, cb) {
+  if (!configurata || !uid) {
+    cb(null)
+    return () => {}
+  }
+  return onSnapshot(doc(db, 'contatti', uid), (s) => cb(s.exists() ? s.data() : null), () => cb(null))
+}
+
+// L'admin: le richieste di contatto, le più recenti prima.
+export async function elencoContatti() {
+  serve()
+  const snap = await getDocs(query(collection(db, 'contatti'), orderBy('chiesta_il', 'desc')))
+  return snap.docs.map((d) => ({ uid: d.id, ...d.data() }))
+}
+
+// L'admin segna una richiesta come gestita (o la riapre).
+export async function segnaContatto(uid, stato, chi = auth?.currentUser?.email || null) {
+  serve()
+  await updateDoc(doc(db, 'contatti', uid), { stato, gestita_il: stato === 'gestita' ? new Date().toISOString() : null, gestita_da: stato === 'gestita' ? chi : null })
+}
+
 // Il titolare sceglie il Free: il server controlla che sia in vendita.
 export async function scegliFree() {
   serve()

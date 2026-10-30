@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { PIANI, MODULI, TERMINALE_IN_PIU, ATTIVAZIONE, prezzoMensile, euro } from '../lib/piani.js'
-import { avviaPagamento, cambiaScelta, osservaVendita, scegliFree } from '../lib/db.js'
+import { avviaPagamento, cambiaScelta, chiediContatto, osservaContatto, osservaVendita, scegliFree } from '../lib/db.js'
+import { EMAIL_CONTATTI } from '../lib/prodotto.js'
 import { venditaPulita, pianiInVendita, moduloVisibile, eGratuito } from '../lib/vendita.js'
 
 // LA SCELTA DEL PIANO (REQ-FLOTTA-007): piano, moduli in più, terminali;
@@ -13,6 +14,9 @@ import { venditaPulita, pianiInVendita, moduloVisibile, eGratuito } from '../lib
 // a chi cambia un abbonamento a pagamento; non ha moduli né terminali in
 // più, e si attiva senza pagamento. Un modulo tolto dalla vendita non si
 // mostra, a meno che il cliente non lo abbia già.
+// PAGAMENTI ONLINE SPENTI (REQ-FLOTTA-017): finché l'admin non li accende,
+// al posto del Checkout il titolare lascia un recapito e lo contattiamo
+// noi; il pagamento si concorda fuori dal sito e il piano lo attiva l'admin.
 export default function SceltaPiano({ cliente, modifica = false, vai = (url) => window.location.assign(url) }) {
   const [vendita, setVendita] = useState(() => venditaPulita(null))
   useEffect(() => osservaVendita((v) => setVendita(venditaPulita(v))), [])
@@ -22,7 +26,13 @@ export default function SceltaPiano({ cliente, modifica = false, vai = (url) => 
   const [errore, setErrore] = useState(null)
   const [inCorso, setInCorso] = useState(false)
   const [fatto, setFatto] = useState(null)
+  const [telefono, setTelefono] = useState('')
+  const [nota, setNota] = useState('')
+  const [contatto, setContatto] = useState(null)
+  useEffect(() => osservaContatto(cliente.uid, setContatto), [cliente.uid])
   const gratuito = eGratuito(piano)
+  // Il Checkout serve solo a chi comincia un piano a pagamento.
+  const daContattare = !gratuito && !modifica && !vendita.pagamenti_online
   const scelta = gratuito ? { piano, moduli: [], terminali: 1 } : { piano, moduli, terminali }
   const p = PIANI[piano]
   const inclusi = new Set(p.include)
@@ -37,6 +47,12 @@ export default function SceltaPiano({ cliente, modifica = false, vai = (url) => 
       if (gratuito) {
         await scegliFree()
         setFatto('Piano Free attivo: ora puoi attivare il locale.')
+        setInCorso(false)
+        return
+      }
+      if (daContattare) {
+        await chiediContatto({ ...scelta, telefono, nota })
+        setFatto(`Richiesta inviata: ti contattiamo a ${cliente.email || 'la tua email'}${telefono ? ` o al ${telefono}` : ''}.`)
         setInCorso(false)
         return
       }
@@ -88,10 +104,28 @@ export default function SceltaPiano({ cliente, modifica = false, vai = (url) => 
         {euro(prezzoMensile(scelta))}{' '}
         <span className="muted small">{gratuito ? '/ mese, senza pagamento' : `/ mese, IVA esclusa · attivazione ${euro(ATTIVAZIONE)} una volta`}</span>
       </p>
+      {daContattare && (
+        <div className="contatto" data-testid="contatto">
+          <p className="muted small">
+            I pagamenti online non sono ancora attivi. Lasciaci un recapito: ti contattiamo per attivare il piano e concordare il
+            pagamento. Puoi anche scriverci a <a href={`mailto:${EMAIL_CONTATTI}`}>{EMAIL_CONTATTI}</a>.
+          </p>
+          {contatto?.stato === 'aperta' && (
+            <p className="muted small" data-testid="contatto-aperto">
+              Hai già chiesto di essere contattato il {new Date(contatto.chiesta_il).toLocaleDateString('it-IT')}: una richiesta
+              nuova prende il posto di quella.
+            </p>
+          )}
+          <label htmlFor="telefono">Telefono (facoltativo)</label>
+          <input id="telefono" type="tel" value={telefono} maxLength={20} onChange={(e) => setTelefono(e.target.value)} />
+          <label htmlFor="nota">Una nota (facoltativa: orari, domande)</label>
+          <textarea id="nota" rows={2} maxLength={500} value={nota} onChange={(e) => setNota(e.target.value)} />
+        </div>
+      )}
       {errore && <p className="errore">{errore}</p>}
       {fatto && <p className="muted small">{fatto}</p>}
       <button type="button" className="btn" disabled={inCorso} onClick={conferma}>
-        {inCorso ? 'Un momento…' : gratuito ? 'Attiva il Free' : modifica ? 'Aggiorna il piano' : 'Vai al pagamento'}
+        {inCorso ? 'Un momento…' : gratuito ? 'Attiva il Free' : modifica ? 'Aggiorna il piano' : daContattare ? 'Chiedi di essere contattato' : 'Vai al pagamento'}
       </button>
     </section>
   )

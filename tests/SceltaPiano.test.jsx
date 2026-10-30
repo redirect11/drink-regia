@@ -9,11 +9,16 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import '@testing-library/jest-dom/vitest'
 
-const stato = vi.hoisted(() => ({ vendita: null }))
+const stato = vi.hoisted(() => ({ vendita: null, contatto: null }))
 const db = vi.hoisted(() => ({
   avviaPagamento: vi.fn(),
   cambiaScelta: vi.fn(),
   scegliFree: vi.fn(async () => ({ ok: true })),
+  chiediContatto: vi.fn(async () => ({ ok: true })),
+  osservaContatto: vi.fn((uid, cb) => {
+    cb(stato.contatto)
+    return () => {}
+  }),
   osservaVendita: vi.fn((cb) => {
     cb(stato.vendita)
     return () => {}
@@ -27,7 +32,9 @@ import { venditaPulita } from '../src/lib/vendita.js'
 
 beforeEach(() => {
   vi.clearAllMocks()
-  stato.vendita = venditaPulita(null)
+  // I test di sempre: i pagamenti online accesi. Spenti, più sotto.
+  stato.vendita = venditaPulita({ pagamenti_online: true })
+  stato.contatto = null
 })
 
 describe('la scelta del piano', () => {
@@ -119,5 +126,51 @@ describe('la scelta del piano', () => {
     unmount()
     render(<SceltaPiano cliente={{ uid: 'u1', piano: 'base', moduli: ['sumup'] }} modifica />)
     expect(screen.getByLabelText(/Pagamenti con lettore SumUp/)).toBeChecked()
+  })
+})
+
+// REQ-FLOTTA-017, decisione dell'utente del 30/10/2026: in produzione i
+// pagamenti online si tengono spenti finché non si è pronti a riceverli.
+// Allora niente Checkout: il titolare lascia un recapito e lo contattiamo.
+describe('coi pagamenti online spenti', () => {
+  beforeEach(() => {
+    stato.vendita = venditaPulita(null)
+  })
+
+  it('sono spenti se l’admin non li accende', () => {
+    expect(venditaPulita(null).pagamenti_online).toBe(false)
+    expect(venditaPulita({ pagamenti_online: 'sì' }).pagamenti_online).toBe(false)
+    expect(venditaPulita({ pagamenti_online: true }).pagamenti_online).toBe(true)
+  })
+
+  it('al posto del pagamento si chiede di essere contattati, col piano scelto e il recapito', async () => {
+    const user = userEvent.setup()
+    render(<SceltaPiano cliente={{ uid: 'u1', email: 'bar@example.com' }} />)
+    expect(screen.queryByRole('button', { name: 'Vai al pagamento' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('contatto')).toHaveTextContent('I pagamenti online non sono ancora attivi')
+    await user.type(screen.getByLabelText(/Telefono/), '+39 333 1234567')
+    await user.type(screen.getByLabelText(/nota/), 'Meglio di mattina')
+    await user.click(screen.getByRole('button', { name: 'Chiedi di essere contattato' }))
+    expect(db.chiediContatto).toHaveBeenCalledWith({ piano: 'base', moduli: [], terminali: 1, telefono: '+39 333 1234567', nota: 'Meglio di mattina' })
+    expect(db.avviaPagamento).not.toHaveBeenCalled()
+    expect(await screen.findByText(/Richiesta inviata: ti contattiamo a bar@example.com o al \+39 333 1234567/)).toBeInTheDocument()
+  })
+
+  it('una richiesta già aperta si vede, e una nuova la sostituisce', () => {
+    stato.contatto = { stato: 'aperta', chiesta_il: '2026-10-30T10:00:00.000Z' }
+    render(<SceltaPiano cliente={{ uid: 'u1' }} />)
+    expect(screen.getByTestId('contatto-aperto')).toHaveTextContent('30/10/2026')
+  })
+
+  it('il Free e il cambio di un abbonamento non passano dal contatto', () => {
+    stato.vendita = venditaPulita({ free: true })
+    const { unmount } = render(<SceltaPiano cliente={{ uid: 'u1' }} />)
+    fireEvent.click(screen.getByLabelText(/Free/))
+    expect(screen.queryByTestId('contatto')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Attiva il Free' })).toBeInTheDocument()
+    unmount()
+    render(<SceltaPiano cliente={{ uid: 'u1', piano: 'base' }} modifica />)
+    expect(screen.queryByTestId('contatto')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Aggiorna il piano' })).toBeInTheDocument()
   })
 })

@@ -31,7 +31,8 @@ export function Termini() {
       <h2>3. Abbonamento, prezzi e pagamenti</h2>
       <p>
         I prezzi sono quelli pubblicati nella pagina dei piani al momento della sottoscrizione, al mese, IVA esclusa, oltre al
-        costo di attivazione una tantum. Il pagamento avviene tramite il fornitore di pagamenti indicato. La fattura viene
+        costo di attivazione una tantum. Il pagamento avviene tramite il fornitore di pagamenti indicato, oppure con i mezzi
+        concordati con noi prima dell’attivazione (ad esempio il bonifico). La fattura viene
         emessa ai dati di fatturazione forniti in registrazione. Il mancato pagamento sospende il servizio dopo il termine
         indicato nell’avviso.
       </p>

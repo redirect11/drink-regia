@@ -18,6 +18,8 @@ const giorniDiProva = (g) => {
 export function venditaPulita(doc) {
   return {
     free: doc?.free === true,
+    // Spenti finché l'admin non li accende (REQ-FLOTTA-017).
+    pagamenti_online: doc?.pagamenti_online === true,
     moduli: Object.fromEntries(MODULI.map((m) => [m.id, doc?.moduli?.[m.id] !== false])),
     prove: Object.fromEntries(MODULI.map((m) => [m.id, giorniDiProva(doc?.prove?.[m.id])])),
   }
