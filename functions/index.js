@@ -24,7 +24,7 @@ const rilasci = require('./lib/rilasci.js')
 const { patchLicenzaPiano, sceltaCambiata } = require('./lib/licenza.js')
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
 const { FieldValue } = require('firebase-admin/firestore')
-const { righeCheckout, metadatiDi, aggiornamentoDaEvento } = require('./lib/abbonamento.js')
+const { chiaveStripeVera, righeCheckout, metadatiDi, aggiornamentoDaEvento } = require('./lib/abbonamento.js')
 const { onSchedule } = require('firebase-functions/v2/scheduler')
 const { patchLicenza, daSospendere, STATI: STATI_LICENZA } = require('./lib/sospensione.js')
 const { initializeApp: initializeAppCon, getApps } = require('firebase-admin/app')
@@ -189,7 +189,7 @@ exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK
 
 const stripeClient = () => {
   const chiave = STRIPE_SECRET_KEY.value()
-  if (!chiave) return null
+  if (!chiaveStripeVera(chiave)) return null
   // Caricato qui e non in cima: senza chiave la regia lavora lo stesso.
   const Stripe = require('stripe')
   return new Stripe(chiave)
