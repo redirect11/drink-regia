@@ -103,7 +103,7 @@ function sceltaCambiata(prima, dopo) {
 // Attenzione (BUG-125): con l'app nuova un locale SENZA licenza/attuale
 // mostra «Installazione non attivata». La copia va fatta per tutti i locali
 // e verificata prima di quel rilascio.
-function licenzaProtetta(ist, cliente, { slug, regiaUrl = null, adesso = new Date() } = {}) {
+function licenzaProtetta(ist, cliente, { slug, regiaUrl = null, sceltaUrl = null, adesso = new Date() } = {}) {
   // Tornato al Free per un pagamento mancato (REQ-FLOTTA-020): il suo piano
   // torna col pagamento, non qui.
   const scelta = ist?.ripiego_free ? { piano: 'free' } : cliente
@@ -119,7 +119,7 @@ function licenzaProtetta(ist, cliente, { slug, regiaUrl = null, adesso = new Dat
     dal: ist?.licenza_dal || null,
     slug: slug || cliente?.slug || null,
     regia_url: regiaUrl,
-    aggiornamenti: licenzaAggiornamenti(ist, cliente, adesso),
+    aggiornamenti: licenzaAggiornamenti(ist, cliente, adesso, { sceltaUrl }),
     scritta_il: adesso.toISOString(),
   }
 }

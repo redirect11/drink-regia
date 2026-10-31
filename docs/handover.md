@@ -529,9 +529,9 @@ L'elenco completo con i riferimenti al codice è in
    Editor. **Dopo il deploy**: «Programma le scadenze» in «Rilasci», una
    volta. **In Stripe**, quando si accendono i pagamenti online: Billing →
    tentativi (Smart Retries) e, a tentativi finiti, «segna l'abbonamento
-   come non pagato» (non «cancellalo»: chiuderebbe il locale). Resta un solo
-   giro a tempo, `leggiScelteAggiornamenti` ogni 10 minuti (REQ-FLOTTA-020),
-   da sostituire con una chiamata dell'app alla regia.
+   come non pagato» (non «cancellalo»: chiuderebbe il locale). Nella regia
+   non resta nessuna Function a tempo: anche la scelta del titolare
+   dall'app è una chiamata (`sceltaDallApp`, REQ-FLOTTA-020).
 
 ---
 
@@ -605,10 +605,18 @@ moduli, la licenza nell'istanza e la Tana.
   La regia scrive `settings/bar.licenza.aggiornamenti` = `{ modalita:
   'obbligatori' | 'a_scelta', inclusi, motivo: null | 'free' | 'non_pagato',
   proposta: null | { tag, note, proposta_il, saltata_il }, avviso: null |
-  { id, testo, dal } }` (`licenzaAggiornamenti`). L'app, col ruolo del
-  titolare, scrive la scelta in `aggiornamenti/scelta` = `{ tag, scelta:
-  'aggiorna' | 'salta', il, da }` nel database del locale; la Function
-  `leggiScelteAggiornamenti` la legge ogni dieci minuti. Le note sono le
+  { id, testo, dal }, scelta_url }` (`licenzaAggiornamenti`, dentro
+  `licenza/attuale`). La scelta del titolare l'app la manda con una
+  chiamata: `POST <scelta_url>` con `Authorization: Bearer <ID token del
+  titolare>`, il token che Firebase dà all'app nel progetto del locale, e
+  il corpo `{ "tag": "vX.Y.Z", "scelta": "aggiorna" | "salta" }`. La regia
+  (`sceltaDallApp`) riconosce il locale dal progetto del token, lo
+  verifica, vuole il ruolo `admin` (il titolare) e applica subito.
+  Risposte: `200 { ok, scelta }`; `400` corpo sbagliato; `401` token
+  mancante o non valido; `403` non è il titolare; `404` locale
+  sconosciuto; `409` la proposta non è più quella; `502` l'aggiornamento
+  non è partito, con `errore`. Dal 31/10/2026 al posto del documento
+  `aggiornamenti/scelta` letto ogni dieci minuti. Le note sono le
   sezioni `## X.Y.Z — data` del `CHANGELOG.md` di tana-drink al tag: quel
   formato dei titoli è contratto. Senza la voce l'app fa come oggi.
 - **Versione**: le istanze ricevono l'app di tana-drink al `ref` scelto

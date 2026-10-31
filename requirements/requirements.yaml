@@ -832,8 +832,10 @@ requirements:
       note del CHANGELOG di tana-drink dalla sua versione al tag, invece
       del deploy; un locale senza aggiornamenti nel piano resta fuori;
       nessuno dei due ferma l'ondata. Il titolare sceglie «Aggiorna» o
-      «Salta» dalla dashboard, o dall'app, che scrive aggiornamenti/scelta
-      nel database del locale e la regia legge ogni dieci minuti. Con «solo
+      «Salta» dalla dashboard, o dall'app, che chiama la regia
+      (sceltaDallApp) col token d'accesso del titolare: la regia riconosce
+      il locale dal progetto del token, lo verifica e applica subito
+      (prima era un documento letto ogni dieci minuti). Con «solo
       finché si paga» un abbonamento non pagato (REQ-FLOTTA-023) non
       sospende più il locale: lo riporta al Free, e al pagamento torna
       il suo piano; un disdetto si chiude come prima; le installazioni

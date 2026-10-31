@@ -27,7 +27,6 @@ const { sceltaCambiata, licenzaProtetta, stessaLicenza } = require('./lib/licenz
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
 const { FieldValue } = require('firebase-admin/firestore')
 const { chiaveStripeVera, righeCheckout, metadatiDi, aggiornamentoDaEvento } = require('./lib/abbonamento.js')
-const { onSchedule } = require('firebase-functions/v2/scheduler')
 const { onTaskDispatched } = require('firebase-functions/v2/tasks')
 const { getFunctions: funzioniAdmin } = require('firebase-admin/functions')
 const { STATI: STATI_LICENZA } = require('./lib/sospensione.js')
@@ -67,6 +66,10 @@ const APP_REPO = process.env.APP_REPO || 'redirect11/tana-drink'
 // L'indirizzo di questa regia, che la licenza dà all'app per il «vedi i
 // piani» (functions/.env.<progetto>).
 const REGIA_URL = process.env.REGIA_URL || null
+// Dove l'app manda la scelta del titolare (sceltaDallApp, REQ-FLOTTA-020):
+// l'indirizzo di questa Function nel progetto della regia.
+const PROGETTO_REGIA = process.env.GCLOUD_PROJECT || (() => { try { return JSON.parse(process.env.FIREBASE_CONFIG || '{}').projectId } catch { return null } })()
+const SCELTA_URL = PROGETTO_REGIA ? `https://europe-west1-${PROGETTO_REGIA}.cloudfunctions.net/sceltaDallApp` : null
 
 async function dispatchGitHub(workflow, corpo) {
   return fetch(`https://api.github.com/repos/${REPO}/actions/workflows/${workflow}/dispatches`, {
@@ -303,11 +306,11 @@ exports.stripeWebhook = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY, STRIPE
 // Il Firestore di un'istanza, da qui: un'app admin per progetto. Il
 // service account di runtime della regia ha `roles/datastore.user` sul
 // progetto (lo dà Terraform).
-function firestoreDi(progetto) {
+function appDi(progetto) {
   const nome = `istanza-${progetto}`
-  const app = getApps().find((a) => a.name === nome) || initializeAppCon({ projectId: progetto }, nome)
-  return getFirestore(app)
+  return getApps().find((a) => a.name === nome) || initializeAppCon({ projectId: progetto }, nome)
 }
+const firestoreDi = (progetto) => getFirestore(appDi(progetto))
 
 // `per`: chi ha voluto lo stato (admin, pagamento, titolare). Solo una
 // sospensione per il pagamento si toglie da sola quando si torna a pagare
@@ -697,7 +700,7 @@ async function scriviLicenza(slug) {
   const ist = (await ref.get()).data()
   if (!ist) return { ok: false, perche: 'Istanza non trovata.' }
   const cliente = await clienteDi(slug)
-  const lic = licenzaProtetta(ist, cliente, { slug, regiaUrl: REGIA_URL })
+  const lic = licenzaProtetta(ist, cliente, { slug, regiaUrl: REGIA_URL, sceltaUrl: SCELTA_URL })
   const { modalita, inclusi, motivo } = lic.aggiornamenti
   await ref.set({ regola_aggiornamenti: { modalita, inclusi, motivo } }, { merge: true })
   if (!riceveLicenza(ist)) return { ok: true, scritta: false }
@@ -719,7 +722,7 @@ async function verificaLicenza(slug) {
   const ist = (await ref.get()).data()
   const istanza = firestoreDi(ist.progetto)
   const [protetta, bar] = await Promise.all([istanza.doc(LICENZA_PROTETTA).get(), istanza.doc('settings/bar').get()])
-  const attesa = licenzaProtetta(ist, await clienteDi(slug), { slug, regiaUrl: REGIA_URL })
+  const attesa = licenzaProtetta(ist, await clienteDi(slug), { slug, regiaUrl: REGIA_URL, sceltaUrl: SCELTA_URL })
   let perche = null
   if (!protetta.exists) perche = 'Manca licenza/attuale: con l’app nuova il locale si ferma.'
   else if (!stessaLicenza(protetta.data(), bar.data()?.licenza)) perche = 'licenza/attuale è diversa da settings/bar.licenza.'
@@ -838,25 +841,39 @@ exports.sceltaAggiornamento = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN]
   return { ok: true, scelta }
 })
 
-// La scelta dall'app: il titolare la scrive in `aggiornamenti/scelta` nel
-// database del suo locale, e la regia la va a leggere. Il profilo leggero
-// non ha Functions, e una chiamata dal browser alla regia vorrebbe una
-// chiave nel browser: così non serve niente di nuovo.
-exports.leggiScelteAggiornamenti = onSchedule({ ...OPTS, schedule: 'every 10 minutes', timeZone: 'Europe/Rome', secrets: [GITHUB_DISPATCH_TOKEN] }, async () => {
-  const attese = (await db.collection('istanze').where('proposta_aggiornamento.attesa', '==', true).get()).docs
-  for (const d of attese) {
-    const ist = d.data()
-    if (!ist.progetto || ist.stato !== 'attiva' || !scriveLicenza(ist)) continue
-    try {
-      const s = (await firestoreDi(ist.progetto).doc('aggiornamenti/scelta').get()).data()
-      const scelta = aggiornamenti.sceltaValida(s, ist.proposta_aggiornamento, { giaLetta: ist.proposta_aggiornamento.scelta_letta_il })
-      if (!scelta) continue
-      const perche = await applicaScelta(d.id, scelta, { il: aggiornamenti.dataDi(s.il) || new Date().toISOString(), da: typeof s.da === 'string' ? s.da.slice(0, 128) : null })
-      console.log(`[aggiornamenti] ${d.id}: ${scelta}${perche ? ` non partito: ${perche}` : ''}`)
-    } catch (e) {
-      console.error(`[aggiornamenti] ${d.id}, la scelta:`, e?.message || e)
-    }
+// La scelta dall'app: il titolare tocca «Aggiorna» o «Salta» e l'app chiama
+// qui col suo token d'accesso (Authorization: Bearer <ID token>, corpo
+// { tag, scelta }). La regia riconosce il locale dal progetto del token, lo
+// verifica con quel progetto, controlla che sia il titolare e applica la
+// scelta subito. Niente chiavi nel browser e niente giri a tempo; va bene
+// anche per il Free, che non ha Functions. Il token è nell'intestazione e
+// non ci sono cookie, quindi la chiamata si apre a qualunque origine.
+exports.sceltaDallApp = onRequest({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN], cors: false }, async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*')
+  res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+  res.set('Access-Control-Allow-Methods', 'POST')
+  if (req.method === 'OPTIONS') return res.status(204).send('')
+  if (req.method !== 'POST') return res.status(405).json({ errore: 'Solo POST.' })
+  const token = aggiornamenti.bearerDi(req.get('authorization'))
+  const progetto = aggiornamenti.progettoDelToken(token)
+  if (!progetto) return res.status(401).json({ errore: 'Serve l’accesso.' })
+  const trovata = (await db.collection('istanze').where('progetto', '==', progetto).limit(1).get()).docs[0]
+  const ist = trovata?.data()
+  if (!ist || !riceveLicenza(ist)) return res.status(404).json({ errore: 'Locale sconosciuto.' })
+  let chi
+  try {
+    chi = await getAuth(appDi(progetto)).verifyIdToken(token)
+  } catch {
+    return res.status(401).json({ errore: 'Accesso non valido: entra di nuovo.' })
   }
+  if (!aggiornamenti.eTitolare(chi)) return res.status(403).json({ errore: 'La sceglie il titolare.' })
+  const corpo = aggiornamenti.corpoScelta(req.body)
+  if (!corpo) return res.status(400).json({ errore: 'Scelta non valida.' })
+  const scelta = aggiornamenti.sceltaValida({ ...corpo, il: new Date().toISOString() }, ist.proposta_aggiornamento)
+  if (!scelta) return res.status(409).json({ errore: 'Questa proposta non è più valida.' })
+  const perche = await applicaScelta(trovata.id, scelta, { da: chi.email || chi.uid })
+  if (perche) return res.status(502).json({ errore: perche })
+  return res.status(200).json({ ok: true, scelta })
 })
 
 // ── IL PIANO CHE CAMBIA (REQ-FLOTTA-010) ──────────────────────────────
