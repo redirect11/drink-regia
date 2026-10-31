@@ -824,7 +824,7 @@ describe('le regole degli aggiornamenti nel backoffice', () => {
     const salva = within(riquadro).getByRole('button', { name: 'Salva le regole' })
     // Niente di cambiato, niente da salvare.
     expect(salva).toBeDisabled()
-    expect(riquadro).toHaveTextContent('vanno aggiornati i termini del servizio')
+    expect(riquadro).toHaveTextContent('I termini del servizio (punti 3 e 5) descrivono già tutte e due le regole.')
     await user.click(within(riquadro).getByRole('checkbox', { name: /A scelta del titolare/ }))
     await user.click(within(riquadro).getByRole('checkbox', { name: /Solo finché si paga/ }))
     await user.click(salva)

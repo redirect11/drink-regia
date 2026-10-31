@@ -12,7 +12,7 @@ data.
   al Free e riceve solo i rilasci obbligatori. Le due regole si accendono
   dal backoffice («Rilasci»); chi ha già un piano le prende al rinnovo e
   riceve un avviso. Un rilascio si può segnare obbligatorio: arriva a tutti
-  (REQ-FLOTTA-020).
+  (REQ-FLOTTA-020). I termini del servizio (punti 3 e 5) lo dicono.
 - La demo della prima pagina non scrive più nel suo database: la regia la
   pubblica sempre leggera e con il database chiuso a tutti, e la build
   della demo va solo sul suo progetto. I dati di prova e la sessione nel

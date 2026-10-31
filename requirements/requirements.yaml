@@ -839,9 +839,10 @@ requirements:
       il suo piano; un disdetto si chiude come prima; le installazioni
       interne li ricevono sempre. Il contratto con l'app è in
       docs/handover.md §7; in tana-drink è REQ-FLOTTA-020
-      (docs/aggiornamenti-dalla-regia.md). Resta da fare: l'app in
-      tana-drink, e i termini del servizio (§5 dice che gli aggiornamenti
-      si pubblicano senza preavviso) prima di accendere una regola.
+      (docs/aggiornamenti-dalla-regia.md). I termini del servizio (punti 3
+      e 5) dicono le due specie di aggiornamenti e il ritorno al Free, col
+      testo approvato dall'utente il 31/10/2026, come quello dell'avviso.
+      Resta da fare: l'app in tana-drink.
     status: partial
     generate_issue: false
     labels: [prodotto, flotta, regia]
