@@ -712,8 +712,8 @@ function LicenzeProtette({ onErrore, onFatto }) {
     <section className="card" aria-label="Licenze protette">
       <h3>Licenze protette</h3>
       <p className="muted small">
-        La licenza di ogni locale in licenza/attuale, che dall’app non si scrive. Prima di pubblicare l’app che la legge da lì, tutti i
-        locali devono essere pronti: uno senza si ferma.
+        La licenza di ogni locale in licenza/attuale, che dall’app non si scrive. Ogni aggiornamento dalla regia la scrive prima del deploy, e
+        la regia le ricontrolla tutte ogni mattina: qui si vede l’esito, e si rifà a mano.
       </p>
       {controllo ? (
         <p className={pronte ? 'small' : 'errore small'} data-testid="esito-licenze">

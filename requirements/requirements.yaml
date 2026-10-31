@@ -908,9 +908,12 @@ requirements:
       («Rilasci») si allineano e si verificano tutti i locali: esiste, è
       uguale a settings/bar.licenza, è quella dei dati della regia;
       l'esito sta in controlli/licenze, che legge solo l'admin, e sulla
-      scheda del locale. La regia lo rifà da sola ogni mattina. Resta da
-      fare: l'app nuova in tana-drink, dopo «Tutti pronti» su ogni regia;
-      poi smettere di scrivere settings/bar.licenza e cancellarla.
+      scheda del locale. La regia lo rifà da sola ogni mattina. E ogni
+      aggiornamento dalla regia scrive la licenza prima del deploy, e senza
+      non parte: l'app arriva ai locali solo da lì, quindi nessun locale
+      riceve l'app nuova senza la sua licenza. Resta da fare: l'app nuova
+      in tana-drink; poi smettere di scrivere settings/bar.licenza e
+      cancellarla.
     status: partial
     generate_issue: false
     labels: [prodotto, flotta, regia, sicurezza]

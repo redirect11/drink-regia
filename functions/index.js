@@ -409,6 +409,14 @@ async function lanciaAggiornamento(slug, ref, { rilascio = null, ritorno = false
   const esistente = ist.origine === 'esistente'
   const cliente = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]?.data()
   const datiIstanza = { slug, nome_locale: cliente?.nome_locale, ...(esistente ? { progetto: ist.progetto, cliente: ist.cliente, build: ist.build } : {}) }
+  // PRIMA DEL DEPLOY, LA LICENZA PROTETTA (BUG-125 di tana-drink): con
+  // l'app nuova un locale senza licenza/attuale si ferma. L'app arriva a un
+  // locale solo da qui (rilasci, «Aggiorna subito», ritorni, il Free che
+  // compra), quindi scriverla qui vuol dire che nessun locale la riceve
+  // senza la sua licenza, senza aspettare «Allinea tutte». Se non si
+  // scrive, l'aggiornamento non parte.
+  const licenza = await scriviLicenza(slug).catch((e) => ({ ok: false, perche: e?.message || String(e) }))
+  if (!licenza.ok) return `La licenza non si è scritta (${licenza.perche}): l’aggiornamento non parte.`
   const res = await dispatchGitHub(WORKFLOW_AGGIORNA, dispatchAggiornamento(datiIstanza, { ref: REF, app: ref, ambiente: AMBIENTE_FLOTTA, profilo: profilo || ist.profilo || 'completo' }))
   const adesso = new Date()
   if (res.status !== 204) {

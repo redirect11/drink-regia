@@ -512,12 +512,12 @@ L'elenco completo con i riferimenti al codice è in
    intera, calcolata dai suoi dati, in `licenza/attuale` e in
    `settings/bar.licenza` (doppia scrittura). Il backoffice in «Rilasci»
    allinea e verifica tutti i locali (controlli/licenze), e lo fa anche
-   ogni mattina. Ordine: (1) merge e deploy di questa; (2) «Allinea tutte»
-   sulla regia di test e su quella di produzione, finché non dice «Tutti
-   pronti»; (3) dirlo a tana-drink, che solo allora pubblica l'app che legge
-   solo `licenza/attuale`; (4) quando tutti i locali hanno quell'app,
-   smettere di scrivere `settings/bar.licenza` (in `scriviLicenza`) e
-   cancellare il campo.
+   ogni mattina. E `lanciaAggiornamento` la scrive **prima di ogni deploy**,
+   e senza non lancia: l'app arriva ai locali solo da lì, quindi nessuno
+   riceve l'app nuova senza la sua licenza, e tana-drink può pubblicarla
+   senza aspettare l'allineamento. «Allinea tutte» resta un controllo.
+   Dopo, quando tutti i locali hanno l'app nuova: smettere di scrivere
+   `settings/bar.licenza` (in `scriviLicenza`) e cancellare il campo.
 
 ---
 
