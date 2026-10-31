@@ -216,6 +216,24 @@ export async function gestisciLicenze(azione) {
   return data
 }
 
+// ── le scadenze a eventi (REQ-FLOTTA-023) ──
+// Un pagamento fuori da Stripe: fino a quando è pagato. La sua scadenza ha
+// un compito alla data, che il server programma da sé.
+export async function registraPagamento(slug, pagato_fino_al) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'registraPagamento')
+  const { data } = await fn({ slug, pagato_fino_al })
+  return data
+}
+
+// Una volta, dopo il deploy: i compiti per le scadenze che c'erano già.
+export async function programmaScadenze() {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'programmaScadenze', { timeout: 540_000 })
+  const { data } = await fn({})
+  return data
+}
+
 // Il titolare: «aggiorna» o «salta» la versione proposta.
 export async function sceltaAggiornamento(tag, scelta) {
   serve()

@@ -71,8 +71,27 @@ describe('aggiornamentoDaEvento', () => {
     expect(aggiornamentoDaEvento('customer.subscription.updated', { id: 'sub_1', metadata: {} }, ora)).toBeNull()
   })
 
-  it('un pagamento fallito sospende, una disdetta chiude, un evento ignoto non fa niente', () => {
-    expect(aggiornamentoDaEvento('invoice.payment_failed', { subscription: 'sub_1' }, ora).patch['abbonamento.stato']).toBe('in sospeso')
+  // REQ-FLOTTA-023: lo stato del locale lo dice lo stato dell'abbonamento,
+  // non il singolo pagamento. Stripe ritenta (in sospeso), poi, finiti i
+  // tentativi, «non pagato»; il cambio di stato fa il resto.
+  it('lo stato della subscription diventa quello del cliente, col rinnovo', () => {
+    const fine = Date.parse('2026-11-22T00:00:00Z') / 1000
+    const stato = (status, extra = {}) => aggiornamentoDaEvento('customer.subscription.updated', { id: 'sub_1', metadata: {}, status, ...extra }, ora)?.patch
+    expect(stato('past_due')['abbonamento.stato']).toBe('in sospeso')
+    expect(stato('unpaid')['abbonamento.stato']).toBe('non pagato')
+    expect(stato('active')['abbonamento.stato']).toBe('attivo')
+    expect(stato('trialing')['abbonamento.stato']).toBe('attivo')
+    expect(stato('canceled')['abbonamento.stato']).toBe('disdetto')
+    expect(stato('incomplete')).toBeUndefined()
+    expect(stato('active', { current_period_end: fine })['abbonamento.rinnovo_il']).toBe('2026-11-22T00:00:00.000Z')
+    expect(stato('active', { items: { data: [{ current_period_end: fine }] } })['abbonamento.rinnovo_il']).toBe('2026-11-22T00:00:00.000Z')
+    // Piano e stato insieme.
+    expect(aggiornamentoDaEvento('customer.subscription.updated', { id: 'sub_1', status: 'active', metadata: { piano: 'base' } }, ora).patch).toMatchObject({ piano: 'base', 'abbonamento.stato': 'attivo' })
+  })
+
+  it('un pagamento fallito si registra e basta, una disdetta chiude, un evento ignoto non fa niente', () => {
+    // Stripe ritenta: lo stato lo porta la subscription (REQ-FLOTTA-023).
+    expect(aggiornamentoDaEvento('invoice.payment_failed', { subscription: 'sub_1' }, ora).patch).toEqual({ 'abbonamento.ultimo_fallimento': '2026-10-22T10:00:00.000Z' })
     expect(aggiornamentoDaEvento('customer.subscription.deleted', { id: 'sub_1' }, ora)).toEqual({
       stripe_subscription: 'sub_1',
       patch: { 'abbonamento.stato': 'disdetto', 'abbonamento.aggiornato_il': '2026-10-22T10:00:00.000Z' },

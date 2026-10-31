@@ -146,6 +146,15 @@ describe('la licenza protetta, dai dati della regia', () => {
     expect(stessaLicenza(a, null)).toBe(false)
   })
 
+  it('ogni aggiornamento dalla regia la scrive prima del deploy, e senza non parte', () => {
+    const src = readFileSync('functions/index.js', 'utf8')
+    const corpo = src.slice(src.indexOf('async function lanciaAggiornamento('), src.indexOf('async function tutteLeIstanze('))
+    const scritta = corpo.indexOf('await scriviLicenza(slug)')
+    expect(scritta).toBeGreaterThan(0)
+    expect(scritta).toBeLessThan(corpo.indexOf('dispatchGitHub('))
+    expect(corpo).toMatch(/if \(!licenza\.ok\) return /)
+  })
+
   it('l’attivazione la scrive in licenza/attuale prima della consegna', () => {
     const script = readFileSync('scripts/licenza-istanza.mjs', 'utf8')
     const protetta = script.indexOf("db.doc('licenza/attuale').set(patch.licenza)")
