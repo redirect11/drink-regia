@@ -498,6 +498,17 @@ L'elenco completo con i riferimenti al codice è in
    (REQ-FLOTTA-020 e `docs/aggiornamenti-dalla-regia.md`, ramo
    `feature/aggiornamenti-a-scelta`). Per la Tana la
    proposta arriva nell'app solo quando la regia le scriverà la licenza.
+23. **La licenza protetta (BUG-125 di tana-drink, REQ-FLOTTA-022)**, ramo
+   `feature/licenza-protetta`, 31/10/2026. La regia scrive la licenza
+   intera, calcolata dai suoi dati, in `licenza/attuale` e in
+   `settings/bar.licenza` (doppia scrittura). Il backoffice in «Rilasci»
+   allinea e verifica tutti i locali (controlli/licenze), e lo fa anche
+   ogni mattina. Ordine: (1) merge e deploy di questa; (2) «Allinea tutte»
+   sulla regia di test e su quella di produzione, finché non dice «Tutti
+   pronti»; (3) dirlo a tana-drink, che solo allora pubblica l'app che legge
+   solo `licenza/attuale`; (4) quando tutti i locali hanno quell'app,
+   smettere di scrivere `settings/bar.licenza` (in `scriviLicenza`) e
+   cancellare il campo.
 
 ---
 
@@ -554,12 +565,18 @@ moduli, la licenza nell'istanza e la Tana.
   `PROVISIONING_CALLBACK_SECRET`, corpo con `slug`, `stato`, `progetto`,
   `url`, `errore`, `versione`, `ref`, `ambiente`, `operazione` (sotto,
   «Rilasci a ondate»). È l'unico esito che arriva ancora da tana-drink.
-- **Licenza nell'istanza**: `settings/bar.licenza` = `{ piano, moduli:
-  {id: bool}, stato: attiva|sospesa|chiusa, motivo, dal, slug, regia_url,
-  scritta_il }`. La scrive `scripts/licenza-istanza.mjs` della regia alla
-  prima attivazione (con `licenzaIniziale`) e poi le Functions della regia
-  (`impostaStatoIstanza`, `licenzaSegueIlPiano`). L'app la legge in
-  `src/lib/licenza.js`.
+- **Licenza nell'istanza** (BUG-125 di tana-drink, dal 31/10/2026):
+  `licenza/attuale` = `{ piano, moduli: {id: bool}, terminali, limiti,
+  prove, stato: attiva|sospesa|chiusa, motivo, dal, slug, regia_url,
+  aggiornamenti, scritta_il }`. Dall'app la leggono tutti e non la scrive
+  nessuno: prima stava in `settings/bar.licenza`, che ogni bartender può
+  riscrivere. La regia la **calcola dai suoi dati** (`licenzaProtetta` in
+  `functions/lib/licenza.js`) e la scrive intera a ogni cambio, in
+  `licenza/attuale` e, finché tutti i locali non hanno l'app che legge solo
+  quella, anche in `settings/bar.licenza`. La scrivono
+  `scripts/licenza-istanza.mjs` alla prima attivazione, prima della
+  consegna, e poi la sola `scriviLicenza` delle Functions. Con l'app nuova
+  un locale senza `licenza/attuale` mostra «Installazione non attivata».
 - **Gli aggiornamenti obbligatori o a scelta** (REQ-FLOTTA-020, dal
   31/10/2026, per intero in tana-drink, `docs/aggiornamenti-dalla-regia.md`).
   La regia scrive `settings/bar.licenza.aggiornamenti` = `{ modalita:

@@ -7,7 +7,8 @@ import { describe, it, expect } from 'vitest'
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
-const { moduliLicenza, patchLicenzaPiano, licenzaIniziale, sceltaCambiata, TUTTI } = require('../functions/lib/licenza.js')
+const { moduliLicenza, patchLicenzaPiano, licenzaIniziale, sceltaCambiata, licenzaProtetta, stessaLicenza, TUTTI } = require('../functions/lib/licenza.js')
+const { readFileSync } = require('node:fs')
 
 describe('moduliLicenza', () => {
   it('il base senza moduli non accende niente; il magazzino porta conta, fatture e scadenzario; il completo tutto', () => {
@@ -90,5 +91,65 @@ describe('licenzaIniziale', () => {
 
   it('un piano sconosciuto vale come base', () => {
     expect(licenzaIniziale({}, { ...dati, piano: 'oro' }, adesso).licenza.piano).toBe('base')
+  })
+})
+
+// LA LICENZA PROTETTA (BUG-125 di tana-drink): in licenza/attuale, che
+// dall'app nessuno scrive. La regia la CALCOLA dai suoi dati, intera, e non
+// la copia da settings/bar, dove un bartender la può aver riscritta. Stesso
+// contenuto di prima.
+describe('la licenza protetta, dai dati della regia', () => {
+  const ADESSO = new Date('2026-11-01T10:00:00Z')
+  const cliente = { slug: 'bar-mario', piano: 'base', moduli: ['staff'], terminali: 2, abbonamento: { stato: 'attivo' } }
+
+  it('piano, moduli, terminali, limiti e prove dal cliente; stato dall’istanza; la regia e gli aggiornamenti', () => {
+    const lic = licenzaProtetta({ stato: 'attiva' }, cliente, { slug: 'bar-mario', regiaUrl: 'https://drink-regia.web.app', adesso: ADESSO })
+    expect(lic).toMatchObject({
+      piano: 'base',
+      terminali: 2,
+      limiti: null,
+      prove: {},
+      stato: 'attiva',
+      motivo: null,
+      dal: null,
+      slug: 'bar-mario',
+      regia_url: 'https://drink-regia.web.app',
+      aggiornamenti: { modalita: 'obbligatori', inclusi: true, motivo: null, proposta: null, avviso: null },
+      scritta_il: ADESSO.toISOString(),
+    })
+    expect(lic.moduli).toEqual(moduliLicenza({ piano: 'base', moduli: ['staff'] }))
+    // Le stesse chiavi che il piano scriveva in settings/bar.
+    for (const k of Object.keys(patchLicenzaPiano(cliente, ADESSO))) expect(lic).toHaveProperty(k.replace('licenza.', ''))
+  })
+
+  it('sospesa o chiusa porta il motivo e la data; attiva no', () => {
+    const ist = { stato: 'attiva', licenza_stato: 'sospesa', licenza_motivo: 'pagamento non ricevuto', licenza_dal: '2026-10-30T06:00:00Z' }
+    expect(licenzaProtetta(ist, cliente, { adesso: ADESSO })).toMatchObject({ stato: 'sospesa', motivo: 'pagamento non ricevuto', dal: '2026-10-30T06:00:00Z' })
+    const riattivata = { ...ist, licenza_stato: 'attiva' }
+    expect(licenzaProtetta(riattivata, cliente, { adesso: ADESSO }).motivo).toBeNull()
+  })
+
+  it('tornato al Free per un pagamento mancato: la licenza è quella del Free, coi suoi limiti', () => {
+    const lic = licenzaProtetta({ stato: 'attiva', ripiego_free: { dal: '2026-10-30' } }, cliente, { adesso: ADESSO })
+    expect(lic.piano).toBe('free')
+    expect(lic.limiti).not.toBeNull()
+    expect(Object.values(lic.moduli).some(Boolean)).toBe(false)
+  })
+
+  it('stessa licenza: non contano la data di scrittura, la data dello stato e l’ordine delle chiavi', () => {
+    const a = licenzaProtetta({ stato: 'attiva' }, cliente, { adesso: ADESSO })
+    const b = { ...licenzaProtetta({ stato: 'attiva' }, cliente, { adesso: new Date('2026-11-02T10:00:00Z') }), dal: 'x' }
+    b.moduli = Object.fromEntries(Object.entries(b.moduli).reverse())
+    expect(stessaLicenza(a, b)).toBe(true)
+    expect(stessaLicenza(a, { ...a, piano: 'completo' })).toBe(false)
+    expect(stessaLicenza(a, { ...a, moduli: { ...a.moduli, magazzino: true } })).toBe(false)
+    expect(stessaLicenza(a, null)).toBe(false)
+  })
+
+  it('l’attivazione la scrive in licenza/attuale prima della consegna', () => {
+    const script = readFileSync('scripts/licenza-istanza.mjs', 'utf8')
+    const protetta = script.indexOf("db.doc('licenza/attuale').set(patch.licenza)")
+    expect(protetta).toBeGreaterThan(0)
+    expect(protetta).toBeLessThan(script.indexOf("db.doc('settings/bar').set(patch, { merge: true })"))
   })
 })

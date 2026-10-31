@@ -104,6 +104,8 @@ const FUNCTIONS = [
   // coi due interruttori, e un valore che non è vero vale spento.
   ['impostaRegoleAggiornamenti', [{ a_scelta: true, solo_finche_paga: 'sì', altro: 1 }], 'impostaRegoleAggiornamenti', { a_scelta: true, solo_finche_paga: false }],
   ['sceltaAggiornamento', ['v1.11.0', 'salta'], 'sceltaAggiornamento', { tag: 'v1.11.0', scelta: 'salta' }],
+  // Le licenze protette (BUG-125 di tana-drink).
+  ['gestisciLicenze', ['allinea'], 'gestisciLicenze', { azione: 'allinea' }],
 ]
 
 describe('le chiamate alle Functions', () => {
@@ -186,6 +188,14 @@ describe('i documenti della regia', () => {
     fb.documenti['impostazioni/aggiornamenti'] = { a_scelta: true }
     db.osservaRegoleAggiornamenti((d) => visti.push(d))
     expect(visti).toEqual([{}, { a_scelta: true }])
+  })
+
+  it('il controllo delle licenze si osserva da controlli/licenze; senza documento, null', () => {
+    const visti = []
+    db.osservaControlloLicenze((d) => visti.push(d))
+    fb.documenti['controlli/licenze'] = { totale: 2, pronte: 2, problemi: [] }
+    db.osservaControlloLicenze((d) => visti.push(d))
+    expect(visti).toEqual([null, { totale: 2, pronte: 2, problemi: [] }])
   })
 
   it('il cassetto AI: assente o negato è «nessun cassetto»; i consumi in ordine', async () => {
