@@ -124,7 +124,7 @@ describe('la proposta e la scelta del titolare', () => {
   const proposta = () => a.nuovaProposta('v1.11.0', { rilascio: 'v1.11.0', note: '## 1.11.0', adesso: ADESSO })
 
   it('nasce in attesa, senza scelta', () => {
-    expect(proposta()).toEqual({ tag: 'v1.11.0', rilascio: 'v1.11.0', note: '## 1.11.0', proposta_il: ADESSO.toISOString(), saltata_il: null, attesa: true, scelta_letta_il: null })
+    expect(proposta()).toEqual({ tag: 'v1.11.0', rilascio: 'v1.11.0', note: '## 1.11.0', proposta_il: ADESSO.toISOString(), saltata_il: null, attesa: true, scelta_letta_il: null, presa_il: null })
   })
 
   it('vale solo sul tag proposto, con una scelta che si conosce', () => {
@@ -267,5 +267,22 @@ describe('la scelta dall’app, una chiamata alla regia', () => {
     expect(a.eTitolare({ role: 'admin' })).toBe(true)
     expect(a.eTitolare({ role: 'bartender' })).toBe(false)
     expect(a.eTitolare(null)).toBe(false)
+  })
+})
+
+// La stessa scelta due volte (il titolare riprova se la risposta tarda): il
+// primo «Aggiorna» si prende la proposta, il secondo no, e non fa danni.
+describe('la stessa scelta due volte', () => {
+  const p = (extra = {}) => ({ ...a.nuovaProposta('v1.11.0', { adesso: ADESSO }), ...extra })
+  it('si prende una proposta in attesa, del tag giusto, non già presa', () => {
+    expect(a.puoPrendere(p(), 'v1.11.0', ADESSO)).toBe(true)
+    expect(a.puoPrendere(p(), 'v1.10.0', ADESSO)).toBe(false)
+    expect(a.puoPrendere(p({ attesa: false }), 'v1.11.0', ADESSO)).toBe(false)
+    expect(a.puoPrendere(null, 'v1.11.0', ADESSO)).toBe(false)
+    expect(a.puoPrendere(p({ presa_il: ADESSO.toISOString() }), 'v1.11.0', new Date(ADESSO.getTime() + 20000))).toBe(false)
+  })
+  it('una presa rimasta a metà (la Function caduta) si riprende dopo qualche minuto', () => {
+    const presa = p({ presa_il: ADESSO.toISOString() })
+    expect(a.puoPrendere(presa, 'v1.11.0', new Date(ADESSO.getTime() + a.PRESA_MAX + 1))).toBe(true)
   })
 })

@@ -614,8 +614,9 @@ moduli, la licenza nell'istanza e la Tana.
   verifica, vuole il ruolo `admin` (il titolare) e applica subito.
   Risposte: `200 { ok, scelta }`; `400` corpo sbagliato; `401` token
   mancante o non valido; `403` non è il titolare; `404` locale
-  sconosciuto; `409` la proposta non è più quella; `502` l'aggiornamento
-  non è partito, con `errore`. Dal 31/10/2026 al posto del documento
+  sconosciuto; `409` la proposta non è più quella, o la stessa scelta è
+  già arrivata (il titolare riprova: la seconda non fa niente); `502`
+  l'aggiornamento non è partito, con `errore`. Dal 31/10/2026 al posto del documento
   `aggiornamenti/scelta` letto ogni dieci minuti. Le note sono le
   sezioni `## X.Y.Z — data` del `CHANGELOG.md` di tana-drink al tag: quel
   formato dei titoli è contratto. Senza la voce l'app fa come oggi.

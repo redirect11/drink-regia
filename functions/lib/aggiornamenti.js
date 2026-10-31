@@ -127,7 +127,19 @@ function noteTra(md, da, a) {
 // sceglie «Aggiorna» (anche dopo «Salta»: in Informazioni può cambiare
 // idea): la scelta che arriva (sceltaDallApp, la dashboard) vale solo così.
 function nuovaProposta(tag, { rilascio = null, note = '', adesso = new Date() } = {}) {
-  return { tag, rilascio, note: String(note || '').slice(0, NOTE_MAX + 4), proposta_il: adesso.toISOString(), saltata_il: null, attesa: true, scelta_letta_il: null }
+  return { tag, rilascio, note: String(note || '').slice(0, NOTE_MAX + 4), proposta_il: adesso.toISOString(), saltata_il: null, attesa: true, scelta_letta_il: null, presa_il: null }
+}
+
+// LA STESSA SCELTA DUE VOLTE (tana-drink, 31/10/2026): se la risposta tarda,
+// il titolare riprova, e due «Aggiorna» possono arrivare insieme. Il primo
+// si PRENDE la proposta (in una transazione) e lancia; il secondo trova la
+// proposta presa e risponde 409 senza fare niente. Una presa più vecchia di
+// PRESA_MAX (la Function caduta a metà) si può riprendere.
+const PRESA_MAX = 5 * 60 * 1000
+function puoPrendere(proposta, tag, adesso = new Date()) {
+  if (!proposta?.attesa || proposta.tag !== tag) return false
+  const presa = Date.parse(proposta.presa_il || '')
+  return !Number.isFinite(presa) || adesso.getTime() - presa > PRESA_MAX
 }
 
 // La proposta non serve più: il locale è già a quella versione o oltre
@@ -291,6 +303,8 @@ module.exports = {
   confronta,
   noteTra,
   nuovaProposta,
+  puoPrendere,
+  PRESA_MAX,
   progettoDelToken,
   bearerDi,
   corpoScelta,
