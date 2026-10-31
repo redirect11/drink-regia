@@ -100,6 +100,10 @@ const FUNCTIONS = [
   ['provaModulo', ['magazzino'], 'provaModulo', { modulo: 'magazzino' }],
   ['cambiaPianoAdmin', [{ slug: 'bar', modo: 'fuori' }], 'cambiaPianoAdmin', { slug: 'bar', modo: 'fuori' }],
   ['chiediContatto', [{ piano: 'base', telefono: '333' }], 'chiediContatto', { piano: 'base', telefono: '333' }],
+  // Gli aggiornamenti a scelta (REQ-FLOTTA-020): le regole partono solo
+  // coi due interruttori, e un valore che non è vero vale spento.
+  ['impostaRegoleAggiornamenti', [{ a_scelta: true, solo_finche_paga: 'sì', altro: 1 }], 'impostaRegoleAggiornamenti', { a_scelta: true, solo_finche_paga: false }],
+  ['sceltaAggiornamento', ['v1.11.0', 'salta'], 'sceltaAggiornamento', { tag: 'v1.11.0', scelta: 'salta' }],
 ]
 
 describe('le chiamate alle Functions', () => {
@@ -174,6 +178,14 @@ describe('i documenti della regia', () => {
     db.osservaRichiesta('bar', (d) => visti.push(d))
     db.osservaImpostazioniRegia((d) => visti.push(d))
     expect(visti).toEqual([{ slug: 'bar' }, { stato: 'attiva' }, null, {}])
+  })
+
+  it('le regole degli aggiornamenti si osservano da impostazioni/aggiornamenti; senza documento, spente', () => {
+    const visti = []
+    db.osservaRegoleAggiornamenti((d) => visti.push(d))
+    fb.documenti['impostazioni/aggiornamenti'] = { a_scelta: true }
+    db.osservaRegoleAggiornamenti((d) => visti.push(d))
+    expect(visti).toEqual([{}, { a_scelta: true }])
   })
 
   it('il cassetto AI: assente o negato è «nessun cassetto»; i consumi in ordine', async () => {

@@ -806,3 +806,48 @@ requirements:
     test_cases:
       - tests/flotta.test.js
 
+  - id: REQ-FLOTTA-020
+    title: "Gli aggiornamenti obbligatori o a scelta del titolare, e compresi solo finché si paga"
+    area: "functions/lib/aggiornamenti.js, functions/lib/rilasci.js, functions/lib/sospensione.js, functions/index.js, src/pages/AggiornamentiLocale.jsx, src/pages/Backoffice.jsx, src/pages/Rilasci.jsx"
+    description: >
+      «Possiamo configurarli in due modi: uno quello attuale [...] il
+      secondo dovrebbe invece mostrare prima il changelog con i
+      cambiamenti e chiedere se si vuole aggiornare. Il titolare potrebbe
+      volere anche saltare l'aggiornamento», «nei vari piani siano
+      garantiti aggiornamenti fino a che si paga. Se non si paga, si
+      ritorna alla versione gratis ma senza possibilità di aggiornare», «Io
+      super admin posso attivare o disattivare queste due modalità» e, per
+      chi ha già un piano, «a loro non cambia niente, basta solo avvisarli»
+      (l'utente, 31/10/2026). Decisioni dello stesso giorno: un rilascio
+      obbligatorio arriva a tutti, anche a chi salta o non paga; con «solo
+      finché si paga» il Free riceve solo gli obbligatori; il titolare
+      sceglie nell'app e nella dashboard, e vale la prima risposta. Le due
+      regole (a scelta del titolare, solo finché si paga) stanno in
+      impostazioni/aggiornamenti e le cambia l'admin dal backoffice
+      («Rilasci»); un locale si può fissare a una modalità. Chi è già
+      attivo le prende al suo rinnovo (la fine del periodo pagato su
+      Stripe) o, se il rinnovo non si sa, dopo 30 giorni, e riceve subito un
+      avviso nell'app e nella dashboard; chi si attiva dopo le prende
+      subito. In un rilascio un locale a scelta riceve una proposta con le
+      note del CHANGELOG di tana-drink dalla sua versione al tag, invece
+      del deploy; un locale senza aggiornamenti nel piano resta fuori;
+      nessuno dei due ferma l'ondata. Il titolare sceglie «Aggiorna» o
+      «Salta» dalla dashboard, o dall'app, che scrive aggiornamenti/scelta
+      nel database del locale e la regia legge ogni dieci minuti. Con «solo
+      finché si paga» un abbonamento in sospeso oltre i giorni di grazia
+      non sospende più il locale: lo riporta al Free, e al pagamento torna
+      il suo piano; un disdetto si chiude come prima; le installazioni
+      interne li ricevono sempre. Il contratto con l'app è in
+      docs/handover.md §7; in tana-drink è REQ-FLOTTA-020
+      (docs/aggiornamenti-dalla-regia.md). Resta da fare: l'app in
+      tana-drink, e i termini del servizio (§5 dice che gli aggiornamenti
+      si pubblicano senza preavviso) prima di accendere una regola.
+    status: partial
+    generate_issue: false
+    labels: [prodotto, flotta, regia]
+    test_cases:
+      - tests/aggiornamenti.test.js
+      - tests/rilasci.test.js
+      - tests/AggiornamentiLocale.test.jsx
+      - tests/Backoffice.test.jsx
+

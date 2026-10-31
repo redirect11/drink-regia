@@ -350,6 +350,15 @@ code { background: rgba(255, 255, 255, 0.06); padding: 1px 5px; border-radius: 5
 .ondate { margin: 8px 0; padding-left: 20px; }
 .ondate li { margin: 4px 0; }
 .ondata-attuale { font-weight: 600; }
+/* Gli aggiornamenti a scelta (REQ-FLOTTA-020): l'avviso delle condizioni
+   si distingue; le note di una versione possono essere lunghe e scorrono
+   dentro il loro riquadro, non allungano la pagina. */
+.card .avviso { border-left: 3px solid var(--accent); padding: 8px 12px; margin: 8px 0; background: var(--bg-3); }
+.proposta { margin-top: 12px; }
+.note-versione { max-height: 20rem; overflow-y: auto; padding: 4px 12px; border: 1px solid var(--line); border-radius: 8px; margin: 8px 0; }
+.note-versione h5 { margin: 12px 0 4px; font-size: 1rem; }
+.note-versione h6 { margin: 8px 0 4px; font-size: 0.9375rem; }
+.note-versione ul { margin: 4px 0; padding-left: 20px; }
 
 /* ── La vendita nel backoffice (REQ-FLOTTA-015) ── */
 .card.vendita { margin: 12px 0; }

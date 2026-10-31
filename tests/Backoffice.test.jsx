@@ -49,8 +49,13 @@ const db = vi.hoisted(() => ({
   impostaVendita: vi.fn(async () => {}),
   elencoContatti: vi.fn(async () => regia.contatti),
   segnaContatto: vi.fn(async () => {}),
+  osservaRegoleAggiornamenti: vi.fn((cb) => {
+    cb(regia.aggiornamenti)
+    return () => {}
+  }),
+  impostaRegoleAggiornamenti: vi.fn(async () => ({ ok: true, avvisati: 2, nonScritti: [] })),
 }))
-const regia = vi.hoisted(() => ({ impostazioni: {}, vendita: { free: false, moduli: {} }, contatti: [] }))
+const regia = vi.hoisted(() => ({ impostazioni: {}, vendita: { free: false, moduli: {} }, contatti: [], aggiornamenti: {} }))
 vi.mock('../src/lib/db.js', () => db)
 
 import Backoffice from '../src/pages/Backoffice.jsx'
@@ -406,7 +411,7 @@ describe('i rilasci a ondate nel backoffice', () => {
     expect(window.alert).toHaveBeenCalled()
     expect(db.gestisciRilascio).not.toHaveBeenCalled()
     await user.click(within(riquadro).getByRole('button', { name: 'Nuovo rilascio' }))
-    expect(db.gestisciRilascio).toHaveBeenCalledWith('crea', { ref: 'v1.11.0' })
+    expect(db.gestisciRilascio).toHaveBeenCalledWith('crea', { ref: 'v1.11.0', obbligatorio: false })
   })
 
   it('un rilascio aperto dice le ondate e avvia la successiva', async () => {
@@ -804,5 +809,93 @@ describe('il bottone Aggiorna dice cosa fa', () => {
     const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
     await user.click(within(attivo).getByRole('button', { name: 'Aggiorna subito' }))
     expect(await within(attivo).findByRole('status')).toHaveTextContent(/^Aggiornamento partito:/)
+  })
+})
+
+// GLI AGGIORNAMENTI OBBLIGATORI O A SCELTA (REQ-FLOTTA-020): le due regole
+// le accende l'admin in «Rilasci», con un avviso ai locali attivi; un
+// locale si può fissare a una modalità; un rilascio si crea obbligatorio.
+describe('le regole degli aggiornamenti nel backoffice', () => {
+  it('si cambiano solo confermando, e dicono quanti locali sono stati avvisati', async () => {
+    const user = userEvent.setup()
+    const conferma = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true)
+    mostra('/backoffice/rilasci')
+    const riquadro = await screen.findByRole('region', { name: 'Regole degli aggiornamenti' })
+    const salva = within(riquadro).getByRole('button', { name: 'Salva le regole' })
+    // Niente di cambiato, niente da salvare.
+    expect(salva).toBeDisabled()
+    expect(riquadro).toHaveTextContent('vanno aggiornati i termini del servizio')
+    await user.click(within(riquadro).getByRole('checkbox', { name: /A scelta del titolare/ }))
+    await user.click(within(riquadro).getByRole('checkbox', { name: /Solo finché si paga/ }))
+    await user.click(salva)
+    expect(conferma).toHaveBeenCalledWith(expect.stringMatching(/al loro rinnovo/))
+    expect(db.impostaRegoleAggiornamenti).not.toHaveBeenCalled()
+    await user.click(salva)
+    expect(db.impostaRegoleAggiornamenti).toHaveBeenCalledWith({ a_scelta: true, solo_finche_paga: true })
+    expect(await within(riquadro).findByRole('status')).toHaveTextContent('Regole salvate: avvisati 2 locali.')
+  })
+
+  it('partono dalle regole salvate', async () => {
+    regia.aggiornamenti = { a_scelta: true }
+    mostra('/backoffice/rilasci')
+    const riquadro = await screen.findByRole('region', { name: 'Regole degli aggiornamenti' })
+    expect(within(riquadro).getByRole('checkbox', { name: /A scelta del titolare/ })).toBeChecked()
+    expect(within(riquadro).getByRole('checkbox', { name: /Solo finché si paga/ })).not.toBeChecked()
+    regia.aggiornamenti = {}
+  })
+
+  it('un locale segue le regole, o l’admin lo fissa; la scheda dice la regola e la proposta', async () => {
+    const user = userEvent.setup()
+    db.elencoIstanze.mockResolvedValue({
+      'bar-attivo': {
+        stato: 'attiva',
+        progetto: 'drinkpos-bar-attivo',
+        versione: 'v1.10.0',
+        regola_aggiornamenti: { modalita: 'a_scelta', inclusi: true, motivo: null },
+        proposta_aggiornamento: { tag: 'v1.11.0', attesa: true, saltata_il: null },
+      },
+    })
+    mostra()
+    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
+    expect(attivo).toHaveTextContent('ora: A scelta del titolare')
+    expect(attivo).toHaveTextContent('v1.11.0 proposta al titolare')
+    const scelta = within(attivo).getByRole('combobox', { name: 'Aggiornamenti di Bar Attivo' })
+    expect(scelta).toHaveValue('')
+    await user.selectOptions(scelta, 'obbligatori')
+    expect(db.gestisciRilascio).toHaveBeenCalledWith('modalita', { slug: 'bar-attivo', modalita: 'obbligatori' })
+    await user.selectOptions(scelta, '')
+    expect(db.gestisciRilascio).toHaveBeenCalledWith('modalita', { slug: 'bar-attivo', modalita: null })
+  })
+
+  it('un rilascio si crea obbligatorio, e lo dice', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(window, 'prompt').mockReturnValueOnce('v1.11.1')
+    // Nessun rilascio aperto: la casella c'è solo prima di crearne uno.
+    db.elencoRilasci.mockResolvedValue([])
+    mostra('/backoffice/rilasci')
+    const riquadro = await screen.findByRole('region', { name: 'Rilasci' })
+    await user.click(within(riquadro).getByRole('checkbox', { name: /obbligatorio/ }))
+    await user.click(within(riquadro).getByRole('button', { name: 'Nuovo rilascio' }))
+    expect(db.gestisciRilascio).toHaveBeenCalledWith('crea', { ref: 'v1.11.1', obbligatorio: true })
+  })
+
+  it('un rilascio obbligatorio aperto lo dice, e conta proposti, saltati e senza aggiornamenti', async () => {
+    db.elencoRilasci.mockResolvedValue([
+      {
+        ref: 'v1.11.0',
+        stato: 'in corso',
+        obbligatorio: true,
+        ondata: 0,
+        ondate: [{ nome: 'generale', slugs: ['bar-a', 'bar-b', 'bar-c'], avviata_il: '2026-11-01T09:00:00Z' }],
+        riepilogo: [{ nome: 'generale', riuscito: 0, 'in corso': 0, fallito: 0, 'in attesa': 0, escluso: 0, proposto: 1, saltato: 1, 'non incluso': 1 }],
+        puo_avanzare: false,
+        perche_fermo: 'Tutte le ondate sono partite.',
+        creato_il: '2026-11-01T08:00:00Z',
+      },
+    ])
+    mostra('/backoffice/rilasci')
+    const riquadro = await screen.findByRole('region', { name: 'Rilasci' })
+    expect(await within(riquadro).findByText(/obbligatorio/)).toBeInTheDocument()
+    expect(riquadro).toHaveTextContent('1 proposti al titolare · 1 saltati dal titolare · 1 senza aggiornamenti nel piano')
   })
 })

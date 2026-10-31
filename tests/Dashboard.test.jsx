@@ -52,6 +52,9 @@ vi.mock('../src/lib/db.js', () => ({
   scegliFree: vi.fn(async () => ({ ok: true })),
   gestisciEliminazione: vi.fn(),
   scaricaArchivio: vi.fn(),
+  // Gli aggiornamenti a scelta (REQ-FLOTTA-020) hanno i loro test in
+  // AggiornamentiLocale.test.jsx.
+  sceltaAggiornamento: vi.fn(async () => ({ ok: true })),
 }))
 
 import Dashboard from '../src/pages/Dashboard.jsx'

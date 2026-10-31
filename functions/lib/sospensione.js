@@ -23,7 +23,10 @@ function patchLicenza(stato, { motivo = null, adesso = new Date() } = {}) {
 // Chi va sospeso oggi: abbonamento «in sospeso» da più di GIORNI_DI_GRAZIA
 // giorni, con un'istanza attiva e non già sospesa. Chi è «disdetto» va
 // chiuso. Torna [{ cliente, stato, motivo }].
-function daSospendere(clienti, istanze, { adesso = new Date(), giorniDiGrazia = GIORNI_DI_GRAZIA } = {}) {
+// `ripiega(ist)` vero: con «aggiornamenti solo finché si paga»
+// (REQ-FLOTTA-020) chi non paga torna al Free invece di fermarsi, e qui
+// non si sospende (lo fa aggiornamenti.daRipiegare).
+function daSospendere(clienti, istanze, { adesso = new Date(), giorniDiGrazia = GIORNI_DI_GRAZIA, ripiega = () => false } = {}) {
   const out = []
   for (const c of clienti || []) {
     const ist = istanze?.[c.slug]
@@ -36,6 +39,7 @@ function daSospendere(clienti, istanze, { adesso = new Date(), giorniDiGrazia = 
     const lic = ist.licenza_stato || 'attiva'
     const ab = c.abbonamento || {}
     if (ab.stato === 'in sospeso' && lic === 'attiva') {
+      if (ripiega(ist)) continue
       const da = Date.parse(ab.aggiornato_il || ab.dal || 0)
       if (Number.isFinite(da) && adesso.getTime() - da >= giorniDiGrazia * GIORNO) {
         out.push({ cliente: c, stato: 'sospesa', motivo: `pagamento non ricevuto da ${giorniDiGrazia} giorni` })

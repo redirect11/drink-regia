@@ -38,6 +38,10 @@ export function contiDetti(r) {
     [r.fallito, 'falliti'],
     [r['in attesa'], 'in attesa'],
     [r.escluso, 'tornati indietro'],
+    // Gli aggiornamenti a scelta (REQ-FLOTTA-020).
+    [r.proposto, 'proposti al titolare'],
+    [r.saltato, 'saltati dal titolare'],
+    [r['non incluso'], 'senza aggiornamenti nel piano'],
   ]
   return parti.filter(([n]) => n > 0).map(([n, p]) => `${n} ${p}`).join(' · ') || '—'
 }
