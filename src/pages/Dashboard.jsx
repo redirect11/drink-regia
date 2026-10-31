@@ -128,7 +128,8 @@ export default function Dashboard({ utente }) {
                   {' '}
                   · fino a {piano.limiti.prodotti_max} prodotti nel menù e {piano.limiti.conti_aperti_max} conti aperti insieme
                   {piano.limiti.utenti_max === 1 && ', solo il titolare'}
-                  {piano.limiti.sconti === false && ', senza sconti'}, storico degli ultimi {piano.limiti.storico_giorni} giorni
+                  {piano.limiti.sconti === false && ', senza sconti'}
+                  {piano.limiti.comande === false && ', senza comande'}, storico degli ultimi {piano.limiti.storico_giorni} giorni
                 </span>
               )}
             </p>

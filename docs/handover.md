@@ -564,7 +564,9 @@ moduli, la licenza nell'istanza e la Tana.
   30/10/2026, per intero in [richieste-tana-drink-free.md](richieste-tana-drink-free.md)).
   La regia scrive `settings/bar.licenza.limiti` = `{ prodotti_max: 10,
   conti_aperti_max: 5, sconti: false, storico_giorni: 7, utenti_max: 1,
-  marchio: true }`
+  marchio: true, comande: false }` (`comande: false` dal 31/10/2026:
+  l'utente, «le comande fuori dal free, nel senso che la visualizzazione
+  per comande non funziona»)
   per il Free, e `null` per i piani a pagamento. L'app applica i limiti solo
   se la voce c'è: senza, nessun limite (la Tana non ha la voce). Un locale
   Free si pubblica col profilo leggero (`--only firestore,hosting`): l'app

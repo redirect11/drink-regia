@@ -665,6 +665,10 @@ requirements:
       regia ancora leggero passa al completo, rifa' l'apply col completo
       prima del deploy. Da fare lato tana-drink: i limiti fatti rispettare
       dall'app e l'app senza Functions (handover §7).
+      Dal 31/10/2026 il Free è senza comande (limiti.comande: false): «le
+      comande fuori dal free, nel senso che la visualizzazione per comande
+      non funziona» (l'utente); la descrizione del piano e la prima pagina
+      lo dicono.
     status: partial
     generate_issue: true
     labels: [prodotto, flotta, regia]
