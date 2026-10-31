@@ -15,7 +15,7 @@ export function Termini() {
   return (
     <main className="pagina legale">
       <h1>Termini di servizio</h1>
-      <p className="muted small">Ultimo aggiornamento: 29 ottobre 2026</p>
+      <p className="muted small">Ultimo aggiornamento: 31 ottobre 2026</p>
       <h2>1. Il servizio</h2>
       <p>
         {NOME_PRODOTTO} è un software per la gestione di cassa, comande, magazzino e statistiche di un locale, fornito da{' '}
@@ -34,7 +34,7 @@ export function Termini() {
         costo di attivazione una tantum. Il pagamento avviene tramite il fornitore di pagamenti indicato, oppure con i mezzi
         concordati con noi prima dell’attivazione (ad esempio il bonifico). La fattura viene
         emessa ai dati di fatturazione forniti in registrazione. Il mancato pagamento sospende il servizio dopo il termine
-        indicato nell’avviso.
+        indicato nell’avviso oppure, se le condizioni del piano lo prevedono, riporta il locale al piano Free (punto 5).
       </p>
       <h2>4. Cosa il servizio non fa</h2>
       <p>
@@ -43,9 +43,19 @@ export function Termini() {
       </p>
       <h2>5. Disponibilità e assistenza</h2>
       <p>
-        Il servizio è fornito con cura ma senza garanzia di continuità assoluta. Gli aggiornamenti vengono pubblicati senza
-        preavviso e senza interruzioni programmate. L’assistenza è disponibile via email a {TITOLARE.email}, nei tempi indicati
-        nel piano.
+        Il servizio è fornito con cura ma senza garanzia di continuità assoluta. L’assistenza è disponibile via email a{' '}
+        {TITOLARE.email}, nei tempi indicati nel piano.
+      </p>
+      {/* GLI AGGIORNAMENTI (REQ-FLOTTA-020): il testo approvato dall'utente il
+          31/10/2026. Vale con le regole della regia accese o spente, così non
+          si riscrive quando l'admin le cambia. */}
+      <p>
+        Gli aggiornamenti dell’app sono di due tipi. Le correzioni di sicurezza e di compatibilità arrivano a tutti i locali, su
+        ogni piano, senza preavviso e senza interruzioni programmate. Le altre novità arrivano secondo le condizioni del piano:
+        possono installarsi da sole, oppure essere proposte al titolare, che può installarle o saltarle. Possono essere comprese
+        solo finché l’abbonamento è pagato: in quel caso un locale che non paga torna al piano Free e riceve solo le correzioni.
+        Le condizioni in vigore per il locale si leggono nella sua area clienti. Se cambiano, il titolare riceve un avviso, e le
+        condizioni nuove valgono dal rinnovo successivo, o dopo 30 giorni se il piano non ha una data di rinnovo.
       </p>
       <h2>6. Dati del locale</h2>
       <p>

@@ -722,8 +722,7 @@ function RegoleAggiornamenti({ onErrore, onFatto }) {
       </label>
       <p className="muted small">
         Un rilascio obbligatorio (sicurezza, compatibilità) arriva sempre a tutti. Le installazioni interne ricevono gli aggiornamenti anche senza
-        pagare. Prima di accendere una regola vanno aggiornati i termini del servizio: oggi dicono che gli aggiornamenti si pubblicano senza
-        preavviso.
+        pagare. I termini del servizio (punti 3 e 5) descrivono già tutte e due le regole.
       </p>
       <div className="azioni">
         <button type="button" className="btn small" disabled={!cambiate || inCorso} onClick={salva}>

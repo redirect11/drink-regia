@@ -492,12 +492,11 @@ L'elenco completo con i riferimenti al codice è in
    fissabile per locale, il rilascio obbligatorio, la proposta con le note
    e la scelta dalla dashboard, il ritorno al Free di chi non paga. Le
    regole partono spente: con tutte e due spente non cambia niente.
-   Restano: l'app in tana-drink (REQ-FLOTTA-020 e
-   `docs/aggiornamenti-dalla-regia.md`, ramo `feature/aggiornamenti-a-scelta`);
-   **i termini del servizio prima di accendere una regola** (§5 dice che gli
-   aggiornamenti si pubblicano senza preavviso: il testo nuovo lo decide
-   l'utente), e il testo dell'avviso (`testoAvviso` in
-   `functions/lib/aggiornamenti.js`), che è contrattuale. Per la Tana la
+   I termini (punti 3 e 5) e il testo dell'avviso (`testoAvviso` in
+   `functions/lib/aggiornamenti.js`) li ha approvati l'utente il 31/10/2026:
+   sono contrattuali, si cambiano con lui. Resta l'app in tana-drink
+   (REQ-FLOTTA-020 e `docs/aggiornamenti-dalla-regia.md`, ramo
+   `feature/aggiornamenti-a-scelta`). Per la Tana la
    proposta arriva nell'app solo quando la regia le scriverà la licenza.
 
 ---
