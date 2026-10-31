@@ -365,14 +365,6 @@ exports.sospendiMorosi = onSchedule({ ...OPTS, schedule: '0 6 * * *', timeZone: 
       console.error(`[aggiornamenti] ${cliente.slug}:`, e?.message || e)
     }
   }
-  // Le licenze di tutti, riscritte dai dati della regia e verificate
-  // (BUG-125): un locale rimasto indietro si rimette a posto da sé.
-  try {
-    const esito = await controllaLicenze({ allinea: true })
-    if (esito.problemi.length) console.error(`[licenza] ${esito.problemi.length} locali con problemi:`, esito.problemi.map((p) => p.slug).join(', '))
-  } catch (e) {
-    console.error('[licenza] il controllo di ogni mattina:', e?.message || e)
-  }
 })
 
 // Il ritorno al Free di chi non paga, e il suo piano quando torna a pagare.

@@ -9,7 +9,8 @@ data.
 - La licenza di ogni locale si scrive anche in un documento suo, che
   dall'app non si può modificare: prima un bartender poteva cambiarsela.
   Nella sezione «Rilasci» si allineano e si verificano le licenze di tutti
-  i locali, e la regia lo rifà da sola ogni mattina (REQ-FLOTTA-022).
+  i locali. Ogni aggiornamento la scrive prima del deploy, e senza non
+  parte (REQ-FLOTTA-022).
 - Gli aggiornamenti si possono dare in due modi: automatici, come oggi, o
   a scelta del titolare, che vede prima le novità e decide se aggiornare o
   saltare la versione. E si possono legare al pagamento: chi non paga torna

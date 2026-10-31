@@ -908,7 +908,9 @@ requirements:
       («Rilasci») si allineano e si verificano tutti i locali: esiste, è
       uguale a settings/bar.licenza, è quella dei dati della regia;
       l'esito sta in controlli/licenze, che legge solo l'admin, e sulla
-      scheda del locale. La regia lo rifà da sola ogni mattina. E ogni
+      scheda del locale. Nessun giro pianificato: «Noi dobbiamo essere
+      certi quando deployiamo che la licenza venga aggiornata» (l'utente,
+      31/10/2026). Ogni
       aggiornamento dalla regia scrive la licenza prima del deploy, e senza
       non parte: l'app arriva ai locali solo da lì, quindi nessun locale
       riceve l'app nuova senza la sua licenza. Resta da fare: l'app nuova

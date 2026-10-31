@@ -686,8 +686,10 @@ function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaApert
 // che dall'app non scrive nessuno. Con l'app nuova un locale senza
 // licenza/attuale mostra «Installazione non attivata»: prima di quel
 // rilascio qui i problemi devono essere zero. «Allinea» riscrive ogni
-// licenza dai dati della regia, in tutti e due i posti, e verifica; la
-// stessa cosa la fa la regia da sola ogni mattina.
+// licenza dai dati della regia, in tutti e due i posti, e verifica. Nessun
+// giro pianificato (l'utente, 31/10/2026: «Noi dobbiamo essere certi quando
+// deployiamo che la licenza venga aggiornata»): la licenza si scrive a ogni
+// cambio e prima di ogni deploy, e qui si controlla a richiesta.
 function LicenzeProtette({ onErrore, onFatto }) {
   const [controllo, setControllo] = useState(undefined)
   const [inCorso, setInCorso] = useState(null)
@@ -712,8 +714,8 @@ function LicenzeProtette({ onErrore, onFatto }) {
     <section className="card" aria-label="Licenze protette">
       <h3>Licenze protette</h3>
       <p className="muted small">
-        La licenza di ogni locale in licenza/attuale, che dall’app non si scrive. Ogni aggiornamento dalla regia la scrive prima del deploy, e
-        la regia le ricontrolla tutte ogni mattina: qui si vede l’esito, e si rifà a mano.
+        La licenza di ogni locale in licenza/attuale, che dall’app non si scrive. Ogni cambio e ogni aggiornamento dalla regia la scrivono
+        prima del deploy; qui si controllano tutte a richiesta.
       </p>
       {controllo ? (
         <p className={pronte ? 'small' : 'errore small'} data-testid="esito-licenze">

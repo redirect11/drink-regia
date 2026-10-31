@@ -511,8 +511,8 @@ L'elenco completo con i riferimenti al codice è in
    `feature/licenza-protetta`, 31/10/2026. La regia scrive la licenza
    intera, calcolata dai suoi dati, in `licenza/attuale` e in
    `settings/bar.licenza` (doppia scrittura). Il backoffice in «Rilasci»
-   allinea e verifica tutti i locali (controlli/licenze), e lo fa anche
-   ogni mattina. E `lanciaAggiornamento` la scrive **prima di ogni deploy**,
+   allinea e verifica tutti i locali (controlli/licenze), a richiesta: niente
+   giri pianificati, per decisione dell'utente. E `lanciaAggiornamento` la scrive **prima di ogni deploy**,
    e senza non lancia: l'app arriva ai locali solo da lì, quindi nessuno
    riceve l'app nuova senza la sua licenza, e tana-drink può pubblicarla
    senza aspettare l'allineamento. «Allinea tutte» resta un controllo.
