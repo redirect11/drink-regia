@@ -80,6 +80,16 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
    «questi box messi così uno sopra l'altro e attaccati tra loro sono
    orribili»): nella dashboard, nel backoffice, ovunque. */
 .card + .card { margin-top: 16px; }
+/* La dashboard del titolare: riquadri affiancati, due o tre colonne
+   secondo lo schermo, una sul telefono. Nella griglia lo spazio lo dà
+   gap, non il margine fra riquadri. */
+.pagina.dashboard { max-width: 1120px; }
+.dashboard-testa { margin-bottom: 16px; }
+.dashboard-testa h2 { margin: 0 0 4px; }
+.riquadri { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); align-items: start; margin-bottom: 16px; }
+.riquadri .card { margin: 0; }
+.riquadri .intera { grid-column: 1 / -1; }
+.riquadri .card h3:first-child { margin-top: 0; }
 
 /* ── La prima pagina (REQ-FLOTTA-002, DESIGN.md §4) ──────────────────
    Una vetrina, non il gestionale: più aria, titoli più grandi, contrasti
