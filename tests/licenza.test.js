@@ -122,6 +122,20 @@ describe('la licenza protetta, dai dati della regia', () => {
     for (const k of Object.keys(patchLicenzaPiano(cliente, ADESSO))) expect(lic).toHaveProperty(k.replace('licenza.', ''))
   })
 
+  it('valida_fino: «pagato fino al» più la grazia per un piano a mano; niente per Free, Stripe, omaggi e interne', () => {
+    const aMano = { ...cliente, abbonamento: { stato: 'attivo', origine: 'manuale', pagato_fino_al: '2026-11-30' } }
+    expect(licenzaProtetta({ stato: 'attiva' }, aMano, { adesso: ADESSO }).valida_fino).toBe('2026-12-07T23:59:59.000Z')
+    expect(licenzaProtetta({ stato: 'attiva' }, aMano, { giorniGrazia: 0, adesso: ADESSO }).valida_fino).toBe('2026-11-30T23:59:59.000Z')
+    expect(licenzaProtetta({ stato: 'attiva' }, { ...aMano, abbonamento: { ...aMano.abbonamento, pagato_fino_al: null } }, { adesso: ADESSO }).valida_fino).toBeNull()
+    expect(licenzaProtetta({ stato: 'attiva' }, cliente, { adesso: ADESSO }).valida_fino).toBeNull()
+    expect(licenzaProtetta({ stato: 'attiva' }, { piano: 'free', abbonamento: { stato: 'attivo', origine: 'gratuito' } }, { adesso: ADESSO }).valida_fino).toBeNull()
+    expect(licenzaProtetta({ stato: 'attiva', interna: true }, aMano, { adesso: ADESSO }).valida_fino).toBeNull()
+    expect(licenzaProtetta({ stato: 'attiva', ripiego_free: { dal: 'x' } }, aMano, { adesso: ADESSO }).valida_fino).toBeNull()
+    // Conta per «stessa licenza»: un pagamento registrato la cambia.
+    const a = licenzaProtetta({ stato: 'attiva' }, aMano, { adesso: ADESSO })
+    expect(stessaLicenza(a, { ...a, valida_fino: '2027-01-07T23:59:59.000Z' })).toBe(false)
+  })
+
   it('sospesa o chiusa porta il motivo e la data; attiva no', () => {
     const ist = { stato: 'attiva', licenza_stato: 'sospesa', licenza_motivo: 'pagamento non ricevuto', licenza_dal: '2026-10-30T06:00:00Z' }
     expect(licenzaProtetta(ist, cliente, { adesso: ADESSO })).toMatchObject({ stato: 'sospesa', motivo: 'pagamento non ricevuto', dal: '2026-10-30T06:00:00Z' })

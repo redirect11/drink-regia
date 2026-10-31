@@ -9,6 +9,7 @@
 const listino = require('../piani.json')
 const { proveAttive } = require('./prove.js')
 const { licenzaAggiornamenti } = require('./aggiornamenti.js')
+const { scadenzaPagamento, GIORNI_DI_GRAZIA } = require('./scadenze.js')
 
 // Stessi id nel listino e nell'app (REQ-LIC-002 in tana-drink); il
 // magazzino porta con sé i suoi tre moduli di dettaglio.
@@ -103,7 +104,19 @@ function sceltaCambiata(prima, dopo) {
 // Attenzione (BUG-125): con l'app nuova un locale SENZA licenza/attuale
 // mostra «Installazione non attivata». La copia va fatta per tutti i locali
 // e verificata prima di quel rilascio.
-function licenzaProtetta(ist, cliente, { slug, regiaUrl = null, sceltaUrl = null, adesso = new Date() } = {}) {
+// FINO A QUANDO VALE (tana-drink, 31/10/2026): `valida_fino` è il momento
+// in cui la regia fermerebbe il locale se nessuno paga, così l'app lo sa
+// anche senza rete (e l'on premise, che sta nel locale). Solo un piano
+// pagato a mano ha una data: «pagato fino al» più i giorni di grazia, la
+// stessa del compito della regia (REQ-FLOTTA-023). Null se non scade: il
+// Free, un omaggio, le interne, e Stripe, dove decide lo stato
+// dell'abbonamento e Stripe ritenta anche dopo la fine del periodo.
+function validaFino(ist, cliente, giorniGrazia = GIORNI_DI_GRAZIA) {
+  if (ist?.interna === true || ist?.ripiego_free) return null
+  return scadenzaPagamento(cliente, giorniGrazia)
+}
+
+function licenzaProtetta(ist, cliente, { slug, regiaUrl = null, sceltaUrl = null, giorniGrazia = GIORNI_DI_GRAZIA, adesso = new Date() } = {}) {
   // Tornato al Free per un pagamento mancato (REQ-FLOTTA-020): il suo piano
   // torna col pagamento, non qui.
   const scelta = ist?.ripiego_free ? { piano: 'free' } : cliente
@@ -120,12 +133,13 @@ function licenzaProtetta(ist, cliente, { slug, regiaUrl = null, sceltaUrl = null
     slug: slug || cliente?.slug || null,
     regia_url: regiaUrl,
     aggiornamenti: licenzaAggiornamenti(ist, cliente, adesso, { sceltaUrl }),
+    valida_fino: validaFino(ist, cliente, giorniGrazia),
     scritta_il: adesso.toISOString(),
   }
 }
 
 // Due licenze dicono la stessa cosa? La data di scrittura non conta.
-const CHIAVI_PROTETTA = ['piano', 'moduli', 'terminali', 'limiti', 'prove', 'stato', 'motivo', 'slug', 'regia_url', 'aggiornamenti']
+const CHIAVI_PROTETTA = ['piano', 'moduli', 'terminali', 'limiti', 'prove', 'stato', 'motivo', 'slug', 'regia_url', 'aggiornamenti', 'valida_fino']
 function ordinato(v) {
   if (Array.isArray(v)) return v.map(ordinato)
   if (v && typeof v === 'object') return Object.fromEntries(Object.keys(v).sort().map((k) => [k, ordinato(v[k])]))
@@ -133,4 +147,4 @@ function ordinato(v) {
 }
 const stessaLicenza = (a, b) => Boolean(a && b) && CHIAVI_PROTETTA.every((k) => JSON.stringify(ordinato(a[k])) === JSON.stringify(ordinato(b[k])))
 
-module.exports = { moduliLicenza, patchLicenzaPiano, licenzaIniziale, sceltaCambiata, licenzaProtetta, stessaLicenza, TUTTI }
+module.exports = { moduliLicenza, patchLicenzaPiano, licenzaIniziale, sceltaCambiata, licenzaProtetta, stessaLicenza, validaFino, TUTTI }

@@ -591,7 +591,11 @@ moduli, la licenza nell'istanza e la Tana.
 - **Licenza nell'istanza** (BUG-125 di tana-drink, dal 31/10/2026):
   `licenza/attuale` = `{ piano, moduli: {id: bool}, terminali, limiti,
   prove, stato: attiva|sospesa|chiusa, motivo, dal, slug, regia_url,
-  aggiornamenti, scritta_il }`. Dall'app la leggono tutti e non la scrive
+  aggiornamenti, valida_fino, scritta_il }`. `valida_fino` (dal 31/10/2026,
+  per tana-drink) è il momento in cui la regia fermerebbe il locale se
+  nessuno paga: per un piano pagato a mano «pagato fino al» più i giorni di
+  grazia; `null` se non scade (Free, omaggi, interne, Stripe, dove decide
+  lo stato dell'abbonamento). Dall'app la leggono tutti e non la scrive
   nessuno: prima stava in `settings/bar.licenza`, che ogni bartender può
   riscrivere. La regia la **calcola dai suoi dati** (`licenzaProtetta` in
   `functions/lib/licenza.js`) e la scrive intera a ogni cambio, in
