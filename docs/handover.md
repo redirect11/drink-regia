@@ -486,6 +486,19 @@ L'elenco completo con i riferimenti al codice è in
    registrata nella regia di produzione come locale esistente. Dopo la
    demo: l’accesso di assistenza della regia ai locali, a tempo e
    registrato, insieme al DPA.
+21. **Gli aggiornamenti obbligatori o a scelta (REQ-FLOTTA-020)**, ramo
+   `feature/aggiornamenti-a-scelta`, 31/10/2026. Due regole dell'admin in
+   «Rilasci» (a scelta del titolare; solo finché si paga), la modalità
+   fissabile per locale, il rilascio obbligatorio, la proposta con le note
+   e la scelta dalla dashboard, il ritorno al Free di chi non paga. Le
+   regole partono spente: con tutte e due spente non cambia niente.
+   Restano: l'app in tana-drink (REQ-FLOTTA-020 e
+   `docs/aggiornamenti-dalla-regia.md`, ramo `feature/aggiornamenti-a-scelta`);
+   **i termini del servizio prima di accendere una regola** (§5 dice che gli
+   aggiornamenti si pubblicano senza preavviso: il testo nuovo lo decide
+   l'utente), e il testo dell'avviso (`testoAvviso` in
+   `functions/lib/aggiornamenti.js`), che è contrattuale. Per la Tana la
+   proposta arriva nell'app solo quando la regia le scriverà la licenza.
 
 ---
 
@@ -548,6 +561,17 @@ moduli, la licenza nell'istanza e la Tana.
   prima attivazione (con `licenzaIniziale`) e poi le Functions della regia
   (`impostaStatoIstanza`, `licenzaSegueIlPiano`). L'app la legge in
   `src/lib/licenza.js`.
+- **Gli aggiornamenti obbligatori o a scelta** (REQ-FLOTTA-020, dal
+  31/10/2026, per intero in tana-drink, `docs/aggiornamenti-dalla-regia.md`).
+  La regia scrive `settings/bar.licenza.aggiornamenti` = `{ modalita:
+  'obbligatori' | 'a_scelta', inclusi, motivo: null | 'free' | 'non_pagato',
+  proposta: null | { tag, note, proposta_il, saltata_il }, avviso: null |
+  { id, testo, dal } }` (`licenzaAggiornamenti`). L'app, col ruolo del
+  titolare, scrive la scelta in `aggiornamenti/scelta` = `{ tag, scelta:
+  'aggiorna' | 'salta', il, da }` nel database del locale; la Function
+  `leggiScelteAggiornamenti` la legge ogni dieci minuti. Le note sono le
+  sezioni `## X.Y.Z — data` del `CHANGELOG.md` di tana-drink al tag: quel
+  formato dei titoli è contratto. Senza la voce l'app fa come oggi.
 - **Versione**: le istanze ricevono l'app di tana-drink al `ref` scelto
   dal backoffice (`main` o un tag `vX.Y.Z` di tana-drink); la regia ha
   la sua numerazione, indipendente.

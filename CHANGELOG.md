@@ -6,6 +6,13 @@ data.
 
 ## 0.3.0 (in lavorazione)
 
+- Gli aggiornamenti si possono dare in due modi: automatici, come oggi, o
+  a scelta del titolare, che vede prima le novità e decide se aggiornare o
+  saltare la versione. E si possono legare al pagamento: chi non paga torna
+  al Free e riceve solo i rilasci obbligatori. Le due regole si accendono
+  dal backoffice («Rilasci»); chi ha già un piano le prende al rinnovo e
+  riceve un avviso. Un rilascio si può segnare obbligatorio: arriva a tutti
+  (REQ-FLOTTA-020).
 - La demo della prima pagina non scrive più nel suo database: la regia la
   pubblica sempre leggera e con il database chiuso a tutti, e la build
   della demo va solo sul suo progetto. I dati di prova e la sessione nel

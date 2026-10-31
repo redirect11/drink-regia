@@ -177,12 +177,35 @@ export async function elencoRilasci() {
   return snap.docs.map((d) => d.data()).sort((a, b) => String(b.creato_il).localeCompare(String(a.creato_il)))
 }
 
-// crea, avanza, riprova, indietro, ferma, annulla, gruppo: le decide la
-// Function, che rilegge tutto.
+// crea, avanza, riprova, indietro, ferma, annulla, gruppo, modalita: le
+// decide la Function, che rilegge tutto.
 export async function gestisciRilascio(azione, dati = {}) {
   serve()
   const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'gestisciRilascio', { timeout: 540_000 })
   const { data } = await fn({ azione, ...dati })
+  return data
+}
+
+// ── gli aggiornamenti obbligatori o a scelta (REQ-FLOTTA-020) ──
+// Le regole stanno in impostazioni/aggiornamenti; le cambia la Function,
+// perché a ogni locale attivo va l'avviso con la sua data.
+export function osservaRegoleAggiornamenti(cb) {
+  serve()
+  return onSnapshot(doc(db, 'impostazioni', 'aggiornamenti'), (s) => cb(s.exists() ? s.data() : {}))
+}
+
+export async function impostaRegoleAggiornamenti(regole) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'impostaRegoleAggiornamenti', { timeout: 540_000 })
+  const { data } = await fn({ a_scelta: regole.a_scelta === true, solo_finche_paga: regole.solo_finche_paga === true })
+  return data
+}
+
+// Il titolare: «aggiorna» o «salta» la versione proposta.
+export async function sceltaAggiornamento(tag, scelta) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'sceltaAggiornamento')
+  const { data } = await fn({ tag, scelta })
   return data
 }
 

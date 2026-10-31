@@ -203,9 +203,53 @@ describe('il riepilogo per il backoffice', () => {
     const ril = r.conRiepilogo(r.nuovoRilascio('v1.11.0', istanze), istanze)
     expect(ril.puo_avanzare).toBe(true)
     expect(ril.prossima).toBe('prova')
-    expect(ril.riepilogo[3]).toEqual({ nome: 'generale', 'in attesa': 2, 'in corso': 0, riuscito: 0, fallito: 0, escluso: 0 })
+    expect(ril.riepilogo[3]).toEqual({ nome: 'generale', 'in attesa': 2, 'in corso': 0, riuscito: 0, fallito: 0, escluso: 0, proposto: 0, saltato: 0, 'non incluso': 0 })
     // La Tana è già sulla versione? conta come riuscita anche prima.
     istanze['tana-drink'].versione = 'v1.11.0'
     expect(r.conRiepilogo(ril, istanze).riepilogo[1].riuscito).toBe(1)
+  })
+})
+
+// REQ-FLOTTA-020: con gli aggiornamenti a scelta un locale riceve una
+// proposta invece del deploy, e chi non ha gli aggiornamenti nel piano
+// resta fuori. Né l'uno né l'altro ferma l'ondata.
+describe('gli aggiornamenti a scelta nel rilascio', () => {
+  const avviato = () => {
+    const istanze = { 'bar-mario': { stato: 'attiva', versione: 'v1.10.0' }, 'bar-luigi': { stato: 'attiva', versione: 'v1.10.0' }, 'bar-free': { stato: 'attiva', versione: 'v1.10.0' } }
+    const { rilascio } = r.avanzamento(r.nuovoRilascio('v1.11.0', istanze), istanze)
+    return { istanze, rilascio }
+  }
+
+  it('un rilascio nasce normale, o obbligatorio se lo si dice', () => {
+    const istanze = { 'bar-mario': { stato: 'attiva' } }
+    expect(r.nuovoRilascio('v1.11.0', istanze)).toMatchObject({ obbligatorio: false, non_inclusi: [] })
+    expect(r.nuovoRilascio('v1.11.0', istanze, { obbligatorio: true }).obbligatorio).toBe(true)
+  })
+
+  it('proposto, saltato e non incluso non fermano l’ondata, e chiudono il rilascio', () => {
+    const { istanze, rilascio } = avviato()
+    istanze['bar-mario'].proposta_aggiornamento = { tag: 'v1.11.0', rilascio: 'v1.11.0', attesa: true, saltata_il: null }
+    istanze['bar-luigi'].proposta_aggiornamento = { tag: 'v1.11.0', rilascio: 'v1.11.0', attesa: true, saltata_il: '2026-11-02T10:00:00Z' }
+    const ril = { ...rilascio, non_inclusi: ['bar-free'] }
+    expect(r.esitoDi(istanze['bar-mario'], ril, 'bar-mario')).toBe('proposto')
+    expect(r.esitoDi(istanze['bar-luigi'], ril, 'bar-luigi')).toBe('saltato')
+    expect(r.esitoDi(istanze['bar-free'], ril, 'bar-free')).toBe('non incluso')
+    expect(r.contaOndata(ril.ondate[0], istanze, ril)).toMatchObject({ proposto: 1, saltato: 1, 'non incluso': 1, 'in attesa': 0 })
+    expect(r.dopoEsito(ril, istanze, ADESSO)).toMatchObject({ stato: 'completato' })
+  })
+
+  it('una proposta accettata diventa un aggiornamento come gli altri', () => {
+    const { istanze, rilascio } = avviato()
+    istanze['bar-mario'].proposta_aggiornamento = { tag: 'v1.11.0', rilascio: 'v1.11.0', attesa: false }
+    lancia(istanze, 'bar-mario', 'v1.11.0', { rilascio: 'v1.11.0' })
+    expect(r.esitoDi(istanze['bar-mario'], rilascio, 'bar-mario')).toBe('in corso')
+    esito(istanze, 'bar-mario', 'errore')
+    expect(r.dopoEsito(rilascio, istanze, ADESSO)).toMatchObject({ stato: 'fermo' })
+  })
+
+  it('la proposta di un altro rilascio non conta per questo', () => {
+    const { istanze, rilascio } = avviato()
+    istanze['bar-mario'].proposta_aggiornamento = { tag: 'v1.10.5', rilascio: 'v1.10.5', attesa: true }
+    expect(r.esitoDi(istanze['bar-mario'], rilascio, 'bar-mario')).toBe('in attesa')
   })
 })

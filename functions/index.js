@@ -12,7 +12,9 @@
 // Configurazione non segreta (.env): GITHUB_REPO (il repository con i
 // workflow della flotta, dal 29/10/2026 la regia stessa), FLOTTA_REF (il
 // suo ramo con i workflow), APP_REF (la versione di tana-drink da
-// pubblicare), FLOTTA_AMBIENTE (produzione o test: quale environment).
+// pubblicare), FLOTTA_AMBIENTE (produzione o test: quale environment),
+// APP_REPO (il repository dell'app, da cui si leggono le note di un
+// rilascio: di norma redirect11/tana-drink).
 
 const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore')
 const { onRequest } = require('firebase-functions/v2/https')
@@ -35,6 +37,7 @@ const free = require('./lib/free.js')
 const contatti = require('./lib/contatti.js')
 const { getStorage } = require('firebase-admin/storage')
 const { datiEsistente, documentiEsistente, DatiNonValidi, scriveLicenza, gestioneEsistente } = require('./lib/esistente.js')
+const aggiornamenti = require('./lib/aggiornamenti.js')
 
 initializeApp()
 const db = getFirestore()
@@ -56,6 +59,8 @@ const REF_APP = process.env.APP_REF || 'main'
 // La regia di test lancia sull'environment flotta-test: il suo account di
 // fatturazione, il suo callback, il suo account per la licenza.
 const AMBIENTE_FLOTTA = process.env.FLOTTA_AMBIENTE || 'produzione'
+// tana-drink è pubblico: le note di un rilascio si leggono senza token.
+const APP_REPO = process.env.APP_REPO || 'redirect11/tana-drink'
 
 async function dispatchGitHub(workflow, corpo) {
   return fetch(`https://api.github.com/repos/${REPO}/actions/workflows/${workflow}/dispatches`, {
@@ -173,6 +178,12 @@ exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK
   // attivazione (REQ-FLOTTA-012); fa andare avanti, o fermare, il rilascio.
   if (eAggiornamento(esito, prima)) {
     await ref.set(documentoAggiornamento(esito, prima), { merge: true })
+    // Arrivato a quella versione o oltre (un «Aggiorna subito», un rilascio
+    // obbligatorio): la proposta al titolare non serve più (REQ-FLOTTA-020).
+    if (esito.stato === 'attiva' && aggiornamenti.propostaSuperata(prima?.proposta_aggiornamento, esito.versione)) {
+      await ref.update({ 'proposta_aggiornamento.attesa': false })
+      await scriviRegolaAggiornamenti(esito.slug).catch((e) => console.error(`[aggiornamenti] ${esito.slug}:`, e?.message || e))
+    }
     try {
       await ricalcolaRilasci()
     } catch (e) {
@@ -182,6 +193,16 @@ exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK
   }
   await ref.set(documentoIstanza(esito, prima), { merge: true })
   await db.doc(`richieste/${esito.slug}`).set({ stato: esito.stato, aggiornata_il: new Date().toISOString() }, { merge: true })
+  // Un locale che nasce adesso prende le regole degli aggiornamenti di
+  // adesso, senza preavviso: le accetta registrandosi (REQ-FLOTTA-020).
+  if (esito.stato === 'attiva' && !prima?.condizioni_aggiornamenti) {
+    try {
+      await ref.set({ condizioni_aggiornamenti: await regoleAggiornamenti() }, { merge: true })
+      await scriviRegolaAggiornamenti(esito.slug)
+    } catch (e) {
+      console.error(`[aggiornamenti] ${esito.slug}, le prime regole:`, e?.message || e)
+    }
+  }
   res.status(200).json({ ok: true })
 })
 
@@ -301,10 +322,27 @@ exports.impostaStatoIstanza = onCall(OPTS, async (req) => {
 
 // Ogni mattina: chi non paga da più dei giorni di grazia si sospende, chi
 // ha disdetto si chiude, chi è tornato a pagare si riattiva.
+// Con gli aggiornamenti «solo finché si paga» (REQ-FLOTTA-020) chi non paga
+// non si ferma: torna al Free, e al pagamento riprende il suo piano. Prima
+// di tutto, le condizioni degli aggiornamenti arrivate alla loro data
+// diventano quelle in vigore.
 exports.sospendiMorosi = onSchedule({ ...OPTS, schedule: '0 6 * * *', timeZone: 'Europe/Rome' }, async () => {
   const clienti = (await db.collection('clienti').get()).docs.map((d) => d.data())
   const istanze = Object.fromEntries((await db.collection('istanze').get()).docs.map((d) => [d.id, d.data()]))
-  for (const { cliente, stato, motivo } of daSospendere(clienti, istanze)) {
+  const adesso = new Date()
+  for (const [slug, ist] of Object.entries(istanze)) {
+    const patch = aggiornamenti.promozione(ist, adesso)
+    if (!patch) continue
+    try {
+      await db.doc(`istanze/${slug}`).set(patch, { merge: true })
+      istanze[slug] = { ...ist, ...patch }
+      await scriviRegolaAggiornamenti(slug)
+      console.log(`[aggiornamenti] ${slug}: in vigore le condizioni nuove`)
+    } catch (e) {
+      console.error(`[aggiornamenti] ${slug}:`, e?.message || e)
+    }
+  }
+  for (const { cliente, stato, motivo } of daSospendere(clienti, istanze, { adesso, ripiega: (ist) => aggiornamenti.ripiegaInveceDiSospendere(ist, adesso) })) {
     try {
       await scriviStatoIstanza(cliente.slug, stato, motivo)
       console.log(`[licenza] ${cliente.slug} → ${stato}`)
@@ -312,7 +350,31 @@ exports.sospendiMorosi = onSchedule({ ...OPTS, schedule: '0 6 * * *', timeZone: 
       console.error(`[licenza] ${cliente.slug}:`, e?.message || e)
     }
   }
+  for (const { cliente, azione } of aggiornamenti.daRipiegare(clienti, istanze, { adesso })) {
+    try {
+      await ripiegaAlFree(cliente, azione)
+      console.log(`[aggiornamenti] ${cliente.slug} → ${azione === 'ripiega' ? 'piano Free' : `di nuovo ${cliente.piano}`}`)
+    } catch (e) {
+      console.error(`[aggiornamenti] ${cliente.slug}:`, e?.message || e)
+    }
+  }
 })
+
+// Il ritorno al Free di chi non paga, e il suo piano quando torna a pagare.
+// La licenza dell'app cambia piano, moduli e limiti; i dati restano.
+async function ripiegaAlFree(cliente, azione) {
+  const ref = db.doc(`istanze/${cliente.slug}`)
+  const ist = (await ref.get()).data()
+  if (!ist?.progetto || !scriveLicenza(ist)) return
+  const ripiega = azione === 'ripiega'
+  await firestoreDi(ist.progetto).doc('settings/bar').update(patchLicenzaPiano(ripiega ? { piano: 'free' } : cliente))
+  const adesso = new Date().toISOString()
+  await ref.set(
+    { ripiego_free: ripiega ? { dal: adesso, piano_prima: cliente.piano || null } : null, licenza_piano: ripiega ? 'free' : cliente.piano || null, licenza_scritta_il: adesso },
+    { merge: true }
+  )
+  await scriviRegolaAggiornamenti(cliente.slug)
+}
 
 // ── GLI AGGIORNAMENTI DELLA FLOTTA (REQ-FLOTTA-009) ───────────────────
 // L'app di base è tana-drink: ogni rilascio si porta sui locali che si
@@ -371,7 +433,8 @@ exports.aggiornaIstanza = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN] }, 
 
 // ── I RILASCI A ONDATE (REQ-FLOTTA-012) ───────────────────────────────
 // Un rilascio alla volta. Azioni dell'admin:
-//   crea {ref}            fotografa le ondate per il tag vX.Y.Z
+//   crea {ref, obbligatorio} fotografa le ondate per il tag vX.Y.Z;
+//                         obbligatorio: arriva a tutti (REQ-FLOTTA-020)
 //   avanza {ref}          avvia l'ondata successiva (la prima, o riprende
 //                         un rilascio fermo quando l'ondata è a posto)
 //   riprova {ref, slug}   rilancia un aggiornamento fallito
@@ -380,6 +443,7 @@ exports.aggiornaIstanza = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN] }, 
 //   annulla {ref}         il rilascio si chiude qui (i locali restano
 //                         come sono)
 //   gruppo {slug, gruppo} prova, pilota o generale
+//   modalita {slug, modalita} obbligatori, a_scelta o null (REQ-FLOTTA-020)
 // Un'ondata grande lancia molti workflow uno dopo l'altro: tempo lungo.
 exports.gestisciRilascio = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN], timeoutSeconds: 540 }, async (req) => {
   if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
@@ -399,6 +463,17 @@ exports.gestisciRilascio = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN], t
       await db.doc(`istanze/${slug}`).set({ gruppo_rilascio: gruppo }, { merge: true })
       return { ok: true }
     }
+    // Come si aggiorna questo locale, al di là delle regole (REQ-FLOTTA-020):
+    // 'obbligatori', 'a_scelta', o null per seguire le regole.
+    if (azione === 'modalita') {
+      const modalita = req.data?.modalita ?? null
+      if (modalita !== null && !aggiornamenti.MODALITA.includes(modalita)) no('Modalità non valida.')
+      const ist = (await db.doc(`istanze/${slug}`).get()).data()
+      if (!ist) no('Istanza non trovata.')
+      await db.doc(`istanze/${slug}`).set({ modalita_aggiornamenti: modalita }, { merge: true })
+      await scriviRegolaAggiornamenti(slug)
+      return { ok: true }
+    }
     if (azione === 'indietro') {
       const ist = (await db.doc(`istanze/${slug}`).get()).data()
       const versione = rilasci.versioneDiRitorno(ist)
@@ -415,7 +490,7 @@ exports.gestisciRilascio = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN], t
       const esiste = (await rilascioRef.get()).data()
       if (esiste && esiste.stato !== 'annullato') no(`Il rilascio ${tag} c’è già.`)
       const istanze = await tutteLeIstanze()
-      const nuovo = rilasci.nuovoRilascio(tag, istanze, { da: req.auth.token.email || req.auth.uid })
+      const nuovo = rilasci.nuovoRilascio(tag, istanze, { da: req.auth.token.email || req.auth.uid, obbligatorio: req.data?.obbligatorio === true })
       await rilascioRef.set(rilasci.conRiepilogo(nuovo, istanze))
       return { ok: true }
     }
@@ -427,13 +502,33 @@ exports.gestisciRilascio = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN], t
       // Prima si scrive il rilascio, poi si lancia: un secondo clic trova
       // l'ondata già partita e si ferma.
       await rilascioRef.set(rilasci.conRiepilogo(avanti, istanze))
+      // Ognuno secondo la sua regola (REQ-FLOTTA-020): si pubblica, si
+      // propone al titolare, o il suo piano non lo comprende.
       const nonPartiti = []
+      const proposti = []
+      const esclusi = []
+      let changelog = null
       for (const s of daLanciare) {
+        const cosa = aggiornamenti.cosaFareNelRilascio(istanze[s], await clienteDi(s), avanti)
+        if (cosa === 'escludi') {
+          esclusi.push(s)
+          continue
+        }
+        if (cosa === 'proponi') {
+          // Le note si leggono una volta per ondata; senza, la proposta
+          // esce lo stesso, col solo numero di versione.
+          if (changelog === null) changelog = await changelogAl(tag).catch((e) => (console.error('[aggiornamenti] note:', e?.message || e), ''))
+          await proponiAggiornamento(s, tag, { rilascio: tag, changelog })
+          proposti.push(s)
+          continue
+        }
         const perche = await lanciaAggiornamento(s, tag, { rilascio: tag })
         if (perche) nonPartiti.push(`${s}: ${perche}`)
       }
+      if (esclusi.length) await rilascioRef.set({ non_inclusi: FieldValue.arrayUnion(...esclusi) }, { merge: true })
       await ricalcolaRilasci()
-      return { ok: true, ondata: avanti.ondate[avanti.ondata].nome, lanciati: daLanciare.length - nonPartiti.length, nonPartiti }
+      const lanciati = daLanciare.length - nonPartiti.length - proposti.length - esclusi.length
+      return { ok: true, ondata: avanti.ondate[avanti.ondata].nome, lanciati, proposti: proposti.length, esclusi: esclusi.length, nonPartiti }
     }
     if (azione === 'riprova') {
       if (!rilascio.ondate.some((o) => o.slugs.includes(slug))) no('Questo locale non è nel rilascio.')
@@ -455,6 +550,133 @@ exports.gestisciRilascio = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN], t
   } catch (e) {
     if (e instanceof rilasci.RilascioNonValido) throw new HttpsError('failed-precondition', e.message)
     throw e
+  }
+})
+
+// ── GLI AGGIORNAMENTI OBBLIGATORI O A SCELTA (REQ-FLOTTA-020) ─────────
+// Le regole le decide l'admin (impostazioni/aggiornamenti); ogni locale le
+// prende al suo rinnovo, con un avviso prima. La logica sta in
+// lib/aggiornamenti.js; qui si legge, si scrive e si lancia.
+
+async function regoleAggiornamenti() {
+  return aggiornamenti.regolePulite((await db.doc('impostazioni/aggiornamenti').get()).data())
+}
+
+async function clienteDi(slug) {
+  return (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]?.data() || null
+}
+
+// Il CHANGELOG di tana-drink a un tag.
+async function changelogAl(tag) {
+  const res = await fetch(`https://raw.githubusercontent.com/${APP_REPO}/${tag}/CHANGELOG.md`)
+  if (!res.ok) throw new Error(`CHANGELOG di ${tag}: GitHub ${res.status}`)
+  return res.text()
+}
+
+// Quello che si sa degli aggiornamenti di un locale si riscrive in due
+// posti: sull'istanza, che la dashboard del titolare legge, e nella licenza
+// dell'app (`settings/bar.licenza.aggiornamenti`, contratto con tana-drink).
+// Un locale esistente che non riceve la licenza dalla regia lo sa solo qui.
+async function scriviRegolaAggiornamenti(slug) {
+  const ref = db.doc(`istanze/${slug}`)
+  const ist = (await ref.get()).data()
+  if (!ist) return
+  const lic = aggiornamenti.licenzaAggiornamenti(ist, await clienteDi(slug))
+  await ref.set({ regola_aggiornamenti: { modalita: lic.modalita, inclusi: lic.inclusi, motivo: lic.motivo } }, { merge: true })
+  if (ist.progetto && ist.stato === 'attiva' && scriveLicenza(ist)) {
+    await firestoreDi(ist.progetto).doc('settings/bar').update({ 'licenza.aggiornamenti': lic })
+  }
+}
+
+// La proposta di un rilascio al titolare, con le note dalla sua versione.
+async function proponiAggiornamento(slug, tag, { rilascio = null, changelog = '' } = {}) {
+  const ref = db.doc(`istanze/${slug}`)
+  const ist = (await ref.get()).data()
+  const note = aggiornamenti.noteTra(changelog, ist?.versione, tag)
+  await ref.update({ proposta_aggiornamento: aggiornamenti.nuovaProposta(tag, { rilascio, note }) })
+  await scriviRegolaAggiornamenti(slug).catch((e) => console.error(`[aggiornamenti] ${slug}:`, e?.message || e))
+}
+
+// La scelta del titolare, dall'app o dalla dashboard: «aggiorna» lancia il
+// workflow come un'ondata, «salta» lascia il locale dov'è. Ritorna null, o
+// il perché se l'aggiornamento non è partito.
+async function applicaScelta(slug, scelta, { il = new Date().toISOString(), da = null } = {}) {
+  const ref = db.doc(`istanze/${slug}`)
+  const ist = (await ref.get()).data()
+  const p = ist?.proposta_aggiornamento
+  if (!p?.attesa) return 'Nessuna proposta in attesa.'
+  // Il piano può aver smesso di comprenderli dopo la proposta.
+  if (scelta === 'aggiorna' && !aggiornamenti.regolaDi(ist, await clienteDi(slug)).inclusi) return 'Il piano del locale non comprende più gli aggiornamenti.'
+  const fatta = { scelta, scelta_il: il, scelta_da: da, scelta_letta_il: il }
+  if (scelta === 'aggiorna') {
+    const perche = await lanciaAggiornamento(slug, p.tag, { rilascio: p.rilascio })
+    if (perche) return perche
+    await ref.update({ proposta_aggiornamento: { ...p, ...fatta, attesa: false } })
+  } else {
+    await ref.update({ proposta_aggiornamento: { ...p, ...fatta, saltata_il: il } })
+  }
+  await scriviRegolaAggiornamenti(slug).catch((e) => console.error(`[aggiornamenti] ${slug}:`, e?.message || e))
+  await ricalcolaRilasci().catch((e) => console.error('[rilasci] ricalcolo dopo una scelta:', e?.message || e))
+  return null
+}
+
+// L'admin cambia le regole: chi è già attivo le prende al suo rinnovo (o
+// dopo il preavviso) e riceve l'avviso adesso, nell'app e nella dashboard.
+exports.impostaRegoleAggiornamenti = onCall({ ...OPTS, timeoutSeconds: 540 }, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const regole = aggiornamenti.regolePulite(req.data)
+  const adesso = new Date()
+  await db.doc('impostazioni/aggiornamenti').set({ ...regole, cambiato_il: adesso.toISOString(), cambiato_da: req.auth.token.email || req.auth.uid })
+  const [istanze, clienti] = await Promise.all([tutteLeIstanze(), db.collection('clienti').get().then((q) => q.docs.map((d) => d.data()))])
+  const perSlug = Object.fromEntries(clienti.map((c) => [c.slug, c]))
+  let avvisati = 0
+  const nonScritti = []
+  for (const [slug, ist] of Object.entries(istanze)) {
+    const patch = aggiornamenti.cambioPerIstanza(ist, perSlug[slug], regole, adesso)
+    if (!patch) continue
+    await db.doc(`istanze/${slug}`).set(patch, { merge: true })
+    if (patch.avviso_aggiornamenti) avvisati += 1
+    try {
+      await scriviRegolaAggiornamenti(slug)
+    } catch (e) {
+      nonScritti.push(slug)
+      console.error(`[aggiornamenti] ${slug}:`, e?.message || e)
+    }
+  }
+  return { ok: true, avvisati, nonScritti }
+})
+
+// La scelta dalla dashboard del titolare: la stessa che può fare nell'app.
+exports.sceltaAggiornamento = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN] }, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  const cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data()
+  if (!cliente?.slug) throw new HttpsError('failed-precondition', 'Nessun locale collegato a questo account.')
+  const ist = (await db.doc(`istanze/${cliente.slug}`).get()).data()
+  const scelta = aggiornamenti.sceltaValida({ tag: String(req.data?.tag || ''), scelta: req.data?.scelta, il: new Date().toISOString() }, ist?.proposta_aggiornamento)
+  if (!scelta) throw new HttpsError('failed-precondition', 'Questa proposta non è più valida: ricarica la pagina.')
+  const perche = await applicaScelta(cliente.slug, scelta, { da: req.auth.token.email || req.auth.uid })
+  if (perche) throw new HttpsError('failed-precondition', perche)
+  return { ok: true, scelta }
+})
+
+// La scelta dall'app: il titolare la scrive in `aggiornamenti/scelta` nel
+// database del suo locale, e la regia la va a leggere. Il profilo leggero
+// non ha Functions, e una chiamata dal browser alla regia vorrebbe una
+// chiave nel browser: così non serve niente di nuovo.
+exports.leggiScelteAggiornamenti = onSchedule({ ...OPTS, schedule: 'every 10 minutes', timeZone: 'Europe/Rome', secrets: [GITHUB_DISPATCH_TOKEN] }, async () => {
+  const attese = (await db.collection('istanze').where('proposta_aggiornamento.attesa', '==', true).get()).docs
+  for (const d of attese) {
+    const ist = d.data()
+    if (!ist.progetto || ist.stato !== 'attiva' || !scriveLicenza(ist)) continue
+    try {
+      const s = (await firestoreDi(ist.progetto).doc('aggiornamenti/scelta').get()).data()
+      const scelta = aggiornamenti.sceltaValida(s, ist.proposta_aggiornamento, { giaLetta: ist.proposta_aggiornamento.scelta_letta_il })
+      if (!scelta) continue
+      const perche = await applicaScelta(d.id, scelta, { il: aggiornamenti.dataDi(s.il) || new Date().toISOString(), da: typeof s.da === 'string' ? s.da.slice(0, 128) : null })
+      console.log(`[aggiornamenti] ${d.id}: ${scelta}${perche ? ` non partito: ${perche}` : ''}`)
+    } catch (e) {
+      console.error(`[aggiornamenti] ${d.id}, la scelta:`, e?.message || e)
+    }
   }
 })
 
@@ -499,13 +721,24 @@ exports.cambiaScelta = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
 
 // La licenza dell'istanza segue il cliente: quando piano, moduli o
 // terminali cambiano e l'istanza è attiva, si riscrive settings/bar.licenza.
+// Anche gli aggiornamenti la seguono (REQ-FLOTTA-020): con «solo finché si
+// paga» sono compresi o no secondo il piano e il pagamento.
 exports.licenzaSegueIlPiano = onDocumentUpdated({ ...OPTS, document: 'clienti/{uid}', secrets: [GITHUB_DISPATCH_TOKEN] }, async (event) => {
   const prima = event.data?.before?.data()
   const dopo = event.data?.after?.data()
-  if (!dopo?.slug || !sceltaCambiata(prima, dopo)) return
+  if (!dopo?.slug) return
+  if (prima?.abbonamento?.stato !== dopo.abbonamento?.stato && !sceltaCambiata(prima, dopo)) {
+    await scriviRegolaAggiornamenti(dopo.slug).catch((e) => console.error(`[aggiornamenti] ${dopo.slug}:`, e?.message || e))
+    return
+  }
+  if (!sceltaCambiata(prima, dopo)) return
   const ist = (await db.doc(`istanze/${dopo.slug}`).get()).data()
   if (!ist?.progetto || ist.stato !== 'attiva' || !scriveLicenza(ist)) return
+  // Tornato al Free perché non paga: il piano suo torna col pagamento
+  // (ripiegaAlFree), non con un cambio di scelta.
+  if (ist.ripiego_free) return
   await firestoreDi(ist.progetto).doc('settings/bar').update(patchLicenzaPiano(dopo))
+  await scriviRegolaAggiornamenti(dopo.slug).catch((e) => console.error(`[aggiornamenti] ${dopo.slug}:`, e?.message || e))
   await db.doc(`istanze/${dopo.slug}`).set({ licenza_piano: dopo.piano, licenza_scritta_il: new Date().toISOString() }, { merge: true })
   // Un locale Free che compra (REQ-FLOTTA-015): la licenza ha già tolto i
   // limiti; ora arrivano Functions, Storage e segreti, col profilo completo.

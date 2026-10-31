@@ -36,6 +36,11 @@ vi.mock('../src/lib/db.js', () => ({
     cb({})
     return () => {}
   },
+  // Le regole degli aggiornamenti (REQ-FLOTTA-020), in «Rilasci».
+  osservaRegoleAggiornamenti: (cb) => {
+    cb({})
+    return () => {}
+  },
 }))
 
 import App from '../src/App.jsx'

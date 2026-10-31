@@ -24,6 +24,8 @@ import {
   elencoContatti,
   segnaContatto,
   impostaAggiornamentiEsistente,
+  osservaRegoleAggiornamenti,
+  impostaRegoleAggiornamenti,
 } from '../lib/db.js'
 import { venditaPulita } from '../lib/vendita.js'
 import { statoIstanza, statoDetto, STATI, progettoDi } from '../lib/istanze.js'
@@ -33,6 +35,7 @@ import { statoCredito, euroCent } from '../lib/ai.js'
 import { GRUPPI, TAG, aggiornamentoDetto } from '../lib/rilasci.js'
 import { BASE, SEZIONI, VISTE, aggiornamentoFallito, aggiornaLaRegia, contiDelBackoffice, filtraLocali } from '../lib/backoffice.js'
 import Rilasci from './Rilasci.jsx'
+import { MODALITA, regolaDetta, propostaDetta } from '../lib/aggiornamenti.js'
 
 // IL BACKOFFICE (REQ-FLOTTA-005): tutti i clienti con piano, stato
 // dell'istanza, progetto, versione. Solo col claim admin (App.jsx non ci fa
@@ -273,6 +276,7 @@ export default function Backoffice() {
             path="rilasci"
             element={
               <>
+                <RegoleAggiornamenti onErrore={setErrore} onFatto={carica} />
                 <Rilasci rilasci={rilasci} onAzione={azioneRilascio} />
                 <AggiornamentiFalliti righe={righe} az={az} />
               </>
@@ -482,8 +486,34 @@ function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaApert
             {aggiornamentoDetto(istanza?.aggiornamento) && (
               <div className={istanza.aggiornamento.stato === 'fallito' ? 'errore small' : 'muted small'}>{aggiornamentoDetto(istanza.aggiornamento)}</div>
             )}
+            {propostaDetta(istanza?.proposta_aggiornamento) && <div className="muted small">{propostaDetta(istanza.proposta_aggiornamento)}</div>}
           </dd>
         </div>
+        {aggiornabile && stato === STATI.ATTIVA && (
+          // Come si aggiorna questo locale (REQ-FLOTTA-020): di norma come
+          // dicono le regole; l'admin lo può fissare, per esempio la Tana.
+          <div>
+            <dt>
+              <label htmlFor={`modalita-${c.slug}`}>Aggiornamenti</label>
+            </dt>
+            <dd>
+              <select
+                id={`modalita-${c.slug}`}
+                aria-label={`Aggiornamenti di ${c.nome_locale}`}
+                value={istanza?.modalita_aggiornamenti || ''}
+                onChange={(e) => az.azioneRilascio('modalita', { slug: c.slug, modalita: e.target.value || null })}
+              >
+                <option value="">Seguono le regole</option>
+                {MODALITA.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.nome}
+                  </option>
+                ))}
+              </select>
+              {regolaDetta(istanza?.regola_aggiornamenti) && <div className="muted small">ora: {regolaDetta(istanza.regola_aggiornamenti)}</div>}
+            </dd>
+          </div>
+        )}
         <div>
           <dt>Credito AI</dt>
           <dd>
@@ -638,6 +668,74 @@ function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaApert
       {cambiaAperto && <CambiaPiano cliente={c} onFatto={onFatto} onErrore={az.onErrore} />}
       {eliminaAperto && <EliminaLocale cliente={c} istanza={istanza} onFatto={onFatto} onErrore={az.onErrore} />}
     </article>
+  )
+}
+
+// LE REGOLE DEGLI AGGIORNAMENTI (REQ-FLOTTA-020). L'utente, 31/10/2026:
+// due modi di aggiornare, «obbligatori» come oggi o a scelta del titolare,
+// e gli aggiornamenti «garantiti fino a che si paga»; le accende e le
+// spegne l'admin. Chi ha già un piano non cambia niente fino al rinnovo e
+// riceve un avviso: lo fa la Function, qui si sceglie e si conferma.
+function RegoleAggiornamenti({ onErrore, onFatto }) {
+  const [regole, setRegole] = useState(null)
+  const [bozza, setBozza] = useState(null)
+  const [inCorso, setInCorso] = useState(false)
+  const [esito, setEsito] = useState(null)
+
+  useEffect(
+    () =>
+      osservaRegoleAggiornamenti((d) => {
+        const r = { a_scelta: d?.a_scelta === true, solo_finche_paga: d?.solo_finche_paga === true }
+        setRegole(r)
+        setBozza((b) => b || r)
+      }),
+    []
+  )
+  if (!regole || !bozza) return null
+  const cambiate = bozza.a_scelta !== regole.a_scelta || bozza.solo_finche_paga !== regole.solo_finche_paga
+
+  const salva = async () => {
+    if (!window.confirm('I locali attivi prendono le regole nuove al loro rinnovo (o fra 30 giorni, se il rinnovo non lo sappiamo) e ricevono subito un avviso, nell’app e nella dashboard. Continuare?')) return
+    setInCorso(true)
+    setEsito(null)
+    try {
+      const r = await impostaRegoleAggiornamenti(bozza)
+      setEsito(`Regole salvate: avvisati ${r?.avvisati ?? 0} locali.${r?.nonScritti?.length ? ` Non raggiunti nell’app: ${r.nonScritti.join(', ')}.` : ''}`)
+      onFatto()
+    } catch (e) {
+      onErrore(e.message)
+    } finally {
+      setInCorso(false)
+    }
+  }
+
+  return (
+    <section className="card" aria-label="Regole degli aggiornamenti">
+      <h3>Regole degli aggiornamenti</h3>
+      <label className="riga">
+        <input type="checkbox" checked={bozza.a_scelta} onChange={(e) => setBozza((b) => ({ ...b, a_scelta: e.target.checked }))} />A scelta del titolare: prima di
+        ogni versione vede le novità e decide se aggiornare o saltarla
+      </label>
+      <label className="riga">
+        <input type="checkbox" checked={bozza.solo_finche_paga} onChange={(e) => setBozza((b) => ({ ...b, solo_finche_paga: e.target.checked }))} />
+        Solo finché si paga: chi non paga torna al Free, e il Free riceve solo i rilasci obbligatori
+      </label>
+      <p className="muted small">
+        Un rilascio obbligatorio (sicurezza, compatibilità) arriva sempre a tutti. Le installazioni interne ricevono gli aggiornamenti anche senza
+        pagare. Prima di accendere una regola vanno aggiornati i termini del servizio: oggi dicono che gli aggiornamenti si pubblicano senza
+        preavviso.
+      </p>
+      <div className="azioni">
+        <button type="button" className="btn small" disabled={!cambiate || inCorso} onClick={salva}>
+          {inCorso ? 'Salvo…' : 'Salva le regole'}
+        </button>
+      </div>
+      {esito && (
+        <p className="small" role="status">
+          {esito}
+        </p>
+      )}
+    </section>
   )
 }
 

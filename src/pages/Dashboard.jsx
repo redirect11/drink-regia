@@ -6,6 +6,7 @@ import SceltaPiano from './SceltaPiano.jsx'
 import CreditoAI from './CreditoAI.jsx'
 import ChiudiLocale from './ChiudiLocale.jsx'
 import ProveModuli from './ProveModuli.jsx'
+import AggiornamentiLocale from './AggiornamentiLocale.jsx'
 
 // LA DASHBOARD DEL TITOLARE (REQ-FLOTTA-004): il suo locale, il piano, lo
 // stato dell'istanza e, quando è attiva, l'indirizzo dell'app.
@@ -127,6 +128,8 @@ export default function Dashboard({ utente }) {
         )}
         {errore && <p className="errore">{errore}</p>}
       </section>
+      {/* Le versioni nuove e le condizioni degli aggiornamenti (REQ-FLOTTA-020). */}
+      {stato === STATI.ATTIVA && <AggiornamentiLocale istanza={istanza} />}
       <CreditoAI slug={cliente.slug} istanzaAttiva={stato === STATI.ATTIVA} />
       <ProveModuli cliente={cliente} istanza={istanza} />
       {/* Senza un abbonamento attivo si sceglie (o si rinnova) il piano. Dal

@@ -105,7 +105,11 @@ function aggiornamentoDaEvento(tipo, oggetto, adesso = new Date()) {
   if (tipo === 'invoice.paid') {
     const sub = oggetto?.subscription
     if (!sub) return null
-    return { stripe_subscription: sub, patch: { 'abbonamento.stato': 'attivo', 'abbonamento.ultimo_pagamento': ora } }
+    // La fine del periodo pagato è il prossimo rinnovo: le condizioni nuove
+    // degli aggiornamenti valgono da lì (REQ-FLOTTA-020).
+    const fine = Number(oggetto?.lines?.data?.[0]?.period?.end)
+    const rinnovo = Number.isFinite(fine) && fine > 0 ? { 'abbonamento.rinnovo_il': new Date(fine * 1000).toISOString() } : {}
+    return { stripe_subscription: sub, patch: { 'abbonamento.stato': 'attivo', 'abbonamento.ultimo_pagamento': ora, ...rinnovo } }
   }
   if (tipo === 'invoice.payment_failed') {
     const sub = oggetto?.subscription
