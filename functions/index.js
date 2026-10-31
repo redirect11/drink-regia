@@ -700,7 +700,7 @@ async function scriviLicenza(slug) {
   const ist = (await ref.get()).data()
   if (!ist) return { ok: false, perche: 'Istanza non trovata.' }
   const cliente = await clienteDi(slug)
-  const lic = licenzaProtetta(ist, cliente, { slug, regiaUrl: REGIA_URL, sceltaUrl: SCELTA_URL })
+  const lic = licenzaProtetta(ist, cliente, { slug, regiaUrl: REGIA_URL, sceltaUrl: SCELTA_URL, giorniGrazia: await giorniDiGrazia() })
   const { modalita, inclusi, motivo } = lic.aggiornamenti
   await ref.set({ regola_aggiornamenti: { modalita, inclusi, motivo } }, { merge: true })
   if (!riceveLicenza(ist)) return { ok: true, scritta: false }
@@ -722,7 +722,7 @@ async function verificaLicenza(slug) {
   const ist = (await ref.get()).data()
   const istanza = firestoreDi(ist.progetto)
   const [protetta, bar] = await Promise.all([istanza.doc(LICENZA_PROTETTA).get(), istanza.doc('settings/bar').get()])
-  const attesa = licenzaProtetta(ist, await clienteDi(slug), { slug, regiaUrl: REGIA_URL, sceltaUrl: SCELTA_URL })
+  const attesa = licenzaProtetta(ist, await clienteDi(slug), { slug, regiaUrl: REGIA_URL, sceltaUrl: SCELTA_URL, giorniGrazia: await giorniDiGrazia() })
   let perche = null
   if (!protetta.exists) perche = 'Manca licenza/attuale: con l’app nuova il locale si ferma.'
   else if (!stessaLicenza(protetta.data(), bar.data()?.licenza)) perche = 'licenza/attuale è diversa da settings/bar.licenza.'
@@ -950,7 +950,10 @@ exports.licenzaSegueIlPiano = onDocumentUpdated({ ...OPTS, document: 'clienti/{u
   if (scadenza && scadenza !== scadenze.scadenzaPagamento(prima, grazia)) {
     await programma('pagamento', dopo.slug, scadenza).catch((e) => console.error(`[scadenze] ${dopo.slug}, il compito del pagamento:`, e?.message || e))
   }
-  if (prima?.abbonamento?.stato !== dopo.abbonamento?.stato && !sceltaCambiata(prima, dopo)) {
+  // Lo stato o la scadenza del pagamento sono cambiati: la licenza (stato,
+  // valida_fino) si riscrive anche se piano e moduli sono quelli di prima.
+  const scadenzaSpostata = scadenze.scadenzaPagamento(prima, grazia) !== scadenze.scadenzaPagamento(dopo, grazia)
+  if ((prima?.abbonamento?.stato !== dopo.abbonamento?.stato || scadenzaSpostata) && !sceltaCambiata(prima, dopo)) {
     await scriviLicenza(dopo.slug).catch((e) => console.error(`[aggiornamenti] ${dopo.slug}:`, e?.message || e))
     return
   }
