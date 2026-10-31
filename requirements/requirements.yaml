@@ -888,3 +888,34 @@ requirements:
     test_cases:
       - tests/flotta.test.js
 
+  - id: REQ-FLOTTA-022
+    title: "La licenza di un locale in licenza/attuale, calcolata dalla regia e scritta solo da lei"
+    area: "functions/lib/licenza.js, functions/index.js, scripts/licenza-istanza.mjs, src/pages/Backoffice.jsx, firestore.rules"
+    description: >
+      BUG-125 di tana-drink (31/10/2026): la licenza stava in
+      settings/bar.licenza, e le regole dell'app lasciano scrivere
+      settings/ a ogni bartender, quindi un locale Free poteva accendersi
+      da solo piano e moduli. La licenza passa in licenza/attuale, che
+      dall'app non scrive nessuno, nemmeno il titolare; e con l'app nuova
+      un locale senza licenza/attuale mostra «Installazione non attivata».
+      La regia calcola la licenza intera dai suoi dati (cliente, istanza,
+      ritorno al Free, regole degli aggiornamenti), mai copiandola da
+      settings/bar, e a ogni cambio la scrive in licenza/attuale e, finché
+      tutti i locali non hanno l'app nuova, anche in settings/bar.licenza:
+      stato, piano, prove, ritorno al Free, aggiornamenti, attivazioni e
+      aggiornamenti riusciti. Un locale nuovo nasce con licenza/attuale
+      prima della consegna (scripts/licenza-istanza.mjs). Dal backoffice
+      («Rilasci») si allineano e si verificano tutti i locali: esiste, è
+      uguale a settings/bar.licenza, è quella dei dati della regia;
+      l'esito sta in controlli/licenze, che legge solo l'admin, e sulla
+      scheda del locale. La regia lo rifà da sola ogni mattina. Resta da
+      fare: l'app nuova in tana-drink, dopo «Tutti pronti» su ogni regia;
+      poi smettere di scrivere settings/bar.licenza e cancellarla.
+    status: partial
+    generate_issue: false
+    labels: [prodotto, flotta, regia, sicurezza]
+    test_cases:
+      - tests/licenza.test.js
+      - tests/Backoffice.test.jsx
+      - tests/db.test.js
+

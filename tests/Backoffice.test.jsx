@@ -54,8 +54,13 @@ const db = vi.hoisted(() => ({
     return () => {}
   }),
   impostaRegoleAggiornamenti: vi.fn(async () => ({ ok: true, avvisati: 2, nonScritti: [] })),
+  osservaControlloLicenze: vi.fn((cb) => {
+    cb(regia.licenze)
+    return () => {}
+  }),
+  gestisciLicenze: vi.fn(async () => ({ ok: true })),
 }))
-const regia = vi.hoisted(() => ({ impostazioni: {}, vendita: { free: false, moduli: {} }, contatti: [], aggiornamenti: {} }))
+const regia = vi.hoisted(() => ({ impostazioni: {}, vendita: { free: false, moduli: {} }, contatti: [], aggiornamenti: {}, licenze: null }))
 vi.mock('../src/lib/db.js', () => db)
 
 import Backoffice from '../src/pages/Backoffice.jsx'
@@ -897,5 +902,48 @@ describe('le regole degli aggiornamenti nel backoffice', () => {
     const riquadro = await screen.findByRole('region', { name: 'Rilasci' })
     expect(await within(riquadro).findByText(/obbligatorio/)).toBeInTheDocument()
     expect(riquadro).toHaveTextContent('1 proposti al titolare · 1 saltati dal titolare · 1 senza aggiornamenti nel piano')
+  })
+})
+
+// LE LICENZE PROTETTE (BUG-125 di tana-drink): la licenza in licenza/attuale,
+// che dall'app non si scrive. Prima del rilascio dell'app nuova, tutti i
+// locali pronti; un locale senza si ferma, e la sua scheda lo dice.
+describe('le licenze protette nel backoffice', () => {
+  it('senza controlli lo dice; «Allinea tutte» chiede conferma, «Verifica» no', async () => {
+    const user = userEvent.setup()
+    regia.licenze = null
+    const conferma = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true)
+    mostra('/backoffice/rilasci')
+    const riquadro = await screen.findByRole('region', { name: 'Licenze protette' })
+    expect(riquadro).toHaveTextContent('Nessun controllo ancora.')
+    await user.click(within(riquadro).getByRole('button', { name: 'Allinea tutte' }))
+    expect(db.gestisciLicenze).not.toHaveBeenCalled()
+    await user.click(within(riquadro).getByRole('button', { name: 'Allinea tutte' }))
+    expect(conferma).toHaveBeenCalledTimes(2)
+    expect(db.gestisciLicenze).toHaveBeenCalledWith('allinea')
+    await user.click(within(riquadro).getByRole('button', { name: 'Verifica' }))
+    expect(db.gestisciLicenze).toHaveBeenCalledWith('verifica')
+  })
+
+  it('dice chi non è pronto e perché; tutti pronti si legge in chiaro', async () => {
+    regia.licenze = { controllata_il: '2026-11-01T06:00:00Z', allineata: true, totale: 3, pronte: 2, problemi: [{ slug: 'bar-mario', perche: 'Manca licenza/attuale: con l’app nuova il locale si ferma.' }] }
+    const { unmount } = mostra('/backoffice/rilasci')
+    const riquadro = await screen.findByRole('region', { name: 'Licenze protette' })
+    expect(within(riquadro).getByTestId('esito-licenze')).toHaveTextContent('Pronti 2 su 3.')
+    expect(riquadro).toHaveTextContent('bar-mario: Manca licenza/attuale')
+    unmount()
+    regia.licenze = { controllata_il: '2026-11-01T06:00:00Z', allineata: false, totale: 3, pronte: 3, problemi: [] }
+    mostra('/backoffice/rilasci')
+    expect(await screen.findByTestId('esito-licenze')).toHaveTextContent('Tutti pronti: 3 su 3. Verificate il')
+    regia.licenze = null
+  })
+
+  it('la scheda di un locale con la licenza che non va lo dice', async () => {
+    db.elencoIstanze.mockResolvedValue({
+      'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', licenza_protetta: { ok: false, perche: 'licenza/attuale è diversa da settings/bar.licenza.' } },
+    })
+    mostra()
+    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
+    expect(attivo).toHaveTextContent('licenza/attuale è diversa da settings/bar.licenza.')
   })
 })

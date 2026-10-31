@@ -41,6 +41,11 @@ vi.mock('../src/lib/db.js', () => ({
     cb({})
     return () => {}
   },
+  // Le licenze protette (BUG-125 di tana-drink), in «Rilasci».
+  osservaControlloLicenze: (cb) => {
+    cb(null)
+    return () => {}
+  },
 }))
 
 import App from '../src/App.jsx'
