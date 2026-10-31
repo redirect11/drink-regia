@@ -10,6 +10,11 @@ import AggiornamentiLocale from './AggiornamentiLocale.jsx'
 
 // LA DASHBOARD DEL TITOLARE (REQ-FLOTTA-004): il suo locale, il piano, lo
 // stato dell'istanza e, quando è attiva, l'indirizzo dell'app.
+//
+// A RIQUADRI AFFIANCATI (l'utente, 31/10/2026: «direi di creare più box
+// anche affiancati, due o tre colonne di box»): una griglia che fa due o
+// tre colonne secondo lo schermo, una sul telefono. La scelta del piano e
+// la chiusura del locale restano larghe quanto la pagina.
 export default function Dashboard({ utente }) {
   const [cliente, setCliente] = useState(undefined)
   const [istanza, setIstanza] = useState(null)
@@ -60,7 +65,7 @@ export default function Dashboard({ utente }) {
   }
 
   return (
-    <main className="pagina stretta">
+    <main className="pagina dashboard">
       {utente.emailVerificata === false && (
         <section className="card avviso" role="status">
           <strong>Conferma la tua email.</strong> Ti abbiamo scritto a {utente.email}: apri il link nel messaggio. Senza, l’app non si
@@ -76,67 +81,76 @@ export default function Dashboard({ utente }) {
           {avviso && <p className="muted small">{avviso}</p>}
         </section>
       )}
-      <section className="card">
+      <header className="dashboard-testa">
         <h2>{cliente.nome_locale}</h2>
         <p className="muted small">
-          Identificativo: <code>{cliente.slug}</code> · progetto <code>{progettoDi(cliente.slug)}</code>
+          {/* Il progetto lo dice l'istanza: un locale esistente (la Tana) non è drinkpos-<slug>. */}
+          Identificativo: <code>{cliente.slug}</code> · progetto <code>{istanza?.progetto || progettoDi(cliente.slug)}</code>
         </p>
-        <h3>Piano</h3>
-        {piano ? (
+      </header>
+      <div className="riquadri">
+        <section className="card" aria-label="L’app">
+          <h3>L’app</h3>
           <p>
-            <strong>{piano.nome}</strong> · {euro(prezzoMensile(cliente))} al mese
-            {cliente.moduli?.length > 0 && (
-              <span className="muted"> · moduli: {cliente.moduli.map((id) => MODULI.find((m) => m.id === id)?.nome || id).join(', ')}</span>
-            )}
-            {cliente.terminali > 1 && <span className="muted"> · {cliente.terminali} terminali</span>}
-            {/* I limiti del Free si dicono qui, chiari (REQ-FLOTTA-015). */}
-            {piano.limiti && (
-              <span className="muted small" data-testid="limiti-piano">
-                {' '}
-                · fino a {piano.limiti.prodotti_max} prodotti nel menù e {piano.limiti.conti_aperti_max} conti aperti insieme
-                {piano.limiti.utenti_max === 1 && ', solo il titolare'}
-                {piano.limiti.sconti === false && ', senza sconti'}, storico degli ultimi {piano.limiti.storico_giorni} giorni
-              </span>
-            )}
+            <strong data-testid="stato-istanza">{statoDetto(stato)}</strong>
+            {istanza?.aggiornata_il && <span className="muted small"> · {new Date(istanza.aggiornata_il).toLocaleString('it-IT')}</span>}
           </p>
-        ) : (
-          <p className="muted">Nessun piano ancora: scegline uno qui sotto.</p>
-        )}
-        {cliente.abbonamento?.stato && cliente.abbonamento.stato !== 'attivo' && (
-          <p className="errore small">Abbonamento {cliente.abbonamento.stato}.</p>
-        )}
-        <h3>Istanza</h3>
-        <p>
-          <strong data-testid="stato-istanza">{statoDetto(stato)}</strong>
-          {istanza?.aggiornata_il && <span className="muted small"> · {new Date(istanza.aggiornata_il).toLocaleString('it-IT')}</span>}
-        </p>
-        {stato === STATI.ATTIVA && (
-          <p>
-            L’app è su <a href={istanza?.url || urlDi(cliente.slug)}>{istanza?.url || urlDi(cliente.slug)}</a>. L’accesso
-            admin è l’email di questo account: la password la imposti al primo accesso con «password dimenticata».
-            {istanza?.versione && <span className="muted small"> Versione {istanza.versione}.</span>}
-          </p>
-        )}
-        {stato === STATI.ERRORE && istanza?.errore && <p className="errore small">{istanza.errore}</p>}
-        {(stato === STATI.DA_ATTIVARE || stato === STATI.ERRORE) && (
-          <>
-            <button className="btn" type="button" disabled={!via.ok} onClick={attiva}>
-              Attiva l’istanza
-            </button>
-            {!via.ok && <p className="muted small">{via.perche}</p>}
-          </>
-        )}
-        {errore && <p className="errore">{errore}</p>}
-      </section>
-      {/* Le versioni nuove e le condizioni degli aggiornamenti (REQ-FLOTTA-020). */}
-      {stato === STATI.ATTIVA && <AggiornamentiLocale istanza={istanza} />}
-      <CreditoAI slug={cliente.slug} istanzaAttiva={stato === STATI.ATTIVA} />
-      <ProveModuli cliente={cliente} istanza={istanza} />
-      {/* Senza un abbonamento attivo si sceglie (o si rinnova) il piano. Dal
-          Free a un piano a pagamento si passa dal Checkout, non da «modifica»
-          (REQ-FLOTTA-015). */}
-      {(cliente.abbonamento?.stato !== 'attivo' || cliente.abbonamento?.origine === 'gratuito') && <SceltaPiano cliente={cliente} />}
-      {cliente.abbonamento?.stato === 'attivo' && cliente.abbonamento?.origine !== 'gratuito' && <SceltaPiano cliente={cliente} modifica />}
+          {stato === STATI.ATTIVA && (
+            <p>
+              L’app è su <a href={istanza?.url || urlDi(cliente.slug)}>{istanza?.url || urlDi(cliente.slug)}</a>. L’accesso
+              admin è l’email di questo account: la password la imposti al primo accesso con «password dimenticata».
+              {istanza?.versione && <span className="muted small"> Versione {istanza.versione}.</span>}
+            </p>
+          )}
+          {stato === STATI.ERRORE && istanza?.errore && <p className="errore small">{istanza.errore}</p>}
+          {(stato === STATI.DA_ATTIVARE || stato === STATI.ERRORE) && (
+            <>
+              <button className="btn" type="button" disabled={!via.ok} onClick={attiva}>
+                Attiva l’istanza
+              </button>
+              {!via.ok && <p className="muted small">{via.perche}</p>}
+            </>
+          )}
+          {errore && <p className="errore">{errore}</p>}
+        </section>
+        <section className="card" aria-label="Piano">
+          <h3>Piano</h3>
+          {piano ? (
+            <p>
+              <strong>{piano.nome}</strong> · {euro(prezzoMensile(cliente))} al mese
+              {cliente.moduli?.length > 0 && (
+                <span className="muted"> · moduli: {cliente.moduli.map((id) => MODULI.find((m) => m.id === id)?.nome || id).join(', ')}</span>
+              )}
+              {cliente.terminali > 1 && <span className="muted"> · {cliente.terminali} terminali</span>}
+              {/* I limiti del Free si dicono qui, chiari (REQ-FLOTTA-015). */}
+              {piano.limiti && (
+                <span className="muted small" data-testid="limiti-piano">
+                  {' '}
+                  · fino a {piano.limiti.prodotti_max} prodotti nel menù e {piano.limiti.conti_aperti_max} conti aperti insieme
+                  {piano.limiti.utenti_max === 1 && ', solo il titolare'}
+                  {piano.limiti.sconti === false && ', senza sconti'}, storico degli ultimi {piano.limiti.storico_giorni} giorni
+                </span>
+              )}
+            </p>
+          ) : (
+            <p className="muted">Nessun piano ancora: scegline uno qui sotto.</p>
+          )}
+          {cliente.abbonamento?.stato && cliente.abbonamento.stato !== 'attivo' && (
+            <p className="errore small">Abbonamento {cliente.abbonamento.stato}.</p>
+          )}
+        </section>
+        {/* Le versioni nuove e le condizioni degli aggiornamenti (REQ-FLOTTA-020). */}
+        {stato === STATI.ATTIVA && <AggiornamentiLocale istanza={istanza} />}
+        <CreditoAI slug={cliente.slug} istanzaAttiva={stato === STATI.ATTIVA} />
+        <ProveModuli cliente={cliente} istanza={istanza} />
+        {/* Senza un abbonamento attivo si sceglie (o si rinnova) il piano. Dal
+            Free a un piano a pagamento si passa dal Checkout, non da «modifica»
+            (REQ-FLOTTA-015). */}
+        <div className="intera">
+          {(cliente.abbonamento?.stato !== 'attivo' || cliente.abbonamento?.origine === 'gratuito') && <SceltaPiano cliente={cliente} />}
+          {cliente.abbonamento?.stato === 'attivo' && cliente.abbonamento?.origine !== 'gratuito' && <SceltaPiano cliente={cliente} modifica />}
+        </div>
+      </div>
       {new URLSearchParams(window.location.search).get('pagamento') === 'ok' && (
         <p className="muted small">Pagamento ricevuto: l’abbonamento compare qui sopra appena Stripe ce lo conferma, di solito in pochi secondi.</p>
       )}
