@@ -218,35 +218,12 @@ function promozione(ist, adesso = new Date()) {
 }
 
 // ── IL RITORNO AL FREE DI CHI NON PAGA ────────────────────────────────
-// Con «solo finché si paga» in vigore, un abbonamento «in sospeso» oltre i
-// giorni di grazia non sospende più il locale: lo riporta al Free, che
-// lavora coi limiti e riceve solo gli obbligatori. Quando torna a pagare il
-// piano torna quello suo. Un abbonamento disdetto chiude il locale come
-// prima: l'ha chiesto il titolare. Torna [{ cliente, azione }].
-function daRipiegare(clienti, istanze, { adesso = new Date(), giorniDiGrazia = 7 } = {}) {
-  const out = []
-  for (const c of clienti || []) {
-    const ist = istanze?.[c.slug]
-    if (!ist || ist.stato !== 'attiva' || ist.interna === true) continue
-    if (ist.licenza_stato === 'chiusa') continue
-    const ab = c.abbonamento || {}
-    if (ist.ripiego_free) {
-      if (ab.stato === 'attivo') out.push({ cliente: c, azione: 'ripristina' })
-      continue
-    }
-    // Un locale già sospeso (dall'admin, o dai morosi prima della regola)
-    // resta com'è: lo si riattiva da lì.
-    if (ist.licenza_stato === 'sospesa') continue
-    if (!condizioniIn(ist, adesso).solo_finche_paga || eGratuito(c.piano)) continue
-    if (ab.stato !== 'in sospeso') continue
-    const da = Date.parse(ab.aggiornato_il || ab.dal || 0)
-    if (Number.isFinite(da) && adesso.getTime() - da >= giorniDiGrazia * GIORNO) out.push({ cliente: c, azione: 'ripiega' })
-  }
-  return out
-}
-
-// La sospensione dei morosi salta chi, con «solo finché si paga», torna al
-// Free invece di fermarsi (sospensione.js chiede questo).
+// Con «solo finché si paga» in vigore, un abbonamento non pagato non
+// sospende il locale: lo riporta al Free, che lavora coi limiti e riceve
+// solo gli obbligatori; quando torna a pagare il piano torna il suo. Lo
+// decide il cambio di stato dell'abbonamento (scadenze.azioneDiPagamento,
+// REQ-FLOTTA-023), non un giro quotidiano.
+// Chi non paga torna al Free invece di fermarsi?
 const ripiegaInveceDiSospendere = (ist, adesso = new Date()) => ist?.interna !== true && condizioniIn(ist, adesso).solo_finche_paga
 
 // ── QUELLO CHE SA L'APP: settings/bar.licenza.aggiornamenti ───────────
@@ -287,7 +264,6 @@ module.exports = {
   testoAvviso,
   cambioPerIstanza,
   promozione,
-  daRipiegare,
   ripiegaInveceDiSospendere,
   licenzaAggiornamenti,
 }

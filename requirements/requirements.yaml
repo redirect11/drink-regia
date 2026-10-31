@@ -350,17 +350,17 @@ requirements:
 
   - id: REQ-FLOTTA-008
     title: "Un'istanza si ferma: Sospendi, Riattiva e Chiudi dal backoffice, e la sospensione automatica di chi non paga"
-    area: "functions/index.js (impostaStatoIstanza, sospendiMorosi), functions/lib/sospensione.js, src/pages/Backoffice.jsx, src/lib/db.js"
+    area: "functions/index.js (impostaStatoIstanza, licenzaSegueIlPiano), functions/lib/sospensione.js, functions/lib/scadenze.js, src/pages/Backoffice.jsx, src/lib/db.js"
     description: >
       «Serve un modo per eliminare/fermare l'app deployata (ad esempio se
       non arriva il pagamento mensile)» (l'utente, 22/10/2026). La parte
       della regia: lo stato della licenza dell'istanza
       (`settings/bar.licenza.stato`: attiva, sospesa, chiusa) lo scrive la
       Function `impostaStatoIstanza`, cross-progetto, a cui il backoffice
-      arriva coi tasti Sospendi (con motivo), Chiudi e Riattiva; e la
-      Function giornaliera `sospendiMorosi` sospende chi ha l'abbonamento
-      «in sospeso» da piu' di sette giorni, chiude chi ha disdetto e
-      riattiva chi e' tornato a pagare (logica pura in lib/sospensione.js).
+      arriva coi tasti Sospendi (con motivo), Chiudi e Riattiva. Dal
+      31/10/2026 il mancato pagamento sospende, la disdetta chiude e il
+      pagamento riattiva quando cambia lo stato dell'abbonamento, non con
+      un giro quotidiano (REQ-FLOTTA-023, lib/scadenze.js).
       `istanze/{slug}` tiene `licenza_stato` e `licenza_motivo` per il
       backoffice. Cosa fa l'app quando e' sospesa sta nel repository
       tana-drink (REQ-FLOTTA-008 di la'): si ferma, lo dice, i dati restano.
@@ -590,7 +590,7 @@ requirements:
 
   - id: REQ-FLOTTA-014
     title: "Eliminare un locale e il suo progetto, sempre dopo un backup completo e verificato che scarica solo il titolare"
-    area: "functions/lib/eliminazione.js, functions/index.js (gestisciEliminazione, eliminazioniProgrammate, scaricaArchivio, esitoProvisioning), .github/workflows/elimina-istanza.yml, scripts/archivia-istanza.mjs, src/pages/ChiudiLocale.jsx, src/pages/Dashboard.jsx, src/pages/Backoffice.jsx (EliminaLocale), src/lib/istanze.js (ELIMINATA), src/pages/Legali.jsx"
+    area: "functions/lib/eliminazione.js, functions/index.js (gestisciEliminazione, scadenza, scaricaArchivio, esitoProvisioning), .github/workflows/elimina-istanza.yml, scripts/archivia-istanza.mjs, src/pages/ChiudiLocale.jsx, src/pages/Dashboard.jsx, src/pages/Backoffice.jsx (EliminaLocale), src/lib/istanze.js (ELIMINATA), src/pages/Legali.jsx"
     description: >
       Decisioni dell'utente del 29/10/2026. IL TITOLARE, dalla sua dashboard,
       chiude il locale e ne chiede la cancellazione: l'app si ferma subito,
@@ -611,9 +611,9 @@ requirements:
       L'ARCHIVIO resta 180 giorni (regola del bucket) e lo scarica solo il
       titolare del locale, dalla dashboard, con un link firmato di 15
       minuti: per quei dati il locale e' titolare del trattamento e noi
-      responsabili (GDPR art. 28); nemmeno l'admin ha il pulsante. Ogni
-      mattina eliminazioniProgrammate lancia quelle arrivate alla data, se
-      il locale e' ancora chiuso. Un locale eliminato non si riattiva
+      responsabili (GDPR art. 28); nemmeno l'admin ha il pulsante. Alla
+      data parte il compito dell'eliminazione programmata (REQ-FLOTTA-023),
+      se il locale e' ancora chiuso. Un locale eliminato non si riattiva
       (Google non riusa l'id di un progetto cancellato). Termini e privacy
       lo dicono; il DPA, quando c'e', deve dire lo stesso. Da fare fuori dal
       codice: i bucket degli archivi e i loro permessi (infra/README.md).
@@ -681,7 +681,7 @@ requirements:
 
   - id: REQ-FLOTTA-016
     title: "Le prove dei moduli scelte dall'admin, e «Cambia piano» dell'admin con Stripe o fuori da Stripe"
-    area: "functions/lib/prove.js, functions/lib/cambiopiano.js, functions/lib/licenza.js (prove), functions/lib/free.js (venditaPulita), functions/index.js (provaModulo, proveScadute, cambiaPianoAdmin), src/lib/vendita.js, src/lib/db.js, src/pages/ProveModuli.jsx, src/pages/Dashboard.jsx, src/pages/Backoffice.jsx (Vendita, GiorniDiProva, CambiaPiano)"
+    area: "functions/lib/prove.js, functions/lib/cambiopiano.js, functions/lib/licenza.js (prove), functions/lib/free.js (venditaPulita), functions/index.js (provaModulo, scadenza, cambiaPianoAdmin), src/lib/vendita.js, src/lib/db.js, src/pages/ProveModuli.jsx, src/pages/Dashboard.jsx, src/pages/Backoffice.jsx (Vendita, GiorniDiProva, CambiaPiano)"
     description: >
       L'utente, 30/10/2026: «le prove dei moduli ma posso decidere io quali
       mettere in attivazione trial». LE PROVE: nel riquadro «Vendita» del
@@ -690,9 +690,9 @@ requirements:
       (provaModulo), una volta sola per modulo, solo col locale attivo e non
       sospeso, solo per un modulo in vendita che non ha gia'; anche sul Free.
       La licenza accende il modulo e i suoi moduli di dettaglio fino alla
-      scadenza, e la scrive in licenza.prove; ogni mattina proveScadute
-      toglie le prove scadute e quelle dei moduli ormai comprati, e la
-      licenza segue. «CAMBIA PIANO» al posto di «Piano a mano», che scriveva
+      scadenza, e la scrive in licenza.prove; alla scadenza il suo compito
+      (REQ-FLOTTA-023) toglie le prove scadute e quelle dei moduli ormai
+      comprati, e la licenza segue. «CAMBIA PIANO» al posto di «Piano a mano», che scriveva
       solo il piano e segnava pagato senza dirlo: piano, moduli e terminali,
       e come si paga. Con Stripe si aggiorna l'abbonamento con l'addebito
       proporzionale (il cliente lo scrive il webhook); fuori da Stripe
@@ -834,8 +834,8 @@ requirements:
       nessuno dei due ferma l'ondata. Il titolare sceglie «Aggiorna» o
       «Salta» dalla dashboard, o dall'app, che scrive aggiornamenti/scelta
       nel database del locale e la regia legge ogni dieci minuti. Con «solo
-      finché si paga» un abbonamento in sospeso oltre i giorni di grazia
-      non sospende più il locale: lo riporta al Free, e al pagamento torna
+      finché si paga» un abbonamento non pagato (REQ-FLOTTA-023) non
+      sospende più il locale: lo riporta al Free, e al pagamento torna
       il suo piano; un disdetto si chiude come prima; le installazioni
       interne li ricevono sempre. Il contratto con l'app è in
       docs/handover.md §7; in tana-drink è REQ-FLOTTA-020
@@ -887,6 +887,46 @@ requirements:
     labels: [prodotto, flotta, regia]
     test_cases:
       - tests/flotta.test.js
+
+  - id: REQ-FLOTTA-023
+    title: "Le scadenze a eventi: lo stato dell'abbonamento e un compito per ogni scadenza, niente giri quotidiani"
+    area: "functions/lib/scadenze.js, functions/lib/abbonamento.js, functions/lib/cambiopiano.js, functions/index.js (scadenza, registraPagamento, programmaScadenze, licenzaSegueIlPiano), src/pages/Backoffice.jsx"
+    description: >
+      «Non possiamo mettere un qualcosa che tiene traccia del periodo delle
+      licenze ed esegue operazioni in base ad eventi piuttosto che farlo
+      ogni mattina? [...] Non mi piace la temporizzazione di questi
+      check», poi «Ok procedi così» e, sul pagamento fuori da Stripe, «ok
+      1» (l'utente, 31/10/2026). Via i tre giri quotidiani (sospendiMorosi,
+      proveScadute, eliminazioniProgrammate). Con Stripe decide lo stato
+      dell'abbonamento: Stripe ritenta col suo calendario (in sospeso),
+      poi «non pagato» o disdetto; il webhook scrive lo stato della
+      subscription sul cliente, e un pagamento fallito non lo cambia più.
+      Il cambio di stato fa la cosa giusta al locale (azioneDiPagamento):
+      non pagato sospende, o con «solo finché si paga» riporta al Free;
+      disdetto chiude; di nuovo attivo riattiva una sospensione per il
+      pagamento (non una dell'admin) o riporta il piano. Le interne no.
+      Fuori da Stripe (oggi l'unico modo di vendere, coi pagamenti online
+      spenti) l'admin scrive «pagato fino al» in «Cambia piano» o con
+      «Registra pagamento»; alla data, più i giorni di grazia
+      (impostazioni/regia.giorni_grazia, 7 se non detti), un compito
+      segna l'abbonamento non pagato. Vuoto, nessuna scadenza (omaggi).
+      Prove, eliminazioni programmate e condizioni degli aggiornamenti
+      hanno un compito alla loro data (Cloud Tasks, onTaskDispatched
+      «scadenza»); un compito ricontrolla prima di fare, quindi una
+      scadenza spostata o annullata non si cancella, si ignora; oltre 29
+      giorni il compito si riprogramma da solo. «Programma le scadenze»
+      nel backoffice programma una volta quelle nate prima. Serve l'API
+      Cloud Tasks sul progetto e il ruolo per creare la coda all'account
+      del deploy.
+    status: implemented
+    generate_issue: false
+    labels: [prodotto, regia, abbonamento]
+    test_cases:
+      - tests/scadenze.test.js
+      - tests/abbonamento.test.js
+      - tests/esistente.test.js
+      - tests/Backoffice.test.jsx
+      - tests/db.test.js
 
   - id: REQ-FLOTTA-022
     title: "La licenza di un locale in licenza/attuale, calcolata dalla regia e scritta solo da lei"

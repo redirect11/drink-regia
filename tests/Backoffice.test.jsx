@@ -59,6 +59,8 @@ const db = vi.hoisted(() => ({
     return () => {}
   }),
   gestisciLicenze: vi.fn(async () => ({ ok: true })),
+  registraPagamento: vi.fn(async () => ({ ok: true })),
+  programmaScadenze: vi.fn(async () => ({ ok: true, programmati: 3, errori: [] })),
 }))
 const regia = vi.hoisted(() => ({ impostazioni: {}, vendita: { free: false, moduli: {} }, contatti: [], aggiornamenti: {}, licenze: null }))
 vi.mock('../src/lib/db.js', () => db)
@@ -179,7 +181,7 @@ describe('il backoffice', () => {
     expect(within(modulo).getByLabelText(/Fuori da Stripe/)).toBeChecked()
     await user.click(within(modulo).getByLabelText('Magazzino e fornitori'))
     await user.click(within(modulo).getByRole('button', { name: 'Cambia piano' }))
-    expect(db.cambiaPianoAdmin).toHaveBeenCalledWith({ slug: 'bar-nuovo', piano: 'base', moduli: ['magazzino'], terminali: 1, modo: 'fuori' })
+    expect(db.cambiaPianoAdmin).toHaveBeenCalledWith({ slug: 'bar-nuovo', piano: 'base', moduli: ['magazzino'], terminali: 1, modo: 'fuori', pagato_fino_al: '' })
   })
 
   it('«Cambia piano» con un abbonamento Stripe propone Stripe; verso il Free spariscono moduli e terminali', async () => {
@@ -945,5 +947,65 @@ describe('le licenze protette nel backoffice', () => {
     mostra()
     const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
     expect(attivo).toHaveTextContent('licenza/attuale è diversa da settings/bar.licenza.')
+  })
+})
+
+// LE SCADENZE A EVENTI (REQ-FLOTTA-023): un piano pagato fuori da Stripe ha
+// la sua data, si registra un pagamento, e le scadenze di prima si
+// programmano una volta.
+describe('le scadenze nel backoffice', () => {
+  const manuale = (extra = {}) => ({ uid: 'm', slug: 'bar-bonifico', nome_locale: 'Bar Bonifico', email: 'm@x.it', piano: 'base', creato_il: '2026-10-05', abbonamento: { stato: 'attivo', origine: 'manuale', ...extra } })
+
+  it('un piano fuori da Stripe dice fino a quando è pagato, e si registra un pagamento', async () => {
+    const user = userEvent.setup()
+    db.elencoClienti.mockResolvedValue([manuale({ pagato_fino_al: '2026-11-30' })])
+    db.elencoIstanze.mockResolvedValue({ 'bar-bonifico': { stato: 'attiva', progetto: 'drinkpos-bar-bonifico' } })
+    vi.spyOn(window, 'prompt').mockReturnValueOnce(null).mockReturnValueOnce(' 2026-12-31 ')
+    mostra()
+    const scheda = await screen.findByRole('article', { name: 'Bar Bonifico' })
+    expect(within(scheda).getByTestId('pagato-bar-bonifico')).toHaveTextContent('pagato fino al 30/11/2026')
+    await user.click(within(scheda).getByRole('button', { name: 'Registra pagamento…' }))
+    expect(db.registraPagamento).not.toHaveBeenCalled()
+    await user.click(within(scheda).getByRole('button', { name: 'Registra pagamento…' }))
+    expect(db.registraPagamento).toHaveBeenCalledWith('bar-bonifico', '2026-12-31')
+  })
+
+  it('non pagato si vede; senza data «senza scadenza»; con Stripe niente «Registra pagamento»', async () => {
+    db.elencoClienti.mockResolvedValue([
+      manuale({ pagato_fino_al: '2026-10-31', stato: 'non pagato' }),
+      { ...manuale(), uid: 'o', slug: 'bar-omaggio', nome_locale: 'Bar Omaggio' },
+      { uid: 's', slug: 'bar-stripe', nome_locale: 'Bar Stripe', email: 's@x.it', piano: 'base', creato_il: '2026-10-06', abbonamento: { stato: 'attivo', origine: 'stripe' } },
+    ])
+    db.elencoIstanze.mockResolvedValue({})
+    mostra()
+    expect(await screen.findByTestId('pagato-bar-bonifico')).toHaveTextContent('pagato fino al 31/10/2026 · non pagato')
+    expect(screen.getByTestId('pagato-bar-omaggio')).toHaveTextContent('fuori da Stripe, senza scadenza')
+    const stripe = screen.getByRole('article', { name: 'Bar Stripe' })
+    expect(within(stripe).queryByRole('button', { name: 'Registra pagamento…' })).toBeNull()
+  })
+
+  it('«Cambia piano» fuori da Stripe porta «pagato fino al»', async () => {
+    const user = userEvent.setup()
+    db.elencoClienti.mockResolvedValue([manuale({ pagato_fino_al: '2026-11-30' })])
+    db.elencoIstanze.mockResolvedValue({})
+    mostra()
+    const scheda = await screen.findByRole('article', { name: 'Bar Bonifico' })
+    await user.click(within(scheda).getByRole('button', { name: 'Cambia piano…' }))
+    const modulo = within(scheda).getByRole('form', { name: 'Cambia piano di Bar Bonifico' })
+    const data = within(modulo).getByLabelText(/Pagato fino al/)
+    expect(data).toHaveValue('2026-11-30')
+    await user.clear(data)
+    await user.type(data, '2027-01-31')
+    await user.click(within(modulo).getByRole('button', { name: 'Cambia piano' }))
+    expect(db.cambiaPianoAdmin).toHaveBeenCalledWith(expect.objectContaining({ slug: 'bar-bonifico', modo: 'fuori', pagato_fino_al: '2027-01-31' }))
+  })
+
+  it('le scadenze di prima si programmano una volta, e si dice quante', async () => {
+    const user = userEvent.setup()
+    mostra('/backoffice/rilasci')
+    const riquadro = await screen.findByRole('region', { name: 'Scadenze' })
+    await user.click(within(riquadro).getByRole('button', { name: 'Programma le scadenze' }))
+    expect(db.programmaScadenze).toHaveBeenCalled()
+    expect(await within(riquadro).findByRole('status')).toHaveTextContent('Programmate 3 scadenze.')
   })
 })

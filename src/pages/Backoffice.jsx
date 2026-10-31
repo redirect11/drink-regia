@@ -28,6 +28,8 @@ import {
   impostaRegoleAggiornamenti,
   osservaControlloLicenze,
   gestisciLicenze,
+  registraPagamento,
+  programmaScadenze,
 } from '../lib/db.js'
 import { venditaPulita } from '../lib/vendita.js'
 import { statoIstanza, statoDetto, STATI, progettoDi } from '../lib/istanze.js'
@@ -225,7 +227,18 @@ export default function Backoffice() {
 
   const daApprovare = righe.filter((r) => r.stato === STATI.DA_APPROVARE)
   // Le azioni di una scheda, le stesse da «Locali» e da «Rilasci».
-  const az = { carica, cambiaStato, annullaEliminazione, aggiorna, azioneRilascio, riprova, indietro, azioneAI, ricaricaAI, tettoAI, chiaveAI, onErrore: setErrore }
+  // Un bonifico arrivato (REQ-FLOTTA-023): fino a quando è pagato.
+  const pagamento = async (c) => {
+    const data = window.prompt(`${c.nome_locale}: pagato fino al (AAAA-MM-GG)?`, c.abbonamento?.pagato_fino_al || '')
+    if (data == null) return
+    try {
+      await registraPagamento(c.slug, data.trim())
+    } catch (e) {
+      setErrore(e.message)
+    }
+    carica()
+  }
+  const az = { carica, cambiaStato, annullaEliminazione, aggiorna, azioneRilascio, riprova, indietro, azioneAI, ricaricaAI, tettoAI, chiaveAI, registraPagamento: pagamento, onErrore: setErrore }
   // Dopo «Crea il locale» o «Registra il locale» si va a vederlo in elenco.
   const creato = () => {
     carica()
@@ -279,6 +292,7 @@ export default function Backoffice() {
             element={
               <>
                 <LicenzeProtette onErrore={setErrore} onFatto={carica} />
+                <Scadenze onErrore={setErrore} />
                 <RegoleAggiornamenti onErrore={setErrore} onFatto={carica} />
                 <Rilasci rilasci={rilasci} onAzione={azioneRilascio} />
                 <AggiornamentiFalliti righe={righe} az={az} />
@@ -465,7 +479,16 @@ function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaApert
         </div>
         <div>
           <dt>Piano</dt>
-          <dd>{c.piano ? `${PIANI[c.piano]?.nome || c.piano} · ${euro(prezzoMensile(c))}` : <span className="muted">—</span>}</dd>
+          <dd>
+            {c.piano ? `${PIANI[c.piano]?.nome || c.piano} · ${euro(prezzoMensile(c))}` : <span className="muted">—</span>}
+            {/* Un piano pagato fuori da Stripe (REQ-FLOTTA-023): fino a quando. */}
+            {c.abbonamento?.origine === 'manuale' && (
+              <div className={c.abbonamento.stato === 'non pagato' ? 'errore small' : 'muted small'} data-testid={`pagato-${c.slug}`}>
+                {c.abbonamento.pagato_fino_al ? `pagato fino al ${giorno(c.abbonamento.pagato_fino_al)}` : 'fuori da Stripe, senza scadenza'}
+                {c.abbonamento.stato === 'non pagato' && ' · non pagato'}
+              </div>
+            )}
+          </dd>
         </div>
         <div>
           <dt>Progetto</dt>
@@ -595,6 +618,11 @@ function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaApert
           <button type="button" className="btn ghost small" onClick={onCambia}>
             Cambia piano…
           </button>
+          {c.abbonamento?.origine === 'manuale' && (
+            <button type="button" className="btn ghost small" onClick={() => az.registraPagamento(c)}>
+              Registra pagamento…
+            </button>
+          )}
           {!daFlotta && (
             <button type="button" className="btn ghost small" aria-expanded={gestioneAperta} onClick={() => setGestioneAperta((v) => !v)}>
               Chi la pubblica…
@@ -744,6 +772,48 @@ function LicenzeProtette({ onErrore, onFatto }) {
           {inCorso === 'verifica' ? 'Verifico…' : 'Verifica'}
         </button>
       </div>
+    </section>
+  )
+}
+
+// LE SCADENZE (REQ-FLOTTA-023): niente giri quotidiani; ogni scadenza
+// (pagamento a mano, prova, eliminazione, condizioni degli aggiornamenti)
+// ha un compito alla sua data, che la regia programma quando la scadenza
+// nasce. Quelle nate prima di questa versione vanno programmate una volta,
+// con questo bottone. Rifarlo non fa danni.
+function Scadenze({ onErrore }) {
+  const [inCorso, setInCorso] = useState(false)
+  const [esito, setEsito] = useState(null)
+  const programma = async () => {
+    setInCorso(true)
+    setEsito(null)
+    try {
+      const r = await programmaScadenze()
+      setEsito(`Programmate ${r?.programmati ?? 0} scadenze.${r?.errori?.length ? ` Non riuscite: ${r.errori.join('; ')}.` : ''}`)
+    } catch (e) {
+      onErrore(e.message)
+    } finally {
+      setInCorso(false)
+    }
+  }
+  return (
+    <section className="card" aria-label="Scadenze">
+      <h3>Scadenze</h3>
+      <p className="muted small">
+        Pagamenti fuori da Stripe, prove dei moduli, eliminazioni e condizioni degli aggiornamenti arrivano ognuna alla sua data, senza giri
+        quotidiani. Con Stripe decide lo stato dell’abbonamento, coi tentativi e la grazia impostati in Stripe. Dopo il primo deploy di questa
+        versione, programma una volta le scadenze che c’erano già.
+      </p>
+      <div className="azioni">
+        <button type="button" className="btn ghost small" disabled={inCorso} onClick={programma}>
+          {inCorso ? 'Programmo…' : 'Programma le scadenze'}
+        </button>
+      </div>
+      {esito && (
+        <p className="small" role="status">
+          {esito}
+        </p>
+      )}
     </section>
   )
 }
@@ -1245,6 +1315,7 @@ function CambiaPiano({ cliente, onFatto, onErrore }) {
   const [moduli, setModuli] = useState(cliente.moduli || [])
   const [terminali, setTerminali] = useState(cliente.terminali || 1)
   const [modo, setModo] = useState(conStripe ? 'stripe' : 'fuori')
+  const [pagatoFino, setPagatoFino] = useState(cliente.abbonamento?.pagato_fino_al || '')
   const [inCorso, setInCorso] = useState(false)
   const p = PIANI[piano]
   const inclusi = new Set(p.include)
@@ -1252,7 +1323,8 @@ function CambiaPiano({ cliente, onFatto, onErrore }) {
     e.preventDefault()
     setInCorso(true)
     try {
-      await cambiaPianoAdmin({ slug: cliente.slug, piano, moduli: p.gratuito ? [] : moduli, terminali: p.gratuito ? 1 : terminali, modo })
+      const pagato = modo === 'fuori' && !p.gratuito ? { pagato_fino_al: pagatoFino } : {}
+      await cambiaPianoAdmin({ slug: cliente.slug, piano, moduli: p.gratuito ? [] : moduli, terminali: p.gratuito ? 1 : terminali, modo, ...pagato })
       onFatto()
     } catch (err) {
       onErrore(err.message)
@@ -1301,6 +1373,14 @@ function CambiaPiano({ cliente, onFatto, onErrore }) {
         <input type="radio" name={`modo-${cliente.slug}`} checked={modo === 'fuori'} onChange={() => setModo('fuori')} />
         Fuori da Stripe (bonifico, omaggio)
       </label>
+      {modo === 'fuori' && !p.gratuito && (
+        // REQ-FLOTTA-023: alla scadenza, più i giorni di grazia, il locale si
+        // ferma (o torna al Free) da solo. Vuoto: senza scadenza.
+        <>
+          <label htmlFor={`cp-pagato-${cliente.slug}`}>Pagato fino al (vuoto: senza scadenza)</label>
+          <input id={`cp-pagato-${cliente.slug}`} type="date" value={pagatoFino} onChange={(e) => setPagatoFino(e.target.value)} />
+        </>
+      )}
       <div className="azioni">
         <button type="submit" className="btn small" disabled={inCorso}>
           {inCorso ? 'Un momento…' : 'Cambia piano'}

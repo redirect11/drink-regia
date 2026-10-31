@@ -280,8 +280,8 @@ coda`, `in corso`, `attiva`, `errore`), `impostazioni/regia`
 tana-drink), `esitoProvisioning` (HTTP, callback del workflow con bearer
 `PROVISIONING_CALLBACK_SECRET`), `creaCheckout` e `stripeWebhook`,
 `impostaStatoIstanza` (sospendi, riattiva, chiudi: scrive
-`settings/bar.licenza` nell'istanza), `sospendiMorosi` (ogni giorno alle
-6, Europe/Rome), `aggiornaIstanza` (dispatch di `aggiorna-istanza.yml`),
+`settings/bar.licenza` nell'istanza), `scadenza` (i compiti alle date,
+REQ-FLOTTA-023), `aggiornaIstanza` (dispatch di `aggiorna-istanza.yml`),
 `cambiaScelta`, `licenzaSegueIlPiano` (trigger su `clienti`),
 `creaCliente` (admin). Il runtime è il compute SA di default di
 `drink-regia`, che ha `datastore.user` su ogni istanza (da cambiare:
@@ -468,7 +468,7 @@ L'elenco completo con i riferimenti al codice è in
 18. **Le prove dei moduli e «Cambia piano» (REQ-FLOTTA-016)**, sullo stesso
    ramo, 30/10/2026: i giorni di prova li decide l'admin nel riquadro
    «Vendita»; il titolare prova un modulo una volta sola dalla dashboard;
-   ogni mattina `proveScadute` le spegne. «Cambia piano» al posto di «Piano
+   alla scadenza il suo compito la spegne (REQ-FLOTTA-023). «Cambia piano» al posto di «Piano
    a mano», con Stripe o fuori da Stripe, e lo storico sul cliente.
 19. **I pagamenti online spenti (REQ-FLOTTA-017)**, ramo
    `feature/pagamenti-online`, 30/10/2026. L'interruttore «Pagamenti online
@@ -518,6 +518,20 @@ L'elenco completo con i riferimenti al codice è in
    senza aspettare l'allineamento. «Allinea tutte» resta un controllo.
    Dopo, quando tutti i locali hanno l'app nuova: smettere di scrivere
    `settings/bar.licenza` (in `scriviLicenza`) e cancellare il campo.
+24. **Le scadenze a eventi (REQ-FLOTTA-023)**, ramo `feature/scadenze-a-eventi`,
+   31/10/2026. Via `sospendiMorosi`, `proveScadute` ed
+   `eliminazioniProgrammate`: il locale cambia quando cambia lo stato
+   dell'abbonamento, e ogni scadenza ha un compito alla sua data (la
+   Function `scadenza`, una coda di Cloud Tasks). **Prima del deploy, su
+   ogni progetto della regia**: l'API `cloudtasks.googleapis.com` accesa e
+   `roles/cloudtasks.queueAdmin` all'account del deploy (su
+   `drink-regia-test`: `firebase-adminsdk-fbsvc@`). Il runtime ha già
+   Editor. **Dopo il deploy**: «Programma le scadenze» in «Rilasci», una
+   volta. **In Stripe**, quando si accendono i pagamenti online: Billing →
+   tentativi (Smart Retries) e, a tentativi finiti, «segna l'abbonamento
+   come non pagato» (non «cancellalo»: chiuderebbe il locale). Resta un solo
+   giro a tempo, `leggiScelteAggiornamenti` ogni 10 minuti (REQ-FLOTTA-020),
+   da sostituire con una chiamata dell'app alla regia.
 
 ---
 

@@ -11,6 +11,7 @@
 const listino = require('../piani.json')
 const { sceltaPulita } = require('./abbonamento.js')
 const { eGratuito } = require('./free.js')
+const { dataPagata } = require('./scadenze.js')
 
 const MODI = ['stripe', 'fuori']
 
@@ -40,9 +41,13 @@ function cambioAdmin(cliente, richiesta, { da = null, adesso = new Date() } = {}
   // Fuori da Stripe con un abbonamento Stripe attivo: Stripe continuerebbe
   // ad addebitare il piano vecchio mentre la regia ne mostra un altro.
   if (sub && cliente.abbonamento?.stato !== 'disdetto') return no('Il cliente ha un abbonamento Stripe: cambia con Stripe, oppure disdicilo prima.')
+  // «Pagato fino al» (REQ-FLOTTA-023): la sua scadenza ha un compito alla
+  // data. Vuoto: senza scadenza, come un omaggio.
+  const pagato = dataPagata(richiesta.pagato_fino_al)
+  if (pagato === undefined) return no('La data «pagato fino al» non è valida: AAAA-MM-GG.')
   const abbonamento = eGratuito(scelta.piano)
     ? { stato: 'attivo', origine: 'gratuito', dal: adesso.toISOString() }
-    : { stato: 'attivo', origine: 'manuale', dal: adesso.toISOString(), nota: 'fuori da Stripe, dall’admin' }
+    : { stato: 'attivo', origine: 'manuale', dal: adesso.toISOString(), nota: 'fuori da Stripe, dall’admin', pagato_fino_al: pagato }
   return { ok: true, perche: null, scelta, cliente: { ...scelta, abbonamento }, storico }
 }
 

@@ -106,6 +106,9 @@ const FUNCTIONS = [
   ['sceltaAggiornamento', ['v1.11.0', 'salta'], 'sceltaAggiornamento', { tag: 'v1.11.0', scelta: 'salta' }],
   // Le licenze protette (BUG-125 di tana-drink).
   ['gestisciLicenze', ['allinea'], 'gestisciLicenze', { azione: 'allinea' }],
+  // Le scadenze a eventi (REQ-FLOTTA-023).
+  ['registraPagamento', ['bar', '2026-11-30'], 'registraPagamento', { slug: 'bar', pagato_fino_al: '2026-11-30' }],
+  ['programmaScadenze', [], 'programmaScadenze', {}],
 ]
 
 describe('le chiamate alle Functions', () => {

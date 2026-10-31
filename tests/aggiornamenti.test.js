@@ -13,7 +13,6 @@ import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
 const a = require('../functions/lib/aggiornamenti.js')
-const { daSospendere } = require('../functions/lib/sospensione.js')
 const { aggiornamentoDaEvento } = require('../functions/lib/abbonamento.js')
 
 const ADESSO = new Date('2026-11-01T10:00:00Z')
@@ -200,41 +199,6 @@ describe('il cambio delle regole: nulla cambia fino al rinnovo, e si avvisa', ()
     expect(a.promozione(ist, ADESSO)).toBeNull()
     expect(a.promozione(ist, new Date(DOPO))).toEqual({ condizioni_aggiornamenti: CON_SCELTA, condizioni_prossime: null, avviso_aggiornamenti: null })
     expect(a.promozione({}, ADESSO)).toBeNull()
-  })
-})
-
-describe('chi non paga torna al Free, e al pagamento al suo piano', () => {
-  const OTTO_GIORNI_FA = new Date(ADESSO.getTime() - 8 * 86400000).toISOString()
-  const IERI = new Date(ADESSO.getTime() - 86400000).toISOString()
-  const istanze = (extra = {}) => ({ 'bar-mario': { stato: 'attiva', condizioni_aggiornamenti: SOLO_PAGANTI, ...extra } })
-  const moroso = (da = OTTO_GIORNI_FA) => ({ slug: 'bar-mario', piano: 'base', abbonamento: { stato: 'in sospeso', aggiornato_il: da } })
-
-  it('dopo i giorni di grazia, non prima', () => {
-    expect(a.daRipiegare([moroso()], istanze(), { adesso: ADESSO }).map((x) => x.azione)).toEqual(['ripiega'])
-    expect(a.daRipiegare([moroso(IERI)], istanze(), { adesso: ADESSO })).toEqual([])
-  })
-
-  it('senza la regola, sul Free, le interne, i sospesi e i chiusi: niente', () => {
-    expect(a.daRipiegare([moroso()], { 'bar-mario': { stato: 'attiva' } }, { adesso: ADESSO })).toEqual([])
-    expect(a.daRipiegare([{ ...moroso(), piano: 'free' }], istanze(), { adesso: ADESSO })).toEqual([])
-    expect(a.daRipiegare([moroso()], istanze({ interna: true }), { adesso: ADESSO })).toEqual([])
-    expect(a.daRipiegare([moroso()], istanze({ licenza_stato: 'sospesa' }), { adesso: ADESSO })).toEqual([])
-    expect(a.daRipiegare([moroso()], istanze({ licenza_stato: 'chiusa' }), { adesso: ADESSO })).toEqual([])
-  })
-
-  it('tornato a pagare, riprende il suo piano', () => {
-    const ripiegato = istanze({ ripiego_free: { dal: OTTO_GIORNI_FA, piano_prima: 'base' } })
-    expect(a.daRipiegare([pagante], ripiegato, { adesso: ADESSO }).map((x) => x.azione)).toEqual(['ripristina'])
-    expect(a.daRipiegare([moroso()], ripiegato, { adesso: ADESSO })).toEqual([])
-  })
-
-  it('la sospensione dei morosi salta chi torna al Free, e sospende gli altri come prima', () => {
-    const ripiega = (ist) => a.ripiegaInveceDiSospendere(ist, ADESSO)
-    expect(daSospendere([moroso()], istanze(), { adesso: ADESSO, ripiega })).toEqual([])
-    expect(daSospendere([moroso()], { 'bar-mario': { stato: 'attiva' } }, { adesso: ADESSO, ripiega }).map((x) => x.stato)).toEqual(['sospesa'])
-    // Il disdetto si chiude comunque: l'ha chiesto il titolare.
-    const disdetto = { ...moroso(), abbonamento: { stato: 'disdetto' } }
-    expect(daSospendere([disdetto], istanze(), { adesso: ADESSO, ripiega }).map((x) => x.stato)).toEqual(['chiusa'])
   })
 })
 

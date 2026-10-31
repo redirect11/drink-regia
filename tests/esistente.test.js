@@ -9,7 +9,7 @@ import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
 const { slugDaNome, datiEsistente, documentiEsistente, scriveLicenza, DatiNonValidi, gestioneEsistente } = require('../functions/lib/esistente.js')
-const { daSospendere } = require('../functions/lib/sospensione.js')
+const { azioneDiPagamento } = require('../functions/lib/scadenze.js')
 
 const TANA = { nome_locale: 'La Tana del Coniglio', email: 'Titolare@Example.it', progetto: 'tana-drink', url: 'https://tana-drink.web.app/', slug: 'tana-drink' }
 const ADESSO = new Date('2026-10-24T10:00:00Z')
@@ -109,19 +109,14 @@ describe('gli aggiornamenti dalla regia', () => {
   })
 })
 
-describe('la sospensione dei morosi', () => {
-  it('salta l’installazione interna anche se l’abbonamento risulta disdetto o in sospeso', () => {
-    const vecchio = new Date(ADESSO.getTime() - 30 * 86400000).toISOString()
-    const clienti = [
-      { slug: 'tana-drink', abbonamento: { stato: 'disdetto' } },
-      { slug: 'bar-tana', abbonamento: { stato: 'in sospeso', aggiornato_il: vecchio } },
-      { slug: 'bar-altro', abbonamento: { stato: 'disdetto' } },
-    ]
-    const istanze = {
-      'tana-drink': { stato: 'attiva', interna: true },
-      'bar-tana': { stato: 'attiva', interna: true },
-      'bar-altro': { stato: 'attiva' },
-    }
-    expect(daSospendere(clienti, istanze, { adesso: ADESSO }).map((x) => x.cliente.slug)).toEqual(['bar-altro'])
+// Dal 31/10/2026 (REQ-FLOTTA-023) il locale si ferma per un cambio di stato
+// dell'abbonamento, non per un giro quotidiano: la regola resta la stessa.
+describe('la sospensione di chi non paga', () => {
+  it('salta l’installazione interna anche se l’abbonamento risulta disdetto o non pagato', () => {
+    const attivo = { abbonamento: { stato: 'attivo' } }
+    const interna = { stato: 'attiva', interna: true }
+    expect(azioneDiPagamento(attivo, { abbonamento: { stato: 'disdetto' } }, interna)).toBeNull()
+    expect(azioneDiPagamento(attivo, { abbonamento: { stato: 'non pagato' } }, interna)).toBeNull()
+    expect(azioneDiPagamento(attivo, { abbonamento: { stato: 'disdetto' } }, { stato: 'attiva' })).toMatchObject({ azione: 'chiudi' })
   })
 })

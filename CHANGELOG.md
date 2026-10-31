@@ -6,6 +6,12 @@ data.
 
 ## 0.3.0 (in lavorazione)
 
+- Niente più controlli quotidiani: un locale si sospende, torna al Free o si
+  chiude quando cambia lo stato del suo abbonamento. Con Stripe lo decidono
+  i tentativi di pagamento di Stripe; fuori da Stripe si scrive «pagato
+  fino al» e, a quella data più i giorni di grazia, il locale si ferma da
+  solo. Prove dei moduli ed eliminazioni programmate scattano alla loro
+  data (REQ-FLOTTA-023).
 - La licenza di ogni locale si scrive anche in un documento suo, che
   dall'app non si può modificare: prima un bartender poteva cambiarsela.
   Nella sezione «Rilasci» si allineano e si verificano le licenze di tutti

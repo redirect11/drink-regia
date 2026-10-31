@@ -28,7 +28,10 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https')
 const { FieldValue } = require('firebase-admin/firestore')
 const { chiaveStripeVera, righeCheckout, metadatiDi, aggiornamentoDaEvento } = require('./lib/abbonamento.js')
 const { onSchedule } = require('firebase-functions/v2/scheduler')
-const { daSospendere, STATI: STATI_LICENZA } = require('./lib/sospensione.js')
+const { onTaskDispatched } = require('firebase-functions/v2/tasks')
+const { getFunctions: funzioniAdmin } = require('firebase-admin/functions')
+const { STATI: STATI_LICENZA } = require('./lib/sospensione.js')
+const scadenze = require('./lib/scadenze.js')
 const { initializeApp: initializeAppCon, getApps } = require('firebase-admin/app')
 const { getAuth } = require('firebase-admin/auth')
 const ai = require('./lib/ai.js')
@@ -306,13 +309,16 @@ function firestoreDi(progetto) {
   return getFirestore(app)
 }
 
-async function scriviStatoIstanza(slug, stato, motivo) {
+// `per`: chi ha voluto lo stato (admin, pagamento, titolare). Solo una
+// sospensione per il pagamento si toglie da sola quando si torna a pagare
+// (REQ-FLOTTA-023): una dell'admin la toglie l'admin.
+async function scriviStatoIstanza(slug, stato, motivo, { per = 'admin' } = {}) {
   const ist = (await db.doc(`istanze/${slug}`).get()).data()
   if (!ist?.progetto) throw new HttpsError('failed-precondition', 'Istanza senza progetto: non è ancora attiva.')
   // Un locale registrato come esistente (la Tana, REQ-AI-003) non riceve
   // la licenza dalla regia finché non lo si collega: «senza rompere niente».
   if (!scriveLicenza(ist)) throw new HttpsError('failed-precondition', 'Questa installazione non riceve la licenza dalla regia: si gestisce dal suo progetto.')
-  await db.doc(`istanze/${slug}`).set({ licenza_stato: stato, licenza_motivo: motivo || null, licenza_dal: new Date().toISOString() }, { merge: true })
+  await db.doc(`istanze/${slug}`).set({ licenza_stato: stato, licenza_motivo: motivo || null, licenza_dal: new Date().toISOString(), licenza_per: stato === 'attiva' ? null : per }, { merge: true })
   const scritta = await scriviLicenza(slug)
   if (!scritta.ok) throw new HttpsError('failed-precondition', scritta.perche)
 }
@@ -325,46 +331,6 @@ exports.impostaStatoIstanza = onCall(OPTS, async (req) => {
   if (!STATI_LICENZA.includes(stato)) throw new HttpsError('invalid-argument', 'Stato non valido.')
   await scriviStatoIstanza(slug, stato, motivo ? String(motivo).slice(0, 200) : null)
   return { ok: true }
-})
-
-// Ogni mattina: chi non paga da più dei giorni di grazia si sospende, chi
-// ha disdetto si chiude, chi è tornato a pagare si riattiva.
-// Con gli aggiornamenti «solo finché si paga» (REQ-FLOTTA-020) chi non paga
-// non si ferma: torna al Free, e al pagamento riprende il suo piano. Prima
-// di tutto, le condizioni degli aggiornamenti arrivate alla loro data
-// diventano quelle in vigore.
-exports.sospendiMorosi = onSchedule({ ...OPTS, schedule: '0 6 * * *', timeZone: 'Europe/Rome' }, async () => {
-  const clienti = (await db.collection('clienti').get()).docs.map((d) => d.data())
-  const istanze = Object.fromEntries((await db.collection('istanze').get()).docs.map((d) => [d.id, d.data()]))
-  const adesso = new Date()
-  for (const [slug, ist] of Object.entries(istanze)) {
-    const patch = aggiornamenti.promozione(ist, adesso)
-    if (!patch) continue
-    try {
-      await db.doc(`istanze/${slug}`).set(patch, { merge: true })
-      istanze[slug] = { ...ist, ...patch }
-      await scriviLicenza(slug)
-      console.log(`[aggiornamenti] ${slug}: in vigore le condizioni nuove`)
-    } catch (e) {
-      console.error(`[aggiornamenti] ${slug}:`, e?.message || e)
-    }
-  }
-  for (const { cliente, stato, motivo } of daSospendere(clienti, istanze, { adesso, ripiega: (ist) => aggiornamenti.ripiegaInveceDiSospendere(ist, adesso) })) {
-    try {
-      await scriviStatoIstanza(cliente.slug, stato, motivo)
-      console.log(`[licenza] ${cliente.slug} → ${stato}`)
-    } catch (e) {
-      console.error(`[licenza] ${cliente.slug}:`, e?.message || e)
-    }
-  }
-  for (const { cliente, azione } of aggiornamenti.daRipiegare(clienti, istanze, { adesso })) {
-    try {
-      await ripiegaAlFree(cliente, azione)
-      console.log(`[aggiornamenti] ${cliente.slug} → ${azione === 'ripiega' ? 'piano Free' : `di nuovo ${cliente.piano}`}`)
-    } catch (e) {
-      console.error(`[aggiornamenti] ${cliente.slug}:`, e?.message || e)
-    }
-  }
 })
 
 // Il ritorno al Free di chi non paga, e il suo piano quando torna a pagare.
@@ -381,6 +347,130 @@ async function ripiegaAlFree(cliente, azione) {
   )
   await scriviLicenza(cliente.slug)
 }
+
+// ── LE SCADENZE A EVENTI (REQ-FLOTTA-023) ──────────────────────────────
+// Niente giri quotidiani: il locale cambia stato quando cambia lo stato del
+// suo abbonamento (Stripe, o un compito alla scadenza di un pagamento a
+// mano), e ogni altra scadenza (prova, eliminazione, condizioni degli
+// aggiornamenti) ha un compito alla sua data. La logica sta in
+// lib/scadenze.js.
+
+// I giorni di grazia di un pagamento a mano: impostazioni/regia.giorni_grazia.
+async function giorniDiGrazia() {
+  const v = Number((await db.doc('impostazioni/regia').get()).data()?.giorni_grazia)
+  return Number.isFinite(v) && v >= 0 ? v : scadenze.GIORNI_DI_GRAZIA
+}
+
+// Cosa succede al locale per un cambio di stato dell'abbonamento.
+async function eseguiAzionePagamento(cliente, { azione, motivo }) {
+  if (azione === 'sospendi') return scriviStatoIstanza(cliente.slug, 'sospesa', motivo, { per: 'pagamento' })
+  if (azione === 'chiudi') return scriviStatoIstanza(cliente.slug, 'chiusa', motivo, { per: 'pagamento' })
+  if (azione === 'riattiva') return scriviStatoIstanza(cliente.slug, 'attiva', null)
+  return ripiegaAlFree(cliente, azione)
+}
+
+// Un compito per una scadenza: arriva alla data (o fra 29 giorni, e si
+// riprogramma). Lo stesso compito non si programma due volte.
+async function programma(tipo, chiave, quando) {
+  const orario = scadenze.orarioCompito(quando)
+  const coda = funzioniAdmin().taskQueue('locations/europe-west1/functions/scadenza')
+  try {
+    await coda.enqueue({ tipo, chiave, quando: new Date(quando).toISOString() }, { scheduleTime: orario, id: scadenze.idCompito(tipo, chiave, quando, orario) })
+  } catch (e) {
+    if (e?.code === 'functions/task-already-exists') return
+    throw e
+  }
+}
+
+// L'esecutore dei compiti. Ognuno ricontrolla prima di fare: una scadenza
+// spostata o annullata nel frattempo lascia il compito senza effetto.
+exports.scadenza = onTaskDispatched(
+  { ...OPTS, retryConfig: { maxAttempts: 5, minBackoffSeconds: 60 }, rateLimits: { maxConcurrentDispatches: 5 }, secrets: [GITHUB_DISPATCH_TOKEN] },
+  async (req) => {
+    const { tipo, chiave, quando } = req.data || {}
+    if (!scadenze.TIPI.includes(tipo) || !chiave || !Number.isFinite(Date.parse(quando))) return
+    const adesso = new Date()
+    if (scadenze.daRiprogrammare(quando, adesso)) return programma(tipo, chiave, quando)
+    if (tipo === 'pagamento' || tipo === 'prova') {
+      const doc = (await db.collection('clienti').where('slug', '==', chiave).limit(1).get()).docs[0]
+      if (!doc) return
+      if (tipo === 'pagamento') {
+        if (!scadenze.pagamentoScaduto(doc.data(), quando, { adesso, giorniGrazia: await giorniDiGrazia() })) return
+        // Il cambio di stato fa il resto (licenzaSegueIlPiano).
+        await doc.ref.update({ 'abbonamento.stato': 'non pagato', 'abbonamento.aggiornato_il': adesso.toISOString() })
+        console.log(`[scadenze] ${chiave}: pagamento scaduto`)
+        return
+      }
+      const via = prove.proveDaTogliere(doc.data(), adesso)
+      if (via.length) await doc.ref.update(Object.fromEntries(via.map((id) => [`prove.${id}`, FieldValue.delete()])))
+      return
+    }
+    const ref = db.doc(`istanze/${chiave}`)
+    const ist = (await ref.get()).data()
+    if (!ist) return
+    if (tipo === 'eliminazione') {
+      if (!elim.daEliminareOggi({ [chiave]: ist }, adesso).length) return
+      const perche = await lanciaEliminazione(chiave)
+      console.log(`[scadenze] ${chiave}, eliminazione: ${perche || 'partita'}`)
+      return
+    }
+    const patch = aggiornamenti.promozione(ist, adesso)
+    if (!patch) return
+    await ref.set(patch, { merge: true })
+    await scriviLicenza(chiave)
+  }
+)
+
+// Un pagamento fuori da Stripe (bonifico): fino a quando è pagato. Se il
+// locale era fermo per il pagamento, torna a lavorare (il cambio di stato).
+exports.registraPagamento = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const doc = (await db.collection('clienti').where('slug', '==', String(req.data?.slug || '')).limit(1).get()).docs[0]
+  if (!doc) throw new HttpsError('not-found', 'Cliente sconosciuto.')
+  if (doc.data().abbonamento?.origine !== 'manuale') throw new HttpsError('failed-precondition', 'Vale per i piani pagati fuori da Stripe.')
+  const data = scadenze.dataPagata(req.data?.pagato_fino_al)
+  if (!data) throw new HttpsError('invalid-argument', 'Scrivi la data fino a cui è pagato: AAAA-MM-GG.')
+  await doc.ref.update({
+    'abbonamento.pagato_fino_al': data,
+    'abbonamento.stato': 'attivo',
+    'abbonamento.pagamento_registrato_il': new Date().toISOString(),
+    'abbonamento.pagamento_registrato_da': req.auth.token.email || req.auth.uid,
+  })
+  return { ok: true, pagato_fino_al: data }
+})
+
+// Una volta, dopo il primo deploy di REQ-FLOTTA-023: i compiti per le
+// scadenze che c'erano già (pagamenti a mano, prove, eliminazioni,
+// condizioni), e il «perché» delle sospensioni per il pagamento di prima.
+// Rifarlo non fa danni: lo stesso compito non si programma due volte.
+exports.programmaScadenze = onCall({ ...OPTS, timeoutSeconds: 540 }, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const [clienti, istanze, grazia] = await Promise.all([db.collection('clienti').get().then((q) => q.docs.map((d) => d.data())), tutteLeIstanze(), giorniDiGrazia()])
+  let programmati = 0
+  const errori = []
+  const prova = async (descrizione, fn) => {
+    try {
+      await fn()
+      programmati += 1
+    } catch (e) {
+      errori.push(`${descrizione}: ${String(e?.message || e).slice(0, 120)}`)
+    }
+  }
+  for (const c of clienti) {
+    if (!c.slug) continue
+    const s = scadenze.scadenzaPagamento(c, grazia)
+    if (s && c.abbonamento.stato === 'attivo') await prova(`${c.slug} pagamento`, () => programma('pagamento', c.slug, s))
+    for (const [id, p] of Object.entries(c.prove || {})) await prova(`${c.slug} prova ${id}`, () => programma('prova', c.slug, p.scade_il))
+  }
+  for (const [slug, ist] of Object.entries(istanze)) {
+    if (ist.eliminazione?.stato === 'programmata') await prova(`${slug} eliminazione`, () => programma('eliminazione', slug, ist.eliminazione.quando))
+    if (ist.condizioni_prossime?.dal) await prova(`${slug} condizioni`, () => programma('condizioni', slug, ist.condizioni_prossime.dal))
+    if (ist.licenza_stato === 'sospesa' && !ist.licenza_per && /pagamento non ricevuto/.test(ist.licenza_motivo || '')) {
+      await db.doc(`istanze/${slug}`).set({ licenza_per: 'pagamento' }, { merge: true })
+    }
+  }
+  return { ok: true, programmati, errori }
+})
 
 // ── GLI AGGIORNAMENTI DELLA FLOTTA (REQ-FLOTTA-009) ───────────────────
 // L'app di base è tana-drink: ogni rilascio si porta sui locali che si
@@ -724,6 +814,7 @@ exports.impostaRegoleAggiornamenti = onCall({ ...OPTS, timeoutSeconds: 540 }, as
     if (!patch) continue
     await db.doc(`istanze/${slug}`).set(patch, { merge: true })
     if (patch.avviso_aggiornamenti) avvisati += 1
+    if (patch.condizioni_prossime?.dal) await programma('condizioni', slug, patch.condizioni_prossime.dal).catch((e) => console.error(`[scadenze] ${slug}, condizioni:`, e?.message || e))
     try {
       await scriviLicenza(slug)
     } catch (e) {
@@ -815,6 +906,17 @@ exports.licenzaSegueIlPiano = onDocumentUpdated({ ...OPTS, document: 'clienti/{u
   const prima = event.data?.before?.data()
   const dopo = event.data?.after?.data()
   if (!dopo?.slug) return
+  // L'abbonamento ha cambiato stato: cosa fa al locale (REQ-FLOTTA-023).
+  if (prima?.abbonamento?.stato !== dopo.abbonamento?.stato) {
+    const azione = scadenze.azioneDiPagamento(prima, dopo, (await db.doc(`istanze/${dopo.slug}`).get()).data())
+    if (azione) await eseguiAzionePagamento(dopo, azione).catch((e) => console.error(`[scadenze] ${dopo.slug}, ${azione.azione}:`, e?.message || e))
+  }
+  // Un pagamento a mano con una scadenza nuova: il suo compito.
+  const grazia = await giorniDiGrazia()
+  const scadenza = dopo.abbonamento?.stato === 'attivo' ? scadenze.scadenzaPagamento(dopo, grazia) : null
+  if (scadenza && scadenza !== scadenze.scadenzaPagamento(prima, grazia)) {
+    await programma('pagamento', dopo.slug, scadenza).catch((e) => console.error(`[scadenze] ${dopo.slug}, il compito del pagamento:`, e?.message || e))
+  }
   if (prima?.abbonamento?.stato !== dopo.abbonamento?.stato && !sceltaCambiata(prima, dopo)) {
     await scriviLicenza(dopo.slug).catch((e) => console.error(`[aggiornamenti] ${dopo.slug}:`, e?.message || e))
     return
@@ -1224,8 +1326,9 @@ exports.gestisciEliminazione = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN
     if (!puo.ok) throw new HttpsError('failed-precondition', puo.perche)
     if (!elim.confermaValida(ist, conferma)) throw new HttpsError('invalid-argument', `Per confermare scrivi ${ist.progetto}.`)
     const richiesta = elim.richiestaTitolare(ist, { da: req.auth.token.email || req.auth.uid, adesso })
-    await scriviStatoIstanza(slug, 'chiusa', 'chiusura chiesta dal titolare')
+    await scriviStatoIstanza(slug, 'chiusa', 'chiusura chiesta dal titolare', { per: 'titolare' })
     await istRef.set({ eliminazione: richiesta }, { merge: true })
+    await programma('eliminazione', slug, richiesta.quando).catch((e) => console.error(`[scadenze] ${slug}, eliminazione:`, e?.message || e))
     await disdettaAFinePeriodo(cliente, true).catch((e) => console.error(`[eliminazione] ${slug}, disdetta:`, e?.message || e))
     return { ok: true, quando: richiesta.quando }
   }
@@ -1236,7 +1339,10 @@ exports.gestisciEliminazione = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN
     if (!elim.confermaValida(ist, conferma)) throw new HttpsError('invalid-argument', `Per confermare scrivi ${ist.progetto}.`)
     const richiesta = elim.eliminazioneChiesta(ist, { subito: Boolean(subito), da: req.auth.token.email || req.auth.uid, adesso })
     await istRef.set({ eliminazione: richiesta }, { merge: true })
-    if (!subito) return { ok: true, quando: richiesta.quando }
+    if (!subito) {
+      await programma('eliminazione', slug, richiesta.quando).catch((e) => console.error(`[scadenze] ${slug}, eliminazione:`, e?.message || e))
+      return { ok: true, quando: richiesta.quando }
+    }
     const perche = await lanciaEliminazione(slug)
     if (perche) throw new HttpsError('unavailable', `Il backup e l’eliminazione non sono partiti: ${perche}.`)
     return { ok: true, quando: richiesta.quando }
@@ -1249,21 +1355,13 @@ exports.gestisciEliminazione = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN
     await istRef.set({ eliminazione: { ...e, stato: 'annullata', annullata_il: adesso.toISOString(), annullata_da: req.auth.token.email || req.auth.uid } }, { merge: true })
     // Una chiusura chiesta dal titolare si annulla tornando com'era.
     if (e.richiedente === 'titolare') {
-      await scriviStatoIstanza(slug, e.licenza_prima || 'attiva', e.licenza_prima === 'sospesa' ? 'pagamento non ricevuto' : null)
+      await scriviStatoIstanza(slug, e.licenza_prima || 'attiva', e.licenza_prima === 'sospesa' ? 'pagamento non ricevuto' : null, { per: 'pagamento' })
       await disdettaAFinePeriodo(cliente, false).catch((err) => console.error(`[eliminazione] ${slug}, disdetta:`, err?.message || err))
     }
     return { ok: true }
   }
 
   throw new HttpsError('invalid-argument', 'Azione sconosciuta.')
-})
-
-// Ogni mattina: le cancellazioni programmate arrivate alla data partono.
-exports.eliminazioniProgrammate = onSchedule({ ...OPTS, schedule: '0 5 * * *', timeZone: 'Europe/Rome', secrets: [GITHUB_DISPATCH_TOKEN] }, async () => {
-  for (const slug of elim.daEliminareOggi(await tutteLeIstanze())) {
-    const perche = await lanciaEliminazione(slug).catch((e) => e?.message || String(e))
-    console.log(`[eliminazione] ${slug}: ${perche || 'partita'}`)
-  }
 })
 
 // L'archivio di un locale eliminato lo scarica SOLO il suo titolare
@@ -1308,19 +1406,9 @@ exports.provaModulo = onCall(OPTS, async (req) => {
     [`prove.${id}`]: { dal: adesso.toISOString(), scade_il: puo.scade_il, giorni: puo.giorni },
     prove_fatte: FieldValue.arrayUnion(id),
   })
+  // Alla fine della prova il modulo si spegne (REQ-FLOTTA-023).
+  await programma('prova', cliente.slug, puo.scade_il).catch((e) => console.error(`[scadenze] ${cliente.slug}, prova:`, e?.message || e))
   return { ok: true, scade_il: puo.scade_il }
-})
-
-// Ogni mattina: le prove scadute, o dei moduli ormai comprati, si tolgono;
-// la licenza segue da sola (licenzaSegueIlPiano).
-exports.proveScadute = onSchedule({ ...OPTS, schedule: '30 5 * * *', timeZone: 'Europe/Rome' }, async () => {
-  const adesso = new Date()
-  for (const d of (await db.collection('clienti').get()).docs) {
-    const via = prove.proveDaTogliere(d.data(), adesso)
-    if (!via.length) continue
-    await d.ref.update(Object.fromEntries(via.map((id) => [`prove.${id}`, FieldValue.delete()])))
-    console.log(`[prove] ${d.data().slug}: tolte ${via.join(', ')}`)
-  }
 })
 
 // L'admin cambia piano, moduli e terminali di un locale: con Stripe
