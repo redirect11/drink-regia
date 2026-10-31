@@ -76,6 +76,10 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .btn.block { display: block; width: 100%; margin-top: 12px; text-align: center; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .card { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--raggio); padding: 18px; }
+/* Due riquadri uno sotto l'altro non si toccano (l'utente, 31/10/2026:
+   «questi box messi così uno sopra l'altro e attaccati tra loro sono
+   orribili»): nella dashboard, nel backoffice, ovunque. */
+.card + .card { margin-top: 16px; }
 
 /* ── La prima pagina (REQ-FLOTTA-002, DESIGN.md §4) ──────────────────
    Una vetrina, non il gestionale: più aria, titoli più grandi, contrasti

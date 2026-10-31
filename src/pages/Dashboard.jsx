@@ -79,7 +79,8 @@ export default function Dashboard({ utente }) {
       <section className="card">
         <h2>{cliente.nome_locale}</h2>
         <p className="muted small">
-          Identificativo: <code>{cliente.slug}</code> · progetto <code>{progettoDi(cliente.slug)}</code>
+          {/* Il progetto lo dice l'istanza: un locale esistente (la Tana) non è drinkpos-<slug>. */}
+          Identificativo: <code>{cliente.slug}</code> · progetto <code>{istanza?.progetto || progettoDi(cliente.slug)}</code>
         </p>
         <h3>Piano</h3>
         {piano ? (
