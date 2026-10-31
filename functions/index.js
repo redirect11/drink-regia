@@ -781,18 +781,33 @@ async function proponiAggiornamento(slug, tag, { rilascio = null, changelog = ''
 // La scelta del titolare, dall'app o dalla dashboard: «aggiorna» lancia il
 // workflow come un'ondata, «salta» lascia il locale dov'è. Ritorna null, o
 // il perché se l'aggiornamento non è partito.
+// La stessa scelta che arriva due volte (il titolare riprova se la risposta
+// tarda) non fa danni: «aggiorna» si prende la proposta in una transazione
+// prima di lanciare, e il secondo trova GIA_SCELTA. Con un lancio non
+// partito la presa si lascia, e si può riprovare.
+const GIA_SCELTA = 'Questa scelta è già stata fatta.'
 async function applicaScelta(slug, scelta, { il = new Date().toISOString(), da = null } = {}) {
   const ref = db.doc(`istanze/${slug}`)
   const ist = (await ref.get()).data()
   const p = ist?.proposta_aggiornamento
-  if (!p?.attesa) return 'Nessuna proposta in attesa.'
+  if (!p?.attesa) return GIA_SCELTA
   // Il piano può aver smesso di comprenderli dopo la proposta.
   if (scelta === 'aggiorna' && !aggiornamenti.regolaDi(ist, await clienteDi(slug)).inclusi) return 'Il piano del locale non comprende più gli aggiornamenti.'
   const fatta = { scelta, scelta_il: il, scelta_da: da, scelta_letta_il: il }
   if (scelta === 'aggiorna') {
+    const presa = await db.runTransaction(async (tx) => {
+      const ora = (await tx.get(ref)).data()?.proposta_aggiornamento
+      if (!aggiornamenti.puoPrendere(ora, p.tag, new Date())) return false
+      tx.update(ref, { 'proposta_aggiornamento.presa_il': new Date().toISOString() })
+      return true
+    })
+    if (!presa) return GIA_SCELTA
     const perche = await lanciaAggiornamento(slug, p.tag, { rilascio: p.rilascio })
-    if (perche) return perche
-    await ref.update({ proposta_aggiornamento: { ...p, ...fatta, attesa: false } })
+    if (perche) {
+      await ref.update({ 'proposta_aggiornamento.presa_il': null })
+      return perche
+    }
+    await ref.update({ proposta_aggiornamento: { ...p, ...fatta, attesa: false, presa_il: null } })
   } else {
     await ref.update({ proposta_aggiornamento: { ...p, ...fatta, saltata_il: il } })
   }
@@ -872,6 +887,7 @@ exports.sceltaDallApp = onRequest({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN], c
   const scelta = aggiornamenti.sceltaValida({ ...corpo, il: new Date().toISOString() }, ist.proposta_aggiornamento)
   if (!scelta) return res.status(409).json({ errore: 'Questa proposta non è più valida.' })
   const perche = await applicaScelta(trovata.id, scelta, { da: chi.email || chi.uid })
+  if (perche === GIA_SCELTA) return res.status(409).json({ errore: GIA_SCELTA })
   if (perche) return res.status(502).json({ errore: perche })
   return res.status(200).json({ ok: true, scelta })
 })
