@@ -7,8 +7,11 @@
 //
 //  Lo lancia il workflow provisiona-istanza.yml (REQ-FLOTTA-006) dopo il
 //  deploy, con GOOGLE_APPLICATION_CREDENTIALS del service account di
-//  provisioning. Scrive in settings/bar, il documento che l'app legge
-//  (src/lib/licenza.js in tana-drink). Cosa scrivere lo decide
+//  provisioning. Scrive la licenza in licenza/attuale, che l'app legge e
+//  nessuno dall'app scrive (BUG-125 di tana-drink), e finché tutti i
+//  locali non hanno l'app nuova anche in settings/bar. Un locale nuovo
+//  nasce con licenza/attuale: con l'app nuova, senza, mostra «non attivata».
+//  Le Functions la riscrivono intera all'esito dell'attivazione. Cosa scrivere lo decide
 //  licenzaIniziale in functions/lib/licenza.js: la stessa mappa piano →
 //  moduli che le Functions usano quando il piano cambia, non una copia.
 //  Prima stava in tana-drink/scripts/licenza-istanza.mjs, con la mappa
@@ -38,6 +41,7 @@ initializeApp({ projectId: PROGETTO })
 const db = getFirestore()
 const bar = await db.doc('settings/bar').get()
 const patch = licenzaIniziale(bar.exists ? bar.data() : {}, { piano: PIANO, moduli: MODULI, slug: SLUG, nome: NOME, regiaUrl: REGIA_URL })
+await db.doc('licenza/attuale').set(patch.licenza)
 await db.doc('settings/bar').set(patch, { merge: true })
 const accesi = Object.entries(patch.licenza.moduli).filter(([, v]) => v).map(([m]) => m)
 console.log(`[licenza] ✓ ${PROGETTO}: piano ${patch.licenza.piano}, moduli app ${accesi.join(', ') || 'nessuno'}, stato ${patch.licenza.stato}`)

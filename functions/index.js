@@ -23,12 +23,12 @@ const { initializeApp } = require('firebase-admin/app')
 const { getFirestore } = require('firebase-admin/firestore')
 const { preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, eAggiornamento, documentoIstanza, documentoAggiornamento, bearerValido } = require('./lib/provisioning.js')
 const rilasci = require('./lib/rilasci.js')
-const { patchLicenzaPiano, sceltaCambiata } = require('./lib/licenza.js')
+const { sceltaCambiata, licenzaProtetta, stessaLicenza } = require('./lib/licenza.js')
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
 const { FieldValue } = require('firebase-admin/firestore')
 const { chiaveStripeVera, righeCheckout, metadatiDi, aggiornamentoDaEvento } = require('./lib/abbonamento.js')
 const { onSchedule } = require('firebase-functions/v2/scheduler')
-const { patchLicenza, daSospendere, STATI: STATI_LICENZA } = require('./lib/sospensione.js')
+const { daSospendere, STATI: STATI_LICENZA } = require('./lib/sospensione.js')
 const { initializeApp: initializeAppCon, getApps } = require('firebase-admin/app')
 const { getAuth } = require('firebase-admin/auth')
 const ai = require('./lib/ai.js')
@@ -61,6 +61,9 @@ const REF_APP = process.env.APP_REF || 'main'
 const AMBIENTE_FLOTTA = process.env.FLOTTA_AMBIENTE || 'produzione'
 // tana-drink è pubblico: le note di un rilascio si leggono senza token.
 const APP_REPO = process.env.APP_REPO || 'redirect11/tana-drink'
+// L'indirizzo di questa regia, che la licenza dà all'app per il «vedi i
+// piani» (functions/.env.<progetto>).
+const REGIA_URL = process.env.REGIA_URL || null
 
 async function dispatchGitHub(workflow, corpo) {
   return fetch(`https://api.github.com/repos/${REPO}/actions/workflows/${workflow}/dispatches`, {
@@ -182,8 +185,10 @@ exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK
     // obbligatorio): la proposta al titolare non serve più (REQ-FLOTTA-020).
     if (esito.stato === 'attiva' && aggiornamenti.propostaSuperata(prima?.proposta_aggiornamento, esito.versione)) {
       await ref.update({ 'proposta_aggiornamento.attesa': false })
-      await scriviRegolaAggiornamenti(esito.slug).catch((e) => console.error(`[aggiornamenti] ${esito.slug}:`, e?.message || e))
     }
+    // Ogni aggiornamento riuscito riscrive la licenza (BUG-125): un locale
+    // senza licenza/attuale, con l'app nuova, si ferma.
+    if (esito.stato === 'attiva') await scriviLicenza(esito.slug).catch((e) => console.error(`[licenza] ${esito.slug}:`, e?.message || e))
     try {
       await ricalcolaRilasci()
     } catch (e) {
@@ -195,12 +200,13 @@ exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK
   await db.doc(`richieste/${esito.slug}`).set({ stato: esito.stato, aggiornata_il: new Date().toISOString() }, { merge: true })
   // Un locale che nasce adesso prende le regole degli aggiornamenti di
   // adesso, senza preavviso: le accetta registrandosi (REQ-FLOTTA-020).
-  if (esito.stato === 'attiva' && !prima?.condizioni_aggiornamenti) {
+  // E nasce con la sua licenza protetta (BUG-125), calcolata dalla regia.
+  if (esito.stato === 'attiva') {
     try {
-      await ref.set({ condizioni_aggiornamenti: await regoleAggiornamenti() }, { merge: true })
-      await scriviRegolaAggiornamenti(esito.slug)
+      if (!prima?.condizioni_aggiornamenti) await ref.set({ condizioni_aggiornamenti: await regoleAggiornamenti() }, { merge: true })
+      await scriviLicenza(esito.slug)
     } catch (e) {
-      console.error(`[aggiornamenti] ${esito.slug}, le prime regole:`, e?.message || e)
+      console.error(`[licenza] ${esito.slug}, la prima licenza:`, e?.message || e)
     }
   }
   res.status(200).json({ ok: true })
@@ -306,8 +312,9 @@ async function scriviStatoIstanza(slug, stato, motivo) {
   // Un locale registrato come esistente (la Tana, REQ-AI-003) non riceve
   // la licenza dalla regia finché non lo si collega: «senza rompere niente».
   if (!scriveLicenza(ist)) throw new HttpsError('failed-precondition', 'Questa installazione non riceve la licenza dalla regia: si gestisce dal suo progetto.')
-  await firestoreDi(ist.progetto).doc('settings/bar').update(patchLicenza(stato, { motivo }))
   await db.doc(`istanze/${slug}`).set({ licenza_stato: stato, licenza_motivo: motivo || null, licenza_dal: new Date().toISOString() }, { merge: true })
+  const scritta = await scriviLicenza(slug)
+  if (!scritta.ok) throw new HttpsError('failed-precondition', scritta.perche)
 }
 
 // Dal backoffice: Sospendi, Riattiva, Chiudi. Solo col claim admin.
@@ -336,7 +343,7 @@ exports.sospendiMorosi = onSchedule({ ...OPTS, schedule: '0 6 * * *', timeZone: 
     try {
       await db.doc(`istanze/${slug}`).set(patch, { merge: true })
       istanze[slug] = { ...ist, ...patch }
-      await scriviRegolaAggiornamenti(slug)
+      await scriviLicenza(slug)
       console.log(`[aggiornamenti] ${slug}: in vigore le condizioni nuove`)
     } catch (e) {
       console.error(`[aggiornamenti] ${slug}:`, e?.message || e)
@@ -358,6 +365,14 @@ exports.sospendiMorosi = onSchedule({ ...OPTS, schedule: '0 6 * * *', timeZone: 
       console.error(`[aggiornamenti] ${cliente.slug}:`, e?.message || e)
     }
   }
+  // Le licenze di tutti, riscritte dai dati della regia e verificate
+  // (BUG-125): un locale rimasto indietro si rimette a posto da sé.
+  try {
+    const esito = await controllaLicenze({ allinea: true })
+    if (esito.problemi.length) console.error(`[licenza] ${esito.problemi.length} locali con problemi:`, esito.problemi.map((p) => p.slug).join(', '))
+  } catch (e) {
+    console.error('[licenza] il controllo di ogni mattina:', e?.message || e)
+  }
 })
 
 // Il ritorno al Free di chi non paga, e il suo piano quando torna a pagare.
@@ -367,13 +382,12 @@ async function ripiegaAlFree(cliente, azione) {
   const ist = (await ref.get()).data()
   if (!ist?.progetto || !scriveLicenza(ist)) return
   const ripiega = azione === 'ripiega'
-  await firestoreDi(ist.progetto).doc('settings/bar').update(patchLicenzaPiano(ripiega ? { piano: 'free' } : cliente))
   const adesso = new Date().toISOString()
   await ref.set(
     { ripiego_free: ripiega ? { dal: adesso, piano_prima: cliente.piano || null } : null, licenza_piano: ripiega ? 'free' : cliente.piano || null, licenza_scritta_il: adesso },
     { merge: true }
   )
-  await scriviRegolaAggiornamenti(cliente.slug)
+  await scriviLicenza(cliente.slug)
 }
 
 // ── GLI AGGIORNAMENTI DELLA FLOTTA (REQ-FLOTTA-009) ───────────────────
@@ -471,7 +485,7 @@ exports.gestisciRilascio = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN], t
       const ist = (await db.doc(`istanze/${slug}`).get()).data()
       if (!ist) no('Istanza non trovata.')
       await db.doc(`istanze/${slug}`).set({ modalita_aggiornamenti: modalita }, { merge: true })
-      await scriviRegolaAggiornamenti(slug)
+      await scriviLicenza(slug)
       return { ok: true }
     }
     if (azione === 'indietro') {
@@ -573,20 +587,94 @@ async function changelogAl(tag) {
   return res.text()
 }
 
-// Quello che si sa degli aggiornamenti di un locale si riscrive in due
-// posti: sull'istanza, che la dashboard del titolare legge, e nella licenza
-// dell'app (`settings/bar.licenza.aggiornamenti`, contratto con tana-drink).
-// Un locale esistente che non riceve la licenza dalla regia lo sa solo qui.
-async function scriviRegolaAggiornamenti(slug) {
+// ── LA LICENZA DI UN LOCALE, IN UN POSTO SOLO (BUG-125 di tana-drink) ──
+// Ogni cambio della licenza passa da qui: piano, moduli, prove, stato,
+// ritorno al Free, aggiornamenti. Chi la cambia scrive prima i dati della
+// regia (cliente, istanza), poi chiama questa, che CALCOLA la licenza intera
+// da quei dati (licenzaProtetta) e la scrive:
+// - in licenza/attuale, che l'app legge e nessuno dall'app scrive;
+// - in settings/bar.licenza, finché tutti i locali non hanno l'app che legge
+//   solo licenza/attuale. Poi questa riga si toglie, e il campo si cancella.
+// Mai copiata da settings/bar: lì un bartender la può aver riscritta.
+// Sull'istanza restano la regola degli aggiornamenti, che la dashboard del
+// titolare legge, e l'esito. Un locale esistente che non riceve la licenza
+// dalla regia (la Tana) ha solo la regola.
+const LICENZA_PROTETTA = 'licenza/attuale'
+const riceveLicenza = (ist) => Boolean(ist?.progetto) && ist.stato === 'attiva' && scriveLicenza(ist)
+
+async function scriviLicenza(slug) {
   const ref = db.doc(`istanze/${slug}`)
   const ist = (await ref.get()).data()
-  if (!ist) return
-  const lic = aggiornamenti.licenzaAggiornamenti(ist, await clienteDi(slug))
-  await ref.set({ regola_aggiornamenti: { modalita: lic.modalita, inclusi: lic.inclusi, motivo: lic.motivo } }, { merge: true })
-  if (ist.progetto && ist.stato === 'attiva' && scriveLicenza(ist)) {
-    await firestoreDi(ist.progetto).doc('settings/bar').update({ 'licenza.aggiornamenti': lic })
-  }
+  if (!ist) return { ok: false, perche: 'Istanza non trovata.' }
+  const cliente = await clienteDi(slug)
+  const lic = licenzaProtetta(ist, cliente, { slug, regiaUrl: REGIA_URL })
+  const { modalita, inclusi, motivo } = lic.aggiornamenti
+  await ref.set({ regola_aggiornamenti: { modalita, inclusi, motivo } }, { merge: true })
+  if (!riceveLicenza(ist)) return { ok: true, scritta: false }
+  // Senza cliente la licenza sarebbe quella di un piano base inventato.
+  if (!cliente) return { ok: false, perche: 'Nessun cliente per questo locale: la licenza non si calcola.' }
+  const istanza = firestoreDi(ist.progetto)
+  await istanza.doc(LICENZA_PROTETTA).set(lic)
+  // mergeFields: il campo licenza si sostituisce intero, il resto di
+  // settings/bar (le impostazioni del locale) non si tocca.
+  await istanza.doc('settings/bar').set({ licenza: lic }, { mergeFields: ['licenza'] })
+  await ref.set({ licenza_protetta: { ok: true, perche: null, controllata_il: lic.scritta_il } }, { merge: true })
+  return { ok: true, scritta: true }
 }
+
+// La verifica di un locale: licenza/attuale c'è, è uguale a
+// settings/bar.licenza ed è quella che dicono i dati della regia.
+async function verificaLicenza(slug) {
+  const ref = db.doc(`istanze/${slug}`)
+  const ist = (await ref.get()).data()
+  const istanza = firestoreDi(ist.progetto)
+  const [protetta, bar] = await Promise.all([istanza.doc(LICENZA_PROTETTA).get(), istanza.doc('settings/bar').get()])
+  const attesa = licenzaProtetta(ist, await clienteDi(slug), { slug, regiaUrl: REGIA_URL })
+  let perche = null
+  if (!protetta.exists) perche = 'Manca licenza/attuale: con l’app nuova il locale si ferma.'
+  else if (!stessaLicenza(protetta.data(), bar.data()?.licenza)) perche = 'licenza/attuale è diversa da settings/bar.licenza.'
+  else if (!stessaLicenza(protetta.data(), attesa)) perche = 'La licenza non è quella che dicono i dati della regia.'
+  await ref.set({ licenza_protetta: { ok: !perche, perche, controllata_il: new Date().toISOString() } }, { merge: true })
+  return { slug, ok: !perche, perche }
+}
+
+// Tutti i locali che ricevono la licenza: «allinea» la riscrive e verifica,
+// «verifica» guarda soltanto. L'esito resta in controlli/licenze, che legge
+// solo l'admin. Prima del rilascio dell'app con BUG-125, i problemi devono
+// essere zero.
+async function controllaLicenze({ allinea = false } = {}) {
+  const istanze = await tutteLeIstanze()
+  const slugs = Object.entries(istanze)
+    .filter(([, ist]) => riceveLicenza(ist))
+    .map(([slug]) => slug)
+    .sort()
+  const problemi = []
+  for (const slug of slugs) {
+    try {
+      if (allinea) {
+        const scritta = await scriviLicenza(slug)
+        if (!scritta.ok) {
+          problemi.push({ slug, perche: scritta.perche })
+          continue
+        }
+      }
+      const v = await verificaLicenza(slug)
+      if (!v.ok) problemi.push({ slug, perche: v.perche })
+    } catch (e) {
+      problemi.push({ slug, perche: String(e?.message || e).slice(0, 200) })
+    }
+  }
+  const esito = { controllata_il: new Date().toISOString(), allineata: allinea, totale: slugs.length, pronte: slugs.length - problemi.length, problemi }
+  await db.doc('controlli/licenze').set(esito)
+  return esito
+}
+
+exports.gestisciLicenze = onCall({ ...OPTS, timeoutSeconds: 540 }, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const azione = req.data?.azione
+  if (!['allinea', 'verifica'].includes(azione)) throw new HttpsError('invalid-argument', 'Azione sconosciuta.')
+  return controllaLicenze({ allinea: azione === 'allinea' })
+})
 
 // La proposta di un rilascio al titolare, con le note dalla sua versione.
 async function proponiAggiornamento(slug, tag, { rilascio = null, changelog = '' } = {}) {
@@ -594,7 +682,7 @@ async function proponiAggiornamento(slug, tag, { rilascio = null, changelog = ''
   const ist = (await ref.get()).data()
   const note = aggiornamenti.noteTra(changelog, ist?.versione, tag)
   await ref.update({ proposta_aggiornamento: aggiornamenti.nuovaProposta(tag, { rilascio, note }) })
-  await scriviRegolaAggiornamenti(slug).catch((e) => console.error(`[aggiornamenti] ${slug}:`, e?.message || e))
+  await scriviLicenza(slug).catch((e) => console.error(`[aggiornamenti] ${slug}:`, e?.message || e))
 }
 
 // La scelta del titolare, dall'app o dalla dashboard: «aggiorna» lancia il
@@ -615,7 +703,7 @@ async function applicaScelta(slug, scelta, { il = new Date().toISOString(), da =
   } else {
     await ref.update({ proposta_aggiornamento: { ...p, ...fatta, saltata_il: il } })
   }
-  await scriviRegolaAggiornamenti(slug).catch((e) => console.error(`[aggiornamenti] ${slug}:`, e?.message || e))
+  await scriviLicenza(slug).catch((e) => console.error(`[aggiornamenti] ${slug}:`, e?.message || e))
   await ricalcolaRilasci().catch((e) => console.error('[rilasci] ricalcolo dopo una scelta:', e?.message || e))
   return null
 }
@@ -637,7 +725,7 @@ exports.impostaRegoleAggiornamenti = onCall({ ...OPTS, timeoutSeconds: 540 }, as
     await db.doc(`istanze/${slug}`).set(patch, { merge: true })
     if (patch.avviso_aggiornamenti) avvisati += 1
     try {
-      await scriviRegolaAggiornamenti(slug)
+      await scriviLicenza(slug)
     } catch (e) {
       nonScritti.push(slug)
       console.error(`[aggiornamenti] ${slug}:`, e?.message || e)
@@ -728,7 +816,7 @@ exports.licenzaSegueIlPiano = onDocumentUpdated({ ...OPTS, document: 'clienti/{u
   const dopo = event.data?.after?.data()
   if (!dopo?.slug) return
   if (prima?.abbonamento?.stato !== dopo.abbonamento?.stato && !sceltaCambiata(prima, dopo)) {
-    await scriviRegolaAggiornamenti(dopo.slug).catch((e) => console.error(`[aggiornamenti] ${dopo.slug}:`, e?.message || e))
+    await scriviLicenza(dopo.slug).catch((e) => console.error(`[aggiornamenti] ${dopo.slug}:`, e?.message || e))
     return
   }
   if (!sceltaCambiata(prima, dopo)) return
@@ -737,9 +825,8 @@ exports.licenzaSegueIlPiano = onDocumentUpdated({ ...OPTS, document: 'clienti/{u
   // Tornato al Free perché non paga: il piano suo torna col pagamento
   // (ripiegaAlFree), non con un cambio di scelta.
   if (ist.ripiego_free) return
-  await firestoreDi(ist.progetto).doc('settings/bar').update(patchLicenzaPiano(dopo))
-  await scriviRegolaAggiornamenti(dopo.slug).catch((e) => console.error(`[aggiornamenti] ${dopo.slug}:`, e?.message || e))
   await db.doc(`istanze/${dopo.slug}`).set({ licenza_piano: dopo.piano, licenza_scritta_il: new Date().toISOString() }, { merge: true })
+  await scriviLicenza(dopo.slug).catch((e) => console.error(`[licenza] ${dopo.slug}:`, e?.message || e))
   // Un locale Free che compra (REQ-FLOTTA-015): la licenza ha già tolto i
   // limiti; ora arrivano Functions, Storage e segreti, col profilo completo.
   if (free.serveProfiloCompleto(ist, dopo)) {

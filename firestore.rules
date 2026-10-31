@@ -99,6 +99,14 @@ service cloud.firestore {
       }
     }
 
+    // I controlli della regia (BUG-125 di tana-drink: le licenze protette di
+    // tutti i locali): li scrivono solo le Functions, li legge l'admin.
+    // Dentro ci sono gli slug degli altri locali: un titolare non li vede.
+    match /controlli/{doc} {
+      allow read: if admin();
+      allow write: if false;
+    }
+
     // Le impostazioni della regia (REQ-FLOTTA-011): il deploy automatico.
     match /impostazioni/{doc} {
       allow read: if autenticato();

@@ -8,6 +8,7 @@
 
 const listino = require('../piani.json')
 const { proveAttive } = require('./prove.js')
+const { licenzaAggiornamenti } = require('./aggiornamenti.js')
 
 // Stessi id nel listino e nell'app (REQ-LIC-002 in tana-drink); il
 // magazzino porta con sé i suoi tre moduli di dettaglio.
@@ -87,4 +88,49 @@ function sceltaCambiata(prima, dopo) {
   return chiave(prima) !== chiave(dopo)
 }
 
-module.exports = { moduliLicenza, patchLicenzaPiano, licenzaIniziale, sceltaCambiata, TUTTI }
+// ── LA LICENZA PROTETTA: licenza/attuale (BUG-125 di tana-drink) ────────
+// In settings/bar la licenza la può riscrivere ogni bartender: le regole
+// dell'app danno tutto settings/ al banco, e un locale Free poteva
+// accendersi da solo piano e moduli. La licenza passa in un documento suo,
+// licenza/attuale, che dall'app si legge e non si scrive. Lo scrive solo la
+// regia, con le sue credenziali.
+//
+// Si CALCOLA dai dati della regia, non si copia da settings/bar: quella
+// copia potrebbe essere già stata manomessa. Stesso contenuto di oggi:
+// piano, moduli, terminali, limiti, prove, stato col motivo e la data, slug,
+// regia_url, aggiornamenti.
+//
+// Attenzione (BUG-125): con l'app nuova un locale SENZA licenza/attuale
+// mostra «Installazione non attivata». La copia va fatta per tutti i locali
+// e verificata prima di quel rilascio.
+function licenzaProtetta(ist, cliente, { slug, regiaUrl = null, adesso = new Date() } = {}) {
+  // Tornato al Free per un pagamento mancato (REQ-FLOTTA-020): il suo piano
+  // torna col pagamento, non qui.
+  const scelta = ist?.ripiego_free ? { piano: 'free' } : cliente
+  const p = listino.piani[scelta?.piano] ? scelta.piano : 'base'
+  return {
+    piano: p,
+    moduli: moduliLicenza({ piano: p, moduli: scelta?.moduli, prove: proveAttive(scelta, adesso) }),
+    terminali: Math.max(1, Number(scelta?.terminali) || 1),
+    limiti: limitiLicenza(p),
+    prove: proveInCorso(scelta, adesso),
+    stato: ist?.licenza_stato || 'attiva',
+    motivo: ist?.licenza_stato && ist.licenza_stato !== 'attiva' ? ist.licenza_motivo || null : null,
+    dal: ist?.licenza_dal || null,
+    slug: slug || cliente?.slug || null,
+    regia_url: regiaUrl,
+    aggiornamenti: licenzaAggiornamenti(ist, cliente, adesso),
+    scritta_il: adesso.toISOString(),
+  }
+}
+
+// Due licenze dicono la stessa cosa? La data di scrittura non conta.
+const CHIAVI_PROTETTA = ['piano', 'moduli', 'terminali', 'limiti', 'prove', 'stato', 'motivo', 'slug', 'regia_url', 'aggiornamenti']
+function ordinato(v) {
+  if (Array.isArray(v)) return v.map(ordinato)
+  if (v && typeof v === 'object') return Object.fromEntries(Object.keys(v).sort().map((k) => [k, ordinato(v[k])]))
+  return v ?? null
+}
+const stessaLicenza = (a, b) => Boolean(a && b) && CHIAVI_PROTETTA.every((k) => JSON.stringify(ordinato(a[k])) === JSON.stringify(ordinato(b[k])))
+
+module.exports = { moduliLicenza, patchLicenzaPiano, licenzaIniziale, sceltaCambiata, licenzaProtetta, stessaLicenza, TUTTI }

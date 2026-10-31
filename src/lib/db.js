@@ -201,6 +201,21 @@ export async function impostaRegoleAggiornamenti(regole) {
   return data
 }
 
+// ── le licenze protette (BUG-125 di tana-drink) ──
+// L'ultimo controllo di tutti i locali, e le due azioni: «allinea» riscrive
+// ogni licenza dai dati della regia e verifica, «verifica» guarda soltanto.
+export function osservaControlloLicenze(cb) {
+  serve()
+  return onSnapshot(doc(db, 'controlli', 'licenze'), (s) => cb(s.exists() ? s.data() : null))
+}
+
+export async function gestisciLicenze(azione) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'gestisciLicenze', { timeout: 540_000 })
+  const { data } = await fn({ azione })
+  return data
+}
+
 // Il titolare: «aggiorna» o «salta» la versione proposta.
 export async function sceltaAggiornamento(tag, scelta) {
   serve()

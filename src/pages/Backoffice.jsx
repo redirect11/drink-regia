@@ -26,6 +26,8 @@ import {
   impostaAggiornamentiEsistente,
   osservaRegoleAggiornamenti,
   impostaRegoleAggiornamenti,
+  osservaControlloLicenze,
+  gestisciLicenze,
 } from '../lib/db.js'
 import { venditaPulita } from '../lib/vendita.js'
 import { statoIstanza, statoDetto, STATI, progettoDi } from '../lib/istanze.js'
@@ -276,6 +278,7 @@ export default function Backoffice() {
             path="rilasci"
             element={
               <>
+                <LicenzeProtette onErrore={setErrore} onFatto={carica} />
                 <RegoleAggiornamenti onErrore={setErrore} onFatto={carica} />
                 <Rilasci rilasci={rilasci} onAzione={azioneRilascio} />
                 <AggiornamentiFalliti righe={righe} az={az} />
@@ -531,6 +534,13 @@ function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaApert
             )}
           </dd>
         </div>
+        {istanza?.licenza_protetta?.ok === false && (
+          // BUG-125: con l'app nuova un locale senza licenza protetta si ferma.
+          <div>
+            <dt>Licenza</dt>
+            <dd className="errore">{istanza.licenza_protetta.perche}</dd>
+          </div>
+        )}
         {eliminazioneDetta(istanza) && (
           <div>
             <dt>Eliminazione</dt>
@@ -668,6 +678,71 @@ function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaApert
       {cambiaAperto && <CambiaPiano cliente={c} onFatto={onFatto} onErrore={az.onErrore} />}
       {eliminaAperto && <EliminaLocale cliente={c} istanza={istanza} onFatto={onFatto} onErrore={az.onErrore} />}
     </article>
+  )
+}
+
+// LE LICENZE PROTETTE (BUG-125 di tana-drink). La licenza esce da
+// settings/bar, che ogni bartender può riscrivere, e va in licenza/attuale,
+// che dall'app non scrive nessuno. Con l'app nuova un locale senza
+// licenza/attuale mostra «Installazione non attivata»: prima di quel
+// rilascio qui i problemi devono essere zero. «Allinea» riscrive ogni
+// licenza dai dati della regia, in tutti e due i posti, e verifica; la
+// stessa cosa la fa la regia da sola ogni mattina.
+function LicenzeProtette({ onErrore, onFatto }) {
+  const [controllo, setControllo] = useState(undefined)
+  const [inCorso, setInCorso] = useState(null)
+  useEffect(() => osservaControlloLicenze(setControllo), [])
+
+  const esegui = async (azione) => {
+    if (azione === 'allinea' && !window.confirm('Riscrivere la licenza di ogni locale dai dati della regia, in licenza/attuale e in settings/bar?')) return
+    setInCorso(azione)
+    try {
+      await gestisciLicenze(azione)
+      onFatto()
+    } catch (e) {
+      onErrore(e.message)
+    } finally {
+      setInCorso(null)
+    }
+  }
+
+  if (controllo === undefined) return null
+  const pronte = controllo && controllo.problemi?.length === 0
+  return (
+    <section className="card" aria-label="Licenze protette">
+      <h3>Licenze protette</h3>
+      <p className="muted small">
+        La licenza di ogni locale in licenza/attuale, che dall’app non si scrive. Prima di pubblicare l’app che la legge da lì, tutti i
+        locali devono essere pronti: uno senza si ferma.
+      </p>
+      {controllo ? (
+        <p className={pronte ? 'small' : 'errore small'} data-testid="esito-licenze">
+          {pronte ? `Tutti pronti: ${controllo.pronte} su ${controllo.totale}.` : `Pronti ${controllo.pronte} su ${controllo.totale}.`}{' '}
+          <span className="muted">
+            {controllo.allineata ? 'Allineate e verificate' : 'Verificate'} il {new Date(controllo.controllata_il).toLocaleString('it-IT')}.
+          </span>
+        </p>
+      ) : (
+        <p className="muted small">Nessun controllo ancora.</p>
+      )}
+      {controllo?.problemi?.length > 0 && (
+        <ul className="small">
+          {controllo.problemi.map((p) => (
+            <li key={p.slug}>
+              <code>{p.slug}</code>: {p.perche}
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="azioni">
+        <button type="button" className="btn small" disabled={Boolean(inCorso)} onClick={() => esegui('allinea')}>
+          {inCorso === 'allinea' ? 'Allineo…' : 'Allinea tutte'}
+        </button>
+        <button type="button" className="btn ghost small" disabled={Boolean(inCorso)} onClick={() => esegui('verifica')}>
+          {inCorso === 'verifica' ? 'Verifico…' : 'Verifica'}
+        </button>
+      </div>
+    </section>
   )
 }
 
