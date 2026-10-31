@@ -215,7 +215,10 @@ describe('quello che sa l’app: settings/bar.licenza.aggiornamenti', () => {
       motivo: null,
       proposta: { tag: 'v1.11.0', note: '## 1.11.0', proposta_il: PRIMA, saltata_il: null },
       avviso: { id: 'condizioni-2026-11-01', testo: 'Dal…', dal: DOPO },
+      scelta_url: null,
     })
+    // Dove l'app manda la scelta del titolare.
+    expect(a.licenzaAggiornamenti(ist, pagante, ADESSO, { sceltaUrl: 'https://x/sceltaDallApp' }).scelta_url).toBe('https://x/sceltaDallApp')
   })
 
   it('niente proposta se non è in attesa o se il piano non comprende gli aggiornamenti', () => {
@@ -232,5 +235,37 @@ describe('il rinnovo da Stripe', () => {
     const agg = aggiornamentoDaEvento('invoice.paid', { subscription: 'sub_1', lines: { data: [{ period: { end: fine } }] } }, ADESSO)
     expect(agg.patch['abbonamento.rinnovo_il']).toBe(new Date(DOPO).toISOString())
     expect(aggiornamentoDaEvento('invoice.paid', { subscription: 'sub_1' }, ADESSO).patch['abbonamento.rinnovo_il']).toBeUndefined()
+  })
+})
+
+// La scelta dall'app è una chiamata alla regia col token d'accesso del
+// titolare (sceltaDallApp): niente documento letto a tempo.
+describe('la scelta dall’app, una chiamata alla regia', () => {
+  const jwt = (corpo) => ['eyJhbGciOiJSUzI1NiJ9', Buffer.from(JSON.stringify(corpo)).toString('base64url'), 'firma'].join('.')
+
+  it('il progetto del token dice di quale locale si parla; un token sbagliato no', () => {
+    expect(a.progettoDelToken(jwt({ aud: 'drinkpos-bar-mario', role: 'admin' }))).toBe('drinkpos-bar-mario')
+    expect(a.progettoDelToken(jwt({ aud: 'Non Valido' }))).toBeNull()
+    expect(a.progettoDelToken('non-un-token')).toBeNull()
+    expect(a.progettoDelToken('a.%%%.c')).toBeNull()
+    expect(a.progettoDelToken(null)).toBeNull()
+  })
+
+  it('il token sta in Authorization: Bearer', () => {
+    expect(a.bearerDi('Bearer abc.def.ghi')).toBe('abc.def.ghi')
+    expect(a.bearerDi('bearer   abc')).toBe('abc')
+    expect(a.bearerDi('Basic abc')).toBeNull()
+    expect(a.bearerDi(undefined)).toBeNull()
+  })
+
+  it('il corpo è un tag e una scelta; sceglie solo il titolare', () => {
+    expect(a.corpoScelta({ tag: 'v1.11.0', scelta: 'aggiorna' })).toEqual({ tag: 'v1.11.0', scelta: 'aggiorna' })
+    expect(a.corpoScelta({ tag: 'v1.11.0', scelta: 'salta', altro: 1 })).toEqual({ tag: 'v1.11.0', scelta: 'salta' })
+    expect(a.corpoScelta({ tag: 'main', scelta: 'aggiorna' })).toBeNull()
+    expect(a.corpoScelta({ tag: 'v1.11.0', scelta: 'installa' })).toBeNull()
+    expect(a.corpoScelta(null)).toBeNull()
+    expect(a.eTitolare({ role: 'admin' })).toBe(true)
+    expect(a.eTitolare({ role: 'bartender' })).toBe(false)
+    expect(a.eTitolare(null)).toBe(false)
   })
 })

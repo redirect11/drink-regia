@@ -125,7 +125,7 @@ function noteTra(md, da, a) {
 
 // La proposta su un'istanza. `attesa` resta vera finché il titolare non
 // sceglie «Aggiorna» (anche dopo «Salta»: in Informazioni può cambiare
-// idea), ed è quello che la regia cerca ogni dieci minuti.
+// idea): la scelta che arriva (sceltaDallApp, la dashboard) vale solo così.
 function nuovaProposta(tag, { rilascio = null, note = '', adesso = new Date() } = {}) {
   return { tag, rilascio, note: String(note || '').slice(0, NOTE_MAX + 4), proposta_il: adesso.toISOString(), saltata_il: null, attesa: true, scelta_letta_il: null }
 }
@@ -227,7 +227,8 @@ function promozione(ist, adesso = new Date()) {
 const ripiegaInveceDiSospendere = (ist, adesso = new Date()) => ist?.interna !== true && condizioniIn(ist, adesso).solo_finche_paga
 
 // ── QUELLO CHE SA L'APP: settings/bar.licenza.aggiornamenti ───────────
-function licenzaAggiornamenti(ist, cliente, adesso = new Date()) {
+// `sceltaUrl`: dove l'app manda «Aggiorna» o «Salta» (sceltaDallApp).
+function licenzaAggiornamenti(ist, cliente, adesso = new Date(), { sceltaUrl = null } = {}) {
   const r = regolaDi(ist, cliente, adesso)
   const p = ist?.proposta_aggiornamento
   const proposta = p?.attesa && r.inclusi ? { tag: p.tag, note: p.note || '', proposta_il: p.proposta_il, saltata_il: p.saltata_il || null } : null
@@ -238,8 +239,41 @@ function licenzaAggiornamenti(ist, cliente, adesso = new Date()) {
     motivo: r.motivo,
     proposta,
     avviso: a ? { id: a.id, testo: a.testo, dal: a.dal } : null,
+    scelta_url: sceltaUrl,
   }
 }
+
+// ── LA SCELTA DALL'APP: UNA CHIAMATA ALLA REGIA ───────────────────────
+// Il titolare tocca «Aggiorna» o «Salta» e l'app chiama la regia
+// (sceltaDallApp) col token d'accesso che Firebase le ha già dato. Niente
+// chiavi nel browser, niente documento da andare a leggere: la regia
+// riconosce il locale dal progetto del token, lo verifica, e applica la
+// scelta subito. Vale anche per il Free, che non ha Functions: chiama il
+// browser.
+
+// Il progetto Firebase da cui viene il token (il campo «aud»). Si legge
+// senza fidarsi: serve solo a sapere con quale progetto verificarlo.
+function progettoDelToken(token) {
+  const parti = String(token || '').split('.')
+  if (parti.length !== 3) return null
+  try {
+    const aud = JSON.parse(Buffer.from(parti[1], 'base64url').toString('utf8'))?.aud
+    return /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(aud || '') ? aud : null
+  } catch {
+    return null
+  }
+}
+
+const bearerDi = (intestazione) => /^Bearer\s+(\S+)$/i.exec(String(intestazione || ''))?.[1] || null
+
+// Il corpo della chiamata: { tag, scelta }, o null.
+function corpoScelta(corpo) {
+  const tag = String(corpo?.tag || '')
+  return TAG.test(tag) && SCELTE.includes(corpo?.scelta) ? { tag, scelta: corpo.scelta } : null
+}
+
+// Il titolare, in tana-drink, è il ruolo «admin» nei claim del suo accesso.
+const eTitolare = (token) => token?.role === 'admin'
 
 module.exports = {
   MODALITA,
@@ -257,6 +291,10 @@ module.exports = {
   confronta,
   noteTra,
   nuovaProposta,
+  progettoDelToken,
+  bearerDi,
+  corpoScelta,
+  eTitolare,
   propostaSuperata,
   sceltaValida,
   dataDi,

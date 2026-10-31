@@ -103,7 +103,8 @@ Firebase crea `firebase-adminsdk-fbsvc@<progetto>.iam.gserviceaccount.com`.
    `roles/secretmanager.admin` (il deploy controlla che i segreti delle
    Functions esistano e dà al SA di runtime il permesso di leggerli: senza,
    si ferma con `secretmanager.secrets.get` negato), `roles/cloudscheduler.admin`
-   (la pianificazione di `leggiScelteAggiornamenti`), `roles/cloudtasks.queueAdmin`
+   (per le Functions pianificate: dal 31/10/2026 la regia non ne ha più,
+   il ruolo resta per quando servisse), `roles/cloudtasks.queueAdmin`
    (la coda della Function `scadenza`, REQ-FLOTTA-023, con l'API
    `cloudtasks.googleapis.com` accesa), `roles/artifactregistry.admin`
    (la pulizia automatica delle immagini vecchie) e `roles/run.admin`:
@@ -129,7 +130,7 @@ Firebase crea `firebase-adminsdk-fbsvc@<progetto>.iam.gserviceaccount.com`.
    Il numero di progetto lo dà `npx firebase-tools projects:list`.
    Lo stesso ruolo serve **anche sul SA di App Engine**
    (`<progetto>@appspot.gserviceaccount.com`): il CLI lo controlla per le
-   Functions pianificate (`leggiScelteAggiornamenti`) e senza si ferma con
+   Functions pianificate (dal 31/10/2026 non ce ne sono) e senza si ferma con
    `iam.serviceAccounts.ActAs` (provato su `drink-regia-test`, 29/10/2026).
 3. **Chiave JSON** del SA (console → IAM → Service account → Chiavi →
    Aggiungi chiave), scaricata in un file nella scratchpad e messa
