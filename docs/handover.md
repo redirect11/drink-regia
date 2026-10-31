@@ -498,6 +498,15 @@ L'elenco completo con i riferimenti al codice è in
    (REQ-FLOTTA-020 e `docs/aggiornamenti-dalla-regia.md`, ramo
    `feature/aggiornamenti-a-scelta`). Per la Tana la
    proposta arriva nell'app solo quando la regia le scriverà la licenza.
+22. **L'installazione on premise (REQ-FLOTTA-021)**, requisito di business
+   da fare, 31/10/2026, per intero in [on-premise.md](on-premise.md). Il
+   gestionale intero nel locale col backup sul cloud del locale, l'app
+   sempre la stessa dietro delle porte (in tana-drink: REQ-FLOTTA-021,
+   `docs/porte-e-adattatori.md`, ramo `feature/porte-e-adattatori`), niente
+   emulatori di Firebase in produzione, l'immagine preparata e aggiornata
+   dalla regia. Si comincia dalle porte in tana-drink; la regia lavora
+   dopo il prototipo del backend locale. Prezzi, comodato e dominio li
+   decide l'utente.
 23. **La licenza protetta (BUG-125 di tana-drink, REQ-FLOTTA-022)**, ramo
    `feature/licenza-protetta`, 31/10/2026. La regia scrive la licenza
    intera, calcolata dai suoi dati, in `licenza/attuale` e in

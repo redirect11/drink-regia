@@ -852,6 +852,42 @@ requirements:
       - tests/AggiornamentiLocale.test.jsx
       - tests/Backoffice.test.jsx
 
+  - id: REQ-FLOTTA-021
+    title: "L'installazione on premise: il gestionale intero nel locale, col backup sul cloud"
+    area: "docs/on-premise.md"
+    description: >
+      «On premise viene ospitato tutto il gestionale con backup su cloud»,
+      «tana-drink è sempre lo stesso ma dove si installa e come si
+      configura è roba di regia. Per l'installazione on premise io farei
+      proprio delle immagini già pronte da installare e da mantenere
+      aggiornate» e «così possiamo riutilizzare tutto anche su cloud puro»
+      (l'utente, 31/10/2026). Requisito di business, il disegno è in
+      docs/on-premise.md. Il terzo livello di installazione, dopo cloud e
+      app: il gestionale gira su un apparecchio nel locale, che lavora
+      tutto insieme anche senza internet; il progetto cloud del locale
+      tiene il backup continuo, la consultazione da fuori e una casella
+      per quello che arriva da fuori, che l'apparecchio svuota con
+      connessioni solo in uscita. I dati del locale non passano mai dalla
+      regia. L'app è sempre la stessa: parla con delle porte, e dietro c'è
+      Firebase nel cloud e un backend locale nell'on premise (in
+      tana-drink, REQ-FLOTTA-021 e docs/porte-e-adattatori.md). Niente
+      emulatori di Firebase in produzione. Il backend si sceglie con un
+      prototipo (candidata PocketBase con Litestream), e lo stesso insieme
+      deve girare anche su una macchina virtuale di un altro fornitore. La
+      regia prepara e aggiorna l'immagine (sistema e sicurezza sempre,
+      app e backend con le regole di REQ-FLOTTA-020), attiva
+      l'apparecchio con un codice del locale e una chiave sua, gli dà un
+      nome nella rete del locale con un certificato vero, ne controlla
+      stato e backup, gli manda licenza e sospensione. Da decidere con
+      l'utente: prezzi, comodato o vendita, dominio, tempi di
+      sostituzione. Già vero oggi, e provato: nessun workflow della regia
+      pubblica un locale collegato agli emulatori.
+    status: todo
+    generate_issue: false
+    labels: [prodotto, flotta, regia]
+    test_cases:
+      - tests/flotta.test.js
+
   - id: REQ-FLOTTA-022
     title: "La licenza di un locale in licenza/attuale, calcolata dalla regia e scritta solo da lei"
     area: "functions/lib/licenza.js, functions/index.js, scripts/licenza-istanza.mjs, src/pages/Backoffice.jsx, firestore.rules"

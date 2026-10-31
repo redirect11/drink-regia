@@ -37,6 +37,17 @@ const WORKFLOW = [
   ['aggiorna-istanza.yml', aggiorna, dispatchAggiornamento(richiesta, { ref: 'main', app: 'v1.10.0', ambiente: 'test' })],
 ]
 
+// NIENTE EMULATORI IN PRODUZIONE (REQ-FLOTTA-021, l'utente 31/10/2026):
+// l'emulatore di Auth dà token non firmati e quello del database ha comandi
+// di amministrazione senza protezione. Un locale pubblicato dalla regia non
+// si collega mai agli emulatori: nessun workflow che pubblica lo chiede,
+// né negli env né nel .env che scrive per la build.
+describe('nessun locale pubblicato sugli emulatori', () => {
+  it.each(['provisiona-istanza.yml', 'aggiorna-istanza.yml', 'elimina-istanza.yml'])('%s non nomina gli emulatori', (nome) => {
+    expect(leggi(`.github/workflows/${nome}`)).not.toMatch(/EMULATOR|emulators:start|connect\w*Emulator/i)
+  })
+})
+
 describe.each(WORKFLOW)('%s', (_, w, corpo) => {
   it('parte solo a comando, con esattamente gli input che le Functions mandano', () => {
     expect(Object.keys(eventi(w))).toEqual(['workflow_dispatch'])
