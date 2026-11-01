@@ -176,3 +176,42 @@ describe('la licenza protetta, dai dati della regia', () => {
     expect(protetta).toBeLessThan(script.indexOf("db.doc('settings/bar').set(patch, { merge: true })"))
   })
 })
+
+// Le regole che tana-drink chiede alla regia (01/11/2026), per ogni licenza.
+describe("il contratto con l'app", () => {
+  const listino = require('../functions/piani.json')
+  const piani = Object.keys(listino.piani)
+
+  it('moduli nomina tutti i moduli, sempre: uno che manca per l’app vale «non incluso»', () => {
+    for (const piano of piani) {
+      for (const moduli of [[], ['magazzino'], ['staff', 'sumup']]) {
+        const lic = licenzaProtetta({ stato: 'attiva' }, { slug: 'bar-mario', piano, moduli, abbonamento: { stato: 'attivo' } })
+        expect(Object.keys(lic.moduli).sort()).toEqual([...TUTTI].sort())
+        expect(Object.values(lic.moduli).every((v) => typeof v === 'boolean')).toBe(true)
+      }
+    }
+  })
+
+  it('gli sconti si spengono solo con limiti.sconti: false, un booleano', () => {
+    for (const piano of piani) {
+      const sconti = listino.piani[piano].limiti?.sconti
+      expect(sconti === undefined || typeof sconti === 'boolean').toBe(true)
+    }
+    expect(listino.piani.free.limiti.sconti).toBe(false)
+  })
+
+  it("l'attivazione scrive la licenza prima dell'app, e mai partendo da settings/bar.licenza", () => {
+    const wf = readFileSync('.github/workflows/provisiona-istanza.yml', 'utf8')
+    const licenza = wf.indexOf('node scripts/licenza-istanza.mjs')
+    expect(licenza).toBeGreaterThan(0)
+    expect(licenza).toBeLessThan(wf.indexOf('npx firebase-tools deploy'))
+    const script = readFileSync('scripts/licenza-istanza.mjs', 'utf8')
+    expect(script).toContain("db.doc('licenza/attuale').get()")
+    expect(script).toContain('licenza: protetta.exists ? protetta.data() : undefined')
+  })
+
+  it('le Functions non cancellano mai licenza/attuale: un locale si ferma con lo stato', () => {
+    const codice = readFileSync('functions/index.js', 'utf8')
+    expect(codice).not.toMatch(/LICENZA_PROTETTA\)\.delete|licenza\/attuale'\)\.delete/)
+  })
+})

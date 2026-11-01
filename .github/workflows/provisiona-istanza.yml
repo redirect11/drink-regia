@@ -6,10 +6,11 @@ name: Provisiona istanza
 #   1. terraform apply in infra/istanza → il progetto drinkpos-<slug> con
 #      Firestore, Hosting, web app, Auth (o lo completa, se l'utente lo ha
 #      creato a mano perché non c'è un'Organizzazione Google Cloud);
-#   2. l'app di tana-drink al `ref` chiesto, in app/: la cartella
+#   2. la licenza (licenza/attuale) e il nome del locale nel database,
+#      prima dell'app: con l'app nuova un locale senza licenza si ferma;
+#   3. l'app di tana-drink al `ref` chiesto, in app/: la cartella
 #      clienti/<slug>/ e la build CLIENTE=<slug>;
-#   3. il deploy di regole, indici, Functions e hosting sul progetto nuovo;
-#   4. la licenza e il nome del locale nelle impostazioni dell'istanza;
+#   4. il deploy di regole, indici, Functions e hosting sul progetto nuovo;
 #   5. l'esito alla regia (sempre, anche se qualcosa è andato storto).
 #
 # Sta nella regia dal 29/10/2026: prima stava in tana-drink, che oggi dà
@@ -267,6 +268,15 @@ jobs:
           npm ci --prefix app
           npm ci --prefix app/functions
 
+      # La licenza prima dell'app (tana-drink, 01/11/2026): il database c'è
+      # dal Terraform, e l'app che arriva dopo la trova già.
+      - name: Licenza e nome del locale nell'istanza
+        env:
+          REGIA_URL: ${{ vars.REGIA_URL }}
+        run: |
+          node scripts/licenza-istanza.mjs --project "$PROGETTO" --slug "$SLUG" \
+            --nome "$NOME" --piano "$PIANO" --moduli "$MODULI" --regia "$REGIA_URL"
+
       # Il bucket di Storage dell'app: lo può creare solo l'API di Firebase,
       # non il Terraform (scripts/storage-istanza.mjs). Senza, il deploy di
       # storage.rules si ferma.
@@ -315,13 +325,6 @@ jobs:
             echo "::warning::Deploy non riuscito al tentativo $tentativo: riprovo fra 90 secondi."
             sleep 90
           done
-
-      - name: Licenza e nome del locale nell'istanza
-        env:
-          REGIA_URL: ${{ vars.REGIA_URL }}
-        run: |
-          node scripts/licenza-istanza.mjs --project "$PROGETTO" --slug "$SLUG" \
-            --nome "$NOME" --piano "$PIANO" --moduli "$MODULI" --regia "$REGIA_URL"
 
       - name: Versione pubblicata
         run: echo "VERSIONE=v$(node -p "require('./app/package.json').version")" >> "$GITHUB_ENV"

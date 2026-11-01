@@ -934,6 +934,36 @@ requirements:
       - tests/Backoffice.test.jsx
       - tests/db.test.js
 
+  - id: REQ-FLOTTA-024
+    title: "Quello che la licenza toglie arriva al taglio della giornata, non in servizio"
+    area: "functions/lib/taglio.js, functions/lib/scadenze.js, functions/index.js (scriviLicenza, verificaLicenza, scadenza), src/lib/istanze.js, src/pages/Backoffice.jsx, src/pages/Dashboard.jsx"
+    description: >
+      tana-drink, 01/11/2026: «I passaggi a un piano più piccolo vanno
+      fatti fuori dall'orario di servizio (per esempio al taglio della
+      giornata, alle 5). Tra poco le regole leggeranno la licenza a ogni
+      scrittura. Se un modulo si spegne mentre un tablet ha scritture in
+      coda senza rete, quelle scritture vengono rifiutate quando
+      arrivano.» Una licenza che toglie qualcosa (un modulo, un terminale,
+      limiti più stretti, il passaggio al Free, una sospensione o
+      chiusura per il pagamento) non si scrive subito: fino al taglio
+      della giornata del locale (settings/bar.business_day_cutoff_hour,
+      le 5 se manca, ora di Roma) resta quella di prima, con in più
+      quello che la nuova aggiunge, e un compito «taglio» scrive la nuova
+      alla sua ora. Quello che aggiunge arriva subito; le sospensioni e
+      le chiusure dell'admin o del titolare, scelte di adesso, anche; un
+      locale che nasce scrive subito. La scheda del locale e la dashboard
+      del titolare dicono quando arriva e cosa toglie
+      (istanze/<slug>.riduzione_al_taglio). La verifica delle licenze
+      riconosce la licenza tenuta fino al taglio.
+    status: implemented
+    generate_issue: false
+    labels: [prodotto, flotta, regia, licenza]
+    test_cases:
+      - tests/taglio.test.js
+      - tests/istanze.test.js
+      - tests/Backoffice.test.jsx
+      - tests/Dashboard.test.jsx
+
   - id: REQ-FLOTTA-022
     title: "La licenza di un locale in licenza/attuale, calcolata dalla regia e scritta solo da lei"
     area: "functions/lib/licenza.js, functions/index.js, scripts/licenza-istanza.mjs, src/pages/Backoffice.jsx, firestore.rules"
@@ -950,7 +980,12 @@ requirements:
       tutti i locali non hanno l'app nuova, anche in settings/bar.licenza:
       stato, piano, prove, ritorno al Free, aggiornamenti, attivazioni e
       aggiornamenti riusciti. Un locale nuovo nasce con licenza/attuale
-      prima della consegna (scripts/licenza-istanza.mjs). Dal backoffice
+      prima della consegna: l'attivazione la scrive prima del deploy, e
+      partendo da licenza/attuale, mai da settings/bar.licenza
+      (scripts/licenza-istanza.mjs). Le regole di tana-drink del
+      01/11/2026: moduli nomina tutti i moduli; licenza/attuale non si
+      cancella mai (un locale si ferma con lo stato); gli sconti si
+      spengono solo con limiti.sconti: false. Dal backoffice
       («Rilasci») si allineano e si verificano tutti i locali: esiste, è
       uguale a settings/bar.licenza, è quella dei dati della regia;
       l'esito sta in controlli/licenze, che legge solo l'admin, e sulla

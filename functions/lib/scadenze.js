@@ -31,7 +31,9 @@ const ANTICIPO_MAX = 29 * GIORNO
 // I giorni di grazia di un pagamento a mano, se l'admin non dice altro
 // (impostazioni/regia.giorni_grazia). Quelli di Stripe li decide Stripe.
 const GIORNI_DI_GRAZIA = 7
-const TIPI = ['pagamento', 'prova', 'eliminazione', 'condizioni']
+// «taglio»: una licenza che toglie qualcosa, al taglio della giornata
+// (REQ-FLOTTA-024, lib/taglio.js).
+const TIPI = ['pagamento', 'prova', 'eliminazione', 'condizioni', 'taglio']
 
 const ms = (iso) => Date.parse(iso || '')
 

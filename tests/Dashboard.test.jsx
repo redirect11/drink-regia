@@ -82,6 +82,17 @@ describe('la dashboard', () => {
     expect(screen.getByTestId('stato-istanza')).toHaveTextContent('Non ancora attivata')
   })
 
+  // REQ-FLOTTA-024: quello che il piano nuovo toglie arriva al taglio.
+  it('dice quando arriva una riduzione del piano, e niente se non ce n’è', () => {
+    stato.istanza = { stato: 'attiva', riduzione_al_taglio: { dal: '2026-11-02T04:00:00.000Z', cosa: ['il modulo staff'] } }
+    const { unmount } = mostra()
+    expect(screen.getByTestId('riduzione-al-taglio')).toHaveTextContent(/Dal taglio della giornata .*: il modulo staff. Fino ad allora l’app resta com’è./)
+    unmount()
+    stato.istanza = { stato: 'attiva', riduzione_al_taglio: null }
+    mostra()
+    expect(screen.queryByTestId('riduzione-al-taglio')).toBeNull()
+  })
+
   // REQ-FLOTTA-010: con l'abbonamento attivo si cambia piano o moduli.
   it('con l’abbonamento attivo c’è «Cambia piano o moduli», non la scelta iniziale', () => {
     mostra()

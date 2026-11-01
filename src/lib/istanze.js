@@ -57,3 +57,15 @@ export function puoAttivare(cliente, istanza, richiesta, { emailVerificata = tru
   }
   return { ok: true, perche: null }
 }
+
+// Una licenza che toglie qualcosa aspetta il taglio della giornata del
+// locale (REQ-FLOTTA-024): quando arriva e cosa toglie, a parole. Null se
+// non aspetta niente.
+export function riduzioneDetta(istanza) {
+  const r = istanza?.riduzione_al_taglio
+  const quando = Date.parse(r?.dal || '')
+  if (!Number.isFinite(quando)) return null
+  const data = new Date(quando).toLocaleString('it-IT', { timeZone: 'Europe/Rome', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  const cosa = Array.isArray(r.cosa) && r.cosa.length ? `: ${r.cosa.join(', ')}` : ''
+  return `Dal taglio della giornata (${data})${cosa}.`
+}

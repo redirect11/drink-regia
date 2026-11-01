@@ -532,6 +532,20 @@ L'elenco completo con i riferimenti al codice è in
    come non pagato» (non «cancellalo»: chiuderebbe il locale). Nella regia
    non resta nessuna Function a tempo: anche la scelta del titolare
    dall'app è una chiamata (`sceltaDallApp`, REQ-FLOTTA-020).
+25. **Le riduzioni al taglio della giornata (REQ-FLOTTA-024)**, ramo
+   `feature/riduzioni-al-taglio`, 01/11/2026, su richiesta di tana-drink:
+   con le regole che leggono la licenza a ogni scrittura, un modulo spento
+   in servizio fa rifiutare le scritture in coda di un tablet senza rete.
+   `scriviLicenza` confronta la licenza nuova con quella scritta: se
+   toglie qualcosa (un modulo, un terminale, i limiti del Free, una
+   sospensione per il pagamento) fino al taglio scrive quella di prima più
+   le aggiunte, segna `istanze/<slug>.riduzione_al_taglio` = `{ dal, cosa }`
+   e programma un compito «taglio» (la stessa coda delle scadenze). L'ora
+   è `settings/bar.business_day_cutoff_hour` del locale, 5 se manca, ora
+   di Roma. Quello che aggiunge, e gli stati voluti dall'admin o dal
+   titolare, valgono subito. Un locale che nasce scrive subito. Nello
+   stesso ramo: l'attivazione scrive la licenza **prima** del deploy, e lo
+   script parte da `licenza/attuale`, non più da `settings/bar.licenza`.
 
 ---
 
@@ -606,6 +620,20 @@ moduli, la licenza nell'istanza e la Tana.
   `scripts/licenza-istanza.mjs` alla prima attivazione, prima della
   consegna, e poi la sola `scriviLicenza` delle Functions. Con l'app nuova
   un locale senza `licenza/attuale` mostra «Installazione non attivata».
+  Le regole chieste da tana-drink il 01/11/2026, che la regia rispetta:
+  (1) ogni locale ha `licenza/attuale` **prima** di ricevere l'app nuova,
+  e `moduli` nomina **tutti** i moduli (uno che manca per l'app vale «non
+  incluso»): l'attivazione la scrive prima del deploy, ogni aggiornamento
+  prima di lanciare; (2) `licenza/attuale` **non si cancella mai** a un
+  locale attivo: senza documento le regole dell'app vorranno dire
+  «nessun limite». Un locale si ferma con `stato: 'sospesa' | 'chiusa'`;
+  (3) gli sconti si spengono solo con `limiti.sconti: false`, un
+  booleano: ogni altro valore, o la voce assente, vuol dire permessi;
+  (4) quello che **toglie** (un piano più piccolo, un modulo, un
+  terminale, il passaggio al Free, una sospensione per il pagamento)
+  arriva al **taglio della giornata** del locale (REQ-FLOTTA-024): fino
+  ad allora la licenza è quella di prima più le aggiunte. Le sospensioni e
+  le chiusure dell'admin o del titolare valgono subito.
 - **Gli aggiornamenti obbligatori o a scelta** (REQ-FLOTTA-020, dal
   31/10/2026, per intero in tana-drink, `docs/aggiornamenti-dalla-regia.md`).
   La regia scrive `settings/bar.licenza.aggiornamenti` = `{ modalita:

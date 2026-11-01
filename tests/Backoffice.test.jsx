@@ -948,6 +948,16 @@ describe('le licenze protette nel backoffice', () => {
     const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
     expect(attivo).toHaveTextContent('licenza/attuale è diversa da settings/bar.licenza.')
   })
+
+  // REQ-FLOTTA-024: quello che la licenza toglie arriva al taglio.
+  it('la scheda di un locale con una riduzione in attesa dice quando arriva e cosa toglie', async () => {
+    db.elencoIstanze.mockResolvedValue({
+      'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', riduzione_al_taglio: { dal: '2026-11-02T04:00:00.000Z', cosa: ['il modulo magazzino'] } },
+    })
+    mostra()
+    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
+    expect(attivo).toHaveTextContent(/Dal taglio della giornata .*: il modulo magazzino\./)
+  })
 })
 
 // LE SCADENZE A EVENTI (REQ-FLOTTA-023): un piano pagato fuori da Stripe ha

@@ -31,6 +31,7 @@ const { onTaskDispatched } = require('firebase-functions/v2/tasks')
 const { getFunctions: funzioniAdmin } = require('firebase-admin/functions')
 const { STATI: STATI_LICENZA } = require('./lib/sospensione.js')
 const scadenze = require('./lib/scadenze.js')
+const taglio = require('./lib/taglio.js')
 const { initializeApp: initializeAppCon, getApps } = require('firebase-admin/app')
 const { getAuth } = require('firebase-admin/auth')
 const ai = require('./lib/ai.js')
@@ -210,7 +211,8 @@ exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK
   if (esito.stato === 'attiva') {
     try {
       if (!prima?.condizioni_aggiornamenti) await ref.set({ condizioni_aggiornamenti: await regoleAggiornamenti() }, { merge: true })
-      await scriviLicenza(esito.slug)
+      // Il locale nasce adesso: nessuno ci lavora ancora, niente taglio.
+      await scriviLicenza(esito.slug, { subito: true })
     } catch (e) {
       console.error(`[licenza] ${esito.slug}, la prima licenza:`, e?.message || e)
     }
@@ -411,6 +413,14 @@ exports.scadenza = onTaskDispatched(
     const ref = db.doc(`istanze/${chiave}`)
     const ist = (await ref.get()).data()
     if (!ist) return
+    // Il taglio della giornata: la licenza che toglie qualcosa arriva ora,
+    // se aspetta ancora questo taglio (REQ-FLOTTA-024).
+    if (tipo === 'taglio') {
+      if (ist.riduzione_al_taglio?.dal !== new Date(quando).toISOString()) return
+      const scritta = await scriviLicenza(chiave, { subito: true })
+      console.log(`[taglio] ${chiave}: ${scritta.ok ? 'licenza scritta' : scritta.perche}`)
+      return
+    }
     if (tipo === 'eliminazione') {
       if (!elim.daEliminareOggi({ [chiave]: ist }, adesso).length) return
       const perche = await lanciaEliminazione(chiave)
@@ -468,6 +478,7 @@ exports.programmaScadenze = onCall({ ...OPTS, timeoutSeconds: 540 }, async (req)
   for (const [slug, ist] of Object.entries(istanze)) {
     if (ist.eliminazione?.stato === 'programmata') await prova(`${slug} eliminazione`, () => programma('eliminazione', slug, ist.eliminazione.quando))
     if (ist.condizioni_prossime?.dal) await prova(`${slug} condizioni`, () => programma('condizioni', slug, ist.condizioni_prossime.dal))
+    if (ist.riduzione_al_taglio?.dal) await prova(`${slug} taglio`, () => programma('taglio', slug, ist.riduzione_al_taglio.dal))
     if (ist.licenza_stato === 'sospesa' && !ist.licenza_per && /pagamento non ricevuto/.test(ist.licenza_motivo || '')) {
       await db.doc(`istanze/${slug}`).set({ licenza_per: 'pagamento' }, { merge: true })
     }
@@ -695,7 +706,15 @@ async function changelogAl(tag) {
 const LICENZA_PROTETTA = 'licenza/attuale'
 const riceveLicenza = (ist) => Boolean(ist?.progetto) && ist.stato === 'attiva' && scriveLicenza(ist)
 
-async function scriviLicenza(slug) {
+// UNA LICENZA CHE TOGLIE QUALCOSA aspetta il taglio della giornata del
+// locale (REQ-FLOTTA-024, lib/taglio.js): fino ad allora resta quella di
+// prima più quello che la nuova aggiunge, e un compito «taglio» scrive la
+// nuova. `subito`: il taglio è arrivato, o il locale nasce adesso.
+//
+// licenza/attuale non si cancella mai (tana-drink, 01/11/2026): senza
+// documento l'app si ferma, e le sue regole lo leggono come «nessun
+// limite». Un locale si ferma con lo stato, sospesa o chiusa.
+async function scriviLicenza(slug, { subito = false } = {}) {
   const ref = db.doc(`istanze/${slug}`)
   const ist = (await ref.get()).data()
   if (!ist) return { ok: false, perche: 'Istanza non trovata.' }
@@ -707,11 +726,24 @@ async function scriviLicenza(slug) {
   // Senza cliente la licenza sarebbe quella di un piano base inventato.
   if (!cliente) return { ok: false, perche: 'Nessun cliente per questo locale: la licenza non si calcola.' }
   const istanza = firestoreDi(ist.progetto)
-  await istanza.doc(LICENZA_PROTETTA).set(lic)
+  const [scritta, bar] = await Promise.all([istanza.doc(LICENZA_PROTETTA).get(), istanza.doc('settings/bar').get()])
+  const { licenza, riduzioni } = taglio.licenzaDaScrivere(scritta.exists ? scritta.data() : null, lic, { subito, statoAlTaglio: ist.licenza_per === 'pagamento' })
+  let alTaglio = null
+  let perche = null
+  if (riduzioni.length) {
+    alTaglio = { dal: taglio.prossimoTaglio(new Date(), taglio.oraDelTaglio(bar.data())).toISOString(), cosa: riduzioni }
+    // Senza il compito la riduzione non arriverebbe mai: la licenza di
+    // prima si scrive lo stesso (non toglie niente), e il problema si vede
+    // sulla scheda del locale. «Allinea» riprova.
+    await programma('taglio', slug, alTaglio.dal).catch((e) => {
+      perche = `La riduzione al taglio non si è programmata: ${String(e?.message || e).slice(0, 160)}`
+    })
+  }
+  await istanza.doc(LICENZA_PROTETTA).set(licenza)
   // mergeFields: il campo licenza si sostituisce intero, il resto di
   // settings/bar (le impostazioni del locale) non si tocca.
-  await istanza.doc('settings/bar').set({ licenza: lic }, { mergeFields: ['licenza'] })
-  await ref.set({ licenza_protetta: { ok: true, perche: null, controllata_il: lic.scritta_il } }, { merge: true })
+  await istanza.doc('settings/bar').set({ licenza }, { mergeFields: ['licenza'] })
+  await ref.update({ licenza_protetta: { ok: !perche, perche, controllata_il: lic.scritta_il }, riduzione_al_taglio: alTaglio })
   return { ok: true, scritta: true }
 }
 
@@ -722,7 +754,10 @@ async function verificaLicenza(slug) {
   const ist = (await ref.get()).data()
   const istanza = firestoreDi(ist.progetto)
   const [protetta, bar] = await Promise.all([istanza.doc(LICENZA_PROTETTA).get(), istanza.doc('settings/bar').get()])
-  const attesa = licenzaProtetta(ist, await clienteDi(slug), { slug, regiaUrl: REGIA_URL, sceltaUrl: SCELTA_URL, giorniGrazia: await giorniDiGrazia() })
+  const calcolata = licenzaProtetta(ist, await clienteDi(slug), { slug, regiaUrl: REGIA_URL, sceltaUrl: SCELTA_URL, giorniGrazia: await giorniDiGrazia() })
+  // Con una riduzione che aspetta il taglio, quella giusta è la licenza di
+  // prima più le aggiunte (REQ-FLOTTA-024).
+  const attesa = ist.riduzione_al_taglio && protetta.exists ? taglio.licenzaDaScrivere(protetta.data(), calcolata, { statoAlTaglio: ist.licenza_per === 'pagamento' }).licenza : calcolata
   let perche = null
   if (!protetta.exists) perche = 'Manca licenza/attuale: con l’app nuova il locale si ferma.'
   else if (!stessaLicenza(protetta.data(), bar.data()?.licenza)) perche = 'licenza/attuale è diversa da settings/bar.licenza.'
