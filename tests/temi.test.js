@@ -105,8 +105,10 @@ describe('nel sito e nella regia', () => {
     const catalogo = codice.slice(codice.indexOf('exports.catalogoTemi'), codice.indexOf('exports.gestisciTemi'))
     expect(catalogo).toContain("res.set('Access-Control-Allow-Origin', '*')")
     expect(catalogo).toContain("res.set('Access-Control-Allow-Methods', 'GET')")
-    expect(catalogo).toContain("where('stato', '==', 'pubblicato')")
-    expect(catalogo).toContain('temi.catalogoPubblico(docs)')
+    // Tutti i documenti: uno ritirato nel database copre quello del repository.
+    expect(catalogo).toContain("['temi', 'stili'].map((c) => db.collection(c).get()")
+    expect(catalogo).toContain('temi.catalogoPubblico(docsTemi, undefined, { stiliRicetta: catalogoStili.map((s) => s.id) })')
+    expect(catalogo).toContain('stili: catalogoStili')
     const gestione = codice.slice(codice.indexOf('exports.gestisciTemi'), codice.indexOf('// ── IL SITO SI PRESENTA ALLA REGIA'))
     expect(gestione).toContain("req.auth?.token?.admin !== true")
   })

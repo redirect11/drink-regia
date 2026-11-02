@@ -14,6 +14,10 @@ export default defineConfig({
     globals: true,
     env: { TZ: 'Europe/Rome' },
     include: ['tests/**/*.test.js', 'tests/**/*.test.jsx'],
+    // I test delle pagine compilano i moduli lettera per lettera: con tutta
+    // la suite e la copertura, su una macchina carica, i 5 secondi di partenza
+    // non bastavano, e scadeva ogni volta un test diverso (02/11/2026).
+    testTimeout: 20000,
     coverage: {
       provider: 'v8',
       include: ['functions/lib/**/*.js', 'src/**/*.js', 'src/**/*.jsx'],

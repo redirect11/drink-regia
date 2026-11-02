@@ -41,6 +41,7 @@ const conserva = require('./lib/conservazione.js')
 const presenta = require('./lib/presentazione.js')
 const passa = require('./lib/passaggio.js')
 const temi = require('./lib/temi.js')
+const stili = require('./lib/stili.js')
 const comunica = require('./lib/comunicazioni.js')
 const sconti = require('./lib/sconti.js')
 const free = require('./lib/free.js')
@@ -1244,9 +1245,14 @@ exports.catalogoTemi = onRequest({ ...OPTS, cors: false }, async (req, res) => {
   res.set('Access-Control-Allow-Methods', 'GET')
   if (req.method === 'OPTIONS') return res.status(204).send('')
   if (req.method !== 'GET') return res.status(405).json({ errore: 'Solo GET.' })
-  const docs = (await db.collection('temi').where('stato', '==', 'pubblicato').get()).docs.map((d) => d.data())
+  // Tutti i documenti, non solo i pubblicati: uno ritirato nel database
+  // deve coprire quello del repository con lo stesso id.
+  const [docsTemi, docsStili] = await Promise.all(['temi', 'stili'].map((c) => db.collection(c).get().then((q) => q.docs.map((d) => d.data()))))
+  // Gli stili a ricetta (REQ-FLOTTA-034): un tema li può usare solo se
+  // sono pubblicati.
+  const catalogoStili = stili.catalogoStili(docsStili)
   res.set('Cache-Control', 'public, max-age=300')
-  return res.status(200).json({ temi: temi.catalogoPubblico(docs) })
+  return res.status(200).json({ temi: temi.catalogoPubblico(docsTemi, undefined, { stiliRicetta: catalogoStili.map((s) => s.id) }), stili: catalogoStili })
 })
 
 // Il backoffice: salvare, pubblicare, ritirare un tema. Solo l'admin.
@@ -1262,10 +1268,30 @@ exports.gestisciTemi = onCall(OPTS, async (req) => {
   const delRepository = temi.dalRepository(id)
   if (azione === 'salva' && req.data?.nuovo === true && (nelDatabase || delRepository)) throw new HttpsError('already-exists', `Il tema ${id} esiste già.`)
   const prima = nelDatabase || (azione !== 'salva' && delRepository ? { ...delRepository } : null)
-  const esito = temi.azioneSuTema(prima, azione, req.data?.tema, { da: req.auth.token.email || req.auth.uid })
+  const docsStili = (await db.collection('stili').get()).docs.map((d) => d.data())
+  const stiliRicetta = stili.catalogoStili(docsStili).map((s) => s.id)
+  const esito = temi.azioneSuTema(prima, azione, req.data?.tema, { da: req.auth.token.email || req.auth.uid, stiliRicetta })
   if (esito.errore) throw new HttpsError('failed-precondition', esito.errore)
   await ref.set(esito.doc)
   return { ok: true, tema: esito.doc }
+})
+
+// Gli stili a ricetta del repository si ritirano (e si ripubblicano) dal
+// backoffice scrivendone la copia nel database, come i temi. Solo l'admin.
+exports.gestisciStili = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const azione = req.data?.azione
+  if (!['pubblica', 'ritira'].includes(azione)) throw new HttpsError('invalid-argument', 'Azione sconosciuta.')
+  const id = String(req.data?.id || '').trim().toLowerCase()
+  const ref = db.doc(`stili/${id}`)
+  const prima = (await ref.get()).data() || stili.stileDalRepository(id)
+  if (!prima) throw new HttpsError('not-found', 'Stile sconosciuto.')
+  if (azione === 'pubblica' && stili.stilePulito(prima).errore) throw new HttpsError('failed-precondition', `Non si pubblica: ${stili.stilePulito(prima).errore}`)
+  if (azione === 'ritira' && prima.stato !== 'pubblicato') throw new HttpsError('failed-precondition', 'Si ritira solo uno stile pubblicato.')
+  const ora = new Date().toISOString()
+  const doc = { ...prima, stato: azione === 'pubblica' ? 'pubblicato' : 'ritirato', [azione === 'pubblica' ? 'pubblicato_il' : 'ritirato_il']: ora, aggiornato_il: ora, aggiornato_da: req.auth.token.email || req.auth.uid }
+  await ref.set(doc)
+  return { ok: true, stile: doc }
 })
 
 // ── IL SITO SI PRESENTA ALLA REGIA (REQ-FLOTTA-026) ────────────────────

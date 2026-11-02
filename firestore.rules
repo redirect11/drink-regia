@@ -134,6 +134,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Gli stili a ricetta (REQ-FLOTTA-034): come i temi.
+    match /stili/{id} {
+      allow read: if admin();
+      allow write: if false;
+    }
+
     // I codici sconto (REQ-FLOTTA-028): li scrivono solo le Functions, li
     // legge l'admin. Un titolare vede il suo sconto sul suo cliente.
     match /sconti/{codice} {

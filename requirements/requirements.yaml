@@ -1113,6 +1113,38 @@ requirements:
       - tests/Backoffice.test.jsx
       - tests/rilasci.test.js
 
+  - id: REQ-FLOTTA-034
+    title: "Gli stili a ricetta: la forma del menù si carica dalla regia, come i temi"
+    area: "functions/lib/stili.js, functions/temi/stili.json, functions/lib/temi.js, functions/index.js (catalogoTemi, gestisciStili, gestisciTemi), src/lib/temi.js, src/pages/CatalogoTemi.jsx, src/lib/db.js, firestore.rules"
+    description: >
+      L'utente, 02/11/2026: «anche gli stili, non limitarti a quelli che
+      abbiamo integrato. Creane di nuovi. In qualche modo dobbiamo poter
+      caricare anche gli stili», e poi «Stile a ricetta» e «una scelta
+      ampia di caratteri dentro l'app». Uno stile è la forma del menù come
+      scelta fra valori fissi: i tre caratteri (fra quelli che l'app porta
+      con sé), i titoli (maiuscolo, corsivo, allineamento, dimensione,
+      spaziatura), l'intestazione, la voce (card, riga o colonna; prezzo
+      accanto, sotto o coi puntini; separatore; immagine), la cornice, gli
+      angoli, lo sfondo, e colori propri facoltativi. L'app lo disegna con
+      un motore unico, con tutto il CSS dentro di sé: non è codice, non
+      rompe il menù, funziona senza rete. La regia controlla ogni ricetta
+      (un valore fuori dal vocabolario si rifiuta), tiene gli stili del
+      repository in functions/temi/stili.json (sette: Osteria, Bauhaus,
+      Tiki, Quaderno, Dattilo, Insegna, Giardino), li pubblica in
+      catalogoTemi accanto ai temi ({ temi, stili }), li ritira dal
+      backoffice; un tema può usare uno stile a ricetta pubblicato, e ce ne
+      sono sette che lo fanno. Un'app senza il motore scarta gli stili e i
+      temi che li usano. In tana-drink resta: il motore, i caratteri nuovi,
+      la lettura degli stili dal catalogo (docs/stili-a-ricetta.md).
+    status: partial
+    generate_issue: false
+    labels: [prodotto, regia, menu]
+    test_cases:
+      - tests/stili.test.js
+      - tests/temi.test.js
+      - tests/CatalogoTemi.test.jsx
+      - tests/db.test.js
+
   - id: REQ-FLOTTA-033
     title: "I temi del repository: disegnati dal fornitore o da un agente, pubblicati col deploy"
     area: "functions/temi/catalogo.json, functions/lib/temi.js (TEMI_DEL_REPOSITORY, catalogoPubblico, dalRepository, contrasto), functions/index.js (gestisciTemi), src/lib/temi.js, src/pages/CatalogoTemi.jsx"

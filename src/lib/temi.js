@@ -5,6 +5,7 @@
 // (cosa si può pubblicare) stanno nelle Functions (functions/lib/temi.js).
 
 import catalogo from '../../functions/temi/catalogo.json'
+import catalogoStili from '../../functions/temi/stili.json'
 
 export const CHIAVI_COLORE = [
   { key: '--bg', label: 'Sfondo' },
@@ -45,6 +46,18 @@ export const STILI = [
   { id: 'riviera', nome: 'Riviera' },
   { id: 'giornale', nome: 'Giornale' },
 ]
+
+// Gli stili a ricetta del repository (REQ-FLOTTA-034): un tema li può
+// usare come quelli dell'app. Nel backoffice si vedono e si ritirano.
+export const STILI_RICETTA = catalogoStili.stili.map((s) => ({ ...s, stato: s.stato || 'pubblicato', dal_repository: true }))
+
+export function stiliDaMostrare(nelDatabase) {
+  const ids = new Set((nelDatabase || []).map((s) => s.id))
+  return [...(nelDatabase || []), ...STILI_RICETTA.filter((s) => !ids.has(s.id))]
+}
+
+// Il nome di uno stile, dell'app o a ricetta.
+export const nomeStile = (id) => STILI.find((s) => s.id === id)?.nome || STILI_RICETTA.find((s) => s.id === id)?.nome || id
 
 export const STATI_DETTI = { bozza: 'Bozza', pubblicato: 'Pubblicato', ritirato: 'Ritirato' }
 

@@ -32,6 +32,9 @@ const COLORE = /^#[0-9a-fA-F]{6}$/
 const STATI = ['bozza', 'pubblicato', 'ritirato']
 
 const testo = (v) => (typeof v === 'string' ? v.trim() : '')
+// Gli stili a ricetta pubblicati (REQ-FLOTTA-034): un tema li può usare.
+const stili = require('./stili.js')
+const STILI_RICETTA = () => stili.catalogoStili([]).map((s) => s.id)
 
 // I TEMI DEL REPOSITORY (REQ-FLOTTA-033). L'utente, 02/11/2026: «senza
 // spendere crediti, tu potresti creare temi, o un agente, e li carica sul
@@ -52,7 +55,10 @@ function contrasto(a, b) {
 }
 
 // Un tema scritto dall'admin → { tema } da salvare, o { errore }.
-function temaPulito(dati) {
+// `stiliRicetta`: gli id degli stili a ricetta pubblicati, che un tema può
+// usare come quelli dell'app (un'app che non ha ancora il motore delle
+// ricette scarta il tema, e va bene così).
+function temaPulito(dati, { stiliRicetta = STILI_RICETTA() } = {}) {
   const id = testo(dati?.id).toLowerCase()
   if (!ID.test(id)) return { errore: 'Identificativo: minuscole, cifre e trattini, da 2 a 41 caratteri.' }
   const nome = testo(dati?.nome)
@@ -62,7 +68,7 @@ function temaPulito(dati) {
   const t = dati?.tavolozza || {}
   if (!BASI.includes(t.base)) return { errore: `La base della tavolozza è una fra: ${BASI.join(', ')}.` }
   if (ESCLUSIVI.includes(dati?.stile)) return { errore: `Lo stile «${dati.stile}» è un esclusivo: non va in un tema per tutti.` }
-  if (!STILI.includes(dati?.stile)) return { errore: `Lo stile è uno fra: ${STILI.join(', ')}.` }
+  if (!STILI.includes(dati?.stile) && !stiliRicetta.includes(dati?.stile)) return { errore: `Lo stile è uno fra: ${[...STILI, ...stiliRicetta].join(', ')}.` }
   const colori = {}
   for (const [k, v] of Object.entries(t.colori && typeof t.colori === 'object' ? t.colori : {})) {
     if (v === '' || v == null) continue
@@ -88,11 +94,11 @@ const perIlCatalogo = (doc) => ({
 // Il catalogo pubblico: i temi del repository con sopra quelli del database
 // (lo stesso id vince il database), solo i pubblicati, e solo se ancora
 // validi (uno salvato con regole vecchie non esce), in ordine di nome.
-function catalogoPubblico(docs, daRepository = TEMI_DEL_REPOSITORY) {
+function catalogoPubblico(docs, daRepository = TEMI_DEL_REPOSITORY, { stiliRicetta = STILI_RICETTA() } = {}) {
   const perId = new Map((daRepository || []).map((t) => [t.id, t]))
   for (const d of docs || []) if (d?.id) perId.set(d.id, d)
   return [...perId.values()]
-    .filter((d) => d?.stato === 'pubblicato' && !temaPulito(d).errore)
+    .filter((d) => d?.stato === 'pubblicato' && !temaPulito(d, { stiliRicetta }).errore)
     .map(perIlCatalogo)
     .sort((a, b) => a.nome.localeCompare(b.nome, 'it'))
 }
@@ -101,17 +107,17 @@ function catalogoPubblico(docs, daRepository = TEMI_DEL_REPOSITORY) {
 // - salva: il tema com'è scritto; uno nuovo nasce bozza, uno pubblicato
 //   resta pubblicato (il ritocco va subito nel catalogo);
 // - pubblica / ritira: cambia lo stato, ricontrollando il tema.
-function azioneSuTema(prima, azione, dati, { da = null, adesso = new Date() } = {}) {
+function azioneSuTema(prima, azione, dati, { da = null, adesso = new Date(), stiliRicetta = STILI_RICETTA() } = {}) {
   const ora = adesso.toISOString()
   if (azione === 'salva') {
-    const { tema, errore } = temaPulito(dati)
+    const { tema, errore } = temaPulito(dati, { stiliRicetta })
     if (errore) return { errore }
     if (prima && prima.id !== tema.id) return { errore: 'L’identificativo di un tema non cambia: creane uno nuovo.' }
     return { doc: { ...(prima || { creato_il: ora, stato: 'bozza' }), ...tema, aggiornato_il: ora, aggiornato_da: da } }
   }
   if (!prima) return { errore: 'Tema sconosciuto.' }
   if (azione === 'pubblica') {
-    const { errore } = temaPulito(prima)
+    const { errore } = temaPulito(prima, { stiliRicetta })
     if (errore) return { errore: `Non si pubblica: ${errore}` }
     return { doc: { ...prima, stato: 'pubblicato', pubblicato_il: ora, aggiornato_da: da } }
   }

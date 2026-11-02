@@ -361,6 +361,21 @@ export async function elencoTemi() {
   return snap.docs.map((d) => d.data())
 }
 
+// Gli stili a ricetta (REQ-FLOTTA-034): le copie nel database (quelle che
+// ritirano uno stile del repository), e pubblica o ritira.
+export async function elencoStili() {
+  serve()
+  const snap = await getDocs(query(collection(db, 'stili'), orderBy('aggiornato_il', 'desc')))
+  return snap.docs.map((d) => d.data())
+}
+
+export async function gestisciStili(azione, id) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'gestisciStili')
+  const { data } = await fn({ azione, id })
+  return data
+}
+
 export async function gestisciTemi(azione, dati = {}) {
   serve()
   const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'gestisciTemi')
