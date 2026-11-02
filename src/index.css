@@ -325,6 +325,9 @@ input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--
 .locale-azioni { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; border-top: 1px solid var(--line); padding-top: 12px; }
 .gruppo-azioni { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .gruppo-azioni.pericolo { margin-left: auto; }
+/* Il modulo «Pubblicazione e licenza» si apre sotto i tasti, largo quanto
+   la scheda: nella riga dei tasti li schiacciava di lato. */
+.locale-azioni .gestione-esistente { flex: 1 1 100%; order: 99; margin: 4px 0 0; max-width: 640px; }
 .gruppo-azioni.pericolo .btn:hover { border-color: var(--errore); color: #ff8a7a; }
 .gruppo-nome { margin-right: 2px; }
 
