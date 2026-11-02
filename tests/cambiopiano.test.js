@@ -23,7 +23,7 @@ describe('cambia piano dall’admin', () => {
     expect(c.storico).toEqual({ il: '2026-10-30T10:00:00.000Z', da: 'admin@x.it', modo: 'stripe', piano: 'base', moduli: ['magazzino'], terminali: 2 })
   })
 
-  it('l’admin non sceglie l’intervallo: con Stripe resta quello della subscription, fuori da Stripe non si scrive (REQ-FLOTTA-021)', () => {
+  it('l’admin non sceglie l’intervallo: con Stripe resta quello della subscription, fuori da Stripe non si scrive (REQ-FLOTTA-031)', () => {
     const c = cambioAdmin(conStripe, { piano: 'base', intervallo: 'anno', modo: 'stripe' }, { adesso })
     expect(c.scelta).toEqual({ piano: 'base', moduli: [], terminali: 1 })
     expect(cambioAdmin(aMano, { piano: 'completo', intervallo: 'anno', modo: 'fuori' }, { adesso }).cliente.intervallo).toBeUndefined()

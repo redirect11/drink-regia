@@ -172,7 +172,7 @@ export default {
       free: {
         nome: PIANI.free.nome,
         descrizione:
-          'To try the service: till and orders, up to {prodotti} items on the menu and {conti} open bills at a time, no modules. {terminali}.',
+          'To try the service: the till, up to {prodotti} items on the menu and {conti} open bills at a time, no orders and no modules. {terminali}.',
       },
       base: {
         nome: PIANI.base.nome,

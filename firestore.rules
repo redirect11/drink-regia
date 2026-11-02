@@ -25,8 +25,13 @@ service cloud.firestore {
       // `interna` ed `esistente` (REQ-AI-003) li mette solo l'admin: un
       // titolare che se li scrivesse da sé uscirebbe dalla sospensione dei
       // morosi. La sospensione legge comunque il segno sull'istanza.
+      // Il titolare cambia solo i suoi dati anagrafici. Prima la regola
+      // vietava un elenco (piano, abbonamento…) e lasciava passare il resto:
+      // moduli, terminali, prove, sconto, che la regia trasforma in licenza.
+      // Un titolare poteva accendersi i moduli da solo (verifica del
+      // 02/11/2026). Ora è un elenco di quello che può cambiare.
       allow update: if admin()
-        || (mio(uid) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['piano', 'abbonamento', 'uid', 'slug', 'interna', 'esistente']));
+        || (mio(uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['locale', 'fatturazione', 'referente', 'consensi']));
       allow delete: if admin();
     }
 
@@ -103,6 +108,21 @@ service cloud.firestore {
     // Functions, in transazione; scritto da un client, varrebbe un posto
     // regalato o tolto.
     match /fondatori/{doc} {
+      allow read: if admin();
+      allow write: if false;
+    }
+
+    // I controlli della regia (BUG-125 di tana-drink: le licenze protette di
+    // tutti i locali): li scrivono solo le Functions, li legge l'admin.
+    // Dentro ci sono gli slug degli altri locali: un titolare non li vede.
+    match /controlli/{doc} {
+      allow read: if admin();
+      allow write: if false;
+    }
+
+    // I codici sconto (REQ-FLOTTA-028): li scrivono solo le Functions, li
+    // legge l'admin. Un titolare vede il suo sconto sul suo cliente.
+    match /sconti/{codice} {
       allow read: if admin();
       allow write: if false;
     }

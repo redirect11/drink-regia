@@ -1,6 +1,6 @@
 'use strict'
 
-// L'OFFERTA FONDATORI (REQ-FLOTTA-021): i primi 20 locali su un piano
+// L'OFFERTA FONDATORI (REQ-FLOTTA-031): i primi 20 locali su un piano
 // coperto pagano il prezzo Fondatori per 12 mesi, poi il listino. Il posto
 // si prenota alla sessione e si assegna al pagamento; mai due volte lo
 // stesso numero, mai oltre i posti. Logica pura, provata senza Firestore:

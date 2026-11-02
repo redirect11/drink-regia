@@ -208,6 +208,20 @@ describe('il riepilogo per il backoffice', () => {
     istanze['tana-drink'].versione = 'v1.11.0'
     expect(r.conRiepilogo(ril, istanze).riepilogo[1].riuscito).toBe(1)
   })
+
+  // REQ-FLOTTA-026: la Tana pubblicata da GitHub non manda l'esito di un
+  // deploy della regia; la versione la dice l'app presentandosi. Senza,
+  // l'ondata «interna» non finirebbe mai.
+  it('un locale esistente conta anche con la versione che l’app ha presentato', () => {
+    const istanze = flotta()
+    const ril = r.conRiepilogo(r.nuovoRilascio('v1.11.0', istanze), istanze)
+    expect(ril.riepilogo[1].riuscito).toBe(0)
+    istanze['tana-drink'].presentazione = { versione: 'v1.11.0', il: '2026-11-02T10:00:00Z' }
+    expect(r.conRiepilogo(ril, istanze).riepilogo[1].riuscito).toBe(1)
+    // Una versione diversa no.
+    istanze['tana-drink'].presentazione.versione = 'v1.10.9'
+    expect(r.conRiepilogo(ril, istanze).riepilogo[1].riuscito).toBe(0)
+  })
 })
 
 // REQ-FLOTTA-020: con gli aggiornamenti a scelta un locale riceve una

@@ -1,7 +1,7 @@
 import listino from '../functions/piani.json'
 'use strict'
 
-// I PIANI E I PREZZI (REQ-FLOTTA-002, REQ-FLOTTA-021): in un posto solo, e
+// I PIANI E I PREZZI (REQ-FLOTTA-002, REQ-FLOTTA-031): in un posto solo, e
 // il conto del mese torna. Le regole si provano sul listino; le cifre di
 // DEC-0005 (02/11/2026) si provano anche come cifre, perché un listino
 // cambiato per sbaglio deve far fallire un test.

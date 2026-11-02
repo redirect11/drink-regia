@@ -90,8 +90,13 @@ describe('dispatchPayload', () => {
   it('è il corpo del workflow_dispatch, con gli input come stringhe', () => {
     expect(dispatchPayload(richiesta, { ref: 'main', app: 'v1.10.0', ambiente: 'test' })).toEqual({
       ref: 'main',
-      inputs: { slug: 'bar-mario', nome_locale: 'Bar Mario', piano: 'base', moduli: 'staff,magazzino', uid: 'u1', ref: 'v1.10.0', ambiente: 'test', profilo: 'completo' },
+      inputs: { slug: 'bar-mario', nome_locale: 'Bar Mario', piano: 'base', moduli: 'staff,magazzino', uid: 'u1', email: '', ref: 'v1.10.0', ambiente: 'test', profilo: 'completo' },
     })
+  })
+
+  // REQ-FLOTTA-029: chi ha sottoscritto diventa l'admin del locale.
+  it('porta l’email del titolare, che diventa l’admin del locale', () => {
+    expect(dispatchPayload({ ...richiesta, email: 'mario@example.it' }).inputs.email).toBe('mario@example.it')
   })
 
   // REQ-FLOTTA-015: il Free nasce leggero, costo zero.
@@ -119,8 +124,9 @@ describe('dispatchAggiornamento', () => {
   it('lancia aggiorna-istanza.yml con lo slug, la versione dell’app e l’ambiente', () => {
     expect(dispatchAggiornamento({ slug: 'bar-mario', nome_locale: 'Bar Mario' }, { ref: 'main', app: 'v1.10.0', ambiente: 'test' })).toEqual({
       ref: 'main',
-      inputs: { slug: 'bar-mario', nome_locale: 'Bar Mario', ref: 'v1.10.0', ambiente: 'test', profilo: 'completo', progetto: '', cliente: '', build: '' },
+      inputs: { slug: 'bar-mario', nome_locale: 'Bar Mario', ref: 'v1.10.0', ambiente: 'test', profilo: 'completo', progetto: '', cliente: '', email: '', build: '' },
     })
+    expect(dispatchAggiornamento({ slug: 'bar-mario', email: 'mario@example.it' }).inputs.email).toBe('mario@example.it')
     expect(() => dispatchAggiornamento({ slug: 'x' })).toThrow(/slug/)
   })
 

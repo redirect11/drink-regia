@@ -192,8 +192,9 @@ per gli Stati Uniti; Stripe e GitHub idem: citare EU-US Data Privacy
 Framework e clausole contrattuali standard, e dire che Firestore e
 Functions stanno in `europe-west1`); tempi di conservazione per
 categoria; base «legittimo interesse» per log e sicurezza; **decisione
-automatizzata**: `sospendiMorosi` sospende da sola dopo sette giorni di
-pagamento in sospeso e chiude su disdetta, va descritta con criteri e
+automatizzata**: la regia sospende da sola un abbonamento non pagato (finiti i
+tentativi di Stripe, o passato «pagato fino al» più la grazia) e chiude su
+disdetta (REQ-FLOTTA-023), va descritta con criteri e
 modo di contestare, e i Termini promettono un avviso che **nessuna email
 manda**; art. 14 per i clienti creati dall'admin (consensi nulli, email
 segnata come verificata senza verifica, nessun blocco nella dashboard);

@@ -137,6 +137,20 @@ function intervalloDi(subscription) {
 // l'evento non ci riguarda. Lo stato segue l'abbonamento, non il singolo
 // pagamento: il POS non dipende mai da Stripe per funzionare, cambia solo
 // cosa dice la dashboard.
+// Gli stati di una subscription di Stripe, nelle parole del cliente
+// (REQ-FLOTTA-023). «past_due»: Stripe sta ritentando, è il periodo di
+// grazia. «unpaid»: i tentativi sono finiti (impostazioni di Stripe:
+// «se tutti i tentativi falliscono, segna l'abbonamento come non pagato»).
+// Gli altri (incomplete, paused) non cambiano niente.
+const STATI_STRIPE = { active: 'attivo', trialing: 'attivo', past_due: 'in sospeso', unpaid: 'non pagato', canceled: 'disdetto', incomplete_expired: 'disdetto' }
+
+// La fine del periodo pagato: sulla subscription, o sulla sua prima voce
+// nelle versioni più recenti dell'API di Stripe.
+function fineDelPeriodo(sub) {
+  const fine = Number(sub?.items?.data?.[0]?.current_period_end ?? sub?.current_period_end)
+  return Number.isFinite(fine) && fine > 0 ? new Date(fine * 1000).toISOString() : null
+}
+
 function aggiornamentoDaEvento(tipo, oggetto, adesso = new Date()) {
   const ora = adesso.toISOString()
   const md = oggetto?.metadata || {}
@@ -163,18 +177,17 @@ function aggiornamentoDaEvento(tipo, oggetto, adesso = new Date()) {
     }
   }
   // Il piano cambiato da Stripe (REQ-FLOTTA-010): i metadati della
-  // subscription portano la scelta nuova.
+  // subscription portano la scelta nuova. E lo stato dell'abbonamento
+  // (REQ-FLOTTA-023): è lui, non il singolo pagamento, a dire se il locale
+  // lavora; il cambio di stato fa il resto (licenzaSegueIlPiano).
   if (tipo === 'customer.subscription.updated') {
-    if (!oggetto?.id || !md.piano) return null
-    return {
-      stripe_subscription: oggetto.id,
-      patch: {
-        piano: md.piano,
-        moduli: md.moduli ? md.moduli.split(',').filter(Boolean) : [],
-        terminali: Number(md.terminali) || 1,
-        'abbonamento.aggiornato_il': ora,
-      },
-    }
+    if (!oggetto?.id) return null
+    const patch = {}
+    if (md.piano) Object.assign(patch, { piano: md.piano, moduli: md.moduli ? md.moduli.split(',').filter(Boolean) : [], terminali: Number(md.terminali) || 1 })
+    if (STATI_STRIPE[oggetto.status]) patch['abbonamento.stato'] = STATI_STRIPE[oggetto.status]
+    if (fineDelPeriodo(oggetto)) patch['abbonamento.rinnovo_il'] = fineDelPeriodo(oggetto)
+    if (!Object.keys(patch).length) return null
+    return { stripe_subscription: oggetto.id, patch: { ...patch, 'abbonamento.aggiornato_il': ora } }
   }
   if (tipo === 'invoice.paid') {
     const sub = oggetto?.subscription
@@ -183,14 +196,21 @@ function aggiornamentoDaEvento(tipo, oggetto, adesso = new Date()) {
     // degli aggiornamenti valgono da lì (REQ-FLOTTA-020). La più lontana fra
     // le righe: nella prima fattura c'è anche l'attivazione, una tantum, il
     // cui periodo finisce il giorno stesso.
+    // È anche la fine del periodo PAGATO (`pagato_fino`): la licenza scade
+    // da lì più la grazia (scadenze.js), non dalla fine del periodo della
+    // subscription, che Stripe sposta al rinnovo prima del pagamento.
     const fine = Math.max(0, ...(oggetto?.lines?.data || []).map((l) => Number(l?.period?.end) || 0))
-    const rinnovo = Number.isFinite(fine) && fine > 0 ? { 'abbonamento.rinnovo_il': new Date(fine * 1000).toISOString() } : {}
+    const iso = Number.isFinite(fine) && fine > 0 ? new Date(fine * 1000).toISOString() : null
+    const rinnovo = iso ? { 'abbonamento.rinnovo_il': iso, 'abbonamento.pagato_fino': iso } : {}
     return { stripe_subscription: sub, patch: { 'abbonamento.stato': 'attivo', 'abbonamento.ultimo_pagamento': ora, ...rinnovo } }
   }
+  // Un tentativo fallito non cambia lo stato: Stripe ritenta, e lo stato
+  // arriva con la subscription. Gli eventi di Stripe non arrivano per forza
+  // in ordine: un «fallito» in ritardo non deve togliere un «non pagato».
   if (tipo === 'invoice.payment_failed') {
     const sub = oggetto?.subscription
     if (!sub) return null
-    return { stripe_subscription: sub, patch: { 'abbonamento.stato': 'in sospeso', 'abbonamento.aggiornato_il': ora } }
+    return { stripe_subscription: sub, patch: { 'abbonamento.ultimo_fallimento': ora } }
   }
   if (tipo === 'customer.subscription.deleted') {
     if (!oggetto?.id) return null
@@ -200,7 +220,7 @@ function aggiornamentoDaEvento(tipo, oggetto, adesso = new Date()) {
 }
 
 // Una sessione Fondatori scaduta senza pagamento: il posto prenotato torna
-// libero (REQ-FLOTTA-021). → { uid, scadenza } o null; la scadenza dice
+// libero (REQ-FLOTTA-031). → { uid, scadenza } o null; la scadenza dice
 // quale sessione è scaduta (fondatori.rilascia).
 function prenotazioneDaRilasciare(tipo, oggetto) {
   if (tipo !== 'checkout.session.expired') return null
@@ -232,4 +252,6 @@ module.exports = {
   prenotazioneDaRilasciare,
   fondatoreDaConfermare,
   DURATA_SESSIONE_MS,
+  fineDelPeriodo,
+  STATI_STRIPE,
 }

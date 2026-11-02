@@ -125,9 +125,21 @@ function noteTra(md, da, a) {
 
 // La proposta su un'istanza. `attesa` resta vera finché il titolare non
 // sceglie «Aggiorna» (anche dopo «Salta»: in Informazioni può cambiare
-// idea), ed è quello che la regia cerca ogni dieci minuti.
+// idea): la scelta che arriva (sceltaDallApp, la dashboard) vale solo così.
 function nuovaProposta(tag, { rilascio = null, note = '', adesso = new Date() } = {}) {
-  return { tag, rilascio, note: String(note || '').slice(0, NOTE_MAX + 4), proposta_il: adesso.toISOString(), saltata_il: null, attesa: true, scelta_letta_il: null }
+  return { tag, rilascio, note: String(note || '').slice(0, NOTE_MAX + 4), proposta_il: adesso.toISOString(), saltata_il: null, attesa: true, scelta_letta_il: null, presa_il: null }
+}
+
+// LA STESSA SCELTA DUE VOLTE (tana-drink, 31/10/2026): se la risposta tarda,
+// il titolare riprova, e due «Aggiorna» possono arrivare insieme. Il primo
+// si PRENDE la proposta (in una transazione) e lancia; il secondo trova la
+// proposta presa e risponde 409 senza fare niente. Una presa più vecchia di
+// PRESA_MAX (la Function caduta a metà) si può riprendere.
+const PRESA_MAX = 5 * 60 * 1000
+function puoPrendere(proposta, tag, adesso = new Date()) {
+  if (!proposta?.attesa || proposta.tag !== tag) return false
+  const presa = Date.parse(proposta.presa_il || '')
+  return !Number.isFinite(presa) || adesso.getTime() - presa > PRESA_MAX
 }
 
 // La proposta non serve più: il locale è già a quella versione o oltre
@@ -218,39 +230,17 @@ function promozione(ist, adesso = new Date()) {
 }
 
 // ── IL RITORNO AL FREE DI CHI NON PAGA ────────────────────────────────
-// Con «solo finché si paga» in vigore, un abbonamento «in sospeso» oltre i
-// giorni di grazia non sospende più il locale: lo riporta al Free, che
-// lavora coi limiti e riceve solo gli obbligatori. Quando torna a pagare il
-// piano torna quello suo. Un abbonamento disdetto chiude il locale come
-// prima: l'ha chiesto il titolare. Torna [{ cliente, azione }].
-function daRipiegare(clienti, istanze, { adesso = new Date(), giorniDiGrazia = 7 } = {}) {
-  const out = []
-  for (const c of clienti || []) {
-    const ist = istanze?.[c.slug]
-    if (!ist || ist.stato !== 'attiva' || ist.interna === true) continue
-    if (ist.licenza_stato === 'chiusa') continue
-    const ab = c.abbonamento || {}
-    if (ist.ripiego_free) {
-      if (ab.stato === 'attivo') out.push({ cliente: c, azione: 'ripristina' })
-      continue
-    }
-    // Un locale già sospeso (dall'admin, o dai morosi prima della regola)
-    // resta com'è: lo si riattiva da lì.
-    if (ist.licenza_stato === 'sospesa') continue
-    if (!condizioniIn(ist, adesso).solo_finche_paga || eGratuito(c.piano)) continue
-    if (ab.stato !== 'in sospeso') continue
-    const da = Date.parse(ab.aggiornato_il || ab.dal || 0)
-    if (Number.isFinite(da) && adesso.getTime() - da >= giorniDiGrazia * GIORNO) out.push({ cliente: c, azione: 'ripiega' })
-  }
-  return out
-}
-
-// La sospensione dei morosi salta chi, con «solo finché si paga», torna al
-// Free invece di fermarsi (sospensione.js chiede questo).
+// Con «solo finché si paga» in vigore, un abbonamento non pagato non
+// sospende il locale: lo riporta al Free, che lavora coi limiti e riceve
+// solo gli obbligatori; quando torna a pagare il piano torna il suo. Lo
+// decide il cambio di stato dell'abbonamento (scadenze.azioneDiPagamento,
+// REQ-FLOTTA-023), non un giro quotidiano.
+// Chi non paga torna al Free invece di fermarsi?
 const ripiegaInveceDiSospendere = (ist, adesso = new Date()) => ist?.interna !== true && condizioniIn(ist, adesso).solo_finche_paga
 
 // ── QUELLO CHE SA L'APP: settings/bar.licenza.aggiornamenti ───────────
-function licenzaAggiornamenti(ist, cliente, adesso = new Date()) {
+// `sceltaUrl`: dove l'app manda «Aggiorna» o «Salta» (sceltaDallApp).
+function licenzaAggiornamenti(ist, cliente, adesso = new Date(), { sceltaUrl = null } = {}) {
   const r = regolaDi(ist, cliente, adesso)
   const p = ist?.proposta_aggiornamento
   const proposta = p?.attesa && r.inclusi ? { tag: p.tag, note: p.note || '', proposta_il: p.proposta_il, saltata_il: p.saltata_il || null } : null
@@ -261,8 +251,41 @@ function licenzaAggiornamenti(ist, cliente, adesso = new Date()) {
     motivo: r.motivo,
     proposta,
     avviso: a ? { id: a.id, testo: a.testo, dal: a.dal } : null,
+    scelta_url: sceltaUrl,
   }
 }
+
+// ── LA SCELTA DALL'APP: UNA CHIAMATA ALLA REGIA ───────────────────────
+// Il titolare tocca «Aggiorna» o «Salta» e l'app chiama la regia
+// (sceltaDallApp) col token d'accesso che Firebase le ha già dato. Niente
+// chiavi nel browser, niente documento da andare a leggere: la regia
+// riconosce il locale dal progetto del token, lo verifica, e applica la
+// scelta subito. Vale anche per il Free, che non ha Functions: chiama il
+// browser.
+
+// Il progetto Firebase da cui viene il token (il campo «aud»). Si legge
+// senza fidarsi: serve solo a sapere con quale progetto verificarlo.
+function progettoDelToken(token) {
+  const parti = String(token || '').split('.')
+  if (parti.length !== 3) return null
+  try {
+    const aud = JSON.parse(Buffer.from(parti[1], 'base64url').toString('utf8'))?.aud
+    return /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(aud || '') ? aud : null
+  } catch {
+    return null
+  }
+}
+
+const bearerDi = (intestazione) => /^Bearer\s+(\S+)$/i.exec(String(intestazione || ''))?.[1] || null
+
+// Il corpo della chiamata: { tag, scelta }, o null.
+function corpoScelta(corpo) {
+  const tag = String(corpo?.tag || '')
+  return TAG.test(tag) && SCELTE.includes(corpo?.scelta) ? { tag, scelta: corpo.scelta } : null
+}
+
+// Il titolare, in tana-drink, è il ruolo «admin» nei claim del suo accesso.
+const eTitolare = (token) => token?.role === 'admin'
 
 module.exports = {
   MODALITA,
@@ -280,6 +303,12 @@ module.exports = {
   confronta,
   noteTra,
   nuovaProposta,
+  puoPrendere,
+  PRESA_MAX,
+  progettoDelToken,
+  bearerDi,
+  corpoScelta,
+  eTitolare,
   propostaSuperata,
   sceltaValida,
   dataDi,
@@ -287,7 +316,6 @@ module.exports = {
   testoAvviso,
   cambioPerIstanza,
   promozione,
-  daRipiegare,
   ripiegaInveceDiSospendere,
   licenzaAggiornamenti,
 }

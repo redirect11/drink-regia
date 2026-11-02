@@ -106,10 +106,11 @@ dell'admin (claim `admin` sull'account), termini e privacy.
 | Famiglia | Functions |
 |---|---|
 | Attivazione | `chiediAttivazione`, `avviaProvisioning`, `rilanciaProvisioning`, `esitoProvisioning` (il callback dei workflow) |
-| Abbonamento | `creaCheckout`, `stripeWebhook`, `cambiaScelta`, `licenzaSegueIlPiano`, `sospendiMorosi` (ogni giorno) |
-| Free, vendita, prove | `scegliFree`, `chiediContatto`, `provaModulo`, `proveScadute` (ogni mattina), `cambiaPianoAdmin` |
+| Abbonamento | `creaCheckout`, `stripeWebhook`, `cambiaScelta`, `licenzaSegueIlPiano` (anche il cambio di stato dell'abbonamento), `registraPagamento` |
+| Scadenze (REQ-FLOTTA-023) | `scadenza` (un compito di Cloud Tasks per ogni scadenza: pagamento a mano, prova, eliminazione, condizioni), `programmaScadenze` |
+| Free, vendita, prove | `scegliFree`, `chiediContatto`, `provaModulo`, `cambiaPianoAdmin` |
 | Istanze | `impostaStatoIstanza`, `aggiornaIstanza`, `gestisciRilascio`, `registraLocaleEsistente`, `creaCliente` |
-| Eliminazione | `gestisciEliminazione`, `eliminazioniProgrammate` (ogni giorno), `scaricaArchivio` |
+| Eliminazione | `gestisciEliminazione`, `scaricaArchivio` |
 | Credito AI | `richiestaAI` (la chiamata dell'app), `creaRicaricaAI`, `gestisciCassettoAI` |
 
 Le Functions leggono la configurazione per progetto da
@@ -163,8 +164,8 @@ sito. Prezzi e piani li decide l'utente.
    (`aggiorna-istanza.yml`). Un aggiornamento fallito non ferma il
    locale: si riprova o si torna alla versione di prima.
 6. **Sospensione e chiusura.** Le scrive la regia nella licenza: l'app si
-   ferma e lo dice. Un mancato pagamento sospende da solo
-   (`sospendiMorosi`).
+   ferma e lo dice. Un mancato pagamento sospende da solo, quando cambia lo
+   stato dell'abbonamento (REQ-FLOTTA-023).
 7. **Eliminazione** (`elimina-istanza.yml`):
    1. backup leggibile ed export nativo di Firestore;
    2. archivio nel bucket della regia (180 giorni, lo scarica solo il

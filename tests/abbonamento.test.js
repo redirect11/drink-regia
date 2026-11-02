@@ -1,6 +1,6 @@
 'use strict'
 
-// L'ABBONAMENTO CON STRIPE (REQ-FLOTTA-007, REQ-FLOTTA-021): dalla scelta
+// L'ABBONAMENTO CON STRIPE (REQ-FLOTTA-007, REQ-FLOTTA-031): dalla scelta
 // alle righe del Checkout, dagli eventi del webhook al documento del
 // cliente. Logica pura delle Functions, provata senza chiavi.
 
@@ -31,7 +31,7 @@ describe('sceltaPulita', () => {
     expect(sceltaPulita({ piano: 'oro', moduli: ['staff', 'staff'], terminali: '3' })).toEqual({ piano: 'base', moduli: ['staff'], terminali: 3, intervallo: 'mese' })
   })
 
-  it('l’intervallo è mese o anno; tutto il resto vale mese (REQ-FLOTTA-021)', () => {
+  it('l’intervallo è mese o anno; tutto il resto vale mese (REQ-FLOTTA-031)', () => {
     expect(sceltaPulita({ intervallo: 'anno' }).intervallo).toBe('anno')
     for (const v of ['mese', 'year', 'annuale', '', null, 12, { anno: true }]) expect(sceltaPulita({ intervallo: v }).intervallo).toBe('mese')
   })
@@ -69,7 +69,7 @@ describe('righeCheckout', () => {
     expect(righeCheckout({ piano: 'completo', moduli: listino.moduli.map((m) => m.id), terminali: 3 })).toHaveLength(1)
   })
 
-  it('annuale: ogni riga costa dieci mensilità, all’anno (REQ-FLOTTA-021)', () => {
+  it('annuale: ogni riga costa dieci mensilità, all’anno (REQ-FLOTTA-031)', () => {
     const righe = righeCheckout({ piano: 'base', moduli: ['staff'], terminali: 4, intervallo: 'anno' })
     expect(voci(righe)).toEqual([
       ['Piano Base', 32700, 1],
@@ -105,7 +105,7 @@ describe('metadatiDi', () => {
   })
 })
 
-describe('la prova al Checkout (REQ-FLOTTA-021)', () => {
+describe('la prova al Checkout (REQ-FLOTTA-031)', () => {
   it('parte spenta dal listino: nessun giorno di prova', () => {
     expect(listino.prova_nel_checkout).toBe(false)
     expect(giorniDiProva({})).toBe(0)
@@ -130,7 +130,7 @@ describe('la prova al Checkout (REQ-FLOTTA-021)', () => {
       const s = sessioneCheckout({ uid: 'u1', cliente: { email: 't@x.it' }, scelta: { piano: 'base' }, ritorno: 'https://r.test' })
       expect(s.subscription_data.trial_period_days).toBe(30)
       // L'attivazione resta nella sessione: con la prova accesa Stripe la
-      // addebita subito. È la domanda aperta per l'utente (REQ-FLOTTA-021).
+      // addebita subito. È la domanda aperta per l'utente (REQ-FLOTTA-031).
       expect(s.line_items.some((r) => r.price_data.product_data.name === 'Attivazione')).toBe(true)
     })
   })
@@ -192,7 +192,7 @@ describe('intervalloDi', () => {
   })
 })
 
-describe('gli eventi dei Fondatori (REQ-FLOTTA-021)', () => {
+describe('gli eventi dei Fondatori (REQ-FLOTTA-031)', () => {
   it('una sessione Fondatori scaduta libera la prenotazione di quella sessione', () => {
     expect(prenotazioneDaRilasciare('checkout.session.expired', { expires_at: 1793620800, metadata: { uid: 'u1', fondatore: '1' } })).toEqual({
       uid: 'u1',
@@ -241,7 +241,13 @@ describe('aggiornamentoDaEvento', () => {
     )
     expect(a).toEqual({
       stripe_subscription: 'sub_1',
-      patch: { 'abbonamento.stato': 'attivo', 'abbonamento.ultimo_pagamento': '2026-10-22T10:00:00.000Z', 'abbonamento.rinnovo_il': new Date(1796299200 * 1000).toISOString() },
+      // È anche la fine del periodo pagato (REQ-FLOTTA-023): la licenza Stripe scade da lì.
+      patch: {
+        'abbonamento.stato': 'attivo',
+        'abbonamento.ultimo_pagamento': '2026-10-22T10:00:00.000Z',
+        'abbonamento.rinnovo_il': new Date(1796299200 * 1000).toISOString(),
+        'abbonamento.pagato_fino': new Date(1796299200 * 1000).toISOString(),
+      },
     })
     expect(aggiornamentoDaEvento('invoice.paid', { subscription: 'sub_1' }, ora).patch['abbonamento.rinnovo_il']).toBeUndefined()
     expect(aggiornamentoDaEvento('invoice.paid', {}, ora)).toBeNull()
@@ -253,8 +259,39 @@ describe('aggiornamentoDaEvento', () => {
     expect(aggiornamentoDaEvento('customer.subscription.updated', { id: 'sub_1', metadata: {} }, ora)).toBeNull()
   })
 
-  it('un pagamento fallito sospende, una disdetta chiude, un evento ignoto non fa niente', () => {
-    expect(aggiornamentoDaEvento('invoice.payment_failed', { subscription: 'sub_1' }, ora).patch['abbonamento.stato']).toBe('in sospeso')
+  // REQ-FLOTTA-023: lo stato del locale lo dice lo stato dell'abbonamento,
+  // non il singolo pagamento. Stripe ritenta (in sospeso), poi, finiti i
+  // tentativi, «non pagato»; il cambio di stato fa il resto.
+  it('lo stato della subscription diventa quello del cliente, col rinnovo', () => {
+    const fine = Date.parse('2026-11-22T00:00:00Z') / 1000
+    const stato = (status, extra = {}) => aggiornamentoDaEvento('customer.subscription.updated', { id: 'sub_1', metadata: {}, status, ...extra }, ora)?.patch
+    expect(stato('past_due')['abbonamento.stato']).toBe('in sospeso')
+    expect(stato('unpaid')['abbonamento.stato']).toBe('non pagato')
+    expect(stato('active')['abbonamento.stato']).toBe('attivo')
+    expect(stato('trialing')['abbonamento.stato']).toBe('attivo')
+    expect(stato('canceled')['abbonamento.stato']).toBe('disdetto')
+    expect(stato('incomplete')).toBeUndefined()
+    expect(stato('active', { current_period_end: fine })['abbonamento.rinnovo_il']).toBe('2026-11-22T00:00:00.000Z')
+    expect(stato('active', { items: { data: [{ current_period_end: fine }] } })['abbonamento.rinnovo_il']).toBe('2026-11-22T00:00:00.000Z')
+    // Piano e stato insieme.
+    expect(aggiornamentoDaEvento('customer.subscription.updated', { id: 'sub_1', status: 'active', metadata: { piano: 'base' } }, ora).patch).toMatchObject({ piano: 'base', 'abbonamento.stato': 'attivo' })
+  })
+
+  it('una fattura pagata dice fino a quando è pagato (pagato_fino), da cui scade la licenza', () => {
+    const fine = Date.parse('2026-11-22T00:00:00Z') / 1000
+    expect(aggiornamentoDaEvento('invoice.paid', { subscription: 'sub_1', lines: { data: [{ period: { end: fine } }] } }, ora).patch).toEqual({
+      'abbonamento.stato': 'attivo',
+      'abbonamento.ultimo_pagamento': '2026-10-22T10:00:00.000Z',
+      'abbonamento.rinnovo_il': '2026-11-22T00:00:00.000Z',
+      'abbonamento.pagato_fino': '2026-11-22T00:00:00.000Z',
+    })
+    // La subscription aggiornata sposta il rinnovo, mai il pagato.
+    expect(aggiornamentoDaEvento('customer.subscription.updated', { id: 'sub_1', status: 'past_due', current_period_end: fine }, ora).patch).not.toHaveProperty(['abbonamento.pagato_fino'])
+  })
+
+  it('un pagamento fallito si registra e basta, una disdetta chiude, un evento ignoto non fa niente', () => {
+    // Stripe ritenta: lo stato lo porta la subscription (REQ-FLOTTA-023).
+    expect(aggiornamentoDaEvento('invoice.payment_failed', { subscription: 'sub_1' }, ora).patch).toEqual({ 'abbonamento.ultimo_fallimento': '2026-10-22T10:00:00.000Z' })
     expect(aggiornamentoDaEvento('customer.subscription.deleted', { id: 'sub_1' }, ora)).toEqual({
       stripe_subscription: 'sub_1',
       patch: { 'abbonamento.stato': 'disdetto', 'abbonamento.aggiornato_il': '2026-10-22T10:00:00.000Z' },

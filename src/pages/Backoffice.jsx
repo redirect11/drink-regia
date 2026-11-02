@@ -26,10 +26,18 @@ import {
   impostaAggiornamentiEsistente,
   osservaRegoleAggiornamenti,
   impostaRegoleAggiornamenti,
+  osservaControlloLicenze,
+  gestisciLicenze,
+  registraPagamento,
+  elencoSconti,
+  gestisciSconti,
+  applicaSconto,
+  programmaScadenze,
 } from '../lib/db.js'
 import { venditaPulita } from '../lib/vendita.js'
-import { statoIstanza, statoDetto, STATI, progettoDi } from '../lib/istanze.js'
+import { statoIstanza, statoDetto, STATI, progettoDi, riduzioneDetta } from '../lib/istanze.js'
 import { PIANI, MODULI, prezzoMensile, euro } from '../lib/piani.js'
+import { prezzoConSconto, scontoDetto } from '../lib/sconti.js'
 import { contattoDi } from '../lib/clienti.js'
 import { statoCredito, euroCent } from '../lib/ai.js'
 import { GRUPPI, TAG, aggiornamentoDetto } from '../lib/rilasci.js'
@@ -223,7 +231,29 @@ export default function Backoffice() {
 
   const daApprovare = righe.filter((r) => r.stato === STATI.DA_APPROVARE)
   // Le azioni di una scheda, le stesse da «Locali» e da «Rilasci».
-  const az = { carica, cambiaStato, annullaEliminazione, aggiorna, azioneRilascio, riprova, indietro, azioneAI, ricaricaAI, tettoAI, chiaveAI, onErrore: setErrore }
+  // Un bonifico arrivato (REQ-FLOTTA-023): fino a quando è pagato.
+  const pagamento = async (c) => {
+    const data = window.prompt(`${c.nome_locale}: pagato fino al (AAAA-MM-GG)?`, c.abbonamento?.pagato_fino_al || '')
+    if (data == null) return
+    try {
+      await registraPagamento(c.slug, data.trim())
+    } catch (e) {
+      setErrore(e.message)
+    }
+    carica()
+  }
+  // Un codice sconto al cliente (REQ-FLOTTA-028); vuoto lo toglie.
+  const sconto = async (c) => {
+    const codice = window.prompt(`${c.nome_locale}: codice sconto (vuoto per toglierlo)?`, c.sconto?.codice || '')
+    if (codice == null) return
+    try {
+      await applicaSconto(c.slug, codice.trim())
+    } catch (e) {
+      setErrore(e.message)
+    }
+    carica()
+  }
+  const az = { carica, cambiaStato, annullaEliminazione, aggiorna, azioneRilascio, riprova, indietro, azioneAI, ricaricaAI, tettoAI, chiaveAI, registraPagamento: pagamento, sconto, onErrore: setErrore }
   // Dopo «Crea il locale» o «Registra il locale» si va a vederlo in elenco.
   const creato = () => {
     carica()
@@ -276,13 +306,23 @@ export default function Backoffice() {
             path="rilasci"
             element={
               <>
+                <LicenzeProtette onErrore={setErrore} onFatto={carica} />
+                <Scadenze onErrore={setErrore} />
                 <RegoleAggiornamenti onErrore={setErrore} onFatto={carica} />
                 <Rilasci rilasci={rilasci} onAzione={azioneRilascio} />
                 <AggiornamentiFalliti righe={righe} az={az} />
               </>
             }
           />
-          <Route path="vendita" element={<Vendita onErrore={setErrore} />} />
+          <Route
+            path="vendita"
+            element={
+              <>
+                <Vendita onErrore={setErrore} />
+                <CodiciSconto onErrore={setErrore} />
+              </>
+            }
+          />
           <Route
             path="nuovo"
             element={
@@ -462,7 +502,21 @@ function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaApert
         </div>
         <div>
           <dt>Piano</dt>
-          <dd>{c.piano ? `${PIANI[c.piano]?.nome || c.piano} · ${euro(prezzoMensile(c))}` : <span className="muted">—</span>}</dd>
+          <dd>
+            {c.piano ? `${PIANI[c.piano]?.nome || c.piano} · ${euro(prezzoConSconto(prezzoMensile(c), c))}` : <span className="muted">—</span>}
+            {scontoDetto(c) && (
+              <div className="muted small" data-testid={`sconto-${c.slug}`}>
+                sconto {scontoDetto(c)}
+              </div>
+            )}
+            {/* Un piano pagato fuori da Stripe (REQ-FLOTTA-023): fino a quando. */}
+            {c.abbonamento?.origine === 'manuale' && (
+              <div className={c.abbonamento.stato === 'non pagato' ? 'errore small' : 'muted small'} data-testid={`pagato-${c.slug}`}>
+                {c.abbonamento.pagato_fino_al ? `pagato fino al ${giorno(c.abbonamento.pagato_fino_al)}` : 'fuori da Stripe, senza scadenza'}
+                {c.abbonamento.stato === 'non pagato' && ' · non pagato'}
+              </div>
+            )}
+          </dd>
         </div>
         <div>
           <dt>Progetto</dt>
@@ -481,7 +535,11 @@ function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaApert
         <div>
           <dt>Versione</dt>
           <dd>
-            {istanza?.versione || <span className="muted">—</span>}
+            {/* Un locale pubblicato fuori dalla regia (la Tana, da GitHub) non
+                manda l'esito del deploy: la versione la dice l'app stessa
+                quando si presenta (REQ-FLOTTA-026). */}
+            {istanza?.versione || istanza?.presentazione?.versione || <span className="muted">—</span>}
+            {!istanza?.versione && istanza?.presentazione?.versione && <div className="muted small">detta dall’app</div>}
             {istanza?.ref && istanza.ref !== 'main' && <div className="muted small">da {istanza.ref}</div>}
             {aggiornamentoDetto(istanza?.aggiornamento) && (
               <div className={istanza.aggiornamento.stato === 'fallito' ? 'errore small' : 'muted small'}>{aggiornamentoDetto(istanza.aggiornamento)}</div>
@@ -531,6 +589,31 @@ function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaApert
             )}
           </dd>
         </div>
+        {istanza?.licenza_protetta?.ok === false && (
+          // BUG-125: con l'app nuova un locale senza licenza protetta si ferma.
+          <div>
+            <dt>Licenza</dt>
+            <dd className="errore">{istanza.licenza_protetta.perche}</dd>
+          </div>
+        )}
+        {riduzioneDetta(istanza) && (
+          // REQ-FLOTTA-024: quello che la licenza toglie arriva al taglio.
+          <div>
+            <dt>Riduzione</dt>
+            <dd data-testid="riduzione-al-taglio">{riduzioneDetta(istanza)}</dd>
+          </div>
+        )}
+        {istanza?.presentazione?.versione && (
+          // REQ-FLOTTA-026: la versione che l'app stessa ha detto alla regia,
+          // da qualunque deploy sia arrivata (anche da GitHub, come la Tana).
+          <div>
+            <dt>Dall’app</dt>
+            <dd data-testid="presentazione">
+              {istanza.presentazione.versione} · dal {giorno(istanza.presentazione.prima_il)} · ultima volta il{' '}
+              {giorno(istanza.presentazione.il)}
+            </dd>
+          </div>
+        )}
         {eliminazioneDetta(istanza) && (
           <div>
             <dt>Eliminazione</dt>
@@ -585,9 +668,17 @@ function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaApert
           <button type="button" className="btn ghost small" onClick={onCambia}>
             Cambia piano…
           </button>
+          {c.abbonamento?.origine === 'manuale' && (
+            <button type="button" className="btn ghost small" onClick={() => az.registraPagamento(c)}>
+              Registra pagamento…
+            </button>
+          )}
+          <button type="button" className="btn ghost small" onClick={() => az.sconto(c)}>
+            Sconto…
+          </button>
           {!daFlotta && (
             <button type="button" className="btn ghost small" aria-expanded={gestioneAperta} onClick={() => setGestioneAperta((v) => !v)}>
-              Chi la pubblica…
+              Pubblicazione e licenza…
             </button>
           )}
         </div>
@@ -671,6 +762,115 @@ function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaApert
   )
 }
 
+// LE LICENZE PROTETTE (BUG-125 di tana-drink). La licenza esce da
+// settings/bar, che ogni bartender può riscrivere, e va in licenza/attuale,
+// che dall'app non scrive nessuno. Con l'app nuova un locale senza
+// licenza/attuale mostra «Installazione non attivata»: prima di quel
+// rilascio qui i problemi devono essere zero. «Allinea» riscrive ogni
+// licenza dai dati della regia, in tutti e due i posti, e verifica. Nessun
+// giro pianificato (l'utente, 31/10/2026: «Noi dobbiamo essere certi quando
+// deployiamo che la licenza venga aggiornata»): la licenza si scrive a ogni
+// cambio e prima di ogni deploy, e qui si controlla a richiesta.
+function LicenzeProtette({ onErrore, onFatto }) {
+  const [controllo, setControllo] = useState(undefined)
+  const [inCorso, setInCorso] = useState(null)
+  useEffect(() => osservaControlloLicenze(setControllo), [])
+
+  const esegui = async (azione) => {
+    if (azione === 'allinea' && !window.confirm('Riscrivere la licenza di ogni locale dai dati della regia, in licenza/attuale e in settings/bar?')) return
+    setInCorso(azione)
+    try {
+      await gestisciLicenze(azione)
+      onFatto()
+    } catch (e) {
+      onErrore(e.message)
+    } finally {
+      setInCorso(null)
+    }
+  }
+
+  if (controllo === undefined) return null
+  const pronte = controllo && controllo.problemi?.length === 0
+  return (
+    <section className="card" aria-label="Licenze protette">
+      <h3>Licenze protette</h3>
+      <p className="muted small">
+        La licenza di ogni locale in licenza/attuale, che dall’app non si scrive. Ogni cambio e ogni aggiornamento dalla regia la scrivono
+        prima del deploy; qui si controllano tutte a richiesta.
+      </p>
+      {controllo ? (
+        <p className={pronte ? 'small' : 'errore small'} data-testid="esito-licenze">
+          {pronte ? `Tutti pronti: ${controllo.pronte} su ${controllo.totale}.` : `Pronti ${controllo.pronte} su ${controllo.totale}.`}{' '}
+          <span className="muted">
+            {controllo.allineata ? 'Allineate e verificate' : 'Verificate'} il {new Date(controllo.controllata_il).toLocaleString('it-IT')}.
+          </span>
+        </p>
+      ) : (
+        <p className="muted small">Nessun controllo ancora.</p>
+      )}
+      {controllo?.problemi?.length > 0 && (
+        <ul className="small">
+          {controllo.problemi.map((p) => (
+            <li key={p.slug}>
+              <code>{p.slug}</code>: {p.perche}
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="azioni">
+        <button type="button" className="btn small" disabled={Boolean(inCorso)} onClick={() => esegui('allinea')}>
+          {inCorso === 'allinea' ? 'Allineo…' : 'Allinea tutte'}
+        </button>
+        <button type="button" className="btn ghost small" disabled={Boolean(inCorso)} onClick={() => esegui('verifica')}>
+          {inCorso === 'verifica' ? 'Verifico…' : 'Verifica'}
+        </button>
+      </div>
+    </section>
+  )
+}
+
+// LE SCADENZE (REQ-FLOTTA-023): niente giri quotidiani; ogni scadenza
+// (pagamento a mano, prova, eliminazione, condizioni degli aggiornamenti)
+// ha un compito alla sua data, che la regia programma quando la scadenza
+// nasce. Quelle nate prima di questa versione vanno programmate una volta,
+// con questo bottone. Rifarlo non fa danni.
+function Scadenze({ onErrore }) {
+  const [inCorso, setInCorso] = useState(false)
+  const [esito, setEsito] = useState(null)
+  const programma = async () => {
+    setInCorso(true)
+    setEsito(null)
+    try {
+      const r = await programmaScadenze()
+      setEsito(`Programmate ${r?.programmati ?? 0} scadenze.${r?.errori?.length ? ` Non riuscite: ${r.errori.join('; ')}.` : ''}`)
+    } catch (e) {
+      onErrore(e.message)
+    } finally {
+      setInCorso(false)
+    }
+  }
+  return (
+    <section className="card" aria-label="Scadenze">
+      <h3>Scadenze</h3>
+      <p className="muted small">
+        Pagamenti fuori da Stripe, prove dei moduli, eliminazioni e condizioni degli aggiornamenti arrivano ognuna alla sua data, senza giri
+        quotidiani. Con Stripe decide lo stato dell’abbonamento, coi tentativi e la grazia impostati in Stripe. Dopo il primo deploy di questa
+        versione, programma una volta le scadenze che c’erano già.
+      </p>
+      <div className="azioni">
+        <button type="button" className="btn ghost small" disabled={inCorso} onClick={programma}>
+          {inCorso ? 'Programmo…' : 'Programma le scadenze'}
+        </button>
+      </div>
+      {esito && (
+        <p className="small" role="status">
+          {esito}
+        </p>
+      )}
+    </section>
+  )
+}
+
 // LE REGOLE DEGLI AGGIORNAMENTI (REQ-FLOTTA-020). L'utente, 31/10/2026:
 // due modi di aggiornare, «obbligatori» come oggi o a scelta del titolare,
 // e gli aggiornamenti «garantiti fino a che si paga»; le accende e le
@@ -712,11 +912,11 @@ function RegoleAggiornamenti({ onErrore, onFatto }) {
   return (
     <section className="card" aria-label="Regole degli aggiornamenti">
       <h3>Regole degli aggiornamenti</h3>
-      <label className="riga">
+      <label className="opzione">
         <input type="checkbox" checked={bozza.a_scelta} onChange={(e) => setBozza((b) => ({ ...b, a_scelta: e.target.checked }))} />A scelta del titolare: prima di
         ogni versione vede le novità e decide se aggiornare o saltarla
       </label>
-      <label className="riga">
+      <label className="opzione">
         <input type="checkbox" checked={bozza.solo_finche_paga} onChange={(e) => setBozza((b) => ({ ...b, solo_finche_paga: e.target.checked }))} />
         Solo finché si paga: chi non paga torna al Free, e il Free riceve solo i rilasci obbligatori
       </label>
@@ -758,6 +958,7 @@ const CHIAVI_BUILD = [
 
 function GestioneEsistente({ cliente: c, istanza, onFatto, onErrore }) {
   const [dallaRegia, setDallaRegia] = useState(istanza?.aggiornamenti_dalla_regia === true)
+  const [licenzaRegia, setLicenzaRegia] = useState(istanza?.licenza_dalla_regia === true)
   const [cartella, setCartella] = useState(istanza?.cliente || c.slug)
   const [build, setBuild] = useState(() => Object.fromEntries(CHIAVI_BUILD.map(([k]) => [k, istanza?.build?.[k] || ''])))
   const [inCorso, setInCorso] = useState(false)
@@ -766,7 +967,7 @@ function GestioneEsistente({ cliente: c, istanza, onFatto, onErrore }) {
     e.preventDefault()
     setInCorso(true)
     try {
-      await impostaAggiornamentiEsistente({ slug: c.slug, aggiornamenti_dalla_regia: dallaRegia, cliente: cartella.trim(), build })
+      await impostaAggiornamentiEsistente({ slug: c.slug, aggiornamenti_dalla_regia: dallaRegia, licenza_dalla_regia: licenzaRegia, cliente: cartella.trim(), build })
       onFatto()
     } catch (err) {
       onErrore(err.message)
@@ -776,14 +977,22 @@ function GestioneEsistente({ cliente: c, istanza, onFatto, onErrore }) {
   }
 
   return (
-    <form className="card" onSubmit={invia} aria-label={`Chi pubblica ${c.nome_locale}`}>
-      <h4>Chi pubblica {c.nome_locale}</h4>
-      <label className="riga">
+    <form className="card gestione-esistente" onSubmit={invia} aria-label={`Pubblicazione e licenza di ${c.nome_locale}`}>
+      <h4>Pubblicazione e licenza di {c.nome_locale}</h4>
+      <label className="opzione">
         <input type="checkbox" checked={dallaRegia} onChange={(e) => setDallaRegia(e.target.checked)} />
         La aggiorna la regia, con «Aggiorna subito» e i rilasci
       </label>
+      <p className="muted small">Sul progetto {istanza?.progetto || '—'}. La pubblicazione dal suo repository resta possibile.</p>
+      {/* REQ-FLOTTA-028: la licenza calcolata dal piano, come per gli altri. */}
+      <label className="opzione">
+        <input type="checkbox" checked={licenzaRegia} onChange={(e) => setLicenzaRegia(e.target.checked)} />
+        La licenza la scrive la regia, dal suo piano e dai suoi moduli
+      </label>
       <p className="muted small">
-        Sul progetto {istanza?.progetto || '—'}. La pubblicazione dal suo repository resta possibile, e la licenza resta del suo progetto.
+        {licenzaRegia
+          ? 'Si scrive subito nel suo progetto: serve che la regia ci possa scrivere (roles/datastore.user).'
+          : 'Spento: la licenza resta quella del suo progetto, e la regia non la tocca.'}
       </p>
       <label>
         Cartella in clienti/ dell’app
@@ -1045,6 +1254,83 @@ const TONO = {
 // attivare e disattivare per la vendita come admin»). Il Free e ogni modulo
 // si mettono in vendita o si tolgono con un clic, senza deploy; chi li ha
 // già continua a usarli. Ogni cambio resta nello storico.
+// I CODICI SCONTO (REQ-FLOTTA-028): crearli e disattivarli. Si applicano
+// dalla scheda del locale, con «Sconto…».
+function CodiciSconto({ onErrore }) {
+  const [elenco, setElenco] = useState([])
+  const [nuovo, setNuovo] = useState({ codice: '', percentuale: '', durata_mesi: '', descrizione: '' })
+  // Ogni cambio rilegge l'elenco: `giro` cresce, l'effetto riparte.
+  const [giro, setGiro] = useState(0)
+  const carica = () => setGiro((g) => g + 1)
+  useEffect(() => {
+    elencoSconti()
+      .then(setElenco)
+      .catch((e) => onErrore(e.message))
+  }, [giro, onErrore])
+  const crea = async (e) => {
+    e.preventDefault()
+    try {
+      await gestisciSconti('crea', { ...nuovo, percentuale: Number(nuovo.percentuale), durata_mesi: nuovo.durata_mesi === '' ? null : Number(nuovo.durata_mesi) })
+      setNuovo({ codice: '', percentuale: '', durata_mesi: '', descrizione: '' })
+      carica()
+    } catch (err) {
+      onErrore(err.message)
+    }
+  }
+  const disattiva = (codice) =>
+    gestisciSconti('disattiva', { codice })
+      .then(carica)
+      .catch((e) => onErrore(e.message))
+  const campo = (k) => ({ value: nuovo[k], onChange: (e) => setNuovo((n) => ({ ...n, [k]: e.target.value })) })
+  return (
+    <section className="card" aria-label="Codici sconto">
+      <h3>Codici sconto</h3>
+      <p className="muted small">
+        Uno sconto al 100% illimitato vuol dire che il locale non paga e non scade; a tempo, che è pagato fino alla fine dello
+        sconto. Uno parziale cambia solo il prezzo. Un codice disattivato non si applica più, e chi lo ha lo tiene.
+      </p>
+      {elenco.length === 0 && <p className="muted small">Nessun codice.</p>}
+      {elenco.map((s) => (
+        <div className="row-tra" key={s.codice} data-testid={`codice-${s.codice}`}>
+          <span>
+            <strong>{s.codice}</strong> · {s.percentuale}% · {s.durata_mesi ? `${s.durata_mesi} mesi` : 'illimitato'}
+            {s.descrizione && <span className="muted small"> · {s.descrizione}</span>}
+            {!s.attivo && <span className="muted small"> · disattivato</span>}
+          </span>
+          {s.attivo && (
+            <button type="button" className="btn ghost small" onClick={() => disattiva(s.codice)}>
+              Disattiva
+            </button>
+          )}
+        </div>
+      ))}
+      <form onSubmit={crea} aria-label="Nuovo codice sconto">
+        <label>
+          Codice
+          <input {...campo('codice')} required />
+        </label>
+        <label>
+          Percentuale
+          <input type="number" min="1" max="100" {...campo('percentuale')} required />
+        </label>
+        <label>
+          Durata in mesi (vuota: illimitato)
+          <input type="number" min="1" max="120" {...campo('durata_mesi')} />
+        </label>
+        <label>
+          Descrizione
+          <input {...campo('descrizione')} />
+        </label>
+        <div className="azioni">
+          <button type="submit" className="btn small">
+            Crea il codice
+          </button>
+        </div>
+      </form>
+    </section>
+  )
+}
+
 function Vendita({ onErrore }) {
   const [vendita, setVendita] = useState(() => venditaPulita(null))
   useEffect(() => osservaVendita((v) => setVendita(venditaPulita(v))), [])
@@ -1168,6 +1454,7 @@ function CambiaPiano({ cliente, onFatto, onErrore }) {
   const [moduli, setModuli] = useState(cliente.moduli || [])
   const [terminali, setTerminali] = useState(cliente.terminali || 1)
   const [modo, setModo] = useState(conStripe ? 'stripe' : 'fuori')
+  const [pagatoFino, setPagatoFino] = useState(cliente.abbonamento?.pagato_fino_al || '')
   const [inCorso, setInCorso] = useState(false)
   const p = PIANI[piano]
   const inclusi = new Set(p.include)
@@ -1175,7 +1462,8 @@ function CambiaPiano({ cliente, onFatto, onErrore }) {
     e.preventDefault()
     setInCorso(true)
     try {
-      await cambiaPianoAdmin({ slug: cliente.slug, piano, moduli: p.gratuito ? [] : moduli, terminali: p.gratuito ? 1 : terminali, modo })
+      const pagato = modo === 'fuori' && !p.gratuito ? { pagato_fino_al: pagatoFino } : {}
+      await cambiaPianoAdmin({ slug: cliente.slug, piano, moduli: p.gratuito ? [] : moduli, terminali: p.gratuito ? 1 : terminali, modo, ...pagato })
       onFatto()
     } catch (err) {
       onErrore(err.message)
@@ -1224,6 +1512,14 @@ function CambiaPiano({ cliente, onFatto, onErrore }) {
         <input type="radio" name={`modo-${cliente.slug}`} checked={modo === 'fuori'} onChange={() => setModo('fuori')} />
         Fuori da Stripe (bonifico, omaggio)
       </label>
+      {modo === 'fuori' && !p.gratuito && (
+        // REQ-FLOTTA-023: alla scadenza, più i giorni di grazia, il locale si
+        // ferma (o torna al Free) da solo. Vuoto: senza scadenza.
+        <>
+          <label htmlFor={`cp-pagato-${cliente.slug}`}>Pagato fino al (vuoto: senza scadenza)</label>
+          <input id={`cp-pagato-${cliente.slug}`} type="date" value={pagatoFino} onChange={(e) => setPagatoFino(e.target.value)} />
+        </>
+      )}
       <div className="azioni">
         <button type="submit" className="btn small" disabled={inCorso}>
           {inCorso ? 'Un momento…' : 'Cambia piano'}
@@ -1238,8 +1534,10 @@ const giorno = (iso) => new Date(iso).toLocaleDateString('it-IT')
 function eliminazioneDetta(istanza) {
   const e = istanza?.eliminazione
   if (!e || e.stato === 'annullata') return null
-  const chi = e.richiedente === 'titolare' ? ' (chiesta dal titolare)' : ''
-  if (e.stato === 'programmata') return `Programmata per il ${giorno(e.quando)}${chi}`
+  // La conservazione (REQ-FLOTTA-025): locale fermo, dati per 90 giorni.
+  const chi = e.richiedente === 'titolare' ? ' (chiesta dal titolare)' : e.richiedente === 'conservazione' ? ' (fine della conservazione dei dati: il locale è fermo)' : ''
+  const avvisi = e.avvisi?.length ? ` · avvisi mandati: ${e.avvisi.length}` : ''
+  if (e.stato === 'programmata') return `Programmata per il ${giorno(e.quando)}${chi}${avvisi}`
   if (e.stato === 'in coda' || e.stato === 'in corso') return 'Backup ed eliminazione in corso'
   if (e.stato === 'fallita') return `Non riuscita: ${e.errore || 'vedi il workflow'}. Il progetto c’è ancora.`
   if (e.stato === 'eliminata') return `Eliminata il ${giorno(e.finito_il)} · archivio fino al ${giorno(e.scade_il)}, lo scarica solo il titolare`

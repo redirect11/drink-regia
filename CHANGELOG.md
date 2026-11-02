@@ -14,17 +14,70 @@ data.
   attivazione gratuita), assistenza da remoto inclusa fino a 1 ora al mese,
   stampanti non supportate a preventivo. La prova di 30 giorni è pronta ma
   spenta (`prova_nel_checkout`) finché non si decide quando si paga
-  l'attivazione (REQ-FLOTTA-021, REQ-PREZZI-001).
+  l'attivazione (REQ-FLOTTA-031, REQ-PREZZI-001).
 
 ## 0.3.0 (in lavorazione)
 
+- A ogni attivazione e aggiornamento, chi ha sottoscritto l'abbonamento è
+  l'admin del suo locale, e riceve l'email per impostare la password:
+  prima un locale nuovo nasceva senza nessuno che potesse entrare
+  (REQ-FLOTTA-029).
+- Anche con Stripe la licenza ha una durata: scade 7 giorni dopo la fine
+  del periodo pagato, e alla scadenza la regia controlla lo stato vero su
+  Stripe. Chi disdice, con «solo finché si paga», passa al Free; chi torna
+  a pagare entro i 90 giorni riapre il locale. Il titolare gestisce
+  l'abbonamento da solo, dal portale di Stripe (REQ-FLOTTA-023).
+- Comunicazioni automatiche per email: promemoria dei pagamenti a mano (7
+  giorni prima e alla scadenza), pagamento ricevuto, locale passato al
+  Free, locale riattivato. Le ricevute e i pagamenti falliti con Stripe li
+  manda Stripe (REQ-FLOTTA-027).
+- Codici sconto: si creano in «Vendita», con percentuale e durata in mesi o
+  illimitata, e si applicano dalla scheda del locale. Al 100% illimitato il
+  locale non paga e non scade. Un locale esistente, come la Tana, può avere
+  la licenza scritta dalla regia dal suo piano (REQ-FLOTTA-028).
+- Un titolare non può più cambiarsi da solo moduli, terminali o prove dal
+  browser: solo i suoi dati anagrafici.
+- L'app di ogni locale si presenta alla regia al primo avvio di una
+  versione nuova, da qualunque deploy arrivi: la regia sa quale versione
+  gira davvero e, se al locale manca la licenza, la riscrive.
+  La scheda del locale nel backoffice dice la versione vista dall'app
+  (REQ-FLOTTA-026).
+- Un locale fermo perché non paga, o chiuso, conserva i dati per 90 giorni,
+  poi l'installazione si cancella, sempre dopo un backup che il titolare
+  scarica per 180 giorni. Il titolare riceve un avviso subito, 7 giorni
+  prima e il giorno prima, per email, nella sua area clienti e nell'app.
+  Se torna a pagare, la cancellazione si annulla. Un locale tornato al Free
+  non perde niente. I termini e l'informativa lo dicono (REQ-FLOTTA-025).
+- La licenza dice all'app cosa fare quando scade (fermarsi o passare al
+  Free) e scade al taglio della giornata, non a mezzanotte. La scadenza è
+  scritta anche nella forma che le regole del database sanno leggere.
+- Un piano più piccolo, un modulo tolto, il passaggio al Free o una
+  sospensione per un pagamento mancato arrivano al locale al taglio della
+  giornata (alle 5, o all'ora del locale), non durante il servizio: fino
+  ad allora l'app resta com'è. Quello che si aggiunge arriva subito. La
+  dashboard e la scheda del locale dicono quando (REQ-FLOTTA-024).
+- Un locale nuovo riceve la licenza prima dell'app.
+- Il piano Free non comprende le comande.
+- Niente più controlli quotidiani: un locale si sospende, torna al Free o si
+  chiude quando cambia lo stato del suo abbonamento. Con Stripe lo decidono
+  i tentativi di pagamento di Stripe; fuori da Stripe si scrive «pagato
+  fino al» e, a quella data più i giorni di grazia, il locale si ferma da
+  solo. Prove dei moduli ed eliminazioni programmate scattano alla loro
+  data (REQ-FLOTTA-023).
+- La licenza di ogni locale si scrive anche in un documento suo, che
+  dall'app non si può modificare: prima un bartender poteva cambiarsela.
+  Nella sezione «Rilasci» si allineano e si verificano le licenze di tutti
+  i locali. Ogni aggiornamento la scrive prima del deploy, e senza non
+  parte (REQ-FLOTTA-022).
 - Gli aggiornamenti si possono dare in due modi: automatici, come oggi, o
   a scelta del titolare, che vede prima le novità e decide se aggiornare o
   saltare la versione. E si possono legare al pagamento: chi non paga torna
   al Free e riceve solo i rilasci obbligatori. Le due regole si accendono
   dal backoffice («Rilasci»); chi ha già un piano le prende al rinnovo e
   riceve un avviso. Un rilascio si può segnare obbligatorio: arriva a tutti
-  (REQ-FLOTTA-020). I termini del servizio (punti 3 e 5) lo dicono.
+  (REQ-FLOTTA-020). I termini del servizio (punti 3 e 5) lo dicono. La
+  scelta fatta nell'app arriva alla regia subito, con l'accesso del
+  titolare.
 - La demo della prima pagina non scrive più nel suo database: la regia la
   pubblica sempre leggera e con il database chiuso a tutti, e la build
   della demo va solo sul suo progetto. I dati di prova e la sessione nel

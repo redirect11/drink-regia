@@ -9,7 +9,7 @@ import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
 const { slugDaNome, datiEsistente, documentiEsistente, scriveLicenza, DatiNonValidi, gestioneEsistente } = require('../functions/lib/esistente.js')
-const { daSospendere } = require('../functions/lib/sospensione.js')
+const { azioneDiPagamento } = require('../functions/lib/scadenze.js')
 
 const TANA = { nome_locale: 'La Tana del Coniglio', email: 'Titolare@Example.it', progetto: 'tana-drink', url: 'https://tana-drink.web.app/', slug: 'tana-drink' }
 const ADESSO = new Date('2026-10-24T10:00:00Z')
@@ -25,7 +25,7 @@ describe('i dati del locale esistente', () => {
       terminali: 2,
       interna: true,
       // REQ-FLOTTA-018: di norma pubblica da sé, dalla sua cartella.
-      gestione: { aggiornamenti_dalla_regia: false, cliente: 'tana-drink', build: {} },
+      gestione: { aggiornamenti_dalla_regia: false, licenza_dalla_regia: false, cliente: 'tana-drink', build: {} },
     })
   })
 
@@ -89,10 +89,15 @@ describe('gli aggiornamenti dalla regia', () => {
 
   it('affidata alla regia: la sua cartella e le chiavi pubbliche della build, vuote tolte', () => {
     const g = gestioneEsistente({ aggiornamenti_dalla_regia: true, cliente: 'tana', build: { VITE_RECAPTCHA_SITE_KEY: ' 6Lc-abc_123 ', VITE_FIREBASE_VAPID_KEY: '' } }, { slug: 'tana-drink' })
-    expect(g).toEqual({ aggiornamenti_dalla_regia: true, cliente: 'tana', build: { VITE_RECAPTCHA_SITE_KEY: '6Lc-abc_123' } })
+    expect(g).toEqual({ aggiornamenti_dalla_regia: true, licenza_dalla_regia: false, cliente: 'tana', build: { VITE_RECAPTCHA_SITE_KEY: '6Lc-abc_123' } })
+    // REQ-FLOTTA-028: la licenza dalla regia si accende solo con un vero sì.
+    expect(gestioneEsistente({ licenza_dalla_regia: true }, { slug: 'tana-drink' }).licenza_dalla_regia).toBe(true)
+    expect(gestioneEsistente({ licenza_dalla_regia: 'sì' }, { slug: 'tana-drink' }).licenza_dalla_regia).toBe(false)
     // La licenza no: resta del suo progetto finché non lo si collega.
     const { istanza } = documentiEsistente(datiEsistente({ ...TANA, aggiornamenti_dalla_regia: true, cliente: 'tana' }), { uid: 'u', adesso: ADESSO })
     expect(istanza).toMatchObject({ aggiornamenti_dalla_regia: true, cliente: 'tana', licenza_dalla_regia: false })
+    // Alla registrazione mai: si collega dopo, quando si è visto che la regia ci può scrivere.
+    expect(documentiEsistente(datiEsistente({ ...TANA, licenza_dalla_regia: true }), { uid: 'u', adesso: ADESSO }).istanza.licenza_dalla_regia).toBe(false)
   })
 
   it('una chiave che non è della build, un valore strano o una cartella sbagliata si rifiutano', () => {
@@ -109,19 +114,14 @@ describe('gli aggiornamenti dalla regia', () => {
   })
 })
 
-describe('la sospensione dei morosi', () => {
-  it('salta l’installazione interna anche se l’abbonamento risulta disdetto o in sospeso', () => {
-    const vecchio = new Date(ADESSO.getTime() - 30 * 86400000).toISOString()
-    const clienti = [
-      { slug: 'tana-drink', abbonamento: { stato: 'disdetto' } },
-      { slug: 'bar-tana', abbonamento: { stato: 'in sospeso', aggiornato_il: vecchio } },
-      { slug: 'bar-altro', abbonamento: { stato: 'disdetto' } },
-    ]
-    const istanze = {
-      'tana-drink': { stato: 'attiva', interna: true },
-      'bar-tana': { stato: 'attiva', interna: true },
-      'bar-altro': { stato: 'attiva' },
-    }
-    expect(daSospendere(clienti, istanze, { adesso: ADESSO }).map((x) => x.cliente.slug)).toEqual(['bar-altro'])
+// Dal 31/10/2026 (REQ-FLOTTA-023) il locale si ferma per un cambio di stato
+// dell'abbonamento, non per un giro quotidiano: la regola resta la stessa.
+describe('la sospensione di chi non paga', () => {
+  it('salta l’installazione interna anche se l’abbonamento risulta disdetto o non pagato', () => {
+    const attivo = { abbonamento: { stato: 'attivo' } }
+    const interna = { stato: 'attiva', interna: true }
+    expect(azioneDiPagamento(attivo, { abbonamento: { stato: 'disdetto' } }, interna)).toBeNull()
+    expect(azioneDiPagamento(attivo, { abbonamento: { stato: 'non pagato' } }, interna)).toBeNull()
+    expect(azioneDiPagamento(attivo, { abbonamento: { stato: 'disdetto' } }, { stato: 'attiva' })).toMatchObject({ azione: 'chiudi' })
   })
 })

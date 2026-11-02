@@ -63,7 +63,12 @@ function gestioneEsistente(dati, { slug }) {
     if (!VALORE_BUILD.test(valore)) throw new DatiNonValidi(`Il valore di ${chiave} non è valido.`)
     build[chiave] = valore
   }
-  return { aggiornamenti_dalla_regia: dati?.aggiornamenti_dalla_regia === true, cliente, build }
+  // LA LICENZA DALLA REGIA (l'utente, 02/11/2026, sulla Tana: «Dobbiamo
+  // trattarlo come abbonamento premium e tracciare i moduli attivi»): con
+  // `licenza_dalla_regia` la regia scrive anche la licenza di un locale
+  // esistente, calcolata dal suo piano, come per gli altri. Serve che la
+  // regia possa scrivere nel suo database (roles/datastore.user).
+  return { aggiornamenti_dalla_regia: dati?.aggiornamenti_dalla_regia === true, licenza_dalla_regia: dati?.licenza_dalla_regia === true, cliente, build }
 }
 
 // I dati controllati: { nome_locale, email, progetto, url, slug? }.
@@ -116,8 +121,8 @@ function documentiEsistente(d, { uid, adesso = new Date() }) {
       stato: 'attiva',
       origine: 'esistente',
       interna: d.interna,
-      licenza_dalla_regia: false,
       ...d.gestione,
+      licenza_dalla_regia: false,
       errore: null,
       registrata_il: ora,
       aggiornata_il: ora,

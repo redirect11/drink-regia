@@ -1,4 +1,4 @@
-// ── L'OFFERTA FONDATORI, LOGICA PURA (REQ-FLOTTA-021) ──────────────────
+// ── L'OFFERTA FONDATORI, LOGICA PURA (REQ-FLOTTA-031) ──────────────────
 //
 // Decisione dell'utente del 02/11/2026 (DEC-0005): i primi 20 locali che
 // attivano un piano a pagamento coperto dall'offerta (piani.json →

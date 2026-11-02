@@ -13,7 +13,6 @@ import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
 const a = require('../functions/lib/aggiornamenti.js')
-const { daSospendere } = require('../functions/lib/sospensione.js')
 const { aggiornamentoDaEvento } = require('../functions/lib/abbonamento.js')
 
 const ADESSO = new Date('2026-11-01T10:00:00Z')
@@ -125,7 +124,7 @@ describe('la proposta e la scelta del titolare', () => {
   const proposta = () => a.nuovaProposta('v1.11.0', { rilascio: 'v1.11.0', note: '## 1.11.0', adesso: ADESSO })
 
   it('nasce in attesa, senza scelta', () => {
-    expect(proposta()).toEqual({ tag: 'v1.11.0', rilascio: 'v1.11.0', note: '## 1.11.0', proposta_il: ADESSO.toISOString(), saltata_il: null, attesa: true, scelta_letta_il: null })
+    expect(proposta()).toEqual({ tag: 'v1.11.0', rilascio: 'v1.11.0', note: '## 1.11.0', proposta_il: ADESSO.toISOString(), saltata_il: null, attesa: true, scelta_letta_il: null, presa_il: null })
   })
 
   it('vale solo sul tag proposto, con una scelta che si conosce', () => {
@@ -203,41 +202,6 @@ describe('il cambio delle regole: nulla cambia fino al rinnovo, e si avvisa', ()
   })
 })
 
-describe('chi non paga torna al Free, e al pagamento al suo piano', () => {
-  const OTTO_GIORNI_FA = new Date(ADESSO.getTime() - 8 * 86400000).toISOString()
-  const IERI = new Date(ADESSO.getTime() - 86400000).toISOString()
-  const istanze = (extra = {}) => ({ 'bar-mario': { stato: 'attiva', condizioni_aggiornamenti: SOLO_PAGANTI, ...extra } })
-  const moroso = (da = OTTO_GIORNI_FA) => ({ slug: 'bar-mario', piano: 'base', abbonamento: { stato: 'in sospeso', aggiornato_il: da } })
-
-  it('dopo i giorni di grazia, non prima', () => {
-    expect(a.daRipiegare([moroso()], istanze(), { adesso: ADESSO }).map((x) => x.azione)).toEqual(['ripiega'])
-    expect(a.daRipiegare([moroso(IERI)], istanze(), { adesso: ADESSO })).toEqual([])
-  })
-
-  it('senza la regola, sul Free, le interne, i sospesi e i chiusi: niente', () => {
-    expect(a.daRipiegare([moroso()], { 'bar-mario': { stato: 'attiva' } }, { adesso: ADESSO })).toEqual([])
-    expect(a.daRipiegare([{ ...moroso(), piano: 'free' }], istanze(), { adesso: ADESSO })).toEqual([])
-    expect(a.daRipiegare([moroso()], istanze({ interna: true }), { adesso: ADESSO })).toEqual([])
-    expect(a.daRipiegare([moroso()], istanze({ licenza_stato: 'sospesa' }), { adesso: ADESSO })).toEqual([])
-    expect(a.daRipiegare([moroso()], istanze({ licenza_stato: 'chiusa' }), { adesso: ADESSO })).toEqual([])
-  })
-
-  it('tornato a pagare, riprende il suo piano', () => {
-    const ripiegato = istanze({ ripiego_free: { dal: OTTO_GIORNI_FA, piano_prima: 'base' } })
-    expect(a.daRipiegare([pagante], ripiegato, { adesso: ADESSO }).map((x) => x.azione)).toEqual(['ripristina'])
-    expect(a.daRipiegare([moroso()], ripiegato, { adesso: ADESSO })).toEqual([])
-  })
-
-  it('la sospensione dei morosi salta chi torna al Free, e sospende gli altri come prima', () => {
-    const ripiega = (ist) => a.ripiegaInveceDiSospendere(ist, ADESSO)
-    expect(daSospendere([moroso()], istanze(), { adesso: ADESSO, ripiega })).toEqual([])
-    expect(daSospendere([moroso()], { 'bar-mario': { stato: 'attiva' } }, { adesso: ADESSO, ripiega }).map((x) => x.stato)).toEqual(['sospesa'])
-    // Il disdetto si chiude comunque: l'ha chiesto il titolare.
-    const disdetto = { ...moroso(), abbonamento: { stato: 'disdetto' } }
-    expect(daSospendere([disdetto], istanze(), { adesso: ADESSO, ripiega }).map((x) => x.stato)).toEqual(['chiusa'])
-  })
-})
-
 describe('quello che sa l’app: settings/bar.licenza.aggiornamenti', () => {
   it('modalità, inclusi, la proposta e l’avviso', () => {
     const ist = {
@@ -251,7 +215,10 @@ describe('quello che sa l’app: settings/bar.licenza.aggiornamenti', () => {
       motivo: null,
       proposta: { tag: 'v1.11.0', note: '## 1.11.0', proposta_il: PRIMA, saltata_il: null },
       avviso: { id: 'condizioni-2026-11-01', testo: 'Dal…', dal: DOPO },
+      scelta_url: null,
     })
+    // Dove l'app manda la scelta del titolare.
+    expect(a.licenzaAggiornamenti(ist, pagante, ADESSO, { sceltaUrl: 'https://x/sceltaDallApp' }).scelta_url).toBe('https://x/sceltaDallApp')
   })
 
   it('niente proposta se non è in attesa o se il piano non comprende gli aggiornamenti', () => {
@@ -268,5 +235,54 @@ describe('il rinnovo da Stripe', () => {
     const agg = aggiornamentoDaEvento('invoice.paid', { subscription: 'sub_1', lines: { data: [{ period: { end: fine } }] } }, ADESSO)
     expect(agg.patch['abbonamento.rinnovo_il']).toBe(new Date(DOPO).toISOString())
     expect(aggiornamentoDaEvento('invoice.paid', { subscription: 'sub_1' }, ADESSO).patch['abbonamento.rinnovo_il']).toBeUndefined()
+  })
+})
+
+// La scelta dall'app è una chiamata alla regia col token d'accesso del
+// titolare (sceltaDallApp): niente documento letto a tempo.
+describe('la scelta dall’app, una chiamata alla regia', () => {
+  const jwt = (corpo) => ['eyJhbGciOiJSUzI1NiJ9', Buffer.from(JSON.stringify(corpo)).toString('base64url'), 'firma'].join('.')
+
+  it('il progetto del token dice di quale locale si parla; un token sbagliato no', () => {
+    expect(a.progettoDelToken(jwt({ aud: 'drinkpos-bar-mario', role: 'admin' }))).toBe('drinkpos-bar-mario')
+    expect(a.progettoDelToken(jwt({ aud: 'Non Valido' }))).toBeNull()
+    expect(a.progettoDelToken('non-un-token')).toBeNull()
+    expect(a.progettoDelToken('a.%%%.c')).toBeNull()
+    expect(a.progettoDelToken(null)).toBeNull()
+  })
+
+  it('il token sta in Authorization: Bearer', () => {
+    expect(a.bearerDi('Bearer abc.def.ghi')).toBe('abc.def.ghi')
+    expect(a.bearerDi('bearer   abc')).toBe('abc')
+    expect(a.bearerDi('Basic abc')).toBeNull()
+    expect(a.bearerDi(undefined)).toBeNull()
+  })
+
+  it('il corpo è un tag e una scelta; sceglie solo il titolare', () => {
+    expect(a.corpoScelta({ tag: 'v1.11.0', scelta: 'aggiorna' })).toEqual({ tag: 'v1.11.0', scelta: 'aggiorna' })
+    expect(a.corpoScelta({ tag: 'v1.11.0', scelta: 'salta', altro: 1 })).toEqual({ tag: 'v1.11.0', scelta: 'salta' })
+    expect(a.corpoScelta({ tag: 'main', scelta: 'aggiorna' })).toBeNull()
+    expect(a.corpoScelta({ tag: 'v1.11.0', scelta: 'installa' })).toBeNull()
+    expect(a.corpoScelta(null)).toBeNull()
+    expect(a.eTitolare({ role: 'admin' })).toBe(true)
+    expect(a.eTitolare({ role: 'bartender' })).toBe(false)
+    expect(a.eTitolare(null)).toBe(false)
+  })
+})
+
+// La stessa scelta due volte (il titolare riprova se la risposta tarda): il
+// primo «Aggiorna» si prende la proposta, il secondo no, e non fa danni.
+describe('la stessa scelta due volte', () => {
+  const p = (extra = {}) => ({ ...a.nuovaProposta('v1.11.0', { adesso: ADESSO }), ...extra })
+  it('si prende una proposta in attesa, del tag giusto, non già presa', () => {
+    expect(a.puoPrendere(p(), 'v1.11.0', ADESSO)).toBe(true)
+    expect(a.puoPrendere(p(), 'v1.10.0', ADESSO)).toBe(false)
+    expect(a.puoPrendere(p({ attesa: false }), 'v1.11.0', ADESSO)).toBe(false)
+    expect(a.puoPrendere(null, 'v1.11.0', ADESSO)).toBe(false)
+    expect(a.puoPrendere(p({ presa_il: ADESSO.toISOString() }), 'v1.11.0', new Date(ADESSO.getTime() + 20000))).toBe(false)
+  })
+  it('una presa rimasta a metà (la Function caduta) si riprende dopo qualche minuto', () => {
+    const presa = p({ presa_il: ADESSO.toISOString() })
+    expect(a.puoPrendere(presa, 'v1.11.0', new Date(ADESSO.getTime() + a.PRESA_MAX + 1))).toBe(true)
   })
 })

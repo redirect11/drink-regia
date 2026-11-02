@@ -52,7 +52,7 @@ describe('la richiesta di contatto', () => {
     expect(richiestaContatto(cliente, { piano: 'base', telefono: 'chiamami' }, spenti).perche).toMatch(/telefono/)
   })
 
-  it('la scelta mensile o annuale arriva all’admin con la richiesta (REQ-FLOTTA-021)', () => {
+  it('la scelta mensile o annuale arriva all’admin con la richiesta (REQ-FLOTTA-031)', () => {
     expect(richiestaContatto(cliente, { piano: 'base', intervallo: 'anno' }, spenti, ADESSO).documento.scelta.intervallo).toBe('anno')
   })
 

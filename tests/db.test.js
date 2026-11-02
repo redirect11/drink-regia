@@ -104,6 +104,15 @@ const FUNCTIONS = [
   // coi due interruttori, e un valore che non è vero vale spento.
   ['impostaRegoleAggiornamenti', [{ a_scelta: true, solo_finche_paga: 'sì', altro: 1 }], 'impostaRegoleAggiornamenti', { a_scelta: true, solo_finche_paga: false }],
   ['sceltaAggiornamento', ['v1.11.0', 'salta'], 'sceltaAggiornamento', { tag: 'v1.11.0', scelta: 'salta' }],
+  // Le licenze protette (BUG-125 di tana-drink).
+  ['gestisciLicenze', ['allinea'], 'gestisciLicenze', { azione: 'allinea' }],
+  // Le scadenze a eventi (REQ-FLOTTA-023).
+  ['registraPagamento', ['bar', '2026-11-30'], 'registraPagamento', { slug: 'bar', pagato_fino_al: '2026-11-30' }],
+  ['programmaScadenze', [], 'programmaScadenze', {}],
+  // I codici sconto (REQ-FLOTTA-028); un codice vuoto toglie lo sconto.
+  ['gestisciSconti', ['crea', { codice: 'X1Y' }], 'gestisciSconti', { codice: 'X1Y', azione: 'crea' }],
+  ['applicaSconto', ['bar', 'TANA-100'], 'applicaSconto', { slug: 'bar', codice: 'TANA-100' }],
+  ['applicaSconto', ['bar', ''], 'applicaSconto', { slug: 'bar', codice: null }],
 ]
 
 describe('le chiamate alle Functions', () => {
@@ -127,6 +136,15 @@ describe('le chiamate alle Functions', () => {
     fb.risposte.creaRicaricaAI = {}
     await expect(db.avviaPagamento({})).rejects.toThrow(/scrivici/)
     await expect(db.avviaRicaricaAI('ai-10')).rejects.toThrow(/scrivici/)
+  })
+
+  // REQ-FLOTTA-023: gestire l'abbonamento da soli, col portale di Stripe.
+  it('il portale dell’abbonamento torna col suo url, e senza url dice di scriverci', async () => {
+    fb.risposte.portaleAbbonamento = { url: 'https://billing.stripe.com/p/x' }
+    expect(await db.apriPortaleAbbonamento()).toEqual({ url: 'https://billing.stripe.com/p/x' })
+    expect(fb.chiamate[0]).toEqual({ nome: 'portaleAbbonamento', dati: {} })
+    fb.risposte.portaleAbbonamento = {}
+    await expect(db.apriPortaleAbbonamento()).rejects.toThrow(/scrivici/)
   })
 })
 
@@ -186,6 +204,14 @@ describe('i documenti della regia', () => {
     fb.documenti['impostazioni/aggiornamenti'] = { a_scelta: true }
     db.osservaRegoleAggiornamenti((d) => visti.push(d))
     expect(visti).toEqual([{}, { a_scelta: true }])
+  })
+
+  it('il controllo delle licenze si osserva da controlli/licenze; senza documento, null', () => {
+    const visti = []
+    db.osservaControlloLicenze((d) => visti.push(d))
+    fb.documenti['controlli/licenze'] = { totale: 2, pronte: 2, problemi: [] }
+    db.osservaControlloLicenze((d) => visti.push(d))
+    expect(visti).toEqual([null, { totale: 2, pronte: 2, problemi: [] }])
   })
 
   it('il cassetto AI: assente o negato è «nessun cassetto»; i consumi in ordine', async () => {

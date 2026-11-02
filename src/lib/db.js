@@ -147,6 +147,15 @@ export async function avviaPagamento(scelta) {
   return data
 }
 
+// Il portale clienti di Stripe: disdetta, carta, fatture (REQ-FLOTTA-023).
+export async function apriPortaleAbbonamento() {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'portaleAbbonamento')
+  const { data } = await fn({})
+  if (!data?.url) throw new Error('La gestione dell’abbonamento non è disponibile al momento: scrivici.')
+  return data
+}
+
 // ── lo stato di un'istanza (REQ-FLOTTA-008) ──
 export async function impostaStatoIstanza(slug, stato, motivo = null) {
   serve()
@@ -198,6 +207,39 @@ export async function impostaRegoleAggiornamenti(regole) {
   serve()
   const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'impostaRegoleAggiornamenti', { timeout: 540_000 })
   const { data } = await fn({ a_scelta: regole.a_scelta === true, solo_finche_paga: regole.solo_finche_paga === true })
+  return data
+}
+
+// ── le licenze protette (BUG-125 di tana-drink) ──
+// L'ultimo controllo di tutti i locali, e le due azioni: «allinea» riscrive
+// ogni licenza dai dati della regia e verifica, «verifica» guarda soltanto.
+export function osservaControlloLicenze(cb) {
+  serve()
+  return onSnapshot(doc(db, 'controlli', 'licenze'), (s) => cb(s.exists() ? s.data() : null))
+}
+
+export async function gestisciLicenze(azione) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'gestisciLicenze', { timeout: 540_000 })
+  const { data } = await fn({ azione })
+  return data
+}
+
+// ── le scadenze a eventi (REQ-FLOTTA-023) ──
+// Un pagamento fuori da Stripe: fino a quando è pagato. La sua scadenza ha
+// un compito alla data, che il server programma da sé.
+export async function registraPagamento(slug, pagato_fino_al) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'registraPagamento')
+  const { data } = await fn({ slug, pagato_fino_al })
+  return data
+}
+
+// Una volta, dopo il deploy: i compiti per le scadenze che c'erano già.
+export async function programmaScadenze() {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'programmaScadenze', { timeout: 540_000 })
+  const { data } = await fn({})
   return data
 }
 
@@ -290,6 +332,29 @@ export async function registraLocaleEsistente(dati) {
 
 // Un locale esistente affidato alla regia per gli aggiornamenti, o
 // restituito al suo repository (REQ-FLOTTA-018).
+// I codici sconto (REQ-FLOTTA-028): l'elenco lo legge l'admin; crearli,
+// disattivarli e applicarli passa dalle Functions.
+export async function elencoSconti() {
+  serve()
+  const snap = await getDocs(query(collection(db, 'sconti'), orderBy('creato_il', 'desc')))
+  return snap.docs.map((d) => d.data())
+}
+
+export async function gestisciSconti(azione, dati = {}) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'gestisciSconti')
+  const { data } = await fn({ ...dati, azione })
+  return data
+}
+
+// Codice vuoto: lo sconto si toglie.
+export async function applicaSconto(slug, codice) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'applicaSconto')
+  const { data } = await fn({ slug, codice: codice || null })
+  return data
+}
+
 export async function impostaAggiornamentiEsistente(dati) {
   serve()
   const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'impostaAggiornamentiEsistente')

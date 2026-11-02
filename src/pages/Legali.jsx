@@ -133,6 +133,18 @@ export function Termini() {
         dati, che il locale può scaricare dalla propria pagina per 180 giorni; trascorso questo periodo il backup viene
         cancellato. Il fornitore può cancellare un’installazione già chiusa anche prima dei 30 giorni, sempre dopo il backup.
       </p>
+      {/* LA CONSERVAZIONE DEI DATI DI UN LOCALE FERMO (REQ-FLOTTA-025),
+          decisioni dell'utente del 02/11/2026: 90 giorni, avvisi subito, a 7
+          giorni e il giorno prima; al Free non si cancella niente. Testo da
+          approvare dall'utente. */}
+      <p>
+        Se il servizio si ferma perché l’abbonamento non è pagato o è stato disdetto, o perché il fornitore chiude
+        l’installazione, i dati del locale sono conservati per 90 giorni e poi cancellati definitivamente, sempre dopo il backup
+        descritto sopra. Il titolare viene avvisato per email, nella propria area clienti e nell’app quando la cancellazione
+        viene programmata, 7 giorni prima e il giorno prima. Se l’abbonamento torna attivo prima di quella data, la
+        cancellazione si annulla. Se le condizioni del piano prevedono il ritorno al piano Free, il locale continua a lavorare
+        con il piano Free e i suoi dati non vengono cancellati.
+      </p>
       <h2>7. Recesso e disdetta</h2>
       <p>
         L’abbonamento, mensile o annuale, si disdice in qualunque momento dalla propria pagina; il servizio resta attivo fino
@@ -148,7 +160,7 @@ export function Privacy() {
   return (
     <main className="pagina legale">
       <h1>Informativa sulla privacy</h1>
-      <p className="muted small">Ai sensi degli articoli 13 e 14 del Regolamento (UE) 2016/679. Ultimo aggiornamento: 29 ottobre 2026</p>
+      <p className="muted small">Ai sensi degli articoli 13 e 14 del Regolamento (UE) 2016/679. Ultimo aggiornamento: 2 novembre 2026</p>
       <h2>Titolare del trattamento</h2>
       <p>
         {TITOLARE.nome}, {TITOLARE.indirizzo}, {TITOLARE.email}.
@@ -164,7 +176,9 @@ export function Privacy() {
       <p>
         I dati sono conservati su infrastruttura Google Cloud nella regione europea, per la durata del contratto e per i
         termini di legge sulla fatturazione (dieci anni per i documenti fiscali). I dati operativi del locale stanno in
-        un’installazione separata di cui il locale è titolare, e il fornitore agisce da responsabile del trattamento. Quando
+        un’installazione separata di cui il locale è titolare, e il fornitore agisce da responsabile del trattamento. Se il
+        servizio si ferma (abbonamento non pagato o disdetto), quei dati sono conservati per 90 giorni, con un avviso al
+        titolare, e poi cancellati. Quando
         un’installazione viene cancellata, il suo backup è conservato per 180 giorni in un archivio separato, nella regione
         europea, accessibile per il download solo al titolare del locale; poi viene cancellato.
       </p>

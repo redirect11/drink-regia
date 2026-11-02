@@ -352,17 +352,17 @@ requirements:
 
   - id: REQ-FLOTTA-008
     title: "Un'istanza si ferma: Sospendi, Riattiva e Chiudi dal backoffice, e la sospensione automatica di chi non paga"
-    area: "functions/index.js (impostaStatoIstanza, sospendiMorosi), functions/lib/sospensione.js, src/pages/Backoffice.jsx, src/lib/db.js"
+    area: "functions/index.js (impostaStatoIstanza, licenzaSegueIlPiano), functions/lib/sospensione.js, functions/lib/scadenze.js, src/pages/Backoffice.jsx, src/lib/db.js"
     description: >
       «Serve un modo per eliminare/fermare l'app deployata (ad esempio se
       non arriva il pagamento mensile)» (l'utente, 22/10/2026). La parte
       della regia: lo stato della licenza dell'istanza
       (`settings/bar.licenza.stato`: attiva, sospesa, chiusa) lo scrive la
       Function `impostaStatoIstanza`, cross-progetto, a cui il backoffice
-      arriva coi tasti Sospendi (con motivo), Chiudi e Riattiva; e la
-      Function giornaliera `sospendiMorosi` sospende chi ha l'abbonamento
-      «in sospeso» da piu' di sette giorni, chiude chi ha disdetto e
-      riattiva chi e' tornato a pagare (logica pura in lib/sospensione.js).
+      arriva coi tasti Sospendi (con motivo), Chiudi e Riattiva. Dal
+      31/10/2026 il mancato pagamento sospende, la disdetta chiude e il
+      pagamento riattiva quando cambia lo stato dell'abbonamento, non con
+      un giro quotidiano (REQ-FLOTTA-023, lib/scadenze.js).
       `istanze/{slug}` tiene `licenza_stato` e `licenza_motivo` per il
       backoffice. Cosa fa l'app quando e' sospesa sta nel repository
       tana-drink (REQ-FLOTTA-008 di la'): si ferma, lo dice, i dati restano.
@@ -592,7 +592,7 @@ requirements:
 
   - id: REQ-FLOTTA-014
     title: "Eliminare un locale e il suo progetto, sempre dopo un backup completo e verificato che scarica solo il titolare"
-    area: "functions/lib/eliminazione.js, functions/index.js (gestisciEliminazione, eliminazioniProgrammate, scaricaArchivio, esitoProvisioning), .github/workflows/elimina-istanza.yml, scripts/archivia-istanza.mjs, src/pages/ChiudiLocale.jsx, src/pages/Dashboard.jsx, src/pages/Backoffice.jsx (EliminaLocale), src/lib/istanze.js (ELIMINATA), src/pages/Legali.jsx"
+    area: "functions/lib/eliminazione.js, functions/index.js (gestisciEliminazione, scadenza, scaricaArchivio, esitoProvisioning), .github/workflows/elimina-istanza.yml, scripts/archivia-istanza.mjs, src/pages/ChiudiLocale.jsx, src/pages/Dashboard.jsx, src/pages/Backoffice.jsx (EliminaLocale), src/lib/istanze.js (ELIMINATA), src/pages/Legali.jsx"
     description: >
       Decisioni dell'utente del 29/10/2026. IL TITOLARE, dalla sua dashboard,
       chiude il locale e ne chiede la cancellazione: l'app si ferma subito,
@@ -613,9 +613,9 @@ requirements:
       L'ARCHIVIO resta 180 giorni (regola del bucket) e lo scarica solo il
       titolare del locale, dalla dashboard, con un link firmato di 15
       minuti: per quei dati il locale e' titolare del trattamento e noi
-      responsabili (GDPR art. 28); nemmeno l'admin ha il pulsante. Ogni
-      mattina eliminazioniProgrammate lancia quelle arrivate alla data, se
-      il locale e' ancora chiuso. Un locale eliminato non si riattiva
+      responsabili (GDPR art. 28); nemmeno l'admin ha il pulsante. Alla
+      data parte il compito dell'eliminazione programmata (REQ-FLOTTA-023),
+      se il locale e' ancora chiuso. Un locale eliminato non si riattiva
       (Google non riusa l'id di un progetto cancellato). Termini e privacy
       lo dicono; il DPA, quando c'e', deve dire lo stesso. Da fare fuori dal
       codice: i bucket degli archivi e i loro permessi (infra/README.md).
@@ -667,6 +667,10 @@ requirements:
       regia ancora leggero passa al completo, rifa' l'apply col completo
       prima del deploy. Da fare lato tana-drink: i limiti fatti rispettare
       dall'app e l'app senza Functions (handover §7).
+      Dal 31/10/2026 il Free è senza comande (limiti.comande: false): «le
+      comande fuori dal free, nel senso che la visualizzazione per comande
+      non funziona» (l'utente); la descrizione del piano e la prima pagina
+      lo dicono.
     status: partial
     generate_issue: true
     labels: [prodotto, flotta, regia]
@@ -683,7 +687,7 @@ requirements:
 
   - id: REQ-FLOTTA-016
     title: "Le prove dei moduli scelte dall'admin, e «Cambia piano» dell'admin con Stripe o fuori da Stripe"
-    area: "functions/lib/prove.js, functions/lib/cambiopiano.js, functions/lib/licenza.js (prove), functions/lib/free.js (venditaPulita), functions/index.js (provaModulo, proveScadute, cambiaPianoAdmin), src/lib/vendita.js, src/lib/db.js, src/pages/ProveModuli.jsx, src/pages/Dashboard.jsx, src/pages/Backoffice.jsx (Vendita, GiorniDiProva, CambiaPiano)"
+    area: "functions/lib/prove.js, functions/lib/cambiopiano.js, functions/lib/licenza.js (prove), functions/lib/free.js (venditaPulita), functions/index.js (provaModulo, scadenza, cambiaPianoAdmin), src/lib/vendita.js, src/lib/db.js, src/pages/ProveModuli.jsx, src/pages/Dashboard.jsx, src/pages/Backoffice.jsx (Vendita, GiorniDiProva, CambiaPiano)"
     description: >
       L'utente, 30/10/2026: «le prove dei moduli ma posso decidere io quali
       mettere in attivazione trial». LE PROVE: nel riquadro «Vendita» del
@@ -692,9 +696,9 @@ requirements:
       (provaModulo), una volta sola per modulo, solo col locale attivo e non
       sospeso, solo per un modulo in vendita che non ha gia'; anche sul Free.
       La licenza accende il modulo e i suoi moduli di dettaglio fino alla
-      scadenza, e la scrive in licenza.prove; ogni mattina proveScadute
-      toglie le prove scadute e quelle dei moduli ormai comprati, e la
-      licenza segue. «CAMBIA PIANO» al posto di «Piano a mano», che scriveva
+      scadenza, e la scrive in licenza.prove; alla scadenza il suo compito
+      (REQ-FLOTTA-023) toglie le prove scadute e quelle dei moduli ormai
+      comprati, e la licenza segue. «CAMBIA PIANO» al posto di «Piano a mano», che scriveva
       solo il piano e segnava pagato senza dirlo: piano, moduli e terminali,
       e come si paga. Con Stripe si aggiorna l'abbonamento con l'addebito
       proporzionale (il cliente lo scrive il webhook); fuori da Stripe
@@ -834,10 +838,12 @@ requirements:
       note del CHANGELOG di tana-drink dalla sua versione al tag, invece
       del deploy; un locale senza aggiornamenti nel piano resta fuori;
       nessuno dei due ferma l'ondata. Il titolare sceglie «Aggiorna» o
-      «Salta» dalla dashboard, o dall'app, che scrive aggiornamenti/scelta
-      nel database del locale e la regia legge ogni dieci minuti. Con «solo
-      finché si paga» un abbonamento in sospeso oltre i giorni di grazia
-      non sospende più il locale: lo riporta al Free, e al pagamento torna
+      «Salta» dalla dashboard, o dall'app, che chiama la regia
+      (sceltaDallApp) col token d'accesso del titolare: la regia riconosce
+      il locale dal progetto del token, lo verifica e applica subito
+      (prima era un documento letto ogni dieci minuti). Con «solo
+      finché si paga» un abbonamento non pagato (REQ-FLOTTA-023) non
+      sospende più il locale: lo riporta al Free, e al pagamento torna
       il suo piano; un disdetto si chiude come prima; le installazioni
       interne li ricevono sempre. Il contratto con l'app è in
       docs/handover.md §7; in tana-drink è REQ-FLOTTA-020
@@ -855,7 +861,7 @@ requirements:
       - tests/Backoffice.test.jsx
 
 
-  - id: REQ-FLOTTA-021
+  - id: REQ-FLOTTA-031
     title: "Il listino del 02/11/2026 al Checkout: attivazione una tantum, offerta Fondatori, annuale, prova"
     area: "functions/piani.json, src/lib/piani.js (conIva, prezzoAnnuale, prezzoFondatori, euro), functions/lib/abbonamento.js (sessioneCheckout, rigaAttivazione, intervalloDi), functions/lib/fondatori.js, functions/lib/cambiopiano.js (sceltaAdmin), functions/index.js (creaCheckout, stripeWebhook, aggiornaSubscription), firestore.rules (fondatori)"
     description: >
@@ -950,3 +956,321 @@ requirements:
       - tests/Dashboard.test.jsx
       - tests/Legali.test.jsx
       - tests/lingua.test.js
+
+  - id: REQ-FLOTTA-021
+    title: "L'installazione on premise: il gestionale intero nel locale, col backup sul cloud"
+    area: "docs/on-premise.md"
+    description: >
+      «On premise viene ospitato tutto il gestionale con backup su cloud»,
+      «tana-drink è sempre lo stesso ma dove si installa e come si
+      configura è roba di regia. Per l'installazione on premise io farei
+      proprio delle immagini già pronte da installare e da mantenere
+      aggiornate» e «così possiamo riutilizzare tutto anche su cloud puro»
+      (l'utente, 31/10/2026). Requisito di business, il disegno è in
+      docs/on-premise.md. Il terzo livello di installazione, dopo cloud e
+      app: il gestionale gira su un apparecchio nel locale, che lavora
+      tutto insieme anche senza internet; il progetto cloud del locale
+      tiene il backup continuo, la consultazione da fuori e una casella
+      per quello che arriva da fuori, che l'apparecchio svuota con
+      connessioni solo in uscita. I dati del locale non passano mai dalla
+      regia. L'app è sempre la stessa: parla con delle porte, e dietro c'è
+      Firebase nel cloud e un backend locale nell'on premise (in
+      tana-drink, REQ-FLOTTA-021 e docs/porte-e-adattatori.md). Niente
+      emulatori di Firebase in produzione. Il backend si sceglie con un
+      prototipo (candidata PocketBase con Litestream), e lo stesso insieme
+      deve girare anche su una macchina virtuale di un altro fornitore. La
+      regia prepara e aggiorna l'immagine (sistema e sicurezza sempre,
+      app e backend con le regole di REQ-FLOTTA-020), attiva
+      l'apparecchio con un codice del locale e una chiave sua, gli dà un
+      nome nella rete del locale con un certificato vero, ne controlla
+      stato e backup, gli manda licenza e sospensione. Da decidere con
+      l'utente: prezzi, comodato o vendita, dominio, tempi di
+      sostituzione. Già vero oggi, e provato: nessun workflow della regia
+      pubblica un locale collegato agli emulatori.
+    status: todo
+    generate_issue: false
+    labels: [prodotto, flotta, regia]
+    test_cases:
+      - tests/flotta.test.js
+
+  - id: REQ-FLOTTA-023
+    title: "Le scadenze a eventi: lo stato dell'abbonamento e un compito per ogni scadenza, niente giri quotidiani"
+    area: "functions/lib/scadenze.js, functions/lib/abbonamento.js, functions/lib/cambiopiano.js, functions/index.js (scadenza, registraPagamento, programmaScadenze, licenzaSegueIlPiano), src/pages/Backoffice.jsx"
+    description: >
+      «Non possiamo mettere un qualcosa che tiene traccia del periodo delle
+      licenze ed esegue operazioni in base ad eventi piuttosto che farlo
+      ogni mattina? [...] Non mi piace la temporizzazione di questi
+      check», poi «Ok procedi così» e, sul pagamento fuori da Stripe, «ok
+      1» (l'utente, 31/10/2026). Via i tre giri quotidiani (sospendiMorosi,
+      proveScadute, eliminazioniProgrammate). Con Stripe decide lo stato
+      dell'abbonamento: Stripe ritenta col suo calendario (in sospeso),
+      poi «non pagato» o disdetto; il webhook scrive lo stato della
+      subscription sul cliente, e un pagamento fallito non lo cambia più.
+      Il cambio di stato fa la cosa giusta al locale (azioneDiPagamento):
+      non pagato sospende, o con «solo finché si paga» riporta al Free;
+      disdetto chiude; di nuovo attivo riattiva una sospensione per il
+      pagamento (non una dell'admin) o riporta il piano. Le interne no.
+      Fuori da Stripe (oggi l'unico modo di vendere, coi pagamenti online
+      spenti) l'admin scrive «pagato fino al» in «Cambia piano» o con
+      «Registra pagamento»; alla data, più i giorni di grazia
+      (impostazioni/regia.giorni_grazia, 7 se non detti), un compito
+      segna l'abbonamento non pagato. Vuoto, nessuna scadenza (omaggi).
+      Prove, eliminazioni programmate e condizioni degli aggiornamenti
+      hanno un compito alla loro data (Cloud Tasks, onTaskDispatched
+      «scadenza»); un compito ricontrolla prima di fare, quindi una
+      scadenza spostata o annullata non si cancella, si ignora; oltre 29
+      giorni il compito si riprogramma da solo. «Programma le scadenze»
+      nel backoffice programma una volta quelle nate prima. Serve l'API
+      Cloud Tasks sul progetto e il ruolo per creare la coda all'account
+      del deploy.
+      Dal 02/11/2026 («viene attivata la licenza con una durata in base
+      alla subscription, se la subscription scade e non viene pagato nulla
+      la licenza viene disattivata»): anche con Stripe la licenza scade,
+      alla fine del periodo PAGATO (pagato_fino, dalla fattura pagata) più
+      7 giorni, non alla fine del periodo della subscription, che Stripe
+      sposta al rinnovo prima del pagamento; alla scadenza la regia chiede
+      a Stripe lo stato vero (un rinnovo pagato il cui evento si è perso
+      sposta la scadenza; altrimenti non pagato, o disdetto). Disdetto con
+      «solo finché si paga» torna al Free; chi torna a pagare riapre anche
+      un locale chiuso per il pagamento. Il titolare gestisce l'abbonamento
+      da solo col portale clienti di Stripe («Gestisci l'abbonamento»:
+      disdetta a fine periodo, carta, fatture).
+    status: implemented
+    generate_issue: false
+    labels: [prodotto, regia, abbonamento]
+    test_cases:
+      - tests/scadenze.test.js
+      - tests/abbonamento.test.js
+      - tests/esistente.test.js
+      - tests/Backoffice.test.jsx
+      - tests/db.test.js
+      - tests/licenza.test.js
+      - tests/Dashboard.test.jsx
+
+  - id: REQ-FLOTTA-027
+    title: "Le comunicazioni automatiche al titolare: promemoria, pagamento ricevuto, Free, riattivazione"
+    area: "functions/lib/comunicazioni.js, functions/lib/conservazione.js, functions/index.js (accodaEmail, scadenza, registraPagamento, eseguiAzionePagamento)"
+    description: >
+      L'utente, 02/11/2026: «Gestire anche le comunicazioni automatiche di
+      reminder di pagamenti, pagamento riuscito etc.» Decisioni dello stesso
+      giorno: le email di Stripe (ricevuta, pagamento fallito, rinnovo in
+      arrivo, carta in scadenza) si accendono nelle impostazioni di Stripe;
+      la regia manda i promemoria di un pagamento a mano (7 giorni prima di
+      «pagato fino al» e il giorno dopo, con fino a quando l'app funziona),
+      il pagamento ricevuto quando l'admin lo registra, il locale tornato
+      al Free e quello riattivato; il locale fermo lo dice il primo avviso
+      della conservazione dei dati (REQ-FLOTTA-025). Ogni promemoria è un
+      compito «promemoria» alla sua ora, che ricontrolla prima di mandare e
+      non manda due volte. Le email vanno nella coda mail, che manda
+      l'estensione Trigger Email di Firebase con l'SMTP di Resend (scelta
+      dell'utente): da installare con l'account e le credenziali
+      dell'utente.
+    status: partial
+    generate_issue: false
+    labels: [prodotto, regia, abbonamento, comunicazioni]
+    test_cases:
+      - tests/comunicazioni.test.js
+      - tests/conservazione.test.js
+
+  - id: REQ-FLOTTA-026
+    title: "Il sito si presenta alla regia: la versione che gira e, se manca, la licenza"
+    area: "functions/lib/presentazione.js, functions/index.js (presentazione), .github/workflows/provisiona-istanza.yml, .github/workflows/aggiorna-istanza.yml, src/pages/Backoffice.jsx"
+    description: >
+      L'utente, 02/11/2026: «non deve essere il deploy ad avvisare la regia
+      ma l'istanza del sito stesso in qualche modo. Cioè regia e il sito
+      custom del bar si devono parlare dopo il deploy e si scambiano dati
+      tra loro rispetto alle licenze attivazione e etc.» Al primo avvio di
+      ogni versione l'app chiama la Function presentazione col token di chi
+      ha fatto l'accesso nel progetto del locale e la sua versione. La
+      regia riconosce il progetto fra le sue istanze, verifica il token con
+      quel progetto, si segna la versione (presentazione: versione, prima
+      e ultima volta, chi) senza riscriverla se la stessa versione è
+      arrivata da poco, e, se il locale non ha licenza/attuale, la
+      riscrive. Non è l'attivazione (tana-drink, 02/11/2026: l'app non fa
+      accessi anonimi, e senza licenza e senza sessione la schermata «non
+      attivata» copre anche l'accesso): la licenza si scrive
+      all'attivazione, prima dell'app. Vale da qualunque deploy arrivi
+      l'app, della regia o di GitHub. Un locale esistente con la licenza
+      sua (la Tana, finché non la si collega) segna solo la versione. Le
+      build della regia portano VITE_REGIA_PROGETTO. La versione presentata
+      conta anche nei rilasci a ondate: un locale esistente che pubblica da
+      sé finisce la sua ondata quando la sua app dice la versione. Niente giri a tempo:
+      si chiama una volta per versione nuova, con qualcuno collegato. Resta da fare in
+      tana-drink: la chiamata (docs/presentazione-alla-regia.md); e per la
+      Tana l'interruttore «licenza dalla regia» e il permesso alla regia
+      sui suoi progetti.
+    status: partial
+    generate_issue: false
+    labels: [prodotto, flotta, regia, licenza]
+    test_cases:
+      - tests/presentazione.test.js
+      - tests/Backoffice.test.jsx
+      - tests/rilasci.test.js
+
+  - id: REQ-FLOTTA-029
+    title: "A ogni deploy chi ha sottoscritto è l'admin del suo locale, e imposta la password dal link"
+    area: "functions/lib/titolare.js, scripts/titolare-istanza.mjs, functions/lib/provisioning.js, functions/index.js, .github/workflows/provisiona-istanza.yml, .github/workflows/aggiorna-istanza.yml, src/pages/Dashboard.jsx"
+    description: >
+      L'utente, 02/11/2026: «Quando viene deployato qualcosa, bisogna
+      sempre aggiungere come utente admin chi ha richiesto la
+      sottoscrizione. Magari chiedere di creare una password o di crearla
+      automaticamente», e «può anche registrare un account google e fare
+      login con google ovviamente». Prima l'attivazione non creava nessun
+      account nel progetto del locale: prova-bar e prova-free erano senza
+      nessuno che potesse entrare, e il «password dimenticata» della
+      dashboard non poteva funzionare. Ora, dopo ogni deploy della regia
+      (attivazione e aggiornamenti), nel progetto del locale l'account con
+      l'email del cliente c'è (creato già verificato, senza password), ha
+      il ruolo admin nei custom claims, e finché non ha una password e non
+      è mai entrato riceve l'email di Firebase per impostarla, in
+      italiano. Nessuna password generata: viaggerebbe in chiaro. Mai su un
+      locale esistente (la Tana ha i suoi admin). Resta da fare l'accesso
+      con Google al banco: in tana-drink «Entra con Google» nella pagina
+      del banco, e il fornitore Google acceso sui progetti dei locali.
+    status: partial
+    generate_issue: false
+    labels: [prodotto, flotta, regia, sicurezza]
+    test_cases:
+      - tests/titolare.test.js
+      - tests/provisioning.test.js
+
+  - id: REQ-FLOTTA-028
+    title: "I codici sconto, e la Tana come abbonamento premium con la licenza dalla regia"
+    area: "functions/lib/sconti.js, functions/lib/esistente.js, functions/index.js (gestisciSconti, applicaSconto, impostaAggiornamentiEsistente), src/lib/sconti.js, src/pages/Backoffice.jsx, src/pages/Dashboard.jsx, firestore.rules"
+    description: >
+      L'utente, 02/11/2026, sulla Tana: «Dobbiamo trattarlo come
+      abbonamento premium e tracciare i moduli attivi. Ha un codice sconto
+      allegato con una durata illimitata per avere tutti i servizi attivi.»
+      Decisioni: i codici sconto stanno nella regia (coi pagamenti online
+      spenti; con Stripe diventeranno coupon), e la Tana ha il piano
+      Completo, fatture comprese. Un codice ha percentuale e durata in mesi
+      o illimitata; si crea e si disattiva in «Vendita» (chi lo ha lo
+      tiene), e l'admin lo applica dalla scheda del locale. Al 100%
+      illimitato l'abbonamento è attivo, non si paga e non scade; al 100% a
+      tempo è un piano a mano pagato fino alla fine dello sconto; parziale
+      cambia solo il prezzo. Un locale esistente può avere la licenza dalla
+      regia (licenza_dalla_regia), calcolata dal piano come per gli altri:
+      si scrive subito, e se la regia non può scrivere nel suo progetto si
+      torna indietro e lo si dice. Nella stessa verifica: la regola dei
+      clienti lasciava al titolare moduli, terminali e prove, che la regia
+      trasforma in licenza; ora il titolare cambia solo i dati anagrafici.
+    status: implemented
+    generate_issue: false
+    labels: [prodotto, regia, abbonamento, licenza, sicurezza]
+    test_cases:
+      - tests/sconti.test.js
+      - tests/esistente.test.js
+      - tests/Backoffice.test.jsx
+      - tests/db.test.js
+
+  - id: REQ-FLOTTA-025
+    title: "Senza licenza valida il prodotto non parte; i dati di un locale fermo si conservano 90 giorni, con gli avvisi"
+    area: "functions/lib/conservazione.js, functions/lib/licenza.js, functions/lib/scadenze.js, functions/index.js (eseguiAzionePagamento, impostaStatoIstanza, gestisciEliminazione, scadenza, scriviLicenza), src/pages/ChiudiLocale.jsx, src/pages/Dashboard.jsx, src/pages/Backoffice.jsx, src/pages/Legali.jsx"
+    description: >
+      L'utente, 02/11/2026: «Se non c'è nessuna licenza non dovrebbe
+      partire proprio il prodotto, o licenza scaduta [...] al massimo, se
+      dalla regia è attiva l'opzione, dovrebbe diventare versione free ma
+      senza far perdere i dati al cliente, ma dovremmo avvisare il cliente
+      che, anche per una questione regolamentatoria, dobbiamo cancellare i
+      suoi dati entro un tot e avvisarlo quando stiamo per cancellarli».
+      Decisioni dello stesso giorno: 90 giorni; un locale tornato al Free
+      non perde niente; avvisi subito, a 7 giorni e il giorno prima; per
+      email, nella dashboard della regia e nell'app. La licenza porta
+      alla_scadenza ('free' con «solo finché si paga», se no 'ferma') e
+      cancellazione ({ il, richiedente } o null); valida_fino cade al
+      taglio della giornata dopo la scadenza, e nel database c'è anche
+      valida_fino_ts, lo stesso istante come Timestamp: le regole di
+      tana-drink sanno leggere solo quello (02/11/2026), e la verifica
+      delle licenze vuole i due d'accordo. Un locale sospeso o chiuso
+      per il pagamento, o chiuso dall'admin, riceve un'eliminazione
+      programmata a 90 giorni (richiedente 'conservazione'), annullata se
+      torna a pagare o l'admin lo riattiva; alla data, se è ancora sospeso,
+      si chiude e si cancella dopo il backup verificato. Gli avvisi valgono
+      per ogni cancellazione programmata: l'email va nella coda mail
+      (estensione Trigger Email di Firebase, da installare con un SMTP), la
+      dashboard mette la cancellazione in cima, l'app la legge nella
+      licenza. Termini (punto 6) e informativa lo dicono. In tana-drink
+      resta: l'app e le regole del database che non partono senza licenza
+      valida (niente «documento assente = nessun limite»), alla_scadenza,
+      l'avviso della cancellazione, e licenza/attuale per la Tana.
+    status: partial
+    generate_issue: false
+    labels: [prodotto, flotta, regia, licenza, privacy]
+    test_cases:
+      - tests/conservazione.test.js
+      - tests/licenza.test.js
+      - tests/ChiudiLocale.test.jsx
+      - tests/Dashboard.test.jsx
+      - tests/Backoffice.test.jsx
+
+  - id: REQ-FLOTTA-024
+    title: "Quello che la licenza toglie arriva al taglio della giornata, non in servizio"
+    area: "functions/lib/taglio.js, functions/lib/scadenze.js, functions/index.js (scriviLicenza, verificaLicenza, scadenza), src/lib/istanze.js, src/pages/Backoffice.jsx, src/pages/Dashboard.jsx"
+    description: >
+      tana-drink, 01/11/2026: «I passaggi a un piano più piccolo vanno
+      fatti fuori dall'orario di servizio (per esempio al taglio della
+      giornata, alle 5). Tra poco le regole leggeranno la licenza a ogni
+      scrittura. Se un modulo si spegne mentre un tablet ha scritture in
+      coda senza rete, quelle scritture vengono rifiutate quando
+      arrivano.» Una licenza che toglie qualcosa (un modulo, un terminale,
+      limiti più stretti, il passaggio al Free, una sospensione o
+      chiusura per il pagamento) non si scrive subito: fino al taglio
+      della giornata del locale (settings/bar.business_day_cutoff_hour,
+      le 5 se manca, ora di Roma) resta quella di prima, con in più
+      quello che la nuova aggiunge, e un compito «taglio» scrive la nuova
+      alla sua ora. Quello che aggiunge arriva subito; le sospensioni e
+      le chiusure dell'admin o del titolare, scelte di adesso, anche; un
+      locale che nasce scrive subito. La scheda del locale e la dashboard
+      del titolare dicono quando arriva e cosa toglie
+      (istanze/<slug>.riduzione_al_taglio). La verifica delle licenze
+      riconosce la licenza tenuta fino al taglio.
+    status: implemented
+    generate_issue: false
+    labels: [prodotto, flotta, regia, licenza]
+    test_cases:
+      - tests/taglio.test.js
+      - tests/istanze.test.js
+      - tests/Backoffice.test.jsx
+      - tests/Dashboard.test.jsx
+
+  - id: REQ-FLOTTA-022
+    title: "La licenza di un locale in licenza/attuale, calcolata dalla regia e scritta solo da lei"
+    area: "functions/lib/licenza.js, functions/index.js, scripts/licenza-istanza.mjs, src/pages/Backoffice.jsx, firestore.rules"
+    description: >
+      BUG-125 di tana-drink (31/10/2026): la licenza stava in
+      settings/bar.licenza, e le regole dell'app lasciano scrivere
+      settings/ a ogni bartender, quindi un locale Free poteva accendersi
+      da solo piano e moduli. La licenza passa in licenza/attuale, che
+      dall'app non scrive nessuno, nemmeno il titolare; e con l'app nuova
+      un locale senza licenza/attuale mostra «Installazione non attivata».
+      La regia calcola la licenza intera dai suoi dati (cliente, istanza,
+      ritorno al Free, regole degli aggiornamenti), mai copiandola da
+      settings/bar, e a ogni cambio la scrive in licenza/attuale e, finché
+      tutti i locali non hanno l'app nuova, anche in settings/bar.licenza:
+      stato, piano, prove, ritorno al Free, aggiornamenti, attivazioni e
+      aggiornamenti riusciti. Un locale nuovo nasce con licenza/attuale
+      prima della consegna: l'attivazione la scrive prima del deploy, e
+      partendo da licenza/attuale, mai da settings/bar.licenza
+      (scripts/licenza-istanza.mjs). Le regole di tana-drink del
+      01/11/2026: moduli nomina tutti i moduli; licenza/attuale non si
+      cancella mai (un locale si ferma con lo stato); gli sconti si
+      spengono solo con limiti.sconti: false. Dal backoffice
+      («Rilasci») si allineano e si verificano tutti i locali: esiste, è
+      uguale a settings/bar.licenza, è quella dei dati della regia;
+      l'esito sta in controlli/licenze, che legge solo l'admin, e sulla
+      scheda del locale. Nessun giro pianificato: «Noi dobbiamo essere
+      certi quando deployiamo che la licenza venga aggiornata» (l'utente,
+      31/10/2026). Ogni
+      aggiornamento dalla regia scrive la licenza prima del deploy, e senza
+      non parte: l'app arriva ai locali solo da lì, quindi nessun locale
+      riceve l'app nuova senza la sua licenza. Resta da fare: l'app nuova
+      in tana-drink; poi smettere di scrivere settings/bar.licenza e
+      cancellarla.
+    status: partial
+    generate_issue: false
+    labels: [prodotto, flotta, regia, sicurezza]
+    test_cases:
+      - tests/licenza.test.js
+      - tests/Backoffice.test.jsx
+      - tests/db.test.js
+

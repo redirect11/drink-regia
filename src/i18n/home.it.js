@@ -204,7 +204,7 @@ export default {
       free: {
         nome: PIANI.free.nome,
         descrizione:
-          'Per provare il servizio: cassa e comande, fino a {prodotti} prodotti nel menù e {conti} conti aperti insieme, senza moduli. {terminali}.',
+          'Per provare il servizio: la cassa, fino a {prodotti} prodotti nel menù e {conti} conti aperti insieme, senza comande e senza moduli. {terminali}.',
       },
       base: {
         nome: PIANI.base.nome,

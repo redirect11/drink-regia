@@ -8,6 +8,10 @@
 
 const listino = require('../piani.json')
 const { proveAttive } = require('./prove.js')
+const { licenzaAggiornamenti, ripiegaInveceDiSospendere } = require('./aggiornamenti.js')
+const { prossimoTaglio, ORA_DEL_TAGLIO } = require('./taglio.js')
+const { cancellazioneDellaLicenza } = require('./conservazione.js')
+const { scadenzaPagamento, GIORNI_DI_GRAZIA } = require('./scadenze.js')
 
 // Stessi id nel listino e nell'app (REQ-LIC-002 in tana-drink); il
 // magazzino porta con sé i suoi tre moduli di dettaglio.
@@ -87,4 +91,98 @@ function sceltaCambiata(prima, dopo) {
   return chiave(prima) !== chiave(dopo)
 }
 
-module.exports = { moduliLicenza, patchLicenzaPiano, licenzaIniziale, sceltaCambiata, TUTTI }
+// ── LA LICENZA PROTETTA: licenza/attuale (BUG-125 di tana-drink) ────────
+// In settings/bar la licenza la può riscrivere ogni bartender: le regole
+// dell'app danno tutto settings/ al banco, e un locale Free poteva
+// accendersi da solo piano e moduli. La licenza passa in un documento suo,
+// licenza/attuale, che dall'app si legge e non si scrive. Lo scrive solo la
+// regia, con le sue credenziali.
+//
+// Si CALCOLA dai dati della regia, non si copia da settings/bar: quella
+// copia potrebbe essere già stata manomessa. Stesso contenuto di oggi:
+// piano, moduli, terminali, limiti, prove, stato col motivo e la data, slug,
+// regia_url, aggiornamenti.
+//
+// Attenzione (BUG-125): con l'app nuova un locale SENZA licenza/attuale
+// mostra «Installazione non attivata». La copia va fatta per tutti i locali
+// e verificata prima di quel rilascio.
+// FINO A QUANDO VALE (tana-drink, 31/10/2026): `valida_fino` è il momento
+// in cui la regia fermerebbe il locale se nessuno paga, così l'app lo sa
+// anche senza rete (e l'on premise, che sta nel locale). Solo un piano
+// pagato a mano ha una data: «pagato fino al» più i giorni di grazia, la
+// stessa del compito della regia (REQ-FLOTTA-023). Con Stripe, dal
+// 02/11/2026, la fine del periodo pagato più la stessa grazia. Null se non
+// scade: il Free, un omaggio, le interne.
+//
+// La data cade al taglio della giornata del locale dopo la scadenza
+// (REQ-FLOTTA-024): è lì che la regia lo ferma davvero, e un'app senza
+// rete che si fermasse a mezzanotte lo farebbe in pieno servizio.
+function validaFino(ist, cliente, giorniGrazia = GIORNI_DI_GRAZIA, oraTaglio = ORA_DEL_TAGLIO) {
+  if (ist?.interna === true || ist?.ripiego_free) return null
+  const scadenza = scadenzaPagamento(cliente, giorniGrazia)
+  return scadenza ? prossimoTaglio(new Date(scadenza), oraTaglio).toISOString() : null
+}
+
+// COSA SUCCEDE ALLA SCADENZA (l'utente, 02/11/2026: «se non c'è nessuna
+// licenza non dovrebbe partire proprio il prodotto, o licenza scaduta […]
+// al massimo, se dalla regia è attiva l'opzione, dovrebbe diventare
+// versione free ma senza far perdere i dati»): 'free' con «solo finché si
+// paga» (REQ-FLOTTA-020), se no 'ferma'. Così l'app, anche senza rete,
+// passata valida_fino sa se lavorare col Free o fermarsi.
+const allaScadenza = (ist, adesso) => (ripiegaInveceDiSospendere(ist, adesso) ? 'free' : 'ferma')
+
+function licenzaProtetta(ist, cliente, { slug, regiaUrl = null, sceltaUrl = null, giorniGrazia = GIORNI_DI_GRAZIA, oraTaglio = ORA_DEL_TAGLIO, adesso = new Date() } = {}) {
+  // Tornato al Free per un pagamento mancato (REQ-FLOTTA-020): il suo piano
+  // torna col pagamento, non qui.
+  const scelta = ist?.ripiego_free ? { piano: 'free' } : cliente
+  const p = listino.piani[scelta?.piano] ? scelta.piano : 'base'
+  return {
+    piano: p,
+    moduli: moduliLicenza({ piano: p, moduli: scelta?.moduli, prove: proveAttive(scelta, adesso) }),
+    terminali: Math.max(1, Number(scelta?.terminali) || 1),
+    limiti: limitiLicenza(p),
+    prove: proveInCorso(scelta, adesso),
+    stato: ist?.licenza_stato || 'attiva',
+    motivo: ist?.licenza_stato && ist.licenza_stato !== 'attiva' ? ist.licenza_motivo || null : null,
+    dal: ist?.licenza_dal || null,
+    slug: slug || cliente?.slug || null,
+    regia_url: regiaUrl,
+    aggiornamenti: licenzaAggiornamenti(ist, cliente, adesso, { sceltaUrl }),
+    valida_fino: validaFino(ist, cliente, giorniGrazia, oraTaglio),
+    alla_scadenza: allaScadenza(ist, adesso),
+    // La cancellazione dei dati programmata, per l'avviso nell'app
+    // (REQ-FLOTTA-025): { il, richiedente } o null.
+    cancellazione: cancellazioneDellaLicenza(ist),
+    scritta_il: adesso.toISOString(),
+  }
+}
+
+// Due licenze dicono la stessa cosa? La data di scrittura non conta.
+const CHIAVI_PROTETTA = ['piano', 'moduli', 'terminali', 'limiti', 'prove', 'stato', 'motivo', 'slug', 'regia_url', 'aggiornamenti', 'valida_fino', 'alla_scadenza', 'cancellazione']
+function ordinato(v) {
+  if (Array.isArray(v)) return v.map(ordinato)
+  if (v && typeof v === 'object') return Object.fromEntries(Object.keys(v).sort().map((k) => [k, ordinato(v[k])]))
+  return v ?? null
+}
+const stessaLicenza = (a, b) => Boolean(a && b) && CHIAVI_PROTETTA.every((k) => JSON.stringify(ordinato(a[k])) === JSON.stringify(ordinato(b[k])))
+
+// LA SCADENZA PER LE REGOLE (tana-drink, 02/11/2026): «le regole leggono
+// la scadenza solo da valida_fino_ts come Timestamp, perché una data
+// scritta come testo non la sanno leggere. Senza quel campo, lato server
+// la licenza non scade mai.» Quindi nel database la licenza porta anche
+// valida_fino_ts, lo stesso istante di valida_fino come Timestamp di
+// Firestore (null se non scade). `aTimestamp` lo fa chi scrive (le
+// Functions, con firebase-admin): qui la logica resta pura.
+function perIlDatabase(lic, aTimestamp) {
+  return { ...lic, valida_fino_ts: lic?.valida_fino ? aTimestamp(new Date(lic.valida_fino)) : null }
+}
+
+// I due campi dicono la stessa scadenza? Un Timestamp ha toMillis().
+function scadenzaCoerente(doc) {
+  const testo = Date.parse(doc?.valida_fino || '')
+  const ts = doc?.valida_fino_ts
+  if (!Number.isFinite(testo)) return ts == null
+  return typeof ts?.toMillis === 'function' && ts.toMillis() === testo
+}
+
+module.exports = { moduliLicenza, patchLicenzaPiano, licenzaIniziale, sceltaCambiata, licenzaProtetta, stessaLicenza, validaFino, perIlDatabase, scadenzaCoerente, TUTTI }

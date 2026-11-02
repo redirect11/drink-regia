@@ -25,6 +25,7 @@ const db = vi.hoisted(() => ({
     return () => {}
   }),
   chiediAttivazione: vi.fn(async () => {}),
+  apriPortaleAbbonamento: vi.fn(async () => ({ url: 'about:blank#portale' })),
 }))
 vi.mock('../src/lib/db.js', () => ({
   ...db,
@@ -75,6 +76,33 @@ beforeEach(() => {
 })
 
 describe('la dashboard', () => {
+  // REQ-FLOTTA-023: l'abbonamento si gestisce da soli (disdetta, carta,
+  // fatture) col portale di Stripe; a mano si vede fino a quando è pagato.
+  it('con Stripe c’è «Gestisci l’abbonamento», che apre il portale', async () => {
+    const user = userEvent.setup()
+    stato.cliente = { ...stato.cliente, abbonamento: { stato: 'attivo', origine: 'stripe', stripe_customer: 'cus_1' } }
+    mostra()
+    await user.click(screen.getByRole('button', { name: 'Gestisci l’abbonamento' }))
+    expect(db.apriPortaleAbbonamento).toHaveBeenCalledTimes(1)
+    expect(screen.queryByTestId('pagato-fino-al')).toBeNull()
+  })
+
+  it('a mano dice fino a quando è pagato, e niente portale', () => {
+    stato.cliente = { ...stato.cliente, abbonamento: { stato: 'attivo', origine: 'manuale', pagato_fino_al: '2026-11-30' } }
+    mostra()
+    expect(screen.getByTestId('pagato-fino-al')).toHaveTextContent('Pagato fino al 30 novembre 2026. Per rinnovare o disdire scrivici.')
+    expect(screen.queryByRole('button', { name: 'Gestisci l’abbonamento' })).toBeNull()
+  })
+
+  it('se il portale non si apre, lo dice', async () => {
+    const user = userEvent.setup()
+    db.apriPortaleAbbonamento.mockRejectedValueOnce(new Error('La gestione dell’abbonamento non è disponibile al momento: scrivici.'))
+    stato.cliente = { ...stato.cliente, abbonamento: { stato: 'attivo', origine: 'stripe', stripe_customer: 'cus_1' } }
+    mostra()
+    await user.click(screen.getByRole('button', { name: 'Gestisci l’abbonamento' }))
+    expect(await screen.findByText(/non è disponibile al momento/)).toBeInTheDocument()
+  })
+
   it('dice locale, piano col prezzo del mese e stato dell’istanza', () => {
     mostra()
     expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Bar Mario')
@@ -91,7 +119,7 @@ describe('la dashboard', () => {
     expect(screen.getByTestId('prezzo-piano')).toHaveTextContent('327 € + IVA all’anno (398,94 € IVA inclusa)')
   })
 
-  // REQ-FLOTTA-021: un Fondatore, finché l'offerta vale, vede il suo prezzo;
+  // REQ-FLOTTA-031: un Fondatore, finché l'offerta vale, vede il suo prezzo;
   // scaduti i 12 mesi torna il listino.
   it('un Fondatore vede 25 € finché l’offerta vale, poi il listino', () => {
     const fondatore = (fino_al) => ({ stato: 'attivo', intervallo: 'mese', fondatore: { numero: 1, dal: '2026-11-01T00:00:00Z', fino_al } })
@@ -102,6 +130,33 @@ describe('la dashboard', () => {
     stato.cliente = { ...stato.cliente, abbonamento: fondatore('2000-01-01T00:00:00Z') }
     mostra()
     expect(screen.getByTestId('prezzo-piano')).toHaveTextContent('32,70 € + IVA al mese (39,89 € IVA inclusa)')
+  })
+
+  // REQ-FLOTTA-024: quello che il piano nuovo toglie arriva al taglio.
+  it('dice quando arriva una riduzione del piano, e niente se non ce n’è', () => {
+    stato.istanza = { stato: 'attiva', riduzione_al_taglio: { dal: '2026-11-02T04:00:00.000Z', cosa: ['il modulo staff'] } }
+    const { unmount } = mostra()
+    expect(screen.getByTestId('riduzione-al-taglio')).toHaveTextContent(/Dal taglio della giornata .*: il modulo staff. Fino ad allora l’app resta com’è./)
+    unmount()
+    stato.istanza = { stato: 'attiva', riduzione_al_taglio: null }
+    mostra()
+    expect(screen.queryByTestId('riduzione-al-taglio')).toBeNull()
+  })
+
+  // REQ-FLOTTA-025: i dati che stanno per essere cancellati si dicono per primi.
+  it('una cancellazione programmata sta in cima, prima del nome del locale', () => {
+    stato.cliente = { ...stato.cliente, abbonamento: { stato: 'non pagato' } }
+    stato.istanza = {
+      stato: 'attiva',
+      progetto: 'drinkpos-bar-mario',
+      licenza_stato: 'sospesa',
+      eliminazione: { stato: 'programmata', quando: '2027-01-31T10:00:00Z', richiedente: 'conservazione' },
+    }
+    mostra()
+    const avviso = screen.getByRole('region', { name: 'Cancellazione del locale' })
+    expect(avviso).toHaveTextContent('31 gennaio 2027')
+    expect(avviso.compareDocumentPosition(screen.getByRole('heading', { level: 2 })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getAllByRole('region', { name: 'Cancellazione del locale' })).toHaveLength(1)
   })
 
   // REQ-FLOTTA-010: con l'abbonamento attivo si cambia piano o moduli.
