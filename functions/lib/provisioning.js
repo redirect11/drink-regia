@@ -124,6 +124,9 @@ function dispatchAggiornamento(istanza, { ref = 'main', app = 'main', ambiente =
       cliente: String(istanza.cliente || ''),
       // L'admin del locale (REQ-FLOTTA-029); vuota per un locale esistente.
       email: String(istanza.email || ''),
+      // Il suo uid nella regia: lo stesso nel locale (M7). Vuoto per un
+      // locale esistente, come l'email.
+      uid: String(istanza.uid || ''),
       build: istanza.build && Object.keys(istanza.build).length ? JSON.stringify(istanza.build) : '',
     },
   }

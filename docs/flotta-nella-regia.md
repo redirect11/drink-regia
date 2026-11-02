@@ -38,7 +38,15 @@ lavorare per lei, e questo portava quattro problemi:
 4. Scrive la licenza con `licenzaIniziale` di `functions/lib/licenza.js`:
    la stessa mappa piano → moduli che le Functions usano quando il piano
    cambia, non più una copia.
-5. Manda l'esito alla regia, con `operazione: attivazione` o
+5. Dopo il deploy, il titolare (REQ-FLOTTA-029,
+   `scripts/titolare-istanza.mjs`): nel progetto del locale c'è il suo
+   account con **lo stesso uid e la stessa email che ha nella regia**,
+   admin nei custom claims, senza password (gliela fa impostare l'email
+   di Firebase). Un segnaposto mai usato con un altro uid si ricrea; un
+   account già usato resta, con un avviso. Si può rilanciare senza danni.
+   Mai su un locale esistente: per la Tana c'è `scripts/titolare-locale.mjs`
+   in tana-drink, a mano.
+6. Manda l'esito alla regia, con `operazione: attivazione` o
    `aggiornamento`.
 
 Gli input dei workflow arrivano da fuori: entrano nei passi solo come
@@ -57,6 +65,8 @@ tana-drink non riceve più lanci e non manda più esiti. Restano:
   con i `VITE_FIREBASE_*`; `functions/.env.<progetto>` con `VENUE_NAME`;
   `firebase deploy --only firestore,storage,functions,hosting`;
 - **gli id dei moduli** e **la licenza in `settings/bar`** (handover §7);
+- **il ruolo del titolare**: il claim `role: 'admin'` dell'app
+  (`src/lib/ruoli.js` di tana-drink, docs/flotta.md «Il titolare»);
 - **la Tana**, che si pubblica dal suo repository e riferisce la sua
   versione alla regia (handover §7, «Rilasci a ondate»).
 

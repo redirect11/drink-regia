@@ -340,10 +340,12 @@ jobs:
       # 02/11/2026: «quando viene deployato qualcosa, bisogna sempre
       # aggiungere come utente admin chi ha richiesto la sottoscrizione»).
       # L'account c'è, è admin, e finché non ha una password gli arriva
-      # l'email per impostarla. Si può ripetere senza danni.
+      # l'email per impostarla. Si può ripetere senza danni. L'account ha
+      # lo stesso uid del titolare nella regia (M7): prima l'input `uid`
+      # arrivava e non si usava.
       - name: Il titolare, admin del suo locale
         if: env.EMAIL_TITOLARE != ''
-        run: node scripts/titolare-istanza.mjs --project "$PROGETTO" --email "$EMAIL_TITOLARE" --env app/.env --sito "$URL_ISTANZA"
+        run: node scripts/titolare-istanza.mjs --project "$PROGETTO" --uid "$UID_TITOLARE" --email "$EMAIL_TITOLARE" --env app/.env --sito "$URL_ISTANZA"
 
       - name: Versione pubblicata
         run: echo "VERSIONE=v$(node -p "require('./app/package.json').version")" >> "$GITHUB_ENV"

@@ -224,6 +224,11 @@ resource "google_project_iam_member" "deploy" {
 # licenza (scripts/licenza-istanza.mjs). Chi crea il progetto
 # nell'organizzazione ne è anche proprietario; senza organizzazione il
 # ruolo di proprietario lo dà l'utente quando crea il progetto a mano.
+# Crea anche l'account del titolare con l'uid della regia
+# (scripts/titolare-istanza.mjs, M7): getUser, createUser con uid,
+# setCustomUserClaims e, per un segnaposto mai usato, deleteUser. Bastano i
+# permessi firebaseauth.users.* che roles/firebase.admin già comprende: non
+# serve un ruolo in più.
 resource "google_project_iam_member" "provisioning" {
   provider = google-beta
   for_each = var.provisioning_sa_email == "" ? toset([]) : toset([

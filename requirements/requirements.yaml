@@ -1180,7 +1180,7 @@ requirements:
 
   - id: REQ-FLOTTA-029
     title: "A ogni deploy chi ha sottoscritto è l'admin del suo locale, e imposta la password dal link"
-    area: "functions/lib/titolare.js, scripts/titolare-istanza.mjs, functions/lib/provisioning.js, functions/index.js, .github/workflows/provisiona-istanza.yml, .github/workflows/aggiorna-istanza.yml, src/pages/Dashboard.jsx"
+    area: "functions/lib/titolare.js, scripts/titolare-istanza.mjs, functions/lib/provisioning.js, functions/index.js, .github/workflows/provisiona-istanza.yml, .github/workflows/aggiorna-istanza.yml, infra/istanza/main.tf (commento sui permessi), src/pages/Dashboard.jsx"
     description: >
       L'utente, 02/11/2026: «Quando viene deployato qualcosa, bisogna
       sempre aggiungere come utente admin chi ha richiesto la
@@ -1198,6 +1198,24 @@ requirements:
       locale esistente (la Tana ha i suoi admin). Resta da fare l'accesso
       con Google al banco: in tana-drink «Entra con Google» nella pagina
       del banco, e il fornitore Google acceso sui progetti dei locali.
+      LO STESSO UID DELLA REGIA (M7, 02/11/2026): il workflow riceveva
+      l'uid del titolare (clienti/{uid}) e non lo usava, e l'account nel
+      locale nasceva con un uid suo. Ora provisiona-istanza e
+      aggiorna-istanza (input `uid`, facoltativo e controllato come
+      l'email; la regia lo manda anche agli aggiornamenti, vuoto per un
+      locale esistente) passano --uid allo script, e pianoTitolare decide:
+      nessun account → si crea con quell'uid; un segnaposto mai usato con
+      un altro uid (senza password, mai entrato, senza altri accessi, con
+      al più il ruolo admin) → si cancella e si ricrea; un account già
+      usato → resta, admin, con un avviso nel log; l'account della regia
+      con un'altra email → resta lui, senza link (andrebbe a un altro).
+      Rilanciato, dopo la prima volta non cambia niente. Nessun ruolo IAM
+      nuovo: roles/firebase.admin del service account di provisioning
+      comprende firebaseauth.users.*. Per i locali esistenti (la Tana) lo
+      script a mano è in tana-drink, scripts/titolare-locale.mjs
+      (tana-drink REQ-FLOTTA-029). Provato sull'emulatore di Auth il
+      02/11/2026: l'emulatore segna un accesso già alla creazione, e «mai
+      entrato» ne tiene conto.
     status: partial
     generate_issue: false
     labels: [prodotto, flotta, regia, sicurezza]

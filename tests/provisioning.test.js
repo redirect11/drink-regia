@@ -124,9 +124,11 @@ describe('dispatchAggiornamento', () => {
   it('lancia aggiorna-istanza.yml con lo slug, la versione dell’app e l’ambiente', () => {
     expect(dispatchAggiornamento({ slug: 'bar-mario', nome_locale: 'Bar Mario' }, { ref: 'main', app: 'v1.10.0', ambiente: 'test' })).toEqual({
       ref: 'main',
-      inputs: { slug: 'bar-mario', nome_locale: 'Bar Mario', ref: 'v1.10.0', ambiente: 'test', profilo: 'completo', progetto: '', cliente: '', email: '', build: '' },
+      inputs: { slug: 'bar-mario', nome_locale: 'Bar Mario', ref: 'v1.10.0', ambiente: 'test', profilo: 'completo', progetto: '', cliente: '', email: '', uid: '', build: '' },
     })
     expect(dispatchAggiornamento({ slug: 'bar-mario', email: 'mario@example.it' }).inputs.email).toBe('mario@example.it')
+    // Lo stesso uid della regia nel locale (M7): anche agli aggiornamenti.
+    expect(dispatchAggiornamento({ slug: 'bar-mario', uid: 'u1' }).inputs.uid).toBe('u1')
     expect(() => dispatchAggiornamento({ slug: 'x' })).toThrow(/slug/)
   })
 
