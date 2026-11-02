@@ -615,7 +615,7 @@ L'elenco completo con i riferimenti al codice è in
    durata_mesi, dal, fino }`. Al 100% illimitato l'abbonamento ha
    `origine: 'sconto'` e non scade. **La Tana**, quando la regia di
    produzione è online: il codice `TANA-100` (100%, illimitato), applicato;
-   poi «Chi la pubblica…» → «La licenza la scrive la regia», che la scrive
+   poi «Pubblicazione e licenza…» → «La licenza la scrive la regia», che la scrive
    subito col piano Completo (fatture comprese). Prima serve il permesso,
    da dare l'utente: `gcloud projects add-iam-policy-binding tana-drink
    --member=serviceAccount:<account di runtime della regia>

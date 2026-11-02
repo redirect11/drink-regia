@@ -535,7 +535,11 @@ function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaApert
         <div>
           <dt>Versione</dt>
           <dd>
-            {istanza?.versione || <span className="muted">—</span>}
+            {/* Un locale pubblicato fuori dalla regia (la Tana, da GitHub) non
+                manda l'esito del deploy: la versione la dice l'app stessa
+                quando si presenta (REQ-FLOTTA-026). */}
+            {istanza?.versione || istanza?.presentazione?.versione || <span className="muted">—</span>}
+            {!istanza?.versione && istanza?.presentazione?.versione && <div className="muted small">detta dall’app</div>}
             {istanza?.ref && istanza.ref !== 'main' && <div className="muted small">da {istanza.ref}</div>}
             {aggiornamentoDetto(istanza?.aggiornamento) && (
               <div className={istanza.aggiornamento.stato === 'fallito' ? 'errore small' : 'muted small'}>{aggiornamentoDetto(istanza.aggiornamento)}</div>
@@ -674,7 +678,7 @@ function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaApert
           </button>
           {!daFlotta && (
             <button type="button" className="btn ghost small" aria-expanded={gestioneAperta} onClick={() => setGestioneAperta((v) => !v)}>
-              Chi la pubblica…
+              Pubblicazione e licenza…
             </button>
           )}
         </div>
@@ -973,8 +977,8 @@ function GestioneEsistente({ cliente: c, istanza, onFatto, onErrore }) {
   }
 
   return (
-    <form className="card" onSubmit={invia} aria-label={`Chi pubblica ${c.nome_locale}`}>
-      <h4>Chi pubblica {c.nome_locale}</h4>
+    <form className="card" onSubmit={invia} aria-label={`Pubblicazione e licenza di ${c.nome_locale}`}>
+      <h4>Pubblicazione e licenza di {c.nome_locale}</h4>
       <label className="riga">
         <input type="checkbox" checked={dallaRegia} onChange={(e) => setDallaRegia(e.target.checked)} />
         La aggiorna la regia, con «Aggiorna subito» e i rilasci
