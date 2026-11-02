@@ -99,6 +99,21 @@ describe('cosa fa al locale un cambio di stato dell’abbonamento', () => {
     expect(az('attivo', 'disdetto', attiva({ licenza_stato: 'chiusa' }))).toBeNull()
   })
 
+  // L'utente, 02/11/2026: con «solo finché si paga» chi disdice torna al
+  // Free e non perde i dati.
+  it('disdetto con «solo finché si paga»: torna al Free; già al Free resta lì', () => {
+    expect(az('attivo', 'disdetto', attiva({ condizioni_aggiornamenti: SOLO_PAGANTI }))).toEqual({ azione: 'ripiega', motivo: null })
+    expect(az('non pagato', 'disdetto', attiva({ condizioni_aggiornamenti: SOLO_PAGANTI, ripiego_free: { dal: 'x' } }))).toBeNull()
+    expect(az('attivo', 'disdetto', attiva(), { piano: 'free' })).toBeNull()
+  })
+
+  it('chi torna a pagare entro i 90 giorni riapre anche un locale chiuso per il pagamento', () => {
+    expect(az('disdetto', 'attivo', attiva({ licenza_stato: 'chiusa', licenza_per: 'pagamento' }))).toEqual({ azione: 'riattiva', motivo: null })
+    // Chiuso dall'admin o dal titolare: lo riapre chi l'ha chiuso.
+    expect(az('disdetto', 'attivo', attiva({ licenza_stato: 'chiusa', licenza_per: 'admin' }))).toBeNull()
+    expect(az('disdetto', 'attivo', attiva({ licenza_stato: 'chiusa', licenza_per: 'titolare' }))).toBeNull()
+  })
+
   it('torna a pagare: si riattiva solo una sospensione per il pagamento, e il Free torna al suo piano', () => {
     expect(az('non pagato', 'attivo', attiva({ licenza_stato: 'sospesa', licenza_per: 'pagamento' }))).toEqual({ azione: 'riattiva', motivo: null })
     // Sospeso dall'admin: lo riattiva l'admin.
@@ -115,5 +130,43 @@ describe('cosa fa al locale un cambio di stato dell’abbonamento', () => {
     expect(az('attivo', 'non pagato', attiva({ ripiego_free: { dal: 'x' } }))).toBeNull()
     expect(az('attivo', 'non pagato', attiva(), { piano: 'free' })).toBeNull()
     expect(az('attivo', 'attivo')).toBeNull()
+  })
+})
+
+// CON STRIPE LA LICENZA HA UNA DURATA (l'utente, 02/11/2026): la fine del
+// periodo PAGATO più 7 giorni, e alla scadenza si chiede a Stripe.
+describe('la scadenza di un abbonamento Stripe', () => {
+  const stripe = (stato, extra = {}) => cliente(stato, { origine: 'stripe', stripe_subscription: 'sub_1', pagato_fino: '2026-11-22T00:00:00.000Z', ...extra })
+
+  it('la fine del periodo pagato più la grazia; senza fattura pagata, niente', () => {
+    expect(s.scadenzaPagamento(stripe('attivo'))).toBe('2026-11-29T00:00:00.000Z')
+    expect(s.scadenzaPagamento(stripe('attivo'), 0)).toBe('2026-11-22T00:00:00.000Z')
+    expect(s.scadenzaPagamento(stripe('attivo', { pagato_fino: null }))).toBeNull()
+    // Non la fine del periodo della subscription, che Stripe sposta al rinnovo.
+    expect(s.scadenzaPagamento(stripe('attivo', { pagato_fino: null, rinnovo_il: '2026-12-22T00:00:00.000Z' }))).toBeNull()
+  })
+
+  it('il compito vale con l’abbonamento attivo o in sospeso (Stripe ritenta ancora)', () => {
+    const quando = '2026-11-29T00:00:00.000Z'
+    const dopo = new Date('2026-11-29T00:00:01Z')
+    expect(s.pagamentoScaduto(stripe('attivo'), quando, { adesso: dopo })).toBe(true)
+    expect(s.pagamentoScaduto(stripe('in sospeso'), quando, { adesso: dopo })).toBe(true)
+    expect(s.pagamentoScaduto(stripe('non pagato'), quando, { adesso: dopo })).toBe(false)
+    expect(s.pagamentoScaduto(stripe('attivo', { pagato_fino: '2026-12-22T00:00:00.000Z' }), quando, { adesso: dopo })).toBe(false)
+    // A mano, «in sospeso» non esiste: solo attivo.
+    expect(s.pagamentoScaduto(cliente('in sospeso', { origine: 'manuale', pagato_fino_al: '2026-11-21' }), '2026-11-28T23:59:59.000Z', { adesso: dopo })).toBe(false)
+  })
+
+  it('alla scadenza si chiede a Stripe: un rinnovo pagato sposta la scadenza, il resto ferma', () => {
+    const { STATI_STRIPE, fineDelPeriodo } = require('../functions/lib/abbonamento.js')
+    const opz = { statiStripe: STATI_STRIPE, fineDelPeriodo }
+    const fine = Date.parse('2026-12-22T00:00:00Z') / 1000
+    expect(s.esitoControlloStripe(stripe('attivo'), { status: 'active', current_period_end: fine }, opz)).toEqual({ 'abbonamento.pagato_fino': '2026-12-22T00:00:00.000Z', 'abbonamento.stato': 'attivo' })
+    // Attiva ma senza un periodo nuovo: la grazia è finita.
+    expect(s.esitoControlloStripe(stripe('attivo'), { status: 'active', current_period_end: Date.parse('2026-11-22T00:00:00Z') / 1000 }, opz)).toEqual({ 'abbonamento.stato': 'non pagato' })
+    expect(s.esitoControlloStripe(stripe('in sospeso'), { status: 'past_due', current_period_end: fine }, opz)).toEqual({ 'abbonamento.stato': 'non pagato' })
+    expect(s.esitoControlloStripe(stripe('attivo'), { status: 'canceled' }, opz)).toEqual({ 'abbonamento.stato': 'disdetto' })
+    // Stripe non risponde: la grazia è finita lo stesso.
+    expect(s.esitoControlloStripe(stripe('attivo'), null, opz)).toEqual({ 'abbonamento.stato': 'non pagato' })
   })
 })

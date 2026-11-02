@@ -120,8 +120,12 @@ function aggiornamentoDaEvento(tipo, oggetto, adesso = new Date()) {
     if (!sub) return null
     // La fine del periodo pagato è il prossimo rinnovo: le condizioni nuove
     // degli aggiornamenti valgono da lì (REQ-FLOTTA-020).
+    // È anche la fine del periodo PAGATO (`pagato_fino`): la licenza scade
+    // da lì più la grazia (scadenze.js), non dalla fine del periodo della
+    // subscription, che Stripe sposta al rinnovo prima del pagamento.
     const fine = Number(oggetto?.lines?.data?.[0]?.period?.end)
-    const rinnovo = Number.isFinite(fine) && fine > 0 ? { 'abbonamento.rinnovo_il': new Date(fine * 1000).toISOString() } : {}
+    const iso = Number.isFinite(fine) && fine > 0 ? new Date(fine * 1000).toISOString() : null
+    const rinnovo = iso ? { 'abbonamento.rinnovo_il': iso, 'abbonamento.pagato_fino': iso } : {}
     return { stripe_subscription: sub, patch: { 'abbonamento.stato': 'attivo', 'abbonamento.ultimo_pagamento': ora, ...rinnovo } }
   }
   // Un tentativo fallito non cambia lo stato: Stripe ritenta, e lo stato
@@ -139,4 +143,4 @@ function aggiornamentoDaEvento(tipo, oggetto, adesso = new Date()) {
   return null
 }
 
-module.exports = { chiaveStripeVera, sceltaPulita, righeCheckout, metadatiDi, aggiornamentoDaEvento, STATI_STRIPE }
+module.exports = { chiaveStripeVera, sceltaPulita, righeCheckout, metadatiDi, aggiornamentoDaEvento, fineDelPeriodo, STATI_STRIPE }

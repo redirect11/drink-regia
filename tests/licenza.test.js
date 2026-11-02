@@ -129,6 +129,9 @@ describe('la licenza protetta, dai dati della regia', () => {
     expect(licenzaProtetta({ stato: 'attiva' }, aMano, { adesso: ADESSO }).valida_fino).toBe('2026-12-08T04:00:00.000Z')
     expect(licenzaProtetta({ stato: 'attiva' }, aMano, { giorniGrazia: 0, adesso: ADESSO }).valida_fino).toBe('2026-12-01T04:00:00.000Z')
     expect(licenzaProtetta({ stato: 'attiva' }, aMano, { giorniGrazia: 0, oraTaglio: 6, adesso: ADESSO }).valida_fino).toBe('2026-12-01T05:00:00.000Z')
+    // Con Stripe (02/11/2026): la fine del periodo pagato più la grazia, al taglio dopo.
+    const stripe = { ...cliente, abbonamento: { stato: 'attivo', origine: 'stripe', pagato_fino: '2026-11-22T10:00:00.000Z' } }
+    expect(licenzaProtetta({ stato: 'attiva' }, stripe, { adesso: ADESSO }).valida_fino).toBe('2026-11-30T04:00:00.000Z')
     expect(licenzaProtetta({ stato: 'attiva' }, { ...aMano, abbonamento: { ...aMano.abbonamento, pagato_fino_al: null } }, { adesso: ADESSO }).valida_fino).toBeNull()
     expect(licenzaProtetta({ stato: 'attiva' }, cliente, { adesso: ADESSO }).valida_fino).toBeNull()
     expect(licenzaProtetta({ stato: 'attiva' }, { piano: 'free', abbonamento: { stato: 'attivo', origine: 'gratuito' } }, { adesso: ADESSO }).valida_fino).toBeNull()

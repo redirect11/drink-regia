@@ -74,7 +74,7 @@ function avvisoDelCompito(ist, il) {
 // Già mandato? Un compito che si ripete non manda due email.
 const giaAvvisato = (ist, chiave) => (ist?.eliminazione?.avvisi || []).some((a) => a.chiave === chiave)
 
-const data = (iso) => new Date(iso).toLocaleDateString('it-IT', { timeZone: 'Europe/Rome', day: 'numeric', month: 'long', year: 'numeric' })
+const { conArticolo } = require('./comunicazioni.js')
 
 const PERCHE = {
   conservazione: 'il locale è fermo',
@@ -84,13 +84,13 @@ const PERCHE = {
 
 // L'email al titolare. `giorni`: null per il primo avviso, 7 o 1 dopo.
 function emailAvviso({ nome_locale: nome, email } = {}, ist, giorni = null) {
-  const quando = data(ist.eliminazione.quando)
+  const quando = conArticolo(ist.eliminazione.quando)
   const perche = PERCHE[ist.eliminazione.richiedente] || PERCHE.conservazione
-  const oggetto = giorni == null ? `${nome}: i dati del locale verranno cancellati il ${quando}` : `${nome}: i dati del locale verranno cancellati ${giorni === 1 ? 'domani' : `fra ${giorni} giorni`}`
+  const oggetto = giorni == null ? `${nome}: i dati del locale verranno cancellati ${quando}` : `${nome}: i dati del locale verranno cancellati ${giorni === 1 ? 'domani' : `fra ${giorni} giorni`}`
   const righe = [
     `Buongiorno,`,
     ``,
-    `poiché ${perche}, il ${quando} cancelleremo l'installazione di ${nome} e tutti i suoi dati, come previsto dai termini del servizio e dalla normativa sulla protezione dei dati.`,
+    `poiché ${perche}, ${quando} cancelleremo l'installazione di ${nome} e tutti i suoi dati, come previsto dai termini del servizio e dalla normativa sulla protezione dei dati.`,
     ``,
     `Prima della cancellazione facciamo un backup completo, che potrai scaricare dalla tua area clienti per 180 giorni; poi verrà cancellato anche quello.`,
     ``,

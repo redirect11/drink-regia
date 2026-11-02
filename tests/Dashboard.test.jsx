@@ -25,6 +25,7 @@ const db = vi.hoisted(() => ({
     return () => {}
   }),
   chiediAttivazione: vi.fn(async () => {}),
+  apriPortaleAbbonamento: vi.fn(async () => ({ url: 'about:blank#portale' })),
 }))
 vi.mock('../src/lib/db.js', () => ({
   ...db,
@@ -75,6 +76,33 @@ beforeEach(() => {
 })
 
 describe('la dashboard', () => {
+  // REQ-FLOTTA-023: l'abbonamento si gestisce da soli (disdetta, carta,
+  // fatture) col portale di Stripe; a mano si vede fino a quando è pagato.
+  it('con Stripe c’è «Gestisci l’abbonamento», che apre il portale', async () => {
+    const user = userEvent.setup()
+    stato.cliente = { ...stato.cliente, abbonamento: { stato: 'attivo', origine: 'stripe', stripe_customer: 'cus_1' } }
+    mostra()
+    await user.click(screen.getByRole('button', { name: 'Gestisci l’abbonamento' }))
+    expect(db.apriPortaleAbbonamento).toHaveBeenCalledTimes(1)
+    expect(screen.queryByTestId('pagato-fino-al')).toBeNull()
+  })
+
+  it('a mano dice fino a quando è pagato, e niente portale', () => {
+    stato.cliente = { ...stato.cliente, abbonamento: { stato: 'attivo', origine: 'manuale', pagato_fino_al: '2026-11-30' } }
+    mostra()
+    expect(screen.getByTestId('pagato-fino-al')).toHaveTextContent('Pagato fino al 30 novembre 2026. Per rinnovare o disdire scrivici.')
+    expect(screen.queryByRole('button', { name: 'Gestisci l’abbonamento' })).toBeNull()
+  })
+
+  it('se il portale non si apre, lo dice', async () => {
+    const user = userEvent.setup()
+    db.apriPortaleAbbonamento.mockRejectedValueOnce(new Error('La gestione dell’abbonamento non è disponibile al momento: scrivici.'))
+    stato.cliente = { ...stato.cliente, abbonamento: { stato: 'attivo', origine: 'stripe', stripe_customer: 'cus_1' } }
+    mostra()
+    await user.click(screen.getByRole('button', { name: 'Gestisci l’abbonamento' }))
+    expect(await screen.findByText(/non è disponibile al momento/)).toBeInTheDocument()
+  })
+
   it('dice locale, piano col prezzo del mese e stato dell’istanza', () => {
     mostra()
     expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Bar Mario')

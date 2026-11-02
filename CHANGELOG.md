@@ -6,6 +6,15 @@ data.
 
 ## 0.3.0 (in lavorazione)
 
+- Anche con Stripe la licenza ha una durata: scade 7 giorni dopo la fine
+  del periodo pagato, e alla scadenza la regia controlla lo stato vero su
+  Stripe. Chi disdice, con «solo finché si paga», passa al Free; chi torna
+  a pagare entro i 90 giorni riapre il locale. Il titolare gestisce
+  l'abbonamento da solo, dal portale di Stripe (REQ-FLOTTA-023).
+- Comunicazioni automatiche per email: promemoria dei pagamenti a mano (7
+  giorni prima e alla scadenza), pagamento ricevuto, locale passato al
+  Free, locale riattivato. Le ricevute e i pagamenti falliti con Stripe li
+  manda Stripe (REQ-FLOTTA-027).
 - Codici sconto: si creano in «Vendita», con percentuale e durata in mesi o
   illimitata, e si applicano dalla scheda del locale. Al 100% illimitato il
   locale non paga e non scade. Un locale esistente, come la Tana, può avere

@@ -26,7 +26,7 @@ const rilasci = require('./lib/rilasci.js')
 const { sceltaCambiata, licenzaProtetta, stessaLicenza, perIlDatabase, scadenzaCoerente } = require('./lib/licenza.js')
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
 const { FieldValue, Timestamp } = require('firebase-admin/firestore')
-const { chiaveStripeVera, righeCheckout, metadatiDi, aggiornamentoDaEvento } = require('./lib/abbonamento.js')
+const { chiaveStripeVera, righeCheckout, metadatiDi, aggiornamentoDaEvento, fineDelPeriodo, STATI_STRIPE } = require('./lib/abbonamento.js')
 const { onTaskDispatched } = require('firebase-functions/v2/tasks')
 const { getFunctions: funzioniAdmin } = require('firebase-admin/functions')
 const { STATI: STATI_LICENZA } = require('./lib/sospensione.js')
@@ -38,6 +38,7 @@ const ai = require('./lib/ai.js')
 const elim = require('./lib/eliminazione.js')
 const conserva = require('./lib/conservazione.js')
 const presenta = require('./lib/presentazione.js')
+const comunica = require('./lib/comunicazioni.js')
 const sconti = require('./lib/sconti.js')
 const free = require('./lib/free.js')
 const contatti = require('./lib/contatti.js')
@@ -384,9 +385,11 @@ async function eseguiAzionePagamento(cliente, { azione, motivo }) {
   }
   if (azione === 'riattiva') {
     await scriviStatoIstanza(cliente.slug, 'attiva', null)
-    return annullaConservazione(cliente.slug, 'pagamento')
+    await annullaConservazione(cliente.slug, 'pagamento')
+    return accodaEmail(comunica.emailStato(cliente, azione), { slug: cliente.slug, motivo: azione })
   }
-  return ripiegaAlFree(cliente, azione)
+  await ripiegaAlFree(cliente, azione)
+  return accodaEmail(comunica.emailStato(cliente, azione), { slug: cliente.slug, motivo: azione })
 }
 
 // ── LA CONSERVAZIONE DEI DATI DI UN LOCALE FERMO (REQ-FLOTTA-025) ──────
@@ -424,8 +427,19 @@ async function avvisaCancellazione(slug, giorni) {
   const chiave = `${ist.eliminazione.quando}:${giorni ?? 'subito'}`
   if (conserva.giaAvvisato(ist, chiave)) return
   const posta = conserva.emailAvviso(await clienteDi(slug), ist, giorni)
-  if (posta) await db.collection('mail').add({ ...posta, slug, motivo: 'cancellazione_dati', creata_il: new Date().toISOString() })
+  await accodaEmail(posta, { slug, motivo: 'cancellazione_dati' })
   await ref.update({ 'eliminazione.avvisi': FieldValue.arrayUnion({ chiave, giorni, il: new Date().toISOString(), email: Boolean(posta) }) })
+}
+
+// Un'email nella coda `mail`: la manda l'estensione Trigger Email di
+// Firebase, con l'SMTP di Resend (REQ-FLOTTA-027). Senza l'estensione resta
+// in coda e parte quando c'è. Un errore qui non ferma niente.
+async function accodaEmail(posta, { slug = null, motivo } = {}) {
+  if (!posta) return
+  await db
+    .collection('mail')
+    .add({ ...posta, slug, motivo, creata_il: new Date().toISOString() })
+    .catch((e) => console.error(`[email] ${slug}, ${motivo}:`, e?.message || e))
 }
 
 // Il locale torna a lavorare: la conservazione si annulla.
@@ -453,17 +467,42 @@ async function programma(tipo, chiave, quando) {
 // L'esecutore dei compiti. Ognuno ricontrolla prima di fare: una scadenza
 // spostata o annullata nel frattempo lascia il compito senza effetto.
 exports.scadenza = onTaskDispatched(
-  { ...OPTS, retryConfig: { maxAttempts: 5, minBackoffSeconds: 60 }, rateLimits: { maxConcurrentDispatches: 5 }, secrets: [GITHUB_DISPATCH_TOKEN] },
+  { ...OPTS, retryConfig: { maxAttempts: 5, minBackoffSeconds: 60 }, rateLimits: { maxConcurrentDispatches: 5 }, secrets: [GITHUB_DISPATCH_TOKEN, STRIPE_SECRET_KEY] },
   async (req) => {
     const { tipo, chiave, quando } = req.data || {}
     if (!scadenze.TIPI.includes(tipo) || !chiave || !Number.isFinite(Date.parse(quando))) return
     const adesso = new Date()
     if (scadenze.daRiprogrammare(quando, adesso)) return programma(tipo, chiave, quando)
+    // Un promemoria di un pagamento a mano (REQ-FLOTTA-027).
+    if (tipo === 'promemoria') {
+      const doc = (await db.collection('clienti').where('slug', '==', chiave).limit(1).get()).docs[0]
+      const cliente = doc?.data()
+      const qualeTipo = cliente && comunica.promemoriaDelCompito(cliente, new Date(quando).toISOString())
+      if (!qualeTipo) return
+      const chiaveAvviso = comunica.chiavePromemoria(cliente, qualeTipo)
+      if (comunica.giaMandato(cliente, chiaveAvviso)) return
+      const validaFino = scadenze.scadenzaPagamento(cliente, await giorniDiGrazia())
+      await accodaEmail(comunica.emailPromemoria(cliente, qualeTipo, { validaFino }), { slug: chiave, motivo: `promemoria_${qualeTipo}` })
+      await doc.ref.update({ avvisi_pagamento: FieldValue.arrayUnion(chiaveAvviso) })
+      return
+    }
     if (tipo === 'pagamento' || tipo === 'prova') {
       const doc = (await db.collection('clienti').where('slug', '==', chiave).limit(1).get()).docs[0]
       if (!doc) return
       if (tipo === 'pagamento') {
-        if (!scadenze.pagamentoScaduto(doc.data(), quando, { adesso, giorniGrazia: await giorniDiGrazia() })) return
+        const cliente = doc.data()
+        if (!scadenze.pagamentoScaduto(cliente, quando, { adesso, giorniGrazia: await giorniDiGrazia() })) return
+        // Con Stripe si chiede a Stripe com'è davvero: un rinnovo pagato il
+        // cui evento si è perso sposta la scadenza invece di fermare il
+        // locale. Se Stripe non risponde, la grazia è finita lo stesso.
+        if (cliente.abbonamento.origine === 'stripe') {
+          const sub = await stripeClient()
+            ?.subscriptions.retrieve(cliente.abbonamento.stripe_subscription)
+            .catch((e) => console.error(`[scadenze] ${chiave}, Stripe:`, e?.message || e))
+          await doc.ref.update({ ...scadenze.esitoControlloStripe(cliente, sub || null, { statiStripe: STATI_STRIPE, fineDelPeriodo }), 'abbonamento.aggiornato_il': adesso.toISOString() })
+          console.log(`[scadenze] ${chiave}: controllato su Stripe`)
+          return
+        }
         // Il cambio di stato fa il resto (licenzaSegueIlPiano).
         await doc.ref.update({ 'abbonamento.stato': 'non pagato', 'abbonamento.aggiornato_il': adesso.toISOString() })
         console.log(`[scadenze] ${chiave}: pagamento scaduto`)
@@ -524,6 +563,8 @@ exports.registraPagamento = onCall(OPTS, async (req) => {
     'abbonamento.pagamento_registrato_il': new Date().toISOString(),
     'abbonamento.pagamento_registrato_da': req.auth.token.email || req.auth.uid,
   })
+  const dopo = (await doc.ref.get()).data()
+  await accodaEmail(comunica.emailPagamentoRicevuto(dopo), { slug: dopo.slug, motivo: 'pagamento_ricevuto' })
   return { ok: true, pagato_fino_al: data }
 })
 
@@ -548,6 +589,7 @@ exports.programmaScadenze = onCall({ ...OPTS, timeoutSeconds: 540 }, async (req)
     if (!c.slug) continue
     const s = scadenze.scadenzaPagamento(c, grazia)
     if (s && c.abbonamento.stato === 'attivo') await prova(`${c.slug} pagamento`, () => programma('pagamento', c.slug, s))
+    for (const p of comunica.orariPromemoria(c)) await prova(`${c.slug} promemoria ${p.tipo}`, () => programma('promemoria', c.slug, p.il))
     for (const [id, p] of Object.entries(c.prove || {})) await prova(`${c.slug} prova ${id}`, () => programma('prova', c.slug, p.scade_il))
   }
   for (const [slug, ist] of Object.entries(istanze)) {
@@ -1063,6 +1105,22 @@ exports.presentazione = onRequest({ ...OPTS, cors: false }, async (req, res) => 
 // subscription (gli importi si conguagliano) e il webhook riporta la
 // scelta sul cliente; senza Stripe (piano a mano) si scrive subito. In
 // tutti e due i casi la licenza dell'istanza segue (sotto).
+// GESTIRE L'ABBONAMENTO DA SOLI (REQ-FLOTTA-023, 02/11/2026): il portale
+// clienti di Stripe, per disdire a fine periodo, cambiare la carta e
+// scaricare le fatture. I termini lo promettono («si disdice dalla propria
+// pagina»); prima l'unico tasto era chiudere e cancellare il locale. Il
+// ritorno è sempre la dashboard della regia, mai un indirizzo dal browser.
+exports.portaleAbbonamento = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  const cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data()
+  const customer = cliente?.abbonamento?.origine === 'stripe' ? cliente.abbonamento.stripe_customer : null
+  if (!customer) throw new HttpsError('failed-precondition', 'Il tuo abbonamento non passa da Stripe: per cambiarlo o disdirlo scrivici.')
+  const stripe = stripeClient()
+  if (!stripe || !REGIA_URL) throw new HttpsError('unavailable', 'La gestione dell’abbonamento non è disponibile al momento: scrivici.')
+  const sessione = await stripe.billingPortal.sessions.create({ customer, return_url: `${REGIA_URL}/dashboard` })
+  return { url: sessione.url }
+})
+
 exports.cambiaScelta = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (req) => {
   if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
   const uid = req.auth.uid
@@ -1115,6 +1173,9 @@ exports.licenzaSegueIlPiano = onDocumentUpdated({ ...OPTS, document: 'clienti/{u
   const scadenza = dopo.abbonamento?.stato === 'attivo' ? scadenze.scadenzaPagamento(dopo, grazia) : null
   if (scadenza && scadenza !== scadenze.scadenzaPagamento(prima, grazia)) {
     await programma('pagamento', dopo.slug, scadenza).catch((e) => console.error(`[scadenze] ${dopo.slug}, il compito del pagamento:`, e?.message || e))
+    for (const p of comunica.orariPromemoria(dopo)) {
+      await programma('promemoria', dopo.slug, p.il).catch((e) => console.error(`[scadenze] ${dopo.slug}, il promemoria:`, e?.message || e))
+    }
   }
   // Lo stato o la scadenza del pagamento sono cambiati: la licenza (stato,
   // valida_fino) si riscrive anche se piano e moduli sono quelli di prima.

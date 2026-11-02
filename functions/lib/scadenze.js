@@ -35,7 +35,9 @@ const GIORNI_DI_GRAZIA = 7
 // (REQ-FLOTTA-024, lib/taglio.js).
 // «avviso_dati»: un avviso prima della cancellazione dei dati di un locale
 // (REQ-FLOTTA-025, lib/conservazione.js).
-const TIPI = ['pagamento', 'prova', 'eliminazione', 'condizioni', 'taglio', 'avviso_dati']
+// «promemoria»: un promemoria di un pagamento a mano (REQ-FLOTTA-027,
+// lib/comunicazioni.js).
+const TIPI = ['pagamento', 'prova', 'eliminazione', 'condizioni', 'taglio', 'avviso_dati', 'promemoria']
 
 const ms = (iso) => Date.parse(iso || '')
 
@@ -56,23 +58,48 @@ function idCompito(tipo, chiave, quando, orario) {
 
 // ── IL PAGAMENTO A MANO ──────────────────────────────────────────────
 
-// Quando scade un abbonamento pagato a mano: «pagato fino al» più i giorni
-// di grazia. Null se non scade (un omaggio senza data, Stripe, il Free).
+// Quando scade un abbonamento: la fine del periodo PAGATO più i giorni di
+// grazia. A mano è «pagato fino al»; con Stripe è `pagato_fino`, la fine
+// del periodo dell'ultima fattura pagata (invoice.paid). Null se non scade
+// (un omaggio senza data, il Free, uno Stripe senza ancora una fattura).
+//
+// CON STRIPE (l'utente, 02/11/2026: «viene attivata la licenza con una
+// durata in base alla subscription, se la subscription scade e non viene
+// pagato nulla la licenza viene disattivata»; 7 giorni di grazia, come a
+// mano). Non la fine del periodo della subscription: al rinnovo Stripe la
+// sposta avanti subito, anche se il pagamento non è ancora riuscito. Così
+// un locale che non paga si ferma anche se un evento di Stripe si perde.
 function scadenzaPagamento(cliente, giorniGrazia = GIORNI_DI_GRAZIA) {
   const ab = cliente?.abbonamento
+  const grazia = Math.max(0, Number(giorniGrazia) || 0) * GIORNO
+  if (ab?.origine === 'stripe') return Number.isFinite(ms(ab.pagato_fino)) ? new Date(ms(ab.pagato_fino) + grazia).toISOString() : null
   if (ab?.origine !== 'manuale' || !Number.isFinite(ms(ab.pagato_fino_al))) return null
   const fine = new Date(ab.pagato_fino_al)
   // «Pagato fino al 30 novembre» vuol dire tutto il 30 novembre.
   fine.setUTCHours(23, 59, 59, 0)
-  return new Date(fine.getTime() + Math.max(0, Number(giorniGrazia) || 0) * GIORNO).toISOString()
+  return new Date(fine.getTime() + grazia).toISOString()
 }
 
 // È arrivato il compito del pagamento: vale ancora? Sì solo se la scadenza
-// è quella per cui era stato programmato e l'abbonamento è ancora attivo.
+// è quella per cui era stato programmato e l'abbonamento è ancora attivo
+// (con Stripe anche «in sospeso»: Stripe sta ancora ritentando).
 function pagamentoScaduto(cliente, quando, { adesso = new Date(), giorniGrazia = GIORNI_DI_GRAZIA } = {}) {
   const scadenza = scadenzaPagamento(cliente, giorniGrazia)
   if (!scadenza || scadenza !== new Date(quando).toISOString()) return false
-  return cliente.abbonamento.stato === 'attivo' && ms(scadenza) <= adesso.getTime()
+  const stati = cliente.abbonamento.origine === 'stripe' ? ['attivo', 'in sospeso'] : ['attivo']
+  return stati.includes(cliente.abbonamento.stato) && ms(scadenza) <= adesso.getTime()
+}
+
+// Alla scadenza di uno Stripe la regia chiede a Stripe com'è davvero la
+// subscription, invece di fidarsi solo degli eventi: un rinnovo pagato il
+// cui evento si è perso sposta `pagato_fino`; altrimenti lo stato che dice
+// Stripe, o «non pagato» se Stripe dice ancora attivo o in sospeso (la
+// grazia è finita). `sub`: la subscription, o null se Stripe non risponde.
+function esitoControlloStripe(cliente, sub, { statiStripe = {}, fineDelPeriodo = () => null } = {}) {
+  const fine = fineDelPeriodo(sub)
+  if (sub?.status === 'active' && fine && ms(fine) > ms(cliente?.abbonamento?.pagato_fino)) return { 'abbonamento.pagato_fino': fine, 'abbonamento.stato': 'attivo' }
+  const stato = statiStripe[sub?.status]
+  return { 'abbonamento.stato': stato === 'disdetto' ? 'disdetto' : 'non pagato' }
 }
 
 // La data scritta dall'admin: un giorno (AAAA-MM-GG) o un ISO.
@@ -95,9 +122,11 @@ function dataPagata(v) {
 //   sospendi     il locale si ferma e lo dice;
 //   ripiega      con «aggiornamenti solo finché si paga» (REQ-FLOTTA-020)
 //                torna al Free invece di fermarsi;
-//   chiudi       disdetto: l'ha chiesto il titolare;
-//   riattiva     torna a pagare dopo una sospensione PER IL PAGAMENTO (una
-//                sospensione dell'admin resta: la toglie lui);
+//   chiudi       disdetto: l'ha chiesto il titolare. Con «solo finché si
+//                paga» torna invece al Free (l'utente, 02/11/2026), e non
+//                perde i dati;
+//   riattiva     torna a pagare dopo una sospensione o una chiusura PER IL
+//                PAGAMENTO (una dell'admin resta: la toglie lui);
 //   ripristina   torna a pagare dopo il ritorno al Free.
 function azioneDiPagamento(prima, dopo, ist) {
   const da = prima?.abbonamento?.stato || null
@@ -110,10 +139,14 @@ function azioneDiPagamento(prima, dopo, ist) {
     if (licenza !== 'attiva' || ist.ripiego_free || eGratuito(dopo.piano)) return null
     return ripiegaInveceDiSospendere(ist) ? { azione: 'ripiega', motivo: null } : { azione: 'sospendi', motivo: 'pagamento non ricevuto' }
   }
-  if (a === 'disdetto') return licenza === 'chiusa' ? null : { azione: 'chiudi', motivo: 'abbonamento disdetto' }
+  if (a === 'disdetto') {
+    if (licenza === 'chiusa' || ist.ripiego_free || eGratuito(dopo.piano)) return null
+    return ripiegaInveceDiSospendere(ist) ? { azione: 'ripiega', motivo: null } : { azione: 'chiudi', motivo: 'abbonamento disdetto' }
+  }
   if (a === 'attivo') {
     if (ist.ripiego_free) return { azione: 'ripristina', motivo: null }
-    if (licenza === 'sospesa' && ist.licenza_per === 'pagamento') return { azione: 'riattiva', motivo: null }
+    // Chi torna a pagare entro i 90 giorni riapre il locale coi suoi dati.
+    if (['sospesa', 'chiusa'].includes(licenza) && ist.licenza_per === 'pagamento') return { azione: 'riattiva', motivo: null }
   }
   return null
 }
@@ -127,6 +160,7 @@ module.exports = {
   idCompito,
   scadenzaPagamento,
   pagamentoScaduto,
+  esitoControlloStripe,
   dataPagata,
   azioneDiPagamento,
 }

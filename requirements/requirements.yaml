@@ -924,6 +924,18 @@ requirements:
       nel backoffice programma una volta quelle nate prima. Serve l'API
       Cloud Tasks sul progetto e il ruolo per creare la coda all'account
       del deploy.
+      Dal 02/11/2026 («viene attivata la licenza con una durata in base
+      alla subscription, se la subscription scade e non viene pagato nulla
+      la licenza viene disattivata»): anche con Stripe la licenza scade,
+      alla fine del periodo PAGATO (pagato_fino, dalla fattura pagata) più
+      7 giorni, non alla fine del periodo della subscription, che Stripe
+      sposta al rinnovo prima del pagamento; alla scadenza la regia chiede
+      a Stripe lo stato vero (un rinnovo pagato il cui evento si è perso
+      sposta la scadenza; altrimenti non pagato, o disdetto). Disdetto con
+      «solo finché si paga» torna al Free; chi torna a pagare riapre anche
+      un locale chiuso per il pagamento. Il titolare gestisce l'abbonamento
+      da solo col portale clienti di Stripe («Gestisci l'abbonamento»:
+      disdetta a fine periodo, carta, fatture).
     status: implemented
     generate_issue: false
     labels: [prodotto, regia, abbonamento]
@@ -933,6 +945,33 @@ requirements:
       - tests/esistente.test.js
       - tests/Backoffice.test.jsx
       - tests/db.test.js
+      - tests/licenza.test.js
+      - tests/Dashboard.test.jsx
+
+  - id: REQ-FLOTTA-027
+    title: "Le comunicazioni automatiche al titolare: promemoria, pagamento ricevuto, Free, riattivazione"
+    area: "functions/lib/comunicazioni.js, functions/lib/conservazione.js, functions/index.js (accodaEmail, scadenza, registraPagamento, eseguiAzionePagamento)"
+    description: >
+      L'utente, 02/11/2026: «Gestire anche le comunicazioni automatiche di
+      reminder di pagamenti, pagamento riuscito etc.» Decisioni dello stesso
+      giorno: le email di Stripe (ricevuta, pagamento fallito, rinnovo in
+      arrivo, carta in scadenza) si accendono nelle impostazioni di Stripe;
+      la regia manda i promemoria di un pagamento a mano (7 giorni prima di
+      «pagato fino al» e il giorno dopo, con fino a quando l'app funziona),
+      il pagamento ricevuto quando l'admin lo registra, il locale tornato
+      al Free e quello riattivato; il locale fermo lo dice il primo avviso
+      della conservazione dei dati (REQ-FLOTTA-025). Ogni promemoria è un
+      compito «promemoria» alla sua ora, che ricontrolla prima di mandare e
+      non manda due volte. Le email vanno nella coda mail, che manda
+      l'estensione Trigger Email di Firebase con l'SMTP di Resend (scelta
+      dell'utente): da installare con l'account e le credenziali
+      dell'utente.
+    status: partial
+    generate_issue: false
+    labels: [prodotto, regia, abbonamento, comunicazioni]
+    test_cases:
+      - tests/comunicazioni.test.js
+      - tests/conservazione.test.js
 
   - id: REQ-FLOTTA-026
     title: "Il sito si presenta alla regia: la versione che gira e, se manca, la licenza"

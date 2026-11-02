@@ -147,6 +147,15 @@ export async function avviaPagamento(scelta) {
   return data
 }
 
+// Il portale clienti di Stripe: disdetta, carta, fatture (REQ-FLOTTA-023).
+export async function apriPortaleAbbonamento() {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'portaleAbbonamento')
+  const { data } = await fn({})
+  if (!data?.url) throw new Error('La gestione dell’abbonamento non è disponibile al momento: scrivici.')
+  return data
+}
+
 // ── lo stato di un'istanza (REQ-FLOTTA-008) ──
 export async function impostaStatoIstanza(slug, stato, motivo = null) {
   serve()

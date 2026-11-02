@@ -137,6 +137,15 @@ describe('le chiamate alle Functions', () => {
     await expect(db.avviaPagamento({})).rejects.toThrow(/scrivici/)
     await expect(db.avviaRicaricaAI('ai-10')).rejects.toThrow(/scrivici/)
   })
+
+  // REQ-FLOTTA-023: gestire l'abbonamento da soli, col portale di Stripe.
+  it('il portale dell’abbonamento torna col suo url, e senza url dice di scriverci', async () => {
+    fb.risposte.portaleAbbonamento = { url: 'https://billing.stripe.com/p/x' }
+    expect(await db.apriPortaleAbbonamento()).toEqual({ url: 'https://billing.stripe.com/p/x' })
+    expect(fb.chiamate[0]).toEqual({ nome: 'portaleAbbonamento', dati: {} })
+    fb.risposte.portaleAbbonamento = {}
+    await expect(db.apriPortaleAbbonamento()).rejects.toThrow(/scrivici/)
+  })
 })
 
 describe('l’accesso', () => {
