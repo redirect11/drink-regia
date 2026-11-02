@@ -73,8 +73,10 @@ function esitoDi(ist, rilascio, slug = null) {
   const p = ist?.proposta_aggiornamento
   if (p?.attesa && p.rilascio === rilascio.ref) return p.saltata_il ? 'saltato' : 'proposto'
   if (slug && (rilascio.non_inclusi || []).includes(slug)) return 'non incluso'
-  // Un locale esistente pubblica da sé: conta la versione che riferisce.
-  if (!daFlotta(ist) && ist?.versione === rilascio.ref) return 'riuscito'
+  // Un locale esistente pubblica da sé: conta la versione che riferisce,
+  // e da REQ-FLOTTA-026 la riferisce l'app stessa presentandosi alla regia
+  // (la Tana da GitHub non manda più un esito di deploy).
+  if (!daFlotta(ist) && [ist?.versione, ist?.presentazione?.versione].includes(rilascio.ref)) return 'riuscito'
   return 'in attesa'
 }
 

@@ -993,7 +993,9 @@ requirements:
       all'attivazione, prima dell'app. Vale da qualunque deploy arrivi
       l'app, della regia o di GitHub. Un locale esistente con la licenza
       sua (la Tana, finché non la si collega) segna solo la versione. Le
-      build della regia portano VITE_REGIA_PROGETTO. Niente giri a tempo:
+      build della regia portano VITE_REGIA_PROGETTO. La versione presentata
+      conta anche nei rilasci a ondate: un locale esistente che pubblica da
+      sé finisce la sua ondata quando la sua app dice la versione. Niente giri a tempo:
       si chiama una volta per versione nuova, con qualcuno collegato. Resta da fare in
       tana-drink: la chiamata (docs/presentazione-alla-regia.md); e per la
       Tana l'interruttore «licenza dalla regia» e il permesso alla regia
@@ -1004,6 +1006,7 @@ requirements:
     test_cases:
       - tests/presentazione.test.js
       - tests/Backoffice.test.jsx
+      - tests/rilasci.test.js
 
   - id: REQ-FLOTTA-029
     title: "A ogni deploy chi ha sottoscritto è l'admin del suo locale, e imposta la password dal link"
