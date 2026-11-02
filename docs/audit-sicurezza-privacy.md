@@ -72,6 +72,11 @@ scrivibili, e il trigger `licenzaSegueIlPiano` riscrive la licenza
 dell'istanza entro un minuto. *Rimedio:* allowlist dei campi che il
 titolare può toccare (`locale`, `fatturazione`, `referente`,
 `consensi`); il resto solo admin e Functions.
+*Chiusa il 02/11/2026*: allowlist in `firestore.rules` (commit a73fe4c),
+più la partita IVA che resta valida e i consensi che non si cancellano
+(ramo `feature/fase0-regia`). Il sito non scriveva mai `clienti/{uid}`
+dal browser dopo la registrazione. Provata sull'emulatore di Firestore
+(25 casi, fuori dal repository). In produzione solo col deploy delle regole.
 
 **H2. La licenza dell'istanza è riscrivibile dal locale stesso.** Nelle
 regole dell'app `settings/{docId}` ha `allow write: if isBartender()`
@@ -110,9 +115,14 @@ OIDC che scrive solo `settings/bar.licenza`.
   manuale creare una richiesta «da approvare».
 - **M3. L'attivazione una tantum non viene addebitata**: il sito e i
   Termini la dichiarano, `abbonamento.js` non la aggiunge al Checkout.
+  *Chiusa il 02/11/2026* (DEC-0005, REQ-FLOTTA-031: `rigaAttivazione`),
+  e dal ramo `feature/fase0-regia` con l'IVA (REQ-FLOTTA-035).
 - **M4. Webhook Stripe senza idempotenza né ordine**: un `invoice.paid`
   in ritardo riattiva un abbonamento disdetto. Registrare `event.id`,
   confrontare `event.created`, ignorare `invoice.paid` se disdetto.
+  *Chiusa il 02/11/2026* (ramo `feature/fase0-regia`, REQ-FLOTTA-036):
+  registro `eventi_stripe/{event.id}` in transazione, ordine con
+  `abbonamento.evento_stripe_creato`, «disdetto» che non si riapre.
 - **M5. Nessun header di sicurezza su Hosting** (regia e app): CSP,
   `frame-ancestors`, `Referrer-Policy`, `Permissions-Policy`,
   `X-Content-Type-Options`.
@@ -330,6 +340,7 @@ disiscrizione, mittente con SPF/DKIM/DMARC, mai alle PEC di fatturazione.
    verifica l'abbonamento sul server; via la create dai client.
    **Fatto il 22/10/2026** (`release/0.1.0`), da pubblicare.
 3. [codice] **H1**: allowlist dei campi che il titolare può modificare.
+   **Fatto il 02/11/2026**, da pubblicare.
 4. [codice] **H2**: la chiave `licenza` di `settings/bar` non è
    scrivibile dai client; sospensione applicata dalle regole.
 5. [organizzazione] **M8**: workflow della flotta in un repository
@@ -350,8 +361,10 @@ disiscrizione, mittente con SPF/DKIM/DMARC, mai alle PEC di fatturazione.
 9. [codice] **H3, H4**: Workload Identity Federation, SA distinti, ruoli
    minimi, SA dedicato per la regia.
 10. [codice] **M1, M2, M4**: callback vincolata e anti-replay; ramo
-    manuale di `cambiaScelta` con approvazione; idempotenza del webhook.
-11. [codice] **M3, M5, M6, M7**: attivazione addebitata; header di
+    manuale di `cambiaScelta` con approvazione; idempotenza del webhook
+    (**M4 fatto il 02/11/2026**, da pubblicare).
+11. [codice] **M3, M5, M6, M7**: attivazione addebitata (**M3 fatto il
+    02/11/2026**); header di
     sicurezza; App Check e limiti; creazione dell'admin dell'istanza nel
     workflow.
 12. [codice] Dashboard «Il tuo account»: modifica, export, revoca

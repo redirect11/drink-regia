@@ -234,6 +234,9 @@ describe('la ricarica con Stripe', () => {
     const riga = ai.rigaRicarica(p)
     expect(riga.price_data).toMatchObject({ currency: 'eur', unit_amount: p.importo * 100 })
     expect(riga.price_data.recurring).toBeUndefined()
+    // L'IVA (REQ-FLOTTA-035): il pacchetto è IVA esclusa, Stripe la aggiunge.
+    expect(riga.price_data.tax_behavior).toBe('exclusive')
+    expect(ai.rigaRicarica(p, { aliquotaIva: 'txr_iva' }).tax_rates).toEqual(['txr_iva'])
     expect(ai.metadatiRicarica({ uid: 'u1', slug: 'bar-mario', p })).toMatchObject({ tipo: 'ricarica_ai', uid: 'u1', slug: 'bar-mario', pacchetto: p.id })
   })
 
@@ -245,6 +248,10 @@ describe('la ricarica con Stripe', () => {
       pacchetto: 'ai-25',
       importo_microeuro: 25_000_000,
     })
+  })
+
+  it('con l’IVA il credito è l’imponibile, non il totale pagato (REQ-FLOTTA-035)', () => {
+    expect(ai.ricaricaDaSessione({ ...sessione, amount_total: 3050 }).importo_microeuro).toBe(25_000_000)
   })
 
   it('una sessione non pagata, o che non è una ricarica, non dà credito', () => {

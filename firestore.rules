@@ -30,8 +30,35 @@ service cloud.firestore {
       // moduli, terminali, prove, sconto, che la regia trasforma in licenza.
       // Un titolare poteva accendersi i moduli da solo (verifica del
       // 02/11/2026). Ora è un elenco di quello che può cambiare.
+      // Dentro i blocchi permessi valgono gli stessi controlli della
+      // registrazione (H1, 02/11/2026): la partita IVA resta di 11 cifre, che
+      // serve alla fattura elettronica, e i consensi dati non si cancellano.
+      // VALIDO, O COM'ERA: un locale registrato come esistente (la Tana,
+      // documentiEsistente) nasce con `fatturazione: {}` e i consensi a
+      // null, e pretendere i valori pieni gli chiuderebbe ogni modifica.
+      // Così chi li ha validi non li può guastare, e chi non li ha ancora
+      // non resta bloccato: li può solo mettere giusti.
+      // Oggi il sito non aggiorna mai clienti/{uid} dal browser: modifiche
+      // dei dati, scelta del piano, sconti e prove passano dalle Functions.
+      function nuovo(blocco, campo) {
+        return request.resource.data.get(blocco, {}).get(campo, null);
+      }
+      function vecchio(blocco, campo) {
+        return resource.data.get(blocco, {}).get(campo, null);
+      }
+      function comEra(blocco, campo) {
+        return nuovo(blocco, campo) == vecchio(blocco, campo);
+      }
       allow update: if admin()
-        || (mio(uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['locale', 'fatturazione', 'referente', 'consensi']));
+        || (mio(uid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['locale', 'fatturazione', 'referente', 'consensi'])
+          && request.resource.data.locale is map
+          && request.resource.data.referente is map
+          && request.resource.data.get('fatturazione', {}) is map
+          && request.resource.data.get('consensi', {}) is map
+          && ((nuovo('fatturazione', 'partita_iva') is string && nuovo('fatturazione', 'partita_iva').matches('^[0-9]{11}$')) || comEra('fatturazione', 'partita_iva'))
+          && (nuovo('consensi', 'termini_il') is string || comEra('consensi', 'termini_il'))
+          && (nuovo('consensi', 'privacy_il') is string || comEra('consensi', 'privacy_il')));
       allow delete: if admin();
     }
 
@@ -102,6 +129,14 @@ service cloud.firestore {
         allow read, create: if admin();
         allow update, delete: if false;
       }
+    }
+
+    // Il registro degli eventi di Stripe (REQ-FLOTTA-036): una riga per
+    // event.id, perché un evento ripetuto non rifaccia i suoi effetti. Solo
+    // il webhook (Admin SDK); l'admin lo legge per capire cosa è arrivato.
+    match /eventi_stripe/{id} {
+      allow read: if admin();
+      allow write: if false;
     }
 
     // Il contatore dei posti Fondatori (REQ-FLOTTA-021): lo cambiano solo le

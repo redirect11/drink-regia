@@ -19,6 +19,7 @@
 const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore')
 const { onRequest } = require('firebase-functions/v2/https')
 const { defineSecret } = require('firebase-functions/params')
+const eventiStripe = require('./lib/eventistripe.js')
 const { initializeApp } = require('firebase-admin/app')
 const { getFirestore } = require('firebase-admin/firestore')
 const { preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, eAggiornamento, documentoIstanza, documentoAggiornamento, bearerValido } = require('./lib/provisioning.js')
@@ -26,7 +27,7 @@ const rilasci = require('./lib/rilasci.js')
 const { sceltaCambiata, licenzaProtetta, stessaLicenza, perIlDatabase, scadenzaCoerente } = require('./lib/licenza.js')
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
 const { FieldValue, Timestamp } = require('firebase-admin/firestore')
-const { chiaveStripeVera, righeCheckout, metadatiDi, aggiornamentoDaEvento, sceltaPulita, sessioneCheckout, intervalloDi, prenotazioneDaRilasciare, fondatoreDaConfermare, DURATA_SESSIONE_MS, fineDelPeriodo, STATI_STRIPE } = require('./lib/abbonamento.js')
+const { chiaveStripeVera, righeSubscription, prodottiDi, parametriAliquotaIva, eAliquotaIva, CHIAVE_IDEMPOTENZA_IVA, metadatiDi, aggiornamentoDaEvento, sceltaPulita, sessioneCheckout, intervalloDi, prenotazioneDaRilasciare, fondatoreDaConfermare, DURATA_SESSIONE_MS, fineDelPeriodo, STATI_STRIPE } = require('./lib/abbonamento.js')
 const fondatori = require('./lib/fondatori.js')
 const { onTaskDispatched } = require('firebase-functions/v2/tasks')
 const { getFunctions: funzioniAdmin } = require('firebase-admin/functions')
@@ -255,6 +256,38 @@ async function couponSuStripe(stripe, parametri) {
   }
 }
 
+// L'aliquota IVA su Stripe (REQ-FLOTTA-035): si cerca fra le tax rate
+// attive dal segno nei metadati (eAliquotaIva), e si crea se manca, con una
+// chiave di idempotenza perché due Checkout insieme non ne creino due.
+// Ricordata per la vita dell'istanza della Function: la tax rate non cambia.
+// La si cerca invece di leggerne l'id da un segreto perché un id copiato a
+// mano dalla dashboard di Stripe è un passo in più da dimenticare per ogni
+// account (test e produzione), e un id sbagliato si scoprirebbe al primo
+// incasso.
+let aliquotaIvaRicordata = null
+async function aliquotaIvaSuStripe(stripe) {
+  if (aliquotaIvaRicordata) return aliquotaIvaRicordata
+  for await (const rate of stripe.taxRates.list({ active: true, inclusive: false, limit: 100 })) {
+    if (eAliquotaIva(rate)) return (aliquotaIvaRicordata = rate.id)
+  }
+  const creata = await stripe.taxRates.create(parametriAliquotaIva(), { idempotencyKey: CHIAVE_IDEMPOTENZA_IVA })
+  console.log(`[stripe] creata l'aliquota IVA ${creata.id}`)
+  return (aliquotaIvaRicordata = creata.id)
+}
+
+// I prodotti di Stripe delle righe di una subscription (righeSubscription):
+// id fissi, cercati e creati se mancano, come il coupon Fondatori.
+async function prodottiSuStripe(stripe, scelta) {
+  for (const p of prodottiDi(scelta)) {
+    try {
+      await stripe.products.retrieve(p.id)
+    } catch (e) {
+      if (e?.statusCode !== 404 && e?.code !== 'resource_missing') throw e
+      await stripe.products.create(p, { idempotencyKey: `drink-prodotto-${p.id}` })
+    }
+  }
+}
+
 // Il titolare sceglie il piano: nasce la sessione di Checkout (abbonamento
 // mensile o annuale) e torna l'url. I metadati portano uid e scelta, che il
 // webhook userà per aggiornare il cliente. Se il piano è coperto
@@ -293,7 +326,8 @@ exports.creaCheckout = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
   let sessione
   try {
     const coupon = prenotato ? await couponSuStripe(stripe, fondatori.couponFondatori(scelta.piano, scelta.intervallo)) : null
-    sessione = await stripe.checkout.sessions.create(sessioneCheckout({ uid, cliente, scelta, ritorno, coupon, adesso }))
+    const aliquotaIva = await aliquotaIvaSuStripe(stripe)
+    sessione = await stripe.checkout.sessions.create(sessioneCheckout({ uid, cliente, scelta, ritorno, coupon, aliquotaIva, adesso }))
   } catch (e) {
     // La sessione non è nata: il posto non resta tenuto per nessuno.
     if (prenotato) await liberaPosto(uid).catch((x) => console.error('[fondatori] rilascio:', x?.message || x))
@@ -328,6 +362,14 @@ async function confermaFondatore(uid) {
 // Il webhook di Stripe: la firma si verifica sul corpo grezzo, e lo stato
 // dell'abbonamento segue gli eventi (aggiornamentoDaEvento). Una
 // subscription si ritrova per id nel cliente che l'ha aperta.
+// UNA VOLTA SOLA E IN ORDINE (REQ-FLOTTA-036, audit M4): ogni evento passa
+// dal registro eventi_stripe/{event.id}, preso in carico in transazione
+// prima di fare qualunque cosa; un evento già fatto si conferma senza
+// rifarlo, uno che un'altra istanza sta elaborando risponde 409 e Stripe
+// lo ripete più tardi. Se l'elaborazione fallisce la riga si toglie, e la
+// ripetizione di Stripe riparte da capo: per questo ogni effetto resta
+// ripetibile da sé (la ricarica per id di sessione, il posto Fondatori per
+// uid, lo stato del cliente in ordine col suo orologio).
 exports.stripeWebhook = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET], cors: false }, async (req, res) => {
   if (req.method !== 'POST') return res.status(405).send('')
   const stripe = stripeClient()
@@ -339,40 +381,75 @@ exports.stripeWebhook = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY, STRIPE
     console.error('[stripe] firma non valida:', e?.message)
     return res.status(400).send('')
   }
+  if (!eventiStripe.idEventoValido(evento.id)) return res.status(400).send('')
+  const registro = db.doc(`eventi_stripe/${evento.id}`)
+  const decisione = await db.runTransaction(async (t) => {
+    const riga = await t.get(registro)
+    const d = eventiStripe.daElaborare(riga.exists ? riga.data() : null, new Date())
+    if (d !== 'elabora') return d
+    const nuova = eventiStripe.presaInCarico(evento, new Date())
+    t.set(registro, riga.exists ? { ...nuova, tentativi: (Number(riga.data().tentativi) || 0) + 1 } : nuova)
+    return d
+  })
+  if (decisione === 'fatto') return res.status(200).json({ ok: true, duplicato: true })
+  if (decisione === 'in corso') return res.status(409).json({ ok: false, in_corso: true })
+  let esito
+  try {
+    esito = await elaboraEventoStripe(evento)
+  } catch (e) {
+    console.error(`[stripe] ${evento.type} ${evento.id}:`, e?.message || e)
+    await registro.delete().catch((x) => console.error('[stripe] registro:', x?.message || x))
+    return res.status(500).json({ ok: false })
+  }
+  await registro.update({ stato: 'fatto', fatto_il: new Date().toISOString(), esito: JSON.stringify(esito).slice(0, 200) })
+  res.status(200).json(esito)
+})
+
+// Gli effetti di un evento, una volta preso in carico. → il corpo della
+// risposta.
+async function elaboraEventoStripe(evento) {
   // Una ricarica del credito AI (REQ-AI-003): pagamento singolo, credito
   // in più. Prima dell'abbonamento, che la ignora comunque.
   if (evento.type === 'checkout.session.completed') {
     const ricarica = ai.ricaricaDaSessione(evento.data?.object)
-    if (ricarica) {
-      const esito = await accreditaRicarica(ricarica, { origine: 'stripe' })
-      return res.status(200).json({ ok: true, ricarica: esito })
-    }
+    if (ricarica) return { ok: true, ricarica: await accreditaRicarica(ricarica, { origine: 'stripe' }) }
   }
   // Una sessione Fondatori scaduta: il posto prenotato torna libero.
   const daLiberare = prenotazioneDaRilasciare(evento.type, evento.data?.object)
   if (daLiberare) {
     await liberaPosto(daLiberare.uid, daLiberare.scadenza)
-    return res.status(200).json({ ok: true, fondatori: 'rilasciato' })
+    return { ok: true, fondatori: 'rilasciato' }
   }
   const agg = aggiornamentoDaEvento(evento.type, evento.data?.object)
-  if (!agg) return res.status(200).json({ ok: true, ignorato: evento.type })
+  if (!agg) return { ok: true, ignorato: evento.type }
   let uid = agg.uid
   if (!uid && agg.stripe_subscription) {
     const q = await db.collection('clienti').where('abbonamento.stripe_subscription', '==', agg.stripe_subscription).limit(1).get()
     uid = q.empty ? null : q.docs[0].id
   }
-  if (!uid) return res.status(200).json({ ok: true, ignorato: 'cliente non trovato' })
+  if (!uid) return { ok: true, ignorato: 'cliente non trovato' }
   const ref = db.doc(`clienti/${uid}`)
-  if (agg.patch.abbonamento) await ref.set(agg.patch, { merge: true })
-  else await ref.update({ ...agg.patch, 'abbonamento.visto_il': FieldValue.serverTimestamp() })
-  // Dopo l'abbonamento, che con merge non tocca abbonamento.fondatore.
+  // In transazione: due eventi dello stesso cliente insieme non si
+  // scavalcano, e l'ordine si confronta col cliente com'è davvero ora.
+  const scritto = await db.runTransaction(async (t) => {
+    const snap = await t.get(ref)
+    if (!snap.exists) return false
+    const patch = eventiStripe.inOrdine(snap.data(), agg, { creato: evento.created })
+    if (!patch) return false
+    if (patch.abbonamento) t.set(ref, patch, { merge: true })
+    else t.update(ref, { ...patch, 'abbonamento.visto_il': FieldValue.serverTimestamp() })
+    return true
+  })
+  // Dopo l'abbonamento, che con merge non tocca abbonamento.fondatore. Anche
+  // se la patch non si è scritta: il pagamento col coupon c'è stato, e la
+  // conferma è idempotente (fondatori.conferma).
   const daConfermare = fondatoreDaConfermare(evento.type, evento.data?.object)
   if (daConfermare) {
     const esito = await confermaFondatore(daConfermare)
     if (esito === 'esauriti') console.error(`[fondatori] ${daConfermare}: pagato col coupon, posti esauriti: da verificare`)
   }
-  res.status(200).json({ ok: true })
-})
+  return scritto ? { ok: true } : { ok: true, ignorato: 'fuori ordine o già scritto' }
+}
 
 // ── SOSPENDERE, RIATTIVARE, CHIUDERE UN'ISTANZA (REQ-FLOTTA-008) ───────
 
@@ -1354,8 +1431,14 @@ async function aggiornaSubscription(stripe, sub, uid, scelta) {
   const attuale = await stripe.subscriptions.retrieve(sub)
   const conIntervallo = { ...scelta, intervallo: intervalloDi(attuale) }
   const togli = fondatori.scontoDaTogliere(attuale.metadata, sceltaPulita(conIntervallo).piano)
+  // L'IVA anche qui (REQ-FLOTTA-035): ogni riga nuova porta l'aliquota, e
+  // il conguaglio dei giorni la calcola su quelle. È anche l'aliquota
+  // predefinita della subscription, per le subscription nate prima.
+  const aliquotaIva = await aliquotaIvaSuStripe(stripe)
+  await prodottiSuStripe(stripe, conIntervallo)
   await stripe.subscriptions.update(sub, {
-    items: [...attuale.items.data.map((i) => ({ id: i.id, deleted: true })), ...righeCheckout(conIntervallo)],
+    items: [...attuale.items.data.map((i) => ({ id: i.id, deleted: true })), ...righeSubscription(conIntervallo, { aliquotaIva })],
+    default_tax_rates: [aliquotaIva],
     metadata: { ...metadatiDi(uid, conIntervallo), ...(togli ? { fondatore: '' } : {}) },
     proration_behavior: 'create_prorations',
   })
@@ -1680,9 +1763,10 @@ exports.creaRicaricaAI = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async
   const stripe = stripeClient()
   if (!stripe) throw new HttpsError('failed-precondition', 'Il pagamento online non è ancora attivo: scrivici all’email del prodotto.')
   const metadata = ai.metadatiRicarica({ uid, slug: cliente.slug, p })
+  const aliquotaIva = await aliquotaIvaSuStripe(stripe)
   const sessione = await stripe.checkout.sessions.create({
     mode: 'payment',
-    line_items: [ai.rigaRicarica(p)],
+    line_items: [ai.rigaRicarica(p, { aliquotaIva })],
     customer: cliente.abbonamento?.stripe_customer || undefined,
     customer_email: cliente.abbonamento?.stripe_customer ? undefined : cliente.email,
     client_reference_id: uid,
