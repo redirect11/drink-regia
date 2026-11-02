@@ -5,6 +5,8 @@
 // il documento nasce a blocchi, con i consensi datati.
 
 import { describe, it, expect } from 'vitest'
+import { readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { slugDi, problemaSlug, nuovoCliente, contattoDi } from '../src/lib/clienti.js'
 
 describe('slugDi', () => {
@@ -69,5 +71,36 @@ describe('nuovoCliente', () => {
     expect(contattoDi(nuovoCliente(dati))).toBe('Mario Rossi')
     expect(contattoDi({ contatto: 'Giulia' })).toBe('Giulia')
     expect(contattoDi({})).toBe('')
+  })
+})
+
+// AUDIT H1 (22/10/2026, chiusa il 02/11/2026): il titolare non scrive sul
+// suo documento i campi che diventano licenza. Le regole si provano qui sul
+// testo, come nel resto del repository: il repository non ha ancora
+// l'emulatore fra le dipendenze.
+describe('le regole di clienti/{uid} (H1)', () => {
+  const regole = readFileSync('firestore.rules', 'utf8')
+  const blocco = regole.slice(regole.indexOf('match /clienti/{uid}'), regole.indexOf('match /istanze/{slug}')).replace(/\/\/.*$/gm, '')
+  const update = blocco.slice(blocco.indexOf('allow update'), blocco.indexOf('allow delete'))
+
+  it('il titolare cambia solo i suoi dati anagrafici: piano, moduli, terminali, prove, sconto, abbonamento solo admin e Functions', () => {
+    expect(update).toContain("affectedKeys().hasOnly(['locale', 'fatturazione', 'referente', 'consensi'])")
+    for (const campo of ['piano', 'moduli', 'terminali', 'prove', 'sconto', 'abbonamento', 'email', 'slug', 'uid', 'interna', 'esistente']) {
+      expect(update).not.toMatch(new RegExp(`hasOnly\\(\\[[^\\]]*'${campo}'`))
+    }
+  })
+
+  it('dentro i blocchi permessi: la partita IVA resta valida e i consensi non si cancellano', () => {
+    expect(update).toContain("request.resource.data.fatturazione.partita_iva.matches('^[0-9]{11}$')")
+    expect(update).toContain('request.resource.data.consensi.termini_il is string')
+    expect(update).toContain('request.resource.data.consensi.privacy_il is string')
+  })
+
+  it('il sito non aggiorna mai clienti/{uid} dal browser: crea il documento alla registrazione, il resto passa dalle Functions', () => {
+    const file = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((d) => (d.isDirectory() ? file(join(dir, d.name)) : [join(dir, d.name)]))
+    const scritture = file('src')
+      .filter((f) => /\.(js|jsx)$/.test(f))
+      .flatMap((f) => readFileSync(f, 'utf8').split('\n').filter((r) => /(setDoc|updateDoc|deleteDoc)\(doc\(db, 'clienti'/.test(r)).map((r) => `${f}: ${r.trim()}`))
+    expect(scritture).toEqual(["src/lib/db.js: await setDoc(doc(db, 'clienti', cred.user.uid), cliente)"])
   })
 })

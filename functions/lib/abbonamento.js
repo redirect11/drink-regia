@@ -38,42 +38,125 @@ function sceltaPulita({ piano = 'base', moduli = [], terminali = 1, intervallo =
 // sugli interi.
 const centesimi = (euro) => Math.round((Number(euro) || 0) * 100)
 
-// Le righe ricorrenti dell'abbonamento: il piano, ogni modulo in più, i
-// terminali oltre quelli inclusi. Servono al Checkout e ai cambi di piano
-// (cambiaScelta, cambiaPianoAdmin), che rimettono le righe sulla
-// subscription: per questo qui non c'è l'attivazione, che è una tantum e
-// una subscription non la accetta fra le sue voci. L'annuale costa
-// 'mensilita' mesi di ogni riga (DEC-0005).
-function righeCheckout(scelta) {
+// L'IVA (REQ-FLOTTA-033): i prezzi del listino sono IVA esclusa, e Stripe
+// la aggiunge con un'aliquota fissa (una «tax rate» di Stripe, non Stripe
+// Tax). Fissa perché i clienti sono locali italiani con partita IVA:
+// sempre il 22%, niente da calcolare per paese, e Stripe Tax costa una
+// percentuale su ogni transazione. L'aliquota si cerca su Stripe dal suo
+// segno nei metadati e si crea se manca (index.js, aliquotaIvaSuStripe):
+// niente id da copiare a mano in configurazione, e lo stesso codice vale
+// in test e in produzione, che hanno account Stripe diversi.
+const PERCENTUALE_IVA = Number(listino.iva)
+
+function parametriAliquotaIva() {
+  return {
+    display_name: 'IVA',
+    description: `IVA ${PERCENTUALE_IVA}% (Italia), aggiunta ai prezzi del listino`,
+    percentage: PERCENTUALE_IVA,
+    inclusive: false,
+    country: 'IT',
+    jurisdiction: 'IT',
+    tax_type: 'vat',
+    metadata: { drink: 'iva', percentuale: String(PERCENTUALE_IVA) },
+  }
+}
+
+// Una tax rate di Stripe è la nostra? Attiva, esclusa dal prezzo, della
+// percentuale del listino e col nostro segno. Una tax rate su Stripe non si
+// modifica nella percentuale: se il listino cambia aliquota, questa non è
+// più giusta e se ne crea una nuova (col segno della percentuale nuova).
+function eAliquotaIva(rate) {
+  return Boolean(
+    rate?.active &&
+      rate.inclusive === false &&
+      Number(rate.percentage) === PERCENTUALE_IVA &&
+      rate.metadata?.drink === 'iva' &&
+      rate.metadata?.percentuale === String(PERCENTUALE_IVA)
+  )
+}
+
+// La chiave di idempotenza della creazione: due Checkout partiti insieme,
+// la prima volta, creano una tax rate sola (Stripe tiene la chiave 24 ore;
+// dopo la si ritrova cercandola).
+const CHIAVE_IDEMPOTENZA_IVA = `drink-iva-${PERCENTUALE_IVA}-v1`
+
+// Senza aliquota non si vende: Stripe addebiterebbe l'imponibile come se
+// fosse il totale, e l'IVA la pagheremmo noi.
+function serveAliquota(aliquotaIva) {
+  if (!/^txr_/.test(String(aliquotaIva || ''))) throw new Error('Manca l’aliquota IVA di Stripe: senza, il Checkout addebiterebbe l’imponibile.')
+  return aliquotaIva
+}
+
+// Le voci ricorrenti dell'abbonamento, prima di dare loro la forma che
+// vuole Stripe: il piano, ogni modulo in più, i terminali oltre quelli
+// inclusi. L'annuale costa 'mensilita' mesi di ogni voce (DEC-0005).
+// `prodotto` è l'id fisso del prodotto su Stripe, che serve ai cambi di
+// piano (righeSubscription).
+function vociRicorrenti(scelta) {
   const s = sceltaPulita(scelta)
   const p = listino.piani[s.piano]
   const mesi = s.intervallo === 'anno' ? listino.annuale?.mensilita || 12 : 1
-  const riga = (nome, euro, quantity = 1) => ({
-    quantity,
-    price_data: {
-      currency: 'eur',
-      unit_amount: centesimi(euro) * mesi,
-      product_data: { name: nome },
-      recurring: { interval: INTERVALLI[s.intervallo] },
-    },
-  })
-  const righe = [riga(`Piano ${p.nome}`, p.prezzo)]
+  const voce = (prodotto, nome, euro, quantity = 1) => ({ prodotto, nome, unit_amount: centesimi(euro) * mesi, quantity, interval: INTERVALLI[s.intervallo] })
+  const voci = [voce(`drink-piano-${p.id}`, `Piano ${p.nome}`, p.prezzo)]
   for (const id of s.moduli) {
     const m = listino.moduli.find((x) => x.id === id)
-    righe.push(riga(m.nome, m.prezzo))
+    voci.push(voce(`drink-modulo-${m.id}`, m.nome, m.prezzo))
   }
   const extraTerminali = Math.max(0, s.terminali - (p.terminali || 1))
-  if (extraTerminali > 0) righe.push(riga('Terminale in più', listino.terminale_in_piu, extraTerminali))
-  return righe
+  if (extraTerminali > 0) voci.push(voce('drink-terminale', 'Terminale in più', listino.terminale_in_piu, extraTerminali))
+  return voci
+}
+
+// Le righe ricorrenti del Checkout. Qui non c'è l'attivazione, che è una
+// tantum (rigaAttivazione). Con `aliquotaIva` ogni riga porta l'IVA;
+// sessioneCheckout la pretende. `tax_behavior: 'exclusive'` dice anche
+// sul prezzo che l'importo è IVA esclusa: con la tax rate fissa decide
+// `inclusive: false` dell'aliquota, ma un passaggio futuro a Stripe Tax
+// troverebbe i prezzi già dichiarati.
+function righeCheckout(scelta, { aliquotaIva = null } = {}) {
+  return vociRicorrenti(scelta).map((v) => ({
+    quantity: v.quantity,
+    price_data: {
+      currency: 'eur',
+      unit_amount: v.unit_amount,
+      product_data: { name: v.nome },
+      recurring: { interval: v.interval },
+      tax_behavior: 'exclusive',
+    },
+    ...(aliquotaIva ? { tax_rates: [aliquotaIva] } : {}),
+  }))
+}
+
+// Le stesse righe per una subscription che c'è già (cambiaScelta,
+// cambiaPianoAdmin). Stripe qui non accetta `product_data`: vuole l'id di
+// un prodotto, e i prodotti hanno id fissi (vociRicorrenti) che index.js
+// crea se mancano (prodottiSuStripe). Prima i cambi di piano mandavano le
+// righe del Checkout, che Stripe rifiuta su una subscription.
+function righeSubscription(scelta, { aliquotaIva } = {}) {
+  serveAliquota(aliquotaIva)
+  return vociRicorrenti(scelta).map((v) => ({
+    quantity: v.quantity,
+    price_data: { currency: 'eur', unit_amount: v.unit_amount, product: v.prodotto, recurring: { interval: v.interval }, tax_behavior: 'exclusive' },
+    tax_rates: [aliquotaIva],
+  }))
+}
+
+// I prodotti di Stripe che servono alle righe di una scelta: { id, name }.
+function prodottiDi(scelta) {
+  return vociRicorrenti(scelta).map((v) => ({ id: v.prodotto, name: v.nome, metadata: { drink: 'listino' } }))
 }
 
 // La riga una tantum dell'attivazione, o null se non si paga (Fondatori:
 // attivazione gratuita). Nel Checkout in modalità abbonamento una riga
 // senza 'recurring' si paga una volta, con la prima fattura.
-function rigaAttivazione({ fondatore = false } = {}) {
+function rigaAttivazione({ fondatore = false, aliquotaIva = null } = {}) {
   const importo = fondatore ? listino.fondatori?.attivazione ?? listino.attivazione : listino.attivazione
   if (!(centesimi(importo) > 0)) return null
-  return { quantity: 1, price_data: { currency: 'eur', unit_amount: centesimi(importo), product_data: { name: 'Attivazione' } } }
+  return {
+    quantity: 1,
+    price_data: { currency: 'eur', unit_amount: centesimi(importo), product_data: { name: 'Attivazione' }, tax_behavior: 'exclusive' },
+    ...(aliquotaIva ? { tax_rates: [aliquotaIva] } : {}),
+  }
 }
 
 // I metadati che viaggiano con la sessione e tornano col webhook: è così
@@ -100,21 +183,34 @@ function giorniDiProva(cliente) {
 const DURATA_SESSIONE_MS = 35 * 60 * 1000
 
 // I parametri di stripe.checkout.sessions.create per un abbonamento.
-// `coupon` è l'id del coupon Fondatori già creato su Stripe, o null.
-function sessioneCheckout({ uid, cliente, scelta, ritorno, coupon = null, adesso = new Date() }) {
+// `coupon` è l'id del coupon Fondatori già creato su Stripe, o null;
+// `aliquotaIva` l'id della tax rate dell'IVA (obbligatorio).
+// I DATI DI FATTURAZIONE (REQ-FLOTTA-033): il Checkout chiede l'indirizzo
+// e lascia scrivere la partita IVA, che finiscono sul customer di Stripe e
+// sulle sue ricevute. La fattura elettronica però si fa coi dati presi
+// alla registrazione (clienti/{uid}.fatturazione: P.IVA, codice fiscale,
+// PEC, codice destinatario), che Stripe non ha. Con un customer che c'è
+// già, Stripe vuole il permesso di aggiornargli nome e indirizzo.
+function sessioneCheckout({ uid, cliente, scelta, ritorno, coupon = null, aliquotaIva, adesso = new Date() }) {
+  serveAliquota(aliquotaIva)
   const fondatore = Boolean(coupon)
   const metadata = { ...metadatiDi(uid, scelta), ...(fondatore ? { fondatore: '1' } : {}) }
-  const attivazione = rigaAttivazione({ fondatore })
+  const attivazione = rigaAttivazione({ fondatore, aliquotaIva })
   const prova = giorniDiProva(cliente)
   const stripeCustomer = cliente?.abbonamento?.stripe_customer
   return {
     mode: 'subscription',
-    line_items: [...righeCheckout(scelta), ...(attivazione ? [attivazione] : [])],
+    line_items: [...righeCheckout(scelta, { aliquotaIva }), ...(attivazione ? [attivazione] : [])],
     customer_email: stripeCustomer ? undefined : cliente?.email,
     customer: stripeCustomer || undefined,
+    ...(stripeCustomer ? { customer_update: { address: 'auto', name: 'auto' } } : {}),
+    billing_address_collection: 'required',
+    tax_id_collection: { enabled: true },
     client_reference_id: uid,
     metadata,
-    subscription_data: { metadata, ...(prova ? { trial_period_days: prova } : {}) },
+    // L'IVA anche come aliquota predefinita della subscription: una riga
+    // aggiunta dalla dashboard di Stripe, senza tax rate sua, la prende da qui.
+    subscription_data: { metadata, default_tax_rates: [aliquotaIva], ...(prova ? { trial_period_days: prova } : {}) },
     ...(fondatore ? { discounts: [{ coupon }] } : {}),
     expires_at: Math.floor((adesso.getTime() + DURATA_SESSIONE_MS) / 1000),
     success_url: `${ritorno}/dashboard?pagamento=ok`,
@@ -149,6 +245,24 @@ const STATI_STRIPE = { active: 'attivo', trialing: 'attivo', past_due: 'in sospe
 function fineDelPeriodo(sub) {
   const fine = Number(sub?.items?.data?.[0]?.current_period_end ?? sub?.current_period_end)
   return Number.isFinite(fine) && fine > 0 ? new Date(fine * 1000).toISOString() : null
+}
+
+// La subscription di una fattura. Il webhook riceve gli eventi nella
+// versione dell'API dell'endpoint registrato su Stripe, non in quella
+// dell'SDK (stripe 17.7: 2025-02-24.acacia, dove sta in
+// `invoice.subscription`): dalla 2025-03-31.basil il campo è sparito ed è
+// in `invoice.parent.subscription_details.subscription`, e sulle righe in
+// `parent.subscription_item_details.subscription`. Si leggono tutti, così
+// un endpoint creato oggi con la versione più recente non perde le fatture.
+// Può essere un id o l'oggetto espanso.
+function subscriptionDellaFattura(fattura) {
+  const id = (v) => (typeof v === 'string' ? v : v?.id) || null
+  return (
+    id(fattura?.subscription) ||
+    id(fattura?.parent?.subscription_details?.subscription) ||
+    (fattura?.lines?.data || []).map((l) => id(l?.parent?.subscription_item_details?.subscription) || id(l?.subscription)).find(Boolean) ||
+    null
+  )
 }
 
 function aggiornamentoDaEvento(tipo, oggetto, adesso = new Date()) {
@@ -190,7 +304,7 @@ function aggiornamentoDaEvento(tipo, oggetto, adesso = new Date()) {
     return { stripe_subscription: oggetto.id, patch: { ...patch, 'abbonamento.aggiornato_il': ora } }
   }
   if (tipo === 'invoice.paid') {
-    const sub = oggetto?.subscription
+    const sub = subscriptionDellaFattura(oggetto)
     if (!sub) return null
     // La fine del periodo pagato è il prossimo rinnovo: le condizioni nuove
     // degli aggiornamenti valgono da lì (REQ-FLOTTA-020). La più lontana fra
@@ -208,7 +322,7 @@ function aggiornamentoDaEvento(tipo, oggetto, adesso = new Date()) {
   // arriva con la subscription. Gli eventi di Stripe non arrivano per forza
   // in ordine: un «fallito» in ritardo non deve togliere un «non pagato».
   if (tipo === 'invoice.payment_failed') {
-    const sub = oggetto?.subscription
+    const sub = subscriptionDellaFattura(oggetto)
     if (!sub) return null
     return { stripe_subscription: sub, patch: { 'abbonamento.ultimo_fallimento': ora } }
   }
@@ -243,7 +357,14 @@ module.exports = {
   intervalloPulito,
   centesimi,
   righeCheckout,
+  righeSubscription,
+  prodottiDi,
   rigaAttivazione,
+  parametriAliquotaIva,
+  eAliquotaIva,
+  CHIAVE_IDEMPOTENZA_IVA,
+  PERCENTUALE_IVA,
+  subscriptionDellaFattura,
   metadatiDi,
   giorniDiProva,
   sessioneCheckout,

@@ -360,10 +360,16 @@ function pacchetto(id) {
   return AI.pacchetti.find((p) => p.id === id) || null
 }
 
-function rigaRicarica(p) {
+// L'importo del pacchetto è IVA esclusa, come il resto del listino, e
+// l'IVA la aggiunge Stripe con la stessa aliquota dell'abbonamento
+// (REQ-FLOTTA-033). Il credito resta l'imponibile: ricaricaDaSessione
+// legge `amount_subtotal`, che è prima delle tasse, quindi chi paga 12,20 €
+// per un pacchetto da 10 € ha 10 € di credito.
+function rigaRicarica(p, { aliquotaIva = null } = {}) {
   return {
     quantity: 1,
-    price_data: { currency: 'eur', unit_amount: Math.round(p.importo * 100), product_data: { name: `Credito AI ${p.importo} €` } },
+    price_data: { currency: 'eur', unit_amount: Math.round(p.importo * 100), product_data: { name: `Credito AI ${p.importo} €` }, tax_behavior: 'exclusive' },
+    ...(aliquotaIva ? { tax_rates: [aliquotaIva] } : {}),
   }
 }
 

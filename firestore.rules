@@ -30,8 +30,19 @@ service cloud.firestore {
       // moduli, terminali, prove, sconto, che la regia trasforma in licenza.
       // Un titolare poteva accendersi i moduli da solo (verifica del
       // 02/11/2026). Ora è un elenco di quello che può cambiare.
+      // Dentro i blocchi permessi valgono gli stessi controlli della
+      // registrazione (H1, 02/11/2026): la partita IVA resta di 11 cifre, che
+      // serve alla fattura elettronica, e i consensi dati non si cancellano.
+      // Oggi il sito non aggiorna mai clienti/{uid} dal browser: modifiche
+      // dei dati, scelta del piano, sconti e prove passano dalle Functions.
       allow update: if admin()
-        || (mio(uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['locale', 'fatturazione', 'referente', 'consensi']));
+        || (mio(uid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['locale', 'fatturazione', 'referente', 'consensi'])
+          && request.resource.data.locale is map
+          && request.resource.data.referente is map
+          && request.resource.data.fatturazione.partita_iva.matches('^[0-9]{11}$')
+          && request.resource.data.consensi.termini_il is string
+          && request.resource.data.consensi.privacy_il is string);
       allow delete: if admin();
     }
 
@@ -102,6 +113,14 @@ service cloud.firestore {
         allow read, create: if admin();
         allow update, delete: if false;
       }
+    }
+
+    // Il registro degli eventi di Stripe (REQ-FLOTTA-034): una riga per
+    // event.id, perché un evento ripetuto non rifaccia i suoi effetti. Solo
+    // il webhook (Admin SDK); l'admin lo legge per capire cosa è arrivato.
+    match /eventi_stripe/{id} {
+      allow read: if admin();
+      allow write: if false;
     }
 
     // Il contatore dei posti Fondatori (REQ-FLOTTA-021): lo cambiano solo le

@@ -6,6 +6,19 @@ data.
 
 ## Prossima release (da decidere)
 
+- L'IVA: Stripe aggiunge il 22% ai canoni, all'attivazione, ai cambi di
+  piano e alle ricariche del credito AI, con un'aliquota fissa che la regia
+  trova o crea da sola; i prezzi restano IVA esclusa. Il Checkout chiede
+  l'indirizzo di fatturazione e la partita IVA. I cambi di piano mandano
+  a Stripe righe che una subscription accetta (prima no) (REQ-FLOTTA-033).
+- Il webhook di Stripe elabora ogni evento una volta sola (registro
+  `eventi_stripe`), e un evento arrivato in ritardo non riporta indietro lo
+  stato: un pagamento vecchio non riapre un abbonamento disdetto. Legge la
+  subscription delle fatture anche nella forma delle API Stripe più recenti
+  (REQ-FLOTTA-034, audit M4).
+- Il titolare, sul suo documento, cambia solo i dati anagrafici, con la
+  partita IVA sempre valida e i consensi che non si cancellano (audit H1).
+
 - Il listino deciso il 02/11/2026 (DEC-0005): Base a 32,70 € + IVA al mese
   con tre terminali (anche il Completo ne ha tre), attivazione 82 € + IVA
   addebitata al Checkout, prezzi a schermo «+ IVA» con il totale IVA
