@@ -39,6 +39,7 @@ const elim = require('./lib/eliminazione.js')
 const conserva = require('./lib/conservazione.js')
 const presenta = require('./lib/presentazione.js')
 const comunica = require('./lib/comunicazioni.js')
+const sconti = require('./lib/sconti.js')
 const free = require('./lib/free.js')
 const contatti = require('./lib/contatti.js')
 const { getStorage } = require('firebase-admin/storage')
@@ -1500,7 +1501,60 @@ exports.impostaAggiornamentiEsistente = onCall(OPTS, async (req) => {
     throw e
   }
   await ref.update({ ...g, aggiornata_il: new Date().toISOString() })
+  // La licenza appena collegata si scrive subito: se la regia non può
+  // scrivere in quel progetto (manca il permesso), si torna indietro e lo
+  // si dice, invece di lasciare un locale «collegato» senza licenza.
+  if (g.licenza_dalla_regia && !scriveLicenza(ist)) {
+    const scritta = await scriviLicenza(slug).catch((e) => ({ ok: false, perche: e?.message || String(e) }))
+    if (!scritta.ok) {
+      await ref.update({ licenza_dalla_regia: false })
+      throw new HttpsError('failed-precondition', `La licenza non si è scritta nel progetto ${ist.progetto}: ${String(scritta.perche).slice(0, 200)}. Serve roles/datastore.user per la regia su quel progetto.`)
+    }
+  }
   return { ok: true, ...g }
+})
+
+// ── I CODICI SCONTO (REQ-FLOTTA-028) ───────────────────────────────────
+// I codici stanno in sconti/{CODICE}: li crea e li disattiva l'admin, e li
+// applica lui a un cliente. La logica sta in lib/sconti.js.
+exports.gestisciSconti = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const azione = req.data?.azione
+  if (azione === 'crea') {
+    const s = sconti.scontoPulito(req.data)
+    if (s.errore) throw new HttpsError('invalid-argument', s.errore)
+    const ref = db.doc(`sconti/${s.codice}`)
+    // Un codice non si riscrive: chi lo ha già applicato ha quelle condizioni.
+    if ((await ref.get()).exists) throw new HttpsError('already-exists', `Il codice ${s.codice} esiste già.`)
+    await ref.set({ ...s, creato_il: new Date().toISOString(), creato_da: req.auth.token.email || req.auth.uid })
+    return { ok: true, codice: s.codice }
+  }
+  if (azione === 'disattiva') {
+    const codice = String(req.data?.codice || '').trim().toUpperCase()
+    const ref = db.doc(`sconti/${codice}`)
+    if (!sconti.CODICE.test(codice) || !(await ref.get()).exists) throw new HttpsError('not-found', 'Codice sconosciuto.')
+    // Chi lo ha già lo tiene: disattivato vuol dire che non si applica più.
+    await ref.update({ attivo: false, disattivato_il: new Date().toISOString() })
+    return { ok: true }
+  }
+  throw new HttpsError('invalid-argument', 'Azione sconosciuta.')
+})
+
+// Applica un codice a un cliente, o lo toglie (codice vuoto).
+exports.applicaSconto = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const doc = (await db.collection('clienti').where('slug', '==', String(req.data?.slug || '')).limit(1).get()).docs[0]
+  if (!doc) throw new HttpsError('not-found', 'Cliente sconosciuto.')
+  const codice = String(req.data?.codice || '').trim().toUpperCase()
+  if (!codice) {
+    await doc.ref.update(sconti.scontoTolto(doc.data()).patch)
+    return { ok: true, sconto: null }
+  }
+  const s = sconti.CODICE.test(codice) ? (await db.doc(`sconti/${codice}`).get()).data() : null
+  const esito = sconti.scontoApplicato(doc.data(), s)
+  if (esito.errore) throw new HttpsError('failed-precondition', esito.errore)
+  await doc.ref.update(esito.patch)
+  return { ok: true, sconto: esito.patch.sconto }
 })
 
 exports.registraLocaleEsistente = onCall(OPTS, async (req) => {

@@ -608,6 +608,22 @@ L'elenco completo con i riferimenti al codice è in
      disdetta **a fine periodo**, cambio carta, fatture.
    - Dopo il deploy, «Programma le scadenze» una volta: programma anche i
      promemoria dei pagamenti a mano già aperti.
+29. **I codici sconto e la Tana premium (REQ-FLOTTA-028)**, ramo
+   `feature/codici-sconto`, 02/11/2026. I codici in `sconti/{CODICE}`
+   (li crea e disattiva l'admin in «Vendita», li applica con «Sconto…»
+   sulla scheda); `clienti/{uid}.sconto` = `{ codice, percentuale,
+   durata_mesi, dal, fino }`. Al 100% illimitato l'abbonamento ha
+   `origine: 'sconto'` e non scade. **La Tana**, quando la regia di
+   produzione è online: il codice `TANA-100` (100%, illimitato), applicato;
+   poi «Chi la pubblica…» → «La licenza la scrive la regia», che la scrive
+   subito col piano Completo (fatture comprese). Prima serve il permesso,
+   da dare l'utente: `gcloud projects add-iam-policy-binding tana-drink
+   --member=serviceAccount:<account di runtime della regia>
+   --role=roles/datastore.user` (e lo stesso su `tana-drink-test` con la
+   regia di test). Se manca, l'interruttore torna spento e lo dice. Nella
+   stessa verifica: **la regola dei clienti** lasciava al titolare
+   `moduli`, `terminali` e `prove` (la regia ne fa la licenza): ora solo
+   `locale`, `fatturazione`, `referente`, `consensi`.
 
 ---
 

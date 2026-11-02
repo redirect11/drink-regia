@@ -1005,6 +1005,35 @@ requirements:
       - tests/presentazione.test.js
       - tests/Backoffice.test.jsx
 
+  - id: REQ-FLOTTA-028
+    title: "I codici sconto, e la Tana come abbonamento premium con la licenza dalla regia"
+    area: "functions/lib/sconti.js, functions/lib/esistente.js, functions/index.js (gestisciSconti, applicaSconto, impostaAggiornamentiEsistente), src/lib/sconti.js, src/pages/Backoffice.jsx, src/pages/Dashboard.jsx, firestore.rules"
+    description: >
+      L'utente, 02/11/2026, sulla Tana: «Dobbiamo trattarlo come
+      abbonamento premium e tracciare i moduli attivi. Ha un codice sconto
+      allegato con una durata illimitata per avere tutti i servizi attivi.»
+      Decisioni: i codici sconto stanno nella regia (coi pagamenti online
+      spenti; con Stripe diventeranno coupon), e la Tana ha il piano
+      Completo, fatture comprese. Un codice ha percentuale e durata in mesi
+      o illimitata; si crea e si disattiva in «Vendita» (chi lo ha lo
+      tiene), e l'admin lo applica dalla scheda del locale. Al 100%
+      illimitato l'abbonamento è attivo, non si paga e non scade; al 100% a
+      tempo è un piano a mano pagato fino alla fine dello sconto; parziale
+      cambia solo il prezzo. Un locale esistente può avere la licenza dalla
+      regia (licenza_dalla_regia), calcolata dal piano come per gli altri:
+      si scrive subito, e se la regia non può scrivere nel suo progetto si
+      torna indietro e lo si dice. Nella stessa verifica: la regola dei
+      clienti lasciava al titolare moduli, terminali e prove, che la regia
+      trasforma in licenza; ora il titolare cambia solo i dati anagrafici.
+    status: implemented
+    generate_issue: false
+    labels: [prodotto, regia, abbonamento, licenza, sicurezza]
+    test_cases:
+      - tests/sconti.test.js
+      - tests/esistente.test.js
+      - tests/Backoffice.test.jsx
+      - tests/db.test.js
+
   - id: REQ-FLOTTA-025
     title: "Senza licenza valida il prodotto non parte; i dati di un locale fermo si conservano 90 giorni, con gli avvisi"
     area: "functions/lib/conservazione.js, functions/lib/licenza.js, functions/lib/scadenze.js, functions/index.js (eseguiAzionePagamento, impostaStatoIstanza, gestisciEliminazione, scadenza, scriviLicenza), src/pages/ChiudiLocale.jsx, src/pages/Dashboard.jsx, src/pages/Backoffice.jsx, src/pages/Legali.jsx"

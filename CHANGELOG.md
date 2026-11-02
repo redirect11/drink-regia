@@ -15,6 +15,12 @@ data.
   giorni prima e alla scadenza), pagamento ricevuto, locale passato al
   Free, locale riattivato. Le ricevute e i pagamenti falliti con Stripe li
   manda Stripe (REQ-FLOTTA-027).
+- Codici sconto: si creano in «Vendita», con percentuale e durata in mesi o
+  illimitata, e si applicano dalla scheda del locale. Al 100% illimitato il
+  locale non paga e non scade. Un locale esistente, come la Tana, può avere
+  la licenza scritta dalla regia dal suo piano (REQ-FLOTTA-028).
+- Un titolare non può più cambiarsi da solo moduli, terminali o prove dal
+  browser: solo i suoi dati anagrafici.
 - L'app di ogni locale si presenta alla regia al primo avvio di una
   versione nuova, da qualunque deploy arrivi: la regia sa quale versione
   gira davvero e, se al locale manca la licenza, la riscrive.
