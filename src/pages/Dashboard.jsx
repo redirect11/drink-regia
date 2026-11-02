@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { osservaCliente, osservaIstanza, osservaRichiesta, chiediAttivazione, inviaVerificaEmail, rileggiUtente } from '../lib/db.js'
-import { statoIstanza, statoDetto, puoAttivare, urlDi, progettoDi, STATI } from '../lib/istanze.js'
+import { statoIstanza, statoDetto, puoAttivare, urlDi, progettoDi, riduzioneDetta, STATI } from '../lib/istanze.js'
 import { PIANI, MODULI, prezzoMensile, euro } from '../lib/piani.js'
 import SceltaPiano from './SceltaPiano.jsx'
 import CreditoAI from './CreditoAI.jsx'
@@ -128,7 +128,8 @@ export default function Dashboard({ utente }) {
                   {' '}
                   · fino a {piano.limiti.prodotti_max} prodotti nel menù e {piano.limiti.conti_aperti_max} conti aperti insieme
                   {piano.limiti.utenti_max === 1 && ', solo il titolare'}
-                  {piano.limiti.sconti === false && ', senza sconti'}, storico degli ultimi {piano.limiti.storico_giorni} giorni
+                  {piano.limiti.sconti === false && ', senza sconti'}
+                  {piano.limiti.comande === false && ', senza comande'}, storico degli ultimi {piano.limiti.storico_giorni} giorni
                 </span>
               )}
             </p>
@@ -137,6 +138,13 @@ export default function Dashboard({ utente }) {
           )}
           {cliente.abbonamento?.stato && cliente.abbonamento.stato !== 'attivo' && (
             <p className="errore small">Abbonamento {cliente.abbonamento.stato}.</p>
+          )}
+          {/* Quello che il piano nuovo toglie arriva a fine giornata, non in
+              servizio (REQ-FLOTTA-024). */}
+          {riduzioneDetta(istanza) && (
+            <p className="muted small" data-testid="riduzione-al-taglio">
+              {riduzioneDetta(istanza)} Fino ad allora l’app resta com’è.
+            </p>
           )}
         </section>
         {/* Le versioni nuove e le condizioni degli aggiornamenti (REQ-FLOTTA-020). */}

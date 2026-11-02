@@ -32,7 +32,7 @@ import {
   programmaScadenze,
 } from '../lib/db.js'
 import { venditaPulita } from '../lib/vendita.js'
-import { statoIstanza, statoDetto, STATI, progettoDi } from '../lib/istanze.js'
+import { statoIstanza, statoDetto, STATI, progettoDi, riduzioneDetta } from '../lib/istanze.js'
 import { PIANI, MODULI, prezzoMensile, euro } from '../lib/piani.js'
 import { contattoDi } from '../lib/clienti.js'
 import { statoCredito, euroCent } from '../lib/ai.js'
@@ -562,6 +562,13 @@ function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaApert
           <div>
             <dt>Licenza</dt>
             <dd className="errore">{istanza.licenza_protetta.perche}</dd>
+          </div>
+        )}
+        {riduzioneDetta(istanza) && (
+          // REQ-FLOTTA-024: quello che la licenza toglie arriva al taglio.
+          <div>
+            <dt>Riduzione</dt>
+            <dd data-testid="riduzione-al-taglio">{riduzioneDetta(istanza)}</dd>
           </div>
         )}
         {eliminazioneDetta(istanza) && (

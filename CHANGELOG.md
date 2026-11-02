@@ -6,6 +6,13 @@ data.
 
 ## 0.3.0 (in lavorazione)
 
+- Un piano più piccolo, un modulo tolto, il passaggio al Free o una
+  sospensione per un pagamento mancato arrivano al locale al taglio della
+  giornata (alle 5, o all'ora del locale), non durante il servizio: fino
+  ad allora l'app resta com'è. Quello che si aggiunge arriva subito. La
+  dashboard e la scheda del locale dicono quando (REQ-FLOTTA-024).
+- Un locale nuovo riceve la licenza prima dell'app.
+- Il piano Free non comprende le comande.
 - Niente più controlli quotidiani: un locale si sospende, torna al Free o si
   chiude quando cambia lo stato del suo abbonamento. Con Stripe lo decidono
   i tentativi di pagamento di Stripe; fuori da Stripe si scrive «pagato

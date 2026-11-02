@@ -150,11 +150,12 @@ describe.each(WORKFLOW)('%s: l’app di produzione di quel locale', (_, w) => {
 
   it('i passi vanno in ordine, fino alla pulizia delle credenziali per ultima', () => {
     const ordine = [
-      ...(w === provisiona ? ['Terraform apply'] : []),
+      // La licenza prima dell'app (tana-drink, 01/11/2026): con l'app nuova
+      // un locale senza licenza/attuale si ferma.
+      ...(w === provisiona ? ['Terraform apply', "Licenza e nome del locale nell'istanza"] : []),
       'La cartella del cliente',
       'Build',
       'Deploy regole, indici, Functions e hosting',
-      ...(w === provisiona ? ["Licenza e nome del locale nell'istanza"] : []),
       'Versione pubblicata',
       'Esito alla regia',
       'Pulizia credenziali',
