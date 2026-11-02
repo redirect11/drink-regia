@@ -6,6 +6,11 @@ data.
 
 ## Prossima release (da decidere)
 
+- Ogni deploy dopo un acquisto passa dall'amministratore finché non accende
+  il deploy automatico, anche quando un locale Free compra un piano
+  (REQ-FLOTTA-011). Il codice sconto si scrive nella scelta del piano e il
+  pagamento lo applica; col prezzo Fondatori vale il più conveniente, e un
+  codice al 100% attiva il piano senza pagamento (REQ-FLOTTA-028).
 - L'IVA: Stripe aggiunge il 22% ai canoni, all'attivazione, ai cambi di
   piano e alle ricariche del credito AI, con un'aliquota fissa che la regia
   trova o crea da sola; i prezzi restano IVA esclusa. Il Checkout chiede

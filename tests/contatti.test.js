@@ -33,8 +33,15 @@ describe('la richiesta di contatto', () => {
     expect(r.documento).toEqual({
       uid: 'u1', email: 'bar@example.com', nome_locale: 'Bar Mario', slug: 'bar-mario',
       scelta: { piano: 'base', moduli: ['staff'], terminali: 2, intervallo: 'mese' },
-      telefono: '+39 333 1234567', nota: 'Di mattina', stato: 'aperta', chiesta_il: ADESSO.toISOString(),
+      telefono: '+39 333 1234567', nota: 'Di mattina', codice: null, stato: 'aperta', chiesta_il: ADESSO.toISOString(),
     })
+  })
+
+  // REQ-FLOTTA-028: coi pagamenti spenti il codice sconto viaggia con la
+  // richiesta, e lo applica l'admin.
+  it('porta il codice sconto scritto nella scelta del piano, se ha la forma di un codice', () => {
+    expect(richiestaContatto(cliente, { piano: 'base', codice: ' prova20 ' }, spenti, ADESSO).documento.codice).toBe('PROVA20')
+    expect(richiestaContatto(cliente, { piano: 'base', codice: 'no!' }, spenti, ADESSO).documento.codice).toBeNull()
   })
 
   it('telefono e nota sono facoltativi; la nota perde i caratteri di controllo e si taglia', () => {

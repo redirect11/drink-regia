@@ -741,6 +741,17 @@ L'elenco completo con i riferimenti al codice è in
    evento risponde `duplicato: true`. La fattura elettronica (SDI) non la
    fa Stripe: si fa coi dati di `clienti/{uid}.fatturazione`, da decidere
    come (a mano o con un servizio).
+37. **La vendita con l'admin di mezzo (REQ-FLOTTA-011, REQ-FLOTTA-028)**,
+   ramo `feature/vendita-con-approvazione`, 02/11/2026. Il deploy automatico
+   parte spento: ogni attivazione dopo un acquisto, e il profilo completo di
+   un Free che compra, aspettano «Autorizza» o «Pubblica il piano» in
+   «Richieste»; l'interruttore lo accende l'admin. Il codice sconto si
+   scrive anche nella scelta del piano: il Checkout lo applica (o quello
+   dell'admin), col prezzo Fondatori vale il più conveniente nel primo
+   anno, al 100% il piano si attiva senza Stripe (`functions/lib/acquisto.js`).
+   Da sapere: un codice lo usa chiunque lo conosca, senza un numero
+   massimo di usi; un codice al 100% fatto girare attiva piani gratis, che
+   però, col deploy spento, l'admin vede prima di pubblicarli.
 
 ---
 

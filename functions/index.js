@@ -29,6 +29,7 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https')
 const { FieldValue, Timestamp } = require('firebase-admin/firestore')
 const { chiaveStripeVera, righeSubscription, prodottiDi, parametriAliquotaIva, eAliquotaIva, CHIAVE_IDEMPOTENZA_IVA, metadatiDi, aggiornamentoDaEvento, sceltaPulita, sessioneCheckout, intervalloDi, prenotazioneDaRilasciare, fondatoreDaConfermare, DURATA_SESSIONE_MS, fineDelPeriodo, STATI_STRIPE } = require('./lib/abbonamento.js')
 const fondatori = require('./lib/fondatori.js')
+const acquisto = require('./lib/acquisto.js')
 const { onTaskDispatched } = require('firebase-functions/v2/tasks')
 const { getFunctions: funzioniAdmin } = require('firebase-admin/functions')
 const { STATI: STATI_LICENZA } = require('./lib/sospensione.js')
@@ -152,7 +153,9 @@ exports.chiediAttivazione = onCall(OPTS, async (req) => {
     istanza,
     richiesta,
     emailVerificata: req.auth.token?.email_verified === true,
-    automatico: impostazioni.deploy_automatico !== false,
+    // Spento finché l'admin non lo accende (l'utente, 02/11/2026: «per ora
+    // la vendita è attiva ma non il deploy automatico, che passa per me»).
+    automatico: impostazioni.deploy_automatico === true,
   })
   if (!esito.ok) throw new HttpsError('failed-precondition', esito.perche)
   await db.doc(`richieste/${cliente.slug}`).set(esito.richiesta)
@@ -312,10 +315,21 @@ exports.creaCheckout = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
   const ritorno =String(req.data?.ritorno || '').replace(/\/$/, '')
   if (!/^https?:\/\//.test(ritorno)) throw new HttpsError('invalid-argument', 'Indirizzo di ritorno non valido.')
   const adesso = new Date()
+  // IL CODICE SCONTO (REQ-FLOTTA-028): quello scritto ora dal titolare, o
+  // quello che l'admin gli ha già dato. Un codice al 100% non passa da qui
+  // (attivaConCodice). Se c'è anche un posto Fondatori vale il più
+  // conveniente (acquisto.scontoCheVale): Stripe ne accetta uno solo.
+  const { sconto, errore: erroreCodice } = await scontoPerAcquisto(cliente, req.data?.codice, adesso)
+  if (erroreCodice) throw new HttpsError('failed-precondition', erroreCodice)
+  if (sconto?.percentuale === 100) throw new HttpsError('failed-precondition', 'Con questo codice il piano non si paga: usa «Attiva con il codice».')
+  const couponCodice = sconto ? acquisto.couponSconto(sconto, { intervallo: scelta.intervallo, adesso }) : null
+  if (couponCodice?.errore) throw new HttpsError('failed-precondition', couponCodice.errore)
   // Un posto per cliente: chi è già stato Fondatore (anche se poi ha
   // disdetto) torna al listino.
+  const puoFondatore = fondatori.coperto(scelta.piano) && !cliente.abbonamento?.fondatore && fondatori.postiLiberi((await POSTI_FONDATORI().get()).data(), adesso) > 0
+  const vale = acquisto.scontoCheVale({ scelta, sconto, fondatore: puoFondatore, adesso })
   let prenotato = false
-  if (fondatori.coperto(scelta.piano) && !cliente.abbonamento?.fondatore) {
+  if (vale === 'fondatori') {
     const scadenza = new Date(adesso.getTime() + DURATA_SESSIONE_MS)
     prenotato = await db.runTransaction(async (t) => {
       const p = fondatori.prenota((await t.get(POSTI_FONDATORI())).data(), uid, scadenza, adesso)
@@ -323,17 +337,78 @@ exports.creaCheckout = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
       return p.esito === 'prenotato'
     })
   }
+  // L'ultimo posto preso da un altro un attimo prima: allora il codice, se c'è.
+  const conCodice = Boolean(sconto) && !prenotato
   let sessione
   try {
-    const coupon = prenotato ? await couponSuStripe(stripe, fondatori.couponFondatori(scelta.piano, scelta.intervallo)) : null
+    const coupon = prenotato
+      ? await couponSuStripe(stripe, fondatori.couponFondatori(scelta.piano, scelta.intervallo))
+      : conCodice
+        ? await couponSuStripe(stripe, couponCodice.coupon)
+        : null
     const aliquotaIva = await aliquotaIvaSuStripe(stripe)
-    sessione = await stripe.checkout.sessions.create(sessioneCheckout({ uid, cliente, scelta, ritorno, coupon, aliquotaIva, adesso }))
+    sessione = await stripe.checkout.sessions.create(
+      sessioneCheckout({ uid, cliente, scelta, ritorno, coupon, fondatore: prenotato, sconto: conCodice ? acquisto.metadatiSconto(sconto) : null, aliquotaIva, adesso })
+    )
   } catch (e) {
     // La sessione non è nata: il posto non resta tenuto per nessuno.
     if (prenotato) await liberaPosto(uid).catch((x) => console.error('[fondatori] rilascio:', x?.message || x))
     throw e
   }
-  return { url: sessione.url, fondatore: prenotato }
+  return { url: sessione.url, fondatore: prenotato, sconto: conCodice ? sconto.codice : null }
+})
+
+// Lo sconto di un acquisto: il codice scritto dal titolare (che deve
+// esistere ed essere attivo), o se non ne scrive uno quello che l'admin gli
+// ha dato ed è ancora in corso. → { sconto } (null se non c'è), o { errore }.
+async function scontoPerAcquisto(cliente, scritto, adesso = new Date()) {
+  const codice = String(scritto || '').trim().toUpperCase()
+  if (!codice) return { sconto: acquisto.scontoInCorso(cliente, adesso) }
+  const doc = sconti.CODICE.test(codice) ? (await db.doc(`sconti/${codice}`).get()).data() : null
+  const s = acquisto.scontoDelCodice(doc, adesso)
+  return s ? { sconto: s } : { errore: 'Codice sconosciuto o disattivato.' }
+}
+
+// IL TITOLARE PROVA UN CODICE nella scelta del piano, prima di pagare: è
+// valido? quanto vale? vince sul prezzo Fondatori? Non scrive niente. Serve
+// l'accesso con l'email confermata: un codice non si indovina da fuori.
+exports.verificaCodiceSconto = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Prima conferma la tua email.')
+  const cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data()
+  if (!cliente) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
+  if (!String(req.data?.codice || '').trim()) throw new HttpsError('invalid-argument', 'Scrivi il codice.')
+  const adesso = new Date()
+  const { sconto, errore } = await scontoPerAcquisto(cliente, req.data.codice, adesso)
+  if (errore) throw new HttpsError('failed-precondition', errore)
+  const scelta = sceltaPulita({ piano: req.data?.piano, moduli: req.data?.moduli, terminali: req.data?.terminali, intervallo: req.data?.intervallo })
+  if (sconto.percentuale < 100) {
+    const c = acquisto.couponSconto(sconto, { intervallo: scelta.intervallo, adesso })
+    if (c.errore) throw new HttpsError('failed-precondition', c.errore)
+  }
+  const puoFondatore = fondatori.coperto(scelta.piano) && !cliente.abbonamento?.fondatore && fondatori.postiLiberi((await POSTI_FONDATORI().get()).data(), adesso) > 0
+  const vale = sconto.percentuale === 100 ? 'codice' : acquisto.scontoCheVale({ scelta, sconto, fondatore: puoFondatore, adesso })
+  return { codice: sconto.codice, percentuale: sconto.percentuale, durata_mesi: sconto.durata_mesi, gratis: sconto.percentuale === 100, vale }
+})
+
+// UN CODICE AL 100% (REQ-FLOTTA-028, l'utente: «senza passare da
+// Stripe»): il piano scelto si attiva subito con lo sconto. Il locale poi
+// si attiva come gli altri, da «Attiva», e col deploy automatico spento
+// la richiesta aspetta l'admin.
+exports.attivaConCodice = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Prima conferma la tua email.')
+  const ref = db.doc(`clienti/${req.auth.uid}`)
+  const cliente = (await ref.get()).data()
+  const codice = String(req.data?.codice || '').trim().toUpperCase()
+  const doc = sconti.CODICE.test(codice) ? (await db.doc(`sconti/${codice}`).get()).data() : null
+  const istanza = cliente?.slug ? (await db.doc(`istanze/${cliente.slug}`).get()).data() : null
+  const scelta = sceltaPulita({ piano: req.data?.piano, moduli: req.data?.moduli, terminali: req.data?.terminali })
+  const fuori = cliente ? free.moduliFuoriVendita(cliente, scelta, await vendita()) : []
+  const esito = acquisto.attivazioneConCodice({ cliente, istanza, codice: doc, scelta, fuori })
+  if (esito.errore) throw new HttpsError('failed-precondition', esito.errore)
+  await ref.update(esito.patch)
+  return { ok: true, piano: esito.patch.piano }
 })
 
 async function liberaPosto(uid, scadenza = null) {
@@ -1535,10 +1610,33 @@ exports.licenzaSegueIlPiano = onDocumentUpdated({ ...OPTS, document: 'clienti/{u
   await scriviLicenza(dopo.slug).catch((e) => console.error(`[licenza] ${dopo.slug}:`, e?.message || e))
   // Un locale Free che compra (REQ-FLOTTA-015): la licenza ha già tolto i
   // limiti; ora arrivano Functions, Storage e segreti, col profilo completo.
+  // Col deploy automatico spento (REQ-FLOTTA-011) non parte da solo: la
+  // richiesta aspetta l'admin, nel backoffice, come un'attivazione.
   if (free.serveProfiloCompleto(ist, dopo)) {
+    const impostazioni = (await db.doc('impostazioni/regia').get()).data() || {}
+    if (impostazioni.deploy_automatico !== true) {
+      await db.doc(`istanze/${dopo.slug}`).set({ profilo_completo_da_autorizzare: { chiesto_il: new Date().toISOString(), piano: dopo.piano } }, { merge: true })
+      console.log(`[free] ${dopo.slug} verso il profilo completo: aspetta l'admin`)
+      return
+    }
     const perche = await lanciaAggiornamento(dopo.slug, REF_APP, { profilo: 'completo' })
     console.log(`[free] ${dopo.slug} verso il profilo completo: ${perche || 'partito'}`)
   }
+})
+
+// L'admin autorizza il profilo completo di un Free che ha comprato: parte
+// l'aggiornamento con Functions, Storage e segreti. Se non parte, la
+// richiesta resta e lo si dice.
+exports.autorizzaProfiloCompleto = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN] }, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const slug = String(req.data?.slug || '')
+  const ref = db.doc(`istanze/${slug}`)
+  const ist = (await ref.get()).data()
+  if (!ist?.profilo_completo_da_autorizzare) throw new HttpsError('failed-precondition', 'Non c’è niente da autorizzare per questo locale.')
+  const perche = await lanciaAggiornamento(slug, REF_APP, { profilo: 'completo' })
+  if (perche) throw new HttpsError('failed-precondition', perche)
+  await ref.update({ profilo_completo_da_autorizzare: FieldValue.delete(), profilo_completo_autorizzato_il: new Date().toISOString() })
+  return { ok: true }
 })
 
 // ── IL PIANO FREE E LA VENDITA (REQ-FLOTTA-015) ───────────────────────
