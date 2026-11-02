@@ -15,6 +15,8 @@ const db = vi.hoisted(() => ({
   cambiaScelta: vi.fn(),
   scegliFree: vi.fn(async () => ({ ok: true })),
   chiediContatto: vi.fn(async () => ({ ok: true })),
+  verificaCodiceSconto: vi.fn(),
+  attivaConCodice: vi.fn(async () => ({ ok: true })),
   osservaContatto: vi.fn((uid, cb) => {
     cb(stato.contatto)
     return () => {}
@@ -231,5 +233,72 @@ describe('coi pagamenti online spenti', () => {
     render(<SceltaPiano cliente={{ uid: 'u1', piano: 'base' }} modifica />)
     expect(screen.queryByTestId('contatto')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Aggiorna il piano' })).toBeInTheDocument()
+  })
+})
+
+// IL CODICE SCONTO ALL'ACQUISTO (REQ-FLOTTA-028). L'utente, 02/11/2026:
+// «gli acquisti possono avere anche i codici sconto mi raccomando».
+describe('il codice sconto', () => {
+  it('«Applica» chiede alla regia quanto vale, e al pagamento il codice va col resto', async () => {
+    const user = userEvent.setup()
+    db.verificaCodiceSconto.mockResolvedValueOnce({ codice: 'PROVA20', percentuale: 20, durata_mesi: 3, gratis: false, vale: 'codice' })
+    db.avviaPagamento.mockResolvedValueOnce({ url: 'https://checkout.stripe.com/x' })
+    render(<SceltaPiano cliente={{ uid: 'u1' }} vai={() => {}} />)
+    await user.type(screen.getByLabelText(/Codice sconto/), 'prova20')
+    await user.click(screen.getByRole('button', { name: 'Applica' }))
+    expect(db.verificaCodiceSconto).toHaveBeenCalledWith({ piano: 'base', moduli: [], terminali: 1, intervallo: 'mese' }, 'PROVA20')
+    expect(await screen.findByTestId('esito-codice')).toHaveTextContent('Codice PROVA20: 20% di sconto, per 3 mesi, applicato nel pagamento.')
+    await user.click(screen.getByRole('button', { name: 'Vai al pagamento' }))
+    expect(db.avviaPagamento).toHaveBeenCalledWith({ piano: 'base', moduli: [], terminali: 1, intervallo: 'mese', codice: 'PROVA20' })
+  })
+
+  it('se l’offerta Fondatori conviene di più lo dice prima del pagamento', async () => {
+    const user = userEvent.setup()
+    db.verificaCodiceSconto.mockResolvedValueOnce({ codice: 'PROVA5', percentuale: 5, durata_mesi: null, gratis: false, vale: 'fondatori' })
+    render(<SceltaPiano cliente={{ uid: 'u1' }} />)
+    await user.type(screen.getByLabelText(/Codice sconto/), 'PROVA5')
+    await user.click(screen.getByRole('button', { name: 'Applica' }))
+    expect(await screen.findByTestId('esito-codice')).toHaveTextContent(/con l’offerta Fondatori risparmi di più/)
+  })
+
+  it('un codice al 100% attiva il piano senza pagamento', async () => {
+    const user = userEvent.setup()
+    db.verificaCodiceSconto.mockResolvedValueOnce({ codice: 'TANA-100', percentuale: 100, durata_mesi: null, gratis: true, vale: 'codice' })
+    render(<SceltaPiano cliente={{ uid: 'u1' }} />)
+    await user.click(screen.getByLabelText(new RegExp(`^${PIANI.completo.nome}`)))
+    await user.type(screen.getByLabelText(/Codice sconto/), 'tana-100')
+    await user.click(screen.getByRole('button', { name: 'Applica' }))
+    expect(await screen.findByTestId('esito-codice')).toHaveTextContent(/il piano non si paga, senza scadenza/)
+    await user.click(screen.getByRole('button', { name: 'Attiva con il codice' }))
+    expect(db.attivaConCodice).toHaveBeenCalledWith({ piano: 'completo', moduli: [], terminali: 1, intervallo: 'mese' }, 'TANA-100')
+    expect(db.avviaPagamento).not.toHaveBeenCalled()
+    expect(await screen.findByText(/attivo col codice TANA-100/)).toBeInTheDocument()
+  })
+
+  it('un codice sbagliato lo dice, e cambiandolo il tasto torna quello del pagamento', async () => {
+    const user = userEvent.setup()
+    db.verificaCodiceSconto.mockRejectedValueOnce(new Error('Codice sconosciuto o disattivato.'))
+    render(<SceltaPiano cliente={{ uid: 'u1' }} />)
+    await user.type(screen.getByLabelText(/Codice sconto/), 'NIENTE')
+    await user.click(screen.getByRole('button', { name: 'Applica' }))
+    expect(await screen.findByText('Codice sconosciuto o disattivato.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Vai al pagamento' })).toBeInTheDocument()
+  })
+
+  it('coi pagamenti spenti il codice va con la richiesta di contatto; per il Free e nei cambi di piano non c’è', async () => {
+    const user = userEvent.setup()
+    stato.vendita = venditaPulita({ pagamenti_online: false, free: true })
+    db.verificaCodiceSconto.mockResolvedValueOnce({ codice: 'PROVA20', percentuale: 20, durata_mesi: null, gratis: false, vale: 'codice' })
+    const { unmount } = render(<SceltaPiano cliente={{ uid: 'u1' }} />)
+    await user.type(screen.getByLabelText(/Codice sconto/), 'PROVA20')
+    await user.click(screen.getByRole('button', { name: 'Applica' }))
+    expect(await screen.findByTestId('esito-codice')).toHaveTextContent(/Lo applichiamo noi/)
+    await user.click(screen.getByRole('button', { name: 'Chiedi di essere contattato' }))
+    expect(db.chiediContatto).toHaveBeenCalledWith(expect.objectContaining({ piano: 'base', codice: 'PROVA20' }))
+    await user.click(screen.getByLabelText(new RegExp(`^${PIANI.free.nome}`)))
+    expect(screen.queryByTestId('codice-sconto')).not.toBeInTheDocument()
+    unmount()
+    render(<SceltaPiano cliente={{ uid: 'u1', piano: 'base' }} modifica />)
+    expect(screen.queryByTestId('codice-sconto')).not.toBeInTheDocument()
   })
 })

@@ -486,6 +486,19 @@ requirements:
       con piano a mano e abbonamento manuale attivo, e se chiesto la
       richiesta di attivazione gia' in coda. I consensi restano da
       raccogliere e il documento lo dice.
+      OGNI DEPLOY DOPO UN ACQUISTO PASSA DALL'ADMIN (02/11/2026). L'utente:
+      «per ora, tutti gli acquisti andati a buon fine richiedono che sia io
+      admin a procedere con il deploy, mi serve solo un tasto per deployare
+      dopo acquisto […] Poi con un setting che abilito io posso attivare il
+      deploy automatico dopo acquisto». Il deploy automatico parte SPENTO
+      (impostazioni/regia.deploy_automatico deve essere true per accenderlo;
+      prima un documento mancante voleva dire acceso). E c'era un buco: un
+      locale Free che comprava un piano veniva ripubblicato col profilo
+      completo da solo, a interruttore spento. Ora, spento, l'istanza si
+      segna con profilo_completo_da_autorizzare e il backoffice la mostra
+      in «Richieste» («Free che hanno comprato», tasto «Pubblica il
+      piano», Function autorizzaProfiloCompleto); conta nel contatore e in
+      «Da seguire».
     status: implemented
     generate_issue: true
     labels: [prodotto, flotta, regia]
@@ -493,6 +506,7 @@ requirements:
       - tests/istanze.test.js
       - tests/provisioning.test.js
       - tests/Backoffice.test.jsx
+      - tests/acquisto.test.js
 
   - id: REQ-FLOTTA-012
     title: "I rilasci arrivano ai locali a ondate: prova, interne, pilota, tutti; un aggiornamento fallito ferma il rilascio, non il locale"
@@ -1336,6 +1350,25 @@ requirements:
       torna indietro e lo si dice. Nella stessa verifica: la regola dei
       clienti lasciava al titolare moduli, terminali e prove, che la regia
       trasforma in licenza; ora il titolare cambia solo i dati anagrafici.
+      IL CODICE ALL'ACQUISTO (02/11/2026). L'utente: «gli acquisti possono
+      avere anche i codici sconto mi raccomando»; il Checkout li ignorava, e
+      chi aveva un codice pagava il listino. Alle tre domande: lo scrivono
+      «tutti e due» (il titolare nella scelta del piano, l'admin dal
+      backoffice come prima); col prezzo Fondatori vale «il più
+      conveniente»; un codice al 100% «senza passare da Stripe». In
+      functions/lib/acquisto.js: lo sconto di un acquisto (il codice scritto,
+      o quello dell'admin ancora in corso), il coupon di Stripe in
+      percentuale sui mesi che restano (col pagamento annuale per anni
+      interi; un codice di meno di un anno vale solo al mese), il confronto
+      coi Fondatori sul primo anno attivazione compresa (vince il codice a
+      parità), e l'attivazione con un codice al 100%. Le Functions
+      verificaCodiceSconto («Applica», non scrive niente) e attivaConCodice;
+      creaCheckout decide lo sconto prima di prenotare un posto Fondatori, e
+      il webhook riscrive lo sconto sul cliente dai metadati. Coi pagamenti
+      spenti il codice viaggia con la richiesta di contatto. Un codice al
+      100% è un abbonamento attivo come quello dato dall'admin: il locale
+      si attiva da «Attiva», e col deploy automatico spento la richiesta
+      aspetta l'admin (REQ-FLOTTA-011).
     status: implemented
     generate_issue: true
     labels: [prodotto, regia, abbonamento, licenza, sicurezza]
@@ -1344,6 +1377,9 @@ requirements:
       - tests/esistente.test.js
       - tests/Backoffice.test.jsx
       - tests/db.test.js
+      - tests/acquisto.test.js
+      - tests/SceltaPiano.test.jsx
+      - tests/contatti.test.js
 
   - id: REQ-FLOTTA-025
     title: "Senza licenza valida il prodotto non parte; i dati di un locale fermo si conservano 90 giorni, con gli avvisi"

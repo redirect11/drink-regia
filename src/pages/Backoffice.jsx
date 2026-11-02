@@ -11,6 +11,7 @@ import {
   osservaImpostazioniRegia,
   impostaDeployAutomatico,
   autorizzaRichiesta,
+  autorizzaProfiloCompleto,
   rifiutaRichiesta,
   creaClienteDaAdmin,
   elencoCassettiAI,
@@ -42,7 +43,7 @@ import CatalogoTemi from './CatalogoTemi.jsx'
 import { contattoDi } from '../lib/clienti.js'
 import { statoCredito, euroCent } from '../lib/ai.js'
 import { GRUPPI, TAG, aggiornamentoDetto } from '../lib/rilasci.js'
-import { BASE, SEZIONI, VISTE, aggiornamentoFallito, aggiornaLaRegia, contiDelBackoffice, filtraLocali } from '../lib/backoffice.js'
+import { BASE, SEZIONI, VISTE, aggiornamentoFallito, aggiornaLaRegia, contiDelBackoffice, filtraLocali, profiloDaAutorizzare } from '../lib/backoffice.js'
 import Rilasci from './Rilasci.jsx'
 import { MODALITA, regolaDetta, propostaDetta } from '../lib/aggiornamenti.js'
 
@@ -115,7 +116,9 @@ export default function Backoffice() {
   // Un errore riguarda la sezione in cui è nato: cambiando sezione si toglie.
   useEffect(() => setErrore(null), [pathname])
 
-  const automatico = impostazioni.deploy_automatico !== false
+  // Spento finché l'admin non lo accende (02/11/2026): ogni deploy dopo un
+  // acquisto passa da qui.
+  const automatico = impostazioni.deploy_automatico === true
 
   // Sospendi, Riattiva, Chiudi (REQ-FLOTTA-008): l'app del locale si ferma
   // e lo dice; i dati restano. Il motivo lo legge il titolare.
@@ -185,6 +188,14 @@ export default function Backoffice() {
     }
     carica()
   }
+  const autorizzaProfilo = async (c) => {
+    try {
+      await autorizzaProfiloCompleto(c.slug)
+    } catch (e) {
+      setErrore(e.message)
+    }
+    carica()
+  }
   const rifiuta = async (c) => {
     const motivo = window.prompt(`Motivo del rifiuto (lo legge il titolare di ${c.nome_locale}):`, '')
     if (motivo == null) return
@@ -231,6 +242,7 @@ export default function Backoffice() {
   if (righe === undefined) return <main className="pagina muted">Carico…</main>
 
   const daApprovare = righe.filter((r) => r.stato === STATI.DA_APPROVARE)
+  const profiliDaAutorizzare = righe.filter(profiloDaAutorizzare)
   // Le azioni di una scheda, le stesse da «Locali» e da «Rilasci».
   // Un bonifico arrivato (REQ-FLOTTA-023): fino a quando è pagato.
   const pagamento = async (c) => {
@@ -296,6 +308,8 @@ export default function Backoffice() {
                 automatico={automatico}
                 onAutomatico={(acceso) => impostaDeployAutomatico(acceso).catch((err) => setErrore(err.message))}
                 daApprovare={daApprovare}
+                profili={profiliDaAutorizzare}
+                onAutorizzaProfilo={autorizzaProfilo}
                 contatti={contatti}
                 onAutorizza={autorizza}
                 onRifiuta={rifiuta}
@@ -1076,7 +1090,7 @@ function GestioneEsistente({ cliente: c, istanza, onFatto, onErrore }) {
   )
 }
 
-function SezioneRichieste({ automatico, onAutomatico, daApprovare, contatti, onAutorizza, onRifiuta, onSegna }) {
+function SezioneRichieste({ automatico, onAutomatico, daApprovare, profili = [], onAutorizzaProfilo, contatti, onAutorizza, onRifiuta, onSegna }) {
   return (
     <>
       <section className="card" aria-label="Attivazioni">
@@ -1087,11 +1101,34 @@ function SezioneRichieste({ automatico, onAutomatico, daApprovare, contatti, onA
         </label>
         <p className="muted small">
           {automatico
-            ? 'Deploy automatico acceso: «Attiva» di un titolare parte da solo.'
-            : 'Deploy automatico spento: le richieste aspettano la tua autorizzazione qui sotto.'}
+            ? 'Deploy automatico acceso: «Attiva» di un titolare parte da solo, e un locale Free che compra si ripubblica col profilo completo.'
+            : 'Deploy automatico spento: le attivazioni dopo un acquisto, e i locali Free che comprano, aspettano la tua autorizzazione qui sotto.'}
         </p>
-        {daApprovare.length === 0 && <p className="muted small">Nessuna attivazione da autorizzare.</p>}
+        {daApprovare.length === 0 && profili.length === 0 && <p className="muted small">Nessuna attivazione da autorizzare.</p>}
       </section>
+
+      {profili.length > 0 && (
+        <section className="card" aria-label="Free che hanno comprato">
+          <h3>Free che hanno comprato</h3>
+          <p className="muted small">La licenza ha già tolto i limiti; il deploy porta Functions, Storage e segreti del piano a pagamento.</p>
+          {profili.map(({ cliente: c, istanza }) => (
+            <div className="row-tra riga-richiesta" key={c.uid}>
+              <span>
+                <strong>{c.nome_locale}</strong> <span className="muted small">{c.slug} · {c.email}</span>
+                <div className="muted small">
+                  piano {PIANI[istanza.profilo_completo_da_autorizzare.piano]?.nome || istanza.profilo_completo_da_autorizzare.piano || '—'} · comprato il{' '}
+                  {istanza.profilo_completo_da_autorizzare.chiesto_il ? new Date(istanza.profilo_completo_da_autorizzare.chiesto_il).toLocaleString('it-IT') : '—'}
+                </div>
+              </span>
+              <span className="azioni-riga">
+                <button type="button" className="btn small" onClick={() => onAutorizzaProfilo(c)}>
+                  Pubblica il piano
+                </button>
+              </span>
+            </div>
+          ))}
+        </section>
+      )}
 
       {daApprovare.length > 0 && (
         <section className="card" aria-label="Richieste da autorizzare">
@@ -1486,6 +1523,7 @@ function Contatti({ elenco, onSegna: segna }) {
               {c.stato === 'gestita' && c.gestita_il && ` · gestita il ${new Date(c.gestita_il).toLocaleDateString('it-IT')}`}
             </div>
             {c.nota && <div className="small">«{c.nota}»</div>}
+            {c.codice && <div className="small">Codice sconto: {c.codice}</div>}
             <button type="button" className="btn ghost small" onClick={() => segna(c, c.stato === 'aperta' ? 'gestita' : 'aperta')}>
               {c.stato === 'aperta' ? 'Segna gestita' : 'Riapri'}
             </button>

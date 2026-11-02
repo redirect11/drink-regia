@@ -32,6 +32,9 @@ const daFlotta = aggiornaLaRegia
 const licenzaDi = (r) => r.istanza?.licenza_stato || 'attiva'
 const eliminazioneFallita = (r) => r.istanza?.eliminazione?.stato === 'fallita'
 export const aggiornamentoFallito = (r) => daFlotta(r.istanza) && r.istanza?.aggiornamento?.stato === 'fallito'
+// Un locale Free che ha comprato, col deploy automatico spento: il profilo
+// completo aspetta l'admin (REQ-FLOTTA-011).
+export const profiloDaAutorizzare = (r) => Boolean(r.istanza?.profilo_completo_da_autorizzare)
 
 // I contatori del sotto-menù: ora che non è più tutto in una pagina, la
 // voce dice se dietro c'è qualcosa da fare. Ogni cosa si conta una volta
@@ -42,7 +45,8 @@ export const aggiornamentoFallito = (r) => daFlotta(r.istanza) && r.istanza?.agg
 export function contiDelBackoffice(righe, contatti) {
   return {
     locali: righe.filter((r) => r.stato === STATI.ERRORE || eliminazioneFallita(r)).length,
-    richieste: righe.filter((r) => r.stato === STATI.DA_APPROVARE).length + (contatti || []).filter((c) => c.stato === 'aperta').length,
+    richieste:
+      righe.filter((r) => r.stato === STATI.DA_APPROVARE || profiloDaAutorizzare(r)).length + (contatti || []).filter((c) => c.stato === 'aperta').length,
     rilasci: righe.filter(aggiornamentoFallito).length,
   }
 }
@@ -54,7 +58,7 @@ export const VISTE = [
   {
     id: 'da-seguire',
     nome: 'Da seguire',
-    vale: (r) => r.stato === STATI.ERRORE || r.stato === STATI.DA_APPROVARE || aggiornamentoFallito(r) || eliminazioneFallita(r),
+    vale: (r) => r.stato === STATI.ERRORE || r.stato === STATI.DA_APPROVARE || profiloDaAutorizzare(r) || aggiornamentoFallito(r) || eliminazioneFallita(r),
   },
   { id: 'attivi', nome: 'Attivi', vale: (r) => r.stato === STATI.ATTIVA && licenzaDi(r) === 'attiva' },
   {

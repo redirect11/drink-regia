@@ -33,6 +33,7 @@ const db = vi.hoisted(() => ({
   }),
   impostaDeployAutomatico: vi.fn(async () => {}),
   autorizzaRichiesta: vi.fn(async () => {}),
+  autorizzaProfiloCompleto: vi.fn(async () => ({ ok: true })),
   rifiutaRichiesta: vi.fn(async () => {}),
   creaClienteDaAdmin: vi.fn(async () => ({ uid: 'n', slug: 'bar-creato' })),
   elencoCassettiAI: vi.fn(async () => ({})),
@@ -229,13 +230,30 @@ describe('il backoffice', () => {
 // REQ-FLOTTA-011: l'admin governa i deploy e crea locali da sé.
 describe('il backoffice governa i deploy', () => {
   // Interruttore e richieste da autorizzare stanno in «Richieste» (30/10/2026).
-  it('l’interruttore del deploy automatico è acceso di partenza e si spegne', async () => {
+  // L'utente, 02/11/2026: «per ora la vendita è attiva ma non il deploy
+  // automatico, che passa per me. Poi con un setting che abilito io posso
+  // attivare il deploy automatico dopo acquisto».
+  it('l’interruttore del deploy automatico è spento di partenza e si accende', async () => {
     const user = userEvent.setup()
     mostra('/backoffice/richieste')
     const interruttore = await screen.findByLabelText('Deploy automatico')
-    expect(interruttore).toBeChecked()
+    expect(interruttore).not.toBeChecked()
+    expect(screen.getByText(/aspettano la tua autorizzazione/)).toBeInTheDocument()
     await user.click(interruttore)
-    expect(db.impostaDeployAutomatico).toHaveBeenCalledWith(false)
+    expect(db.impostaDeployAutomatico).toHaveBeenCalledWith(true)
+  })
+
+  it('un locale Free che ha comprato aspetta l’admin: «Pubblica il piano» lancia il profilo completo', async () => {
+    const user = userEvent.setup()
+    db.elencoIstanze.mockResolvedValue({
+      'bar-nuovo': { slug: 'bar-nuovo', stato: 'attiva', profilo: 'leggero', profilo_completo_da_autorizzare: { chiesto_il: '2026-11-02T10:00:00Z', piano: 'base' } },
+    })
+    mostra('/backoffice/richieste')
+    const sezione = await screen.findByRole('region', { name: 'Free che hanno comprato' })
+    expect(sezione).toHaveTextContent(/Bar Nuovo/)
+    expect(sezione).toHaveTextContent(/piano Base/)
+    await user.click(within(sezione).getByRole('button', { name: 'Pubblica il piano' }))
+    expect(db.autorizzaProfiloCompleto).toHaveBeenCalledWith('bar-nuovo')
   })
 
   it('spento, le richieste da approvare stanno in cima: Autorizza le mette in coda, Rifiuta chiede il motivo', async () => {

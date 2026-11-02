@@ -13,7 +13,7 @@ import {
   conIva,
   euro,
 } from '../lib/piani.js'
-import { avviaPagamento, cambiaScelta, chiediContatto, osservaContatto, osservaVendita, scegliFree } from '../lib/db.js'
+import { attivaConCodice, avviaPagamento, cambiaScelta, chiediContatto, osservaContatto, osservaVendita, scegliFree, verificaCodiceSconto } from '../lib/db.js'
 import { EMAIL_CONTATTI } from '../lib/prodotto.js'
 import { venditaPulita, pianiInVendita, moduloVisibile, eGratuito } from '../lib/vendita.js'
 
@@ -36,6 +36,22 @@ import { venditaPulita, pianiInVendita, moduloVisibile, eGratuito } from '../lib
 // Fondatori detta come informazione, perché chi rientra lo decide il
 // server contando gli abbonamenti attivati: la pagina non ha il conteggio
 // e non mostra i posti rimasti.
+
+// IL CODICE SCONTO (REQ-FLOTTA-028): chi comincia un piano a pagamento lo
+// scrive qui, e «Applica» chiede alla regia se vale e quanto (la pagina non
+// legge i codici). Al pagamento il server lo ricontrolla e lo mette nel
+// Checkout; se c'è anche il prezzo Fondatori vale il più conveniente, e la
+// pagina lo dice prima. Un codice al 100% attiva il piano senza pagamento.
+// Coi pagamenti online spenti il codice viaggia con la richiesta di
+// contatto, e lo applica l'admin.
+const durataDetta = (mesi) => (mesi ? `per ${mesi} ${mesi === 1 ? 'mese' : 'mesi'}` : 'senza scadenza')
+
+function testoCodice(e, daContattare) {
+  if (e.gratis) return `Codice ${e.codice}: il piano non si paga, ${durataDetta(e.durata_mesi)}. Si attiva col tasto qui sotto, senza pagamento.`
+  if (daContattare) return `Codice ${e.codice}: ${e.percentuale}% di sconto, ${durataDetta(e.durata_mesi)}. Lo applichiamo noi quando attiviamo il piano.`
+  if (e.vale === 'fondatori') return `Codice ${e.codice} valido, ma con l’offerta Fondatori risparmi di più nel primo anno: si applica quella. Lo sconto è uno solo per acquisto.`
+  return `Codice ${e.codice}: ${e.percentuale}% di sconto, ${durataDetta(e.durata_mesi)}, applicato nel pagamento.`
+}
 
 // «32,70 € + IVA» e «39,89 € IVA inclusa»: le due metà di ogni prezzo.
 const piuIva = (n) => `${euro(n)} + IVA`
@@ -60,6 +76,12 @@ export default function SceltaPiano({ cliente, modifica = false, vai = (url) => 
   const [nota, setNota] = useState('')
   const [contatto, setContatto] = useState(null)
   useEffect(() => osservaContatto(cliente.uid, setContatto), [cliente.uid])
+  const [codice, setCodice] = useState('')
+  const [esitoCodice, setEsitoCodice] = useState(null)
+  const [erroreCodice, setErroreCodice] = useState(null)
+  // Cambiando piano o periodo il confronto coi Fondatori può cambiare: il
+  // codice si riapplica.
+  useEffect(() => setEsitoCodice(null), [piano, periodo])
   const gratuito = eGratuito(piano)
   // Il Checkout serve solo a chi comincia un piano a pagamento.
   const daContattare = !gratuito && !modifica && !vendita.pagamenti_online
@@ -73,6 +95,20 @@ export default function SceltaPiano({ cliente, modifica = false, vai = (url) => 
   const inclusi = new Set(p.include)
   const giaSuoi = cliente.moduli || []
   const piani = pianiInVendita(vendita).filter((x) => !(x.gratuito && (modifica || cliente.piano === x.id)))
+  const conCodice = !gratuito && !modifica
+  const codiceScritto = conCodice ? codice.trim().toUpperCase() : ''
+  const gratisColCodice = Boolean(esitoCodice?.gratis) && esitoCodice.codice === codiceScritto
+
+  const applicaCodice = async () => {
+    setErroreCodice(null)
+    setEsitoCodice(null)
+    if (!codiceScritto) return
+    try {
+      setEsitoCodice(await verificaCodiceSconto(scelta, codiceScritto))
+    } catch (e) {
+      setErroreCodice(e.message)
+    }
+  }
 
   const conferma = async () => {
     setErrore(null)
@@ -85,8 +121,14 @@ export default function SceltaPiano({ cliente, modifica = false, vai = (url) => 
         setInCorso(false)
         return
       }
+      if (gratisColCodice) {
+        await attivaConCodice(scelta, codiceScritto)
+        setFatto(`Piano ${p.nome} attivo col codice ${codiceScritto}: ora puoi attivare il locale.`)
+        setInCorso(false)
+        return
+      }
       if (daContattare) {
-        await chiediContatto({ ...scelta, telefono, nota })
+        await chiediContatto({ ...scelta, telefono, nota, ...(codiceScritto ? { codice: codiceScritto } : {}) })
         setFatto(`Richiesta inviata: ti contattiamo a ${cliente.email || 'la tua email'}${telefono ? ` o al ${telefono}` : ''}.`)
         setInCorso(false)
         return
@@ -97,7 +139,7 @@ export default function SceltaPiano({ cliente, modifica = false, vai = (url) => 
         setInCorso(false)
         return
       }
-      const { url } = await avviaPagamento(scelta)
+      const { url } = await avviaPagamento(codiceScritto ? { ...scelta, codice: codiceScritto } : scelta)
       vai(url)
     } catch (e) {
       setErrore(e.message)
@@ -175,6 +217,29 @@ export default function SceltaPiano({ cliente, modifica = false, vai = (url) => 
             : 'Se rientri lo verifichiamo noi all’attivazione, e il prezzo applicato lo vedi nel riepilogo del pagamento.'}
         </p>
       )}
+      {conCodice && (
+        <div className="codice-sconto" data-testid="codice-sconto">
+          <label htmlFor="codice">Codice sconto (facoltativo)</label>
+          <div className="row">
+            <input
+              id="codice"
+              value={codice}
+              maxLength={24}
+              autoCapitalize="characters"
+              onChange={(e) => {
+                setCodice(e.target.value)
+                setEsitoCodice(null)
+                setErroreCodice(null)
+              }}
+            />
+            <button type="button" className="btn ghost small" disabled={!codiceScritto} onClick={applicaCodice}>
+              Applica
+            </button>
+          </div>
+          {esitoCodice && <p className="muted small" data-testid="esito-codice">{testoCodice(esitoCodice, daContattare)}</p>}
+          {erroreCodice && <p className="errore">{erroreCodice}</p>}
+        </div>
+      )}
       {!gratuito && !modifica && PROVA_GIORNI > 0 && (
         <p className="muted small" data-testid="prova">
           I primi {PROVA_GIORNI} giorni sono di prova: il canone parte alla fine della prova.
@@ -201,7 +266,17 @@ export default function SceltaPiano({ cliente, modifica = false, vai = (url) => 
       {errore && <p className="errore">{errore}</p>}
       {fatto && <p className="muted small">{fatto}</p>}
       <button type="button" className="btn" disabled={inCorso} onClick={conferma}>
-        {inCorso ? 'Un momento…' : gratuito ? 'Attiva il Free' : modifica ? 'Aggiorna il piano' : daContattare ? 'Chiedi di essere contattato' : 'Vai al pagamento'}
+        {inCorso
+          ? 'Un momento…'
+          : gratuito
+            ? 'Attiva il Free'
+            : modifica
+              ? 'Aggiorna il piano'
+              : gratisColCodice
+                ? 'Attiva con il codice'
+                : daContattare
+                  ? 'Chiedi di essere contattato'
+                  : 'Vai al pagamento'}
       </button>
     </section>
   )

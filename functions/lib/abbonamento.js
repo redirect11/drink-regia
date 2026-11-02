@@ -191,10 +191,13 @@ const DURATA_SESSIONE_MS = 35 * 60 * 1000
 // alla registrazione (clienti/{uid}.fatturazione: P.IVA, codice fiscale,
 // PEC, codice destinatario), che Stripe non ha. Con un customer che c'è
 // già, Stripe vuole il permesso di aggiornargli nome e indirizzo.
-function sessioneCheckout({ uid, cliente, scelta, ritorno, coupon = null, aliquotaIva, adesso = new Date() }) {
+// IL CODICE SCONTO (REQ-FLOTTA-028): `coupon` può essere anche quello di
+// un codice, e allora `fondatore` è false e `sconto` porta i metadati del
+// codice (acquisto.metadatiSconto), che il webhook riscrive sul cliente.
+// Un solo sconto per acquisto: quale, lo decide acquisto.scontoCheVale.
+function sessioneCheckout({ uid, cliente, scelta, ritorno, coupon = null, fondatore = Boolean(coupon), sconto = null, aliquotaIva, adesso = new Date() }) {
   serveAliquota(aliquotaIva)
-  const fondatore = Boolean(coupon)
-  const metadata = { ...metadatiDi(uid, scelta), ...(fondatore ? { fondatore: '1' } : {}) }
+  const metadata = { ...metadatiDi(uid, scelta), ...(fondatore ? { fondatore: '1' } : {}), ...(sconto || {}) }
   const attivazione = rigaAttivazione({ fondatore, aliquotaIva })
   const prova = giorniDiProva(cliente)
   const stripeCustomer = cliente?.abbonamento?.stripe_customer
@@ -211,7 +214,7 @@ function sessioneCheckout({ uid, cliente, scelta, ritorno, coupon = null, aliquo
     // L'IVA anche come aliquota predefinita della subscription: una riga
     // aggiunta dalla dashboard di Stripe, senza tax rate sua, la prende da qui.
     subscription_data: { metadata, default_tax_rates: [aliquotaIva], ...(prova ? { trial_period_days: prova } : {}) },
-    ...(fondatore ? { discounts: [{ coupon }] } : {}),
+    ...(coupon ? { discounts: [{ coupon }] } : {}),
     expires_at: Math.floor((adesso.getTime() + DURATA_SESSIONE_MS) / 1000),
     success_url: `${ritorno}/dashboard?pagamento=ok`,
     cancel_url: `${ritorno}/dashboard?pagamento=annullato`,
@@ -273,12 +276,18 @@ function aggiornamentoDaEvento(tipo, oggetto, adesso = new Date()) {
     // un abbonamento: la lavora ai.js, qui non deve toccare piano e stato.
     if (md.tipo === 'ricarica_ai') return null
     if (!md.uid) return null
+    // Pagato con un codice sconto (REQ-FLOTTA-028): lo sconto resta scritto
+    // sul cliente, come quello che dà l'admin. Senza codice non si tocca.
+    const sconto = md.sconto
+      ? { sconto: { codice: md.sconto, percentuale: Number(md.sconto_percentuale) || null, durata_mesi: md.sconto_mesi ? Number(md.sconto_mesi) : null, dal: md.sconto_dal || ora, fino: md.sconto_fino || null } }
+      : {}
     return {
       uid: md.uid,
       patch: {
         piano: md.piano || 'base',
         moduli: md.moduli ? md.moduli.split(',').filter(Boolean) : [],
         terminali: Number(md.terminali) || 1,
+        ...sconto,
         abbonamento: {
           stato: 'attivo',
           intervallo: intervalloPulito(md.intervallo),

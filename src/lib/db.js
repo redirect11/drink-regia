@@ -104,8 +104,9 @@ export async function chiediAttivazione() {
 }
 
 // ── le impostazioni della regia (REQ-FLOTTA-011) ──
-// Un documento solo, impostazioni/regia: `deploy_automatico` (true di
-// partenza). Lo legge il backoffice, lo scrive l'admin; la Function
+// Un documento solo, impostazioni/regia: `deploy_automatico` (spento di
+// partenza dal 02/11/2026: l'utente vuole autorizzare lui ogni deploy dopo
+// un acquisto, finché non lo accende). Lo legge il backoffice, lo scrive l'admin; la Function
 // `chiediAttivazione` lo rilegge da sé per decidere lo stato iniziale.
 export function osservaImpostazioniRegia(cb) {
   serve()
@@ -121,6 +122,15 @@ export async function impostaDeployAutomatico(acceso) {
 export async function autorizzaRichiesta(slug) {
   serve()
   await updateDoc(doc(db, 'richieste', slug), { stato: STATI.IN_CODA, autorizzata_il: new Date().toISOString() })
+}
+
+// Il profilo completo di un Free che ha comprato (REQ-FLOTTA-011): la
+// Function lancia l'aggiornamento e toglie la richiesta.
+export async function autorizzaProfiloCompleto(slug) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'autorizzaProfiloCompleto')
+  const { data } = await fn({ slug })
+  return data
 }
 
 export async function rifiutaRichiesta(slug, motivo) {
@@ -145,6 +155,23 @@ export async function avviaPagamento(scelta) {
   const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'creaCheckout')
   const { data } = await fn({ ...scelta, ritorno: window.location.origin })
   if (!data?.url) throw new Error('Il pagamento non è disponibile al momento: scrivici all’email del prodotto.')
+  return data
+}
+
+// Il codice sconto all'acquisto (REQ-FLOTTA-028): la Function dice se c'è,
+// quanto vale e se vince sul prezzo Fondatori; non scrive niente.
+export async function verificaCodiceSconto(scelta, codice) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'verificaCodiceSconto')
+  const { data } = await fn({ ...scelta, codice })
+  return data
+}
+
+// Un codice al 100%: il piano si attiva senza pagamento.
+export async function attivaConCodice(scelta, codice) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'attivaConCodice')
+  const { data } = await fn({ ...scelta, codice })
   return data
 }
 
