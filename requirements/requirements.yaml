@@ -115,6 +115,22 @@ requirements:
       regole: un cliente scrive solo il suo documento, con i blocchi
       attesi, la sua email e una partita IVA di 11 cifre; piano e
       abbonamento non li tocca.
+      AUDIT H1 (chiusa il 02/11/2026): dopo la registrazione il titolare
+      cambia solo i blocchi locale, fatturazione, referente e consensi
+      (elenco di quello che si può, non di quello che non si può), con la
+      partita IVA sempre di 11 cifre e i consensi che non si cancellano;
+      piano, moduli, terminali, prove, sconto, abbonamento, email e slug li
+      scrivono solo l'admin e le Functions. Il sito non aggiorna mai
+      clienti/{uid} dal browser: nessuna funzione dipendeva da quelle
+      scritture. Le regole sono provate sul testo; il 02/11/2026 anche
+      sull'emulatore di Firestore (25 casi, fuori dal repository, che non
+      ha ancora l'emulatore fra le dipendenze).
+      VALIDO, O COM'ERA (02/11/2026): un locale registrato come esistente
+      (la Tana) nasce con fatturazione {} e consensi a null, e la regola
+      che pretendeva i valori pieni gli chiudeva ogni modifica. Ora ogni
+      campo controllato dev'essere valido o restare com'era: chi li ha
+      validi non li guasta, chi non li ha li può solo mettere giusti.
+      Provata sull'emulatore (11 casi, fuori dal repository).
       Da rivedere con un consulente prima di vendere: i testi di termini e
       privacy (src/pages/Legali.jsx) sono una struttura, non un
       parere legale.
@@ -215,6 +231,8 @@ requirements:
       dalle Functions: da confermare prima di pubblicare. Dal 02/11/2026
       (DEC-0005) il Checkout porta anche l'attivazione una tantum, la
       scelta mensile o annuale e l'offerta Fondatori: REQ-FLOTTA-021.
+      Dal 02/11/2026 Stripe aggiunge l'IVA (REQ-FLOTTA-035), e il webhook
+      elabora ogni evento una volta sola e in ordine (REQ-FLOTTA-036).
       IL POS NON DIPENDE DA STRIPE: un pagamento in ritardo cambia cosa dice
       la dashboard, non quello che l'istanza fa.
       STATO AL 22/10/2026: scritto, con la logica provata; le chiavi di
@@ -1420,3 +1438,87 @@ requirements:
       - tests/Backoffice.test.jsx
       - tests/db.test.js
 
+  - id: REQ-FLOTTA-035
+    title: "L'IVA al 22% su canoni, attivazione, cambi di piano e ricariche AI, con un'aliquota fissa di Stripe"
+    area: "functions/lib/abbonamento.js (parametriAliquotaIva, eAliquotaIva, righeCheckout, righeSubscription, prodottiDi, rigaAttivazione, sessioneCheckout), functions/lib/ai.js (rigaRicarica), functions/index.js (aliquotaIvaSuStripe, prodottiSuStripe, creaCheckout, aggiornaSubscription, creaRicaricaAI)"
+    description: >
+      Fase 0, prima di vendere (02/11/2026): il Checkout addebitava
+      l'imponibile senza IVA, mentre il listino (DEC-0005) e il sito
+      dicono «+ IVA». I prezzi di piani.json restano IVA esclusa
+      (`tax_behavior: 'exclusive'`) e Stripe aggiunge il 22% (`iva` del
+      listino) con una tax rate fissa, non Stripe Tax: i clienti sono
+      locali italiani con partita IVA, l'aliquota è una sola, e Stripe Tax
+      costa una percentuale su ogni transazione.
+      L'ALIQUOTA SI CERCA E SI CREA DA SOLA: fra le tax rate attive di
+      Stripe quella col segno `metadata.drink = 'iva'` e la percentuale del
+      listino; se manca la si crea, con una chiave di idempotenza perché due
+      Checkout insieme non ne creino due. Niente id da copiare a mano in un
+      segreto per ogni account (test e produzione). Senza aliquota non si
+      apre nessun Checkout e non si cambia nessuna subscription.
+      DOVE: ogni riga del Checkout dell'abbonamento, attivazione compresa,
+      e l'aliquota predefinita della subscription; ogni riga nuova dei
+      cambi di piano (cambiaScelta, cambiaPianoAdmin), su cui Stripe
+      calcola il conguaglio; la ricarica del credito AI (pagamento
+      singolo), dove il credito resta l'imponibile (`amount_subtotal`).
+      I CAMBI DI PIANO: una subscription non accetta `product_data` nelle
+      righe, vuole l'id di un prodotto. Prima si mandavano le righe del
+      Checkout, che Stripe avrebbe rifiutato; ora i prodotti hanno id fissi
+      (`drink-piano-base`, `drink-modulo-<id>`, `drink-terminale`), cercati
+      e creati se mancano.
+      I DATI DI FATTURAZIONE: il Checkout chiede l'indirizzo di fatturazione
+      e lascia scrivere la partita IVA (`tax_id_collection`), che vanno sul
+      customer di Stripe e sulle sue ricevute; con un customer che c'è già
+      Stripe li aggiorna (`customer_update`). La fattura elettronica però si
+      fa coi dati della registrazione (clienti/{uid}.fatturazione: partita
+      IVA, codice fiscale, PEC, codice destinatario), che Stripe non ha:
+      le ricevute di Stripe non sono fatture elettroniche.
+      NON PROVATO SU STRIPE: la logica è provata senza chiavi; il primo
+      Checkout in modalità test deve mostrare l'IVA e il totale.
+    status: implemented
+    generate_issue: true
+    labels: [prodotto, regia, abbonamento]
+    test_cases:
+      - tests/abbonamento.test.js
+      - tests/ai.test.js
+
+  - id: REQ-FLOTTA-036
+    title: "Il webhook di Stripe elabora ogni evento una volta sola, e un evento in ritardo non riporta indietro lo stato"
+    area: "functions/lib/eventistripe.js, functions/lib/abbonamento.js (subscriptionDellaFattura), functions/index.js (stripeWebhook, elaboraEventoStripe), firestore.rules (eventi_stripe)"
+    description: >
+      Audit del 22/10/2026, M4: Stripe consegna ogni evento almeno una
+      volta e non in ordine, e il webhook non teneva conto né dell'uno né
+      dell'altro: un `invoice.paid` in ritardo riattivava un abbonamento
+      disdetto.
+      UNA VOLTA SOLA: ogni evento passa dal registro eventi_stripe/{event.id},
+      preso in carico in transazione prima di ogni effetto. Già fatto: si
+      risponde 200 senza rifare niente. In corso in un'altra istanza: 409, e
+      Stripe lo ripete più tardi. Una presa in carico più vecchia di 5
+      minuti (la Function morta a metà) si riprende. Se l'elaborazione
+      fallisce la riga si toglie e si risponde 500: la ripetizione di
+      Stripe riparte da capo, e ogni effetto resta ripetibile da sé (la
+      ricarica per id di sessione, il posto Fondatori per uid, lo stato del
+      cliente in ordine). Ogni riga ha `scade_il` (45 giorni) per la policy
+      TTL di Firestore. Le regole: la legge l'admin, non la scrive nessun
+      client.
+      IN ORDINE: il cliente tiene `abbonamento.evento_stripe_creato`, l'ora
+      (event.created) dell'ultimo evento che ne ha scritto lo stato. Un
+      evento più vecchio non riscrive stato, piano, moduli, terminali e
+      rinnovo; a parità di secondo si scrive. «Disdetto» non si riapre da un
+      evento di Stripe (una subscription cancellata non torna attiva: un
+      abbonamento nuovo passa dal Checkout); un abbonamento che l'admin ha
+      messo fuori da Stripe non lo cambiano gli eventi della vecchia
+      subscription; `pagato_fino` non torna indietro; l'ultimo pagamento e
+      l'ultimo fallimento si scrivono sempre. La lettura e la scrittura del
+      cliente sono nella stessa transazione.
+      LA VERSIONE DELL'API: il webhook riceve gli eventi nella versione
+      dell'endpoint registrato su Stripe, non in quella dell'SDK (stripe
+      17.7, 2025-02-24.acacia). Dalla 2025-03-31.basil la subscription di
+      una fattura non è più in `invoice.subscription` ma in
+      `invoice.parent.subscription_details.subscription`
+      (subscriptionDellaFattura legge tutte e due, e le righe).
+    status: implemented
+    generate_issue: true
+    labels: [prodotto, regia, abbonamento, sicurezza]
+    test_cases:
+      - tests/eventistripe.test.js
+      - tests/abbonamento.test.js

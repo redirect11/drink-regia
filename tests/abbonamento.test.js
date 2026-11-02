@@ -13,6 +13,13 @@ const {
   sceltaPulita,
   centesimi,
   righeCheckout,
+  righeSubscription,
+  prodottiDi,
+  parametriAliquotaIva,
+  eAliquotaIva,
+  CHIAVE_IDEMPOTENZA_IVA,
+  PERCENTUALE_IVA,
+  subscriptionDellaFattura,
   rigaAttivazione,
   metadatiDi,
   giorniDiProva,
@@ -87,7 +94,9 @@ describe('righeCheckout', () => {
 
 describe('rigaAttivazione', () => {
   it('82 € una tantum, senza recurring; gratuita per i Fondatori', () => {
-    expect(rigaAttivazione()).toEqual({ quantity: 1, price_data: { currency: 'eur', unit_amount: 8200, product_data: { name: 'Attivazione' } } })
+    expect(rigaAttivazione()).toEqual({ quantity: 1, price_data: { currency: 'eur', unit_amount: 8200, product_data: { name: 'Attivazione' }, tax_behavior: 'exclusive' } })
+    // Con l'aliquota, l'IVA anche sull'attivazione (REQ-FLOTTA-035).
+    expect(rigaAttivazione({ aliquotaIva: 'txr_iva' }).tax_rates).toEqual(['txr_iva'])
     expect(rigaAttivazione({ fondatore: true })).toBeNull()
   })
 })
@@ -127,7 +136,7 @@ describe('la prova al Checkout (REQ-FLOTTA-031)', () => {
       expect(giorniDiProva({ abbonamento: {} })).toBe(30)
       expect(giorniDiProva(null)).toBe(30)
       expect(giorniDiProva({ abbonamento: { stripe_subscription: 'sub_vecchia' } })).toBe(0)
-      const s = sessioneCheckout({ uid: 'u1', cliente: { email: 't@x.it' }, scelta: { piano: 'base' }, ritorno: 'https://r.test' })
+      const s = sessioneCheckout({ uid: 'u1', cliente: { email: 't@x.it' }, scelta: { piano: 'base' }, ritorno: 'https://r.test', aliquotaIva: 'txr_iva' })
       expect(s.subscription_data.trial_period_days).toBe(30)
       // L'attivazione resta nella sessione: con la prova accesa Stripe la
       // addebita subito. È la domanda aperta per l'utente (REQ-FLOTTA-031).
@@ -138,7 +147,7 @@ describe('la prova al Checkout (REQ-FLOTTA-031)', () => {
 
 describe('sessioneCheckout', () => {
   const adesso = new Date('2026-11-02T10:00:00Z')
-  const base = { uid: 'u1', cliente: { email: 't@x.it', abbonamento: {} }, ritorno: 'https://regia.test', adesso }
+  const base = { uid: 'u1', cliente: { email: 't@x.it', abbonamento: {} }, ritorno: 'https://regia.test', aliquotaIva: 'txr_iva', adesso }
 
   it('mensile a listino: righe ricorrenti più l’attivazione, nessuno sconto, scadenza a 35 minuti', () => {
     const s = sessioneCheckout({ ...base, scelta: { piano: 'base', terminali: 4 } })
@@ -152,7 +161,7 @@ describe('sessioneCheckout', () => {
     expect(s.customer_email).toBe('t@x.it')
     expect(s.customer).toBeUndefined()
     expect(s.metadata).toEqual({ uid: 'u1', piano: 'base', moduli: '', terminali: '4', intervallo: 'mese' })
-    expect(s.subscription_data).toEqual({ metadata: s.metadata })
+    expect(s.subscription_data).toEqual({ metadata: s.metadata, default_tax_rates: ['txr_iva'] })
     expect(s.expires_at).toBe(Math.floor((adesso.getTime() + DURATA_SESSIONE_MS) / 1000))
     expect(DURATA_SESSIONE_MS).toBeGreaterThan(30 * 60 * 1000)
     expect(s.success_url).toBe('https://regia.test/dashboard?pagamento=ok')
@@ -180,6 +189,94 @@ describe('sessioneCheckout', () => {
     const s = sessioneCheckout({ ...base, cliente: { email: 't@x.it', abbonamento: { stripe_customer: 'cus_1' } }, scelta: { piano: 'base' } })
     expect(s.customer).toBe('cus_1')
     expect(s.customer_email).toBeUndefined()
+    // Stripe lo pretende per salvare indirizzo e partita IVA su un customer
+    // che c'è già (REQ-FLOTTA-035).
+    expect(s.customer_update).toEqual({ address: 'auto', name: 'auto' })
+  })
+})
+
+// L'IVA (REQ-FLOTTA-035): prezzi IVA esclusa, il 22% lo aggiunge Stripe
+// con un'aliquota fissa su ogni riga, canoni e attivazione.
+describe('l’IVA al Checkout e nei cambi di piano (REQ-FLOTTA-035)', () => {
+  const adesso = new Date('2026-11-02T10:00:00Z')
+  const base = { uid: 'u1', cliente: { email: 't@x.it', abbonamento: {} }, ritorno: 'https://regia.test', aliquotaIva: 'txr_iva', adesso }
+
+  it('ogni riga del Checkout, attivazione compresa, porta l’aliquota ed è IVA esclusa', () => {
+    const s = sessioneCheckout({ ...base, scelta: { piano: 'base', moduli: ['staff'], terminali: 5 } })
+    expect(s.line_items).toHaveLength(4)
+    for (const r of s.line_items) {
+      expect(r.tax_rates).toEqual(['txr_iva'])
+      expect(r.price_data.tax_behavior).toBe('exclusive')
+    }
+    // Gli importi restano quelli del listino: l'IVA si aggiunge, non si scorpora.
+    expect(s.line_items[0].price_data.unit_amount).toBe(3270)
+  })
+
+  it('anche i Fondatori e l’annuale', () => {
+    const f = sessioneCheckout({ ...base, scelta: { piano: 'base' }, coupon: 'fondatori-base-mese-770' })
+    expect(f.line_items.every((r) => r.tax_rates?.[0] === 'txr_iva')).toBe(true)
+    const a = sessioneCheckout({ ...base, scelta: { piano: 'completo', intervallo: 'anno' } })
+    expect(a.line_items.every((r) => r.tax_rates?.[0] === 'txr_iva')).toBe(true)
+  })
+
+  it('senza aliquota non si apre nessun Checkout', () => {
+    expect(() => sessioneCheckout({ ...base, aliquotaIva: undefined, scelta: { piano: 'base' } })).toThrow(/aliquota IVA/)
+    expect(() => sessioneCheckout({ ...base, aliquotaIva: 'sbagliata', scelta: { piano: 'base' } })).toThrow(/aliquota IVA/)
+  })
+
+  it('il Checkout chiede indirizzo di fatturazione e lascia scrivere la partita IVA', () => {
+    const s = sessioneCheckout({ ...base, scelta: { piano: 'base' } })
+    expect(s.billing_address_collection).toBe('required')
+    expect(s.tax_id_collection).toEqual({ enabled: true })
+    // Senza customer Stripe non accetta customer_update.
+    expect(s.customer_update).toBeUndefined()
+  })
+
+  it('le righe di una subscription: id di prodotto fissi al posto di product_data, IVA su ognuna', () => {
+    const righe = righeSubscription({ piano: 'base', moduli: ['staff'], terminali: 5, intervallo: 'anno' }, { aliquotaIva: 'txr_iva' })
+    expect(righe.map((r) => [r.price_data.product, r.price_data.unit_amount, r.quantity, r.price_data.recurring.interval])).toEqual([
+      ['drink-piano-base', 32700, 1, 'year'],
+      ['drink-modulo-staff', righeCheckout({ piano: 'base', moduli: ['staff'], intervallo: 'anno' })[1].price_data.unit_amount, 1, 'year'],
+      ['drink-terminale', 12000, 2, 'year'],
+    ])
+    for (const r of righe) {
+      expect(r.price_data.product_data).toBeUndefined()
+      expect(r.tax_rates).toEqual(['txr_iva'])
+      expect(r.price_data.tax_behavior).toBe('exclusive')
+    }
+    expect(prodottiDi({ piano: 'base', moduli: ['staff'], terminali: 5 }).map((p) => p.id)).toEqual(righe.map((r) => r.price_data.product))
+    expect(() => righeSubscription({ piano: 'base' }, {})).toThrow(/aliquota IVA/)
+  })
+
+  it('l’aliquota di Stripe: 22% esclusa, italiana, riconosciuta dal segno nei metadati', () => {
+    expect(PERCENTUALE_IVA).toBe(listino.iva)
+    const p = parametriAliquotaIva()
+    expect(p).toMatchObject({ percentage: 22, inclusive: false, country: 'IT', tax_type: 'vat', metadata: { drink: 'iva', percentuale: '22' } })
+    expect(eAliquotaIva({ ...p, id: 'txr_1', active: true })).toBe(true)
+    expect(eAliquotaIva({ ...p, active: false })).toBe(false)
+    expect(eAliquotaIva({ ...p, active: true, inclusive: true })).toBe(false)
+    expect(eAliquotaIva({ ...p, active: true, percentage: 10 })).toBe(false)
+    expect(eAliquotaIva({ ...p, active: true, metadata: {} })).toBe(false)
+    expect(CHIAVE_IDEMPOTENZA_IVA).toBe('drink-iva-22-v1')
+  })
+})
+
+// La subscription di una fattura in ogni versione dell'API di Stripe: il
+// webhook riceve la versione dell'endpoint, non quella dell'SDK.
+describe('subscriptionDellaFattura (REQ-FLOTTA-036)', () => {
+  it('in invoice.subscription (fino alla 2025-02-24.acacia), anche espansa', () => {
+    expect(subscriptionDellaFattura({ subscription: 'sub_1' })).toBe('sub_1')
+    expect(subscriptionDellaFattura({ subscription: { id: 'sub_2' } })).toBe('sub_2')
+  })
+  it('in invoice.parent.subscription_details (dalla 2025-03-31.basil), o sulle righe', () => {
+    expect(subscriptionDellaFattura({ parent: { type: 'subscription_details', subscription_details: { subscription: 'sub_3' } } })).toBe('sub_3')
+    expect(subscriptionDellaFattura({ lines: { data: [{ parent: { subscription_item_details: { subscription: 'sub_4' } } }] } })).toBe('sub_4')
+    expect(subscriptionDellaFattura({ parent: null, lines: { data: [] } })).toBeNull()
+  })
+  it('invoice.paid e invoice.payment_failed la trovano anche nella forma nuova', () => {
+    const nuova = { parent: { subscription_details: { subscription: 'sub_5' } }, lines: { data: [{ period: { end: 1798761600 } }] } }
+    expect(aggiornamentoDaEvento('invoice.paid', nuova).stripe_subscription).toBe('sub_5')
+    expect(aggiornamentoDaEvento('invoice.payment_failed', nuova).stripe_subscription).toBe('sub_5')
   })
 })
 

@@ -350,7 +350,8 @@ L'elenco completo con i riferimenti al codice è in
    vera.** Lato regia: C2 (la richiesta di attivazione la crea una
    callable che verifica l'abbonamento sul server; via la `create` dai
    client in `firestore.rules`), H1 (allowlist dei campi che il titolare
-   può modificare in `clienti/{uid}`). Lato tana-drink, da chiedere
+   può modificare in `clienti/{uid}`: **chiusa il 02/11/2026**, punto 33).
+   Lato tana-drink, da chiedere
    all'utente: C1 (input dei workflow via `env:`), H2 (chiave `licenza`
    di `settings/bar` non scrivibile dai client). La validazione lato
    Function degli input del dispatch (`nome_locale`, `piano`, `moduli`,
@@ -370,7 +371,8 @@ L'elenco completo con i riferimenti al codice è in
    giorni, sospesa, chiusa, attivata. Mittente e dominio verificati per
    le email di Auth.
 6. **Medie dell'audit**: callback con `run_id` e scadenza; `cambiaScelta`
-   nel ramo manuale con approvazione; idempotenza del webhook;
+   nel ramo manuale con approvazione; idempotenza del webhook (**fatta il
+   02/11/2026**, punto 33);
    header di sicurezza in
    `firebase.json`; App Check e `maxInstances`; creazione dell'admin
    dell'istanza (è un passo del workflow di tana-drink: da chiedere).
@@ -703,6 +705,32 @@ L'elenco completo con i riferimenti al codice è in
    della regia spenti nella demo, l'app che si ferma se la rete non si
    spegne, l'informativa privacy per cliente, i dati della Tana rimasti
    nel pacchetto della demo).
+36. **Fase 0 prima di vendere: IVA, H1, M4 (REQ-FLOTTA-035,
+   REQ-FLOTTA-036)**, ramo `feature/fase0-regia`, 02/11/2026. Stato dei
+   punti dell'audit: **H1 chiusa** (allowlist in `firestore.rules`, più
+   P.IVA valida e consensi che non si cancellano; provata
+   sull'emulatore), **M3 chiusa** (attivazione al Checkout, DEC-0005),
+   **M4 chiusa** (registro `eventi_stripe`, ordine per `event.created`).
+   Restano aperte H2 (tana-drink), H3, H4, M1, M2, M5-M8.
+   L'IVA la aggiunge Stripe con una tax rate fissa al 22%, che la regia
+   cerca per metadati e crea se manca (`aliquotaIvaSuStripe`). I cambi di
+   piano usano prodotti con id fissi (`drink-piano-*`, `drink-modulo-*`,
+   `drink-terminale`): prima mandavano `product_data`, che una
+   subscription rifiuta. **Da fare a mano su Stripe e in console**
+   (col via libera): la chiave usata dalle Functions deve poter leggere e
+   creare tax rate e prodotti (con una chiave ristretta: «Tax rates» e
+   «Products» in scrittura); fissare la versione API dell'endpoint del
+   webhook (consigliata 2025-02-24.acacia, quella dell'SDK; le più recenti
+   sono lette lo stesso); iscrivere l'endpoint a `checkout.session.completed`,
+   `checkout.session.expired`, `invoice.paid`, `invoice.payment_failed`,
+   `customer.subscription.updated`, `customer.subscription.deleted`; la
+   policy TTL di Firestore sul campo `scade_il` della collezione
+   `eventi_stripe`; nel portale clienti, se si lascia cambiare piano da lì,
+   le stesse aliquote. **Come si prova**: un Checkout in modalità test
+   mostra «IVA 22%» e il totale; `stripe events resend` dello stesso
+   evento risponde `duplicato: true`. La fattura elettronica (SDI) non la
+   fa Stripe: si fa coi dati di `clienti/{uid}.fatturazione`, da decidere
+   come (a mano o con un servizio).
 
 ---
 

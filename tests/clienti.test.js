@@ -5,7 +5,12 @@
 // il documento nasce a blocchi, con i consensi datati.
 
 import { describe, it, expect } from 'vitest'
+import { readFileSync, readdirSync } from 'node:fs'
+import { join, sep } from 'node:path'
+import { createRequire } from 'node:module'
 import { slugDi, problemaSlug, nuovoCliente, contattoDi } from '../src/lib/clienti.js'
+
+const { datiEsistente, documentiEsistente } = createRequire(import.meta.url)('../functions/lib/esistente.js')
 
 describe('slugDi', () => {
   it('minuscole, senza accenti, trattini', () => {
@@ -69,5 +74,49 @@ describe('nuovoCliente', () => {
     expect(contattoDi(nuovoCliente(dati))).toBe('Mario Rossi')
     expect(contattoDi({ contatto: 'Giulia' })).toBe('Giulia')
     expect(contattoDi({})).toBe('')
+  })
+})
+
+// AUDIT H1 (22/10/2026, chiusa il 02/11/2026): il titolare non scrive sul
+// suo documento i campi che diventano licenza. Le regole si provano qui sul
+// testo, come nel resto del repository: il repository non ha ancora
+// l'emulatore fra le dipendenze.
+describe('le regole di clienti/{uid} (H1)', () => {
+  const regole = readFileSync('firestore.rules', 'utf8')
+  const blocco = regole.slice(regole.indexOf('match /clienti/{uid}'), regole.indexOf('match /istanze/{slug}')).replace(/\/\/.*$/gm, '')
+  const update = blocco.slice(blocco.indexOf('allow update'), blocco.indexOf('allow delete'))
+
+  it('il titolare cambia solo i suoi dati anagrafici: piano, moduli, terminali, prove, sconto, abbonamento solo admin e Functions', () => {
+    expect(update).toContain("affectedKeys().hasOnly(['locale', 'fatturazione', 'referente', 'consensi'])")
+    for (const campo of ['piano', 'moduli', 'terminali', 'prove', 'sconto', 'abbonamento', 'email', 'slug', 'uid', 'interna', 'esistente']) {
+      expect(update).not.toMatch(new RegExp(`hasOnly\\(\\[[^\\]]*'${campo}'`))
+    }
+  })
+
+  it('dentro i blocchi permessi: la partita IVA resta valida e i consensi non si cancellano', () => {
+    expect(update).toContain("((nuovo('fatturazione', 'partita_iva') is string && nuovo('fatturazione', 'partita_iva').matches('^[0-9]{11}$')) || comEra('fatturazione', 'partita_iva'))")
+    expect(update).toContain("(nuovo('consensi', 'termini_il') is string || comEra('consensi', 'termini_il'))")
+    expect(update).toContain("(nuovo('consensi', 'privacy_il') is string || comEra('consensi', 'privacy_il'))")
+  })
+
+  // Valido, o com'era: un locale esistente (la Tana) nasce con
+  // fatturazione {} e consensi a null, e non deve restare bloccato.
+  it('«com’era» confronta il documento nuovo con quello di prima, campo per campo', () => {
+    const funzioni = blocco.slice(blocco.indexOf('function nuovo'), blocco.indexOf('allow update'))
+    expect(funzioni).toContain('return request.resource.data.get(blocco, {}).get(campo, null);')
+    expect(funzioni).toContain('return resource.data.get(blocco, {}).get(campo, null);')
+    expect(funzioni).toContain('return nuovo(blocco, campo) == vecchio(blocco, campo);')
+    const esistente = documentiEsistente(datiEsistente({ nome_locale: 'La Tana', slug: 'tana-drink', email: 't@example.it', progetto: 'tana-drink', url: 'https://tana-drink.web.app' }), { uid: 'u' }).cliente
+    expect(esistente.fatturazione).toEqual({})
+    expect(esistente.consensi).toMatchObject({ termini_il: null, privacy_il: null })
+  })
+
+  it('il sito non aggiorna mai clienti/{uid} dal browser: crea il documento alla registrazione, il resto passa dalle Functions', () => {
+    const file = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((d) => (d.isDirectory() ? file(join(dir, d.name)) : [join(dir, d.name)]))
+    const scritture = file('src')
+      .filter((f) => /\.(js|jsx)$/.test(f))
+      // Il percorso con «/» anche su Windows, dove join() mette «\».
+      .flatMap((f) => readFileSync(f, 'utf8').split('\n').filter((r) => /(setDoc|updateDoc|deleteDoc)\(doc\(db, 'clienti'/.test(r)).map((r) => `${f.split(sep).join('/')}: ${r.trim()}`))
+    expect(scritture).toEqual(["src/lib/db.js: await setDoc(doc(db, 'clienti', cred.user.uid), cliente)"])
   })
 })
