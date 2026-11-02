@@ -11,10 +11,18 @@
 // `presentazione`) col token di chi ha fatto l'accesso: «sono il progetto
 // X, versione Y». Da qualunque deploy arrivi, della regia o di GitHub. La
 // regia riconosce il progetto fra le sue istanze, verifica il token con
-// quel progetto, si segna la versione e, se il sito non ha ancora la sua
-// licenza, gliela scrive: è l'attivazione. Dopo, la regia parla al sito
+// quel progetto e si segna la versione. Dopo, la regia parla al sito
 // scrivendo la licenza, come sempre. Nessun giro periodico: si chiama una
-// volta per versione, e di nuovo solo se la licenza manca.
+// volta per versione.
+//
+// tana-drink, 02/11/2026: «l'app non fa accessi anonimi, quindi la
+// presentazione parte solo con qualcuno collegato. Su un'installazione
+// nuova senza licenza e senza sessione, la schermata «non attivata» copre
+// anche la pagina di accesso [...]. La licenza va scritta all'attivazione,
+// prima dell'app». Quindi la presentazione NON è l'attivazione: la licenza
+// c'è già prima dell'app (scripts/licenza-istanza.mjs nell'attivazione
+// della regia; il deploy di tana-drink per la Tana). Se manca lo stesso,
+// e un dispositivo ha ancora una sessione aperta, la regia la riscrive.
 //
 // Non passa nessun dato operativo del locale: identità, versione, licenza.
 
@@ -57,7 +65,8 @@ function registroPresentazione(prima, { versione, uid = null, adesso = new Date(
 //   suo (la Tana, finché non la si collega);
 // - 'non_attiva': un'istanza non ancora attiva, chiusa o eliminata nella
 //   regia: non le si scrive niente;
-// - 'scrivi': manca, è l'attivazione;
+// - 'scrivi': manca, e chi si presenta ha una sessione aperta: la regia la
+//   riscrive (l'attivazione l'avrebbe dovuta scrivere prima dell'app);
 // - 'presente': c'è già, e la regia la tiene aggiornata da sé.
 function cosaFareConLaLicenza(ist, { esiste = false, riceve = true } = {}) {
   if (ist?.licenza_dalla_regia === false) return 'non_dalla_regia'
