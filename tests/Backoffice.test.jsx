@@ -78,6 +78,19 @@ function Dove() {
   return <output data-testid="dove">{pathname + search}</output>
 }
 // Come in App.jsx: il backoffice risponde a /backoffice e alle sue sotto-rotte.
+// LA TABELLA DEI LOCALI (02/11/2026): la scheda di un locale si apre
+// cliccando il suo nome nella tabella; qui la si apre e la si restituisce.
+const apri = async (nome) => {
+  await userEvent.setup().click(await screen.findByRole('button', { name: nome }))
+  return screen.findByRole('article', { name: nome })
+}
+// Le righe della tabella, una per locale (non quelle di dettaglio aperte).
+const righeLocali = async () => {
+  await screen.findByRole('table', { name: 'Locali' })
+  return [...document.querySelectorAll('tr.riga-locale')]
+}
+const nomiLocali = async () => (await righeLocali()).map((r) => r.querySelector('.nome-locale').textContent)
+
 const mostra = (percorso = '/backoffice/locali') =>
   render(
     <MemoryRouter initialEntries={[percorso]} future={FUTURO}>
@@ -107,20 +120,23 @@ beforeEach(() => {
 describe('il backoffice', () => {
   it('elenca i clienti, prima chi ha un problema', async () => {
     mostra()
-    const righe = await screen.findAllByRole('article')
-    const nomi = righe.map((r) => within(r).getByRole('heading').textContent)
+    const nomi = await nomiLocali()
     expect(nomi[0]).toMatch(/Bar Rotto/)
     expect(nomi[2]).toMatch(/Bar Attivo/)
-    const attivo = righe.find((r) => r.textContent.includes('Bar Attivo'))
-    expect(attivo).toHaveTextContent('Completo · 69 €')
+    // La riga dice piano, prezzo e versione; la scheda, aperta, il resto.
+    const riga = (await righeLocali())[2]
+    expect(riga).toHaveTextContent('Completo · 69 €')
+    expect(riga).toHaveTextContent('v1.10.0')
+    expect(riga).not.toHaveTextContent('drinkpos-bar-attivo')
+    const attivo = await apri('Bar Attivo')
     expect(attivo).toHaveTextContent('drinkpos-bar-attivo')
-    expect(attivo).toHaveTextContent('v1.10.0')
+    expect(within(riga.closest('tbody')).getByRole('button', { name: 'Bar Attivo' })).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('un’attivazione fallita si rilancia', async () => {
     const user = userEvent.setup()
     mostra()
-    await user.click(await screen.findByRole('button', { name: 'Rilancia' }))
+    await user.click(within(await apri('Bar Rotto')).getByRole('button', { name: 'Rilancia' }))
     expect(db.rilanciaAttivazione).toHaveBeenCalledWith('bar-rotto')
   })
 
@@ -129,7 +145,7 @@ describe('il backoffice', () => {
     const user = userEvent.setup()
     vi.spyOn(window, 'prompt').mockReturnValue('pagamento non ricevuto')
     mostra()
-    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
+    const attivo = await apri('Bar Attivo')
     await user.click(within(attivo).getByRole('button', { name: 'Sospendi' }))
     expect(db.impostaStatoIstanza).toHaveBeenCalledWith('bar-attivo', 'sospesa', 'pagamento non ricevuto')
   })
@@ -141,7 +157,7 @@ describe('il backoffice', () => {
       'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', versione: 'v1.10.0', url: 'https://drinkpos-bar-attivo.web.app' },
     })
     mostra()
-    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
+    const attivo = await apri('Bar Attivo')
     expect(within(attivo).getByText('Attiva')).toHaveClass('stato-ok')
     expect(within(attivo).getByRole('link', { name: /Apri l’app/ })).toHaveAttribute('href', 'https://drinkpos-bar-attivo.web.app')
     const licenza = within(attivo).getByLabelText('Licenza')
@@ -155,7 +171,10 @@ describe('il backoffice', () => {
       'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', versione: 'v1.10.0', licenza_stato: 'sospesa', licenza_motivo: 'pagamento non ricevuto' },
     })
     mostra()
-    const sospeso = (await screen.findByText(/sospesa · pagamento non ricevuto/)).closest('article')
+    // La riga lo dice già; la scheda ha il tasto.
+    expect((await righeLocali()).find((r) => r.textContent.includes('Bar Attivo'))).toHaveTextContent(/sospesa · pagamento non ricevuto/)
+    const sospeso = await apri('Bar Attivo')
+    expect(sospeso).toHaveTextContent(/sospesa · pagamento non ricevuto/)
     await user.click(within(sospeso).getByRole('button', { name: 'Riattiva' }))
     expect(db.impostaStatoIstanza).toHaveBeenLastCalledWith('bar-attivo', 'attiva', null)
   })
@@ -168,7 +187,7 @@ describe('il backoffice', () => {
   it('«Aggiorna» porta l’ultima versione a un locale; a tutti si arriva solo con un rilascio', async () => {
     const user = userEvent.setup()
     mostra()
-    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
+    const attivo = await apri('Bar Attivo')
     await user.click(within(attivo).getByRole('button', { name: 'Aggiorna subito' }))
     expect(db.aggiornaIstanza).toHaveBeenCalledWith('bar-attivo')
     expect(screen.queryByRole('button', { name: /Aggiorna tutte/ })).toBeNull()
@@ -178,7 +197,7 @@ describe('il backoffice', () => {
   it('«Cambia piano»: senza Stripe si cambia fuori da Stripe, con piano, moduli e terminali', async () => {
     const user = userEvent.setup()
     mostra()
-    const nuovo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Nuovo'))
+    const nuovo = await apri('Bar Nuovo')
     await user.click(within(nuovo).getByRole('button', { name: 'Cambia piano…' }))
     const modulo = within(nuovo).getByRole('form', { name: 'Cambia piano di Bar Nuovo' })
     expect(within(modulo).getByLabelText(/Con Stripe/)).toBeDisabled()
@@ -194,7 +213,7 @@ describe('il backoffice', () => {
       { uid: 'a', slug: 'bar-attivo', nome_locale: 'Bar Attivo', email: 'a@x.it', piano: 'completo', creato_il: '2026-10-01', abbonamento: { stato: 'attivo', stripe_subscription: 'sub_1' } },
     ])
     mostra()
-    const attivo = (await screen.findAllByRole('article'))[0]
+    const attivo = await apri('Bar Attivo')
     await user.click(within(attivo).getByRole('button', { name: 'Cambia piano…' }))
     const modulo = within(attivo).getByRole('form', { name: 'Cambia piano di Bar Attivo' })
     expect(within(modulo).getByLabelText(/Con Stripe/)).toBeChecked()
@@ -268,8 +287,8 @@ describe('il backoffice e il credito AI', () => {
     })
     vi.spyOn(window, 'prompt').mockReturnValueOnce('15,5').mockReturnValueOnce('prima ricarica')
     mostra()
-    expect(await screen.findByTestId('credito-bar-attivo')).toHaveTextContent('12,50 €')
-    const attivo = screen.getAllByRole('article').find((r) => r.textContent.includes('Bar Attivo'))
+    const attivo = await apri('Bar Attivo')
+    expect(within(attivo).getByTestId('credito-bar-attivo')).toHaveTextContent('12,50 €')
     expect(attivo).toHaveTextContent('mese 3,00 € / 20,00 €')
     await user.click(within(attivo).getByRole('button', { name: 'Ricarica AI' }))
     expect(db.gestisciCassettoAI).toHaveBeenCalledWith('bar-attivo', 'ricarica', { importo: 15.5, nota: 'prima ricarica' })
@@ -281,7 +300,7 @@ describe('il backoffice e il credito AI', () => {
     db.gestisciCassettoAI.mockResolvedValueOnce({ ok: true, chiave: 'bar-attivo.segretolungo' })
     const conferma = vi.spyOn(window, 'confirm').mockReturnValue(true)
     mostra()
-    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
+    const attivo = await apri('Bar Attivo')
     await user.click(within(attivo).getByRole('button', { name: 'Chiave AI' }))
     expect(conferma).toHaveBeenCalled()
     expect(db.gestisciCassettoAI).toHaveBeenCalledWith('bar-attivo', 'chiave', {})
@@ -322,7 +341,7 @@ describe('il backoffice e il credito AI', () => {
       'tana-drink': { stato: 'attiva', progetto: 'tana-drink', origine: 'esistente', interna: true },
     })
     mostra()
-    const tana = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('La Tana'))
+    const tana = await apri('La Tana')
     expect(tana).toHaveTextContent('interna · esistente')
     expect(within(tana).queryByRole('button', { name: /^Aggiorna subito/ })).toBeNull()
     expect(within(tana).queryByRole('button', { name: 'Sospendi' })).toBeNull()
@@ -341,7 +360,7 @@ describe('il backoffice e il credito AI', () => {
       'tana-drink': { stato: 'attiva', progetto: 'tana-drink', origine: 'esistente', interna: true, aggiornamenti_dalla_regia: true, cliente: 'tana' },
     })
     mostra()
-    const tana = await screen.findByRole('article', { name: 'La Tana' })
+    const tana = await apri('La Tana')
     await user.click(within(tana).getByRole('button', { name: /^Aggiorna subito/ }))
     expect(db.aggiornaIstanza).toHaveBeenCalledWith('tana-drink')
     expect(within(tana).queryByRole('button', { name: 'Sospendi' })).toBeNull()
@@ -355,7 +374,7 @@ describe('il backoffice e il credito AI', () => {
       'tana-drink': { stato: 'attiva', progetto: 'tana-drink', origine: 'esistente', interna: true, build: { VITE_FIREBASE_VAPID_KEY: 'vapid-1' } },
     })
     mostra()
-    const tana = await screen.findByRole('article', { name: 'La Tana' })
+    const tana = await apri('La Tana')
     await user.click(within(tana).getByRole('button', { name: 'Pubblicazione e licenza…' }))
     const modulo = within(tana).getByRole('form', { name: 'Pubblicazione e licenza di La Tana' })
     expect(within(modulo).getByLabelText('Cartella in clienti/ dell’app')).toHaveValue('tana-drink')
@@ -385,7 +404,7 @@ describe('il backoffice e il credito AI', () => {
     db.elencoClienti.mockResolvedValue([{ uid: 't', slug: 'tana-drink', nome_locale: 'La Tana', email: 't@x.it', piano: 'completo', creato_il: '2026-10-24' }])
     db.elencoIstanze.mockResolvedValue({ 'tana-drink': { stato: 'attiva', progetto: 'tana-drink', origine: 'esistente', interna: true } })
     mostra()
-    const tana = await screen.findByRole('article', { name: 'La Tana' })
+    const tana = await apri('La Tana')
     await user.click(within(tana).getByRole('button', { name: 'Pubblicazione e licenza…' }))
     await user.click(within(tana).getByRole('button', { name: 'Salva' }))
     expect(await screen.findByText(/Cartella del cliente «X» non valida/)).toBeInTheDocument()
@@ -473,7 +492,7 @@ describe('i rilasci a ondate nel backoffice', () => {
     })
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     mostra()
-    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
+    const attivo = await apri('Bar Attivo')
     expect(attivo).toHaveTextContent('Attiva')
     expect(attivo).toHaveTextContent('aggiornamento a v1.11.0 fallito: deploy interrotto')
     await user.click(within(attivo).getByRole('button', { name: 'Riprova' }))
@@ -485,7 +504,7 @@ describe('i rilasci a ondate nel backoffice', () => {
   it('un locale della flotta si mette nel gruppo pilota', async () => {
     const user = userEvent.setup()
     mostra()
-    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
+    const attivo = await apri('Bar Attivo')
     await user.selectOptions(within(attivo).getByRole('combobox', { name: 'Gruppo di rilascio di Bar Attivo' }), 'pilota')
     expect(db.gestisciRilascio).toHaveBeenCalledWith('gruppo', { slug: 'bar-attivo', gruppo: 'pilota' })
   })
@@ -500,7 +519,7 @@ describe('eliminare un locale dal backoffice', () => {
       'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', versione: 'v1.10.0', licenza_stato: 'chiusa', licenza_motivo: 'chiusura' },
     })
     mostra()
-    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
+    const attivo = await apri('Bar Attivo')
     await user.click(within(attivo).getByRole('button', { name: 'Elimina…' }))
     const modulo = within(attivo).getByRole('form', { name: 'Elimina Bar Attivo' })
     await user.click(within(modulo).getByLabelText(/Subito/))
@@ -519,10 +538,11 @@ describe('eliminare un locale dal backoffice', () => {
       'bar-rotto': { stato: 'attiva', progetto: 'drinkpos-bar-rotto' },
     })
     mostra()
-    const schede = await screen.findAllByRole('article')
-    const rotto = schede.find((r) => r.textContent.includes('Bar Rotto'))
+    const rotto = await apri('Bar Rotto')
     expect(within(rotto).queryByRole('button', { name: 'Elimina…' })).toBeNull()
-    const attivo = schede.find((r) => r.textContent.includes('Bar Attivo'))
+    // Se ne apre una alla volta: aprire l'altra chiude questa.
+    const attivo = await apri('Bar Attivo')
+    expect(screen.queryByRole('article', { name: 'Bar Rotto' })).toBeNull()
     expect(attivo).toHaveTextContent(/Programmata per il .* \(chiesta dal titolare\)/)
     expect(within(attivo).queryByRole('button', { name: 'Elimina…' })).toBeNull()
     await user.click(within(attivo).getByRole('button', { name: 'Annulla eliminazione' }))
@@ -623,14 +643,14 @@ describe('le sezioni del backoffice', () => {
     await waitFor(() => expect(screen.getByTestId('dove')).toHaveTextContent('/backoffice/locali'))
     expect(within(nav).getByRole('link', { name: /^Locali/ })).toHaveAttribute('aria-current', 'page')
     expect(within(nav).getByRole('link', { name: 'Rilasci' })).not.toHaveAttribute('aria-current')
-    expect(await screen.findAllByRole('article')).toHaveLength(3)
+    expect(await righeLocali()).toHaveLength(3)
   })
 
   it('ogni voce apre la sua sezione e solo quella; i dati non si rileggono', async () => {
     const user = userEvent.setup()
     mostra()
     const nav = await menu()
-    await screen.findAllByRole('article')
+    await righeLocali()
     // In «Locali» non ci sono vendita, rilasci, moduli di creazione.
     expect(screen.queryByRole('region', { name: 'Vendita' })).toBeNull()
     expect(screen.queryByRole('region', { name: 'Rilasci' })).toBeNull()
@@ -640,7 +660,7 @@ describe('le sezioni del backoffice', () => {
     expect(screen.getByTestId('dove')).toHaveTextContent('/backoffice/rilasci')
     expect(within(nav).getByRole('link', { name: 'Rilasci' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('region', { name: 'Rilasci' })).toBeInTheDocument()
-    expect(screen.queryAllByRole('article')).toHaveLength(0)
+    expect(document.querySelectorAll('tr.riga-locale')).toHaveLength(0)
 
     await user.click(within(nav).getByRole('link', { name: 'Vendita' }))
     expect(screen.getByRole('region', { name: 'Vendita' })).toBeInTheDocument()
@@ -658,7 +678,7 @@ describe('le sezioni del backoffice', () => {
 
   it('un indirizzo che non c’è porta a «Locali»', async () => {
     mostra('/backoffice/boh')
-    await screen.findAllByRole('article')
+    await righeLocali()
     expect(screen.getByTestId('dove')).toHaveTextContent('/backoffice/locali')
   })
 
@@ -666,7 +686,7 @@ describe('le sezioni del backoffice', () => {
     const user = userEvent.setup()
     db.aggiornaIstanza.mockRejectedValueOnce(new Error('GitHub 500'))
     mostra()
-    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
+    const attivo = await apri('Bar Attivo')
     await user.click(within(attivo).getByRole('button', { name: 'Aggiorna subito' }))
     expect(await screen.findByText('GitHub 500')).toBeInTheDocument()
     await user.click(within(await menu()).getByRole('link', { name: 'Vendita' }))
@@ -677,7 +697,7 @@ describe('le sezioni del backoffice', () => {
     db.elencoIstanze.mockResolvedValue({ 'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo' } })
     mostra()
     const nav = await menu()
-    await screen.findAllByRole('article')
+    await righeLocali()
     expect(nav.querySelectorAll('.conta')).toHaveLength(0)
   })
 
@@ -733,12 +753,12 @@ describe('le sezioni del backoffice', () => {
 // L'ELENCO DEI LOCALI si cerca e si filtra per stato; i filtri stanno
 // nell'indirizzo, così un elenco filtrato si condivide.
 describe('cercare e filtrare i locali', () => {
-  const nomi = () => screen.queryAllByRole('article').map((a) => within(a).getByRole('heading').textContent)
+  const nomi = () => [...document.querySelectorAll('tr.riga-locale .nome-locale')].map((b) => b.textContent)
 
   it('la ricerca trova per nome, identificativo o email, e finisce nell’indirizzo', async () => {
     const user = userEvent.setup()
     mostra()
-    await screen.findAllByRole('article')
+    await righeLocali()
     expect(screen.getByTestId('quanti-locali')).toHaveTextContent('3 locali')
     await user.type(screen.getByRole('searchbox', { name: 'Cerca' }), 'rotto')
     expect(nomi()).toEqual(['Bar Rotto'])
@@ -755,7 +775,7 @@ describe('cercare e filtrare i locali', () => {
   it('la vista per stato conta i locali e li filtra', async () => {
     const user = userEvent.setup()
     mostra()
-    await screen.findAllByRole('article')
+    await righeLocali()
     const vista = screen.getByRole('combobox', { name: 'Stato' })
     expect(within(vista).getByRole('option', { name: 'Da seguire (1)' })).toBeInTheDocument()
     expect(within(vista).getByRole('option', { name: 'In attivazione (1)' })).toBeInTheDocument()
@@ -778,7 +798,7 @@ describe('cercare e filtrare i locali', () => {
     expect(nomi()).toEqual(['Bar Attivo'])
     unmount()
     mostra('/backoffice/locali?vista=boh')
-    await screen.findAllByRole('article')
+    await righeLocali()
     expect(nomi()).toHaveLength(3)
     expect(screen.getByRole('combobox', { name: 'Stato' })).toHaveValue('tutti')
   })
@@ -798,7 +818,7 @@ describe('cercare e filtrare i locali', () => {
 describe('il bottone Aggiorna dice cosa fa', () => {
   it('accanto al bottone c’è cosa fa, ed è la sua descrizione per chi usa un lettore di schermo', async () => {
     mostra()
-    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
+    const attivo = await apri('Bar Attivo')
     const tasto = within(attivo).getByRole('button', { name: 'Aggiorna subito' })
     expect(tasto).toHaveAccessibleDescription(/solo questo locale, all’ultima versione dell’app, per una correzione urgente/)
     expect(tasto).toHaveAccessibleDescription(/A tutti i locali la porta un rilascio, a ondate/)
@@ -811,7 +831,7 @@ describe('il bottone Aggiorna dice cosa fa', () => {
     const user = userEvent.setup()
     db.aggiornaIstanza.mockResolvedValueOnce({ ok: true, ref: 'develop' })
     mostra()
-    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
+    const attivo = await apri('Bar Attivo')
     await user.click(within(attivo).getByRole('button', { name: 'Aggiorna subito' }))
     expect(db.aggiornaIstanza).toHaveBeenCalledWith('bar-attivo')
     expect(await within(attivo).findByRole('status')).toHaveTextContent('Aggiornamento a develop partito: quando il workflow finisce, la versione nuova compare qui.')
@@ -821,7 +841,7 @@ describe('il bottone Aggiorna dice cosa fa', () => {
     const user = userEvent.setup()
     db.aggiornaIstanza.mockResolvedValueOnce({ ok: true })
     mostra()
-    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
+    const attivo = await apri('Bar Attivo')
     await user.click(within(attivo).getByRole('button', { name: 'Aggiorna subito' }))
     expect(await within(attivo).findByRole('status')).toHaveTextContent(/^Aggiornamento partito:/)
   })
@@ -871,7 +891,7 @@ describe('le regole degli aggiornamenti nel backoffice', () => {
       },
     })
     mostra()
-    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
+    const attivo = await apri('Bar Attivo')
     expect(attivo).toHaveTextContent('ora: A scelta del titolare')
     expect(attivo).toHaveTextContent('v1.11.0 proposta al titolare')
     const scelta = within(attivo).getByRole('combobox', { name: 'Aggiornamenti di Bar Attivo' })
@@ -953,7 +973,7 @@ describe('le licenze protette nel backoffice', () => {
       'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', licenza_protetta: { ok: false, perche: 'licenza/attuale è diversa da settings/bar.licenza.' } },
     })
     mostra()
-    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
+    const attivo = await apri('Bar Attivo')
     expect(attivo).toHaveTextContent('licenza/attuale è diversa da settings/bar.licenza.')
   })
 
@@ -963,7 +983,7 @@ describe('le licenze protette nel backoffice', () => {
       'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', riduzione_al_taglio: { dal: '2026-11-02T04:00:00.000Z', cosa: ['il modulo magazzino'] } },
     })
     mostra()
-    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
+    const attivo = await apri('Bar Attivo')
     expect(attivo).toHaveTextContent(/Dal taglio della giornata .*: il modulo magazzino\./)
   })
 
@@ -978,7 +998,7 @@ describe('le licenze protette nel backoffice', () => {
       },
     })
     mostra()
-    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
+    const attivo = await apri('Bar Attivo')
     expect(attivo).toHaveTextContent(/Programmata per il .*\(fine della conservazione dei dati: il locale è fermo\) · avvisi mandati: 1/)
   })
 
@@ -992,7 +1012,7 @@ describe('le licenze protette nel backoffice', () => {
       },
     })
     mostra()
-    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
+    const attivo = await apri('Bar Attivo')
     expect(within(attivo).getByTestId('presentazione')).toHaveTextContent(/^v1\.10\.4 · dal 0?2\/11\/2026 · ultima volta il 0?3\/11\/2026$/)
     // Senza l'esito di un deploy della regia (la Tana da GitHub), anche la
     // colonna Versione dice quella dell'app, e lo dice.
@@ -1012,7 +1032,7 @@ describe('le scadenze nel backoffice', () => {
     db.elencoIstanze.mockResolvedValue({ 'bar-bonifico': { stato: 'attiva', progetto: 'drinkpos-bar-bonifico' } })
     vi.spyOn(window, 'prompt').mockReturnValueOnce(null).mockReturnValueOnce(' 2026-12-31 ')
     mostra()
-    const scheda = await screen.findByRole('article', { name: 'Bar Bonifico' })
+    const scheda = await apri('Bar Bonifico')
     expect(within(scheda).getByTestId('pagato-bar-bonifico')).toHaveTextContent('pagato fino al 30/11/2026')
     await user.click(within(scheda).getByRole('button', { name: 'Registra pagamento…' }))
     expect(db.registraPagamento).not.toHaveBeenCalled()
@@ -1028,9 +1048,9 @@ describe('le scadenze nel backoffice', () => {
     ])
     db.elencoIstanze.mockResolvedValue({})
     mostra()
-    expect(await screen.findByTestId('pagato-bar-bonifico')).toHaveTextContent('pagato fino al 31/10/2026 · non pagato')
-    expect(screen.getByTestId('pagato-bar-omaggio')).toHaveTextContent('fuori da Stripe, senza scadenza')
-    const stripe = screen.getByRole('article', { name: 'Bar Stripe' })
+    expect(within(await apri('Bar Bonifico')).getByTestId('pagato-bar-bonifico')).toHaveTextContent('pagato fino al 31/10/2026 · non pagato')
+    expect(within(await apri('Bar Omaggio')).getByTestId('pagato-bar-omaggio')).toHaveTextContent('fuori da Stripe, senza scadenza')
+    const stripe = await apri('Bar Stripe')
     expect(within(stripe).queryByRole('button', { name: 'Registra pagamento…' })).toBeNull()
   })
 
@@ -1039,7 +1059,7 @@ describe('le scadenze nel backoffice', () => {
     db.elencoClienti.mockResolvedValue([manuale({ pagato_fino_al: '2026-11-30' })])
     db.elencoIstanze.mockResolvedValue({})
     mostra()
-    const scheda = await screen.findByRole('article', { name: 'Bar Bonifico' })
+    const scheda = await apri('Bar Bonifico')
     await user.click(within(scheda).getByRole('button', { name: 'Cambia piano…' }))
     const modulo = within(scheda).getByRole('form', { name: 'Cambia piano di Bar Bonifico' })
     const data = within(modulo).getByLabelText(/Pagato fino al/)
@@ -1104,7 +1124,7 @@ describe('i codici sconto nel backoffice', () => {
     db.elencoIstanze.mockResolvedValue({ 'tana-drink': { stato: 'attiva', progetto: 'tana-drink', origine: 'esistente', interna: true } })
     vi.spyOn(window, 'prompt').mockReturnValueOnce(null).mockReturnValueOnce(' TANA-100 ')
     mostra()
-    const tana = await screen.findByRole('article', { name: 'La Tana' })
+    const tana = await apri('La Tana')
     expect(within(tana).getByTestId('sconto-tana-drink')).toHaveTextContent('sconto TANA-100, 100%, illimitato')
     expect(tana).toHaveTextContent(/Completo · 0\s?€/)
     // Annullato: niente.
@@ -1121,7 +1141,7 @@ describe('i codici sconto nel backoffice', () => {
     db.applicaSconto.mockRejectedValueOnce(new Error('Codice sconosciuto o disattivato.'))
     vi.spyOn(window, 'prompt').mockReturnValueOnce('NIENTE')
     mostra()
-    const scheda = await screen.findByRole('article', { name: 'Bar Mario' })
+    const scheda = await apri('Bar Mario')
     await user.click(within(scheda).getByRole('button', { name: 'Sconto…' }))
     expect(await screen.findByText('Codice sconosciuto o disattivato.')).toBeInTheDocument()
   })

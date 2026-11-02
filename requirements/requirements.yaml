@@ -306,7 +306,9 @@ requirements:
       progetto di destinazione si ferma. Il sito fuori dalla produzione
       porta un nastro «TEST» con la versione, e il pie' di pagina dice la
       versione pubblicata (VITE_APP_ENV, VITE_APP_VERSION dal deploy,
-      package.json come ripiego). Le Functions leggono la configurazione
+      package.json come ripiego); dal 02/11/2026 («a che versione del
+      backoffice siamo?») da un ramo dice la versione di package.json, il
+      ramo e il commit (src/lib/versione.js). Le Functions leggono la configurazione
       per progetto da functions/.env.<progetto>. Gli script per un progetto
       nuovo (API, Auth email, segreti dell'environment) usano il token del
       Firebase CLI: niente gcloud, niente chiavi nel repository.
@@ -322,6 +324,7 @@ requirements:
     generate_issue: false
     labels: [metodo, regia]
     test_cases:
+      - tests/versione.test.js
       - tests/ci.test.js
       - tests/App.test.jsx
   - id: REQ-DEV-003
@@ -440,6 +443,9 @@ requirements:
     title: "Il backoffice governa i deploy: interruttore del deploy automatico, richieste da autorizzare, un locale creato dall'admin"
     area: "src/pages/Backoffice.jsx, src/lib/db.js, src/lib/istanze.js, functions/index.js (creaCliente), firestore.rules (impostazioni/regia, richieste)"
     description: >
+      Dal 02/11/2026 l'elenco dei locali è una tabella (locale, stato,
+      piano, versione, licenza, titolare): il nome apre sotto la scheda
+      di sempre, e il locale aperto resta nell'indirizzo (?locale=…).
       «Nel backoffice nostro ci deve essere la possibilita' di
       attivare/disattivare il deploy automatico e gestire le richieste di
       deploy da parte mia. Ad esempio se e' disattivato il deploy

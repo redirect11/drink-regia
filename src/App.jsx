@@ -10,6 +10,7 @@ import { osservaUtente, esci } from './lib/db.js'
 import { NOME_PRODOTTO, EMAIL_CONTATTI, URL_DEMO } from './lib/prodotto.js'
 import { LINGUE, NOMI_LINGUE, leggiPreferenza, linguaDelPercorso, percorsoDellaLingua, salvaPreferenza } from './lib/lingua.js'
 import { testi } from './i18n/index.js'
+import { versioneDetta } from './lib/versione.js'
 
 // Il nastro «TEST» e la versione (REQ-DEV-002): il sito di test
 // (drink-regia-test) deve dirsi tale a chi lo guarda, come in tana-drink.
@@ -17,7 +18,7 @@ import { testi } from './i18n/index.js'
 // locale e nei test mancano, e il nastro c'è, perché non è produzione.
 // La versione di riserva è quella di package.json (vite.config.js).
 const PRODUZIONE = import.meta.env.VITE_APP_ENV === 'production'
-const VERSIONE = import.meta.env.VITE_APP_VERSION || __APP_VERSION__
+const VERSIONE = versioneDetta({ versione: import.meta.env.VITE_APP_VERSION || __APP_VERSION__, ramo: import.meta.env.VITE_APP_RAMO, commit: import.meta.env.VITE_APP_COMMIT })
 
 // Le voci del menù della prima pagina (REQ-FLOTTA-002, DESIGN.md §5.0):
 // ancore dentro Home, raggiungibili anche dalle altre pagine con «/#…»
