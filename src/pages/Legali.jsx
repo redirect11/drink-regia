@@ -1,9 +1,21 @@
 import { NOME_PRODOTTO } from '../lib/prodotto.js'
+import { PIANI, IVA, FONDATORI, ANNUALE, PROVA_GIORNI, ASSISTENZA, STAMPANTE, euro } from '../lib/piani.js'
 
 // LE PAGINE LEGALI (REQ-FLOTTA-003). Sono la STRUTTURA dei termini e
 // dell'informativa, con quello che il servizio fa davvero: vanno riviste
 // con un consulente prima di vendere, e il titolare del trattamento va
 // scritto con i dati della società che vende il prodotto.
+
+// I numeri delle condizioni (DEC-0005, 02/11/2026) vengono dal listino,
+// come nella pagina dei prezzi: se Daniele cambia il listino, i termini
+// non restano indietro. Le regole che il listino non dice (preavviso,
+// rimborsi, rinnovo dell'annuale, chi ha diritto alla prova) NON sono
+// inventate qui: sono segnate TODO, da decidere con un consulente.
+const pianiFondatori = Object.entries(FONDATORI?.prezzi || {})
+  .filter(([id]) => PIANI[id])
+  .map(([id, prezzo]) => `il piano ${PIANI[id].nome} a ${euro(prezzo)} al mese`)
+  .join('; ')
+const ore = (n) => (n === 1 ? '1 ora' : `${n} ore`)
 
 const TITOLARE = {
   nome: '[Ragione sociale del fornitore]',
@@ -15,7 +27,7 @@ export function Termini() {
   return (
     <main className="pagina legale">
       <h1>Termini di servizio</h1>
-      <p className="muted small">Ultimo aggiornamento: 31 ottobre 2026</p>
+      <p className="muted small">Ultimo aggiornamento: 2 novembre 2026</p>
       <h2>1. Il servizio</h2>
       <p>
         {NOME_PRODOTTO} è un software per la gestione di cassa, comande, magazzino e statistiche di un locale, fornito da{' '}
@@ -30,22 +42,77 @@ export function Termini() {
       </p>
       <h2>3. Abbonamento, prezzi e pagamenti</h2>
       <p>
-        I prezzi sono quelli pubblicati nella pagina dei piani al momento della sottoscrizione, al mese, IVA esclusa, oltre al
-        costo di attivazione una tantum. Il pagamento avviene tramite il fornitore di pagamenti indicato, oppure con i mezzi
+        I prezzi sono quelli pubblicati nella pagina dei piani al momento della sottoscrizione, al mese e IVA esclusa: l’IVA si
+        aggiunge con l’aliquota di legge, oggi il {IVA}%. Al canone si aggiunge il costo di attivazione una tantum. Il pagamento avviene tramite il fornitore di pagamenti indicato, oppure con i mezzi
         concordati con noi prima dell’attivazione (ad esempio il bonifico). La fattura viene
         emessa ai dati di fatturazione forniti in registrazione. Il mancato pagamento sospende il servizio dopo il termine
         indicato nell’avviso oppure, se le condizioni del piano lo prevedono, riporta il locale al piano Free (punto 5).
       </p>
+      {ANNUALE?.mensilita > 0 && (
+        <>
+          <h3>Pagamento annuale</h3>
+          {/* TODO (consulente): rinnovo automatico dell'annuale e suo
+              preavviso; rimborso della parte non goduta se il titolare
+              recede o cambia piano a metà anno; come si combina con
+              l'offerta Fondatori. Il listino non lo dice e qui non si
+              inventa. */}
+          <p>
+            L’abbonamento si può pagare ogni mese oppure un anno in anticipo. L’anno pagato in anticipo costa{' '}
+            {ANNUALE.mensilita} volte il prezzo mensile della scelta (piano, moduli e terminali) in vigore alla sottoscrizione.
+          </p>
+        </>
+      )}
+      {PROVA_GIORNI > 0 && (
+        <>
+          <h3>Periodo di prova</h3>
+          {/* TODO (Daniele e consulente): a chi spetta la prova (una volta
+              per locale?), se l'attivazione si paga all'inizio o alla fine
+              della prova, se serve la carta, cosa succede con la disdetta
+              durante la prova. */}
+          <p>
+            L’abbonamento a pagamento comincia con {PROVA_GIORNI} giorni di prova: il canone decorre dalla fine del periodo di
+            prova.
+          </p>
+        </>
+      )}
+      {FONDATORI?.posti > 0 && pianiFondatori && (
+        <>
+          <h3>Offerta Fondatori</h3>
+          {/* Il criterio è quello deciso da Daniele il 02/11/2026: i primi
+              abbonamenti a pagamento attivati, in ordine di attivazione;
+              il conteggio lo fa il server. TODO (consulente): durata del
+              preavviso prima del prezzo di listino, modalità del recesso,
+              se il posto decade con la disdetta o il cambio di piano. */}
+          <p>
+            Ai primi {FONDATORI.posti} abbonamenti a pagamento attivati, in ordine di attivazione, si applica l’offerta Fondatori:{' '}
+            {pianiFondatori}, IVA esclusa, per {FONDATORI.mesi} mesi dalla data di attivazione dell’abbonamento
+            {FONDATORI.attivazione === 0 ? ', con l’attivazione gratuita' : `, con l’attivazione a ${euro(FONDATORI.attivazione)}`}.
+            L’offerta vale solo sui piani indicati. Fa fede l’ordine di attivazione registrato dal fornitore. Alla fine dei{' '}
+            {FONDATORI.mesi} mesi si applica il prezzo di listino in vigore: il fornitore lo comunica per iscritto con un
+            preavviso, e il titolare che non lo accetta può recedere prima che si applichi, senza penali.
+          </p>
+        </>
+      )}
       <h2>4. Cosa il servizio non fa</h2>
       <p>
         Lo scontrino stampato dall’app non è uno scontrino fiscale: gli adempimenti fiscali restano a carico del locale, con il
         proprio registratore telematico. Il servizio non sostituisce la contabilità del locale.
       </p>
+      {STAMPANTE?.modalita === 'preventivo' && (
+        <p>
+          Sono supportate le stampanti termiche Epson in rete. L’integrazione di altre stampanti non è compresa
+          nell’abbonamento: si fa solo su preventivo scritto, accettato dal titolare prima dell’inizio del lavoro.
+        </p>
+      )}
       <h2>5. Disponibilità e assistenza</h2>
       <p>
         Il servizio è fornito con cura ma senza garanzia di continuità assoluta. L’assistenza è disponibile via email a{' '}
         {TITOLARE.email}, nei tempi indicati nel piano.
+        {ASSISTENZA?.ore_mese > 0 &&
+          ` L’assistenza ${ASSISTENZA.modalita} è inclusa nell’abbonamento fino a ${ore(ASSISTENZA.ore_mese)} al mese; oltre, si presta su preventivo accettato dal titolare.`}
       </p>
+      {/* TODO (consulente): se le ore non usate in un mese si sommano ai
+          successivi, e come si conta il tempo dell'assistenza. */}
       {/* GLI AGGIORNAMENTI (REQ-FLOTTA-020): il testo approvato dall'utente il
           31/10/2026. Vale con le regole della regia accese o spente, così non
           si riscrive quando l'admin le cambia. */}
@@ -68,8 +135,8 @@ export function Termini() {
       </p>
       <h2>7. Recesso e disdetta</h2>
       <p>
-        L’abbonamento si disdice in qualunque momento dalla propria pagina; il servizio resta attivo fino alla fine del periodo
-        già pagato. Il fornitore può interrompere il servizio in caso di uso contrario a questi termini, con preavviso scritto.
+        L’abbonamento, mensile o annuale, si disdice in qualunque momento dalla propria pagina; il servizio resta attivo fino
+        alla fine del periodo già pagato. Il fornitore può interrompere il servizio in caso di uso contrario a questi termini, con preavviso scritto.
       </p>
       <h2>8. Legge e foro</h2>
       <p>Questi termini sono regolati dalla legge italiana. Per ogni controversia è competente il foro della sede del fornitore.</p>

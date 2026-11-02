@@ -1,7 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { NOME_PRODOTTO, URL_DEMO, EMAIL_CONTATTI } from '../lib/prodotto.js'
-import { MODULI, PIANI, TERMINALE_IN_PIU, ATTIVAZIONE } from '../lib/piani.js'
+import {
+  MODULI,
+  PIANI,
+  TERMINALE_IN_PIU,
+  ATTIVAZIONE,
+  ANNUALE,
+  FONDATORI,
+  PROVA_GIORNI,
+  ASSISTENZA,
+  STAMPANTE,
+  IVA,
+  conIva,
+  prezzoAnnuale,
+} from '../lib/piani.js'
 import { osservaVendita } from '../lib/db.js'
 import { venditaPulita, pianiInVendita, moduloVisibile } from '../lib/vendita.js'
 import {
@@ -109,9 +122,18 @@ function AvvisoLingua({ lingua, proposta, chiudi }) {
   )
 }
 
+// L'aliquota del listino, scritta una volta («IVA esclusa, al 22%»).
+const IVA_PERCENTO = `${IVA}%`
+
 export default function Home({ utente, lingua = 'it' }) {
   const t = testi(lingua)
   const euro = (n) => importo(n, lingua)
+  // Il listino del 02/11/2026 (DEC-0005): ogni prezzo è l'imponibile
+  // «+ IVA», perché la vendita è fra imprese e la fattura parte da lì; il
+  // totale IVA inclusa sta accanto, calcolato (conIva), perché è quello
+  // che esce dal conto del locale. Nessun numero scritto a mano.
+  const piuIva = (n) => interpola(t.prezzi.piuIva, { prezzo: euro(n) })
+  const ivaInclusa = (n) => interpola(t.prezzi.ivaInclusa, { prezzo: euro(conIva(n)) })
   // Dalla pagina inglese, registrazione e account sono ancora in italiano:
   // il link lo dice al browser (hreflang) e la pagina lo scrive.
   const versoItaliano = lingua === 'it' ? {} : { hrefLang: 'it' }
@@ -155,6 +177,30 @@ export default function Home({ utente, lingua = 'it' }) {
     base.prezzo + moduliVisibili.filter((m) => inclusiNelCompleto.has(m.id)).reduce((s, m) => s + m.prezzo, 0)
   const nomeBase = nomePiano(t, base)
   const nomeCompleto = nomePiano(t, completo)
+  // L'offerta Fondatori (DEC-0005), per i piani che il listino elenca e
+  // che sono in vendita. Sobria: i numeri e la regola, mai i posti rimasti
+  // (sarebbe urgenza, e la pagina non ha il conteggio, che sta sul server).
+  const pianiFondatori = piani.filter((p) => FONDATORI?.prezzi?.[p.id] != null)
+  const fondatori =
+    FONDATORI?.posti > 0 && pianiFondatori.length > 0
+      ? interpola(t.prezzi.fondatori.testo, {
+          posti: FONDATORI.posti,
+          piani: pianiFondatori
+            .map((p) =>
+              interpola(t.prezzi.fondatori.piano, {
+                nome: nomePiano(t, p),
+                prezzo: piuIva(FONDATORI.prezzi[p.id]),
+                lordo: ivaInclusa(FONDATORI.prezzi[p.id]),
+                mesi: FONDATORI.mesi,
+                listino: piuIva(p.prezzo),
+              })
+            )
+            .join('; '),
+          attivazione: FONDATORI.attivazione
+            ? interpola(t.prezzi.fondatori.attivazione, { prezzo: piuIva(FONDATORI.attivazione) })
+            : t.prezzi.fondatori.attivazioneGratuita,
+        })
+      : null
   const colonnaBase = interpola(t.prezzi.tabella.sulBase, { base: nomeBase })
   const colonnaCompleto = interpola(t.prezzi.tabella.nelCompleto, { completo: nomeCompleto })
 
@@ -197,8 +243,9 @@ export default function Home({ utente, lingua = 'it' }) {
           </div>
           <ul className="fatti" aria-label={t.hero.fatti}>
             {vendita.free && <li>{t.hero.free}</li>}
-            <li>{interpola(t.hero.da, { prezzo: euro(daPrezzo) })}</li>
+            <li>{interpola(t.hero.da, { prezzo: piuIva(daPrezzo) })}</li>
             <li>{t.hero.mensile}</li>
+            {PROVA_GIORNI > 0 && <li>{interpola(t.hero.prova, { giorni: PROVA_GIORNI })}</li>}
             <li>{automatica ? t.hero.automatica : t.hero.concordata}</li>
           </ul>
           {t.soloItaliano && <p className="nota-lingua">{t.soloItaliano}</p>}
@@ -260,7 +307,7 @@ export default function Home({ utente, lingua = 'it' }) {
                       {v.punti.map((p) => (
                         <li key={p}>
                           <Icona d={SPUNTA} className="icona spunta" />
-                          {interpola(p, { terminale: euro(TERMINALE_IN_PIU) })}
+                          {interpola(p, { terminale: piuIva(TERMINALE_IN_PIU) })}
                         </li>
                       ))}
                     </ul>
@@ -310,7 +357,10 @@ export default function Home({ utente, lingua = 'it' }) {
         <div className="contenitore">
           <header className="sezione-testa" data-comparsa>
             <h2 id="prezzi-titolo">{t.prezzi.titolo}</h2>
-            <p className="sezione-sotto">{interpola(t.prezzi.sotto, { attivazione: euro(ATTIVAZIONE) })}</p>
+            <p className="sezione-sotto">
+              {interpola(t.prezzi.sotto, { iva: IVA_PERCENTO, attivazione: piuIva(ATTIVAZIONE), lordo: ivaInclusa(ATTIVAZIONE) })}
+            </p>
+            {PROVA_GIORNI > 0 && <p className="sezione-sotto">{interpola(t.prezzi.prova, { giorni: PROVA_GIORNI })}</p>}
           </header>
           <div className="piani">
             {piani.map((p) => {
@@ -324,9 +374,27 @@ export default function Home({ utente, lingua = 'it' }) {
                 >
                   {evidenza && <span className="etichetta">{t.prezzi.tuttoIncluso}</span>}
                   <h3>{nome}</h3>
-                  <p className="prezzo">
-                    {euro(p.prezzo)} <span className="prezzo-mese">{t.prezzi.alMese}</span>
-                  </p>
+                  {p.gratuito ? (
+                    <p className="prezzo">
+                      {euro(0)} <span className="prezzo-mese">{t.prezzi.alMese}</span>
+                    </p>
+                  ) : (
+                    <>
+                      <p className="prezzo">
+                        {euro(p.prezzo)} <span className="prezzo-mese">{t.prezzi.piuIvaAlMese}</span>
+                      </p>
+                      <p className="prezzo-lordo">{ivaInclusa(p.prezzo)}</p>
+                      {ANNUALE?.mensilita > 0 && (
+                        <p className="prezzo-anno">
+                          {interpola(t.prezzi.annuale, {
+                            prezzo: piuIva(prezzoAnnuale(p.prezzo)),
+                            lordo: ivaInclusa(prezzoAnnuale(p.prezzo)),
+                            mesi: ANNUALE.mensilita,
+                          })}
+                        </p>
+                      )}
+                    </>
+                  )}
                   <p className="piano-descrizione">{descrizionePiano(t, p)}</p>
                   {!utente && (
                     <Link className={`btn block${evidenza ? '' : ' ghost'}`} to="/registrati" {...versoItaliano}>
@@ -337,14 +405,24 @@ export default function Home({ utente, lingua = 'it' }) {
               )
             })}
           </div>
+          {fondatori && (
+            <section className="fondatori" aria-labelledby="fondatori-titolo">
+              <h3 id="fondatori-titolo">{t.prezzi.fondatori.titolo}</h3>
+              <p>{fondatori}</p>
+              <p className="nota-piccola">{t.prezzi.fondatori.regola}</p>
+            </section>
+          )}
+          {/* Dal 02/11/2026 Base e Completo hanno gli stessi 3 terminali: la
+              frase non li nomina più, perché non sono una differenza. Il
+              confronto resta vero col Base a 32,70 € (anche a 25 €, coi
+              Fondatori): si mostra solo se lo è. */}
           {totaleSulBase > completo.prezzo && (
             <p className="convenienza">
               {interpola(t.prezzi.convenienza, {
                 base: nomeBase,
-                totale: euro(totaleSulBase),
+                totale: piuIva(totaleSulBase),
                 completo: nomeCompleto,
-                completo_prezzo: euro(completo.prezzo),
-                terminali: plurale(completo.terminali || 1, t.prezzi.terminali),
+                completo_prezzo: piuIva(completo.prezzo),
               })}
             </p>
           )}
@@ -373,7 +451,8 @@ export default function Home({ utente, lingua = 'it' }) {
                     <td className="cosa-fa">{descrizioneModulo(t, m)}</td>
                     {/* data-colonna: sul telefono la tabella va in colonna, e l'intestazione si ripete accanto al valore. */}
                     <td className="numero-colonna" data-colonna={colonnaBase}>
-                      {euro(m.prezzo)} {t.prezzi.alMese}
+                      {piuIva(m.prezzo)} {t.prezzi.alMese}
+                      <span className="iva-inclusa">{ivaInclusa(m.prezzo)}</span>
                     </td>
                     <td className="numero-colonna" data-colonna={colonnaCompleto}>
                       {inclusiNelCompleto.has(m.id) ? (
@@ -391,7 +470,8 @@ export default function Home({ utente, lingua = 'it' }) {
                   <th scope="row">{t.prezzi.tabella.terminale}</th>
                   <td className="cosa-fa">{t.prezzi.tabella.terminaleTesto}</td>
                   <td className="numero-colonna" data-colonna={colonnaBase}>
-                    {euro(TERMINALE_IN_PIU)} {t.prezzi.alMese}
+                    {piuIva(TERMINALE_IN_PIU)} {t.prezzi.alMese}
+                    <span className="iva-inclusa">{ivaInclusa(TERMINALE_IN_PIU)}</span>
                   </td>
                   <td className="numero-colonna" data-colonna={colonnaCompleto}>
                     {plurale(completo.terminali || 1, t.prezzi.tabella.terminaliInclusi)}
@@ -401,6 +481,12 @@ export default function Home({ utente, lingua = 'it' }) {
             </table>
           </div>
           <p className="nota">{t.prezzi.notaScontrino}</p>
+          {/* Il tetto dell'assistenza e le stampanti a preventivo (DEC-0005):
+              detti qui, prima della firma, e ripetuti nei Termini. */}
+          {ASSISTENZA?.ore_mese > 0 && (
+            <p className="nota">{interpola(t.prezzi.assistenza, { ore: plurale(ASSISTENZA.ore_mese, t.prezzi.ore) })}</p>
+          )}
+          {STAMPANTE?.modalita === 'preventivo' && <p className="nota">{t.prezzi.stampante}</p>}
           {t.soloItaliano && <p className="nota">{t.soloItaliano}</p>}
         </div>
       </section>

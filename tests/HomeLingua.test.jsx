@@ -26,7 +26,8 @@ vi.mock('../src/lib/db.js', () => ({
 import App from '../src/App.jsx'
 import en from '../src/i18n/home.en.js'
 import it_ from '../src/i18n/home.it.js'
-import { PIANI, MODULI } from '../src/lib/piani.js'
+import { PIANI, MODULI, FONDATORI, ATTIVAZIONE, conIva } from '../src/lib/piani.js'
+import { importo } from '../src/lib/lingua.js'
 import { salvaPreferenza } from '../src/lib/lingua.js'
 
 const FUTURO = { v7_startTransition: true, v7_relativeSplatPath: true }
@@ -61,11 +62,29 @@ describe('la pagina inglese', () => {
     expect(within(menu).getByRole('link', { name: 'Pricing' })).toHaveAttribute('href', '/en#prezzi')
     expect(within(menu).getByRole('link', { name: 'Get started' })).toHaveAttribute('href', '/registrati')
     // Gli importi all'inglese, dal listino; i nomi dei piani anche, come in italiano.
-    expect(screen.getByRole('article', { name: `${PIANI.completo.nome} plan` })).toHaveTextContent(`€${PIANI.completo.prezzo}`)
-    expect(screen.getByRole('article', { name: `${PIANI.base.nome} plan` })).toHaveTextContent(`€${PIANI.base.prezzo}`)
+    // DEC-0005: «€32.70 + VAT a month» e «€39.89 incl. VAT», all'inglese
+    // anche i decimali (punto, non virgola), come le migliaia.
+    for (const p of [PIANI.base, PIANI.completo]) {
+      const scheda = screen.getByRole('article', { name: `${p.nome} plan` })
+      expect(scheda).toHaveTextContent(`${importo(p.prezzo, 'en')} + VAT a month`)
+      expect(scheda).toHaveTextContent(`${importo(conIva(p.prezzo), 'en')} incl. VAT`)
+    }
+    expect(importo(PIANI.base.prezzo, 'en')).toMatch(/^€\d+\.\d\d$/)
     const tabella = within(screen.getByRole('table'))
     for (const m of MODULI) expect(tabella.getByText(en.moduli[m.id].nome)).toBeInTheDocument()
     expect(screen.getByText(en.prezzi.notaScontrino)).toBeInTheDocument()
+  })
+
+  it('le condizioni nuove del listino anche in inglese, senza formati italiani', () => {
+    mostra('/en')
+    const prezzi = document.getElementById('prezzi')
+    expect(within(prezzi).getByRole('region', { name: en.prezzi.fondatori.titolo })).toHaveTextContent(
+      `The first ${FONDATORI.posti} venues: ${PIANI.base.nome} at ${importo(FONDATORI.prezzi.base, 'en')} + VAT a month`
+    )
+    expect(prezzi).toHaveTextContent(`One-off activation: ${importo(ATTIVAZIONE, 'en')} + VAT (${importo(conIva(ATTIVAZIONE), 'en')} incl. VAT)`)
+    expect(prezzi).toHaveTextContent('Remote support is included up to 1 hour a month')
+    // Nessun importo all'italiana («32,70 €», «IVA») sulla pagina inglese.
+    expect(prezzi.textContent).not.toMatch(/\d,\d\d(?!\d)|\d €|IVA/)
   })
 
   it('dice che registrazione, account e termini sono in italiano', () => {

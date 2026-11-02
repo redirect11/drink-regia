@@ -902,3 +902,51 @@ requirements:
       - tests/piani.test.js
       - tests/cambiopiano.test.js
       - tests/contatti.test.js
+  - id: REQ-PREZZI-001
+    title: "Il listino del 02/11/2026 (DEC-0005) a schermo: prima pagina, scelta del piano, dashboard e termini"
+    area: "src/pages/Home.jsx, src/i18n/home.it.js, src/i18n/home.en.js, src/lib/lingua.js (importo), src/lib/piani.js (STAMPANTE), src/pages/SceltaPiano.jsx, src/pages/Dashboard.jsx, src/pages/Legali.jsx, src/index.css, DESIGN.md §5.6"
+    description: >
+      Il listino deciso da Daniele il 02/11/2026 (commit 7af3bab: Base
+      32,70 € + IVA con 3 terminali, attivazione 82 € + IVA, IVA 22,
+      Fondatori, annuale a 10 mensilita', prova di 30 giorni, assistenza da
+      remoto fino a 1 ora al mese, stampanti a preventivo) detto dove il
+      titolare lo legge. La logica del Checkout (functions/, piani.test.js,
+      abbonamento.test.js) sta nel ramo feature/prezzi-logica.
+      LA PRIMA PAGINA: ogni prezzo e' l'imponibile «+ IVA» col totale IVA
+      inclusa accanto, calcolato con conIva; accanto al mensile l'annuale
+      (prezzoAnnuale); l'attivazione + IVA; il blocco «Offerta Fondatori»
+      coi numeri del listino e il criterio (primi abbonamenti a pagamento
+      attivati, in ordine di attivazione), senza posti rimasti ne' prezzi
+      barrati; la prova; le note sul tetto dell'assistenza e sulle
+      stampanti a preventivo scritto. Il confronto Base/Completo resta vero
+      (108,70 € contro 69 €, anche coi Fondatori) e non nomina piu' i
+      terminali, uguali nei due piani.
+      L'INGLESE: «€32.70 + VAT», col punto dei decimali come le virgole
+      delle migliaia (importo() in lingua.js): un formato per lingua, mai
+      mescolato.
+      LA SCELTA DEL PIANO: + IVA e IVA inclusa, mensile o annuale con
+      `periodo: 'mese' | 'anno'` nella scelta passata a avviaPagamento,
+      chiediContatto e cambiaScelta (le Functions lo validano); l'offerta
+      Fondatori come testo informativo per chi comincia un piano che il
+      listino copre: chi rientra lo decide il server.
+      LA DASHBOARD: il prezzo coi centesimi, + IVA e IVA inclusa, e l'anno
+      per chi paga l'anno (`cliente.periodo`).
+      I TERMINI: prezzi IVA esclusa con l'aliquota, annuale, prova,
+      Fondatori (criterio, 12 mesi dall'attivazione, poi listino con
+      preavviso e recesso), tetto dell'assistenza, stampanti a preventivo.
+      RESTA (TODO in Legali.jsx, da vedere con un consulente): durata del
+      preavviso, rinnovo e rimborso dell'annuale, a chi spetta la prova e
+      quando si paga l'attivazione, se il posto Fondatori decade, ore di
+      assistenza non usate; il prezzo Fondatori applicato nella dashboard,
+      quando le Functions lo scrivono.
+    status: partial
+    generate_issue: false
+    labels: [prodotto, prezzi, regia]
+    test_cases:
+      - tests/Home.test.jsx
+      - tests/HomeLingua.test.jsx
+      - tests/HomeVendita.test.jsx
+      - tests/SceltaPiano.test.jsx
+      - tests/Dashboard.test.jsx
+      - tests/Legali.test.jsx
+      - tests/lingua.test.js

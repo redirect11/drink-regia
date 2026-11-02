@@ -93,13 +93,24 @@ export const interpola = (testo, valori = {}) =>
 
 export const plurale = (n, { uno, piu }) => interpola(n === 1 ? uno : piu, { n })
 
-// Gli importi del listino: «24 €» in italiano, «€24» in inglese
-// (DESIGN.md §6). Le migliaia a mano, come euro() in piani.js: il Node
-// della CI non ha i dati di lingua e Intl.NumberFormat non è affidabile lì.
+// Gli importi del listino: «32,70 €» in italiano, «€32.70» in inglese
+// (DESIGN.md §6). Dal listino del 02/11/2026 (DEC-0005) i prezzi hanno i
+// centesimi: si scrivono solo se ci sono (82 €, 32,70 €), e sempre a due
+// cifre. L'inglese segue la convenzione inglese anche nei decimali (punto
+// per i decimali, virgola per le migliaia): «€32,70» sarebbe un ibrido
+// che un lettore inglese legge come trentaduemila. Le migliaia a mano,
+// come euro() in piani.js: il Node della CI non ha i dati di lingua e
+// Intl.NumberFormat non è affidabile lì.
 export function importo(n, lingua = PREDEFINITA) {
-  const intero = String(Math.round(Number(n) || 0))
-  if (lingua === 'en') return `€${intero.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`
-  return `${intero.replace(/\B(?=(\d{3})+(?!\d))/g, '.')} €`
+  const v = Math.round((Number(n) || 0) * 100) / 100
+  const centesimi = Math.round(Math.abs(v) * 100)
+  const intero = String(Math.trunc(centesimi / 100))
+  const cent = centesimi % 100
+  const segno = v < 0 ? '-' : ''
+  if (lingua === 'en') {
+    return `${segno}€${intero.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}${cent ? '.' + String(cent).padStart(2, '0') : ''}`
+  }
+  return `${segno}${intero.replace(/\B(?=(\d{3})+(?!\d))/g, '.')}${cent ? ',' + String(cent).padStart(2, '0') : ''} €`
 }
 
 // <html lang>, titolo, descrizione e i link `hreflang` fra le due versioni

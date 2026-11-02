@@ -192,6 +192,18 @@ describe('i testi e gli importi', () => {
     expect(importo(24)).toBe('24 €')
     expect(importo('x', 'en')).toBe('€0')
   })
+
+  // Il listino del 02/11/2026 (DEC-0005) ha i centesimi: 32,70 € + IVA.
+  // In inglese il punto dei decimali, come le migliaia all'inglese: un
+  // formato per lingua, mai mescolato.
+  it('gli importi coi centesimi: sempre a due cifre, solo se ci sono', () => {
+    expect(importo(32.7, 'it')).toBe('32,70 €')
+    expect(importo(32.7, 'en')).toBe('€32.70')
+    expect(importo(39.894, 'it')).toBe('39,89 €')
+    expect(importo(1250.5, 'it')).toBe('1.250,50 €')
+    expect(importo(1250.5, 'en')).toBe('€1,250.50')
+    expect(importo(82, 'en')).toBe('€82')
+  })
 })
 
 describe('il documento nella lingua della pagina', () => {
