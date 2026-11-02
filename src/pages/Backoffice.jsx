@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   elencoClienti,
@@ -376,6 +376,9 @@ function SezioneLocali({ righe, az, lanciati }) {
   const [elimina, setElimina] = useState(null)
   const vista = parametri.get('vista') || 'tutti'
   const cerca = parametri.get('cerca') || ''
+  // Il locale aperto sotto la sua riga: nell'indirizzo, così resta aperto
+  // dopo un'azione e si può mandare a qualcuno.
+  const aperto = parametri.get('locale') || ''
   const filtra = (chiave, valore) =>
     setParametri(
       (p) => {
@@ -419,22 +422,82 @@ function SezioneLocali({ righe, az, lanciati }) {
       {mostrate.length === 0 ? (
         <p className="muted">Nessun locale con questi filtri.</p>
       ) : (
-        <ul className="locali" aria-label="Locali">
-          {mostrate.map((r) => (
-            <li key={r.cliente.uid}>
-              <SchedaLocale
-                riga={r}
-                az={az}
-                lanciato={lanciati[r.cliente.slug]}
-                cambiaAperto={cambia === r.cliente.slug}
-                onCambia={() => setCambia(cambia === r.cliente.slug ? null : r.cliente.slug)}
-                eliminaAperto={elimina === r.cliente.slug}
-                onElimina={() => setElimina(elimina === r.cliente.slug ? null : r.cliente.slug)}
-                onFatto={chiudi}
-              />
-            </li>
-          ))}
-        </ul>
+        // UNA TABELLA (l'utente, 02/11/2026: «vorrei che la lista delle
+        // istanze deployate sia una tabella che cliccando si apre il
+        // dettaglio come è ora un elemento della lista»): una riga per
+        // locale; il nome apre, sotto, la scheda di sempre.
+        <div className="tabella-scorre">
+          <table className="tabella-locali" aria-label="Locali">
+            <thead>
+              <tr>
+                <th scope="col">Locale</th>
+                <th scope="col">Stato</th>
+                <th scope="col">Piano</th>
+                <th scope="col" className="col-secondaria">
+                  Versione
+                </th>
+                <th scope="col">Licenza</th>
+                <th scope="col" className="col-secondaria">
+                  Titolare
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {mostrate.map((r) => {
+                const c = r.cliente
+                const aperta = aperto === c.slug
+                const breve = statoBreve(r)
+                return (
+                  <Fragment key={c.uid}>
+                    <tr className={`riga-locale tono-${breve.tono}${aperta ? ' aperta' : ''}`} onClick={() => filtra('locale', aperta ? '' : c.slug)}>
+                      <th scope="row">
+                        <button
+                          type="button"
+                          className="nome-locale"
+                          aria-expanded={aperta}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            filtra('locale', aperta ? '' : c.slug)
+                          }}
+                        >
+                          {c.nome_locale}
+                        </button>
+                        <div className="muted small">
+                          {c.slug}
+                          {r.istanza?.interna && ' · interna'}
+                          {r.istanza?.origine === 'esistente' && ' · esistente'}
+                        </div>
+                      </th>
+                      <td>
+                        <span className={`stato stato-${breve.tono}`}>{breve.testo}</span>
+                      </td>
+                      <td>{c.piano ? `${PIANI[c.piano]?.nome || c.piano} · ${euro(prezzoConSconto(prezzoMensile(c), c))}` : <span className="muted">—</span>}</td>
+                      <td className="col-secondaria">{r.istanza?.versione || r.istanza?.presentazione?.versione || <span className="muted">—</span>}</td>
+                      <td className={licenzaBreve(r.istanza).tono === 'errore' ? 'errore small' : 'muted small'}>{licenzaBreve(r.istanza).testo}</td>
+                      <td className="col-secondaria muted small">{c.email}</td>
+                    </tr>
+                    {aperta && (
+                      <tr className="riga-dettaglio">
+                        <td colSpan={6}>
+                          <SchedaLocale
+                            riga={r}
+                            az={az}
+                            lanciato={lanciati[c.slug]}
+                            cambiaAperto={cambia === c.slug}
+                            onCambia={() => setCambia(cambia === c.slug ? null : c.slug)}
+                            eliminaAperto={elimina === c.slug}
+                            onElimina={() => setElimina(elimina === c.slug ? null : c.slug)}
+                            onFatto={chiudi}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </>
   )
@@ -471,7 +534,7 @@ function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaApert
   const aggiornabile = aggiornaLaRegia(istanza)
   const [gestioneAperta, setGestioneAperta] = useState(false)
   const licenza = istanza?.licenza_stato || 'attiva'
-  const tono = licenza !== 'attiva' ? 'avviso' : TONO[stato] || 'neutro'
+  const { tono, testo: statoTesto } = statoBreve(riga)
   const aiVisibile = credito || stato === STATI.ATTIVA
   return (
     <article className={`locale tono-${tono}`} aria-label={c.nome_locale}>
@@ -484,9 +547,7 @@ function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaApert
             {!daFlotta && ' · esistente'}
           </div>
         </div>
-        <span className={`stato stato-${tono}`}>
-          {licenza !== 'attiva' ? `${licenza}${istanza.licenza_motivo ? ` · ${istanza.licenza_motivo}` : ''}` : STATO_BREVE[stato] || statoDetto(stato)}
-        </span>
+        <span className={`stato stato-${tono}`}>{statoTesto}</span>
       </header>
 
       <dl className="locale-dati">
@@ -1250,6 +1311,24 @@ const TONO = {
   [STATI.IN_CODA]: 'attesa',
   [STATI.IN_CORSO]: 'attesa',
   [STATI.DA_APPROVARE]: 'avviso',
+}
+
+// Lo stato di un locale in due parole e col suo colore: sospeso o chiuso
+// vince sullo stato dell'istanza.
+function statoBreve({ istanza, stato }) {
+  const licenza = istanza?.licenza_stato || 'attiva'
+  if (licenza !== 'attiva') return { tono: 'avviso', testo: `${licenza}${istanza.licenza_motivo ? ` · ${istanza.licenza_motivo}` : ''}` }
+  return { tono: TONO[stato] || 'neutro', testo: STATO_BREVE[stato] || statoDetto(stato) }
+}
+
+// La licenza in una parola, per la tabella: chi la scrive e se va.
+function licenzaBreve(istanza) {
+  if (!istanza?.progetto) return { tono: 'neutro', testo: '—' }
+  if (istanza.licenza_dalla_regia === false) return { tono: 'neutro', testo: 'del suo progetto' }
+  if (istanza.licenza_protetta?.ok === false) return { tono: 'errore', testo: 'da allineare' }
+  if (istanza.riduzione_al_taglio?.dal) return { tono: 'neutro', testo: 'riduzione al taglio' }
+  if (istanza.eliminazione?.stato === 'programmata') return { tono: 'errore', testo: `cancellazione il ${giorno(istanza.eliminazione.quando)}` }
+  return { tono: 'neutro', testo: istanza.licenza_protetta?.ok ? 'verificata' : 'dalla regia' }
 }
 
 // LA VENDITA (REQ-FLOTTA-015, l'utente, 30/10/2026: «voglio poterlo
