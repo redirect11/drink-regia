@@ -44,7 +44,9 @@ describe('il catalogo dei temi', () => {
     expect(db.gestisciTemi).toHaveBeenCalledWith('pubblica', { id: 'aurora' })
   })
 
-  it('un tema nuovo: base, stile, un colore ritoccato, anteprima; si salva e si pubblica', async () => {
+  // Si scrivono tre campi lettera per lettera: sotto carico ci vuole più dei
+  // 5 secondi di partenza (successo il 02/11/2026 con tutta la suite).
+  it('un tema nuovo: base, stile, un colore ritoccato, anteprima; si salva e si pubblica', { timeout: 20000 }, async () => {
     const user = userEvent.setup()
     db.elencoTemi.mockResolvedValue([])
     render(<CatalogoTemi onErrore={onErrore} />)
