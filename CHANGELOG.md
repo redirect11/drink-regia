@@ -18,6 +18,11 @@ data.
 
 ## 0.3.0 (in lavorazione)
 
+- Gli stili a ricetta: la forma del menù (caratteri, voci, separatori,
+  cornici, sfondo) si pubblica dalla regia come un tema, e l'app la disegna
+  da sé. Sette stili nuovi (Osteria, Bauhaus, Tiki, Quaderno, Dattilo,
+  Insegna, Giardino) e sette temi che li usano. Arrivano nei locali con la
+  versione dell'app che sa disegnarli (REQ-FLOTTA-034).
 - Otto temi nuovi nel catalogo, disegnati da noi e pubblicati col deploy:
   Smeraldo, Bordeaux, Agrumi, Ardesia, Seppia, Velluto, Menta, Neon. Dal
   backoffice si vedono e si ritirano (REQ-FLOTTA-033).

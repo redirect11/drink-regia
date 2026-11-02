@@ -13,6 +13,8 @@ import '@testing-library/jest-dom/vitest'
 const db = vi.hoisted(() => ({
   elencoTemi: vi.fn(async () => []),
   gestisciTemi: vi.fn(async () => ({ ok: true })),
+  elencoStili: vi.fn(async () => []),
+  gestisciStili: vi.fn(async () => ({ ok: true })),
 }))
 vi.mock('../src/lib/db.js', () => db)
 
@@ -112,5 +114,30 @@ describe('il catalogo dei temi', () => {
     db.elencoTemi.mockRejectedValueOnce(new Error('permesso negato'))
     render(<CatalogoTemi onErrore={onErrore} />)
     await vi.waitFor(() => expect(onErrore).toHaveBeenCalledWith('permesso negato'))
+  })
+
+  // REQ-FLOTTA-034: gli stili a ricetta del repository si vedono, si scelgono
+  // per un tema, e si ritirano (o si ripubblicano) da qui.
+  it('gli stili a ricetta: nella scelta dello stile, nell’elenco, e si ritirano', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    db.elencoStili.mockResolvedValue([{ id: 'dattilo', nome: 'Dattilo', stato: 'ritirato', ricetta: { caratteri: {}, voce: {} } }])
+    render(<CatalogoTemi onErrore={onErrore} />)
+    const osteria = await screen.findByTestId('stile-osteria')
+    expect(osteria).toHaveTextContent('libre-baskerville')
+    expect(osteria).toHaveTextContent('riga, prezzo puntini, sfondo carta')
+    await user.click(within(osteria).getByRole('button', { name: 'Ritira' }))
+    expect(db.gestisciStili).toHaveBeenCalledWith('ritira', 'osteria')
+    // La copia ritirata nel database vince su quella del repository.
+    const dattilo = screen.getByTestId('stile-dattilo')
+    expect(dattilo).toHaveTextContent('Ritirato')
+    await user.click(within(dattilo).getByRole('button', { name: 'Pubblica' }))
+    expect(db.gestisciStili).toHaveBeenCalledWith('pubblica', 'dattilo')
+    // Un tema del repository che usa uno stile a ricetta dice il suo nome.
+    expect(screen.getByTestId('tema-trattoria')).toHaveTextContent('Osteria')
+    await user.click(screen.getByRole('button', { name: 'Nuovo tema' }))
+    const scelta = within(screen.getByRole('form', { name: 'Nuovo tema' })).getByLabelText('Stile del menù')
+    expect(within(scelta).getByRole('option', { name: 'Tiki' })).toBeInTheDocument()
+    expect(within(scelta).getByRole('option', { name: 'Riviera' })).toBeInTheDocument()
   })
 })

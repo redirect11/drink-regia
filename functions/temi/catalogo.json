@@ -1,5 +1,5 @@
 {
-  "_nota": "I temi del catalogo scritti nel repository (REQ-FLOTTA-033): li disegna il fornitore, o un agente con una PR; tests/temi.test.js li controlla con le regole dell'app (leggiTema di tana-drink) e il deploy li pubblica. Un tema con lo stesso id nel database (dal backoffice) vince su questo: è così che si ritira. Colori #rrggbb; basi e stili in functions/lib/temi.js.",
+  "_nota": "I temi del catalogo scritti nel repository (REQ-FLOTTA-033): li disegna il fornitore, o un agente con una PR; tests/temi.test.js li controlla con le regole dell'app (leggiTema di tana-drink) e il deploy li pubblica. Un tema con lo stesso id nel database (dal backoffice) vince su questo: è così che si ritira. Colori #rrggbb; basi e stili in functions/lib/temi.js; lo stile può anche essere uno stile a ricetta di functions/temi/stili.json (REQ-FLOTTA-034).",
   "temi": [
     {
       "id": "smeraldo",
@@ -8,7 +8,15 @@
       "stato": "pubblicato",
       "tavolozza": {
         "base": "notte-blu",
-        "colori": { "--bg": "#0b1f1a", "--bg-2": "#10291f", "--card": "#143326", "--accent": "#d4af37", "--accent-2": "#e8d9a8", "--text": "#f1efe6", "--muted": "#9fb5a8" }
+        "colori": {
+          "--bg": "#0b1f1a",
+          "--bg-2": "#10291f",
+          "--card": "#143326",
+          "--accent": "#d4af37",
+          "--accent-2": "#e8d9a8",
+          "--text": "#f1efe6",
+          "--muted": "#9fb5a8"
+        }
       },
       "stile": "deco"
     },
@@ -19,7 +27,15 @@
       "stato": "pubblicato",
       "tavolozza": {
         "base": "tana-scuro",
-        "colori": { "--bg": "#1a0d12", "--bg-2": "#22111a", "--card": "#2a1520", "--accent": "#c9375a", "--accent-2": "#e8b04a", "--text": "#f6eef0", "--muted": "#b39aa3" }
+        "colori": {
+          "--bg": "#1a0d12",
+          "--bg-2": "#22111a",
+          "--card": "#2a1520",
+          "--accent": "#c9375a",
+          "--accent-2": "#e8b04a",
+          "--text": "#f6eef0",
+          "--muted": "#b39aa3"
+        }
       },
       "stile": "classico"
     },
@@ -30,7 +46,15 @@
       "stato": "pubblicato",
       "tavolozza": {
         "base": "crema",
-        "colori": { "--bg": "#fff7e8", "--bg-2": "#fffcf3", "--card": "#ffffff", "--accent": "#d4621a", "--accent-2": "#2f8f5b", "--text": "#2b2116", "--muted": "#76664f" }
+        "colori": {
+          "--bg": "#fff7e8",
+          "--bg-2": "#fffcf3",
+          "--card": "#ffffff",
+          "--accent": "#d4621a",
+          "--accent-2": "#2f8f5b",
+          "--text": "#2b2116",
+          "--muted": "#76664f"
+        }
       },
       "stile": "riviera"
     },
@@ -41,7 +65,15 @@
       "stato": "pubblicato",
       "tavolozza": {
         "base": "pico-scuro",
-        "colori": { "--bg": "#1e2526", "--bg-2": "#242c2d", "--card": "#2a3334", "--accent": "#f2c14e", "--accent-2": "#8fd3c7", "--text": "#eef1ec", "--muted": "#a7b2ad" }
+        "colori": {
+          "--bg": "#1e2526",
+          "--bg-2": "#242c2d",
+          "--card": "#2a3334",
+          "--accent": "#f2c14e",
+          "--accent-2": "#8fd3c7",
+          "--text": "#eef1ec",
+          "--muted": "#a7b2ad"
+        }
       },
       "stile": "lavagna"
     },
@@ -52,7 +84,15 @@
       "stato": "pubblicato",
       "tavolozza": {
         "base": "crema",
-        "colori": { "--bg": "#f3ead8", "--bg-2": "#f8f1e2", "--card": "#fbf6ea", "--accent": "#7a3b1d", "--accent-2": "#5c4a2a", "--text": "#2a2117", "--muted": "#6b5d49" }
+        "colori": {
+          "--bg": "#f3ead8",
+          "--bg-2": "#f8f1e2",
+          "--card": "#fbf6ea",
+          "--accent": "#7a3b1d",
+          "--accent-2": "#5c4a2a",
+          "--text": "#2a2117",
+          "--muted": "#6b5d49"
+        }
       },
       "stile": "giornale"
     },
@@ -63,7 +103,15 @@
       "stato": "pubblicato",
       "tavolozza": {
         "base": "catppuccin",
-        "colori": { "--bg": "#140f1f", "--bg-2": "#1b1429", "--card": "#221a33", "--accent": "#c7a4ff", "--accent-2": "#f3c97a", "--text": "#ece6f7", "--muted": "#a99cbf" }
+        "colori": {
+          "--bg": "#140f1f",
+          "--bg-2": "#1b1429",
+          "--card": "#221a33",
+          "--accent": "#c7a4ff",
+          "--accent-2": "#f3c97a",
+          "--text": "#ece6f7",
+          "--muted": "#a99cbf"
+        }
       },
       "stile": "deco"
     },
@@ -74,7 +122,15 @@
       "stato": "pubblicato",
       "tavolozza": {
         "base": "pico-chiaro",
-        "colori": { "--bg": "#eef7f3", "--bg-2": "#ffffff", "--card": "#ffffff", "--accent": "#0f7a5f", "--accent-2": "#b45309", "--text": "#1d2b26", "--muted": "#56685f" }
+        "colori": {
+          "--bg": "#eef7f3",
+          "--bg-2": "#ffffff",
+          "--card": "#ffffff",
+          "--accent": "#0f7a5f",
+          "--accent-2": "#b45309",
+          "--text": "#1d2b26",
+          "--muted": "#56685f"
+        }
       },
       "stile": "classico"
     },
@@ -85,9 +141,150 @@
       "stato": "pubblicato",
       "tavolozza": {
         "base": "tana-scuro",
-        "colori": { "--bg": "#07070d", "--bg-2": "#0e0e18", "--card": "#13131f", "--accent": "#ff2fb3", "--accent-2": "#2ff3e0", "--text": "#f4f4ff", "--muted": "#9a9ab8" }
+        "colori": {
+          "--bg": "#07070d",
+          "--bg-2": "#0e0e18",
+          "--card": "#13131f",
+          "--accent": "#ff2fb3",
+          "--accent-2": "#2ff3e0",
+          "--text": "#f4f4ff",
+          "--muted": "#9a9ab8"
+        }
       },
       "stile": "classico"
+    },
+    {
+      "id": "trattoria",
+      "nome": "Trattoria",
+      "descrizione": "La carta della trattoria: avorio, rosso mattone e verde oliva, con lo stile «Osteria».",
+      "stato": "pubblicato",
+      "tavolozza": {
+        "base": "crema",
+        "colori": {
+          "--bg": "#f5ecd9",
+          "--bg-2": "#faf3e3",
+          "--card": "#fdf8ec",
+          "--accent": "#8c2f1b",
+          "--accent-2": "#4f6b2a",
+          "--text": "#2b2014",
+          "--muted": "#6a5a44"
+        }
+      },
+      "stile": "osteria"
+    },
+    {
+      "id": "laguna",
+      "nome": "Laguna",
+      "descrizione": "Il bar tropicale sul verde laguna: mango e corallo, con lo stile «Tiki».",
+      "stato": "pubblicato",
+      "tavolozza": {
+        "base": "tana-scuro",
+        "colori": {
+          "--bg": "#0c2b2e",
+          "--bg-2": "#10363a",
+          "--card": "#144247",
+          "--accent": "#ffb347",
+          "--accent-2": "#ff6f61",
+          "--text": "#f3fbf9",
+          "--muted": "#a3c7c3"
+        }
+      },
+      "stile": "tiki"
+    },
+    {
+      "id": "appunti",
+      "nome": "Appunti",
+      "descrizione": "Il quaderno a quadretti: inchiostro blu e penna rossa, con lo stile «Quaderno».",
+      "stato": "pubblicato",
+      "tavolozza": {
+        "base": "chiaro",
+        "colori": {
+          "--bg": "#fbfbf7",
+          "--bg-2": "#ffffff",
+          "--card": "#ffffff",
+          "--accent": "#1f4fa8",
+          "--accent-2": "#c0392b",
+          "--text": "#1f2430",
+          "--muted": "#5a6170"
+        }
+      },
+      "stile": "quaderno"
+    },
+    {
+      "id": "prima-visione",
+      "nome": "Prima visione",
+      "descrizione": "L’insegna del cinema di sera: oro e rosso su un bruno scuro, con lo stile «Insegna».",
+      "stato": "pubblicato",
+      "tavolozza": {
+        "base": "tana-scuro",
+        "colori": {
+          "--bg": "#120b0b",
+          "--bg-2": "#1a1010",
+          "--card": "#221515",
+          "--accent": "#f7c948",
+          "--accent-2": "#e63946",
+          "--text": "#fff6e5",
+          "--muted": "#b8a99a"
+        }
+      },
+      "stile": "insegna"
+    },
+    {
+      "id": "telegramma",
+      "nome": "Telegramma",
+      "descrizione": "Battuto a macchina su carta avorio, con il prezzo in rosso: lo stile «Dattilo».",
+      "stato": "pubblicato",
+      "tavolozza": {
+        "base": "crema",
+        "colori": {
+          "--bg": "#efe8d8",
+          "--bg-2": "#f5f0e4",
+          "--card": "#f8f4ea",
+          "--accent": "#8a1c1c",
+          "--accent-2": "#3d3d3d",
+          "--text": "#1e1e1e",
+          "--muted": "#5d5a52"
+        }
+      },
+      "stile": "dattilo"
+    },
+    {
+      "id": "officina",
+      "nome": "Officina",
+      "descrizione": "Rosso, blu e nero su bianco, come un manifesto: lo stile «Bauhaus».",
+      "stato": "pubblicato",
+      "tavolozza": {
+        "base": "pico-chiaro",
+        "colori": {
+          "--bg": "#f4f4f0",
+          "--bg-2": "#ffffff",
+          "--card": "#ffffff",
+          "--accent": "#d62828",
+          "--accent-2": "#1d3557",
+          "--text": "#111111",
+          "--muted": "#555555"
+        }
+      },
+      "stile": "bauhaus"
+    },
+    {
+      "id": "glicine",
+      "nome": "Glicine",
+      "descrizione": "Un pergolato in fiore: lilla e verde salvia su bianco, con lo stile «Giardino».",
+      "stato": "pubblicato",
+      "tavolozza": {
+        "base": "catppuccin-chiaro",
+        "colori": {
+          "--bg": "#f6f2fa",
+          "--bg-2": "#fbf8fd",
+          "--card": "#ffffff",
+          "--accent": "#7b4bb7",
+          "--accent-2": "#4f7a3a",
+          "--text": "#2a2333",
+          "--muted": "#645a70"
+        }
+      },
+      "stile": "giardino"
     }
   ]
 }

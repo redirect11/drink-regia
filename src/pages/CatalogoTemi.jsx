@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { elencoTemi, gestisciTemi } from '../lib/db.js'
-import { BASI, STILI, CHIAVI_COLORE, STATI_DETTI, coloriDelTema, temaVuoto, temiDaMostrare } from '../lib/temi.js'
+import { elencoTemi, gestisciTemi, elencoStili, gestisciStili } from '../lib/db.js'
+import { BASI, STILI, CHIAVI_COLORE, STATI_DETTI, coloriDelTema, temaVuoto, temiDaMostrare, stiliDaMostrare, nomeStile, STILI_RICETTA } from '../lib/temi.js'
 
 // IL CATALOGO DEI TEMI (REQ-FLOTTA-032, REQ-MENU-023 di tana-drink).
 // L'utente, 02/11/2026: «Serve un posto dove pubblicarne di nuovi», e
@@ -16,12 +16,23 @@ export default function CatalogoTemi({ onErrore }) {
   const carica = () => setGiro((g) => g + 1)
   // Quelli del database e quelli del repository (REQ-FLOTTA-033).
   const temi = temiDaMostrare(elenco)
+  // Gli stili a ricetta (REQ-FLOTTA-034), con le loro copie nel database.
+  const [elencoS, setElencoS] = useState([])
+  const stili = stiliDaMostrare(elencoS)
 
   useEffect(() => {
     elencoTemi()
       .then(setElenco)
       .catch((e) => onErrore(e.message))
+    elencoStili()
+      .then(setElencoS)
+      .catch((e) => onErrore(e.message))
   }, [giro, onErrore])
+
+  const azioneStile = (nome, id) =>
+    gestisciStili(nome, id)
+      .then(carica)
+      .catch((e) => onErrore(e.message))
 
   const azione = async (nome, dati) => {
     try {
@@ -66,7 +77,7 @@ export default function CatalogoTemi({ onErrore }) {
                       {t.dal_repository && ' · dal repository'}
                     </div>
                   </th>
-                  <td>{STILI.find((s) => s.id === t.stile)?.nome || t.stile}</td>
+                  <td>{nomeStile(t.stile)}</td>
                   <td>{BASI.find((b) => b.id === t.tavolozza?.base)?.nome || t.tavolozza?.base}</td>
                   <td>
                     <span className={`stato stato-${t.stato === 'pubblicato' ? 'ok' : 'neutro'}`}>{STATI_DETTI[t.stato] || t.stato}</span>
@@ -104,6 +115,55 @@ export default function CatalogoTemi({ onErrore }) {
           </button>
         </div>
       )}
+      <h4>Stili a ricetta</h4>
+      <p className="muted small">
+        La forma del menù come scelta fra valori fissi (caratteri, voci, separatori, cornici, sfondo), che l’app disegna con il suo
+        motore: si cambiano nel loro file (functions/temi/stili.json), da qui si ritirano. Un’app che non ha ancora il motore non li
+        mostra, e nemmeno i temi che li usano.
+      </p>
+      <div className="tabella-scorre">
+        <table className="tabella-locali" aria-label="Gli stili a ricetta">
+          <thead>
+            <tr>
+              <th scope="col">Stile</th>
+              <th scope="col">Caratteri</th>
+              <th scope="col">Voci</th>
+              <th scope="col">Stato</th>
+              <th scope="col">Azioni</th>
+            </tr>
+          </thead>
+          <tbody>
+            {stili.map((s) => (
+              <tr key={s.id} data-testid={`stile-${s.id}`}>
+                <th scope="row">
+                  {s.nome}
+                  <div className="muted small">{s.descrizione}</div>
+                </th>
+                <td className="muted small">
+                  {s.ricetta?.caratteri?.titolo} · {s.ricetta?.caratteri?.voce} · {s.ricetta?.caratteri?.testo}
+                </td>
+                <td className="muted small">
+                  {s.ricetta?.voce?.forma}, prezzo {s.ricetta?.voce?.prezzo}, sfondo {s.ricetta?.sfondo}
+                </td>
+                <td>
+                  <span className={`stato stato-${s.stato === 'pubblicato' ? 'ok' : 'neutro'}`}>{STATI_DETTI[s.stato] || s.stato}</span>
+                </td>
+                <td>
+                  {s.stato === 'pubblicato' ? (
+                    <button type="button" className="btn ghost small" onClick={() => window.confirm(`Ritirare lo stile «${s.nome}»?`) && azioneStile('ritira', s.id)}>
+                      Ritira
+                    </button>
+                  ) : (
+                    <button type="button" className="btn ghost small" onClick={() => azioneStile('pubblica', s.id)}>
+                      Pubblica
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       {aperto && (
         <EditorTema
           key={aperto.id || 'nuovo'}
@@ -180,11 +240,20 @@ function EditorTema({ iniziale, onChiudi, onSalva }) {
         <label>
           Stile del menù
           <select {...campo('stile')}>
-            {STILI.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.nome}
-              </option>
-            ))}
+            <optgroup label="Dell’app">
+              {STILI.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nome}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="A ricetta">
+              {STILI_RICETTA.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nome}
+                </option>
+              ))}
+            </optgroup>
           </select>
         </label>
         <fieldset className="colori-tema">
@@ -246,7 +315,7 @@ function Anteprima({ colori, tema }) {
           </span>
         </div>
         <div className="muted small" style={{ color: colori['--muted'] }}>
-          {tema.nome || 'Senza nome'} · stile {STILI.find((s) => s.id === tema.stile)?.nome}
+          {tema.nome || 'Senza nome'} · stile {nomeStile(tema.stile)}
         </div>
       </div>
     </div>

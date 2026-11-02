@@ -677,6 +677,14 @@ L'elenco completo con i riferimenti al codice è in
    dell'app e contrasto), il deploy lo pubblica. Si ritira dal backoffice
    (la copia nel database vince); si cambia nel file. Così un agente può
    proporre temi con una PR, senza credito AI.
+34. **Gli stili a ricetta (REQ-FLOTTA-034)**, ramo `feature/stili-a-ricetta`,
+   02/11/2026. La forma del menù come scelta fra valori fissi
+   (`functions/lib/stili.js`: il vocabolario e i caratteri), negli stessi
+   modi dei temi: il repository (`functions/temi/stili.json`, sette
+   stili), il catalogo pubblico, il ritiro dal backoffice. In tana-drink il
+   motore che li disegna: `docs/stili-a-ricetta.md` sul ramo
+   `feature/stili-a-ricetta`. Finché l'app non ce l'ha, scarta gli stili a
+   ricetta e i temi che li usano: si possono pubblicare prima.
 
 ---
 
@@ -799,7 +807,15 @@ moduli, la licenza nell'istanza e la Tana.
   senza token, CORS aperto → `200 { temi: [{ id, nome, descrizione, prezzo:
   0, tavolozza: { base, colori }, stile }] }`, solo i pubblicati, in ordine
   di nome. La fonte della verità su cosa è un tema è `leggiTema` in
-  `src/lib/marketplaceTemi.js` di tana-drink.
+  `src/lib/marketplaceTemi.js` di tana-drink. Dal 02/11/2026 (REQ-FLOTTA-034)
+  la risposta porta anche `stili: [{ id, nome, descrizione, prezzo: 0,
+  ricetta }]`, gli stili a ricetta pubblicati, e un tema può avere come
+  `stile` l'id di uno di loro. La ricetta, versione 1: `caratteri: { titolo,
+  voce, testo }` (fra `CARATTERI` di functions/lib/stili.js), `titoli: {
+  maiuscolo, corsivo, allineamento, dimensione, spaziatura }`,
+  `intestazione`, `voce: { forma, prezzo, separatore, immagine }`,
+  `cornice`, `angoli`, `sfondo`, `colori` facoltativi; i valori in
+  `VALORI` dello stesso file. La regia manda sempre la ricetta completa.
 - **La presentazione alla regia** (REQ-FLOTTA-026, dal 02/11/2026). Al
   primo avvio di ogni versione l'app fa `POST
   https://europe-west1-<VITE_REGIA_PROGETTO>.cloudfunctions.net/presentazione`

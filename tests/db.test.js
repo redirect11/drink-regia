@@ -116,6 +116,7 @@ const FUNCTIONS = [
   ['applicaSconto', ['bar', ''], 'applicaSconto', { slug: 'bar', codice: null }],
   // Il catalogo dei temi (REQ-FLOTTA-032).
   ['gestisciTemi', ['pubblica', { id: 'aurora' }], 'gestisciTemi', { id: 'aurora', azione: 'pubblica' }],
+  ['gestisciStili', ['ritira', 'osteria'], 'gestisciStili', { azione: 'ritira', id: 'osteria' }],
 ]
 
 describe('le chiamate alle Functions', () => {
@@ -244,6 +245,8 @@ describe('i documenti della regia', () => {
     fb.documenti.temi = [['aurora', { id: 'aurora', stato: 'bozza' }]]
     fb.documenti.sconti = [['TANA-100', { codice: 'TANA-100' }]]
     expect(await db.elencoTemi()).toEqual([{ id: 'aurora', stato: 'bozza' }])
+    fb.documenti.stili = [['osteria', { id: 'osteria', stato: 'ritirato' }]]
+    expect(await db.elencoStili()).toEqual([{ id: 'osteria', stato: 'ritirato' }])
     expect(await db.elencoSconti()).toEqual([{ codice: 'TANA-100' }])
   })
 
