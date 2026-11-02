@@ -55,6 +55,13 @@ on:
         required: false
         type: string
         default: ''
+      # L'uid del titolare nella regia (clienti/{uid}): l'account nel locale
+      # ha lo stesso (M7). Facoltativo: senza, il passo lavora per email.
+      uid:
+        description: 'Il titolare nella regia (clienti/{uid}): lo stesso uid nel locale'
+        required: false
+        type: string
+        default: ''
       progetto:
         description: 'Il progetto Firebase, se non è drinkpos-<slug> (un locale esistente)'
         required: false
@@ -91,6 +98,7 @@ env:
   CLIENTE_APP: ${{ inputs.cliente || inputs.slug }}
   BUILD_PUBBLICA: ${{ inputs.build }}
   EMAIL_TITOLARE: ${{ inputs.email }}
+  UID_TITOLARE: ${{ inputs.uid }}
   ESISTENTE: ${{ inputs.progetto != '' }}
   # I segreti che le Functions dell'app di tana-drink dichiarano
   # (defineSecret): contratto con tana-drink, docs/handover.md §7.
@@ -110,6 +118,7 @@ jobs:
           [[ "$PROFILO" =~ ^(completo|leggero)$ ]] || { echo "::error::profilo non valido."; exit 1; }
           # L'email del titolare (REQ-FLOTTA-029): vuota, o un'email.
           [[ -z "$EMAIL_TITOLARE" || "$EMAIL_TITOLARE" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]{2,}$ ]] || { echo "::error::Email del titolare non valida."; exit 1; }
+          [[ "$UID_TITOLARE" =~ ^[A-Za-z0-9]{0,128}$ ]] || { echo "::error::uid non valido."; exit 1; }
           if [ ${#NOME} -gt 80 ] || [[ "$NOME" =~ [[:cntrl:]] ]]; then echo "::error::Nome del locale non valido."; exit 1; fi
           [[ "$PROGETTO" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]] || { echo "::error::progetto non valido."; exit 1; }
           # I progetti della regia non sono mai un locale (functions/lib/esistente.js).
@@ -413,10 +422,12 @@ jobs:
       # 02/11/2026: «quando viene deployato qualcosa, bisogna sempre
       # aggiungere come utente admin chi ha richiesto la sottoscrizione»).
       # L'account c'è, è admin, e finché non ha una password gli arriva
-      # l'email per impostarla. Si può ripetere senza danni.
+      # l'email per impostarla. Si può ripetere senza danni. Con lo stesso
+      # uid della regia (M7): un locale nato prima ha il suo segnaposto
+      # ricreato con l'uid giusto, se nessuno l'ha mai usato.
       - name: Il titolare, admin del suo locale
         if: env.EMAIL_TITOLARE != '' && env.ESISTENTE != 'true'
-        run: node scripts/titolare-istanza.mjs --project "$PROGETTO" --email "$EMAIL_TITOLARE" --env app/.env --sito "https://$PROGETTO.web.app"
+        run: node scripts/titolare-istanza.mjs --project "$PROGETTO" --uid "$UID_TITOLARE" --email "$EMAIL_TITOLARE" --env app/.env --sito "https://$PROGETTO.web.app"
 
       - name: Versione pubblicata
         run: echo "VERSIONE=v$(node -p "require('./app/package.json').version")" >> "$GITHUB_ENV"

@@ -55,6 +55,11 @@ data.
   l'admin del suo locale, e riceve l'email per impostare la password:
   prima un locale nuovo nasceva senza nessuno che potesse entrare
   (REQ-FLOTTA-029).
+- L'account del titolare nel suo locale ha lo stesso identificativo
+  (uid) che ha nella regia: prima l'attivazione lo riceveva e non lo usava.
+  I locali attivati prima, al prossimo aggiornamento, ricevono l'account
+  giusto se quello creato allora non è mai stato usato; uno già usato resta
+  com'è (REQ-FLOTTA-029, M7).
 - Anche con Stripe la licenza ha una durata: scade 7 giorni dopo la fine
   del periodo pagato, e alla scadenza la regia controlla lo stato vero su
   Stripe. Chi disdice, con «solo finché si paga», passa al Free; chi torna

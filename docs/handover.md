@@ -640,6 +640,16 @@ L'elenco completo con i riferimenti al codice è in
    esistente. **prova-bar e prova-free** (nati senza nessun account): dopo
    il merge, «Aggiorna subito» dal backoffice di test; prova-free prima ha
    bisogno del suo cliente («Nuovo locale», nome «Prova Free»).
+   **Lo stesso uid della regia (M7, ramo `feature/titolare-istanza`)**:
+   l'input `uid` dei due workflow ora arriva allo script (`--uid`), e
+   l'account nel locale ha l'uid di `clienti/{uid}`. Un segnaposto mai
+   usato nato prima si ricrea con l'uid giusto, uno usato resta (avviso
+   nel log). `aggiorna-istanza.yml` ha l'input `uid` nuovo, facoltativo:
+   **il workflow deve stare su `main` prima che le Functions che lo
+   mandano siano pubblicate**, come per `email` (GitHub rifiuta un input
+   che il workflow non dichiara). La Tana: a mano, da tana-drink,
+   `scripts/titolare-locale.mjs` (senza `--applica` dice solo cosa
+   farebbe).
    **L'accesso con Google al banco**, chiesto dall'utente, mancano due
    pezzi: (1) in tana-drink il banco (`BartenderPage.jsx`) entra solo con
    email e password, Google c'è solo nell'area clienti; (2) i progetti dei
