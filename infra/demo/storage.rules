@@ -1,0 +1,15 @@
+rules_version = '2';
+
+// LO STORAGE DELLA DEMO (REQ-FLOTTA-019). La demo non usa file sul server:
+// le foto dei drink sono nella build. Ma il progetto drinkpos-demo ha un
+// bucket dei tempi in cui era un'app vera, con le regole dell'app: lì
+// qualunque utente registrato poteva scrivere e cancellare in drinks/
+// (revisione di sicurezza del 02/11/2026, M4). Il workflow
+// aggiorna-istanza.yml pubblica queste al loro posto.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{tutto=**} {
+      allow read, write: if false;
+    }
+  }
+}

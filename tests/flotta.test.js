@@ -237,8 +237,13 @@ describe('aggiorna-istanza.yml: un locale esistente, come la Tana', () => {
     expect(run).toContain('...Object.fromEntries(righe), ...build')
   })
 
-  it('la cartella del cliente è quella del locale', () => {
-    expect(passo(aggiorna, 'La cartella del cliente').run).toBe('node scripts/genera-cliente.mjs --slug "$CLIENTE_APP" --nome "$NOME"')
+  it('la cartella del cliente è quella del locale; se c’è già non si rigenera', () => {
+    // «tana» e «demo» sono più corte di uno slug: genera-cliente.mjs le
+    // rifiutava prima di vedere che la cartella c'era (revisione di
+    // sicurezza del 02/11/2026, A2).
+    const run = passo(aggiorna, 'La cartella del cliente').run
+    expect(run).toMatch(/^if \[ -f "clienti\/\$CLIENTE_APP\/venue\.json" \]; then[^\n]*exit 0; fi\n/)
+    expect(run).toContain('node scripts/genera-cliente.mjs --slug "$CLIENTE_APP" --nome "$NOME"')
   })
 
   // La Tana ha in tana-drink functions/.env.tana-drink con l'app id di
@@ -267,15 +272,69 @@ describe('aggiorna-istanza.yml: la demo', () => {
     expect(passo(aggiorna, 'Build').env.VITE_PROFILO).toBe('${{ env.PROFILO }}')
   })
 
-  it('il database chiuso a tutti, pubblicato al posto delle regole dell’app, prima del deploy', () => {
+  it('il database e lo Storage chiusi a tutti, pubblicati al posto delle regole dell’app, prima del deploy', () => {
+    expect(aggiorna.env.DEMO).toBe("${{ inputs.progetto == 'drinkpos-demo' }}")
     const regole = passo(aggiorna, 'Le regole della demo')
-    expect(regole.if).toBe("env.PROGETTO == 'drinkpos-demo'")
-    expect(regole.run).toBe('cp infra/demo/firestore.rules app/firestore.rules')
+    expect(regole.if).toBe("env.DEMO == 'true'")
+    expect(regole.run).toContain('cp infra/demo/firestore.rules app/firestore.rules')
+    expect(regole.run).toContain('cp infra/demo/storage.rules app/storage.rules')
     const nomi = passi(aggiorna).map((s) => s.name)
-    expect(nomi.indexOf('Le regole della demo')).toBe(nomi.indexOf('Deploy regole, indici, Functions e hosting') - 1)
+    const deploy = nomi.indexOf('Deploy regole, indici, Functions e hosting')
+    expect(nomi.indexOf('Le regole della demo')).toBe(deploy - 2)
+    // Lo Storage a parte: il profilo leggero non lo pubblica (M4).
+    const storage = passo(aggiorna, 'Lo Storage della demo chiuso')
+    expect(nomi.indexOf('Lo Storage della demo chiuso')).toBe(deploy - 1)
+    expect(storage.if).toBe("env.DEMO == 'true'")
+    expect(storage.run).toContain('npx firebase-tools deploy --only storage --project "$PROGETTO" --force')
     const testo = leggi('infra/demo/firestore.rules').replace(/\/\/.*$/gm, '')
     expect(testo).toMatch(/match \/\{documento=\*\*\} \{\s*allow read, write: if false;\s*\}/)
     expect(testo.match(/allow /g)).toHaveLength(1)
+    const file = leggi('infra/demo/storage.rules').replace(/\/\/.*$/gm, '')
+    expect(file).toMatch(/match \/\{tutto=\*\*\} \{\s*allow read, write: if false;\s*\}/)
+    expect(file.match(/allow /g)).toHaveLength(1)
+  })
+
+  // REVISIONE DI SICUREZZA DEL 02/11/2026: la demo non porta niente di
+  // vero, non chiama nessuno, e il browser lo garantisce da sé.
+  it('la configurazione è finta: nessun progetto vero nella build della demo (M2)', () => {
+    const finta = passo(aggiorna, 'La configurazione finta della demo')
+    expect(finta.if).toBe("env.DEMO == 'true'")
+    expect(finta.run).toContain('VITE_FIREBASE_PROJECT_ID=demo-drinkpos')
+    expect(finta.run).not.toContain('apps:sdkconfig')
+    expect(passo(aggiorna, "La configurazione web dell'istanza").if).toBe("env.DEMO != 'true'")
+    const controllo = passo(aggiorna, 'Il pacchetto giusto').run
+    expect(controllo).toContain(`grep -rqF 'drink:demo-sessione' dist`)
+    expect(controllo).toContain(`if grep -rqF '"drinkpos-demo"' dist; then`)
+    expect(controllo).toContain('node scripts/controlla-build-senza-demo.mjs dist')
+  })
+
+  it('la demo non si presenta a nessuna regia (M1)', () => {
+    // «cond && '' || x» in GitHub dà sempre x: per questo è al rovescio.
+    expect(passo(aggiorna, 'Build').env.VITE_REGIA_PROGETTO).toBe("${{ inputs.progetto != 'drinkpos-demo' && (inputs.ambiente == 'test' && 'drink-regia-test' || 'drink-regia') || '' }}")
+  })
+
+  it('la demo si riconosce dal segno nel venue.json, non solo dal nome (B5)', () => {
+    const run = passo(aggiorna, 'La demo solo dove va').run
+    expect(run).toContain('.demo === true')
+    expect(run).toMatch(/if \[ "\$SEGNO" = "true" \] && \[ "\$DEMO" != "true" \]; then[^\n]*exit 1; fi/)
+    expect(run).toMatch(/if \[ "\$DEMO" = "true" \] && \[ "\$SEGNO" != "true" \]; then[^\n]*exit 1; fi/)
+    const nomi = passi(aggiorna).map((s) => s.name)
+    expect(nomi.indexOf('La demo solo dove va')).toBe(nomi.indexOf('La cartella del cliente') + 1)
+    expect(nomi.indexOf('La demo solo dove va')).toBeLessThan(nomi.indexOf('Build'))
+  })
+
+  it('le intestazioni di sicurezza: niente richieste fuori, niente cornici (B1)', () => {
+    const { headers } = JSON.parse(leggi('infra/demo/intestazioni.json'))
+    const v = Object.fromEntries(headers.map((h) => [h.key, h.value]))
+    const csp = v['Content-Security-Policy']
+    expect(csp).toContain("connect-src 'self'")
+    expect(csp).toContain("script-src 'self';")
+    expect(csp).toContain("frame-ancestors 'none'")
+    expect(csp).toContain("object-src 'none'")
+    expect(csp).not.toMatch(/script-src[^;]*unsafe/)
+    expect(v['X-Content-Type-Options']).toBe('nosniff')
+    expect(v['X-Frame-Options']).toBe('DENY')
+    expect(passo(aggiorna, 'Le regole della demo').run).toContain('j.hosting.headers = [...(j.hosting.headers || []), { source: "**", headers }]')
   })
 })
 

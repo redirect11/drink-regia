@@ -47,7 +47,7 @@ const sconti = require('./lib/sconti.js')
 const free = require('./lib/free.js')
 const contatti = require('./lib/contatti.js')
 const { getStorage } = require('firebase-admin/storage')
-const { datiEsistente, documentiEsistente, DatiNonValidi, scriveLicenza, gestioneEsistente } = require('./lib/esistente.js')
+const { datiEsistente, documentiEsistente, DatiNonValidi, scriveLicenza, gestioneEsistente, eDemo } = require('./lib/esistente.js')
 const aggiornamenti = require('./lib/aggiornamenti.js')
 
 initializeApp()
@@ -1164,6 +1164,8 @@ exports.passaggioVersoApp = onCall(OPTS, async (req) => {
   const cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data()
   const ist = cliente?.slug ? (await db.doc(`istanze/${cliente.slug}`).get()).data() : null
   if (!ist?.progetto || ist.stato !== 'attiva' || !ist.url) throw new HttpsError('failed-precondition', 'La tua app non è ancora attiva.')
+  // La demo non ha titolare né accessi veri (REQ-FLOTTA-019).
+  if (eDemo(ist)) throw new HttpsError('failed-precondition', 'La demo si apre dal suo indirizzo, senza accesso.')
   const utente = await getAuth(appDi(ist.progetto))
     .getUserByEmail(cliente.email)
     .catch((e) => (e?.code === 'auth/user-not-found' ? null : Promise.reject(e)))
@@ -1751,7 +1753,7 @@ exports.impostaAggiornamentiEsistente = onCall(OPTS, async (req) => {
   if (!ist || ist.origine !== 'esistente') throw new HttpsError('failed-precondition', 'Vale solo per un locale registrato come esistente.')
   let g
   try {
-    g = gestioneEsistente(req.data, { slug })
+    g = gestioneEsistente(req.data, { slug, progetto: ist.progetto })
   } catch (e) {
     if (e instanceof DatiNonValidi) throw new HttpsError('invalid-argument', e.message)
     throw e

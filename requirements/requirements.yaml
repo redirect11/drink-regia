@@ -793,7 +793,7 @@ requirements:
 
   - id: REQ-FLOTTA-019
     title: "La demo della prima pagina è in sola lettura: dati di prova nella build, la sessione nel browser, il database chiuso"
-    area: ".github/workflows/aggiorna-istanza.yml, infra/demo/firestore.rules"
+    area: ".github/workflows/aggiorna-istanza.yml, infra/demo/ (firestore.rules, storage.rules, intestazioni.json), functions/lib/esistente.js (eDemo, scriveLicenza, gestioneEsistente), functions/index.js (passaggioVersoApp), docs/bonifica-demo.md"
     description: >
       «Il sito demo che si apre dalla home dovrebbe essere in sola lettura
       sul backend e la sessione vive solo in locale. Bisogna aggiungere dei
@@ -812,11 +812,31 @@ requirements:
       modalità demo in tana-drink, poi registrare la demo nella regia di
       produzione come locale esistente (progetto drinkpos-demo, cartella
       demo, aggiornamenti dalla regia) e aggiornarla da lì.
+      LA REVISIONE DI SICUREZZA (02/11/2026, chiesta dall'utente: «incarica
+      un agente di verificare la sicurezza della demo», poi «dobbiamo
+      risolvere anche tutte queste cose»). Il disegno regge, ma: il sito
+      vivo era ancora la 1.10.0-beta, un'app vera con la registrazione
+      aperta, e la regia non riusciva a ripubblicarlo (genera-cliente.mjs
+      rifiutava la cartella «demo», più corta di uno slug). Dalla regia,
+      adesso: la cartella che c'è già non si rigenera; la demo si
+      riconosce dal segno "demo": true nel venue.json oltre che dal nome;
+      la sua build ha una configurazione finta (demo-drinkpos), non sa
+      l'indirizzo di nessuna regia, e si controlla che sia la demo e non
+      porti il progetto vero; quella di un locale si controlla che non
+      contenga la demo; lo Storage si chiude come il database; le
+      intestazioni di sicurezza (CSP con connect-src 'self',
+      frame-ancestors 'none'); la regia non scrive mai alla demo licenza o
+      dati del titolare e non ci fa passare nessuno; la cartella demo va
+      solo su drinkpos-demo. Quello che i deploy vecchi hanno lasciato sul
+      progetto (Functions, segreto di SumUp, utenti, dati, chiave API) si
+      toglie a mano, col via libera: docs/bonifica-demo.md. In tana-drink
+      la richiesta sul ramo feature/sicurezza-demo (docs/sicurezza-demo.md).
     status: partial
     generate_issue: true
     labels: [prodotto, flotta, regia, sicurezza]
     test_cases:
       - tests/flotta.test.js
+      - tests/esistente.test.js
 
   - id: REQ-FLOTTA-020
     title: "Gli aggiornamenti obbligatori o a scelta del titolare, e compresi solo finché si paga"

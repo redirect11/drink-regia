@@ -18,6 +18,10 @@ data.
 
 ## 0.3.0 (in lavorazione)
 
+- La demo pubblica si ripubblica di nuovo dalla regia, e più chiusa: una
+  configurazione finta al posto di quella del progetto, nessuna chiamata
+  alla regia, lo Storage chiuso come il database, le intestazioni di
+  sicurezza. La regia non le scrive più licenza né dati (REQ-FLOTTA-019).
 - Gli stili a ricetta: la forma del menù (caratteri, voci, separatori,
   cornici, sfondo) si pubblica dalla regia come un tema, e l'app la disegna
   da sé. Sette stili nuovi (Osteria, Bauhaus, Tiki, Quaderno, Dattilo,
