@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { elencoTemi, gestisciTemi } from '../lib/db.js'
-import { BASI, STILI, CHIAVI_COLORE, STATI_DETTI, coloriDelTema, temaVuoto } from '../lib/temi.js'
+import { BASI, STILI, CHIAVI_COLORE, STATI_DETTI, coloriDelTema, temaVuoto, temiDaMostrare } from '../lib/temi.js'
 
 // IL CATALOGO DEI TEMI (REQ-FLOTTA-032, REQ-MENU-023 di tana-drink).
 // L'utente, 02/11/2026: «Serve un posto dove pubblicarne di nuovi», e
@@ -14,6 +14,8 @@ export default function CatalogoTemi({ onErrore }) {
   // Il tema aperto nell'editor: null chiuso; `nuovo` se non è ancora salvato.
   const [aperto, setAperto] = useState(null)
   const carica = () => setGiro((g) => g + 1)
+  // Quelli del database e quelli del repository (REQ-FLOTTA-033).
+  const temi = temiDaMostrare(elenco)
 
   useEffect(() => {
     elencoTemi()
@@ -38,10 +40,11 @@ export default function CatalogoTemi({ onErrore }) {
       <p className="muted small">
         Un tema è una tavolozza e uno stile del menù che l’app sa già disegnare: non è codice, e non può rompere il menù dei
         locali. L’app legge i temi pubblicati quando si apre il suo marketplace; un tema ritirato sparisce dal catalogo, ma resta a
-        chi l’ha già installato. Per ora sono tutti gratis.
+        chi l’ha già installato. Per ora sono tutti gratis. I temi «dal repository» arrivano col deploy
+        (functions/temi/catalogo.json): si cambiano nel file, e da qui si ritirano.
       </p>
-      {elenco.length === 0 && <p className="muted small">Nessun tema ancora.</p>}
-      {elenco.length > 0 && (
+      {temi.length === 0 && <p className="muted small">Nessun tema ancora.</p>}
+      {temi.length > 0 && (
         <div className="tabella-scorre">
           <table className="tabella-locali" aria-label="I temi">
             <thead>
@@ -54,11 +57,14 @@ export default function CatalogoTemi({ onErrore }) {
               </tr>
             </thead>
             <tbody>
-              {elenco.map((t) => (
+              {temi.map((t) => (
                 <tr key={t.id} data-testid={`tema-${t.id}`}>
                   <th scope="row">
                     {t.nome}
-                    <div className="muted small">{t.id}</div>
+                    <div className="muted small">
+                      {t.id}
+                      {t.dal_repository && ' · dal repository'}
+                    </div>
                   </th>
                   <td>{STILI.find((s) => s.id === t.stile)?.nome || t.stile}</td>
                   <td>{BASI.find((b) => b.id === t.tavolozza?.base)?.nome || t.tavolozza?.base}</td>
@@ -67,9 +73,12 @@ export default function CatalogoTemi({ onErrore }) {
                   </td>
                   <td>
                     <div className="gruppo-azioni">
-                      <button type="button" className="btn ghost small" onClick={() => setAperto({ ...t, nuovo: false })}>
-                        Modifica
-                      </button>
+                      {/* Un tema del repository si cambia nel suo file, con una PR. */}
+                      {!t.dal_repository && (
+                        <button type="button" className="btn ghost small" onClick={() => setAperto({ ...t, nuovo: false })}>
+                          Modifica
+                        </button>
+                      )}
                       {t.stato !== 'pubblicato' && (
                         <button type="button" className="btn ghost small" onClick={() => azione('pubblica', { id: t.id })}>
                           Pubblica

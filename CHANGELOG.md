@@ -18,6 +18,9 @@ data.
 
 ## 0.3.0 (in lavorazione)
 
+- Otto temi nuovi nel catalogo, disegnati da noi e pubblicati col deploy:
+  Smeraldo, Bordeaux, Agrumi, Ardesia, Seppia, Velluto, Menta, Neon. Dal
+  backoffice si vedono e si ritirano (REQ-FLOTTA-033).
 - Il catalogo dei temi: nella sezione «Temi» del backoffice si crea un tema
   (una base, uno stile del menù, i colori ritoccati, con l'anteprima), si
   pubblica e si ritira; l'app dei locali lo trova nel suo marketplace dei
