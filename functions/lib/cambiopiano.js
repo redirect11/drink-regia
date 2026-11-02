@@ -15,10 +15,13 @@ const { eGratuito } = require('./free.js')
 const MODI = ['stripe', 'fuori']
 
 // La scelta pulita, Free compreso (sceltaPulita è quella di Stripe e del
-// Free farebbe un Base).
+// Free farebbe un Base). Senza intervallo: l'admin cambia piano, moduli e
+// terminali, e con Stripe l'intervallo resta quello della subscription
+// (index.js, intervalloDi); fuori da Stripe non c'è niente da fatturare.
 function sceltaAdmin({ piano, moduli, terminali } = {}) {
   if (eGratuito(piano)) return { piano, moduli: [], terminali: 1 }
-  return sceltaPulita({ piano, moduli, terminali })
+  const { intervallo: _ignorato, ...scelta } = sceltaPulita({ piano, moduli, terminali })
+  return scelta
 }
 
 // Si può fare il cambio, e cosa si scrive? { ok, perche, scelta, cliente, storico }

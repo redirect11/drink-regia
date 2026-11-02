@@ -32,7 +32,7 @@ describe('la richiesta di contatto', () => {
     expect(r.ok).toBe(true)
     expect(r.documento).toEqual({
       uid: 'u1', email: 'bar@example.com', nome_locale: 'Bar Mario', slug: 'bar-mario',
-      scelta: { piano: 'base', moduli: ['staff'], terminali: 2 },
+      scelta: { piano: 'base', moduli: ['staff'], terminali: 2, intervallo: 'mese' },
       telefono: '+39 333 1234567', nota: 'Di mattina', stato: 'aperta', chiesta_il: ADESSO.toISOString(),
     })
   })
@@ -50,6 +50,10 @@ describe('la richiesta di contatto', () => {
     expect(richiestaContatto(cliente, { piano: 'free' }, spenti).perche).toMatch(/Free non si paga/)
     expect(richiestaContatto(cliente, { piano: 'base', moduli: ['sumup'] }, spenti).perche).toMatch(/Non più in vendita: sumup/)
     expect(richiestaContatto(cliente, { piano: 'base', telefono: 'chiamami' }, spenti).perche).toMatch(/telefono/)
+  })
+
+  it('la scelta mensile o annuale arriva all’admin con la richiesta (REQ-FLOTTA-021)', () => {
+    expect(richiestaContatto(cliente, { piano: 'base', intervallo: 'anno' }, spenti, ADESSO).documento.scelta.intervallo).toBe('anno')
   })
 
   it('chi ha già un modulo tolto dalla vendita lo può tenere nella richiesta', () => {

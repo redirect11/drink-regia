@@ -105,6 +105,8 @@
     "mensilita": 10
   },
   "prova_giorni": 30,
+  "_nota_prova": "La prova al Checkout di Stripe (trial_period_days = prova_giorni) parte spenta: va accesa quando è deciso se l'attivazione si paga all'inizio della prova o alla fine (REQ-FLOTTA-021).",
+  "prova_nel_checkout": false,
   "assistenza": {
     "_nota": "Assistenza inclusa nell'abbonamento; oltre il tetto, a preventivo.",
     "ore_mese": 1,

@@ -366,7 +366,7 @@ L'elenco completo con i riferimenti al codice è in
    le email di Auth.
 6. **Medie dell'audit**: callback con `run_id` e scadenza; `cambiaScelta`
    nel ramo manuale con approvazione; idempotenza del webhook;
-   attivazione una tantum addebitata; header di sicurezza in
+   header di sicurezza in
    `firebase.json`; App Check e `maxInstances`; creazione dell'admin
    dell'istanza (è un passo del workflow di tana-drink: da chiedere).
 7. **Infrastruttura**: `FIREBASE_SERVICE_ACCOUNT` nell'environment,
