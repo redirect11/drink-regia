@@ -912,11 +912,11 @@ function RegoleAggiornamenti({ onErrore, onFatto }) {
   return (
     <section className="card" aria-label="Regole degli aggiornamenti">
       <h3>Regole degli aggiornamenti</h3>
-      <label className="riga">
+      <label className="opzione">
         <input type="checkbox" checked={bozza.a_scelta} onChange={(e) => setBozza((b) => ({ ...b, a_scelta: e.target.checked }))} />A scelta del titolare: prima di
         ogni versione vede le novità e decide se aggiornare o saltarla
       </label>
-      <label className="riga">
+      <label className="opzione">
         <input type="checkbox" checked={bozza.solo_finche_paga} onChange={(e) => setBozza((b) => ({ ...b, solo_finche_paga: e.target.checked }))} />
         Solo finché si paga: chi non paga torna al Free, e il Free riceve solo i rilasci obbligatori
       </label>
@@ -977,15 +977,15 @@ function GestioneEsistente({ cliente: c, istanza, onFatto, onErrore }) {
   }
 
   return (
-    <form className="card" onSubmit={invia} aria-label={`Pubblicazione e licenza di ${c.nome_locale}`}>
+    <form className="card gestione-esistente" onSubmit={invia} aria-label={`Pubblicazione e licenza di ${c.nome_locale}`}>
       <h4>Pubblicazione e licenza di {c.nome_locale}</h4>
-      <label className="riga">
+      <label className="opzione">
         <input type="checkbox" checked={dallaRegia} onChange={(e) => setDallaRegia(e.target.checked)} />
         La aggiorna la regia, con «Aggiorna subito» e i rilasci
       </label>
       <p className="muted small">Sul progetto {istanza?.progetto || '—'}. La pubblicazione dal suo repository resta possibile.</p>
       {/* REQ-FLOTTA-028: la licenza calcolata dal piano, come per gli altri. */}
-      <label className="riga">
+      <label className="opzione">
         <input type="checkbox" checked={licenzaRegia} onChange={(e) => setLicenzaRegia(e.target.checked)} />
         La licenza la scrive la regia, dal suo piano e dai suoi moduli
       </label>
