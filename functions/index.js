@@ -1014,7 +1014,8 @@ exports.sceltaDallApp = onRequest({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN], c
 // fatto l'accesso nel progetto del locale: `POST`, `Authorization: Bearer
 // <ID token>`, corpo `{ versione }`. La regia riconosce il progetto fra le
 // sue istanze, verifica il token con quel progetto, si segna la versione e,
-// se il sito non ha la licenza, gliela scrive (l'attivazione). Basta un
+// se il sito non ha la licenza, la riscrive: l'attivazione la scrive prima
+// dell'app, e senza sessione l'app non si può presentare. Basta un
 // utente qualunque del locale: la licenza la decide la regia, non chi
 // chiama. Risposte: 200 { ok, licenza: 'scritta' | 'presente' |
 // 'non_dalla_regia' | 'non_attiva' }; 400 corpo sbagliato; 401 token

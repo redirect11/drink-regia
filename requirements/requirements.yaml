@@ -947,12 +947,15 @@ requirements:
       regia riconosce il progetto fra le sue istanze, verifica il token con
       quel progetto, si segna la versione (presentazione: versione, prima
       e ultima volta, chi) senza riscriverla se la stessa versione è
-      arrivata da poco, e, se il locale non ha licenza/attuale, la scrive
-      subito: è l'attivazione, da qualunque deploy arrivi l'app, della
-      regia o di GitHub. Un locale esistente con la licenza sua (la Tana,
-      finché non la si collega) segna solo la versione. Le build della
-      regia portano VITE_REGIA_PROGETTO. Niente giri a tempo: si chiama a
-      una versione nuova o finché la licenza manca. Resta da fare in
+      arrivata da poco, e, se il locale non ha licenza/attuale, la
+      riscrive. Non è l'attivazione (tana-drink, 02/11/2026: l'app non fa
+      accessi anonimi, e senza licenza e senza sessione la schermata «non
+      attivata» copre anche l'accesso): la licenza si scrive
+      all'attivazione, prima dell'app. Vale da qualunque deploy arrivi
+      l'app, della regia o di GitHub. Un locale esistente con la licenza
+      sua (la Tana, finché non la si collega) segna solo la versione. Le
+      build della regia portano VITE_REGIA_PROGETTO. Niente giri a tempo:
+      si chiama una volta per versione nuova, con qualcuno collegato. Resta da fare in
       tana-drink: la chiamata (docs/presentazione-alla-regia.md); e per la
       Tana l'interruttore «licenza dalla regia» e il permesso alla regia
       sui suoi progetti.

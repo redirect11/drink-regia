@@ -572,8 +572,11 @@ L'elenco completo con i riferimenti al codice è in
    essere il deploy ad avvisare la regia ma l'istanza del sito stesso».
    Al primo avvio di ogni versione l'app chiama `presentazione` col token
    di chi ha fatto l'accesso; la regia riconosce il progetto, si segna la
-   versione (`istanze/<slug>.presentazione`) e, se manca, scrive la
-   licenza: è l'attivazione, da qualunque deploy (della regia o di GitHub).
+   versione (`istanze/<slug>.presentazione`) e, se manca, riscrive la
+   licenza. **Non è l'attivazione** (tana-drink, 02/11/2026): l'app non fa
+   accessi anonimi, e su un'installazione nuova senza licenza la schermata
+   «non attivata» copre anche l'accesso, quindi la licenza si scrive
+   all'attivazione, prima dell'app, come dice il contratto.
    I workflow della regia mettono nella build `VITE_REGIA_PROGETTO`. **La
    Tana** si collega così quando: (1) la regia di produzione è online; (2)
    la regia ha `roles/datastore.user` sui progetti della Tana (comando da
@@ -694,9 +697,12 @@ moduli, la licenza nell'istanza e la Tana.
   `scelta_url`). Risposte: `200 { ok, licenza: 'scritta' | 'presente' |
   'non_dalla_regia' | 'non_attiva' }`; `400` versione non valida; `401`
   token mancante o non valido; `404` progetto che la regia non conosce;
-  `503` la licenza non si è scritta. L'app la richiama solo a una
-  versione nuova, o se manca ancora la licenza (aprendo l'app, o col tasto
-  «Riprova» della schermata «Installazione non attivata»): mai a tempo.
+  `503` la licenza non si è scritta. L'app la chiama una volta per
+  versione nuova, con qualcuno collegato: mai a tempo, e mai senza
+  sessione (niente accessi anonimi). Non attiva un'installazione: la
+  licenza c'è prima dell'app (l'attivazione della regia, o il deploy di
+  tana-drink per la Tana); se manca e un dispositivo ha ancora una
+  sessione, la presentazione la fa riscrivere.
 - **Gli aggiornamenti obbligatori o a scelta** (REQ-FLOTTA-020, dal
   31/10/2026, per intero in tana-drink, `docs/aggiornamenti-dalla-regia.md`).
   La regia scrive `settings/bar.licenza.aggiornamenti` = `{ modalita:

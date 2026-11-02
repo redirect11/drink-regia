@@ -8,7 +8,7 @@ data.
 
 - L'app di ogni locale si presenta alla regia al primo avvio di una
   versione nuova, da qualunque deploy arrivi: la regia sa quale versione
-  gira davvero e, se il locale non ha ancora la licenza, gliela scrive.
+  gira davvero e, se al locale manca la licenza, la riscrive.
   La scheda del locale nel backoffice dice la versione vista dall'app
   (REQ-FLOTTA-026).
 - Un locale fermo perché non paga, o chiuso, conserva i dati per 90 giorni,
