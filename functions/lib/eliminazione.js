@@ -15,7 +15,7 @@ const SLUG = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/
 const GIORNI_ATTESA = 30
 const GIORNI_ARCHIVIO = 180
 // La demo si mostra nella prima pagina: non si elimina da qui.
-const PROTETTI = ['drinkpos-demo']
+const PROTETTI = [require('./esistente.js').PROGETTO_DEMO]
 const GIORNO = 24 * 60 * 60 * 1000
 
 // Si può chiedere l'eliminazione di quest'istanza? { ok, perche }

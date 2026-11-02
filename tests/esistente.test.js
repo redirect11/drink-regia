@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest'
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
-const { slugDaNome, datiEsistente, documentiEsistente, scriveLicenza, DatiNonValidi, gestioneEsistente } = require('../functions/lib/esistente.js')
+const { slugDaNome, datiEsistente, documentiEsistente, scriveLicenza, DatiNonValidi, gestioneEsistente, eDemo } = require('../functions/lib/esistente.js')
 const { azioneDiPagamento } = require('../functions/lib/scadenze.js')
 
 const TANA = { nome_locale: 'La Tana del Coniglio', email: 'Titolare@Example.it', progetto: 'tana-drink', url: 'https://tana-drink.web.app/', slug: 'tana-drink' }
@@ -106,6 +106,27 @@ describe('gli aggiornamenti dalla regia', () => {
     expect(() => gestioneEsistente({ build: { VITE_RECAPTCHA_SITE_KEY: 'x\nVITE_ALTRO=y' } }, { slug: 'tana-drink' })).toThrow(/non è valido/)
     expect(() => gestioneEsistente({ cliente: '../tana' }, { slug: 'tana-drink' })).toThrow(/Cartella/)
     expect(() => gestioneEsistente({ cliente: 'Tana' }, { slug: 'tana-drink' })).toThrow(/Cartella/)
+  })
+
+  // LA DEMO (REQ-FLOTTA-019, revisione di sicurezza del 02/11/2026, B5 e
+  // B7): la cartella demo e il progetto drinkpos-demo vanno insieme, e la
+  // regia non le scrive mai la licenza né i dati del titolare.
+  it('la demo: la sua cartella solo sul suo progetto, e mai la licenza dalla regia', () => {
+    expect(() => gestioneEsistente({ cliente: 'demo' }, { slug: 'bar-mario', progetto: 'drinkpos-bar-mario' })).toThrow(/va solo su drinkpos-demo/)
+    expect(() => gestioneEsistente({ cliente: 'tana' }, { slug: 'drinkpos-demo', progetto: 'drinkpos-demo' })).toThrow(/riceve solo la cartella/)
+    expect(gestioneEsistente({ cliente: 'demo', aggiornamenti_dalla_regia: true, licenza_dalla_regia: true }, { slug: 'drinkpos-demo', progetto: 'drinkpos-demo' })).toMatchObject({ cliente: 'demo', aggiornamenti_dalla_regia: true, licenza_dalla_regia: false })
+    expect(() => datiEsistente({ ...TANA, progetto: 'drinkpos-demo', url: 'https://drinkpos-demo.web.app' })).toThrow(/riceve solo la cartella/)
+    expect(eDemo({ progetto: 'drinkpos-demo' })).toBe(true)
+    expect(eDemo({ progetto: 'drinkpos-bar', cliente: 'demo' })).toBe(true)
+    expect(eDemo({ progetto: 'tana-drink', cliente: 'tana' })).toBe(false)
+    // Anche se qualcuno l'avesse spuntata prima.
+    expect(scriveLicenza({ stato: 'attiva', progetto: 'drinkpos-demo', licenza_dalla_regia: true })).toBe(false)
+  })
+
+  it('la regia non fa passare nessuno nella demo', () => {
+    const codice = require('node:fs').readFileSync('functions/index.js', 'utf8')
+    const passaggio = codice.slice(codice.indexOf('exports.passaggioVersoApp'), codice.indexOf('exports.passaggioVersoRegia'))
+    expect(passaggio).toContain('if (eDemo(ist)) throw')
   })
 
   it('un progetto della regia non si registra mai come locale', () => {

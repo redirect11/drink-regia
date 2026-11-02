@@ -66,9 +66,9 @@ describe('la licenza del sito che si presenta', () => {
   })
 
   it('l’app sa a quale regia presentarsi: il progetto della regia è nella build', () => {
-    for (const wf of ['.github/workflows/aggiorna-istanza.yml', '.github/workflows/provisiona-istanza.yml']) {
-      expect(readFileSync(wf, 'utf8')).toContain("VITE_REGIA_PROGETTO: ${{ inputs.ambiente == 'test' && 'drink-regia-test' || 'drink-regia' }}")
-    }
+    expect(readFileSync('.github/workflows/provisiona-istanza.yml', 'utf8')).toContain("VITE_REGIA_PROGETTO: ${{ inputs.ambiente == 'test' && 'drink-regia-test' || 'drink-regia' }}")
+    // La demo a nessuna regia (REQ-FLOTTA-019): tests/flotta.test.js.
+    expect(readFileSync('.github/workflows/aggiorna-istanza.yml', 'utf8')).toContain("(inputs.ambiente == 'test' && 'drink-regia-test' || 'drink-regia')")
   })
 
   it('la Function verifica il token col progetto del locale e scrive la prima licenza senza taglio', () => {

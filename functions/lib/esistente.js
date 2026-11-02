@@ -52,9 +52,25 @@ const VALORE_BUILD = /^[A-Za-z0-9_-]{1,200}$/
 // pubblicherebbe l'app dei locali sopra il sito.
 const PROGETTI_DELLA_REGIA = ['drink-regia', 'drink-regia-test']
 
-function gestioneEsistente(dati, { slug }) {
+// LA DEMO (REQ-FLOTTA-019): la build della cartella `demo` sul progetto
+// `drinkpos-demo`, e solo lì. È pubblica e finge tutto da sé: licenza,
+// accesso, dati. La regia non le scrive niente (né licenza né dati del
+// titolare: con l'Admin SDK le regole chiuse non la fermerebbero) e non
+// ci fa passare nessuno (revisione di sicurezza del 02/11/2026, B5 e B7).
+// Si riconosce da tutti e due i lati, perché un locale vero con la
+// cartella della demo, o la demo con un'altra cartella, è proprio
+// l'errore da fermare.
+const PROGETTO_DEMO = 'drinkpos-demo'
+const CARTELLA_DEMO = 'demo'
+const eDemo = (istanza) => istanza?.progetto === PROGETTO_DEMO || istanza?.cliente === CARTELLA_DEMO
+
+function gestioneEsistente(dati, { slug, progetto = null }) {
   const cliente = String(dati?.cliente || '').trim() || slug
   if (!CARTELLA.test(cliente)) throw new DatiNonValidi(`Cartella del cliente «${cliente}» non valida: minuscole, cifre e trattini.`)
+  if (progetto && (cliente === CARTELLA_DEMO) !== (progetto === PROGETTO_DEMO)) {
+    throw new DatiNonValidi(progetto === PROGETTO_DEMO ? `${PROGETTO_DEMO} riceve solo la cartella «${CARTELLA_DEMO}».` : `La cartella «${CARTELLA_DEMO}» va solo su ${PROGETTO_DEMO}.`)
+  }
+  const demo = progetto === PROGETTO_DEMO
   const build = {}
   for (const [chiave, v] of Object.entries(dati?.build || {})) {
     if (!CHIAVI_BUILD.includes(chiave)) throw new DatiNonValidi(`La chiave «${chiave}» non è una di quelle della build.`)
@@ -68,7 +84,7 @@ function gestioneEsistente(dati, { slug }) {
   // `licenza_dalla_regia` la regia scrive anche la licenza di un locale
   // esistente, calcolata dal suo piano, come per gli altri. Serve che la
   // regia possa scrivere nel suo database (roles/datastore.user).
-  return { aggiornamenti_dalla_regia: dati?.aggiornamenti_dalla_regia === true, licenza_dalla_regia: dati?.licenza_dalla_regia === true, cliente, build }
+  return { aggiornamenti_dalla_regia: dati?.aggiornamenti_dalla_regia === true, licenza_dalla_regia: !demo && dati?.licenza_dalla_regia === true, cliente, build }
 }
 
 // I dati controllati: { nome_locale, email, progetto, url, slug? }.
@@ -85,7 +101,7 @@ function datiEsistente(dati) {
   if (!PROGETTO.test(progetto)) throw new DatiNonValidi(`Progetto Firebase «${progetto}» non valido.`)
   if (PROGETTI_DELLA_REGIA.includes(progetto)) throw new DatiNonValidi(`«${progetto}» è un progetto della regia, non di un locale.`)
   if (!/^https:\/\/[^\s/]+/.test(url)) throw new DatiNonValidi('L’indirizzo dell’app deve cominciare con https://.')
-  return { nome, slug, email, progetto, url, terminali, interna: dati?.interna !== false, gestione: gestioneEsistente(dati, { slug }) }
+  return { nome, slug, email, progetto, url, terminali, interna: dati?.interna !== false, gestione: gestioneEsistente(dati, { slug, progetto }) }
 }
 
 // I tre documenti: clienti/{uid}, istanze/{slug} e il cassetto ai/{slug}
@@ -133,6 +149,7 @@ function documentiEsistente(d, { uid, adesso = new Date() }) {
 // La regia scrive la licenza nell'istanza? Sì per quelle nate dal
 // provisioning (il campo manca: è il comportamento di sempre), no per
 // quelle registrate come esistenti finché non le si collega.
-const scriveLicenza = (istanza) => istanza?.licenza_dalla_regia !== false
+// La demo mai: la licenza la finge lei.
+const scriveLicenza = (istanza) => !eDemo(istanza) && istanza?.licenza_dalla_regia !== false
 
-module.exports = { slugDaNome, DatiNonValidi, datiEsistente, documentiEsistente, scriveLicenza, gestioneEsistente, CHIAVI_BUILD }
+module.exports = { slugDaNome, DatiNonValidi, datiEsistente, documentiEsistente, scriveLicenza, gestioneEsistente, eDemo, PROGETTO_DEMO, CHIAVI_BUILD }

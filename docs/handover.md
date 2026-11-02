@@ -685,6 +685,19 @@ L'elenco completo con i riferimenti al codice è in
    motore che li disegna: `docs/stili-a-ricetta.md` sul ramo
    `feature/stili-a-ricetta`. Finché l'app non ce l'ha, scarta gli stili a
    ricetta e i temi che li usano: si possono pubblicare prima.
+35. **La demo in sicurezza (REQ-FLOTTA-019)**, ramo `feature/demo-sicura`,
+   02/11/2026, dopo la revisione di sicurezza della demo. Il sito vivo era
+   ancora un'app vera e la regia non lo ripubblicava. Ora il workflow non
+   rigenera una cartella che c'è già, riconosce la demo dal segno nel
+   `venue.json`, le dà una configurazione finta e nessuna regia, chiude
+   anche lo Storage e aggiunge le intestazioni di sicurezza; la regia non
+   le scrive niente. Restano: la pulizia del progetto,
+   [docs/bonifica-demo.md](bonifica-demo.md), solo col via libera
+   dell'utente; in tana-drink `docs/sicurezza-demo.md` sul ramo
+   `feature/sicurezza-demo` (lo script di genera-cliente, gli indirizzi
+   della regia spenti nella demo, l'app che si ferma se la rete non si
+   spegne, l'informativa privacy per cliente, i dati della Tana rimasti
+   nel pacchetto della demo).
 
 ---
 

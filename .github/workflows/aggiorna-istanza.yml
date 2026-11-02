@@ -86,6 +86,7 @@ env:
   # La demo (REQ-FLOTTA-019) è sempre leggera: niente Functions, Storage,
   # segreti né Terraform, qualunque profilo abbia l'istanza.
   PROFILO: ${{ inputs.progetto == 'drinkpos-demo' && 'leggero' || inputs.profilo }}
+  DEMO: ${{ inputs.progetto == 'drinkpos-demo' }}
   PROGETTO: ${{ inputs.progetto || format('drinkpos-{0}', inputs.slug) }}
   CLIENTE_APP: ${{ inputs.cliente || inputs.slug }}
   BUILD_PUBBLICA: ${{ inputs.build }}
@@ -267,7 +268,19 @@ jobs:
       # `apps:sdkconfig` senza id si ferma (drinkpos-prova-free, 30/10/2026:
       # una app creata a mano accanto a quella di Terraform). Il sito sa la
       # sua (Terraform la collega con app_id); se non la dice, si va senza id.
+      #
+      # LA DEMO NON PORTA LA CONFIGURAZIONE VERA (REQ-FLOTTA-019, revisione
+      # di sicurezza del 02/11/2026, M2): un progetto finto (gli id «demo-»
+      # non sono mai progetti veri) e una chiave finta. Se un giorno l'app
+      # riaccendesse la rete per sbaglio, non troverebbe nessun database.
+      # Il deploy sa comunque dove andare: --project.
+      - name: La configurazione finta della demo
+        if: env.DEMO == 'true'
+        run: |
+          for riga in VITE_FIREBASE_API_KEY=demo VITE_FIREBASE_AUTH_DOMAIN=demo-drinkpos.firebaseapp.com VITE_FIREBASE_PROJECT_ID=demo-drinkpos VITE_FIREBASE_STORAGE_BUCKET= VITE_FIREBASE_MESSAGING_SENDER_ID= VITE_FIREBASE_APP_ID=1:0:web:demo VITE_FIREBASE_MEASUREMENT_ID=; do echo "$riga"; done > "$GITHUB_WORKSPACE/app/.env"
+
       - name: La configurazione web dell'istanza
+        if: env.DEMO != 'true'
         working-directory: app
         run: |
           APP_ID=$(npx firebase-tools hosting:sites:get "$PROGETTO" --project "$PROGETTO" --json | node -e 'try { console.log(JSON.parse(require("fs").readFileSync(0, "utf8")).result?.appId || "") } catch { console.log("") }')
@@ -285,11 +298,26 @@ jobs:
             require("fs").writeFileSync(process.argv[2], tutte.map(([k, v]) => `${k}=${v}`).join("\n") + "\n");
           ' "$RUNNER_TEMP/sdk.json" "$GITHUB_WORKSPACE/app/.env"
 
-      # La cartella c'è già per un cliente curato a mano (clienti/tana):
-      # genera-cliente.mjs allora non la tocca.
+      # La cartella c'è già per un cliente curato a mano (clienti/tana,
+      # clienti/demo): allora non si chiama genera-cliente.mjs, che controlla
+      # lo slug prima di guardare se la cartella esiste e con «tana» o
+      # «demo», più corti di sei lettere, si fermava (revisione di
+      # sicurezza del 02/11/2026, A2: la demo non si ripubblicava più).
       - name: La cartella del cliente
         working-directory: app
-        run: node scripts/genera-cliente.mjs --slug "$CLIENTE_APP" --nome "$NOME"
+        run: |
+          if [ -f "clienti/$CLIENTE_APP/venue.json" ]; then echo "clienti/$CLIENTE_APP c'è già: non la tocco."; exit 0; fi
+          node scripts/genera-cliente.mjs --slug "$CLIENTE_APP" --nome "$NOME"
+
+      # LA DEMO SI RICONOSCE DAL SEGNO, NON DAL NOME (B5): è `"demo": true`
+      # nel venue.json a fare la build della demo. Una seconda cartella con
+      # quel segno passerebbe i controlli sul nome in «Input validi».
+      - name: La demo solo dove va
+        working-directory: app
+        run: |
+          SEGNO=$(node -p "require('./clienti/' + process.env.CLIENTE_APP + '/venue.json').demo === true")
+          if [ "$SEGNO" = "true" ] && [ "$DEMO" != "true" ]; then echo "::error::clienti/$CLIENTE_APP è una demo: va solo su drinkpos-demo."; exit 1; fi
+          if [ "$DEMO" = "true" ] && [ "$SEGNO" != "true" ]; then echo "::error::drinkpos-demo riceve solo una cartella con \"demo\": true."; exit 1; fi
 
       - name: Build
         working-directory: app
@@ -301,8 +329,27 @@ jobs:
           # (tana-drink, REQ-LIC-004): niente Functions, Storage, SumUp.
           VITE_PROFILO: ${{ env.PROFILO }}
           # A quale regia si presenta l'app al primo avvio (REQ-FLOTTA-026).
-          VITE_REGIA_PROGETTO: ${{ inputs.ambiente == 'test' && 'drink-regia-test' || 'drink-regia' }}
+          # La demo a nessuna (M1): senza, l'app non chiama la regia, e i
+          # visitatori non mandano a nessuno il loro indirizzo.
+          # (Al rovescio: in un'espressione di GitHub «cond && '' || x» dà sempre x.)
+          VITE_REGIA_PROGETTO: ${{ inputs.progetto != 'drinkpos-demo' && (inputs.ambiente == 'test' && 'drink-regia-test' || 'drink-regia') || '' }}
         run: npm run build
+
+      # IL PACCHETTO GIUSTO (B5). Quello di un locale non deve contenere la
+      # demo (lo script è di tana-drink, che lo usa nella sua CI sulla
+      # Tana); quello della demo deve esserlo davvero, e non portare il
+      # progetto vero.
+      - name: Il pacchetto giusto
+        working-directory: app
+        run: |
+          if [ "$DEMO" = "true" ]; then
+            grep -rqF 'drink:demo-sessione' dist || { echo "::error::La build per drinkpos-demo non è la demo."; exit 1; }
+            # Vite scrive le variabili come VITE_FIREBASE_PROJECT_ID:"…": il
+            # nome del progetto fra virgolette c'è solo con la config vera.
+            if grep -rqF '"drinkpos-demo"' dist; then echo "::error::La build della demo porta la configurazione vera di drinkpos-demo."; exit 1; fi
+          elif [ -f scripts/controlla-build-senza-demo.mjs ]; then
+            node scripts/controlla-build-senza-demo.mjs dist
+          fi
 
       # Se tana-drink ha già il .env di quel progetto (la Tana: nome del
       # locale e app id di SumUp) vale quello: riscriverlo col solo nome
@@ -317,9 +364,33 @@ jobs:
       # che fa chi prova resta nel suo browser
       # (docs/modalita-demo.md di tana-drink): se l'app sbagliasse, il server
       # direbbe comunque di no.
+      #
+      # E le sue intestazioni (B1): la CSP con connect-src 'self' fa dire di
+      # no al browser stesso a qualunque richiesta verso altri indirizzi.
       - name: Le regole della demo
-        if: env.PROGETTO == 'drinkpos-demo'
-        run: cp infra/demo/firestore.rules app/firestore.rules
+        if: env.DEMO == 'true'
+        run: |
+          cp infra/demo/firestore.rules app/firestore.rules
+          cp infra/demo/storage.rules app/storage.rules
+          node -e '
+            const fs = require("fs");
+            const f = "app/firebase.json";
+            const j = JSON.parse(fs.readFileSync(f, "utf8"));
+            const { headers } = JSON.parse(fs.readFileSync("infra/demo/intestazioni.json", "utf8"));
+            j.hosting.headers = [...(j.hosting.headers || []), { source: "**", headers }];
+            fs.writeFileSync(f, JSON.stringify(j, null, 2));
+          '
+
+      # Lo Storage della demo, chiuso (M4): il bucket dei tempi dell'app vera
+      # ha ancora le sue regole. Il profilo leggero non pubblica Storage,
+      # quindi qui a parte. Un progetto senza bucket lo dice e si va avanti.
+      - name: Lo Storage della demo chiuso
+        if: env.DEMO == 'true'
+        working-directory: app
+        run: |
+          if npx firebase-tools deploy --only storage --project "$PROGETTO" --force 2>&1 | tee "$RUNNER_TEMP/storage.log"; then exit 0; fi
+          if grep -qiE "storage has not been set up|get started" "$RUNNER_TEMP/storage.log"; then echo "::warning::drinkpos-demo non ha Storage: niente da chiudere."; exit 0; fi
+          exit 1
 
       - name: Deploy regole, indici, Functions e hosting
         working-directory: app
