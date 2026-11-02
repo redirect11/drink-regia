@@ -29,11 +29,15 @@ import {
   osservaControlloLicenze,
   gestisciLicenze,
   registraPagamento,
+  elencoSconti,
+  gestisciSconti,
+  applicaSconto,
   programmaScadenze,
 } from '../lib/db.js'
 import { venditaPulita } from '../lib/vendita.js'
 import { statoIstanza, statoDetto, STATI, progettoDi, riduzioneDetta } from '../lib/istanze.js'
 import { PIANI, MODULI, prezzoMensile, euro } from '../lib/piani.js'
+import { prezzoConSconto, scontoDetto } from '../lib/sconti.js'
 import { contattoDi } from '../lib/clienti.js'
 import { statoCredito, euroCent } from '../lib/ai.js'
 import { GRUPPI, TAG, aggiornamentoDetto } from '../lib/rilasci.js'
@@ -238,7 +242,18 @@ export default function Backoffice() {
     }
     carica()
   }
-  const az = { carica, cambiaStato, annullaEliminazione, aggiorna, azioneRilascio, riprova, indietro, azioneAI, ricaricaAI, tettoAI, chiaveAI, registraPagamento: pagamento, onErrore: setErrore }
+  // Un codice sconto al cliente (REQ-FLOTTA-028); vuoto lo toglie.
+  const sconto = async (c) => {
+    const codice = window.prompt(`${c.nome_locale}: codice sconto (vuoto per toglierlo)?`, c.sconto?.codice || '')
+    if (codice == null) return
+    try {
+      await applicaSconto(c.slug, codice.trim())
+    } catch (e) {
+      setErrore(e.message)
+    }
+    carica()
+  }
+  const az = { carica, cambiaStato, annullaEliminazione, aggiorna, azioneRilascio, riprova, indietro, azioneAI, ricaricaAI, tettoAI, chiaveAI, registraPagamento: pagamento, sconto, onErrore: setErrore }
   // Dopo «Crea il locale» o «Registra il locale» si va a vederlo in elenco.
   const creato = () => {
     carica()
@@ -299,7 +314,15 @@ export default function Backoffice() {
               </>
             }
           />
-          <Route path="vendita" element={<Vendita onErrore={setErrore} />} />
+          <Route
+            path="vendita"
+            element={
+              <>
+                <Vendita onErrore={setErrore} />
+                <CodiciSconto onErrore={setErrore} />
+              </>
+            }
+          />
           <Route
             path="nuovo"
             element={
@@ -480,7 +503,12 @@ function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaApert
         <div>
           <dt>Piano</dt>
           <dd>
-            {c.piano ? `${PIANI[c.piano]?.nome || c.piano} · ${euro(prezzoMensile(c))}` : <span className="muted">—</span>}
+            {c.piano ? `${PIANI[c.piano]?.nome || c.piano} · ${euro(prezzoConSconto(prezzoMensile(c), c))}` : <span className="muted">—</span>}
+            {scontoDetto(c) && (
+              <div className="muted small" data-testid={`sconto-${c.slug}`}>
+                sconto {scontoDetto(c)}
+              </div>
+            )}
             {/* Un piano pagato fuori da Stripe (REQ-FLOTTA-023): fino a quando. */}
             {c.abbonamento?.origine === 'manuale' && (
               <div className={c.abbonamento.stato === 'non pagato' ? 'errore small' : 'muted small'} data-testid={`pagato-${c.slug}`}>
@@ -641,6 +669,9 @@ function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaApert
               Registra pagamento…
             </button>
           )}
+          <button type="button" className="btn ghost small" onClick={() => az.sconto(c)}>
+            Sconto…
+          </button>
           {!daFlotta && (
             <button type="button" className="btn ghost small" aria-expanded={gestioneAperta} onClick={() => setGestioneAperta((v) => !v)}>
               Chi la pubblica…
@@ -923,6 +954,7 @@ const CHIAVI_BUILD = [
 
 function GestioneEsistente({ cliente: c, istanza, onFatto, onErrore }) {
   const [dallaRegia, setDallaRegia] = useState(istanza?.aggiornamenti_dalla_regia === true)
+  const [licenzaRegia, setLicenzaRegia] = useState(istanza?.licenza_dalla_regia === true)
   const [cartella, setCartella] = useState(istanza?.cliente || c.slug)
   const [build, setBuild] = useState(() => Object.fromEntries(CHIAVI_BUILD.map(([k]) => [k, istanza?.build?.[k] || ''])))
   const [inCorso, setInCorso] = useState(false)
@@ -931,7 +963,7 @@ function GestioneEsistente({ cliente: c, istanza, onFatto, onErrore }) {
     e.preventDefault()
     setInCorso(true)
     try {
-      await impostaAggiornamentiEsistente({ slug: c.slug, aggiornamenti_dalla_regia: dallaRegia, cliente: cartella.trim(), build })
+      await impostaAggiornamentiEsistente({ slug: c.slug, aggiornamenti_dalla_regia: dallaRegia, licenza_dalla_regia: licenzaRegia, cliente: cartella.trim(), build })
       onFatto()
     } catch (err) {
       onErrore(err.message)
@@ -947,8 +979,16 @@ function GestioneEsistente({ cliente: c, istanza, onFatto, onErrore }) {
         <input type="checkbox" checked={dallaRegia} onChange={(e) => setDallaRegia(e.target.checked)} />
         La aggiorna la regia, con «Aggiorna subito» e i rilasci
       </label>
+      <p className="muted small">Sul progetto {istanza?.progetto || '—'}. La pubblicazione dal suo repository resta possibile.</p>
+      {/* REQ-FLOTTA-028: la licenza calcolata dal piano, come per gli altri. */}
+      <label className="riga">
+        <input type="checkbox" checked={licenzaRegia} onChange={(e) => setLicenzaRegia(e.target.checked)} />
+        La licenza la scrive la regia, dal suo piano e dai suoi moduli
+      </label>
       <p className="muted small">
-        Sul progetto {istanza?.progetto || '—'}. La pubblicazione dal suo repository resta possibile, e la licenza resta del suo progetto.
+        {licenzaRegia
+          ? 'Si scrive subito nel suo progetto: serve che la regia ci possa scrivere (roles/datastore.user).'
+          : 'Spento: la licenza resta quella del suo progetto, e la regia non la tocca.'}
       </p>
       <label>
         Cartella in clienti/ dell’app
@@ -1210,6 +1250,83 @@ const TONO = {
 // attivare e disattivare per la vendita come admin»). Il Free e ogni modulo
 // si mettono in vendita o si tolgono con un clic, senza deploy; chi li ha
 // già continua a usarli. Ogni cambio resta nello storico.
+// I CODICI SCONTO (REQ-FLOTTA-028): crearli e disattivarli. Si applicano
+// dalla scheda del locale, con «Sconto…».
+function CodiciSconto({ onErrore }) {
+  const [elenco, setElenco] = useState([])
+  const [nuovo, setNuovo] = useState({ codice: '', percentuale: '', durata_mesi: '', descrizione: '' })
+  // Ogni cambio rilegge l'elenco: `giro` cresce, l'effetto riparte.
+  const [giro, setGiro] = useState(0)
+  const carica = () => setGiro((g) => g + 1)
+  useEffect(() => {
+    elencoSconti()
+      .then(setElenco)
+      .catch((e) => onErrore(e.message))
+  }, [giro, onErrore])
+  const crea = async (e) => {
+    e.preventDefault()
+    try {
+      await gestisciSconti('crea', { ...nuovo, percentuale: Number(nuovo.percentuale), durata_mesi: nuovo.durata_mesi === '' ? null : Number(nuovo.durata_mesi) })
+      setNuovo({ codice: '', percentuale: '', durata_mesi: '', descrizione: '' })
+      carica()
+    } catch (err) {
+      onErrore(err.message)
+    }
+  }
+  const disattiva = (codice) =>
+    gestisciSconti('disattiva', { codice })
+      .then(carica)
+      .catch((e) => onErrore(e.message))
+  const campo = (k) => ({ value: nuovo[k], onChange: (e) => setNuovo((n) => ({ ...n, [k]: e.target.value })) })
+  return (
+    <section className="card" aria-label="Codici sconto">
+      <h3>Codici sconto</h3>
+      <p className="muted small">
+        Uno sconto al 100% illimitato vuol dire che il locale non paga e non scade; a tempo, che è pagato fino alla fine dello
+        sconto. Uno parziale cambia solo il prezzo. Un codice disattivato non si applica più, e chi lo ha lo tiene.
+      </p>
+      {elenco.length === 0 && <p className="muted small">Nessun codice.</p>}
+      {elenco.map((s) => (
+        <div className="row-tra" key={s.codice} data-testid={`codice-${s.codice}`}>
+          <span>
+            <strong>{s.codice}</strong> · {s.percentuale}% · {s.durata_mesi ? `${s.durata_mesi} mesi` : 'illimitato'}
+            {s.descrizione && <span className="muted small"> · {s.descrizione}</span>}
+            {!s.attivo && <span className="muted small"> · disattivato</span>}
+          </span>
+          {s.attivo && (
+            <button type="button" className="btn ghost small" onClick={() => disattiva(s.codice)}>
+              Disattiva
+            </button>
+          )}
+        </div>
+      ))}
+      <form onSubmit={crea} aria-label="Nuovo codice sconto">
+        <label>
+          Codice
+          <input {...campo('codice')} required />
+        </label>
+        <label>
+          Percentuale
+          <input type="number" min="1" max="100" {...campo('percentuale')} required />
+        </label>
+        <label>
+          Durata in mesi (vuota: illimitato)
+          <input type="number" min="1" max="120" {...campo('durata_mesi')} />
+        </label>
+        <label>
+          Descrizione
+          <input {...campo('descrizione')} />
+        </label>
+        <div className="azioni">
+          <button type="submit" className="btn small">
+            Crea il codice
+          </button>
+        </div>
+      </form>
+    </section>
+  )
+}
+
 function Vendita({ onErrore }) {
   const [vendita, setVendita] = useState(() => venditaPulita(null))
   useEffect(() => osservaVendita((v) => setVendita(venditaPulita(v))), [])

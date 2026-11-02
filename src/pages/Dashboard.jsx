@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { osservaCliente, osservaIstanza, osservaRichiesta, chiediAttivazione, inviaVerificaEmail, rileggiUtente } from '../lib/db.js'
 import { statoIstanza, statoDetto, puoAttivare, urlDi, progettoDi, riduzioneDetta, STATI } from '../lib/istanze.js'
 import { PIANI, MODULI, prezzoMensile, euro } from '../lib/piani.js'
+import { prezzoConSconto, scontoDetto } from '../lib/sconti.js'
 import SceltaPiano from './SceltaPiano.jsx'
 import CreditoAI from './CreditoAI.jsx'
 import ChiudiLocale from './ChiudiLocale.jsx'
@@ -120,7 +121,8 @@ export default function Dashboard({ utente }) {
           <h3>Piano</h3>
           {piano ? (
             <p>
-              <strong>{piano.nome}</strong> · {euro(prezzoMensile(cliente))} al mese
+              <strong>{piano.nome}</strong> · {euro(prezzoConSconto(prezzoMensile(cliente), cliente))} al mese
+              {scontoDetto(cliente) && <span className="muted small"> · sconto {scontoDetto(cliente)}</span>}
               {cliente.moduli?.length > 0 && (
                 <span className="muted"> · moduli: {cliente.moduli.map((id) => MODULI.find((m) => m.id === id)?.nome || id).join(', ')}</span>
               )}
