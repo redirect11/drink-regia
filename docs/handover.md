@@ -753,6 +753,17 @@ L'elenco completo con i riferimenti al codice è in
    massimo di usi; un codice al 100% fatto girare attiva piani gratis, che
    però, col deploy spento, l'admin vede prima di pubblicarli.
 
+39. **I moduli comprati dall'app (REQ-FLOTTA-037)**, ramo
+   `feature/moduli-dall-app`, 02/11/2026, per REQ-LIC-012 di tana-drink.
+   `catalogoModuli` e `moduloDallApp` (`functions/lib/moduliapp.js`): il
+   titolare prova, aggiunge e disdice un modulo dal gestionale. La prova è
+   una funzione sola con la dashboard (`accendiProva`); aggiungere e
+   disdire cambiano la subscription come «Cambia piano», solo su un
+   abbonamento Stripe attivo. Da provare dopo il deploy su
+   `drink-regia-test`, da un locale della flotta di test (la Tana non ha
+   `regia_url` e non mostra i tasti).
+
+
 ---
 
 ## 7. I contratti condivisi con tana-drink
@@ -883,6 +894,18 @@ moduli, la licenza nell'istanza e la Tana.
   `intestazione`, `voce: { forma, prezzo, separatore, immagine }`,
   `cornice`, `angoli`, `sfondo`, `colori` facoltativi; i valori in
   `VALORI` dello stesso file. La regia manda sempre la ricetta completa.
+- **I moduli dall'app** (REQ-FLOTTA-037, dal 02/11/2026; in tana-drink
+  REQ-LIC-012, `docs/marketplace-moduli.md`). `GET
+  https://europe-west1-<VITE_REGIA_PROGETTO>.cloudfunctions.net/catalogoModuli`,
+  senza token, CORS aperto → `200 { moduli: [{ id, prezzo, prova_giorni }] }`,
+  solo i moduli in vendita, prezzo in euro al mese IVA esclusa. `POST
+  …/moduloDallApp` con `Authorization: Bearer <ID token>` dell'app, corpo
+  `{ modulo, azione: 'prova' | 'aggiungi' | 'disdici', ritorno }` → `200 {
+  ok: true }` (aggiunto), `{ ok: true, scade_il }` (prova), `{ ok: true,
+  dal }` (disdetto); errori `{ ok: false, errore }` con 400, 401, 403, 404,
+  409, 502, 503, e `errore` impersonale da mostrare così com'è. Oggi la
+  regia non risponde mai `checkout_url`: un modulo si compra solo su un
+  abbonamento Stripe già attivo.
 - **La presentazione alla regia** (REQ-FLOTTA-026, dal 02/11/2026). Al
   primo avvio di ogni versione l'app fa `POST
   https://europe-west1-<VITE_REGIA_PROGETTO>.cloudfunctions.net/presentazione`

@@ -6,6 +6,12 @@ data.
 
 ## Prossima release (da decidere)
 
+- Il titolare prova, aggiunge e disdice un modulo dall'app del suo locale
+  («Marketplace → Moduli»): la regia espone il listino dei moduli in
+  vendita e cambia l'abbonamento Stripe col conguaglio, e la licenza
+  dell'istanza segue. I motivi di un rifiuto sono scritti in forma
+  impersonale, uguali sulla dashboard e nell'app (REQ-FLOTTA-037).
+
 - Ogni deploy dopo un acquisto passa dall'amministratore finché non accende
   il deploy automatico, anche quando un locale Free compra un piano
   (REQ-FLOTTA-011). Il codice sconto si scrive nella scelta del piano e il

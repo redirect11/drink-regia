@@ -2158,18 +2158,116 @@ exports.provaModulo = onCall(OPTS, async (req) => {
   const cliente = (await ref.get()).data()
   if (!cliente?.slug) throw new HttpsError('failed-precondition', 'Nessun locale collegato a questo account.')
   const ist = (await db.doc(`istanze/${cliente.slug}`).get()).data()
-  const id = String(req.data?.modulo || '')
+  const p = await accendiProva(ref, cliente, ist, String(req.data?.modulo || ''), await vendita())
+  if (p.errore) throw new HttpsError('failed-precondition', p.errore)
+  return { ok: true, scade_il: p.scade_il }
+})
+
+// LA PROVA DI UN MODULO, una sola regola per le due porte: la dashboard
+// (provaModulo) e l'app del locale (moduloDallApp). → { scade_il } o
+// { errore }. Scritta la prova, licenzaSegueIlPiano accende il modulo.
+async function accendiProva(ref, cliente, ist, id, inVendita) {
   const adesso = new Date()
-  const puo = prove.puoProvare(cliente, ist, id, await vendita(), adesso)
-  if (!puo.ok) throw new HttpsError('failed-precondition', puo.perche)
+  const puo = prove.puoProvare(cliente, ist, id, inVendita, adesso)
+  if (!puo.ok) return { errore: puo.perche }
   await ref.update({
     [`prove.${id}`]: { dal: adesso.toISOString(), scade_il: puo.scade_il, giorni: puo.giorni },
     prove_fatte: FieldValue.arrayUnion(id),
   })
   // Alla fine della prova il modulo si spegne (REQ-FLOTTA-023).
   await programma('prova', cliente.slug, puo.scade_il).catch((e) => console.error(`[scadenze] ${cliente.slug}, prova:`, e?.message || e))
-  return { ok: true, scade_il: puo.scade_il }
+  return { scade_il: puo.scade_il }
+}
+
+// ── I MODULI COMPRATI DALL'APP DEL LOCALE (REQ-FLOTTA-037) ────────────
+// Da tana-drink (REQ-LIC-012): «Marketplace → Moduli» nel gestionale. Le
+// regole in lib/moduliapp.js; il contratto dal lato dell'app è in
+// tana-drink/docs/marketplace-moduli.md.
+const moduliApp = require('./lib/moduliapp.js')
+
+// Il listino per l'app: GET, pubblico, CORS aperto (lo legge il browser
+// dal dominio del locale). → 200 { moduli: [{ id, prezzo, prova_giorni }] },
+// solo quelli in vendita. L'app lo legge quando si apre «Moduli», mai a
+// tempo: un minuto di cache basta, e un modulo tolto dalla vendita sparisce
+// presto.
+exports.catalogoModuli = onRequest({ ...OPTS, cors: false }, async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*')
+  res.set('Access-Control-Allow-Methods', 'GET')
+  if (req.method === 'OPTIONS') return res.status(204).send('')
+  if (req.method !== 'GET') return res.status(405).json({ errore: 'Solo GET.' })
+  res.set('Cache-Control', 'public, max-age=60')
+  return res.status(200).json(moduliApp.catalogoModuli(await vendita()))
 })
+
+// Prova, aggiungi, disdici dall'app: POST con `Authorization: Bearer <ID
+// token>` di chi ha fatto l'accesso nell'app, corpo { modulo, azione,
+// ritorno }. I controlli in quest'ordine: l'installazione (401 senza token
+// valido, 404 sconosciuta o eliminata), il titolare (il ruolo `admin`
+// dell'app, 403), il ritorno sui domini dell'installazione (400), il
+// modulo nel listino e in vendita (409; per disdire basta che esista).
+// Risposte: 200 { ok: true } (aggiunto), { ok: true, scade_il } (prova),
+// { ok: true, dal } (disdetto); { ok: false, errore } col motivo, che
+// l'app mostra al titolare così com'è. Aggiungere e disdire cambiano la
+// subscription come «Cambia piano» (aggiornaSubscription, col conguaglio e
+// l'IVA): il webhook riporta la scelta sul cliente, e la licenza segue.
+// Nessun Checkout da qui: un modulo si compra solo su un abbonamento Stripe
+// già attivo, e la licenza non cambia mai per un ritorno dal browser.
+exports.moduloDallApp = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY], cors: false }, async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*')
+  res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+  res.set('Access-Control-Allow-Methods', 'POST')
+  if (req.method === 'OPTIONS') return res.status(204).send('')
+  const no = (stato, errore) => res.status(stato).json({ ok: false, errore })
+  if (req.method !== 'POST') return no(405, 'Solo POST.')
+  const token = aggiornamenti.bearerDi(req.get('authorization'))
+  const progetto = aggiornamenti.progettoDelToken(token)
+  if (!progetto) return no(401, 'Serve l’accesso.')
+  const trovata = (await db.collection('istanze').where('progetto', '==', progetto).limit(1).get()).docs[0]
+  const ist = trovata?.data()
+  // La demo non ha titolare né abbonamento (REQ-FLOTTA-019).
+  if (!ist || ist.stato === 'eliminata' || eDemo(ist)) return no(404, 'Installazione non registrata nella regia.')
+  let chi
+  try {
+    chi = await getAuth(appDi(progetto)).verifyIdToken(token)
+  } catch {
+    return no(401, 'Accesso non valido: rientrare e riprovare.')
+  }
+  if (!aggiornamenti.eTitolare(chi)) return no(403, 'I moduli li gestisce il titolare.')
+  const corpo = moduliApp.corpoModulo(req.body)
+  if (!corpo) return no(400, 'Richiesta non valida.')
+  if (!moduliApp.ritornoValido(corpo.ritorno, ist)) return no(400, 'Indirizzo di ritorno non valido.')
+  const inVendita = await vendita()
+  if (corpo.azione !== 'disdici') {
+    const fuori = moduliApp.moduloInVendita(corpo.modulo, inVendita)
+    if (fuori) return no(409, fuori)
+  }
+  const docCliente = (await db.collection('clienti').where('slug', '==', trovata.id).limit(1).get()).docs[0]
+  if (!docCliente) return no(404, 'Nessun abbonamento registrato per questo locale.')
+  const cliente = docCliente.data()
+  if (corpo.azione === 'prova') {
+    const p = await accendiProva(docCliente.ref, cliente, ist, corpo.modulo, inVendita)
+    if (p.errore) return no(409, p.errore)
+    return res.status(200).json({ ok: true, scade_il: p.scade_il })
+  }
+  const adesso = new Date()
+  const d = corpo.azione === 'aggiungi' ? moduliApp.sceltaPerAggiungere(cliente, ist, corpo.modulo, inVendita) : moduliApp.sceltaPerDisdire(cliente, ist, corpo.modulo, adesso)
+  if (d.errore) return no(409, d.errore)
+  const stripe = stripeClient()
+  if (!stripe) return no(503, 'Il pagamento online non è disponibile al momento: riprovare più tardi.')
+  try {
+    await aggiornaSubscription(stripe, cliente.abbonamento.stripe_subscription, docCliente.id, d.scelta)
+  } catch (e) {
+    console.error(`[moduli dall'app] ${trovata.id}, ${corpo.azione} ${corpo.modulo}:`, e?.message || e)
+    return no(502, 'Il cambio non è passato: riprovare fra poco.')
+  }
+  // Chi, quando e da dove, come i cambi dell'admin: in un locale gli
+  // admin dell'app possono essere più d'uno.
+  const storico = { il: adesso.toISOString(), da: chi.email || chi.uid, modo: 'app', azione: corpo.azione, modulo: corpo.modulo, ...d.scelta }
+  await docCliente.ref.update({ storico_piano: FieldValue.arrayUnion(storico) }).catch((e) => console.error(`[moduli dall'app] ${trovata.id}, storico:`, e?.message || e))
+  console.log(`[moduli dall'app] ${trovata.id}: ${corpo.azione} ${corpo.modulo} (${chi.email || chi.uid})`)
+  return res.status(200).json(corpo.azione === 'aggiungi' ? { ok: true } : { ok: true, dal: moduliApp.dalGiorno(adesso) })
+})
+
 
 // L'admin cambia piano, moduli e terminali di un locale: con Stripe
 // (l'abbonamento si aggiorna, il webhook scrive il cliente) o fuori da
