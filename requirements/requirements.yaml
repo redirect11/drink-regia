@@ -212,7 +212,9 @@ requirements:
       `puoAttivare` (REQ-FLOTTA-004) lascia attivare l'istanza, e la
       licenza (REQ-FLOTTA-006) accende i moduli del piano.
       I PREZZI STANNO IN UN POSTO SOLO, piani.json, letto dal sito e
-      dalle Functions: da confermare prima di pubblicare.
+      dalle Functions: da confermare prima di pubblicare. Dal 02/11/2026
+      (DEC-0005) il Checkout porta anche l'attivazione una tantum, la
+      scelta mensile o annuale e l'offerta Fondatori: REQ-FLOTTA-021.
       IL POS NON DIPENDE DA STRIPE: un pagamento in ritardo cambia cosa dice
       la dashboard, non quello che l'istanza fa.
       STATO AL 22/10/2026: scritto, con la logica provata; le chiavi di
@@ -852,3 +854,51 @@ requirements:
       - tests/AggiornamentiLocale.test.jsx
       - tests/Backoffice.test.jsx
 
+
+  - id: REQ-FLOTTA-021
+    title: "Il listino del 02/11/2026 al Checkout: attivazione una tantum, offerta Fondatori, annuale, prova"
+    area: "functions/piani.json, src/lib/piani.js (conIva, prezzoAnnuale, prezzoFondatori, euro), functions/lib/abbonamento.js (sessioneCheckout, rigaAttivazione, intervalloDi), functions/lib/fondatori.js, functions/lib/cambiopiano.js (sceltaAdmin), functions/index.js (creaCheckout, stripeWebhook, aggiornaSubscription), firestore.rules (fondatori)"
+    description: >
+      Decisione dell'utente del 02/11/2026 (DEC-0005): Base 32,70 € + IVA
+      al mese con tre terminali (anche il Completo ne ha tre), attivazione
+      82 € + IVA, offerta Fondatori, annuale a 10 mensilità, prova di 30
+      giorni. IMPORTI: in centesimi interi (32,70 € = 3270), l'annuale
+      moltiplicato sugli interi; euro() scrive i centesimi solo se ci sono.
+      L'ATTIVAZIONE è una riga una tantum della sessione di Checkout, non
+      delle righe dell'abbonamento, che vanno anche sulla subscription nei
+      cambi di piano. FONDATORI: i primi 20 locali che attivano un piano
+      coperto (fondatori.prezzi: oggi il Base) pagano 25 € + IVA per 12
+      mesi, poi il listino, con l'attivazione gratuita. Il posto si prenota
+      in transazione alla creazione della sessione (che scade in 35
+      minuti; la prenotazione dura un'ora in più, per il webhook in
+      ritardo) e si assegna col pagamento confermato dal webhook: un numero
+      da 1 a 20 nel documento fondatori/posti e abbonamento.fondatore
+      {numero, dal, fino_al} sul cliente. checkout.session.expired libera
+      la prenotazione di quella sessione. Un posto per cliente. Lo sconto è
+      un coupon di Stripe a importo fisso (la differenza col listino):
+      mensile per 12 fatture (repeating), annuale sulla prima fattura
+      (once); finito, Stripe fattura il listino senza interventi. Nel
+      Checkout il coupon si chiama «Fondatori: 25 € per 12 mesi»: nessun
+      prezzo barrato. Un Fondatore che passa a un piano non coperto perde
+      lo sconto (e abbonamento.fondatore.tolto_il). Se il pagamento arriva
+      quando i posti sono già presi da altri, il cliente è segnato
+      abbonamento.fondatore_da_verificare per l'admin. ANNUALE: la scelta
+      porta intervallo 'mese' o 'anno' (sceltaPulita: tutto il resto vale
+      mese); le righe sono annuali a 10 mensilità; i cambi di piano tengono
+      l'intervallo della subscription. PROVA: trial_period_days =
+      prova_giorni sul primo abbonamento, ma SPENTA nel listino
+      (prova_nel_checkout false) finché l'utente non decide se
+      l'attivazione si paga all'inizio della prova o alla fine: i Termini
+      non ne parlano. Da fare: l'evento checkout.session.expired va
+      abilitato sul webhook di Stripe; l'IVA in Stripe (gli importi sono
+      IVA esclusa); la pagina (prezzi, scelta mensile o annuale) nel ramo
+      feature/prezzi-pagina.
+    status: partial
+    generate_issue: false
+    labels: [prodotto, regia]
+    test_cases:
+      - tests/fondatori.test.js
+      - tests/abbonamento.test.js
+      - tests/piani.test.js
+      - tests/cambiopiano.test.js
+      - tests/contatti.test.js

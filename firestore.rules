@@ -99,6 +99,14 @@ service cloud.firestore {
       }
     }
 
+    // Il contatore dei posti Fondatori (REQ-FLOTTA-021): lo cambiano solo le
+    // Functions, in transazione; scritto da un client, varrebbe un posto
+    // regalato o tolto.
+    match /fondatori/{doc} {
+      allow read: if admin();
+      allow write: if false;
+    }
+
     // Le impostazioni della regia (REQ-FLOTTA-011): il deploy automatico.
     match /impostazioni/{doc} {
       allow read: if autenticato();
