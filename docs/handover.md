@@ -753,6 +753,16 @@ L'elenco completo con i riferimenti al codice è in
    massimo di usi; un codice al 100% fatto girare attiva piani gratis, che
    però, col deploy spento, l'admin vede prima di pubblicarli.
 
+38. **Il limite di usi dei codici sconto (REQ-FLOTTA-028)**, ramo
+   `feature/limite-usi-codici`, 02/11/2026: chiude il «da sapere» della voce
+   37. Un codice ha un numero massimo di usi (vuoto: nessun limite); conta
+   i locali che prendono lo sconto, al pagamento, col 100% o dall'admin.
+   Al Checkout l'uso si tiene da parte per la durata della sessione e si
+   conta al webhook; esaurito, non si applica più per nessuno nuovo, e
+   l'admin lo alza da «Limite…». I codici creati prima non hanno il
+   contatore: partono da zero usi e senza limite.
+
+
 ---
 
 ## 7. I contratti condivisi con tana-drink

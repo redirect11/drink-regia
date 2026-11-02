@@ -319,7 +319,9 @@ exports.creaCheckout = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
   // quello che l'admin gli ha già dato. Un codice al 100% non passa da qui
   // (attivaConCodice). Se c'è anche un posto Fondatori vale il più
   // conveniente (acquisto.scontoCheVale): Stripe ne accetta uno solo.
-  const { sconto, errore: erroreCodice } = await scontoPerAcquisto(cliente, req.data?.codice, adesso)
+  // Un codice col limite di usi si tiene da parte per la durata della
+  // sessione, e diventa un uso quando Stripe conferma il pagamento.
+  const { sconto, uso, errore: erroreCodice } = await scontoPerAcquisto(cliente, req.data?.codice, adesso, uid)
   if (erroreCodice) throw new HttpsError('failed-precondition', erroreCodice)
   if (sconto?.percentuale === 100) throw new HttpsError('failed-precondition', 'Con questo codice il piano non si paga: usa «Attiva con il codice».')
   const couponCodice = sconto ? acquisto.couponSconto(sconto, { intervallo: scelta.intervallo, adesso }) : null
@@ -339,6 +341,8 @@ exports.creaCheckout = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
   }
   // L'ultimo posto preso da un altro un attimo prima: allora il codice, se c'è.
   const conCodice = Boolean(sconto) && !prenotato
+  const usoTenuto = conCodice && uso && (await prenotaUsoCodice(sconto.codice, uid, new Date(adesso.getTime() + DURATA_SESSIONE_MS), adesso))
+  if (conCodice && uso && !usoTenuto) throw new HttpsError('failed-precondition', sconti.ESAURITO)
   let sessione
   try {
     const coupon = prenotato
@@ -348,25 +352,62 @@ exports.creaCheckout = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
         : null
     const aliquotaIva = await aliquotaIvaSuStripe(stripe)
     sessione = await stripe.checkout.sessions.create(
-      sessioneCheckout({ uid, cliente, scelta, ritorno, coupon, fondatore: prenotato, sconto: conCodice ? acquisto.metadatiSconto(sconto) : null, aliquotaIva, adesso })
+      sessioneCheckout({ uid, cliente, scelta, ritorno, coupon, fondatore: prenotato, sconto: conCodice ? acquisto.metadatiSconto(sconto, { uso }) : null, aliquotaIva, adesso })
     )
   } catch (e) {
-    // La sessione non è nata: il posto non resta tenuto per nessuno.
+    // La sessione non è nata: il posto e l'uso del codice non restano
+    // tenuti per nessuno.
     if (prenotato) await liberaPosto(uid).catch((x) => console.error('[fondatori] rilascio:', x?.message || x))
+    if (usoTenuto) await liberaUsoCodice(sconto.codice, uid).catch((x) => console.error('[sconti] rilascio:', x?.message || x))
     throw e
   }
   return { url: sessione.url, fondatore: prenotato, sconto: conCodice ? sconto.codice : null }
 })
 
 // Lo sconto di un acquisto: il codice scritto dal titolare (che deve
-// esistere ed essere attivo), o se non ne scrive uno quello che l'admin gli
-// ha dato ed è ancora in corso. → { sconto } (null se non c'è), o { errore }.
-async function scontoPerAcquisto(cliente, scritto, adesso = new Date()) {
+// esistere, essere attivo e avere ancora usi), o se non ne scrive uno
+// quello che l'admin gli ha dato ed è ancora in corso. → { sconto, uso }
+// (sconto null se non c'è; `uso`: consuma un uso del codice), o { errore }.
+async function scontoPerAcquisto(cliente, scritto, adesso = new Date(), uid = null) {
   const codice = String(scritto || '').trim().toUpperCase()
-  if (!codice) return { sconto: acquisto.scontoInCorso(cliente, adesso) }
+  if (!codice) return { sconto: acquisto.scontoInCorso(cliente, adesso), uso: false }
   const doc = sconti.CODICE.test(codice) ? (await db.doc(`sconti/${codice}`).get()).data() : null
   const s = acquisto.scontoDelCodice(doc, adesso)
-  return s ? { sconto: s } : { errore: 'Codice sconosciuto o disattivato.' }
+  if (!s) return { errore: 'Codice sconosciuto o disattivato.' }
+  const uso = sconti.usoNuovo(cliente, s.codice)
+  if (uso && sconti.esaurito(doc, adesso, uid)) return { errore: sconti.ESAURITO }
+  return { sconto: s, uso }
+}
+
+// Tiene da parte un uso del codice per un Checkout. → false se il codice è
+// esaurito. Un codice senza limite non tiene niente: non c'è da contendersi.
+async function prenotaUsoCodice(codice, uid, scadenza, adesso = new Date()) {
+  const ref = db.doc(`sconti/${codice}`)
+  return db.runTransaction(async (t) => {
+    const doc = (await t.get(ref)).data()
+    if (!doc || doc.usi_massimi == null) return true
+    const p = sconti.prenotaUso(doc, uid, scadenza, adesso)
+    if (p.esito !== 'prenotato') return false
+    t.update(ref, { prenotazioni: p.prenotazioni })
+    return true
+  })
+}
+
+async function liberaUsoCodice(codice, uid) {
+  const ref = db.doc(`sconti/${codice}`)
+  await db.runTransaction(async (t) => {
+    const doc = (await t.get(ref)).data()
+    if (doc) t.update(ref, sconti.prenotazioneTolta(doc, uid))
+  })
+}
+
+// Un uso del codice confermato: il contatore sale, la prenotazione va via.
+async function contaUsoCodice(codice, uid) {
+  const ref = db.doc(`sconti/${codice}`)
+  await db.runTransaction(async (t) => {
+    const doc = (await t.get(ref)).data()
+    if (doc) t.update(ref, sconti.usoConfermato(doc, uid))
+  })
 }
 
 // IL TITOLARE PROVA UN CODICE nella scelta del piano, prima di pagare: è
@@ -379,7 +420,7 @@ exports.verificaCodiceSconto = onCall(OPTS, async (req) => {
   if (!cliente) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
   if (!String(req.data?.codice || '').trim()) throw new HttpsError('invalid-argument', 'Scrivi il codice.')
   const adesso = new Date()
-  const { sconto, errore } = await scontoPerAcquisto(cliente, req.data.codice, adesso)
+  const { sconto, errore } = await scontoPerAcquisto(cliente, req.data.codice, adesso, req.auth.uid)
   if (errore) throw new HttpsError('failed-precondition', errore)
   const scelta = sceltaPulita({ piano: req.data?.piano, moduli: req.data?.moduli, terminali: req.data?.terminali, intervallo: req.data?.intervallo })
   if (sconto.percentuale < 100) {
@@ -398,16 +439,26 @@ exports.verificaCodiceSconto = onCall(OPTS, async (req) => {
 exports.attivaConCodice = onCall(OPTS, async (req) => {
   if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
   if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Prima conferma la tua email.')
-  const ref = db.doc(`clienti/${req.auth.uid}`)
-  const cliente = (await ref.get()).data()
+  const uid = req.auth.uid
+  const ref = db.doc(`clienti/${uid}`)
   const codice = String(req.data?.codice || '').trim().toUpperCase()
-  const doc = sconti.CODICE.test(codice) ? (await db.doc(`sconti/${codice}`).get()).data() : null
-  const istanza = cliente?.slug ? (await db.doc(`istanze/${cliente.slug}`).get()).data() : null
+  if (!sconti.CODICE.test(codice)) throw new HttpsError('failed-precondition', 'Codice sconosciuto o disattivato.')
+  const refCodice = db.doc(`sconti/${codice}`)
+  const prima = (await ref.get()).data()
+  const istanza = prima?.slug ? (await db.doc(`istanze/${prima.slug}`).get()).data() : null
   const scelta = sceltaPulita({ piano: req.data?.piano, moduli: req.data?.moduli, terminali: req.data?.terminali })
-  const fuori = cliente ? free.moduliFuoriVendita(cliente, scelta, await vendita()) : []
-  const esito = acquisto.attivazioneConCodice({ cliente, istanza, codice: doc, scelta, fuori })
+  const inVendita = await vendita()
+  // In transazione col codice: l'ultimo uso lo prende uno solo.
+  const esito = await db.runTransaction(async (t) => {
+    const [cliente, doc] = (await Promise.all([t.get(ref), t.get(refCodice)])).map((s) => s.data())
+    const fuori = cliente ? free.moduliFuoriVendita(cliente, scelta, inVendita) : []
+    const e = acquisto.attivazioneConCodice({ cliente, uid, istanza, codice: doc, scelta, fuori })
+    if (e.errore) return e
+    t.update(ref, e.patch)
+    if (e.uso) t.update(refCodice, sconti.usoConfermato(doc, uid))
+    return e
+  })
   if (esito.errore) throw new HttpsError('failed-precondition', esito.errore)
-  await ref.update(esito.patch)
   return { ok: true, piano: esito.patch.piano }
 })
 
@@ -523,6 +574,10 @@ async function elaboraEventoStripe(evento) {
     const esito = await confermaFondatore(daConfermare)
     if (esito === 'esauriti') console.error(`[fondatori] ${daConfermare}: pagato col coupon, posti esauriti: da verificare`)
   }
+  // Pagato con un codice: un uso in più, anche se la patch non si è
+  // scritta. L'evento passa di qui una volta sola (eventi_stripe).
+  const daContare = acquisto.usoDaContare(evento.type, evento.data?.object)
+  if (daContare) await contaUsoCodice(daContare.codice, daContare.uid)
   return scritto ? { ok: true } : { ok: true, ignorato: 'fuori ordine o già scritto' }
 }
 
@@ -1966,8 +2021,19 @@ exports.gestisciSconti = onCall(OPTS, async (req) => {
     const ref = db.doc(`sconti/${s.codice}`)
     // Un codice non si riscrive: chi lo ha già applicato ha quelle condizioni.
     if ((await ref.get()).exists) throw new HttpsError('already-exists', `Il codice ${s.codice} esiste già.`)
-    await ref.set({ ...s, creato_il: new Date().toISOString(), creato_da: req.auth.token.email || req.auth.uid })
+    await ref.set({ ...s, usi: 0, creato_il: new Date().toISOString(), creato_da: req.auth.token.email || req.auth.uid })
     return { ok: true, codice: s.codice }
+  }
+  // Il limite di usi si cambia anche dopo: le condizioni dello sconto no.
+  // Sotto gli usi già fatti vuol dire esaurito, e chi lo ha lo tiene.
+  if (azione === 'limite') {
+    const codice = String(req.data?.codice || '').trim().toUpperCase()
+    const ref = db.doc(`sconti/${codice}`)
+    if (!sconti.CODICE.test(codice) || !(await ref.get()).exists) throw new HttpsError('not-found', 'Codice sconosciuto.')
+    const l = sconti.limitePulito(req.data?.usi_massimi)
+    if (l.errore) throw new HttpsError('invalid-argument', l.errore)
+    await ref.update({ usi_massimi: l.usi_massimi, limite_cambiato_il: new Date().toISOString() })
+    return { ok: true, usi_massimi: l.usi_massimi }
   }
   if (azione === 'disattiva') {
     const codice = String(req.data?.codice || '').trim().toUpperCase()
@@ -1990,11 +2056,21 @@ exports.applicaSconto = onCall(OPTS, async (req) => {
     await doc.ref.update(sconti.scontoTolto(doc.data()).patch)
     return { ok: true, sconto: null }
   }
-  const s = sconti.CODICE.test(codice) ? (await db.doc(`sconti/${codice}`).get()).data() : null
-  const esito = sconti.scontoApplicato(doc.data(), s)
+  if (!sconti.CODICE.test(codice)) throw new HttpsError('failed-precondition', 'Codice sconosciuto o disattivato.')
+  const refCodice = db.doc(`sconti/${codice}`)
+  // In transazione col codice: anche l'admin consuma un uso, e l'ultimo
+  // lo prende uno solo.
+  const esito = await db.runTransaction(async (t) => {
+    const [cliente, s] = (await Promise.all([t.get(doc.ref), t.get(refCodice)])).map((x) => x.data())
+    const e = sconti.scontoApplicato(cliente, s, new Date(), doc.id)
+    if (e.errore) return e
+    t.update(doc.ref, e.patch)
+    if (e.uso) t.update(refCodice, sconti.usoConfermato(s, doc.id))
+    return e
+  })
   if (esito.errore) throw new HttpsError('failed-precondition', esito.errore)
-  await doc.ref.update(esito.patch)
   return { ok: true, sconto: esito.patch.sconto }
+
 })
 
 exports.registraLocaleEsistente = onCall(OPTS, async (req) => {

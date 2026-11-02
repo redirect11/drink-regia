@@ -9,7 +9,8 @@
 import { describe, it, expect } from 'vitest'
 import { createRequire } from 'node:module'
 import { readFileSync } from 'node:fs'
-import { scontoAttivo, prezzoConSconto, scontoDetto } from '../src/lib/sconti.js'
+import { scontoAttivo, prezzoConSconto, scontoDetto, usiDetti } from '../src/lib/sconti.js'
+
 
 const require = createRequire(import.meta.url)
 const s = require('../functions/lib/sconti.js')
@@ -17,7 +18,7 @@ const { licenzaProtetta } = require('../functions/lib/licenza.js')
 const { scadenzaPagamento } = require('../functions/lib/scadenze.js')
 
 const ADESSO = new Date('2026-11-02T10:00:00.000Z')
-const TANA = { codice: 'TANA-100', percentuale: 100, durata_mesi: null, descrizione: 'La Tana', attivo: true }
+const TANA = { codice: 'TANA-100', percentuale: 100, durata_mesi: null, usi_massimi: null, descrizione: 'La Tana', attivo: true }
 const aMano = { slug: 'tana-drink', piano: 'completo', moduli: [], abbonamento: { stato: 'attivo', origine: 'interna', dal: '2026-10-24T00:00:00.000Z' } }
 
 describe('un codice', () => {
@@ -76,6 +77,67 @@ describe('applicato a un cliente', () => {
   it('tolto un 100% illimitato, è un piano a mano pagato fino a oggi', () => {
     expect(s.scontoTolto({ abbonamento: { stato: 'attivo', origine: 'sconto' } }, ADESSO).patch).toEqual({ sconto: null, abbonamento: { stato: 'attivo', origine: 'manuale', pagato_fino_al: '2026-11-02' } })
     expect(s.scontoTolto({ abbonamento: { origine: 'manuale', pagato_fino_al: '2027-01-01' } }, ADESSO).patch).toEqual({ sconto: null })
+  })
+})
+
+// L'utente, 02/11/2026: «Aggiungiamo limite di utilizzo del codice».
+describe('il limite di usi', () => {
+  const DIECI = { ...TANA, codice: 'DIECI', percentuale: 20, usi_massimi: 10, usi: 0 }
+  const fra = (minuti) => new Date(ADESSO.getTime() + minuti * 60000)
+
+  it('si scrive alla creazione: un intero da 1 a 100000, o vuoto per nessun limite', () => {
+    expect(s.scontoPulito({ codice: 'DIECI', percentuale: 20, usi_massimi: '10' }).usi_massimi).toBe(10)
+    expect(s.scontoPulito({ codice: 'DIECI', percentuale: 20, usi_massimi: '' }).usi_massimi).toBeNull()
+    for (const v of [0, -1, 2.5, 'tanti', 100001]) expect(s.scontoPulito({ codice: 'DIECI', percentuale: 20, usi_massimi: v }).errore).toMatch(/Usi da 1 a 100000/)
+    expect(s.limitePulito(null)).toEqual({ usi_massimi: null })
+  })
+
+  it('esaurito quando gli usi presi più i Checkout in corso arrivano al limite; senza limite mai', () => {
+    expect(s.esaurito({ ...DIECI, usi: 9 }, ADESSO)).toBe(false)
+    expect(s.esaurito({ ...DIECI, usi: 10 }, ADESSO)).toBe(true)
+    const conUno = { ...DIECI, usi: 9, prenotazioni: { altro: { scade_il: fra(20).toISOString() } } }
+    expect(s.esaurito(conUno, ADESSO)).toBe(true)
+    // La prenotazione del titolare stesso non gli toglie il suo uso.
+    expect(s.esaurito(conUno, ADESSO, 'altro')).toBe(false)
+    // Una prenotazione scaduta non tiene niente.
+    expect(s.esaurito({ ...conUno, prenotazioni: { altro: { scade_il: fra(-1).toISOString() } } }, ADESSO)).toBe(false)
+    expect(s.esaurito({ ...TANA, usi: 5000 }, ADESSO)).toBe(false)
+  })
+
+  it('l’ultimo uso lo tiene da parte un Checkout solo: il secondo trova il codice esaurito', () => {
+    const quasi = { ...DIECI, usi: 9 }
+    const primo = s.prenotaUso(quasi, 'u1', fra(35), ADESSO)
+    expect(primo.esito).toBe('prenotato')
+    expect(Date.parse(primo.prenotazioni.u1.scade_il)).toBe(fra(45).getTime())
+    expect(s.prenotaUso({ ...quasi, prenotazioni: primo.prenotazioni }, 'u2', fra(35), ADESSO).esito).toBe('esaurito')
+    // Lo stesso titolare che riapre il Checkout rinnova la sua.
+    expect(s.prenotaUso({ ...quasi, prenotazioni: primo.prenotazioni }, 'u1', fra(40), ADESSO).esito).toBe('prenotato')
+    // Le scadute si tolgono.
+    const vecchie = { ...DIECI, prenotazioni: { via: { scade_il: fra(-5).toISOString() } } }
+    expect(s.prenotaUso(vecchie, 'u1', fra(35), ADESSO).prenotazioni).not.toHaveProperty('via')
+  })
+
+  it('un uso confermato fa salire il contatore e toglie la prenotazione; una sessione non nata la libera', () => {
+    const tenuto = { ...DIECI, usi: 3, prenotazioni: { u1: { scade_il: fra(30).toISOString() }, u2: { scade_il: fra(30).toISOString() } } }
+    expect(s.usoConfermato(tenuto, 'u1')).toEqual({ usi: 4, prenotazioni: { u2: tenuto.prenotazioni.u2 } })
+    expect(s.usoConfermato({ codice: 'X' }, 'u1')).toEqual({ usi: 1, prenotazioni: {} })
+    expect(s.prenotazioneTolta(tenuto, 'u2')).toEqual({ prenotazioni: { u1: tenuto.prenotazioni.u1 } })
+  })
+
+  it('vale anche per l’admin: un codice esaurito non si applica, e chi lo ha già non consuma un altro uso', () => {
+    const pieno = { ...DIECI, usi: 10 }
+    expect(s.scontoApplicato(aMano, pieno, ADESSO).errore).toMatch(/esaurito.*alza il limite/)
+    expect(s.scontoApplicato(aMano, { ...DIECI, usi: 2 }, ADESSO).uso).toBe(true)
+    const giaSuo = { ...aMano, sconto: { codice: 'DIECI', percentuale: 20 } }
+    expect(s.scontoApplicato(giaSuo, pieno, ADESSO)).toMatchObject({ uso: false })
+    expect(s.scontoApplicato(giaSuo, pieno, ADESSO).errore).toBeUndefined()
+  })
+
+  it('nel backoffice: quanti usi, su quanti, ed esaurito', () => {
+    expect(usiDetti({ usi: 1 })).toBe('1 uso')
+    expect(usiDetti({})).toBe('0 usi')
+    expect(usiDetti({ usi: 3, usi_massimi: 10 })).toBe('3 usi su 10')
+    expect(usiDetti({ usi: 10, usi_massimi: 10 })).toBe('10 usi su 10, esaurito')
   })
 })
 

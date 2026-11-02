@@ -132,6 +132,30 @@ describe('un codice al 100% dal titolare', () => {
   })
 })
 
+// Il limite di usi (02/11/2026, l'utente: «Aggiungiamo limite di utilizzo
+// del codice»): il titolare consuma un uso al pagamento o col 100%.
+describe('il limite di usi all’acquisto', () => {
+  const cliente = { uid: 'u1', slug: 'bar-mario', abbonamento: { stato: 'attivo', origine: 'gratuito' } }
+
+  it('un codice al 100% esaurito non attiva niente; uno con usi liberi conta un uso', () => {
+    expect(a.attivazioneConCodice({ cliente, codice: codice(100, null, { usi_massimi: 5, usi: 5 }), scelta: { piano: 'base' }, adesso: ADESSO }).errore).toMatch(/esaurito/)
+    expect(a.attivazioneConCodice({ cliente, codice: codice(100, null, { usi_massimi: 5, usi: 4 }), scelta: { piano: 'base' }, adesso: ADESSO }).uso).toBe(true)
+    // Chi ha già lo sconto non ne consuma un altro.
+    const giaSuo = { ...cliente, sconto: { codice: 'PROVA', percentuale: 100 } }
+    expect(a.attivazioneConCodice({ cliente: giaSuo, codice: codice(100, null, { usi_massimi: 5, usi: 5 }), scelta: { piano: 'base' }, adesso: ADESSO }).uso).toBe(false)
+  })
+
+  it('il Checkout porta il segno dell’uso, e il webhook lo conta una volta al pagamento', () => {
+    const md = { uid: 'u1', ...a.metadatiSconto(sconto(20, 3), { uso: true }) }
+    expect(md.sconto_uso).toBe('1')
+    expect(a.usoDaContare('checkout.session.completed', { metadata: md })).toEqual({ codice: 'PROVA', uid: 'u1' })
+    expect(a.usoDaContare('checkout.session.expired', { metadata: md })).toBeNull()
+    // Lo sconto già dato dall'admin, riusato al pagamento: nessun uso nuovo.
+    expect(a.metadatiSconto(sconto(20, 3))).not.toHaveProperty('sconto_uso')
+    expect(a.usoDaContare('checkout.session.completed', { metadata: { uid: 'u1', ...a.metadatiSconto(sconto(20, 3)) } })).toBeNull()
+  })
+})
+
 describe('nelle Functions', () => {
   const codiceFn = readFileSync('functions/index.js', 'utf8')
   const tra = (da, a) => codiceFn.slice(codiceFn.indexOf(da), codiceFn.indexOf(a, codiceFn.indexOf(da)))
@@ -158,4 +182,19 @@ describe('nelle Functions', () => {
       expect(tra(f, '\n})')).toContain("req.auth.token?.email_verified !== true")
     }
   })
+
+  it('il limite di usi: il Checkout tiene da parte l’uso e lo libera se la sessione non nasce; 100% e admin contano in transazione', () => {
+    const checkout = tra('exports.creaCheckout', 'async function liberaPosto')
+    expect(checkout).toContain('prenotaUsoCodice(sconto.codice, uid')
+    expect(checkout).toContain('if (usoTenuto) await liberaUsoCodice(sconto.codice, uid)')
+    expect(checkout).toContain('acquisto.metadatiSconto(sconto, { uso })')
+    expect(tra('async function elaboraEventoStripe', '\n}\n')).toContain('await contaUsoCodice(daContare.codice, daContare.uid)')
+    expect(tra('exports.attivaConCodice', '\n})')).toContain('if (e.uso) t.update(refCodice, sconti.usoConfermato(doc, uid))')
+    expect(tra('exports.applicaSconto', '\n})')).toContain('if (e.uso) t.update(refCodice, sconti.usoConfermato(s, doc.id))')
+    // Il limite si cambia anche dopo, solo dall'admin.
+    const gestione = tra('exports.gestisciSconti', '\n})')
+    expect(gestione).toContain("if (azione === 'limite')")
+    expect(gestione).toContain("req.auth?.token?.admin !== true")
+  })
+
 })

@@ -1108,19 +1108,19 @@ describe('i codici sconto nel backoffice', () => {
   it('l’elenco, un codice nuovo, e disattivarne uno', async () => {
     const user = userEvent.setup()
     db.elencoSconti.mockResolvedValue([
-      { codice: 'TANA-100', percentuale: 100, durata_mesi: null, descrizione: 'La Tana', attivo: true },
+      { codice: 'TANA-100', percentuale: 100, durata_mesi: null, descrizione: 'La Tana', attivo: true, usi: 1 },
       { codice: 'VECCHIO', percentuale: 10, durata_mesi: 3, attivo: false },
     ])
     mostra('/backoffice/vendita')
     const riquadro = await screen.findByRole('region', { name: 'Codici sconto' })
-    expect(await within(riquadro).findByTestId('codice-TANA-100')).toHaveTextContent('TANA-100 · 100% · illimitato · La Tana')
-    expect(within(riquadro).getByTestId('codice-VECCHIO')).toHaveTextContent('3 mesi · disattivato')
+    expect(await within(riquadro).findByTestId('codice-TANA-100')).toHaveTextContent('TANA-100 · 100% · illimitato · 1 uso · La Tana')
+    expect(within(riquadro).getByTestId('codice-VECCHIO')).toHaveTextContent('3 mesi · 0 usi · disattivato')
     const modulo = within(riquadro).getByRole('form', { name: 'Nuovo codice sconto' })
     await user.type(within(modulo).getByLabelText('Codice'), 'PROVA20')
     await user.type(within(modulo).getByLabelText('Percentuale'), '20')
     await user.type(within(modulo).getByLabelText(/Durata in mesi/), '3')
     await user.click(within(modulo).getByRole('button', { name: 'Crea il codice' }))
-    expect(db.gestisciSconti).toHaveBeenCalledWith('crea', { codice: 'PROVA20', percentuale: 20, durata_mesi: 3, descrizione: '' })
+    expect(db.gestisciSconti).toHaveBeenCalledWith('crea', { codice: 'PROVA20', percentuale: 20, durata_mesi: 3, usi_massimi: null, descrizione: '' })
     await user.click(within(within(riquadro).getByTestId('codice-TANA-100')).getByRole('button', { name: 'Disattiva' }))
     expect(db.gestisciSconti).toHaveBeenCalledWith('disattiva', { codice: 'TANA-100' })
     // Un disattivato non ha il tasto.
@@ -1135,8 +1135,33 @@ describe('i codici sconto nel backoffice', () => {
     await user.type(within(modulo).getByLabelText('Codice'), 'TANA-100')
     await user.type(within(modulo).getByLabelText('Percentuale'), '100')
     await user.click(within(modulo).getByRole('button', { name: 'Crea il codice' }))
-    expect(db.gestisciSconti).toHaveBeenCalledWith('crea', { codice: 'TANA-100', percentuale: 100, durata_mesi: null, descrizione: '' })
+    expect(db.gestisciSconti).toHaveBeenCalledWith('crea', { codice: 'TANA-100', percentuale: 100, durata_mesi: null, usi_massimi: null, descrizione: '' })
   })
+
+  // L'utente, 02/11/2026: «Aggiungiamo limite di utilizzo del codice».
+  it('il limite di usi: si scrive alla creazione, l’elenco dice gli usi, «Limite…» lo cambia', async () => {
+    const user = userEvent.setup()
+    db.elencoSconti.mockResolvedValue([{ codice: 'DIECI', percentuale: 20, durata_mesi: 3, attivo: true, usi: 10, usi_massimi: 10 }])
+    mostra('/backoffice/vendita')
+    const riquadro = await screen.findByRole('region', { name: 'Codici sconto' })
+    const riga = await within(riquadro).findByTestId('codice-DIECI')
+    expect(riga).toHaveTextContent('10 usi su 10, esaurito')
+    const prompt = vi.spyOn(window, 'prompt').mockReturnValue('25')
+    await user.click(within(riga).getByRole('button', { name: 'Limite…' }))
+    expect(db.gestisciSconti).toHaveBeenCalledWith('limite', { codice: 'DIECI', usi_massimi: 25 })
+    // Vuoto: nessun limite.
+    prompt.mockReturnValue('')
+    await user.click(within(riga).getByRole('button', { name: 'Limite…' }))
+    expect(db.gestisciSconti).toHaveBeenCalledWith('limite', { codice: 'DIECI', usi_massimi: null })
+    prompt.mockRestore()
+    const modulo = within(riquadro).getByRole('form', { name: 'Nuovo codice sconto' })
+    await user.type(within(modulo).getByLabelText('Codice'), 'CENTO')
+    await user.type(within(modulo).getByLabelText('Percentuale'), '100')
+    await user.type(within(modulo).getByLabelText(/Usi massimi/), '5')
+    await user.click(within(modulo).getByRole('button', { name: 'Crea il codice' }))
+    expect(db.gestisciSconti).toHaveBeenCalledWith('crea', { codice: 'CENTO', percentuale: 100, durata_mesi: null, usi_massimi: 5, descrizione: '' })
+  })
+
 
   it('la scheda dice lo sconto e il prezzo dopo, e «Sconto…» lo applica', async () => {
     const user = userEvent.setup()

@@ -1369,7 +1369,21 @@ requirements:
       100% è un abbonamento attivo come quello dato dall'admin: il locale
       si attiva da «Attiva», e col deploy automatico spento la richiesta
       aspetta l'admin (REQ-FLOTTA-011).
+      IL LIMITE DI USI (02/11/2026). L'utente: «Aggiungiamo limite di
+      utilizzo del codice». Un codice ha usi_massimi (da 1 a 100000, o vuoto
+      per nessun limite) e il contatore usi. Un uso è un locale che prende lo
+      sconto: al pagamento, con un codice al 100%, o applicato dall'admin
+      dalla scheda; chi lo ha già sul suo cliente e lo riusa non ne consuma
+      un altro. Al pagamento l'uso si tiene da parte per la durata del
+      Checkout (sconti/{CODICE}.prenotazioni, come i posti Fondatori), si
+      libera se la sessione non nasce, e il webhook lo conta quando Stripe
+      conferma (metadato sconto_uso). Il codice al 100% e l'admin contano in
+      transazione col codice: l'ultimo uso lo prende uno solo. Esaurito, il
+      codice non vale per nessuno nuovo, nemmeno dall'admin; il limite si
+      alza o si toglie da «Limite…» nel backoffice, le condizioni dello
+      sconto restano quelle.
     status: implemented
+
     generate_issue: true
     labels: [prodotto, regia, abbonamento, licenza, sicurezza]
     test_cases:
