@@ -645,6 +645,20 @@ L'elenco completo con i riferimenti al codice è in
    Ne è proprietario l'account di provisioning della regia di
    **produzione**, e va registrata lì come locale esistente (progetto
    `drinkpos-demo`, cartella `demo`, aggiornata dalla regia).
+31. **Il passaggio fra la regia e l'app (REQ-FLOTTA-030)**, ramo
+   `feature/passaggio-sso`, 02/11/2026. «Apri la tua app» e «Area
+   clienti» con un codice monouso (lib/passaggio.js); i dati del titolare
+   nelle impostazioni dell'app a ogni deploy. **Permessi, da dare
+   l'utente** (per i locali nuovi li dà il Terraform):
+   - su ogni locale, all'account della regia: `roles/firebaseauth.viewer`
+     sul progetto e `roles/iam.serviceAccountTokenCreator` sull'account
+     `firebase-adminsdk-fbsvc@<progetto>` (il secondo dato il 02/11/2026
+     sui tre locali di test e sulla Tana);
+   - su ogni regia, all'account della regia, `roles/iam.serviceAccountTokenCreator`
+     su sé stesso: per firmare l'accesso alla regia dall'app.
+   **Da fare**: in tana-drink la pagina che riceve il codice, «Area
+   clienti», i campi nuovi; poi l'identità centrale (Identity Platform
+   nella regia, il banco che entra con l'account della regia).
 
 ---
 
@@ -746,6 +760,21 @@ moduli, la licenza nell'istanza e la Tana.
   arriva al **taglio della giornata** del locale (REQ-FLOTTA-024): fino
   ad allora la licenza è quella di prima più le aggiunte. Le sospensioni e
   le chiusure dell'admin o del titolare valgono subito.
+- **Il passaggio fra la regia e l'app** (REQ-FLOTTA-030, dal 02/11/2026).
+  Dalla regia: l'app si apre a `<url del locale>/#accesso-regia=<codice>`;
+  l'app toglie subito il codice dall'indirizzo e fa `POST
+  https://europe-west1-<VITE_REGIA_PROGETTO>.cloudfunctions.net/scambiaPassaggio`
+  col corpo `{ "codice": "…" }`: `200 { token }` da usare con
+  `signInWithCustomToken`; `400` codice non valido; `403` scaduto, già
+  usato o da un altro sito; `503` firma non riuscita. Verso la regia: il
+  titolare (ruolo admin) fa `POST …/passaggioVersoRegia` con
+  `Authorization: Bearer <ID token>` appena rinnovato (`getIdToken(true)`),
+  e apre l'`url` della risposta (`200 { url }`; `401`, `403` non è il
+  titolare o il token è vecchio, `404`). **I dati del titolare** in
+  `settings/bar`, a ogni deploy, solo se vuoti: `venue_name`,
+  `venue_legal_name`, `venue_address`, `venue_postal_city`, `venue_city`,
+  e i nuovi `venue_phone`, `venue_vat_number`, `venue_tax_code`,
+  `venue_legal_address`.
 - **La presentazione alla regia** (REQ-FLOTTA-026, dal 02/11/2026). Al
   primo avvio di ogni versione l'app fa `POST
   https://europe-west1-<VITE_REGIA_PROGETTO>.cloudfunctions.net/presentazione`

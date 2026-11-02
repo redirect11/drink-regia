@@ -26,6 +26,7 @@ const db = vi.hoisted(() => ({
   }),
   chiediAttivazione: vi.fn(async () => {}),
   apriPortaleAbbonamento: vi.fn(async () => ({ url: 'about:blank#portale' })),
+  apriLaTuaApp: vi.fn(async () => ({ url: 'about:blank#app' })),
 }))
 vi.mock('../src/lib/db.js', () => ({
   ...db,
@@ -76,6 +77,23 @@ beforeEach(() => {
 })
 
 describe('la dashboard', () => {
+  // REQ-FLOTTA-030: dalla regia alla propria app senza password.
+  it('con l’app attiva c’è «Apri la tua app»; se non si apre lo dice', async () => {
+    const user = userEvent.setup()
+    stato.istanza = { stato: 'attiva', progetto: 'drinkpos-bar-mario', url: 'https://drinkpos-bar-mario.web.app' }
+    mostra()
+    await user.click(screen.getByRole('button', { name: 'Apri la tua app' }))
+    expect(db.apriLaTuaApp).toHaveBeenCalledTimes(1)
+    db.apriLaTuaApp.mockRejectedValueOnce(new Error('Nel locale il tuo account non è admin.'))
+    await user.click(screen.getByRole('button', { name: 'Apri la tua app' }))
+    expect(await screen.findByText('Nel locale il tuo account non è admin.')).toBeInTheDocument()
+  })
+
+  it('senza app attiva niente «Apri la tua app»', () => {
+    mostra()
+    expect(screen.queryByRole('button', { name: 'Apri la tua app' })).toBeNull()
+  })
+
   // REQ-FLOTTA-023: l'abbonamento si gestisce da soli (disdetta, carta,
   // fatture) col portale di Stripe; a mano si vede fino a quando è pagato.
   it('con Stripe c’è «Gestisci l’abbonamento», che apre il portale', async () => {

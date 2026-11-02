@@ -18,6 +18,10 @@ data.
 
 ## 0.3.0 (in lavorazione)
 
+- «Apri la tua app»: dalla sua area il titolare entra nella sua app senza
+  password, con un codice che vale una volta sola e un minuto; e a ogni
+  deploy l'app riceve nome, indirizzo, telefono e intestazione fiscale del
+  locale, dove non li ha già (REQ-FLOTTA-030).
 - A ogni attivazione e aggiornamento, chi ha sottoscritto l'abbonamento è
   l'admin del suo locale, e riceve l'email per impostare la password:
   prima un locale nuovo nasceva senza nessuno che potesse entrare

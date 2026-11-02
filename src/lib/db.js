@@ -9,6 +9,7 @@ import {
   onIdTokenChanged,
   sendEmailVerification,
   sendPasswordResetEmail,
+  signInWithCustomToken,
 } from 'firebase/auth'
 import { doc, setDoc, getDoc, onSnapshot, collection, getDocs, orderBy, query, updateDoc, limit, addDoc } from 'firebase/firestore'
 import { getFunctions, httpsCallable } from 'firebase/functions'
@@ -154,6 +155,26 @@ export async function apriPortaleAbbonamento() {
   const { data } = await fn({})
   if (!data?.url) throw new Error('La gestione dell’abbonamento non è disponibile al momento: scrivici.')
   return data
+}
+
+// IL PASSAGGIO FRA LA REGIA E L'APP (REQ-FLOTTA-030). «Apri la tua app»:
+// la regia dà l'indirizzo dell'app con un codice monouso.
+export async function apriLaTuaApp() {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'passaggioVersoApp')
+  const { data } = await fn({})
+  if (!data?.url) throw new Error('L’app non si apre: riprova fra poco.')
+  return data
+}
+
+// Dall'app alla regia: il codice si scambia con un accesso, e si entra.
+export async function entraColPassaggio(codice) {
+  serve()
+  const indirizzo = `https://europe-west1-${app?.options?.projectId}.cloudfunctions.net/scambiaPassaggio`
+  const res = await fetch(indirizzo, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codice }) })
+  const corpo = await res.json().catch(() => ({}))
+  if (!res.ok || !corpo.token) throw new Error(corpo.errore || 'Il codice non vale più: rientra dall’app.')
+  await signInWithCustomToken(auth, corpo.token)
 }
 
 // ── lo stato di un'istanza (REQ-FLOTTA-008) ──

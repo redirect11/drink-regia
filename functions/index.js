@@ -39,6 +39,7 @@ const ai = require('./lib/ai.js')
 const elim = require('./lib/eliminazione.js')
 const conserva = require('./lib/conservazione.js')
 const presenta = require('./lib/presentazione.js')
+const passa = require('./lib/passaggio.js')
 const comunica = require('./lib/comunicazioni.js')
 const sconti = require('./lib/sconti.js')
 const free = require('./lib/free.js')
@@ -201,6 +202,7 @@ exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK
     // Ogni aggiornamento riuscito riscrive la licenza (BUG-125): un locale
     // senza licenza/attuale, con l'app nuova, si ferma.
     if (esito.stato === 'attiva') await scriviLicenza(esito.slug).catch((e) => console.error(`[licenza] ${esito.slug}:`, e?.message || e))
+    if (esito.stato === 'attiva') await scriviDatiDelLocale(esito.slug)
     try {
       await ricalcolaRilasci()
     } catch (e) {
@@ -218,6 +220,7 @@ exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK
       if (!prima?.condizioni_aggiornamenti) await ref.set({ condizioni_aggiornamenti: await regoleAggiornamenti() }, { merge: true })
       // Il locale nasce adesso: nessuno ci lavora ancora, niente taglio.
       await scriviLicenza(esito.slug, { subito: true })
+      await scriviDatiDelLocale(esito.slug)
     } catch (e) {
       console.error(`[licenza] ${esito.slug}, la prima licenza:`, e?.message || e)
     }
@@ -373,10 +376,17 @@ exports.stripeWebhook = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY, STRIPE
 
 // Il Firestore di un'istanza, da qui: un'app admin per progetto. Il
 // service account di runtime della regia ha `roles/datastore.user` sul
-// progetto (lo dà Terraform).
+// progetto (lo dà Terraform). Per il passaggio (REQ-FLOTTA-030) firma gli
+// accessi COME l'account dell'SDK di Firebase del locale: Firebase accetta
+// un accesso solo se firmato da un account del suo progetto. Serve
+// roles/iam.serviceAccountTokenCreator su quell'account, e
+// roles/firebaseauth.viewer sul progetto per leggere l'account del titolare.
 function appDi(progetto) {
   const nome = `istanza-${progetto}`
-  return getApps().find((a) => a.name === nome) || initializeAppCon({ projectId: progetto }, nome)
+  return (
+    getApps().find((a) => a.name === nome) ||
+    initializeAppCon({ projectId: progetto, serviceAccountId: `firebase-adminsdk-fbsvc@${progetto}.iam.gserviceaccount.com` }, nome)
+  )
 }
 const firestoreDi = (progetto) => getFirestore(appDi(progetto))
 
@@ -1114,6 +1124,109 @@ exports.sceltaDallApp = onRequest({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN], c
   if (perche === GIA_SCELTA) return res.status(409).json({ errore: GIA_SCELTA })
   if (perche) return res.status(502).json({ errore: perche })
   return res.status(200).json({ ok: true, scelta })
+})
+
+// ── IL PASSAGGIO FRA LA REGIA E L'APP DEL LOCALE (REQ-FLOTTA-030) ──────
+// Le regole in lib/passaggio.js. I codici stanno in passaggi/{impronta}:
+// li scrivono e li cancellano solo le Functions.
+
+// I dati del titolare (nome, indirizzo, telefono, intestazione fiscale)
+// nelle impostazioni dell'app, solo dove sono vuoti. Un errore non ferma
+// niente: si riprova al prossimo deploy.
+async function scriviDatiDelLocale(slug) {
+  try {
+    const ist = (await db.doc(`istanze/${slug}`).get()).data()
+    if (!riceveLicenza(ist)) return
+    const cliente = await clienteDi(slug)
+    if (!cliente) return
+    const bar = firestoreDi(ist.progetto).doc('settings/bar')
+    const patch = passa.soloIVuoti((await bar.get()).data(), passa.datiDelLocale(cliente))
+    if (Object.keys(patch).length) await bar.set(patch, { merge: true })
+  } catch (e) {
+    console.error(`[dati del locale] ${slug}:`, e?.message || e)
+  }
+}
+
+// Un codice nuovo per un passaggio: l'impronta nel database, il codice
+// solo nella risposta.
+async function creaPassaggio(dati) {
+  const codice = passa.nuovoCodice()
+  await db.doc(`passaggi/${passa.impronta(codice)}`).set(passa.nuovoPassaggio(dati))
+  return codice
+}
+
+// «Apri la tua app»: il titolare, entrato nella regia, passa nella sua app.
+exports.passaggioVersoApp = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Prima conferma la tua email.')
+  const cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data()
+  const ist = cliente?.slug ? (await db.doc(`istanze/${cliente.slug}`).get()).data() : null
+  if (!ist?.progetto || ist.stato !== 'attiva' || !ist.url) throw new HttpsError('failed-precondition', 'La tua app non è ancora attiva.')
+  const utente = await getAuth(appDi(ist.progetto))
+    .getUserByEmail(cliente.email)
+    .catch((e) => (e?.code === 'auth/user-not-found' ? null : Promise.reject(e)))
+  const ok = passa.titolareNelLocale(utente, cliente)
+  if (!ok.ok) throw new HttpsError('failed-precondition', ok.perche)
+  const codice = await creaPassaggio({ verso: 'app', progetto: ist.progetto, uid: utente.uid, url: ist.url })
+  return { url: `${ist.url.replace(/\/$/, '')}/#accesso-regia=${codice}` }
+})
+
+// «Area clienti»: dall'app, il titolare passa nella regia. Come la
+// presentazione: POST con `Authorization: Bearer <ID token>` del locale,
+// appena rinnovato. Risponde { url } da aprire.
+exports.passaggioVersoRegia = onRequest({ ...OPTS, cors: false }, async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*')
+  res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+  res.set('Access-Control-Allow-Methods', 'POST')
+  if (req.method === 'OPTIONS') return res.status(204).send('')
+  if (req.method !== 'POST') return res.status(405).json({ errore: 'Solo POST.' })
+  if (!REGIA_URL) return res.status(503).json({ errore: 'La regia non sa il suo indirizzo.' })
+  const token = aggiornamenti.bearerDi(req.get('authorization'))
+  const progetto = aggiornamenti.progettoDelToken(token)
+  if (!progetto) return res.status(401).json({ errore: 'Serve l’accesso.' })
+  const trovata = (await db.collection('istanze').where('progetto', '==', progetto).limit(1).get()).docs[0]
+  const ist = trovata?.data()
+  if (!ist || ist.stato === 'eliminata') return res.status(404).json({ errore: 'Locale sconosciuto.' })
+  let chi
+  try {
+    chi = await getAuth(appDi(progetto)).verifyIdToken(token)
+  } catch {
+    return res.status(401).json({ errore: 'Accesso non valido: entra di nuovo.' })
+  }
+  const cliente = await clienteDi(trovata.id)
+  const ok = passa.titolareDallApp(chi, cliente)
+  if (!ok.ok) return res.status(403).json({ errore: ok.perche })
+  const codice = await creaPassaggio({ verso: 'regia', uid: cliente.uid, url: REGIA_URL })
+  return res.status(200).json({ url: `${REGIA_URL.replace(/\/$/, '')}/accesso#accesso-regia=${codice}` })
+})
+
+// Lo scambio: il codice, una volta sola e solo dal suo sito, diventa un
+// accesso firmato per il progetto giusto. `{ codice }` → `{ token }`.
+exports.scambiaPassaggio = onRequest({ ...OPTS, cors: false }, async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*')
+  res.set('Access-Control-Allow-Headers', 'Content-Type')
+  res.set('Access-Control-Allow-Methods', 'POST')
+  if (req.method === 'OPTIONS') return res.status(204).send('')
+  if (req.method !== 'POST') return res.status(405).json({ errore: 'Solo POST.' })
+  const codice = passa.codiceDelCorpo(req.body)
+  if (!codice) return res.status(400).json({ errore: 'Codice non valido.' })
+  const ref = db.doc(`passaggi/${passa.impronta(codice)}`)
+  // Una volta sola: lo si legge e lo si cancella nella stessa transazione.
+  const esito = await db.runTransaction(async (tx) => {
+    const doc = (await tx.get(ref)).data() || null
+    const v = passa.passaggioValido(doc, { origin: req.get('origin') })
+    if (doc) tx.delete(ref)
+    return { ...v, doc }
+  })
+  if (!esito.ok) return res.status(403).json({ errore: esito.perche })
+  const { verso, progetto, uid } = esito.doc
+  try {
+    const token = await getAuth(verso === 'app' ? appDi(progetto) : undefined).createCustomToken(uid)
+    return res.status(200).json({ token })
+  } catch (e) {
+    console.error(`[passaggio] verso ${verso} ${progetto || 'regia'}:`, e?.message || e)
+    return res.status(503).json({ errore: 'L’accesso non si è firmato: riprova fra poco.' })
+  }
 })
 
 // ── IL SITO SI PRESENTA ALLA REGIA (REQ-FLOTTA-026) ────────────────────
