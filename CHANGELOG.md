@@ -6,6 +6,11 @@ data.
 
 ## 0.3.0 (in lavorazione)
 
+- L'app di ogni locale si presenta alla regia al primo avvio di una
+  versione nuova, da qualunque deploy arrivi: la regia sa quale versione
+  gira davvero e, se il locale non ha ancora la licenza, gliela scrive.
+  La scheda del locale nel backoffice dice la versione vista dall'app
+  (REQ-FLOTTA-026).
 - Un locale fermo perché non paga, o chiuso, conserva i dati per 90 giorni,
   poi l'installazione si cancella, sempre dopo un backup che il titolare
   scarica per 180 giorni. Il titolare riceve un avviso subito, 7 giorni

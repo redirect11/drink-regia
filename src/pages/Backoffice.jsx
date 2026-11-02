@@ -571,6 +571,17 @@ function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaApert
             <dd data-testid="riduzione-al-taglio">{riduzioneDetta(istanza)}</dd>
           </div>
         )}
+        {istanza?.presentazione?.versione && (
+          // REQ-FLOTTA-026: la versione che l'app stessa ha detto alla regia,
+          // da qualunque deploy sia arrivata (anche da GitHub, come la Tana).
+          <div>
+            <dt>Dall’app</dt>
+            <dd data-testid="presentazione">
+              {istanza.presentazione.versione} · dal {giorno(istanza.presentazione.prima_il)} · ultima volta il{' '}
+              {giorno(istanza.presentazione.il)}
+            </dd>
+          </div>
+        )}
         {eliminazioneDetta(istanza) && (
           <div>
             <dt>Eliminazione</dt>

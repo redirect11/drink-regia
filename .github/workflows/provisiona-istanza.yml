@@ -304,6 +304,8 @@ jobs:
           # L'app sa di essere leggera anche prima di leggere la licenza
           # (tana-drink, REQ-LIC-004): niente Functions, Storage, SumUp.
           VITE_PROFILO: ${{ env.PROFILO }}
+          # A quale regia si presenta l'app al primo avvio (REQ-FLOTTA-026).
+          VITE_REGIA_PROGETTO: ${{ inputs.ambiente == 'test' && 'drink-regia-test' || 'drink-regia' }}
         run: npm run build
 
       - name: Functions .env del progetto
