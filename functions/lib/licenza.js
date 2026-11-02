@@ -110,9 +110,9 @@ function sceltaCambiata(prima, dopo) {
 // in cui la regia fermerebbe il locale se nessuno paga, così l'app lo sa
 // anche senza rete (e l'on premise, che sta nel locale). Solo un piano
 // pagato a mano ha una data: «pagato fino al» più i giorni di grazia, la
-// stessa del compito della regia (REQ-FLOTTA-023). Null se non scade: il
-// Free, un omaggio, le interne, e Stripe, dove decide lo stato
-// dell'abbonamento e Stripe ritenta anche dopo la fine del periodo.
+// stessa del compito della regia (REQ-FLOTTA-023). Con Stripe, dal
+// 02/11/2026, la fine del periodo pagato più la stessa grazia. Null se non
+// scade: il Free, un omaggio, le interne.
 //
 // La data cade al taglio della giornata del locale dopo la scadenza
 // (REQ-FLOTTA-024): è lì che la regia lo ferma davvero, e un'app senza

@@ -6,6 +6,15 @@ data.
 
 ## 0.3.0 (in lavorazione)
 
+- Anche con Stripe la licenza ha una durata: scade 7 giorni dopo la fine
+  del periodo pagato, e alla scadenza la regia controlla lo stato vero su
+  Stripe. Chi disdice, con «solo finché si paga», passa al Free; chi torna
+  a pagare entro i 90 giorni riapre il locale. Il titolare gestisce
+  l'abbonamento da solo, dal portale di Stripe (REQ-FLOTTA-023).
+- Comunicazioni automatiche per email: promemoria dei pagamenti a mano (7
+  giorni prima e alla scadenza), pagamento ricevuto, locale passato al
+  Free, locale riattivato. Le ricevute e i pagamenti falliti con Stripe li
+  manda Stripe (REQ-FLOTTA-027).
 - L'app di ogni locale si presenta alla regia al primo avvio di una
   versione nuova, da qualunque deploy arrivi: la regia sa quale versione
   gira davvero e, se al locale manca la licenza, la riscrive.

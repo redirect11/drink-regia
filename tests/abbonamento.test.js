@@ -89,6 +89,18 @@ describe('aggiornamentoDaEvento', () => {
     expect(aggiornamentoDaEvento('customer.subscription.updated', { id: 'sub_1', status: 'active', metadata: { piano: 'base' } }, ora).patch).toMatchObject({ piano: 'base', 'abbonamento.stato': 'attivo' })
   })
 
+  it('una fattura pagata dice fino a quando è pagato (pagato_fino), da cui scade la licenza', () => {
+    const fine = Date.parse('2026-11-22T00:00:00Z') / 1000
+    expect(aggiornamentoDaEvento('invoice.paid', { subscription: 'sub_1', lines: { data: [{ period: { end: fine } }] } }, ora).patch).toEqual({
+      'abbonamento.stato': 'attivo',
+      'abbonamento.ultimo_pagamento': '2026-10-22T10:00:00.000Z',
+      'abbonamento.rinnovo_il': '2026-11-22T00:00:00.000Z',
+      'abbonamento.pagato_fino': '2026-11-22T00:00:00.000Z',
+    })
+    // La subscription aggiornata sposta il rinnovo, mai il pagato.
+    expect(aggiornamentoDaEvento('customer.subscription.updated', { id: 'sub_1', status: 'past_due', current_period_end: fine }, ora).patch).not.toHaveProperty(['abbonamento.pagato_fino'])
+  })
+
   it('un pagamento fallito si registra e basta, una disdetta chiude, un evento ignoto non fa niente', () => {
     // Stripe ritenta: lo stato lo porta la subscription (REQ-FLOTTA-023).
     expect(aggiornamentoDaEvento('invoice.payment_failed', { subscription: 'sub_1' }, ora).patch).toEqual({ 'abbonamento.ultimo_fallimento': '2026-10-22T10:00:00.000Z' })

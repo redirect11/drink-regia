@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { osservaCliente, osservaIstanza, osservaRichiesta, chiediAttivazione, inviaVerificaEmail, rileggiUtente } from '../lib/db.js'
+import { osservaCliente, osservaIstanza, osservaRichiesta, chiediAttivazione, inviaVerificaEmail, rileggiUtente, apriPortaleAbbonamento } from '../lib/db.js'
 import { statoIstanza, statoDetto, puoAttivare, urlDi, progettoDi, riduzioneDetta, STATI } from '../lib/istanze.js'
 import { PIANI, MODULI, prezzoMensile, euro } from '../lib/piani.js'
 import SceltaPiano from './SceltaPiano.jsx'
@@ -47,6 +47,15 @@ export default function Dashboard({ utente }) {
     try {
       // Il server rilegge tutto da sé: qui non si passa niente (audit C2).
       await chiediAttivazione()
+    } catch (e) {
+      setErrore(e.message)
+    }
+  }
+
+  const gestisci = async () => {
+    setErrore(null)
+    try {
+      window.location.href = (await apriPortaleAbbonamento()).url
     } catch (e) {
       setErrore(e.message)
     }
@@ -141,6 +150,20 @@ export default function Dashboard({ utente }) {
           )}
           {cliente.abbonamento?.stato && cliente.abbonamento.stato !== 'attivo' && (
             <p className="errore small">Abbonamento {cliente.abbonamento.stato}.</p>
+          )}
+          {/* Gestire l'abbonamento da soli (REQ-FLOTTA-023): con Stripe il
+              portale clienti (disdetta a fine periodo, carta, fatture); a
+              mano fino a quando è pagato, e a chi scrivere. */}
+          {cliente.abbonamento?.origine === 'stripe' && cliente.abbonamento?.stripe_customer && (
+            <button type="button" className="btn ghost small" onClick={gestisci}>
+              Gestisci l’abbonamento
+            </button>
+          )}
+          {cliente.abbonamento?.origine === 'manuale' && cliente.abbonamento?.pagato_fino_al && (
+            <p className="muted small" data-testid="pagato-fino-al">
+              Pagato fino al {new Date(cliente.abbonamento.pagato_fino_al).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}. Per
+              rinnovare o disdire scrivici.
+            </p>
           )}
           {/* Quello che il piano nuovo toglie arriva a fine giornata, non in
               servizio (REQ-FLOTTA-024). */}

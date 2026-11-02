@@ -586,6 +586,28 @@ L'elenco completo con i riferimenti al codice è in
    (la loro PR #261), e la presentazione segna solo la versione. In
    tana-drink: `docs/presentazione-alla-regia.md`, ramo
    `feature/presentazione-alla-regia`.
+28. **I pagamenti e le comunicazioni (REQ-FLOTTA-023, REQ-FLOTTA-027)**,
+   ramo `feature/pagamenti-e-avvisi`, 02/11/2026, dopo la verifica dei
+   casi d'uso chiesta dall'utente. Nella regia: con Stripe la licenza
+   scade alla fine del periodo pagato (`abbonamento.pagato_fino`, dalla
+   fattura pagata) più 7 giorni, e alla scadenza si chiede a Stripe;
+   disdetto con «solo finché si paga» va al Free; chi torna a pagare
+   riapre anche un locale chiuso per il pagamento; «Gestisci
+   l'abbonamento» apre il portale clienti di Stripe; le email (promemoria
+   dei pagamenti a mano, pagamento ricevuto, Free, riattivato) vanno nella
+   coda `mail`. **Da fare a mano, dall'utente**:
+   - **Resend**: un account, il dominio di invio verificato (record DNS),
+     una chiave API. Poi su ogni progetto della regia l'estensione
+     Firebase **Trigger Email** (`firebase/firestore-send-email`), con
+     collezione `mail`, SMTP `smtps://resend:<CHIAVE>@smtp.resend.com:465`
+     e mittente del dominio verificato. La chiave non passa mai di qui.
+   - **Stripe**, quando si accendono i pagamenti online: Billing →
+     tentativi entro **7 giorni**, poi «segna l'abbonamento come non
+     pagato» (non «cancellalo»); Customer emails: ricevute, pagamento
+     fallito, rinnovo in arrivo, carta in scadenza; Customer portal:
+     disdetta **a fine periodo**, cambio carta, fatture.
+   - Dopo il deploy, «Programma le scadenze» una volta: programma anche i
+     promemoria dei pagamenti a mano già aperti.
 
 ---
 
