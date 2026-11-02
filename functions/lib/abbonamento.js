@@ -17,30 +17,44 @@ const SCELTA_VALIDA = /^(base|completo)$/
 // non è configurato.
 const chiaveStripeVera = (chiave) => /^(sk|rk)_(test|live)_[A-Za-z0-9]+$/.test(String(chiave || '').trim())
 
+// Mensile o annuale (DEC-0005). Il valore arriva dal sito con la scelta;
+// tutto quello che non è 'anno' vale mese, come un piano sconosciuto vale
+// Base: il titolare non paga mai un anno senza averlo chiesto.
+const INTERVALLI = { mese: 'month', anno: 'year' }
+const intervalloPulito = (v) => (v === 'anno' ? 'anno' : 'mese')
+
 // La scelta pulita: piano noto, moduli noti e non già inclusi, terminali
-// da 1 in su.
-function sceltaPulita({ piano = 'base', moduli = [], terminali = 1 } = {}) {
+// da 1 in su, intervallo mese o anno.
+function sceltaPulita({ piano = 'base', moduli = [], terminali = 1, intervallo = 'mese' } = {}) {
   const p = SCELTA_VALIDA.test(piano) ? listino.piani[piano] : listino.piani.base
   const inclusi = new Set(p.include)
   const extra = [...new Set((moduli || []).filter((id) => listino.moduli.some((m) => m.id === id) && !inclusi.has(id)))]
   const t = Math.max(1, Math.floor(Number(terminali) || 1))
-  return { piano: p.id, moduli: extra, terminali: t }
+  return { piano: p.id, moduli: extra, terminali: t, intervallo: intervalloPulito(intervallo) }
 }
 
-// Le righe della sessione di Checkout (modalità abbonamento, mensile):
-// il piano, ogni modulo in più, i terminali oltre quelli inclusi. Importi
-// in centesimi, come li vuole Stripe. L'attivazione una tantum sta a
-// parte, come prima riga non ricorrente.
+// Euro in centesimi, interi: 32,70 € fa 3270 e non 3270,0000000000005,
+// che Stripe rifiuterebbe. Le moltiplicazioni (l'annuale) si fanno dopo,
+// sugli interi.
+const centesimi = (euro) => Math.round((Number(euro) || 0) * 100)
+
+// Le righe ricorrenti dell'abbonamento: il piano, ogni modulo in più, i
+// terminali oltre quelli inclusi. Servono al Checkout e ai cambi di piano
+// (cambiaScelta, cambiaPianoAdmin), che rimettono le righe sulla
+// subscription: per questo qui non c'è l'attivazione, che è una tantum e
+// una subscription non la accetta fra le sue voci. L'annuale costa
+// 'mensilita' mesi di ogni riga (DEC-0005).
 function righeCheckout(scelta) {
   const s = sceltaPulita(scelta)
   const p = listino.piani[s.piano]
-  const riga = (nome, euro, ricorrente = true) => ({
-    quantity: 1,
+  const mesi = s.intervallo === 'anno' ? listino.annuale?.mensilita || 12 : 1
+  const riga = (nome, euro, quantity = 1) => ({
+    quantity,
     price_data: {
       currency: 'eur',
-      unit_amount: Math.round(euro * 100),
+      unit_amount: centesimi(euro) * mesi,
       product_data: { name: nome },
-      ...(ricorrente ? { recurring: { interval: 'month' } } : {}),
+      recurring: { interval: INTERVALLI[s.intervallo] },
     },
   })
   const righe = [riga(`Piano ${p.nome}`, p.prezzo)]
@@ -49,15 +63,74 @@ function righeCheckout(scelta) {
     righe.push(riga(m.nome, m.prezzo))
   }
   const extraTerminali = Math.max(0, s.terminali - (p.terminali || 1))
-  if (extraTerminali > 0) righe.push({ ...riga('Terminale in più', listino.terminale_in_piu), quantity: extraTerminali })
+  if (extraTerminali > 0) righe.push(riga('Terminale in più', listino.terminale_in_piu, extraTerminali))
   return righe
+}
+
+// La riga una tantum dell'attivazione, o null se non si paga (Fondatori:
+// attivazione gratuita). Nel Checkout in modalità abbonamento una riga
+// senza 'recurring' si paga una volta, con la prima fattura.
+function rigaAttivazione({ fondatore = false } = {}) {
+  const importo = fondatore ? listino.fondatori?.attivazione ?? listino.attivazione : listino.attivazione
+  if (!(centesimi(importo) > 0)) return null
+  return { quantity: 1, price_data: { currency: 'eur', unit_amount: centesimi(importo), product_data: { name: 'Attivazione' } } }
 }
 
 // I metadati che viaggiano con la sessione e tornano col webhook: è così
 // che il webhook sa a chi appartiene il pagamento.
 function metadatiDi(uid, scelta) {
   const s = sceltaPulita(scelta)
-  return { uid, piano: s.piano, moduli: s.moduli.join(','), terminali: String(s.terminali) }
+  return { uid, piano: s.piano, moduli: s.moduli.join(','), terminali: String(s.terminali), intervallo: s.intervallo }
+}
+
+// La prova al Checkout (DEC-0005: 30 giorni) parte SPENTA
+// (piani.json → prova_nel_checkout): non è ancora deciso se l'attivazione
+// si paga all'inizio della prova o alla fine, e i Termini (punto 3) non
+// parlano di prova. Accesa, vale solo per il primo abbonamento di un
+// cliente: chi ha già avuto una subscription la prova l'ha fatta.
+function giorniDiProva(cliente) {
+  if (listino.prova_nel_checkout !== true) return 0
+  if (cliente?.abbonamento?.stripe_subscription) return 0
+  return Math.max(0, Math.floor(Number(listino.prova_giorni) || 0))
+}
+
+// La durata di una sessione di Checkout: Stripe chiede almeno 30 minuti
+// dalla creazione; 35 lasciano il margine fra il calcolo qui e la
+// chiamata. È anche quanto dura la prenotazione di un posto Fondatori.
+const DURATA_SESSIONE_MS = 35 * 60 * 1000
+
+// I parametri di stripe.checkout.sessions.create per un abbonamento.
+// `coupon` è l'id del coupon Fondatori già creato su Stripe, o null.
+function sessioneCheckout({ uid, cliente, scelta, ritorno, coupon = null, adesso = new Date() }) {
+  const fondatore = Boolean(coupon)
+  const metadata = { ...metadatiDi(uid, scelta), ...(fondatore ? { fondatore: '1' } : {}) }
+  const attivazione = rigaAttivazione({ fondatore })
+  const prova = giorniDiProva(cliente)
+  const stripeCustomer = cliente?.abbonamento?.stripe_customer
+  return {
+    mode: 'subscription',
+    line_items: [...righeCheckout(scelta), ...(attivazione ? [attivazione] : [])],
+    customer_email: stripeCustomer ? undefined : cliente?.email,
+    customer: stripeCustomer || undefined,
+    client_reference_id: uid,
+    metadata,
+    subscription_data: { metadata, ...(prova ? { trial_period_days: prova } : {}) },
+    ...(fondatore ? { discounts: [{ coupon }] } : {}),
+    expires_at: Math.floor((adesso.getTime() + DURATA_SESSIONE_MS) / 1000),
+    success_url: `${ritorno}/dashboard?pagamento=ok`,
+    cancel_url: `${ritorno}/dashboard?pagamento=annullato`,
+    locale: 'it',
+  }
+}
+
+// L'intervallo di una subscription che c'è già: i cambi di piano lo
+// tengono (le righe di una subscription hanno tutte lo stesso intervallo,
+// e il titolare che ha pagato l'anno non torna al mese cambiando un
+// modulo). Dai metadati, o dalla prima riga per le subscription nate prima.
+function intervalloDi(subscription) {
+  const md = subscription?.metadata?.intervallo
+  if (md) return intervalloPulito(md)
+  return subscription?.items?.data?.[0]?.price?.recurring?.interval === 'year' ? 'anno' : 'mese'
 }
 
 // L'aggiornamento di clienti/{uid} per un evento di Stripe, o null se
@@ -94,6 +167,7 @@ function aggiornamentoDaEvento(tipo, oggetto, adesso = new Date()) {
         terminali: Number(md.terminali) || 1,
         abbonamento: {
           stato: 'attivo',
+          intervallo: intervalloPulito(md.intervallo),
           origine: 'stripe',
           stripe_customer: oggetto.customer || null,
           stripe_subscription: oggetto.subscription || null,
@@ -119,11 +193,13 @@ function aggiornamentoDaEvento(tipo, oggetto, adesso = new Date()) {
     const sub = oggetto?.subscription
     if (!sub) return null
     // La fine del periodo pagato è il prossimo rinnovo: le condizioni nuove
-    // degli aggiornamenti valgono da lì (REQ-FLOTTA-020).
+    // degli aggiornamenti valgono da lì (REQ-FLOTTA-020). La più lontana fra
+    // le righe: nella prima fattura c'è anche l'attivazione, una tantum, il
+    // cui periodo finisce il giorno stesso.
     // È anche la fine del periodo PAGATO (`pagato_fino`): la licenza scade
     // da lì più la grazia (scadenze.js), non dalla fine del periodo della
     // subscription, che Stripe sposta al rinnovo prima del pagamento.
-    const fine = Number(oggetto?.lines?.data?.[0]?.period?.end)
+    const fine = Math.max(0, ...(oggetto?.lines?.data || []).map((l) => Number(l?.period?.end) || 0))
     const iso = Number.isFinite(fine) && fine > 0 ? new Date(fine * 1000).toISOString() : null
     const rinnovo = iso ? { 'abbonamento.rinnovo_il': iso, 'abbonamento.pagato_fino': iso } : {}
     return { stripe_subscription: sub, patch: { 'abbonamento.stato': 'attivo', 'abbonamento.ultimo_pagamento': ora, ...rinnovo } }
@@ -143,4 +219,39 @@ function aggiornamentoDaEvento(tipo, oggetto, adesso = new Date()) {
   return null
 }
 
-module.exports = { chiaveStripeVera, sceltaPulita, righeCheckout, metadatiDi, aggiornamentoDaEvento, fineDelPeriodo, STATI_STRIPE }
+// Una sessione Fondatori scaduta senza pagamento: il posto prenotato torna
+// libero (REQ-FLOTTA-031). → { uid, scadenza } o null; la scadenza dice
+// quale sessione è scaduta (fondatori.rilascia).
+function prenotazioneDaRilasciare(tipo, oggetto) {
+  if (tipo !== 'checkout.session.expired') return null
+  const md = oggetto?.metadata || {}
+  if (md.fondatore !== '1' || !md.uid) return null
+  const fine = Number(oggetto?.expires_at)
+  return { uid: md.uid, scadenza: Number.isFinite(fine) && fine > 0 ? new Date(fine * 1000) : null }
+}
+
+// Un checkout completato da Fondatore: il posto va confermato. → uid o null.
+function fondatoreDaConfermare(tipo, oggetto) {
+  if (tipo !== 'checkout.session.completed') return null
+  const md = oggetto?.metadata || {}
+  return md.fondatore === '1' && md.uid && md.tipo !== 'ricarica_ai' ? md.uid : null
+}
+
+module.exports = {
+  chiaveStripeVera,
+  sceltaPulita,
+  intervalloPulito,
+  centesimi,
+  righeCheckout,
+  rigaAttivazione,
+  metadatiDi,
+  giorniDiProva,
+  sessioneCheckout,
+  intervalloDi,
+  aggiornamentoDaEvento,
+  prenotazioneDaRilasciare,
+  fondatoreDaConfermare,
+  DURATA_SESSIONE_MS,
+  fineDelPeriodo,
+  STATI_STRIPE,
+}

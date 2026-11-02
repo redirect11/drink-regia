@@ -73,7 +73,9 @@ export default {
     fatti: 'In breve',
     da: 'Da {prezzo} al mese',
     free: 'Piano Free per provare',
-    mensile: 'Abbonamento mensile',
+    // Dal 02/11/2026 c'è anche l'annuale (DEC-0005).
+    mensile: 'Abbonamento mensile o annuale',
+    prova: '{giorni} giorni di prova',
     // L'attivazione è automatica solo se si paga online o si parte dal Free;
     // con i pagamenti online spenti (come in produzione all'avvio) la
     // richiesta passa da noi (REQ-FLOTTA-017). Home sceglie la frase giusta.
@@ -121,7 +123,8 @@ export default {
         occhiello: 'Conti e comande',
         titolo: 'Dalla comanda al conto, senza passaggi in più.',
         // La stampa automatica è una scelta del locale (tana-drink,
-        // REQ-STAMPA-001); il Base ha un terminale, gli altri si pagano a parte.
+        // REQ-STAMPA-001); i terminali oltre quelli del piano (3 dal
+        // 02/11/2026) si pagano a parte.
         testo: 'La comanda arriva al banco e, se lo scegli, si stampa da sola; il conto si chiude in contanti o con carta.',
         punti: ['Comanda stampata al banco', 'Contanti e carta', 'Altri terminali a {terminale} al mese'],
       },
@@ -168,8 +171,31 @@ export default {
     // Descrittivo: c'è un canone fisso, l'attivazione e il Completo a
     // pacchetto, quindi «paghi solo quello che usi» non era esatto.
     titolo: 'Un piano al mese, e i moduli che scegli.',
-    sotto: 'Abbonamento mensile, IVA esclusa. Attivazione una tantum: {attivazione}.',
+    // DEC-0005: prezzi IVA esclusa, col totale IVA inclusa accanto.
+    sotto: 'Abbonamento mensile o annuale. Prezzi IVA esclusa (IVA al {iva}), con il totale IVA inclusa accanto. Attivazione una tantum: {attivazione} ({lordo}).',
+    // La prova (DEC-0005). Si dice solo cosa vale: la durata, e che il
+    // canone parte alla fine. Come si paga l'attivazione durante la prova
+    // è da decidere (vedi i Termini, §3).
+    prova: 'I primi {giorni} giorni sono di prova: il canone parte alla fine della prova.',
     alMese: '/ mese',
+    piuIvaAlMese: '+ IVA al mese',
+    piuIva: '{prezzo} + IVA',
+    ivaInclusa: '{prezzo} IVA inclusa',
+    annuale: 'Pagando un anno in anticipo: {prezzo} ({lordo}), pari a {mesi} mensilità.',
+    // L'offerta di lancio (DEC-0005), in una riga e senza contatori: chi
+    // rientra lo vede al pagamento, perché i posti li conta il server.
+    fondatori: {
+      titolo: 'Offerta Fondatori',
+      testo: 'I primi {posti} locali: {piani}; {attivazione}.',
+      piano: '{nome} a {prezzo} al mese ({lordo}) per {mesi} mesi dall’attivazione, poi {listino} come da listino',
+      attivazioneGratuita: 'attivazione gratuita',
+      attivazione: 'attivazione a {prezzo}',
+      regola: 'I posti vanno ai primi abbonamenti a pagamento attivati, in ordine di attivazione. Le condizioni complete sono nei termini di servizio.',
+    },
+    ore: { uno: '{n} ora', piu: '{n} ore' },
+    assistenza: 'L’assistenza da remoto è inclusa fino a {ore} al mese; oltre, a preventivo.',
+    stampante:
+      'Le stampanti supportate sono le termiche Epson in rete. Per collegare un’altra stampante facciamo un preventivo scritto, da accettare prima di cominciare il lavoro.',
     piano: 'Piano {nome}',
     tuttoIncluso: 'Tutto incluso',
     inizia: 'Inizia con {nome}',
@@ -202,7 +228,7 @@ export default {
       terminaleTesto: 'Un altro tablet o telefono sulla stessa cassa, oltre a quelli del piano.',
       terminaliInclusi: { uno: '{n} incluso', piu: '{n} inclusi' },
     },
-    convenienza: 'Il {base} con tutti i moduli costa {totale} al mese; il {completo} li include tutti a {completo_prezzo}, con {terminali}.',
+    convenienza: 'Il {base} con tutti i moduli costa {totale} al mese; il {completo} li include tutti a {completo_prezzo}.',
     notaScontrino:
       'Lo scontrino esce su una stampante termica ed è un conto di cortesia, non uno scontrino fiscale. Per quello serve il registratore telematico del locale.',
   },
@@ -231,7 +257,7 @@ export default {
       ],
       [
         'Posso cambiare piano o disdire?',
-        'Sì. Il cambio di piano si chiede dalla tua pagina. L’abbonamento è mensile e si disdice in qualunque momento: il servizio resta attivo fino alla fine del periodo già pagato.',
+        'Sì. Il cambio di piano si chiede dalla tua pagina. L’abbonamento, mensile o annuale, si disdice in qualunque momento: il servizio resta attivo fino alla fine del periodo già pagato.',
       ],
       [
         'Cosa succede ai dati se chiudo il locale?',

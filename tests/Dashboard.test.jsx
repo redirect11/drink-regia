@@ -106,8 +106,30 @@ describe('la dashboard', () => {
   it('dice locale, piano col prezzo del mese e stato dell’istanza', () => {
     mostra()
     expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Bar Mario')
-    expect(screen.getAllByText('Base')[0].closest('p')).toHaveTextContent('46 €') // 24 + 10 (staff) + 12 (secondo terminale)
+    // 32,70 + 10 (staff); il secondo terminale è fra i 3 inclusi (DEC-0005).
+    // Coi centesimi e «+ IVA», e il totale IVA inclusa accanto.
+    expect(screen.getByTestId('prezzo-piano')).toHaveTextContent('42,70 € + IVA al mese (52,09 € IVA inclusa)')
     expect(screen.getByTestId('stato-istanza')).toHaveTextContent('Non ancora attivata')
+  })
+
+  it('chi paga l’anno vede il prezzo dell’anno', () => {
+    stato.cliente = { ...stato.cliente, moduli: [], terminali: 1, abbonamento: { stato: 'attivo', intervallo: 'anno' } }
+    mostra()
+    // 10 mensilità da 32,70 €: 327 € + IVA, 398,94 € IVA inclusa.
+    expect(screen.getByTestId('prezzo-piano')).toHaveTextContent('327 € + IVA all’anno (398,94 € IVA inclusa)')
+  })
+
+  // REQ-FLOTTA-031: un Fondatore, finché l'offerta vale, vede il suo prezzo;
+  // scaduti i 12 mesi torna il listino.
+  it('un Fondatore vede 25 € finché l’offerta vale, poi il listino', () => {
+    const fondatore = (fino_al) => ({ stato: 'attivo', intervallo: 'mese', fondatore: { numero: 1, dal: '2026-11-01T00:00:00Z', fino_al } })
+    stato.cliente = { ...stato.cliente, moduli: [], terminali: 1, abbonamento: fondatore('2999-01-01T00:00:00Z') }
+    const { unmount } = mostra()
+    expect(screen.getByTestId('prezzo-piano')).toHaveTextContent('25 € + IVA al mese (30,50 € IVA inclusa)')
+    unmount()
+    stato.cliente = { ...stato.cliente, abbonamento: fondatore('2000-01-01T00:00:00Z') }
+    mostra()
+    expect(screen.getByTestId('prezzo-piano')).toHaveTextContent('32,70 € + IVA al mese (39,89 € IVA inclusa)')
   })
 
   // REQ-FLOTTA-024: quello che il piano nuovo toglie arriva al taglio.

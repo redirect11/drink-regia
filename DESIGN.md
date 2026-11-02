@@ -320,10 +320,20 @@ decisione dell'utente).
 | | Italiano | English |
 |---|---|---|
 | titolo | Un piano al mese, e i moduli che scegli. | A monthly plan, and the modules you choose. |
-| sotto | Abbonamento mensile, IVA esclusa. Attivazione una tantum: {attivazione}. | Monthly subscription, VAT excluded. One-off activation: {attivazione}. |
+| sotto | Abbonamento mensile o annuale. Prezzi IVA esclusa (IVA al {iva}), con il totale IVA inclusa accanto. Attivazione una tantum: {attivazione} ({lordo}). | Monthly or yearly subscription. Prices exclude VAT ({iva} Italian VAT), with the total including VAT alongside. One-off activation: {attivazione} ({lordo}). |
 | Base | **Base** — {base}/mese. Per partire: cassa, comande, scontrino, menù, lavoro senza rete. {terminali del Base}. | **Base** — {base}/month. To get started: till, orders, receipts, menu, offline mode. {devices}. |
 | Completo | **Completo** — {completo}/mese. Etichetta: **Tutto incluso**. Tutti i moduli, {terminali del Completo}. | **Completo** — {completo}/month. Label: **Everything included**. Every module, {devices}. |
 | bottoni | Inizia con Base · Inizia con Completo | Start with Base · Start with Completo |
+
+**Dal listino del 02/11/2026 (DEC-0005, REQ-PREZZI-001)**: ogni prezzo è
+l'imponibile «+ IVA» col totale IVA inclusa accanto (`conIva`), e sotto il
+mensile l'annuale («Pagando un anno in anticipo: {prezzo} ({lordo}), pari a
+{mesi} mensilità.»). Sotto le card, il riquadro sobrio «Offerta Fondatori»
+(«I primi {posti} locali: {piano} a {prezzo} al mese ({lordo}) per {mesi}
+mesi dall'attivazione, poi {listino} come da listino; attivazione
+gratuita.»), mai coi posti rimasti; poi la prova, e in nota il tetto
+dell'assistenza e le stampanti a preventivo. I testi esatti stanno in
+`src/i18n`.
 
 Il titolo era «Prezzi chiari. Paghi solo quello che usi.»: non era esatto
 (c'è un canone fisso, l'attivazione, e il Completo è un pacchetto) e
@@ -434,8 +444,8 @@ Accedi), il selettore di lingua, la versione pubblicata (c'è già).
   `src/i18n/home.en.js`), con le stesse chiavi; nessuna frase scritta
   dentro i componenti. Un test controlla che le due lingue abbiano le
   stesse chiavi.
-- **Prezzi e numeri**: dal listino, formattati per lingua («N €» in
-  italiano, «€N» in inglese) da `importo()` in `src/lib/lingua.js`, a
+- **Prezzi e numeri**: dal listino, formattati per lingua («32,70 €» in
+  italiano, «€32.70» in inglese, i centesimi solo se ci sono) da `importo()` in `src/lib/lingua.js`, a
   mano come `euro()`: il Node della CI non ha i dati di lingua.
 - **Come è fatto** (30/10/2026): `src/lib/lingua.js` sceglie la lingua
   dall'indirizzo, legge e scrive la preferenza in `localStorage` (con

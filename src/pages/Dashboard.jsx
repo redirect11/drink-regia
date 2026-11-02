@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { osservaCliente, osservaIstanza, osservaRichiesta, chiediAttivazione, inviaVerificaEmail, rileggiUtente, apriPortaleAbbonamento } from '../lib/db.js'
 import { statoIstanza, statoDetto, puoAttivare, urlDi, progettoDi, riduzioneDetta, STATI } from '../lib/istanze.js'
-import { PIANI, MODULI, prezzoMensile, euro } from '../lib/piani.js'
+import { PIANI, MODULI, prezzoMensile, prezzoAnnuale, prezzoFondatori, conIva, euro } from '../lib/piani.js'
 import { prezzoConSconto, scontoDetto } from '../lib/sconti.js'
 import SceltaPiano from './SceltaPiano.jsx'
 import CreditoAI from './CreditoAI.jsx'
@@ -40,6 +40,20 @@ export default function Dashboard({ utente }) {
   const stato = statoIstanza(istanza, richiesta)
   const via = puoAttivare(cliente, istanza, richiesta, { emailVerificata: utente.emailVerificata !== false })
   const piano = cliente.piano ? PIANI[cliente.piano] : null
+  // Il prezzo coi centesimi e «+ IVA», col totale accanto (DEC-0005); chi
+  // paga l'anno vede l'anno. Un Fondatore, finché l'offerta vale
+  // (abbonamento.fondatore.fino_al, scritto dal webhook: REQ-FLOTTA-031),
+  // vede il suo prezzo: il coupon Stripe toglie la differenza dal piano,
+  // quindi moduli e terminali in più restano a listino. Un codice sconto
+  // della regia (REQ-FLOTTA-028) si applica sul mese che resta.
+  const annuale = cliente.abbonamento?.intervallo === 'anno' && !piano?.gratuito
+  const fondatore = cliente.abbonamento?.fondatore
+  const scontoFondatore =
+    piano && fondatore && new Date(fondatore.fino_al) > new Date() && prezzoFondatori(cliente.piano) != null
+      ? piano.prezzo - prezzoFondatori(cliente.piano)
+      : 0
+  const mensile = piano ? prezzoConSconto(prezzoMensile(cliente) - scontoFondatore, cliente) : 0
+  const prezzo = piano ? (annuale ? prezzoAnnuale(mensile) : Math.round(mensile * 100) / 100) : 0
   // I dati del locale stanno per essere cancellati: si dice per primo.
   const cancellazione = ['programmata', 'in coda', 'in corso'].includes(istanza?.eliminazione?.stato)
 
@@ -131,7 +145,12 @@ export default function Dashboard({ utente }) {
           <h3>Piano</h3>
           {piano ? (
             <p>
-              <strong>{piano.nome}</strong> · {euro(prezzoConSconto(prezzoMensile(cliente), cliente))} al mese
+              <strong>{piano.nome}</strong> ·{' '}
+              <span data-testid="prezzo-piano">
+                {piano.gratuito
+                  ? `${euro(0)} al mese`
+                  : `${euro(prezzo)} + IVA ${annuale ? 'all’anno' : 'al mese'} (${euro(conIva(prezzo))} IVA inclusa)`}
+              </span>
               {scontoDetto(cliente) && <span className="muted small"> · sconto {scontoDetto(cliente)}</span>}
               {cliente.moduli?.length > 0 && (
                 <span className="muted"> · moduli: {cliente.moduli.map((id) => MODULI.find((m) => m.id === id)?.nome || id).join(', ')}</span>

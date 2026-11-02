@@ -26,7 +26,8 @@ const rilasci = require('./lib/rilasci.js')
 const { sceltaCambiata, licenzaProtetta, stessaLicenza, perIlDatabase, scadenzaCoerente } = require('./lib/licenza.js')
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
 const { FieldValue, Timestamp } = require('firebase-admin/firestore')
-const { chiaveStripeVera, righeCheckout, metadatiDi, aggiornamentoDaEvento, fineDelPeriodo, STATI_STRIPE } = require('./lib/abbonamento.js')
+const { chiaveStripeVera, righeCheckout, metadatiDi, aggiornamentoDaEvento, sceltaPulita, sessioneCheckout, intervalloDi, prenotazioneDaRilasciare, fondatoreDaConfermare, DURATA_SESSIONE_MS, fineDelPeriodo, STATI_STRIPE } = require('./lib/abbonamento.js')
+const fondatori = require('./lib/fondatori.js')
 const { onTaskDispatched } = require('firebase-functions/v2/tasks')
 const { getFunctions: funzioniAdmin } = require('firebase-admin/functions')
 const { STATI: STATI_LICENZA } = require('./lib/sospensione.js')
@@ -234,9 +235,26 @@ const stripeClient = () => {
   return new Stripe(chiave)
 }
 
+// Il contatore dei posti Fondatori (REQ-FLOTTA-031): un documento solo,
+// cambiato sempre in transazione. Lo leggono solo le Functions e l'admin.
+const POSTI_FONDATORI = () => db.doc('fondatori/posti')
+
+// Il coupon Fondatori su Stripe: si cerca per id e si crea se manca. L'id
+// dipende dall'importo, quindi un coupon trovato è quello giusto.
+async function couponSuStripe(stripe, parametri) {
+  try {
+    return (await stripe.coupons.retrieve(parametri.id)).id
+  } catch (e) {
+    if (e?.statusCode !== 404 && e?.code !== 'resource_missing') throw e
+    return (await stripe.coupons.create(parametri)).id
+  }
+}
+
 // Il titolare sceglie il piano: nasce la sessione di Checkout (abbonamento
-// mensile) e torna l'url. I metadati portano uid e scelta, che il webhook
-// userà per aggiornare il cliente.
+// mensile o annuale) e torna l'url. I metadati portano uid e scelta, che il
+// webhook userà per aggiornare il cliente. Se il piano è coperto
+// dall'offerta Fondatori e c'è un posto, il posto si prenota qui, in
+// transazione, e la sessione porta il coupon.
 exports.creaCheckout = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (req) => {
   if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
   const stripe = stripeClient()
@@ -244,7 +262,7 @@ exports.creaCheckout = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
   const uid = req.auth.uid
   const cliente = (await db.doc(`clienti/${uid}`).get()).data()
   if (!cliente) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
-  const scelta = { piano: req.data?.piano, moduli: req.data?.moduli, terminali: req.data?.terminali }
+  const scelta = sceltaPulita({ piano: req.data?.piano, moduli: req.data?.moduli, terminali: req.data?.terminali, intervallo: req.data?.intervallo })
   const inVendita = await vendita()
   // Pagamenti online spenti (REQ-FLOTTA-017): il sito non mostra il
   // Checkout, e il server non lo apre comunque.
@@ -255,20 +273,52 @@ exports.creaCheckout = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
   if (fuori.length) throw new HttpsError('failed-precondition', `Non più in vendita: ${fuori.join(', ')}.`)
   const ritorno =String(req.data?.ritorno || '').replace(/\/$/, '')
   if (!/^https?:\/\//.test(ritorno)) throw new HttpsError('invalid-argument', 'Indirizzo di ritorno non valido.')
-  const sessione = await stripe.checkout.sessions.create({
-    mode: 'subscription',
-    line_items: righeCheckout(scelta),
-    customer_email: cliente.abbonamento?.stripe_customer ? undefined : cliente.email,
-    customer: cliente.abbonamento?.stripe_customer || undefined,
-    client_reference_id: uid,
-    metadata: metadatiDi(uid, scelta),
-    subscription_data: { metadata: metadatiDi(uid, scelta) },
-    success_url: `${ritorno}/dashboard?pagamento=ok`,
-    cancel_url: `${ritorno}/dashboard?pagamento=annullato`,
-    locale: 'it',
-  })
-  return { url: sessione.url }
+  const adesso = new Date()
+  // Un posto per cliente: chi è già stato Fondatore (anche se poi ha
+  // disdetto) torna al listino.
+  let prenotato = false
+  if (fondatori.coperto(scelta.piano) && !cliente.abbonamento?.fondatore) {
+    const scadenza = new Date(adesso.getTime() + DURATA_SESSIONE_MS)
+    prenotato = await db.runTransaction(async (t) => {
+      const p = fondatori.prenota((await t.get(POSTI_FONDATORI())).data(), uid, scadenza, adesso)
+      if (p.esito === 'prenotato') t.set(POSTI_FONDATORI(), p.doc)
+      return p.esito === 'prenotato'
+    })
+  }
+  let sessione
+  try {
+    const coupon = prenotato ? await couponSuStripe(stripe, fondatori.couponFondatori(scelta.piano, scelta.intervallo)) : null
+    sessione = await stripe.checkout.sessions.create(sessioneCheckout({ uid, cliente, scelta, ritorno, coupon, adesso }))
+  } catch (e) {
+    // La sessione non è nata: il posto non resta tenuto per nessuno.
+    if (prenotato) await liberaPosto(uid).catch((x) => console.error('[fondatori] rilascio:', x?.message || x))
+    throw e
+  }
+  return { url: sessione.url, fondatore: prenotato }
 })
+
+async function liberaPosto(uid, scadenza = null) {
+  await db.runTransaction(async (t) => {
+    const ref = POSTI_FONDATORI()
+    t.set(ref, fondatori.rilascia((await t.get(ref)).data(), uid, scadenza))
+  })
+}
+
+// Il pagamento da Fondatore è confermato: il posto prenotato diventa un
+// numero, sul contatore e sul cliente, nella stessa transazione.
+async function confermaFondatore(uid) {
+  return db.runTransaction(async (t) => {
+    const ref = POSTI_FONDATORI()
+    const c = fondatori.conferma((await t.get(ref)).data(), uid, new Date())
+    t.set(ref, c.doc)
+    const cliente = db.doc(`clienti/${uid}`)
+    if (c.fondatore) t.set(cliente, { abbonamento: { fondatore: c.fondatore } }, { merge: true })
+    // Ha pagato col coupon ma il posto non c'è più (webhook arrivato dopo
+    // la scadenza della prenotazione): lo decide l'admin, non la regia.
+    else t.set(cliente, { abbonamento: { fondatore_da_verificare: new Date().toISOString() } }, { merge: true })
+    return c.esito
+  })
+}
 
 // Il webhook di Stripe: la firma si verifica sul corpo grezzo, e lo stato
 // dell'abbonamento segue gli eventi (aggiornamentoDaEvento). Una
@@ -293,6 +343,12 @@ exports.stripeWebhook = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY, STRIPE
       return res.status(200).json({ ok: true, ricarica: esito })
     }
   }
+  // Una sessione Fondatori scaduta: il posto prenotato torna libero.
+  const daLiberare = prenotazioneDaRilasciare(evento.type, evento.data?.object)
+  if (daLiberare) {
+    await liberaPosto(daLiberare.uid, daLiberare.scadenza)
+    return res.status(200).json({ ok: true, fondatori: 'rilasciato' })
+  }
   const agg = aggiornamentoDaEvento(evento.type, evento.data?.object)
   if (!agg) return res.status(200).json({ ok: true, ignorato: evento.type })
   let uid = agg.uid
@@ -304,6 +360,12 @@ exports.stripeWebhook = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY, STRIPE
   const ref = db.doc(`clienti/${uid}`)
   if (agg.patch.abbonamento) await ref.set(agg.patch, { merge: true })
   else await ref.update({ ...agg.patch, 'abbonamento.visto_il': FieldValue.serverTimestamp() })
+  // Dopo l'abbonamento, che con merge non tocca abbonamento.fondatore.
+  const daConfermare = fondatoreDaConfermare(evento.type, evento.data?.object)
+  if (daConfermare) {
+    const esito = await confermaFondatore(daConfermare)
+    if (esito === 'esauriti') console.error(`[fondatori] ${daConfermare}: pagato col coupon, posti esauriti: da verificare`)
+  }
   res.status(200).json({ ok: true })
 })
 
@@ -1103,6 +1165,25 @@ exports.presentazione = onRequest({ ...OPTS, cors: false }, async (req, res) => 
 })
 
 // ── IL PIANO CHE CAMBIA (REQ-FLOTTA-010) ──────────────────────────────
+
+// Le righe nuove al posto delle vecchie, con l'intervallo che la
+// subscription ha già (mensile o annuale). Un Fondatore che passa a un
+// piano che l'offerta non copre perde lo sconto (REQ-FLOTTA-031): il
+// coupon si toglie e il segno sulla subscription pure.
+async function aggiornaSubscription(stripe, sub, uid, scelta) {
+  const attuale = await stripe.subscriptions.retrieve(sub)
+  const conIntervallo = { ...scelta, intervallo: intervalloDi(attuale) }
+  const togli = fondatori.scontoDaTogliere(attuale.metadata, sceltaPulita(conIntervallo).piano)
+  await stripe.subscriptions.update(sub, {
+    items: [...attuale.items.data.map((i) => ({ id: i.id, deleted: true })), ...righeCheckout(conIntervallo)],
+    metadata: { ...metadatiDi(uid, conIntervallo), ...(togli ? { fondatore: '' } : {}) },
+    proration_behavior: 'create_prorations',
+  })
+  if (togli) {
+    await stripe.subscriptions.deleteDiscount(sub)
+    await db.doc(`clienti/${uid}`).set({ abbonamento: { fondatore: { tolto_il: new Date().toISOString(), perche: `piano ${scelta.piano}` } } }, { merge: true })
+  }
+}
 // Il titolare cambia piano, moduli o terminali: con Stripe si aggiorna la
 // subscription (gli importi si conguagliano) e il webhook riporta la
 // scelta sul cliente; senza Stripe (piano a mano) si scrive subito. In
@@ -1134,12 +1215,7 @@ exports.cambiaScelta = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
   const sub = cliente.abbonamento?.stripe_subscription
   const stripe = stripeClient()
   if (sub && stripe) {
-    const attuale = await stripe.subscriptions.retrieve(sub)
-    await stripe.subscriptions.update(sub, {
-      items: [...attuale.items.data.map((i) => ({ id: i.id, deleted: true })), ...righeCheckout(scelta)],
-      metadata: metadatiDi(uid, scelta),
-      proration_behavior: 'create_prorations',
-    })
+    await aggiornaSubscription(stripe, sub, uid, scelta)
     return { ok: true, via: 'stripe' }
   }
   // Da Free a un piano a pagamento si passa solo dal Checkout (REQ-FLOTTA-015):
@@ -1747,13 +1823,7 @@ exports.cambiaPianoAdmin = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, asy
   if (req.data.modo === 'stripe') {
     const stripe = stripeClient()
     if (!stripe) throw new HttpsError('failed-precondition', 'Stripe non è configurato.')
-    const sub = cliente.abbonamento.stripe_subscription
-    const attuale = await stripe.subscriptions.retrieve(sub)
-    await stripe.subscriptions.update(sub, {
-      items: [...attuale.items.data.map((i) => ({ id: i.id, deleted: true })), ...righeCheckout(c.scelta)],
-      metadata: metadatiDi(cliente.uid, c.scelta),
-      proration_behavior: 'create_prorations',
-    })
+    await aggiornaSubscription(stripe, cliente.abbonamento.stripe_subscription, cliente.uid, c.scelta)
   } else {
     await doc.ref.set(c.cliente, { merge: true })
   }
