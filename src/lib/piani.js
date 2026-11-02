@@ -13,6 +13,25 @@ export const MODULI = listino.moduli
 export const PIANI = listino.piani
 export const TERMINALE_IN_PIU = listino.terminale_in_piu
 export const ATTIVAZIONE = listino.attivazione
+export const IVA = listino.iva
+export const FONDATORI = listino.fondatori
+export const ANNUALE = listino.annuale
+export const PROVA_GIORNI = listino.prova_giorni
+export const ASSISTENZA = listino.assistenza
+
+// Al centesimo: i prezzi hanno i decimali (32,70 €) e le somme in virgola
+// mobile lasciano code (32.7 + 12 = 44.699999…).
+const alCentesimo = (n) => Math.round((Number(n) || 0) * 100) / 100
+
+// Il prezzo IVA inclusa, accanto all'imponibile: la vendita è B2B e il
+// listino è IVA esclusa, ma il titolare guarda anche il totale (DEC-0005).
+export const conIva = (n) => alCentesimo(n * (1 + IVA / 100))
+
+// Il prezzo di un anno pagato in anticipo: 'mensilita' mesi del mensile.
+export const prezzoAnnuale = (mensile) => alCentesimo(mensile * ANNUALE.mensilita)
+
+// Il prezzo Fondatori di un piano, o null se l'offerta non lo copre.
+export const prezzoFondatori = (piano) => FONDATORI.prezzi[piano] ?? null
 
 // Quanto costa al mese una scelta: piano, moduli in più, terminali in più.
 //   { piano: 'base'|'completo', moduli: ['magazzino', …], terminali: 1 }
@@ -22,7 +41,7 @@ export function prezzoMensile({ piano = 'base', moduli = [], terminali = 1 } = {
   const extra = MODULI.filter((m) => moduli.includes(m.id) && !inclusi.has(m.id))
   const terminaliInclusi = p.terminali || 1
   const terminaliExtra = Math.max(0, (Number(terminali) || 1) - terminaliInclusi)
-  return p.prezzo + extra.reduce((s, m) => s + m.prezzo, 0) + terminaliExtra * TERMINALE_IN_PIU
+  return alCentesimo(p.prezzo + extra.reduce((s, m) => s + m.prezzo, 0) + terminaliExtra * TERMINALE_IN_PIU)
 }
 
 // I moduli che un'istanza deve accendere per una scelta: è quello che la
@@ -32,6 +51,12 @@ export function moduliDellaScelta({ piano = 'base', moduli = [] } = {}) {
   return [...new Set([...p.include, ...moduli.filter((id) => MODULI.some((m) => m.id === id))])]
 }
 
-// Il punto delle migliaia a mano: in CI il Node della macchina non ha i
-// dati di lingua italiani e toLocaleString scriveva «1250».
-export const euro = (n) => `${String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.')} €`
+// Il punto delle migliaia e la virgola dei decimali a mano: in CI il Node
+// della macchina non ha i dati di lingua italiani e toLocaleString scriveva
+// «1250». I centesimi si scrivono solo se ci sono: 82 €, 32,70 €.
+export const euro = (n) => {
+  const v = alCentesimo(n)
+  const intero = String(Math.trunc(Math.abs(v))).replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  const cent = Math.round(Math.abs(v) * 100) % 100
+  return `${v < 0 ? '-' : ''}${intero}${cent ? ',' + String(cent).padStart(2, '0') : ''} €`
+}
