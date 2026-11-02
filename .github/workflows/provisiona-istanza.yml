@@ -49,6 +49,11 @@ on:
         required: false
         type: string
         default: ''
+      email:
+        description: 'L’email del titolare: diventa l’admin del locale (REQ-FLOTTA-029)'
+        required: false
+        type: string
+        default: ''
       ref:
         description: 'La versione dell’app di tana-drink da pubblicare (main o vX.Y.Z)'
         required: false
@@ -81,6 +86,7 @@ env:
   PIANO: ${{ inputs.piano }}
   MODULI: ${{ inputs.moduli }}
   UID_TITOLARE: ${{ inputs.uid }}
+  EMAIL_TITOLARE: ${{ inputs.email }}
   REF_APP: ${{ inputs.ref }}
   AMBIENTE: ${{ inputs.ambiente }}
   PROFILO: ${{ inputs.profilo }}
@@ -101,6 +107,8 @@ jobs:
           [[ "$PIANO" =~ ^(free|base|completo)$ ]] || { echo "::error::Piano non valido."; exit 1; }
           [[ "$MODULI" =~ ^[a-z_,]*$ ]] || { echo "::error::Moduli non validi."; exit 1; }
           [[ "$UID_TITOLARE" =~ ^[A-Za-z0-9]*$ ]] || { echo "::error::uid non valido."; exit 1; }
+          # L'email del titolare (REQ-FLOTTA-029): vuota, o un'email.
+          [[ -z "$EMAIL_TITOLARE" || "$EMAIL_TITOLARE" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]{2,}$ ]] || { echo "::error::Email del titolare non valida."; exit 1; }
           [[ "$REF_APP" =~ ^[A-Za-z0-9._/-]{1,100}$ ]] || { echo "::error::ref non valido."; exit 1; }
           [[ "$AMBIENTE" =~ ^(produzione|test)$ ]] || { echo "::error::ambiente non valido."; exit 1; }
           [[ "$PROFILO" =~ ^(completo|leggero)$ ]] || { echo "::error::profilo non valido."; exit 1; }
@@ -327,6 +335,15 @@ jobs:
             echo "::warning::Deploy non riuscito al tentativo $tentativo: riprovo fra 90 secondi."
             sleep 90
           done
+
+      # IL TITOLARE, ADMIN DEL SUO LOCALE (REQ-FLOTTA-029, l'utente il
+      # 02/11/2026: «quando viene deployato qualcosa, bisogna sempre
+      # aggiungere come utente admin chi ha richiesto la sottoscrizione»).
+      # L'account c'è, è admin, e finché non ha una password gli arriva
+      # l'email per impostarla. Si può ripetere senza danni.
+      - name: Il titolare, admin del suo locale
+        if: env.EMAIL_TITOLARE != ''
+        run: node scripts/titolare-istanza.mjs --project "$PROGETTO" --email "$EMAIL_TITOLARE" --env app/.env --sito "$URL_ISTANZA"
 
       - name: Versione pubblicata
         run: echo "VERSIONE=v$(node -p "require('./app/package.json').version")" >> "$GITHUB_ENV"

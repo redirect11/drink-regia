@@ -624,6 +624,27 @@ L'elenco completo con i riferimenti al codice è in
    stessa verifica: **la regola dei clienti** lasciava al titolare
    `moduli`, `terminali` e `prove` (la regia ne fa la licenza): ora solo
    `locale`, `fatturazione`, `referente`, `consensi`.
+30. **Il titolare, admin del suo locale (REQ-FLOTTA-029)**, ramo
+   `feature/titolare-admin`, 02/11/2026. A ogni deploy della regia
+   (`provisiona-istanza` e `aggiorna-istanza`, input `email`) lo script
+   `scripts/titolare-istanza.mjs` fa sì che nel progetto del locale ci sia
+   l'account del cliente, con ruolo `admin`, e finché non ha una password
+   gli manda l'email di Firebase per impostarla. Mai su un locale
+   esistente. **prova-bar e prova-free** (nati senza nessun account): dopo
+   il merge, «Aggiorna subito» dal backoffice di test; prova-free prima ha
+   bisogno del suo cliente («Nuovo locale», nome «Prova Free»).
+   **L'accesso con Google al banco**, chiesto dall'utente, mancano due
+   pezzi: (1) in tana-drink il banco (`BartenderPage.jsx`) entra solo con
+   email e password, Google c'è solo nell'area clienti; (2) i progetti dei
+   locali hanno solo email e password (`infra/istanza`, `sign_in.email`):
+   il fornitore Google vuole un client OAuth per progetto, che Google non
+   lascia creare da Terraform. Con la stessa email Gmail l'account resta
+   quello, ruolo compreso (da provare sul test).
+   **La demo** (`drinkpos-demo`, REQ-FLOTTA-019) oggi gira la 1.10.0-beta
+   di `feature/flotta`, cioè prima della modalità demo: va ripubblicata.
+   Ne è proprietario l'account di provisioning della regia di
+   **produzione**, e va registrata lì come locale esistente (progetto
+   `drinkpos-demo`, cartella `demo`, aggiornata dalla regia).
 
 ---
 

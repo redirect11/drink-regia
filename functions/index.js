@@ -101,7 +101,7 @@ async function lancia(richiesta) {
     await db.doc(`richieste/${richiesta.slug}`).set({ stato: 'errore', errore: `Lancio rifiutato: ${coerenza.perche}`, aggiornata_il: adesso }, { merge: true })
     return
   }
-  const corpo = dispatchPayload({ ...richiesta, nome_locale: cliente.nome_locale, piano: cliente.piano, moduli: cliente.moduli }, { ref: REF, app: REF_APP, ambiente: AMBIENTE_FLOTTA })
+  const corpo = dispatchPayload({ ...richiesta, nome_locale: cliente.nome_locale, piano: cliente.piano, moduli: cliente.moduli, email: cliente.email }, { ref: REF, app: REF_APP, ambiente: AMBIENTE_FLOTTA })
   const res = await fetch(`https://api.github.com/repos/${REPO}/actions/workflows/${WORKFLOW}/dispatches`, {
     method: 'POST',
     headers: {
@@ -624,7 +624,9 @@ async function lanciaAggiornamento(slug, ref, { rilascio = null, ritorno = false
   if (!rilasci.daFlotta(ist)) return 'Questa installazione si aggiorna dal suo repository, non dalla flotta.'
   const esistente = ist.origine === 'esistente'
   const cliente = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]?.data()
-  const datiIstanza = { slug, nome_locale: cliente?.nome_locale, ...(esistente ? { progetto: ist.progetto, cliente: ist.cliente, build: ist.build } : {}) }
+  // Il titolare diventa admin a ogni deploy (REQ-FLOTTA-029); un locale
+  // esistente (la Tana) ha i suoi admin, e la regia non ne aggiunge.
+  const datiIstanza = { slug, nome_locale: cliente?.nome_locale, email: esistente ? '' : cliente?.email || '', ...(esistente ? { progetto: ist.progetto, cliente: ist.cliente, build: ist.build } : {}) }
   // PRIMA DEL DEPLOY, LA LICENZA PROTETTA (BUG-125 di tana-drink): con
   // l'app nuova un locale senza licenza/attuale si ferma. L'app arriva a un
   // locale solo da qui (rilasci, «Aggiorna subito», ritorni, il Free che

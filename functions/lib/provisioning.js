@@ -90,6 +90,8 @@ function dispatchPayload(richiesta, { ref = 'main', app = 'main', ambiente = 'pr
       piano: String(richiesta.piano || 'base'),
       moduli: (richiesta.moduli || []).join(','),
       uid: String(richiesta.uid || ''),
+      // Diventa l'admin del locale (REQ-FLOTTA-029).
+      email: String(richiesta.email || ''),
       ref: app,
       ambiente: ambienteValido(ambiente),
       // Leggero per il Free (niente Functions, Storage, segreti: costo
@@ -120,6 +122,8 @@ function dispatchAggiornamento(istanza, { ref = 'main', app = 'main', ambiente =
       // vuoti, il workflow usa drinkpos-<slug> e la cartella <slug>.
       progetto: String(istanza.progetto || ''),
       cliente: String(istanza.cliente || ''),
+      // L'admin del locale (REQ-FLOTTA-029); vuota per un locale esistente.
+      email: String(istanza.email || ''),
       build: istanza.build && Object.keys(istanza.build).length ? JSON.stringify(istanza.build) : '',
     },
   }

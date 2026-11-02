@@ -1005,6 +1005,33 @@ requirements:
       - tests/presentazione.test.js
       - tests/Backoffice.test.jsx
 
+  - id: REQ-FLOTTA-029
+    title: "A ogni deploy chi ha sottoscritto è l'admin del suo locale, e imposta la password dal link"
+    area: "functions/lib/titolare.js, scripts/titolare-istanza.mjs, functions/lib/provisioning.js, functions/index.js, .github/workflows/provisiona-istanza.yml, .github/workflows/aggiorna-istanza.yml, src/pages/Dashboard.jsx"
+    description: >
+      L'utente, 02/11/2026: «Quando viene deployato qualcosa, bisogna
+      sempre aggiungere come utente admin chi ha richiesto la
+      sottoscrizione. Magari chiedere di creare una password o di crearla
+      automaticamente», e «può anche registrare un account google e fare
+      login con google ovviamente». Prima l'attivazione non creava nessun
+      account nel progetto del locale: prova-bar e prova-free erano senza
+      nessuno che potesse entrare, e il «password dimenticata» della
+      dashboard non poteva funzionare. Ora, dopo ogni deploy della regia
+      (attivazione e aggiornamenti), nel progetto del locale l'account con
+      l'email del cliente c'è (creato già verificato, senza password), ha
+      il ruolo admin nei custom claims, e finché non ha una password e non
+      è mai entrato riceve l'email di Firebase per impostarla, in
+      italiano. Nessuna password generata: viaggerebbe in chiaro. Mai su un
+      locale esistente (la Tana ha i suoi admin). Resta da fare l'accesso
+      con Google al banco: in tana-drink «Entra con Google» nella pagina
+      del banco, e il fornitore Google acceso sui progetti dei locali.
+    status: partial
+    generate_issue: false
+    labels: [prodotto, flotta, regia, sicurezza]
+    test_cases:
+      - tests/titolare.test.js
+      - tests/provisioning.test.js
+
   - id: REQ-FLOTTA-028
     title: "I codici sconto, e la Tana come abbonamento premium con la licenza dalla regia"
     area: "functions/lib/sconti.js, functions/lib/esistente.js, functions/index.js (gestisciSconti, applicaSconto, impostaAggiornamentiEsistente), src/lib/sconti.js, src/pages/Backoffice.jsx, src/pages/Dashboard.jsx, firestore.rules"
