@@ -112,6 +112,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // I passaggi fra la regia e l'app (REQ-FLOTTA-030): codici d'accesso
+    // monouso. Solo le Functions: nessuno li legge né li scrive dal browser.
+    match /passaggi/{impronta} {
+      allow read, write: if false;
+    }
+
     // I codici sconto (REQ-FLOTTA-028): li scrivono solo le Functions, li
     // legge l'admin. Un titolare vede il suo sconto sul suo cliente.
     match /sconti/{codice} {

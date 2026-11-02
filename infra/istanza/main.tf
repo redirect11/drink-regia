@@ -293,6 +293,26 @@ resource "google_project_iam_member" "regia" {
   member   = "serviceAccount:${var.regia_sa_email}"
 }
 
+# IL PASSAGGIO FRA LA REGIA E L'APP (REQ-FLOTTA-030): la regia legge
+# l'account del titolare nel locale (è lui, è admin?) e firma l'accesso
+# COME l'account dell'SDK di Firebase del progetto, perché Firebase accetta
+# solo accessi firmati da un account del suo progetto. Firmare non dà altri
+# permessi: niente lettura né scrittura in più.
+resource "google_project_iam_member" "regia_account" {
+  provider = google-beta
+  project  = google_project.istanza.project_id
+  role     = "roles/firebaseauth.viewer"
+  member   = "serviceAccount:${var.regia_sa_email}"
+}
+
+resource "google_service_account_iam_member" "regia_firma" {
+  provider           = google-beta
+  service_account_id = "projects/${google_project.istanza.project_id}/serviceAccounts/firebase-adminsdk-fbsvc@${google_project.istanza.project_id}.iam.gserviceaccount.com"
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${var.regia_sa_email}"
+  depends_on         = [google_firebase_project.firebase]
+}
+
 # Quello che il workflow mette nel .env della build (VITE_FIREBASE_*).
 output "config_web" {
   value = {

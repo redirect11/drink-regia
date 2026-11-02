@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { osservaCliente, osservaIstanza, osservaRichiesta, chiediAttivazione, inviaVerificaEmail, rileggiUtente, apriPortaleAbbonamento } from '../lib/db.js'
+import { osservaCliente, osservaIstanza, osservaRichiesta, chiediAttivazione, inviaVerificaEmail, rileggiUtente, apriPortaleAbbonamento, apriLaTuaApp } from '../lib/db.js'
 import { statoIstanza, statoDetto, puoAttivare, urlDi, progettoDi, riduzioneDetta, STATI } from '../lib/istanze.js'
 import { PIANI, MODULI, prezzoMensile, euro } from '../lib/piani.js'
 import { prezzoConSconto, scontoDetto } from '../lib/sconti.js'
@@ -48,6 +48,16 @@ export default function Dashboard({ utente }) {
     try {
       // Il server rilegge tutto da sé: qui non si passa niente (audit C2).
       await chiediAttivazione()
+    } catch (e) {
+      setErrore(e.message)
+    }
+  }
+
+  // Nella propria app senza password (REQ-FLOTTA-030).
+  const apri = async () => {
+    setErrore(null)
+    try {
+      window.location.href = (await apriLaTuaApp()).url
     } catch (e) {
       setErrore(e.message)
     }
@@ -115,6 +125,11 @@ export default function Dashboard({ utente }) {
               «password dimenticata» nell’app.
               {istanza?.versione && <span className="muted small"> Versione {istanza.versione}.</span>}
             </p>
+          )}
+          {stato === STATI.ATTIVA && (
+            <button className="btn" type="button" onClick={apri}>
+              Apri la tua app
+            </button>
           )}
           {stato === STATI.ERRORE && istanza?.errore && <p className="errore small">{istanza.errore}</p>}
           {(stato === STATI.DA_ATTIVARE || stato === STATI.ERRORE) && (

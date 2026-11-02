@@ -3,6 +3,7 @@ import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import Home from './pages/Home.jsx'
 import Registrati from './pages/Registrati.jsx'
 import Accedi from './pages/Accedi.jsx'
+import Accesso from './pages/Accesso.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Backoffice from './pages/Backoffice.jsx'
 import { Termini, Privacy } from './pages/Legali.jsx'
@@ -135,6 +136,8 @@ export default function App() {
           <Route path="/en" element={<PrimaPagina key="en" utente={utente} lingua="en" />} />
           <Route path="/registrati" element={utente ? <Navigate to="/dashboard" replace /> : <Registrati />} />
           <Route path="/accedi" element={utente ? <Navigate to="/dashboard" replace /> : <Accedi />} />
+          {/* Il passaggio dall'app del locale (REQ-FLOTTA-030): sempre qui, anche già entrati. */}
+          <Route path="/accesso" element={<Accesso />} />
           <Route path="/dashboard" element={utente ? <Dashboard utente={utente} /> : <Navigate to="/accedi" replace />} />
           {/* Le sezioni del backoffice (REQ-FLOTTA-005, 30/10/2026) sono sotto-rotte: «/*» le porta tutte a Backoffice, e il controllo del claim admin vale per ognuna. */}
           <Route path="/backoffice/*" element={utente?.admin ? <Backoffice /> : <Navigate to="/" replace />} />
