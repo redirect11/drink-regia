@@ -11,7 +11,10 @@ data.
   vendita e cambia l'abbonamento Stripe col conguaglio, e la licenza
   dell'istanza segue. I motivi di un rifiuto sono scritti in forma
   impersonale, uguali sulla dashboard e nell'app (REQ-FLOTTA-037).
-
+- I codici sconto hanno un limite di usi, che l'amministratore scrive alla
+  creazione e cambia dopo con «Limite…»; l'elenco dice quanti usi ha
+  ciascuno. Un codice esaurito non vale più per nessun locale nuovo
+  (REQ-FLOTTA-028).
 - Ogni deploy dopo un acquisto passa dall'amministratore finché non accende
   il deploy automatico, anche quando un locale Free compra un piano
   (REQ-FLOTTA-011). Il codice sconto si scrive nella scelta del piano e il

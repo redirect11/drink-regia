@@ -38,7 +38,7 @@ import {
 import { venditaPulita } from '../lib/vendita.js'
 import { statoIstanza, statoDetto, STATI, progettoDi, riduzioneDetta } from '../lib/istanze.js'
 import { PIANI, MODULI, prezzoMensile, euro } from '../lib/piani.js'
-import { prezzoConSconto, scontoDetto } from '../lib/sconti.js'
+import { prezzoConSconto, scontoDetto, usiDetti } from '../lib/sconti.js'
 import CatalogoTemi from './CatalogoTemi.jsx'
 import { contattoDi } from '../lib/clienti.js'
 import { statoCredito, euroCent } from '../lib/ai.js'
@@ -1372,11 +1372,14 @@ function licenzaBreve(istanza) {
 // attivare e disattivare per la vendita come admin»). Il Free e ogni modulo
 // si mettono in vendita o si tolgono con un clic, senza deploy; chi li ha
 // già continua a usarli. Ogni cambio resta nello storico.
-// I CODICI SCONTO (REQ-FLOTTA-028): crearli e disattivarli. Si applicano
-// dalla scheda del locale, con «Sconto…».
+// I CODICI SCONTO (REQ-FLOTTA-028): crearli, dar loro un limite di usi e
+// disattivarli. Si applicano dalla scheda del locale, con «Sconto…».
+const CODICE_VUOTO = { codice: '', percentuale: '', durata_mesi: '', usi_massimi: '', descrizione: '' }
+const numeroONulla = (v) => (v === '' ? null : Number(v))
+
 function CodiciSconto({ onErrore }) {
   const [elenco, setElenco] = useState([])
-  const [nuovo, setNuovo] = useState({ codice: '', percentuale: '', durata_mesi: '', descrizione: '' })
+  const [nuovo, setNuovo] = useState(CODICE_VUOTO)
   // Ogni cambio rilegge l'elenco: `giro` cresce, l'effetto riparte.
   const [giro, setGiro] = useState(0)
   const carica = () => setGiro((g) => g + 1)
@@ -1388,8 +1391,8 @@ function CodiciSconto({ onErrore }) {
   const crea = async (e) => {
     e.preventDefault()
     try {
-      await gestisciSconti('crea', { ...nuovo, percentuale: Number(nuovo.percentuale), durata_mesi: nuovo.durata_mesi === '' ? null : Number(nuovo.durata_mesi) })
-      setNuovo({ codice: '', percentuale: '', durata_mesi: '', descrizione: '' })
+      await gestisciSconti('crea', { ...nuovo, percentuale: Number(nuovo.percentuale), durata_mesi: numeroONulla(nuovo.durata_mesi), usi_massimi: numeroONulla(nuovo.usi_massimi) })
+      setNuovo(CODICE_VUOTO)
       carica()
     } catch (err) {
       onErrore(err.message)
@@ -1399,6 +1402,13 @@ function CodiciSconto({ onErrore }) {
     gestisciSconti('disattiva', { codice })
       .then(carica)
       .catch((e) => onErrore(e.message))
+  const limite = (s) => {
+    const scritto = window.prompt(`${s.codice}: quanti usi al massimo (vuoto per nessun limite)?`, s.usi_massimi ?? '')
+    if (scritto === null) return
+    gestisciSconti('limite', { codice: s.codice, usi_massimi: numeroONulla(scritto.trim()) })
+      .then(carica)
+      .catch((e) => onErrore(e.message))
+  }
   const campo = (k) => ({ value: nuovo[k], onChange: (e) => setNuovo((n) => ({ ...n, [k]: e.target.value })) })
   return (
     <section className="card" aria-label="Codici sconto">
@@ -1407,18 +1417,27 @@ function CodiciSconto({ onErrore }) {
         Uno sconto al 100% illimitato vuol dire che il locale non paga e non scade; a tempo, che è pagato fino alla fine dello
         sconto. Uno parziale cambia solo il prezzo. Un codice disattivato non si applica più, e chi lo ha lo tiene.
       </p>
+      <p className="muted small">
+        Il limite conta i locali che prendono lo sconto: al pagamento, con un codice al 100% o applicato da qui. Raggiunto il
+        limite il codice non vale più per nessuno nuovo; si può alzare quando serve.
+      </p>
       {elenco.length === 0 && <p className="muted small">Nessun codice.</p>}
       {elenco.map((s) => (
         <div className="row-tra" key={s.codice} data-testid={`codice-${s.codice}`}>
           <span>
-            <strong>{s.codice}</strong> · {s.percentuale}% · {s.durata_mesi ? `${s.durata_mesi} mesi` : 'illimitato'}
+            <strong>{s.codice}</strong> · {s.percentuale}% · {s.durata_mesi ? `${s.durata_mesi} mesi` : 'illimitato'} · {usiDetti(s)}
             {s.descrizione && <span className="muted small"> · {s.descrizione}</span>}
             {!s.attivo && <span className="muted small"> · disattivato</span>}
           </span>
           {s.attivo && (
-            <button type="button" className="btn ghost small" onClick={() => disattiva(s.codice)}>
-              Disattiva
-            </button>
+            <span className="row">
+              <button type="button" className="btn ghost small" onClick={() => limite(s)}>
+                Limite…
+              </button>
+              <button type="button" className="btn ghost small" onClick={() => disattiva(s.codice)}>
+                Disattiva
+              </button>
+            </span>
           )}
         </div>
       ))}
@@ -1435,6 +1454,11 @@ function CodiciSconto({ onErrore }) {
           Durata in mesi (vuota: illimitato)
           <input type="number" min="1" max="120" {...campo('durata_mesi')} />
         </label>
+        <label>
+          Usi massimi (vuoto: nessun limite)
+          <input type="number" min="1" max="100000" {...campo('usi_massimi')} />
+        </label>
+
         <label>
           Descrizione
           <input {...campo('descrizione')} />

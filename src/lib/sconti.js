@@ -17,7 +17,18 @@ export function prezzoConSconto(prezzo, cliente, adesso = new Date()) {
   return Math.round(prezzo * (100 - Number(s.percentuale))) / 100
 }
 
+// Gli usi di un codice, per l'elenco del backoffice: «3 usi», «3 usi su
+// 10», «10 usi su 10, esaurito». Le prenotazioni dei Checkout in corso
+// non si contano qui: le conta il server quando decide.
+export function usiDetti(codice) {
+  const usi = Number(codice?.usi) || 0
+  const detti = `${usi} ${usi === 1 ? 'uso' : 'usi'}`
+  if (codice?.usi_massimi == null) return detti
+  return usi >= codice.usi_massimi ? `${detti} su ${codice.usi_massimi}, esaurito` : `${detti} su ${codice.usi_massimi}`
+}
+
 // «TANA-100, 100%, illimitato» o «PROVA-20, 20% fino al 31/12/2026».
+
 export function scontoDetto(cliente, adesso = new Date()) {
   const s = scontoAttivo(cliente, adesso)
   if (!s) return null

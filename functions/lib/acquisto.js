@@ -16,7 +16,7 @@
 const listino = require('../piani.json')
 const { sceltaPulita, righeCheckout, centesimi } = require('./abbonamento.js')
 const fondatori = require('./fondatori.js')
-const { fineSconto } = require('./sconti.js')
+const { fineSconto, usoNuovo, esaurito, ESAURITO } = require('./sconti.js')
 
 // Il confronto col prezzo Fondatori si fa sul primo anno, attivazione
 // compresa: è l'orizzonte dell'offerta (12 mesi), e un codice illimitato
@@ -115,30 +115,43 @@ function scontoCheVale({ scelta, sconto = null, fondatore = false, adesso = new 
 }
 
 // I metadati dello sconto sulla sessione di Checkout: il webhook li
-// riporta sul cliente (aggiornamentoDaEvento).
-function metadatiSconto(s) {
+// riporta sul cliente (aggiornamentoDaEvento). `uso`: il pagamento consuma
+// un uso del codice, e il webhook lo conta (usoDaContare).
+function metadatiSconto(s, { uso = false } = {}) {
   return {
     sconto: s.codice,
     sconto_percentuale: String(s.percentuale),
     sconto_mesi: s.durata_mesi == null ? '' : String(s.durata_mesi),
     sconto_dal: s.dal || '',
     sconto_fino: s.fino || '',
+    ...(uso ? { sconto_uso: '1' } : {}),
   }
 }
 
+// Un Checkout pagato con un codice che ne consuma un uso: il contatore del
+// codice sale. → { codice, uid } o null.
+function usoDaContare(tipo, oggetto) {
+  if (tipo !== 'checkout.session.completed') return null
+  const md = oggetto?.metadata || {}
+  return md.sconto_uso === '1' && md.sconto && md.uid && md.tipo !== 'ricarica_ai' ? { codice: md.sconto, uid: md.uid } : null
+}
+
 // UN CODICE AL 100% DAL TITOLARE: il piano scelto si attiva senza Stripe.
-// → { patch } per clienti/{uid}, o { errore }. `vendita` è quella di
+// → { patch, uso } per clienti/{uid}, o { errore }; `uso`: un uso nuovo
+// del codice, da contare (sconti.usoConfermato). `vendita` è quella di
 // free.venditaPulita; `fuori` i moduli non più in vendita della scelta.
 // Come per lo sconto dato dall'admin: illimitato è un abbonamento attivo
 // che non si paga (origine «sconto»); a tempo è un piano a mano pagato
 // fino alla fine dello sconto (origine «manuale»), poi grazia e promemoria.
 // Un Free può: sceglie qui il suo piano a pagamento. Un abbonamento Stripe
 // attivo no: si azzererebbe una subscription che continua ad addebitare.
-function attivazioneConCodice({ cliente, istanza = null, codice, scelta, fuori = [], adesso = new Date() }) {
+function attivazioneConCodice({ cliente, uid = null, istanza = null, codice, scelta, fuori = [], adesso = new Date() }) {
   if (!cliente?.slug) return { errore: 'Nessun locale registrato per questo account.' }
   const s = scontoDelCodice(codice, adesso)
   if (!s) return { errore: 'Codice sconosciuto o disattivato.' }
   if (s.percentuale !== 100) return { errore: 'Questo codice è uno sconto sul prezzo: vale al pagamento.' }
+  const uso = usoNuovo(cliente, s.codice)
+  if (uso && esaurito(codice, adesso, uid)) return { errore: ESAURITO }
   const ab = cliente.abbonamento || {}
   if (ab.stato === 'attivo' && ab.origine === 'stripe') return { errore: 'Hai già un abbonamento con pagamento online: per il codice scrivici.' }
   if (istanza?.stato === 'eliminata') return { errore: 'Il locale è stato eliminato: per riaprirlo scrivici.' }
@@ -149,7 +162,8 @@ function attivazioneConCodice({ cliente, istanza = null, codice, scelta, fuori =
   const abbonamento = s.fino
     ? { ...ab, stato: 'attivo', origine: 'manuale', pagato_fino_al: s.fino, intervallo: 'mese', dal: ab.dal || ora }
     : { ...ab, stato: 'attivo', origine: 'sconto', pagato_fino_al: null, intervallo: 'mese', dal: ab.dal || ora }
-  return { patch: { piano: sc.piano, moduli: sc.moduli, terminali: sc.terminali, sconto: { codice: s.codice, percentuale: s.percentuale, durata_mesi: s.durata_mesi, dal: s.dal, fino: s.fino }, abbonamento } }
+  return { patch: { piano: sc.piano, moduli: sc.moduli, terminali: sc.terminali, sconto: { codice: s.codice, percentuale: s.percentuale, durata_mesi: s.durata_mesi, dal: s.dal, fino: s.fino }, abbonamento }, uso }
 }
 
-module.exports = { MESI_CONFRONTO, mesiRestanti, scontoDelCodice, scontoInCorso, couponSconto, risparmioCodice, risparmioFondatori, scontoCheVale, metadatiSconto, attivazioneConCodice }
+module.exports = { MESI_CONFRONTO, mesiRestanti, scontoDelCodice, scontoInCorso, couponSconto, risparmioCodice, risparmioFondatori, scontoCheVale, metadatiSconto, usoDaContare, attivazioneConCodice }
+
