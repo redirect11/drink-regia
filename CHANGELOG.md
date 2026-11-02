@@ -4,7 +4,7 @@ Una voce per ogni cambiamento visibile, nello stesso commit del
 cambiamento. La versione in cima è quella in lavorazione finché non ha la
 data.
 
-## 0.4.0 (in lavorazione)
+## Prossima release (da decidere)
 
 - Il listino deciso il 02/11/2026 (DEC-0005): Base a 32,70 € + IVA al mese
   con tre terminali (anche il Completo ne ha tre), attivazione 82 € + IVA
