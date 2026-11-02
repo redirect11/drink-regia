@@ -40,6 +40,7 @@ const elim = require('./lib/eliminazione.js')
 const conserva = require('./lib/conservazione.js')
 const presenta = require('./lib/presentazione.js')
 const passa = require('./lib/passaggio.js')
+const temi = require('./lib/temi.js')
 const comunica = require('./lib/comunicazioni.js')
 const sconti = require('./lib/sconti.js')
 const free = require('./lib/free.js')
@@ -1227,6 +1228,40 @@ exports.scambiaPassaggio = onRequest({ ...OPTS, cors: false }, async (req, res) 
     console.error(`[passaggio] verso ${verso} ${progetto || 'regia'}:`, e?.message || e)
     return res.status(503).json({ errore: 'L’accesso non si è firmato: riprova fra poco.' })
   }
+})
+
+// ── IL CATALOGO DEI TEMI (REQ-FLOTTA-032, REQ-MENU-023 di tana-drink) ──
+// I temi stanno in temi/{id}, con lo stato bozza, pubblicato o ritirato.
+// Le regole in lib/temi.js.
+
+// Il catalogo pubblico: GET, senza token, con il CORS aperto, perché lo
+// legge l'app dal dominio di ogni locale, anche la Tana, che alla regia non
+// è collegata per la licenza. → 200 { temi: [...] } (solo i pubblicati).
+// L'app lo legge all'apertura del marketplace, mai a tempo: cinque minuti
+// di cache bastano.
+exports.catalogoTemi = onRequest({ ...OPTS, cors: false }, async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*')
+  res.set('Access-Control-Allow-Methods', 'GET')
+  if (req.method === 'OPTIONS') return res.status(204).send('')
+  if (req.method !== 'GET') return res.status(405).json({ errore: 'Solo GET.' })
+  const docs = (await db.collection('temi').where('stato', '==', 'pubblicato').get()).docs.map((d) => d.data())
+  res.set('Cache-Control', 'public, max-age=300')
+  return res.status(200).json({ temi: temi.catalogoPubblico(docs) })
+})
+
+// Il backoffice: salvare, pubblicare, ritirare un tema. Solo l'admin.
+exports.gestisciTemi = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const azione = req.data?.azione
+  const id = String((azione === 'salva' ? req.data?.tema?.id : req.data?.id) || '').trim().toLowerCase()
+  if (!/^[a-z0-9][a-z0-9-]{1,40}$/.test(id)) throw new HttpsError('invalid-argument', 'Identificativo del tema non valido.')
+  const ref = db.doc(`temi/${id}`)
+  const prima = (await ref.get()).data() || null
+  if (azione === 'salva' && prima && req.data?.nuovo === true) throw new HttpsError('already-exists', `Il tema ${id} esiste già.`)
+  const esito = temi.azioneSuTema(prima, azione, req.data?.tema, { da: req.auth.token.email || req.auth.uid })
+  if (esito.errore) throw new HttpsError('failed-precondition', esito.errore)
+  await ref.set(esito.doc)
+  return { ok: true, tema: esito.doc }
 })
 
 // ── IL SITO SI PRESENTA ALLA REGIA (REQ-FLOTTA-026) ────────────────────

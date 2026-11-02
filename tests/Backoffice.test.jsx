@@ -61,6 +61,9 @@ const db = vi.hoisted(() => ({
   gestisciLicenze: vi.fn(async () => ({ ok: true })),
   registraPagamento: vi.fn(async () => ({ ok: true })),
   // I codici sconto (REQ-FLOTTA-028) hanno i loro test in Backoffice.test.jsx.
+  // Il catalogo dei temi (REQ-FLOTTA-032) ha i suoi test in CatalogoTemi.test.jsx.
+  elencoTemi: vi.fn(async () => []),
+  gestisciTemi: vi.fn(async () => ({ ok: true })),
   elencoSconti: vi.fn(async () => []),
   gestisciSconti: vi.fn(async () => ({ ok: true })),
   applicaSconto: vi.fn(async () => ({ ok: true })),
@@ -608,7 +611,7 @@ describe('i pagamenti online e le richieste di contatto', () => {
 describe('le sezioni del backoffice', () => {
   const menu = async () => screen.findByRole('navigation', { name: 'Sezioni del backoffice' })
 
-  it('il sotto-menù ha cinque voci, ognuna col suo indirizzo, e /backoffice porta a «Locali»', async () => {
+  it('il sotto-menù ha sei voci, ognuna col suo indirizzo, e /backoffice porta a «Locali»', async () => {
     mostra('/backoffice')
     const nav = await menu()
     const voci = within(nav).getAllByRole('link')
@@ -618,6 +621,7 @@ describe('le sezioni del backoffice', () => {
       ['Richieste', '/backoffice/richieste'],
       ['Rilasci', '/backoffice/rilasci'],
       ['Vendita', '/backoffice/vendita'],
+      ['Temi', '/backoffice/temi'],
       ['Nuovo locale', '/backoffice/nuovo'],
     ])
     await waitFor(() => expect(screen.getByTestId('dove')).toHaveTextContent('/backoffice/locali'))

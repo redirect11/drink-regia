@@ -18,6 +18,7 @@ export const SEZIONI = [
   { id: 'richieste', nome: 'Richieste' },
   { id: 'rilasci', nome: 'Rilasci' },
   { id: 'vendita', nome: 'Vendita' },
+  { id: 'temi', nome: 'Temi' },
   { id: 'nuovo', nome: 'Nuovo locale' },
 ]
 
