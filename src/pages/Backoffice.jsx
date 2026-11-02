@@ -1402,8 +1402,10 @@ const giorno = (iso) => new Date(iso).toLocaleDateString('it-IT')
 function eliminazioneDetta(istanza) {
   const e = istanza?.eliminazione
   if (!e || e.stato === 'annullata') return null
-  const chi = e.richiedente === 'titolare' ? ' (chiesta dal titolare)' : ''
-  if (e.stato === 'programmata') return `Programmata per il ${giorno(e.quando)}${chi}`
+  // La conservazione (REQ-FLOTTA-025): locale fermo, dati per 90 giorni.
+  const chi = e.richiedente === 'titolare' ? ' (chiesta dal titolare)' : e.richiedente === 'conservazione' ? ' (fine della conservazione dei dati: il locale è fermo)' : ''
+  const avvisi = e.avvisi?.length ? ` · avvisi mandati: ${e.avvisi.length}` : ''
+  if (e.stato === 'programmata') return `Programmata per il ${giorno(e.quando)}${chi}${avvisi}`
   if (e.stato === 'in coda' || e.stato === 'in corso') return 'Backup ed eliminazione in corso'
   if (e.stato === 'fallita') return `Non riuscita: ${e.errore || 'vedi il workflow'}. Il progetto c’è ancora.`
   if (e.stato === 'eliminata') return `Eliminata il ${giorno(e.finito_il)} · archivio fino al ${giorno(e.scade_il)}, lo scarica solo il titolare`

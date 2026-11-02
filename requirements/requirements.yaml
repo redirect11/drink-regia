@@ -934,6 +934,43 @@ requirements:
       - tests/Backoffice.test.jsx
       - tests/db.test.js
 
+  - id: REQ-FLOTTA-025
+    title: "Senza licenza valida il prodotto non parte; i dati di un locale fermo si conservano 90 giorni, con gli avvisi"
+    area: "functions/lib/conservazione.js, functions/lib/licenza.js, functions/lib/scadenze.js, functions/index.js (eseguiAzionePagamento, impostaStatoIstanza, gestisciEliminazione, scadenza, scriviLicenza), src/pages/ChiudiLocale.jsx, src/pages/Dashboard.jsx, src/pages/Backoffice.jsx, src/pages/Legali.jsx"
+    description: >
+      L'utente, 02/11/2026: «Se non c'è nessuna licenza non dovrebbe
+      partire proprio il prodotto, o licenza scaduta [...] al massimo, se
+      dalla regia è attiva l'opzione, dovrebbe diventare versione free ma
+      senza far perdere i dati al cliente, ma dovremmo avvisare il cliente
+      che, anche per una questione regolamentatoria, dobbiamo cancellare i
+      suoi dati entro un tot e avvisarlo quando stiamo per cancellarli».
+      Decisioni dello stesso giorno: 90 giorni; un locale tornato al Free
+      non perde niente; avvisi subito, a 7 giorni e il giorno prima; per
+      email, nella dashboard della regia e nell'app. La licenza porta
+      alla_scadenza ('free' con «solo finché si paga», se no 'ferma') e
+      cancellazione ({ il, richiedente } o null); valida_fino cade al
+      taglio della giornata dopo la scadenza. Un locale sospeso o chiuso
+      per il pagamento, o chiuso dall'admin, riceve un'eliminazione
+      programmata a 90 giorni (richiedente 'conservazione'), annullata se
+      torna a pagare o l'admin lo riattiva; alla data, se è ancora sospeso,
+      si chiude e si cancella dopo il backup verificato. Gli avvisi valgono
+      per ogni cancellazione programmata: l'email va nella coda mail
+      (estensione Trigger Email di Firebase, da installare con un SMTP), la
+      dashboard mette la cancellazione in cima, l'app la legge nella
+      licenza. Termini (punto 6) e informativa lo dicono. In tana-drink
+      resta: l'app e le regole del database che non partono senza licenza
+      valida (niente «documento assente = nessun limite»), alla_scadenza,
+      l'avviso della cancellazione, e licenza/attuale per la Tana.
+    status: partial
+    generate_issue: false
+    labels: [prodotto, flotta, regia, licenza, privacy]
+    test_cases:
+      - tests/conservazione.test.js
+      - tests/licenza.test.js
+      - tests/ChiudiLocale.test.jsx
+      - tests/Dashboard.test.jsx
+      - tests/Backoffice.test.jsx
+
   - id: REQ-FLOTTA-024
     title: "Quello che la licenza toglie arriva al taglio della giornata, non in servizio"
     area: "functions/lib/taglio.js, functions/lib/scadenze.js, functions/index.js (scriviLicenza, verificaLicenza, scadenza), src/lib/istanze.js, src/pages/Backoffice.jsx, src/pages/Dashboard.jsx"

@@ -33,7 +33,9 @@ const ANTICIPO_MAX = 29 * GIORNO
 const GIORNI_DI_GRAZIA = 7
 // «taglio»: una licenza che toglie qualcosa, al taglio della giornata
 // (REQ-FLOTTA-024, lib/taglio.js).
-const TIPI = ['pagamento', 'prova', 'eliminazione', 'condizioni', 'taglio']
+// «avviso_dati»: un avviso prima della cancellazione dei dati di un locale
+// (REQ-FLOTTA-025, lib/conservazione.js).
+const TIPI = ['pagamento', 'prova', 'eliminazione', 'condizioni', 'taglio', 'avviso_dati']
 
 const ms = (iso) => Date.parse(iso || '')
 

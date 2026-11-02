@@ -60,7 +60,15 @@ export default function ChiudiLocale({ istanza }) {
     return (
       <section className="card avviso" aria-label="Cancellazione del locale">
         <h3>Cancellazione del locale</h3>
-        {e.stato === 'programmata' ? (
+        {e.stato === 'programmata' && e.richiedente === 'conservazione' ? (
+          // Fermo per il pagamento (REQ-FLOTTA-025): i dati restano 90
+          // giorni, e tornare a pagare annulla la cancellazione.
+          <p>
+            L’app del locale è ferma{e.motivo ? ` (${e.motivo})` : ''}. I dati restano conservati fino al{' '}
+            <strong>{data(e.quando)}</strong>: quel giorno l’installazione e i suoi dati verranno cancellati definitivamente, dopo
+            un backup che potrai scaricare da qui per 180 giorni. Per evitarlo basta riattivare l’abbonamento.
+          </p>
+        ) : e.stato === 'programmata' ? (
           <p>
             Il locale è chiuso e verrà cancellato definitivamente il <strong>{data(e.quando)}</strong>, dopo un backup dei dati che
             potrai scaricare da qui per 180 giorni.

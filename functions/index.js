@@ -36,6 +36,7 @@ const { initializeApp: initializeAppCon, getApps } = require('firebase-admin/app
 const { getAuth } = require('firebase-admin/auth')
 const ai = require('./lib/ai.js')
 const elim = require('./lib/eliminazione.js')
+const conserva = require('./lib/conservazione.js')
 const free = require('./lib/free.js')
 const contatti = require('./lib/contatti.js')
 const { getStorage } = require('firebase-admin/storage')
@@ -335,6 +336,10 @@ exports.impostaStatoIstanza = onCall(OPTS, async (req) => {
   if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(slug || '')) throw new HttpsError('invalid-argument', 'Slug non valido.')
   if (!STATI_LICENZA.includes(stato)) throw new HttpsError('invalid-argument', 'Stato non valido.')
   await scriviStatoIstanza(slug, stato, motivo ? String(motivo).slice(0, 200) : null)
+  // Chiuso dall'admin: i dati si conservano 90 giorni (REQ-FLOTTA-025).
+  // Una sospensione sua è una pausa, e non fa partire niente.
+  if (stato === 'chiusa') await conservaDati(slug, motivo ? String(motivo).slice(0, 200) : 'chiuso dall’amministratore')
+  if (stato === 'attiva') await annullaConservazione(slug, req.auth.token.email || req.auth.uid)
   return { ok: true }
 })
 
@@ -367,11 +372,67 @@ async function giorniDiGrazia() {
 }
 
 // Cosa succede al locale per un cambio di stato dell'abbonamento.
+// Un locale fermo per il pagamento conserva i dati 90 giorni, poi si
+// cancellano; se torna a pagare, la cancellazione si annulla
+// (REQ-FLOTTA-025). Al Free non si cancella niente.
 async function eseguiAzionePagamento(cliente, { azione, motivo }) {
-  if (azione === 'sospendi') return scriviStatoIstanza(cliente.slug, 'sospesa', motivo, { per: 'pagamento' })
-  if (azione === 'chiudi') return scriviStatoIstanza(cliente.slug, 'chiusa', motivo, { per: 'pagamento' })
-  if (azione === 'riattiva') return scriviStatoIstanza(cliente.slug, 'attiva', null)
+  if (azione === 'sospendi' || azione === 'chiudi') {
+    await scriviStatoIstanza(cliente.slug, azione === 'sospendi' ? 'sospesa' : 'chiusa', motivo, { per: 'pagamento' })
+    return conservaDati(cliente.slug, motivo)
+  }
+  if (azione === 'riattiva') {
+    await scriviStatoIstanza(cliente.slug, 'attiva', null)
+    return annullaConservazione(cliente.slug, 'pagamento')
+  }
   return ripiegaAlFree(cliente, azione)
+}
+
+// ── LA CONSERVAZIONE DEI DATI DI UN LOCALE FERMO (REQ-FLOTTA-025) ──────
+// Un'eliminazione programmata a 90 giorni (lib/conservazione.js), con un
+// avviso subito, uno a 7 giorni e uno il giorno prima: per email (la coda
+// `mail` dell'estensione Trigger Email di Firebase), nella dashboard e
+// nell'app (licenza.cancellazione).
+async function conservaDati(slug, motivo) {
+  const ref = db.doc(`istanze/${slug}`)
+  if (!conserva.daConservare((await ref.get()).data())) return
+  const richiesta = conserva.conservazioneChiesta({ motivo })
+  // update, non set con merge: l'eliminazione di prima (annullata) si
+  // sostituisce intera, senza lasciare campi suoi.
+  await ref.update({ eliminazione: richiesta })
+  await programma('eliminazione', slug, richiesta.quando).catch((e) => console.error(`[conservazione] ${slug}, la cancellazione:`, e?.message || e))
+  await avvisiDellaCancellazione(slug, richiesta.quando)
+}
+
+// Una cancellazione appena programmata, da chiunque: il primo avviso
+// subito, i compiti per gli altri, e la licenza che lo dice all'app.
+async function avvisiDellaCancellazione(slug, quando) {
+  for (const a of conserva.orariAvvisi(quando)) {
+    await programma('avviso_dati', slug, a.il).catch((e) => console.error(`[conservazione] ${slug}, l'avviso a ${a.giorni} giorni:`, e?.message || e))
+  }
+  await avvisaCancellazione(slug, null).catch((e) => console.error(`[conservazione] ${slug}, il primo avviso:`, e?.message || e))
+  await scriviLicenza(slug).catch((e) => console.error(`[conservazione] ${slug}, la licenza:`, e?.message || e))
+}
+
+// Un avviso al titolare. `giorni`: null il primo, poi 7 e 1. Un compito
+// ripetuto non manda due email: l'avviso si segna sull'eliminazione.
+async function avvisaCancellazione(slug, giorni) {
+  const ref = db.doc(`istanze/${slug}`)
+  const ist = (await ref.get()).data()
+  if (ist?.eliminazione?.stato !== 'programmata') return
+  const chiave = `${ist.eliminazione.quando}:${giorni ?? 'subito'}`
+  if (conserva.giaAvvisato(ist, chiave)) return
+  const posta = conserva.emailAvviso(await clienteDi(slug), ist, giorni)
+  if (posta) await db.collection('mail').add({ ...posta, slug, motivo: 'cancellazione_dati', creata_il: new Date().toISOString() })
+  await ref.update({ 'eliminazione.avvisi': FieldValue.arrayUnion({ chiave, giorni, il: new Date().toISOString(), email: Boolean(posta) }) })
+}
+
+// Il locale torna a lavorare: la conservazione si annulla.
+async function annullaConservazione(slug, da) {
+  const ref = db.doc(`istanze/${slug}`)
+  const ist = (await ref.get()).data()
+  if (!conserva.daAnnullare(ist)) return
+  await ref.update({ eliminazione: { ...ist.eliminazione, stato: 'annullata', annullata_il: new Date().toISOString(), annullata_da: da } })
+  await scriviLicenza(slug).catch((e) => console.error(`[conservazione] ${slug}, la licenza:`, e?.message || e))
 }
 
 // Un compito per una scadenza: arriva alla data (o fra 29 giorni, e si
@@ -411,7 +472,7 @@ exports.scadenza = onTaskDispatched(
       return
     }
     const ref = db.doc(`istanze/${chiave}`)
-    const ist = (await ref.get()).data()
+    let ist = (await ref.get()).data()
     if (!ist) return
     // Il taglio della giornata: la licenza che toglie qualcosa arriva ora,
     // se aspetta ancora questo taglio (REQ-FLOTTA-024).
@@ -421,7 +482,19 @@ exports.scadenza = onTaskDispatched(
       console.log(`[taglio] ${chiave}: ${scritta.ok ? 'licenza scritta' : scritta.perche}`)
       return
     }
+    // Un avviso prima della cancellazione dei dati (REQ-FLOTTA-025).
+    if (tipo === 'avviso_dati') {
+      const giorni = conserva.avvisoDelCompito(ist, new Date(quando).toISOString())
+      if (giorni != null) await avvisaCancellazione(chiave, giorni)
+      return
+    }
     if (tipo === 'eliminazione') {
+      // Novanta giorni da fermo per il pagamento: un locale ancora sospeso
+      // si chiude, poi si cancella come gli altri.
+      if (conserva.daAnnullare(ist) && Date.parse(ist.eliminazione.quando) <= adesso.getTime() && ist.licenza_stato === 'sospesa') {
+        await scriviStatoIstanza(chiave, 'chiusa', 'dati non conservati oltre 90 giorni', { per: 'pagamento' })
+        ist = (await ref.get()).data()
+      }
       if (!elim.daEliminareOggi({ [chiave]: ist }, adesso).length) return
       const perche = await lanciaEliminazione(chiave)
       console.log(`[scadenze] ${chiave}, eliminazione: ${perche || 'partita'}`)
@@ -476,7 +549,10 @@ exports.programmaScadenze = onCall({ ...OPTS, timeoutSeconds: 540 }, async (req)
     for (const [id, p] of Object.entries(c.prove || {})) await prova(`${c.slug} prova ${id}`, () => programma('prova', c.slug, p.scade_il))
   }
   for (const [slug, ist] of Object.entries(istanze)) {
-    if (ist.eliminazione?.stato === 'programmata') await prova(`${slug} eliminazione`, () => programma('eliminazione', slug, ist.eliminazione.quando))
+    if (ist.eliminazione?.stato === 'programmata') {
+      await prova(`${slug} eliminazione`, () => programma('eliminazione', slug, ist.eliminazione.quando))
+      for (const a of conserva.orariAvvisi(ist.eliminazione.quando)) await prova(`${slug} avviso a ${a.giorni} giorni`, () => programma('avviso_dati', slug, a.il))
+    }
     if (ist.condizioni_prossime?.dal) await prova(`${slug} condizioni`, () => programma('condizioni', slug, ist.condizioni_prossime.dal))
     if (ist.riduzione_al_taglio?.dal) await prova(`${slug} taglio`, () => programma('taglio', slug, ist.riduzione_al_taglio.dal))
     if (ist.licenza_stato === 'sospesa' && !ist.licenza_per && /pagamento non ricevuto/.test(ist.licenza_motivo || '')) {
@@ -719,14 +795,16 @@ async function scriviLicenza(slug, { subito = false } = {}) {
   const ist = (await ref.get()).data()
   if (!ist) return { ok: false, perche: 'Istanza non trovata.' }
   const cliente = await clienteDi(slug)
-  const lic = licenzaProtetta(ist, cliente, { slug, regiaUrl: REGIA_URL, sceltaUrl: SCELTA_URL, giorniGrazia: await giorniDiGrazia() })
-  const { modalita, inclusi, motivo } = lic.aggiornamenti
+  const opzioni = { slug, regiaUrl: REGIA_URL, sceltaUrl: SCELTA_URL, giorniGrazia: await giorniDiGrazia() }
+  const { modalita, inclusi, motivo } = licenzaProtetta(ist, cliente, opzioni).aggiornamenti
   await ref.set({ regola_aggiornamenti: { modalita, inclusi, motivo } }, { merge: true })
   if (!riceveLicenza(ist)) return { ok: true, scritta: false }
   // Senza cliente la licenza sarebbe quella di un piano base inventato.
   if (!cliente) return { ok: false, perche: 'Nessun cliente per questo locale: la licenza non si calcola.' }
   const istanza = firestoreDi(ist.progetto)
   const [scritta, bar] = await Promise.all([istanza.doc(LICENZA_PROTETTA).get(), istanza.doc('settings/bar').get()])
+  // valida_fino cade al taglio della giornata del locale (REQ-FLOTTA-024).
+  const lic = licenzaProtetta(ist, cliente, { ...opzioni, oraTaglio: taglio.oraDelTaglio(bar.data()) })
   const { licenza, riduzioni } = taglio.licenzaDaScrivere(scritta.exists ? scritta.data() : null, lic, { subito, statoAlTaglio: ist.licenza_per === 'pagamento' })
   let alTaglio = null
   let perche = null
@@ -754,7 +832,7 @@ async function verificaLicenza(slug) {
   const ist = (await ref.get()).data()
   const istanza = firestoreDi(ist.progetto)
   const [protetta, bar] = await Promise.all([istanza.doc(LICENZA_PROTETTA).get(), istanza.doc('settings/bar').get()])
-  const calcolata = licenzaProtetta(ist, await clienteDi(slug), { slug, regiaUrl: REGIA_URL, sceltaUrl: SCELTA_URL, giorniGrazia: await giorniDiGrazia() })
+  const calcolata = licenzaProtetta(ist, await clienteDi(slug), { slug, regiaUrl: REGIA_URL, sceltaUrl: SCELTA_URL, giorniGrazia: await giorniDiGrazia(), oraTaglio: taglio.oraDelTaglio(bar.data()) })
   // Con una riduzione che aspetta il taglio, quella giusta è la licenza di
   // prima più le aggiunte (REQ-FLOTTA-024).
   const attesa = ist.riduzione_al_taglio && protetta.exists ? taglio.licenzaDaScrivere(protetta.data(), calcolata, { statoAlTaglio: ist.licenza_per === 'pagamento' }).licenza : calcolata
@@ -1400,6 +1478,7 @@ exports.gestisciEliminazione = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN
     await scriviStatoIstanza(slug, 'chiusa', 'chiusura chiesta dal titolare', { per: 'titolare' })
     await istRef.set({ eliminazione: richiesta }, { merge: true })
     await programma('eliminazione', slug, richiesta.quando).catch((e) => console.error(`[scadenze] ${slug}, eliminazione:`, e?.message || e))
+    await avvisiDellaCancellazione(slug, richiesta.quando)
     await disdettaAFinePeriodo(cliente, true).catch((e) => console.error(`[eliminazione] ${slug}, disdetta:`, e?.message || e))
     return { ok: true, quando: richiesta.quando }
   }
@@ -1412,6 +1491,7 @@ exports.gestisciEliminazione = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN
     await istRef.set({ eliminazione: richiesta }, { merge: true })
     if (!subito) {
       await programma('eliminazione', slug, richiesta.quando).catch((e) => console.error(`[scadenze] ${slug}, eliminazione:`, e?.message || e))
+      await avvisiDellaCancellazione(slug, richiesta.quando)
       return { ok: true, quando: richiesta.quando }
     }
     const perche = await lanciaEliminazione(slug)
@@ -1429,6 +1509,8 @@ exports.gestisciEliminazione = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN
       await scriviStatoIstanza(slug, e.licenza_prima || 'attiva', e.licenza_prima === 'sospesa' ? 'pagamento non ricevuto' : null, { per: 'pagamento' })
       await disdettaAFinePeriodo(cliente, false).catch((err) => console.error(`[eliminazione] ${slug}, disdetta:`, err?.message || err))
     }
+    // La licenza non annuncia più la cancellazione.
+    await scriviLicenza(slug).catch((err) => console.error(`[eliminazione] ${slug}, la licenza:`, err?.message || err))
     return { ok: true }
   }
 

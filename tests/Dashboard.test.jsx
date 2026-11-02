@@ -93,6 +93,22 @@ describe('la dashboard', () => {
     expect(screen.queryByTestId('riduzione-al-taglio')).toBeNull()
   })
 
+  // REQ-FLOTTA-025: i dati che stanno per essere cancellati si dicono per primi.
+  it('una cancellazione programmata sta in cima, prima del nome del locale', () => {
+    stato.cliente = { ...stato.cliente, abbonamento: { stato: 'non pagato' } }
+    stato.istanza = {
+      stato: 'attiva',
+      progetto: 'drinkpos-bar-mario',
+      licenza_stato: 'sospesa',
+      eliminazione: { stato: 'programmata', quando: '2027-01-31T10:00:00Z', richiedente: 'conservazione' },
+    }
+    mostra()
+    const avviso = screen.getByRole('region', { name: 'Cancellazione del locale' })
+    expect(avviso).toHaveTextContent('31 gennaio 2027')
+    expect(avviso.compareDocumentPosition(screen.getByRole('heading', { level: 2 })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getAllByRole('region', { name: 'Cancellazione del locale' })).toHaveLength(1)
+  })
+
   // REQ-FLOTTA-010: con l'abbonamento attivo si cambia piano o moduli.
   it('con l’abbonamento attivo c’è «Cambia piano o moduli», non la scelta iniziale', () => {
     mostra()

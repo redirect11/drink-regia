@@ -546,6 +546,27 @@ L'elenco completo con i riferimenti al codice è in
    titolare, valgono subito. Un locale che nasce scrive subito. Nello
    stesso ramo: l'attivazione scrive la licenza **prima** del deploy, e lo
    script parte da `licenza/attuale`, non più da `settings/bar.licenza`.
+26. **Senza licenza valida non si parte, e i dati di un locale fermo
+   (REQ-FLOTTA-025)**, ramo `feature/conservazione-dati`, 02/11/2026.
+   L'utente: senza licenza, o con la licenza scaduta, il prodotto non
+   parte; con l'opzione «solo finché si paga» diventa Free senza perdere
+   i dati; altrimenti i dati si cancellano «entro un tot», con gli avvisi.
+   Decisioni: 90 giorni; al Free non si cancella niente; avvisi subito, a
+   7 giorni e il giorno prima, per email, nella dashboard e nell'app. Nella
+   regia: un locale sospeso o chiuso per il pagamento, o chiuso dall'admin,
+   riceve un'eliminazione programmata a 90 giorni (`richiedente:
+   'conservazione'`); tornare a pagare, o la riattivazione dell'admin, la
+   annulla; una sospensione dell'admin no, è una pausa. Alla data un
+   locale ancora sospeso si chiude e si cancella, sempre dopo il backup.
+   Gli stessi avvisi valgono per le cancellazioni chieste dal titolare o
+   dall'admin. **L'email** va nella collezione `mail` nel formato
+   dell'estensione Firebase «Trigger Email»: finché l'estensione non è
+   installata con un SMTP, i messaggi restano lì e partono quando c'è
+   (decisione e credenziali dell'utente). **I termini** (punto 6) e
+   l'informativa lo dicono: testo da approvare dall'utente. In tana-drink:
+   `docs/licenza-valida.md` sul ramo `feature/licenza-valida` (regole
+   che negano tutto senza licenza valida, `alla_scadenza`, l'avviso
+   della cancellazione, la licenza della Tana).
 
 ---
 
@@ -607,11 +628,18 @@ moduli, la licenza nell'istanza e la Tana.
 - **Licenza nell'istanza** (BUG-125 di tana-drink, dal 31/10/2026):
   `licenza/attuale` = `{ piano, moduli: {id: bool}, terminali, limiti,
   prove, stato: attiva|sospesa|chiusa, motivo, dal, slug, regia_url,
-  aggiornamenti, valida_fino, scritta_il }`. `valida_fino` (dal 31/10/2026,
-  per tana-drink) è il momento in cui la regia fermerebbe il locale se
-  nessuno paga: per un piano pagato a mano «pagato fino al» più i giorni di
-  grazia; `null` se non scade (Free, omaggi, interne, Stripe, dove decide
-  lo stato dell'abbonamento). Dall'app la leggono tutti e non la scrive
+  aggiornamenti, valida_fino, alla_scadenza, cancellazione, scritta_il }`.
+  `valida_fino` (dal 31/10/2026, per tana-drink) è il momento in cui la
+  regia fermerebbe il locale se nessuno paga: per un piano pagato a mano
+  «pagato fino al» più i giorni di grazia, portato al taglio della giornata
+  dopo (REQ-FLOTTA-024: mai a mezzanotte in servizio); `null` se non
+  scade (Free, omaggi, interne, Stripe, dove decide lo stato
+  dell'abbonamento). `alla_scadenza` (dal 02/11/2026, REQ-FLOTTA-025):
+  `'free'` con «solo finché si paga», se no `'ferma'`: passata
+  `valida_fino` l'app, anche senza rete, lavora col Free o si ferma.
+  `cancellazione`: `{ il, richiedente: 'conservazione' | 'titolare' |
+  'admin' }` se i dati del locale hanno una cancellazione programmata,
+  per l'avviso nell'app; se no `null`. Dall'app la leggono tutti e non la scrive
   nessuno: prima stava in `settings/bar.licenza`, che ogni bartender può
   riscrivere. La regia la **calcola dai suoi dati** (`licenzaProtetta` in
   `functions/lib/licenza.js`) e la scrive intera a ogni cambio, in
@@ -625,8 +653,10 @@ moduli, la licenza nell'istanza e la Tana.
   e `moduli` nomina **tutti** i moduli (uno che manca per l'app vale «non
   incluso»): l'attivazione la scrive prima del deploy, ogni aggiornamento
   prima di lanciare; (2) `licenza/attuale` **non si cancella mai** a un
-  locale attivo: senza documento le regole dell'app vorranno dire
-  «nessun limite». Un locale si ferma con `stato: 'sospesa' | 'chiusa'`;
+  locale attivo. Un locale si ferma con `stato: 'sospesa' | 'chiusa'`.
+  L'utente, 02/11/2026: senza licenza, o con la licenza scaduta, il
+  prodotto **non parte** né nell'app né nelle regole; «documento assente =
+  nessun limite» non va (richiesta in tana-drink, REQ-FLOTTA-025);
   (3) gli sconti si spengono solo con `limiti.sconti: false`, un
   booleano: ogni altro valore, o la voce assente, vuol dire permessi;
   (4) quello che **toglie** (un piano più piccolo, un modulo, un
