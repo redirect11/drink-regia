@@ -6,6 +6,10 @@ data.
 
 ## 0.3.0 (in lavorazione)
 
+- A ogni attivazione e aggiornamento, chi ha sottoscritto l'abbonamento è
+  l'admin del suo locale, e riceve l'email per impostare la password:
+  prima un locale nuovo nasceva senza nessuno che potesse entrare
+  (REQ-FLOTTA-029).
 - Anche con Stripe la licenza ha una durata: scade 7 giorni dopo la fine
   del periodo pagato, e alla scadenza la regia controlla lo stato vero su
   Stripe. Chi disdice, con «solo finché si paga», passa al Free; chi torna

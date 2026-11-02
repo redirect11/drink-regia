@@ -110,8 +110,9 @@ export default function Dashboard({ utente }) {
           </p>
           {stato === STATI.ATTIVA && (
             <p>
-              L’app è su <a href={istanza?.url || urlDi(cliente.slug)}>{istanza?.url || urlDi(cliente.slug)}</a>. L’accesso
-              admin è l’email di questo account: la password la imposti al primo accesso con «password dimenticata».
+              L’app è su <a href={istanza?.url || urlDi(cliente.slug)}>{istanza?.url || urlDi(cliente.slug)}</a>. Sei l’admin del
+              locale con l’email di questo account: ti abbiamo scritto per impostare la password. Se non trovi il messaggio, usa
+              «password dimenticata» nell’app.
               {istanza?.versione && <span className="muted small"> Versione {istanza.versione}.</span>}
             </p>
           )}
