@@ -126,6 +126,14 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Il catalogo dei temi (REQ-FLOTTA-032): lo legge l'admin dal
+    // backoffice; lo scrivono le Functions, che controllano ogni tema. Fuori
+    // esce solo dalla Function catalogoTemi, solo coi pubblicati.
+    match /temi/{id} {
+      allow read: if admin();
+      allow write: if false;
+    }
+
     // I codici sconto (REQ-FLOTTA-028): li scrivono solo le Functions, li
     // legge l'admin. Un titolare vede il suo sconto sul suo cliente.
     match /sconti/{codice} {

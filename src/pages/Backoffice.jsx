@@ -38,6 +38,7 @@ import { venditaPulita } from '../lib/vendita.js'
 import { statoIstanza, statoDetto, STATI, progettoDi, riduzioneDetta } from '../lib/istanze.js'
 import { PIANI, MODULI, prezzoMensile, euro } from '../lib/piani.js'
 import { prezzoConSconto, scontoDetto } from '../lib/sconti.js'
+import CatalogoTemi from './CatalogoTemi.jsx'
 import { contattoDi } from '../lib/clienti.js'
 import { statoCredito, euroCent } from '../lib/ai.js'
 import { GRUPPI, TAG, aggiornamentoDetto } from '../lib/rilasci.js'
@@ -323,6 +324,7 @@ export default function Backoffice() {
               </>
             }
           />
+          <Route path="temi" element={<CatalogoTemi onErrore={setErrore} />} />
           <Route
             path="nuovo"
             element={

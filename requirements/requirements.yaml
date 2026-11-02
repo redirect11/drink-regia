@@ -1113,6 +1113,37 @@ requirements:
       - tests/Backoffice.test.jsx
       - tests/rilasci.test.js
 
+  - id: REQ-FLOTTA-032
+    title: "Il catalogo dei temi: la regia pubblica, l'app legge (catalogoTemi)"
+    area: "functions/lib/temi.js, functions/index.js (catalogoTemi, gestisciTemi), src/lib/temi.js, src/pages/CatalogoTemi.jsx, src/lib/backoffice.js, src/lib/db.js, firestore.rules"
+    description: >
+      Richiesta dall'app (tana-drink, REQ-MENU-023), decisioni dell'utente
+      del 02/11/2026: «Una sezione marketplace per i temi in aspetto. È
+      una pagina che carica tutti i temi disponibili. Serve un posto dove
+      pubblicarne di nuovi.» Pubblica solo il fornitore, dalla regia; per
+      ora tutti gratis. Un tema è una ricetta, non codice: una base della
+      tavolozza fra le otto dell'app, al più i sette colori (#rrggbb), e
+      uno stile del menù fra classico, lavagna, deco, riviera, giornale;
+      «notte», esclusivo della Tana, non si pubblica. I temi stanno in
+      temi/{id} con lo stato bozza, pubblicato o ritirato; la sezione
+      «Temi» del backoffice li crea (base, stile, colori, nome,
+      descrizione, con l'anteprima della tavolozza e di un assaggio), li
+      pubblica e li ritira. La regia controlla con le regole di leggiTema
+      dell'app, più severa dove l'app aggiusta: un tema che l'app
+      scarterebbe non si pubblica. La Function pubblica catalogoTemi, GET
+      senza token e col CORS aperto (la legge l'app dal dominio di ogni
+      locale, anche la Tana), risponde { temi } coi soli pubblicati. Fuori
+      per ora: i temi a pagamento (REQ-LIC-011 di tana-drink) e i designer
+      esterni.
+    status: implemented
+    generate_issue: false
+    labels: [prodotto, regia, menu]
+    test_cases:
+      - tests/temi.test.js
+      - tests/CatalogoTemi.test.jsx
+      - tests/db.test.js
+      - tests/Backoffice.test.jsx
+
   - id: REQ-FLOTTA-030
     title: "Il passaggio fra la regia e l'app del locale con un clic, e i dati del titolare nell'app a ogni deploy"
     area: "functions/lib/passaggio.js, functions/index.js (passaggioVersoApp, passaggioVersoRegia, scambiaPassaggio, scriviDatiDelLocale, appDi), src/pages/Accesso.jsx, src/pages/Dashboard.jsx, src/lib/db.js, firestore.rules, infra/istanza/main.tf"

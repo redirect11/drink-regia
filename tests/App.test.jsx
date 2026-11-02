@@ -20,6 +20,9 @@ vi.mock('../src/lib/db.js', () => ({
   },
   esci: vi.fn(),
   // I codici sconto (REQ-FLOTTA-028) hanno i loro test in Backoffice.test.jsx.
+  // Il catalogo dei temi (REQ-FLOTTA-032) ha i suoi test in CatalogoTemi.test.jsx.
+  elencoTemi: vi.fn(async () => []),
+  gestisciTemi: vi.fn(async () => ({ ok: true })),
   elencoSconti: vi.fn(async () => []),
   gestisciSconti: vi.fn(async () => ({ ok: true })),
   applicaSconto: vi.fn(async () => ({ ok: true })),

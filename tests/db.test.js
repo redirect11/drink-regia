@@ -114,6 +114,8 @@ const FUNCTIONS = [
   ['gestisciSconti', ['crea', { codice: 'X1Y' }], 'gestisciSconti', { codice: 'X1Y', azione: 'crea' }],
   ['applicaSconto', ['bar', 'TANA-100'], 'applicaSconto', { slug: 'bar', codice: 'TANA-100' }],
   ['applicaSconto', ['bar', ''], 'applicaSconto', { slug: 'bar', codice: null }],
+  // Il catalogo dei temi (REQ-FLOTTA-032).
+  ['gestisciTemi', ['pubblica', { id: 'aurora' }], 'gestisciTemi', { id: 'aurora', azione: 'pubblica' }],
 ]
 
 describe('le chiamate alle Functions', () => {
@@ -236,6 +238,13 @@ describe('i documenti della regia', () => {
     expect(await db.elencoIstanze()).toEqual({ bar: { stato: 'attiva' } })
     expect(await db.elencoRichieste()).toEqual({ bar: { stato: 'in coda' } })
     expect((await db.elencoRilasci()).map((r) => r.creato_il)).toEqual(['2026-10-20', '2026-10-01'])
+  })
+
+  it('il catalogo dei temi e i codici sconto per il backoffice', async () => {
+    fb.documenti.temi = [['aurora', { id: 'aurora', stato: 'bozza' }]]
+    fb.documenti.sconti = [['TANA-100', { codice: 'TANA-100' }]]
+    expect(await db.elencoTemi()).toEqual([{ id: 'aurora', stato: 'bozza' }])
+    expect(await db.elencoSconti()).toEqual([{ codice: 'TANA-100' }])
   })
 
   it('l’admin: deploy automatico, autorizza, rifiuta, rilancia', async () => {

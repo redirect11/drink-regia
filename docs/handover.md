@@ -659,6 +659,17 @@ L'elenco completo con i riferimenti al codice è in
    **Da fare**: in tana-drink la pagina che riceve il codice, «Area
    clienti», i campi nuovi; poi l'identità centrale (Identity Platform
    nella regia, il banco che entra con l'account della regia).
+32. **Il catalogo dei temi (REQ-FLOTTA-032)**, ramo `feature/catalogo-temi`,
+   02/11/2026, richiesto dall'app (tana-drink REQ-MENU-023, PR #274). La
+   sezione «Temi» del backoffice crea, pubblica e ritira i temi
+   (`temi/{id}`); `catalogoTemi` li dà all'app. **Come si prova**:
+   pubblicare un tema sulla regia di test, poi su tana-drink-test
+   Impostazioni → Aspetto → Marketplace: il tema compare in «Nel
+   marketplace», e «Prova sul menù» mostra i suoi colori e il suo stile.
+   Le basi coi loro colori sono copiate in `src/lib/temi.js` per
+   l'anteprima: se tana-drink cambia una base, si cambia anche lì; uno
+   stile nuovo dell'app si aggiunge a `STILI` (functions/lib/temi.js e
+   src/lib/temi.js).
 
 ---
 
@@ -775,6 +786,13 @@ moduli, la licenza nell'istanza e la Tana.
   `venue_legal_name`, `venue_address`, `venue_postal_city`, `venue_city`,
   e i nuovi `venue_phone`, `venue_vat_number`, `venue_tax_code`,
   `venue_legal_address`.
+- **Il catalogo dei temi** (REQ-FLOTTA-032, dal 02/11/2026; in tana-drink
+  REQ-MENU-023, `docs/marketplace-temi.md`). `GET
+  https://europe-west1-<VITE_REGIA_PROGETTO>.cloudfunctions.net/catalogoTemi`,
+  senza token, CORS aperto → `200 { temi: [{ id, nome, descrizione, prezzo:
+  0, tavolozza: { base, colori }, stile }] }`, solo i pubblicati, in ordine
+  di nome. La fonte della verità su cosa è un tema è `leggiTema` in
+  `src/lib/marketplaceTemi.js` di tana-drink.
 - **La presentazione alla regia** (REQ-FLOTTA-026, dal 02/11/2026). Al
   primo avvio di ogni versione l'app fa `POST
   https://europe-west1-<VITE_REGIA_PROGETTO>.cloudfunctions.net/presentazione`

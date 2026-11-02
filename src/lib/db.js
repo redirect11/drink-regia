@@ -353,6 +353,21 @@ export async function registraLocaleEsistente(dati) {
 
 // Un locale esistente affidato alla regia per gli aggiornamenti, o
 // restituito al suo repository (REQ-FLOTTA-018).
+// Il catalogo dei temi (REQ-FLOTTA-032): l'elenco lo legge l'admin;
+// salvare, pubblicare e ritirare passa dalle Functions, che controllano.
+export async function elencoTemi() {
+  serve()
+  const snap = await getDocs(query(collection(db, 'temi'), orderBy('aggiornato_il', 'desc')))
+  return snap.docs.map((d) => d.data())
+}
+
+export async function gestisciTemi(azione, dati = {}) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'gestisciTemi')
+  const { data } = await fn({ ...dati, azione })
+  return data
+}
+
 // I codici sconto (REQ-FLOTTA-028): l'elenco lo legge l'admin; crearli,
 // disattivarli e applicarli passa dalle Functions.
 export async function elencoSconti() {

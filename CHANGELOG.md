@@ -18,6 +18,10 @@ data.
 
 ## 0.3.0 (in lavorazione)
 
+- Il catalogo dei temi: nella sezione «Temi» del backoffice si crea un tema
+  (una base, uno stile del menù, i colori ritoccati, con l'anteprima), si
+  pubblica e si ritira; l'app dei locali lo trova nel suo marketplace dei
+  temi. Per ora tutti gratis (REQ-FLOTTA-032).
 - «Apri la tua app»: dalla sua area il titolare entra nella sua app senza
   password, con un codice che vale una volta sola e un minuto; e a ogni
   deploy l'app riceve nome, indirizzo, telefono e intestazione fiscale del
