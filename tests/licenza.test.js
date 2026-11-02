@@ -122,10 +122,13 @@ describe('la licenza protetta, dai dati della regia', () => {
     for (const k of Object.keys(patchLicenzaPiano(cliente, ADESSO))) expect(lic).toHaveProperty(k.replace('licenza.', ''))
   })
 
-  it('valida_fino: «pagato fino al» più la grazia per un piano a mano; niente per Free, Stripe, omaggi e interne', () => {
+  it('valida_fino: «pagato fino al» più la grazia per un piano a mano, al taglio dopo; niente per Free, Stripe, omaggi e interne', () => {
     const aMano = { ...cliente, abbonamento: { stato: 'attivo', origine: 'manuale', pagato_fino_al: '2026-11-30' } }
-    expect(licenzaProtetta({ stato: 'attiva' }, aMano, { adesso: ADESSO }).valida_fino).toBe('2026-12-07T23:59:59.000Z')
-    expect(licenzaProtetta({ stato: 'attiva' }, aMano, { giorniGrazia: 0, adesso: ADESSO }).valida_fino).toBe('2026-11-30T23:59:59.000Z')
+    // Scade il 7/12 a fine giornata: si ferma al taglio dopo, le 5 di Roma
+    // dell'8 (le 4 UTC), mai a mezzanotte in pieno servizio (REQ-FLOTTA-024).
+    expect(licenzaProtetta({ stato: 'attiva' }, aMano, { adesso: ADESSO }).valida_fino).toBe('2026-12-08T04:00:00.000Z')
+    expect(licenzaProtetta({ stato: 'attiva' }, aMano, { giorniGrazia: 0, adesso: ADESSO }).valida_fino).toBe('2026-12-01T04:00:00.000Z')
+    expect(licenzaProtetta({ stato: 'attiva' }, aMano, { giorniGrazia: 0, oraTaglio: 6, adesso: ADESSO }).valida_fino).toBe('2026-12-01T05:00:00.000Z')
     expect(licenzaProtetta({ stato: 'attiva' }, { ...aMano, abbonamento: { ...aMano.abbonamento, pagato_fino_al: null } }, { adesso: ADESSO }).valida_fino).toBeNull()
     expect(licenzaProtetta({ stato: 'attiva' }, cliente, { adesso: ADESSO }).valida_fino).toBeNull()
     expect(licenzaProtetta({ stato: 'attiva' }, { piano: 'free', abbonamento: { stato: 'attivo', origine: 'gratuito' } }, { adesso: ADESSO }).valida_fino).toBeNull()
@@ -213,5 +216,27 @@ describe("il contratto con l'app", () => {
   it('le Functions non cancellano mai licenza/attuale: un locale si ferma con lo stato', () => {
     const codice = readFileSync('functions/index.js', 'utf8')
     expect(codice).not.toMatch(/LICENZA_PROTETTA\)\.delete|licenza\/attuale'\)\.delete/)
+  })
+})
+
+// L'utente, 02/11/2026: senza licenza valida il prodotto non parte; con
+// l'opzione della regia diventa Free; e il titolare sa quando i suoi dati
+// verranno cancellati (REQ-FLOTTA-025).
+describe('cosa succede alla scadenza, e la cancellazione dei dati', () => {
+  const cliente = { slug: 'bar-mario', piano: 'base', abbonamento: { stato: 'attivo', origine: 'manuale' } }
+
+  it('alla_scadenza: «free» con «solo finché si paga», se no «ferma»', () => {
+    expect(licenzaProtetta({ stato: 'attiva' }, cliente).alla_scadenza).toBe('ferma')
+    expect(licenzaProtetta({ stato: 'attiva', condizioni_aggiornamenti: { solo_finche_paga: true } }, cliente).alla_scadenza).toBe('free')
+    expect(licenzaProtetta({ stato: 'attiva', interna: true, condizioni_aggiornamenti: { solo_finche_paga: true } }, cliente).alla_scadenza).toBe('ferma')
+  })
+
+  it('cancellazione: la data e chi l’ha voluta, solo con una cancellazione programmata', () => {
+    const programmata = { stato: 'attiva', eliminazione: { stato: 'programmata', quando: '2027-01-31T10:00:00.000Z', richiedente: 'conservazione' } }
+    expect(licenzaProtetta(programmata, cliente).cancellazione).toEqual({ il: '2027-01-31T10:00:00.000Z', richiedente: 'conservazione' })
+    expect(licenzaProtetta({ ...programmata, eliminazione: { ...programmata.eliminazione, stato: 'annullata' } }, cliente).cancellazione).toBeNull()
+    expect(licenzaProtetta({ stato: 'attiva' }, cliente).cancellazione).toBeNull()
+    // Cambia la licenza: si riscrive quando la cancellazione si programma o si annulla.
+    expect(stessaLicenza(licenzaProtetta(programmata, cliente), licenzaProtetta({ stato: 'attiva' }, cliente))).toBe(false)
   })
 })

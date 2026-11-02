@@ -6,6 +6,14 @@ data.
 
 ## 0.3.0 (in lavorazione)
 
+- Un locale fermo perché non paga, o chiuso, conserva i dati per 90 giorni,
+  poi l'installazione si cancella, sempre dopo un backup che il titolare
+  scarica per 180 giorni. Il titolare riceve un avviso subito, 7 giorni
+  prima e il giorno prima, per email, nella sua area clienti e nell'app.
+  Se torna a pagare, la cancellazione si annulla. Un locale tornato al Free
+  non perde niente. I termini e l'informativa lo dicono (REQ-FLOTTA-025).
+- La licenza dice all'app cosa fare quando scade (fermarsi o passare al
+  Free) e scade al taglio della giornata, non a mezzanotte.
 - Un piano più piccolo, un modulo tolto, il passaggio al Free o una
   sospensione per un pagamento mancato arrivano al locale al taglio della
   giornata (alle 5, o all'ora del locale), non durante il servizio: fino

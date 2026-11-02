@@ -8,7 +8,9 @@
 
 const listino = require('../piani.json')
 const { proveAttive } = require('./prove.js')
-const { licenzaAggiornamenti } = require('./aggiornamenti.js')
+const { licenzaAggiornamenti, ripiegaInveceDiSospendere } = require('./aggiornamenti.js')
+const { prossimoTaglio, ORA_DEL_TAGLIO } = require('./taglio.js')
+const { cancellazioneDellaLicenza } = require('./conservazione.js')
 const { scadenzaPagamento, GIORNI_DI_GRAZIA } = require('./scadenze.js')
 
 // Stessi id nel listino e nell'app (REQ-LIC-002 in tana-drink); il
@@ -111,12 +113,25 @@ function sceltaCambiata(prima, dopo) {
 // stessa del compito della regia (REQ-FLOTTA-023). Null se non scade: il
 // Free, un omaggio, le interne, e Stripe, dove decide lo stato
 // dell'abbonamento e Stripe ritenta anche dopo la fine del periodo.
-function validaFino(ist, cliente, giorniGrazia = GIORNI_DI_GRAZIA) {
+//
+// La data cade al taglio della giornata del locale dopo la scadenza
+// (REQ-FLOTTA-024): è lì che la regia lo ferma davvero, e un'app senza
+// rete che si fermasse a mezzanotte lo farebbe in pieno servizio.
+function validaFino(ist, cliente, giorniGrazia = GIORNI_DI_GRAZIA, oraTaglio = ORA_DEL_TAGLIO) {
   if (ist?.interna === true || ist?.ripiego_free) return null
-  return scadenzaPagamento(cliente, giorniGrazia)
+  const scadenza = scadenzaPagamento(cliente, giorniGrazia)
+  return scadenza ? prossimoTaglio(new Date(scadenza), oraTaglio).toISOString() : null
 }
 
-function licenzaProtetta(ist, cliente, { slug, regiaUrl = null, sceltaUrl = null, giorniGrazia = GIORNI_DI_GRAZIA, adesso = new Date() } = {}) {
+// COSA SUCCEDE ALLA SCADENZA (l'utente, 02/11/2026: «se non c'è nessuna
+// licenza non dovrebbe partire proprio il prodotto, o licenza scaduta […]
+// al massimo, se dalla regia è attiva l'opzione, dovrebbe diventare
+// versione free ma senza far perdere i dati»): 'free' con «solo finché si
+// paga» (REQ-FLOTTA-020), se no 'ferma'. Così l'app, anche senza rete,
+// passata valida_fino sa se lavorare col Free o fermarsi.
+const allaScadenza = (ist, adesso) => (ripiegaInveceDiSospendere(ist, adesso) ? 'free' : 'ferma')
+
+function licenzaProtetta(ist, cliente, { slug, regiaUrl = null, sceltaUrl = null, giorniGrazia = GIORNI_DI_GRAZIA, oraTaglio = ORA_DEL_TAGLIO, adesso = new Date() } = {}) {
   // Tornato al Free per un pagamento mancato (REQ-FLOTTA-020): il suo piano
   // torna col pagamento, non qui.
   const scelta = ist?.ripiego_free ? { piano: 'free' } : cliente
@@ -133,13 +148,17 @@ function licenzaProtetta(ist, cliente, { slug, regiaUrl = null, sceltaUrl = null
     slug: slug || cliente?.slug || null,
     regia_url: regiaUrl,
     aggiornamenti: licenzaAggiornamenti(ist, cliente, adesso, { sceltaUrl }),
-    valida_fino: validaFino(ist, cliente, giorniGrazia),
+    valida_fino: validaFino(ist, cliente, giorniGrazia, oraTaglio),
+    alla_scadenza: allaScadenza(ist, adesso),
+    // La cancellazione dei dati programmata, per l'avviso nell'app
+    // (REQ-FLOTTA-025): { il, richiedente } o null.
+    cancellazione: cancellazioneDellaLicenza(ist),
     scritta_il: adesso.toISOString(),
   }
 }
 
 // Due licenze dicono la stessa cosa? La data di scrittura non conta.
-const CHIAVI_PROTETTA = ['piano', 'moduli', 'terminali', 'limiti', 'prove', 'stato', 'motivo', 'slug', 'regia_url', 'aggiornamenti', 'valida_fino']
+const CHIAVI_PROTETTA = ['piano', 'moduli', 'terminali', 'limiti', 'prove', 'stato', 'motivo', 'slug', 'regia_url', 'aggiornamenti', 'valida_fino', 'alla_scadenza', 'cancellazione']
 function ordinato(v) {
   if (Array.isArray(v)) return v.map(ordinato)
   if (v && typeof v === 'object') return Object.fromEntries(Object.keys(v).sort().map((k) => [k, ordinato(v[k])]))

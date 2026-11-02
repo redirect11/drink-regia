@@ -958,6 +958,21 @@ describe('le licenze protette nel backoffice', () => {
     const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
     expect(attivo).toHaveTextContent(/Dal taglio della giornata .*: il modulo magazzino\./)
   })
+
+  // REQ-FLOTTA-025: la fine della conservazione dei dati di un locale fermo.
+  it('la scheda di un locale fermo dice quando finisce la conservazione dei dati, e gli avvisi mandati', async () => {
+    db.elencoIstanze.mockResolvedValue({
+      'bar-attivo': {
+        stato: 'attiva',
+        progetto: 'drinkpos-bar-attivo',
+        licenza_stato: 'sospesa',
+        eliminazione: { stato: 'programmata', quando: '2027-01-31T10:00:00Z', richiedente: 'conservazione', avvisi: [{ chiave: 'x' }] },
+      },
+    })
+    mostra()
+    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
+    expect(attivo).toHaveTextContent(/Programmata per il .*\(fine della conservazione dei dati: il locale è fermo\) · avvisi mandati: 1/)
+  })
 })
 
 // LE SCADENZE A EVENTI (REQ-FLOTTA-023): un piano pagato fuori da Stripe ha

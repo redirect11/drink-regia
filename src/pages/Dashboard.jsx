@@ -39,6 +39,8 @@ export default function Dashboard({ utente }) {
   const stato = statoIstanza(istanza, richiesta)
   const via = puoAttivare(cliente, istanza, richiesta, { emailVerificata: utente.emailVerificata !== false })
   const piano = cliente.piano ? PIANI[cliente.piano] : null
+  // I dati del locale stanno per essere cancellati: si dice per primo.
+  const cancellazione = ['programmata', 'in coda', 'in corso'].includes(istanza?.eliminazione?.stato)
 
   const attiva = async () => {
     setErrore(null)
@@ -81,6 +83,7 @@ export default function Dashboard({ utente }) {
           {avviso && <p className="muted small">{avviso}</p>}
         </section>
       )}
+      {cancellazione && <ChiudiLocale istanza={istanza} />}
       <header className="dashboard-testa">
         <h2>{cliente.nome_locale}</h2>
         <p className="muted small">
@@ -162,8 +165,9 @@ export default function Dashboard({ utente }) {
       {new URLSearchParams(window.location.search).get('pagamento') === 'ok' && (
         <p className="muted small">Pagamento ricevuto: l’abbonamento compare qui sopra appena Stripe ce lo conferma, di solito in pochi secondi.</p>
       )}
-      {/* In fondo, lontano dal resto: chiudere e cancellare il locale. */}
-      <ChiudiLocale istanza={istanza} />
+      {/* In fondo, lontano dal resto: chiudere e cancellare il locale. Una
+          cancellazione già programmata sta invece in cima (REQ-FLOTTA-025). */}
+      {!cancellazione && <ChiudiLocale istanza={istanza} />}
     </main>
   )
 }
