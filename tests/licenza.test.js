@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest'
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
-const { moduliLicenza, patchLicenzaPiano, licenzaIniziale, sceltaCambiata, licenzaProtetta, stessaLicenza, TUTTI } = require('../functions/lib/licenza.js')
+const { moduliLicenza, patchLicenzaPiano, licenzaIniziale, sceltaCambiata, licenzaProtetta, stessaLicenza, perIlDatabase, scadenzaCoerente, TUTTI } = require('../functions/lib/licenza.js')
 const { readFileSync } = require('node:fs')
 
 describe('moduliLicenza', () => {
@@ -238,5 +238,37 @@ describe('cosa succede alla scadenza, e la cancellazione dei dati', () => {
     expect(licenzaProtetta({ stato: 'attiva' }, cliente).cancellazione).toBeNull()
     // Cambia la licenza: si riscrive quando la cancellazione si programma o si annulla.
     expect(stessaLicenza(licenzaProtetta(programmata, cliente), licenzaProtetta({ stato: 'attiva' }, cliente))).toBe(false)
+  })
+})
+
+// tana-drink, 02/11/2026: le regole leggono la scadenza solo da
+// valida_fino_ts come Timestamp; senza, lato server la licenza non scade.
+describe('la scadenza per le regole: valida_fino_ts', () => {
+  // Un Timestamp finto: quello vero (firebase-admin) ha toMillis().
+  const ts = (d) => ({ toMillis: () => d.getTime() })
+
+  it('stesso istante di valida_fino come Timestamp, o null se non scade', () => {
+    const scade = perIlDatabase({ piano: 'base', valida_fino: '2026-12-08T04:00:00.000Z' }, ts)
+    expect(scade.valida_fino).toBe('2026-12-08T04:00:00.000Z')
+    expect(scade.valida_fino_ts.toMillis()).toBe(Date.parse('2026-12-08T04:00:00.000Z'))
+    expect(perIlDatabase({ piano: 'base', valida_fino: null }, ts).valida_fino_ts).toBeNull()
+  })
+
+  it('la verifica vuole i due campi d’accordo', () => {
+    expect(scadenzaCoerente(perIlDatabase({ valida_fino: '2026-12-08T04:00:00.000Z' }, ts))).toBe(true)
+    expect(scadenzaCoerente({ valida_fino: null, valida_fino_ts: null })).toBe(true)
+    expect(scadenzaCoerente({ valida_fino: null })).toBe(true)
+    // Una licenza scritta prima di valida_fino_ts: per le regole non scadrebbe.
+    expect(scadenzaCoerente({ valida_fino: '2026-12-08T04:00:00.000Z' })).toBe(false)
+    expect(scadenzaCoerente({ valida_fino: '2026-12-08T04:00:00.000Z', valida_fino_ts: '2026-12-08T04:00:00.000Z' })).toBe(false)
+    expect(scadenzaCoerente({ valida_fino: '2026-12-08T04:00:00.000Z', valida_fino_ts: ts(new Date('2026-12-09T04:00:00.000Z')) })).toBe(false)
+    expect(scadenzaCoerente({ valida_fino: null, valida_fino_ts: ts(new Date()) })).toBe(false)
+  })
+
+  it('le Functions la scrivono con valida_fino_ts, in licenza/attuale e in settings/bar', () => {
+    const codice = readFileSync('functions/index.js', 'utf8')
+    expect(codice).toContain('perIlDatabase(licenza, (d) => Timestamp.fromDate(d))')
+    expect(codice).toContain('await istanza.doc(LICENZA_PROTETTA).set(doc)')
+    expect(codice).toContain("set({ licenza: doc }, { mergeFields: ['licenza'] })")
   })
 })

@@ -23,9 +23,9 @@ const { initializeApp } = require('firebase-admin/app')
 const { getFirestore } = require('firebase-admin/firestore')
 const { preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, eAggiornamento, documentoIstanza, documentoAggiornamento, bearerValido } = require('./lib/provisioning.js')
 const rilasci = require('./lib/rilasci.js')
-const { sceltaCambiata, licenzaProtetta, stessaLicenza } = require('./lib/licenza.js')
+const { sceltaCambiata, licenzaProtetta, stessaLicenza, perIlDatabase, scadenzaCoerente } = require('./lib/licenza.js')
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
-const { FieldValue } = require('firebase-admin/firestore')
+const { FieldValue, Timestamp } = require('firebase-admin/firestore')
 const { chiaveStripeVera, righeCheckout, metadatiDi, aggiornamentoDaEvento } = require('./lib/abbonamento.js')
 const { onTaskDispatched } = require('firebase-functions/v2/tasks')
 const { getFunctions: funzioniAdmin } = require('firebase-admin/functions')
@@ -817,10 +817,12 @@ async function scriviLicenza(slug, { subito = false } = {}) {
       perche = `La riduzione al taglio non si è programmata: ${String(e?.message || e).slice(0, 160)}`
     })
   }
-  await istanza.doc(LICENZA_PROTETTA).set(licenza)
+  // Con valida_fino_ts, la scadenza che le regole sanno leggere.
+  const doc = perIlDatabase(licenza, (d) => Timestamp.fromDate(d))
+  await istanza.doc(LICENZA_PROTETTA).set(doc)
   // mergeFields: il campo licenza si sostituisce intero, il resto di
   // settings/bar (le impostazioni del locale) non si tocca.
-  await istanza.doc('settings/bar').set({ licenza }, { mergeFields: ['licenza'] })
+  await istanza.doc('settings/bar').set({ licenza: doc }, { mergeFields: ['licenza'] })
   await ref.update({ licenza_protetta: { ok: !perche, perche, controllata_il: lic.scritta_il }, riduzione_al_taglio: alTaglio })
   return { ok: true, scritta: true }
 }
@@ -840,6 +842,7 @@ async function verificaLicenza(slug) {
   if (!protetta.exists) perche = 'Manca licenza/attuale: con l’app nuova il locale si ferma.'
   else if (!stessaLicenza(protetta.data(), bar.data()?.licenza)) perche = 'licenza/attuale è diversa da settings/bar.licenza.'
   else if (!stessaLicenza(protetta.data(), attesa)) perche = 'La licenza non è quella che dicono i dati della regia.'
+  else if (!scadenzaCoerente(protetta.data())) perche = 'Manca valida_fino_ts, o non è valida_fino: per le regole la licenza non scadrebbe.'
   await ref.set({ licenza_protetta: { ok: !perche, perche, controllata_il: new Date().toISOString() } }, { merge: true })
   return { slug, ok: !perche, perche }
 }

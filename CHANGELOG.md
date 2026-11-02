@@ -13,7 +13,8 @@ data.
   Se torna a pagare, la cancellazione si annulla. Un locale tornato al Free
   non perde niente. I termini e l'informativa lo dicono (REQ-FLOTTA-025).
 - La licenza dice all'app cosa fare quando scade (fermarsi o passare al
-  Free) e scade al taglio della giornata, non a mezzanotte.
+  Free) e scade al taglio della giornata, non a mezzanotte. La scadenza è
+  scritta anche nella forma che le regole del database sanno leggere.
 - Un piano più piccolo, un modulo tolto, il passaggio al Free o una
   sospensione per un pagamento mancato arrivano al locale al taglio della
   giornata (alle 5, o all'ora del locale), non durante il servizio: fino
