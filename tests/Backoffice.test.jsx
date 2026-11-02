@@ -348,7 +348,7 @@ describe('il backoffice e il credito AI', () => {
     expect(within(tana).queryByRole('button', { name: 'Chiudi' })).toBeNull()
   })
 
-  it('«Chi la pubblica…» affida la Tana alla regia con la sua cartella e le chiavi della build', async () => {
+  it('«Pubblicazione e licenza…» affida la Tana alla regia con la sua cartella e le chiavi della build', async () => {
     const user = userEvent.setup()
     db.elencoClienti.mockResolvedValue([{ uid: 't', slug: 'tana-drink', nome_locale: 'La Tana', email: 't@x.it', piano: 'completo', creato_il: '2026-10-24' }])
     db.elencoIstanze.mockResolvedValue({
@@ -356,8 +356,8 @@ describe('il backoffice e il credito AI', () => {
     })
     mostra()
     const tana = await screen.findByRole('article', { name: 'La Tana' })
-    await user.click(within(tana).getByRole('button', { name: 'Chi la pubblica…' }))
-    const modulo = within(tana).getByRole('form', { name: 'Chi pubblica La Tana' })
+    await user.click(within(tana).getByRole('button', { name: 'Pubblicazione e licenza…' }))
+    const modulo = within(tana).getByRole('form', { name: 'Pubblicazione e licenza di La Tana' })
     expect(within(modulo).getByLabelText('Cartella in clienti/ dell’app')).toHaveValue('tana-drink')
     expect(within(modulo).getByLabelText('Chiave VAPID delle notifiche')).toHaveValue('vapid-1')
     await user.click(within(modulo).getByRole('checkbox', { name: /La aggiorna la regia/ }))
@@ -376,7 +376,7 @@ describe('il backoffice e il credito AI', () => {
       build: { VITE_FIREBASE_VAPID_KEY: 'vapid-1', VITE_RECAPTCHA_SITE_KEY: '6Lc-abc', VITE_FIREBASE_MEASUREMENT_ID: '' },
     })
     // Finito, il modulo si chiude e i dati si rileggono.
-    expect(within(tana).queryByRole('form', { name: 'Chi pubblica La Tana' })).toBeNull()
+    expect(within(tana).queryByRole('form', { name: 'Pubblicazione e licenza di La Tana' })).toBeNull()
   })
 
   it('un errore nel salvare si vede, e il modulo resta aperto', async () => {
@@ -386,10 +386,10 @@ describe('il backoffice e il credito AI', () => {
     db.elencoIstanze.mockResolvedValue({ 'tana-drink': { stato: 'attiva', progetto: 'tana-drink', origine: 'esistente', interna: true } })
     mostra()
     const tana = await screen.findByRole('article', { name: 'La Tana' })
-    await user.click(within(tana).getByRole('button', { name: 'Chi la pubblica…' }))
+    await user.click(within(tana).getByRole('button', { name: 'Pubblicazione e licenza…' }))
     await user.click(within(tana).getByRole('button', { name: 'Salva' }))
     expect(await screen.findByText(/Cartella del cliente «X» non valida/)).toBeInTheDocument()
-    expect(within(tana).getByRole('form', { name: 'Chi pubblica La Tana' })).toBeInTheDocument()
+    expect(within(tana).getByRole('form', { name: 'Pubblicazione e licenza di La Tana' })).toBeInTheDocument()
   })
 })
 
@@ -994,6 +994,9 @@ describe('le licenze protette nel backoffice', () => {
     mostra()
     const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
     expect(within(attivo).getByTestId('presentazione')).toHaveTextContent(/^v1\.10\.4 · dal 0?2\/11\/2026 · ultima volta il 0?3\/11\/2026$/)
+    // Senza l'esito di un deploy della regia (la Tana da GitHub), anche la
+    // colonna Versione dice quella dell'app, e lo dice.
+    expect(attivo).toHaveTextContent(/Versionev1\.10\.4detta dall’app/)
   })
 })
 
