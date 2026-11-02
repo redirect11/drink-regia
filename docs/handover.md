@@ -634,7 +634,11 @@ moduli, la licenza nell'istanza e la Tana.
   «pagato fino al» più i giorni di grazia, portato al taglio della giornata
   dopo (REQ-FLOTTA-024: mai a mezzanotte in servizio); `null` se non
   scade (Free, omaggi, interne, Stripe, dove decide lo stato
-  dell'abbonamento). `alla_scadenza` (dal 02/11/2026, REQ-FLOTTA-025):
+  dell'abbonamento). Nel database c'è anche `valida_fino_ts`, lo stesso
+  istante come Timestamp di Firestore (`null` se non scade): tana-drink,
+  02/11/2026, «le regole leggono la scadenza solo da valida_fino_ts […].
+  Senza quel campo, lato server la licenza non scade mai». La verifica
+  delle licenze vuole i due campi d'accordo. `alla_scadenza` (dal 02/11/2026, REQ-FLOTTA-025):
   `'free'` con «solo finché si paga», se no `'ferma'`: passata
   `valida_fino` l'app, anche senza rete, lavora col Free o si ferma.
   `cancellazione`: `{ il, richiedente: 'conservazione' | 'titolare' |

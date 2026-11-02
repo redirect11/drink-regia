@@ -166,4 +166,23 @@ function ordinato(v) {
 }
 const stessaLicenza = (a, b) => Boolean(a && b) && CHIAVI_PROTETTA.every((k) => JSON.stringify(ordinato(a[k])) === JSON.stringify(ordinato(b[k])))
 
-module.exports = { moduliLicenza, patchLicenzaPiano, licenzaIniziale, sceltaCambiata, licenzaProtetta, stessaLicenza, validaFino, TUTTI }
+// LA SCADENZA PER LE REGOLE (tana-drink, 02/11/2026): «le regole leggono
+// la scadenza solo da valida_fino_ts come Timestamp, perché una data
+// scritta come testo non la sanno leggere. Senza quel campo, lato server
+// la licenza non scade mai.» Quindi nel database la licenza porta anche
+// valida_fino_ts, lo stesso istante di valida_fino come Timestamp di
+// Firestore (null se non scade). `aTimestamp` lo fa chi scrive (le
+// Functions, con firebase-admin): qui la logica resta pura.
+function perIlDatabase(lic, aTimestamp) {
+  return { ...lic, valida_fino_ts: lic?.valida_fino ? aTimestamp(new Date(lic.valida_fino)) : null }
+}
+
+// I due campi dicono la stessa scadenza? Un Timestamp ha toMillis().
+function scadenzaCoerente(doc) {
+  const testo = Date.parse(doc?.valida_fino || '')
+  const ts = doc?.valida_fino_ts
+  if (!Number.isFinite(testo)) return ts == null
+  return typeof ts?.toMillis === 'function' && ts.toMillis() === testo
+}
+
+module.exports = { moduliLicenza, patchLicenzaPiano, licenzaIniziale, sceltaCambiata, licenzaProtetta, stessaLicenza, validaFino, perIlDatabase, scadenzaCoerente, TUTTI }
