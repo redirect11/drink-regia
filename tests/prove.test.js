@@ -38,9 +38,10 @@ describe('accendere una prova', () => {
   it('no: senza giorni, fuori vendita, già suo, già provato, locale non attivo o sospeso', () => {
     expect(p.puoProvare(base, attiva, 'sumup', vendita, adesso).perche).toMatch(/non si può provare/)
     expect(p.puoProvare(base, attiva, 'magazzino', venditaPulita({ prove: { magazzino: 14 }, moduli: { magazzino: false } }), adesso).perche).toMatch(/non è in vendita/)
-    expect(p.puoProvare({ ...base, moduli: ['magazzino'] }, attiva, 'magazzino', vendita, adesso).perche).toMatch(/già nel tuo piano/)
+    expect(p.puoProvare({ ...base, moduli: ['magazzino'] }, attiva, 'magazzino', vendita, adesso).perche).toMatch(/già attivo nel piano/)
     expect(p.puoProvare({ ...base, piano: 'completo' }, attiva, 'magazzino', vendita, adesso).ok).toBe(false)
-    expect(p.puoProvare({ ...base, prove_fatte: ['magazzino'] }, attiva, 'magazzino', vendita, adesso).perche).toMatch(/una volta sola/)
+    expect(p.puoProvare({ ...base, prove_fatte: ['magazzino'] }, attiva, 'magazzino', vendita, adesso).perche).toMatch(/La prova di .* è già stata usata: si prova una volta sola/)
+
     expect(p.puoProvare(base, { stato: 'in corso' }, 'magazzino', vendita, adesso).perche).toMatch(/non è attivo/)
     expect(p.puoProvare(base, { ...attiva, licenza_stato: 'sospesa' }, 'magazzino', vendita, adesso).perche).toMatch(/sospeso o chiuso/)
     expect(p.puoProvare(base, attiva, 'boh', vendita, adesso).perche).toMatch(/sconosciuto/)

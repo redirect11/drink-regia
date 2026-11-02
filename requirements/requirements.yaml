@@ -1549,7 +1549,49 @@ requirements:
       - tests/abbonamento.test.js
       - tests/ai.test.js
 
+  - id: REQ-FLOTTA-037
+    title: "I moduli si provano, si aggiungono e si disdicono dall'app del locale"
+    area: "functions/lib/moduliapp.js, functions/lib/prove.js (puoProvare), functions/index.js (catalogoModuli, moduloDallApp, accendiProva, provaModulo)"
+    description: >
+      Da tana-drink (REQ-LIC-012), 02/11/2026: il titolare di un locale
+      della flotta prova, aggiunge e disdice un modulo da «Marketplace →
+      Moduli» nel gestionale, senza passare dall'area clienti. Le decisioni
+      dell'utente: al mese, come nel listino (IVA esclusa); una prova
+      gratuita coi giorni che decide l'admin (REQ-FLOTTA-016); compra solo
+      il titolare, il ruolo `admin` dell'app. L'app non scrive niente per un
+      modulo: chiede alla regia, la regia cambia il cliente e la licenza
+      dell'istanza segue (licenzaSegueIlPiano). Il contratto dal lato
+      dell'app è in tana-drink/docs/marketplace-moduli.md.
+      catalogoModuli: GET pubblico, CORS aperto, → { moduli: [{ id, prezzo,
+      prova_giorni }] }, solo quelli in vendita, senza nomi né descrizioni.
+      moduloDallApp: POST col token dell'app, corpo { modulo, azione:
+      prova | aggiungi | disdici, ritorno }. I controlli in ordine:
+      l'installazione dal progetto del token (401, 404 se sconosciuta,
+      eliminata o la demo), il ruolo `admin` (403), il ritorno sui domini
+      dell'installazione (Hosting del progetto, l'indirizzo registrato,
+      `domini`; 400), il modulo nel listino e in vendita (409; per disdire
+      basta che esista). La prova è la stessa regola della dashboard, in
+      una funzione sola (accendiProva). Aggiungere e disdire cambiano la
+      subscription come «Cambia piano» (aggiornaSubscription, conguaglio e
+      IVA) e solo su un abbonamento Stripe attivo: sul Free «I moduli si
+      aggiungono ai piani a pagamento», su un piano a mano o regalato «Il
+      piano è gestito dall'assistenza». Un modulo compreso nel piano non si
+      disdice; uno in prova si spegne alla fine della prova. Disdire
+      risponde `dal` = oggi: la subscription si aggiorna subito col
+      conguaglio, e la licenza che toglie aspetta il taglio della giornata
+      (REQ-FLOTTA-024). Nessun Checkout da qui: la licenza non cambia mai per
+      un ritorno dal browser. Ogni cambio va nello storico del cliente con
+      chi l'ha fatto (modo «app»). I motivi di puoProvare sono impersonali,
+      perché l'app li mostra così come sono.
+    status: implemented
+    generate_issue: true
+    labels: [prodotto, flotta, regia, abbonamento, licenza]
+    test_cases:
+      - tests/moduliapp.test.js
+      - tests/prove.test.js
+
   - id: REQ-FLOTTA-036
+
     title: "Il webhook di Stripe elabora ogni evento una volta sola, e un evento in ritardo non riporta indietro lo stato"
     area: "functions/lib/eventistripe.js, functions/lib/abbonamento.js (subscriptionDellaFattura), functions/index.js (stripeWebhook, elaboraEventoStripe), firestore.rules (eventi_stripe)"
     description: >

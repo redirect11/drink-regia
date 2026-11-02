@@ -35,12 +35,15 @@ function puoProvare(cliente, istanza, id, vendita, adesso = new Date()) {
   const m = listino.moduli.find((x) => x.id === id)
   if (!m) return { ok: false, perche: 'Modulo sconosciuto.' }
   const giorni = vendita?.prove?.[id] || 0
+  // I motivi in forma impersonale (REQ-FLOTTA-037): li mostrano così come
+  // sono sia la dashboard sia l'app del locale, nel registro del gestionale.
   if (!giorni) return { ok: false, perche: `${m.nome} non si può provare.` }
   if (vendita?.moduli?.[id] === false) return { ok: false, perche: `${m.nome} non è in vendita.` }
   if (istanza?.stato !== 'attiva') return { ok: false, perche: 'Il locale non è attivo.' }
   if ((istanza.licenza_stato || 'attiva') !== 'attiva') return { ok: false, perche: 'Il locale è sospeso o chiuso.' }
-  if (haGiaIlModulo(cliente, id)) return { ok: false, perche: `${m.nome} è già nel tuo piano.` }
-  if ((cliente?.prove_fatte || []).includes(id)) return { ok: false, perche: `${m.nome} l’hai già provato: si prova una volta sola.` }
+  if (haGiaIlModulo(cliente, id)) return { ok: false, perche: `${m.nome} è già attivo nel piano.` }
+  if ((cliente?.prove_fatte || []).includes(id)) return { ok: false, perche: `La prova di ${m.nome} è già stata usata: si prova una volta sola.` }
+
   return { ok: true, perche: null, giorni, scade_il: new Date(adesso.getTime() + giorni * GIORNO).toISOString() }
 }
 
