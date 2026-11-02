@@ -156,8 +156,13 @@ describe('la prima pagina', () => {
 
   it('la prova, il tetto dell’assistenza e le stampanti a preventivo', () => {
     mostra()
-    expect(within(screen.getByRole('list', { name: 'In breve' })).getByText(`${PROVA_GIORNI} giorni di prova`)).toBeInTheDocument()
-    expect(screen.getByText(`I primi ${PROVA_GIORNI} giorni sono di prova: il canone parte alla fine della prova.`)).toBeInTheDocument()
+    // La prova si dice solo se il Checkout la applica (PROVA_GIORNI > 0).
+    if (PROVA_GIORNI > 0) {
+      expect(within(screen.getByRole('list', { name: 'In breve' })).getByText(`${PROVA_GIORNI} giorni di prova`)).toBeInTheDocument()
+      expect(screen.getByText(`I primi ${PROVA_GIORNI} giorni sono di prova: il canone parte alla fine della prova.`)).toBeInTheDocument()
+    } else {
+      expect(screen.queryByText(/giorni di prova/)).toBeNull()
+    }
     expect(screen.getByText(`L’assistenza da remoto è inclusa fino a ${ASSISTENZA.ore_mese} ora al mese; oltre, a preventivo.`)).toBeInTheDocument()
     expect(screen.getByText(/un preventivo scritto, da accettare prima di cominciare il lavoro/)).toBeInTheDocument()
   })

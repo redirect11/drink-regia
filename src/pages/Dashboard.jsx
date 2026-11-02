@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { osservaCliente, osservaIstanza, osservaRichiesta, chiediAttivazione, inviaVerificaEmail, rileggiUtente } from '../lib/db.js'
 import { statoIstanza, statoDetto, puoAttivare, urlDi, progettoDi, STATI } from '../lib/istanze.js'
-import { PIANI, MODULI, prezzoMensile, prezzoAnnuale, conIva, euro } from '../lib/piani.js'
+import { PIANI, MODULI, prezzoMensile, prezzoAnnuale, prezzoFondatori, conIva, euro } from '../lib/piani.js'
 import SceltaPiano from './SceltaPiano.jsx'
 import CreditoAI from './CreditoAI.jsx'
 import ChiudiLocale from './ChiudiLocale.jsx'
@@ -35,12 +35,18 @@ export default function Dashboard({ utente }) {
   const via = puoAttivare(cliente, istanza, richiesta, { emailVerificata: utente.emailVerificata !== false })
   const piano = cliente.piano ? PIANI[cliente.piano] : null
   // Il prezzo coi centesimi e «+ IVA», col totale accanto (DEC-0005); chi
-  // paga l'anno vede l'anno. È il prezzo di listino della scelta: il
-  // prezzo Fondatori applicato oggi non sta nel documento del cliente, e
-  // la pagina non lo indovina. TODO: mostrarlo quando le Functions
-  // (feature/prezzi-logica) lo scrivono, col nome del campo concordato.
-  const annuale = cliente.periodo === 'anno' && !piano?.gratuito
-  const prezzo = piano ? (annuale ? prezzoAnnuale(prezzoMensile(cliente)) : prezzoMensile(cliente)) : 0
+  // paga l'anno vede l'anno. Un Fondatore, finché l'offerta vale
+  // (abbonamento.fondatore.fino_al, scritto dal webhook: REQ-FLOTTA-021),
+  // vede il suo prezzo: il coupon Stripe toglie la differenza dal piano,
+  // quindi moduli e terminali in più restano a listino.
+  const annuale = cliente.abbonamento?.intervallo === 'anno' && !piano?.gratuito
+  const fondatore = cliente.abbonamento?.fondatore
+  const scontoFondatore =
+    piano && fondatore && new Date(fondatore.fino_al) > new Date() && prezzoFondatori(cliente.piano) != null
+      ? piano.prezzo - prezzoFondatori(cliente.piano)
+      : 0
+  const mensile = piano ? prezzoMensile(cliente) - scontoFondatore : 0
+  const prezzo = piano ? (annuale ? prezzoAnnuale(mensile) : Math.round(mensile * 100) / 100) : 0
 
   const attiva = async () => {
     setErrore(null)

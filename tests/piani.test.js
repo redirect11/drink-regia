@@ -1,3 +1,4 @@
+import listino from '../functions/piani.json'
 'use strict'
 
 // I PIANI E I PREZZI (REQ-FLOTTA-002, REQ-FLOTTA-021): in un posto solo, e
@@ -33,7 +34,13 @@ describe('il listino di DEC-0005', () => {
   it('Fondatori: 20 posti, 12 mesi, Base a 25 €, attivazione gratuita; annuale a 10 mensilità; prova di 30 giorni', () => {
     expect(FONDATORI).toMatchObject({ posti: 20, mesi: 12, prezzi: { base: 25 }, attivazione: 0 })
     expect(ANNUALE.mensilita).toBe(10)
-    expect(PROVA_GIORNI).toBe(30)
+    expect(listino.prova_giorni).toBe(30)
+  })
+
+  // La prova si mostra solo se il Checkout la applica: finché
+  // prova_nel_checkout è spenta, a schermo non c'è (PROVA_GIORNI = 0).
+  it('la prova a schermo segue prova_nel_checkout', () => {
+    expect(PROVA_GIORNI).toBe(listino.prova_nel_checkout === true ? listino.prova_giorni : 0)
   })
 })
 

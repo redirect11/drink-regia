@@ -31,7 +31,7 @@ import { venditaPulita, pianiInVendita, moduloVisibile, eGratuito } from '../lib
 // al posto del Checkout il titolare lascia un recapito e lo contattiamo
 // noi; il pagamento si concorda fuori dal sito e il piano lo attiva l'admin.
 // IL LISTINO DEL 02/11/2026 (DEC-0005): prezzi «+ IVA» col totale IVA
-// inclusa accanto; mensile o annuale (`periodo: 'mese' | 'anno'` nella
+// inclusa accanto; mensile o annuale (`intervallo: 'mese' | 'anno'` nella
 // scelta, che le Functions validano: qui si mostra soltanto); l'offerta
 // Fondatori detta come informazione, perché chi rientra lo decide il
 // server contando gli abbonamenti attivati: la pagina non ha il conteggio
@@ -52,7 +52,7 @@ export default function SceltaPiano({ cliente, modifica = false, vai = (url) => 
   const [piano, setPiano] = useState(cliente.piano && !eGratuito(cliente.piano) ? cliente.piano : 'base')
   const [moduli, setModuli] = useState(cliente.moduli || [])
   const [terminali, setTerminali] = useState(cliente.terminali || 1)
-  const [periodo, setPeriodo] = useState(cliente.periodo === 'anno' ? 'anno' : 'mese')
+  const [periodo, setPeriodo] = useState(cliente.abbonamento?.intervallo === 'anno' ? 'anno' : 'mese')
   const [errore, setErrore] = useState(null)
   const [inCorso, setInCorso] = useState(false)
   const [fatto, setFatto] = useState(null)
@@ -63,7 +63,7 @@ export default function SceltaPiano({ cliente, modifica = false, vai = (url) => 
   const gratuito = eGratuito(piano)
   // Il Checkout serve solo a chi comincia un piano a pagamento.
   const daContattare = !gratuito && !modifica && !vendita.pagamenti_online
-  const scelta = gratuito ? { piano, moduli: [], terminali: 1 } : { piano, moduli, terminali, periodo }
+  const scelta = gratuito ? { piano, moduli: [], terminali: 1 } : { piano, moduli, terminali, intervallo: periodo }
   const mensile = prezzoMensile(scelta)
   const annuale = periodo === 'anno' && !gratuito
   const daPagare = annuale ? prezzoAnnuale(mensile) : mensile

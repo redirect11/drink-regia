@@ -85,10 +85,23 @@ describe('la dashboard', () => {
   })
 
   it('chi paga l’anno vede il prezzo dell’anno', () => {
-    stato.cliente = { ...stato.cliente, moduli: [], terminali: 1, periodo: 'anno' }
+    stato.cliente = { ...stato.cliente, moduli: [], terminali: 1, abbonamento: { stato: 'attivo', intervallo: 'anno' } }
     mostra()
     // 10 mensilità da 32,70 €: 327 € + IVA, 398,94 € IVA inclusa.
     expect(screen.getByTestId('prezzo-piano')).toHaveTextContent('327 € + IVA all’anno (398,94 € IVA inclusa)')
+  })
+
+  // REQ-FLOTTA-021: un Fondatore, finché l'offerta vale, vede il suo prezzo;
+  // scaduti i 12 mesi torna il listino.
+  it('un Fondatore vede 25 € finché l’offerta vale, poi il listino', () => {
+    const fondatore = (fino_al) => ({ stato: 'attivo', intervallo: 'mese', fondatore: { numero: 1, dal: '2026-11-01T00:00:00Z', fino_al } })
+    stato.cliente = { ...stato.cliente, moduli: [], terminali: 1, abbonamento: fondatore('2999-01-01T00:00:00Z') }
+    const { unmount } = mostra()
+    expect(screen.getByTestId('prezzo-piano')).toHaveTextContent('25 € + IVA al mese (30,50 € IVA inclusa)')
+    unmount()
+    stato.cliente = { ...stato.cliente, abbonamento: fondatore('2000-01-01T00:00:00Z') }
+    mostra()
+    expect(screen.getByTestId('prezzo-piano')).toHaveTextContent('32,70 € + IVA al mese (39,89 € IVA inclusa)')
   })
 
   // REQ-FLOTTA-010: con l'abbonamento attivo si cambia piano o moduli.

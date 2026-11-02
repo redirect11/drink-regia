@@ -69,7 +69,7 @@ describe('la scelta del piano', () => {
     db.avviaPagamento.mockResolvedValueOnce({ url: 'https://checkout.stripe.com/x' })
     render(<SceltaPiano cliente={{ uid: 'u1', moduli: ['staff'] }} vai={assign} />)
     await user.click(screen.getByRole('button', { name: /Vai al pagamento/ }))
-    expect(db.avviaPagamento).toHaveBeenCalledWith({ piano: 'base', moduli: ['staff'], terminali: 1, periodo: 'mese' })
+    expect(db.avviaPagamento).toHaveBeenCalledWith({ piano: 'base', moduli: ['staff'], terminali: 1, intervallo: 'mese' })
     expect(assign).toHaveBeenCalledWith('https://checkout.stripe.com/x')
   })
 
@@ -79,14 +79,14 @@ describe('la scelta del piano', () => {
     render(<SceltaPiano cliente={{ uid: 'u1', piano: 'base', moduli: [] }} modifica vai={vi.fn()} />)
     await user.click(screen.getByLabelText(/Completo/))
     await user.click(screen.getByRole('button', { name: 'Aggiorna il piano' }))
-    expect(db.cambiaScelta).toHaveBeenCalledWith({ piano: 'completo', moduli: [], terminali: 1, periodo: 'mese' })
+    expect(db.cambiaScelta).toHaveBeenCalledWith({ piano: 'completo', moduli: [], terminali: 1, intervallo: 'mese' })
     expect(db.avviaPagamento).not.toHaveBeenCalled()
     expect(await screen.findByText(/Piano aggiornato/)).toBeInTheDocument()
   })
 
-  // DEC-0005: mensile o annuale. La scelta porta `periodo`, che le
+  // DEC-0005: mensile o annuale. La scelta porta `intervallo`, che le
   // Functions validano; la pagina mostra l'anno a 10 mensilità.
-  it('l’annuale: il prezzo dell’anno a 10 mensilità, e `periodo: anno` nella scelta', async () => {
+  it('l’annuale: il prezzo dell’anno a 10 mensilità, e `intervallo: anno` nella scelta', async () => {
     const user = userEvent.setup()
     db.avviaPagamento.mockResolvedValueOnce({ url: 'https://checkout.stripe.com/x' })
     render(<SceltaPiano cliente={{ uid: 'u1' }} vai={vi.fn()} />)
@@ -97,11 +97,11 @@ describe('la scelta del piano', () => {
     expect(screen.getByTestId('prezzo-dettaglio')).toHaveTextContent(`${euro(conIva(anno))} IVA inclusa`)
     expect(screen.getByTestId('prezzo-dettaglio')).toHaveTextContent(`pari a ${ANNUALE.mensilita} mensilità da ${euro(PIANI.base.prezzo)} + IVA`)
     await user.click(screen.getByRole('button', { name: /Vai al pagamento/ }))
-    expect(db.avviaPagamento).toHaveBeenCalledWith({ piano: 'base', moduli: [], terminali: 1, periodo: 'anno' })
+    expect(db.avviaPagamento).toHaveBeenCalledWith({ piano: 'base', moduli: [], terminali: 1, intervallo: 'anno' })
   })
 
   it('chi paga già l’anno riparte dall’anno', () => {
-    render(<SceltaPiano cliente={{ uid: 'u1', piano: 'base', periodo: 'anno' }} modifica />)
+    render(<SceltaPiano cliente={{ uid: 'u1', piano: 'base', abbonamento: { intervallo: 'anno' } }} modifica />)
     expect(screen.getByLabelText(/Un anno in anticipo/)).toBeChecked()
   })
 
@@ -127,7 +127,9 @@ describe('la scelta del piano', () => {
 
   it('la prova di 30 giorni si dice a chi comincia un abbonamento', () => {
     render(<SceltaPiano cliente={{ uid: 'u1' }} />)
-    expect(screen.getByTestId('prova')).toHaveTextContent(`I primi ${PROVA_GIORNI} giorni sono di prova`)
+    // Solo se il Checkout la applica (piani.json → prova_nel_checkout).
+    if (PROVA_GIORNI > 0) expect(screen.getByTestId('prova')).toHaveTextContent(`I primi ${PROVA_GIORNI} giorni sono di prova`)
+    else expect(screen.queryByTestId('prova')).toBeNull()
   })
 
   it('un rifiuto della Function si legge, e si può riprovare', async () => {
@@ -206,7 +208,7 @@ describe('coi pagamenti online spenti', () => {
     await user.type(screen.getByLabelText(/Telefono/), '+39 333 1234567')
     await user.type(screen.getByLabelText(/nota/), 'Meglio di mattina')
     await user.click(screen.getByRole('button', { name: 'Chiedi di essere contattato' }))
-    expect(db.chiediContatto).toHaveBeenCalledWith({ piano: 'base', moduli: [], terminali: 1, periodo: 'mese', telefono: '+39 333 1234567', nota: 'Meglio di mattina' })
+    expect(db.chiediContatto).toHaveBeenCalledWith({ piano: 'base', moduli: [], terminali: 1, intervallo: 'mese', telefono: '+39 333 1234567', nota: 'Meglio di mattina' })
     // Senza pagamento online, l'offerta Fondatori la confermiamo noi.
     expect(screen.getByTestId('fondatori')).toHaveTextContent('te lo confermiamo quando ti contattiamo')
     expect(db.avviaPagamento).not.toHaveBeenCalled()

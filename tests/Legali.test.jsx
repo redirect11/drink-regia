@@ -20,9 +20,12 @@ describe('i termini e il listino', () => {
   it('un solo titolo di primo livello, e le condizioni nuove come sotto-titoli', () => {
     render(<Termini />)
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
-    for (const t of ['Pagamento annuale', 'Periodo di prova', 'Offerta Fondatori']) {
+    for (const t of ['Pagamento annuale', 'Offerta Fondatori']) {
       expect(screen.getByRole('heading', { level: 3, name: t })).toBeInTheDocument()
     }
+    // La prova entra nei termini solo quando il Checkout la applica.
+    if (PROVA_GIORNI > 0) expect(screen.getByRole('heading', { level: 3, name: 'Periodo di prova' })).toBeInTheDocument()
+    else expect(screen.queryByRole('heading', { level: 3, name: 'Periodo di prova' })).toBeNull()
   })
 
   it('i prezzi sono IVA esclusa, con l’aliquota del listino', () => {
@@ -34,7 +37,8 @@ describe('i termini e il listino', () => {
     render(<Termini />)
     const testo = document.body.textContent
     expect(testo).toContain(`costa ${ANNUALE.mensilita} volte il prezzo mensile della scelta`)
-    expect(testo).toContain(`comincia con ${PROVA_GIORNI} giorni di prova`)
+    if (PROVA_GIORNI > 0) expect(testo).toContain(`comincia con ${PROVA_GIORNI} giorni di prova`)
+    else expect(testo).not.toContain('giorni di prova')
     expect(testo).toContain(`L’assistenza ${ASSISTENZA.modalita} è inclusa nell’abbonamento fino a 1 ora al mese; oltre, si presta su preventivo`)
     expect(testo).toContain('si fa solo su preventivo scritto, accettato dal titolare prima dell’inizio del lavoro')
   })

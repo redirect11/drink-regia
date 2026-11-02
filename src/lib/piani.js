@@ -16,7 +16,11 @@ export const ATTIVAZIONE = listino.attivazione
 export const IVA = listino.iva
 export const FONDATORI = listino.fondatori
 export const ANNUALE = listino.annuale
-export const PROVA_GIORNI = listino.prova_giorni
+// La prova si dice a schermo solo se il Checkout la fa davvero
+// (piani.json → prova_nel_checkout, spenta finché Daniele non decide se
+// l'attivazione si paga all'inizio o alla fine della prova): la pagina non
+// promette quello che Stripe non applica.
+export const PROVA_GIORNI = listino.prova_nel_checkout === true ? listino.prova_giorni : 0
 export const ASSISTENZA = listino.assistenza
 // Le stampanti fuori da quelle supportate: a preventivo (DEC-0005). La
 // pagina dei prezzi e i termini lo dicono solo se il listino lo prevede.
