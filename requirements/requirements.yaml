@@ -212,7 +212,9 @@ requirements:
       `puoAttivare` (REQ-FLOTTA-004) lascia attivare l'istanza, e la
       licenza (REQ-FLOTTA-006) accende i moduli del piano.
       I PREZZI STANNO IN UN POSTO SOLO, piani.json, letto dal sito e
-      dalle Functions: da confermare prima di pubblicare.
+      dalle Functions: da confermare prima di pubblicare. Dal 02/11/2026
+      (DEC-0005) il Checkout porta anche l'attivazione una tantum, la
+      scelta mensile o annuale e l'offerta Fondatori: REQ-FLOTTA-021.
       IL POS NON DIPENDE DA STRIPE: un pagamento in ritardo cambia cosa dice
       la dashboard, non quello che l'istanza fa.
       STATO AL 22/10/2026: scritto, con la logica provata; le chiavi di
@@ -864,6 +866,103 @@ requirements:
       - tests/AggiornamentiLocale.test.jsx
       - tests/Backoffice.test.jsx
 
+
+  - id: REQ-FLOTTA-031
+    title: "Il listino del 02/11/2026 al Checkout: attivazione una tantum, offerta Fondatori, annuale, prova"
+    area: "functions/piani.json, src/lib/piani.js (conIva, prezzoAnnuale, prezzoFondatori, euro), functions/lib/abbonamento.js (sessioneCheckout, rigaAttivazione, intervalloDi), functions/lib/fondatori.js, functions/lib/cambiopiano.js (sceltaAdmin), functions/index.js (creaCheckout, stripeWebhook, aggiornaSubscription), firestore.rules (fondatori)"
+    description: >
+      Decisione dell'utente del 02/11/2026 (DEC-0005): Base 32,70 € + IVA
+      al mese con tre terminali (anche il Completo ne ha tre), attivazione
+      82 € + IVA, offerta Fondatori, annuale a 10 mensilità, prova di 30
+      giorni. IMPORTI: in centesimi interi (32,70 € = 3270), l'annuale
+      moltiplicato sugli interi; euro() scrive i centesimi solo se ci sono.
+      L'ATTIVAZIONE è una riga una tantum della sessione di Checkout, non
+      delle righe dell'abbonamento, che vanno anche sulla subscription nei
+      cambi di piano. FONDATORI: i primi 20 locali che attivano un piano
+      coperto (fondatori.prezzi: oggi il Base) pagano 25 € + IVA per 12
+      mesi, poi il listino, con l'attivazione gratuita. Il posto si prenota
+      in transazione alla creazione della sessione (che scade in 35
+      minuti; la prenotazione dura un'ora in più, per il webhook in
+      ritardo) e si assegna col pagamento confermato dal webhook: un numero
+      da 1 a 20 nel documento fondatori/posti e abbonamento.fondatore
+      {numero, dal, fino_al} sul cliente. checkout.session.expired libera
+      la prenotazione di quella sessione. Un posto per cliente. Lo sconto è
+      un coupon di Stripe a importo fisso (la differenza col listino):
+      mensile per 12 fatture (repeating), annuale sulla prima fattura
+      (once); finito, Stripe fattura il listino senza interventi. Nel
+      Checkout il coupon si chiama «Fondatori: 25 € per 12 mesi»: nessun
+      prezzo barrato. Un Fondatore che passa a un piano non coperto perde
+      lo sconto (e abbonamento.fondatore.tolto_il). Se il pagamento arriva
+      quando i posti sono già presi da altri, il cliente è segnato
+      abbonamento.fondatore_da_verificare per l'admin. ANNUALE: la scelta
+      porta intervallo 'mese' o 'anno' (sceltaPulita: tutto il resto vale
+      mese); le righe sono annuali a 10 mensilità; i cambi di piano tengono
+      l'intervallo della subscription. PROVA: trial_period_days =
+      prova_giorni sul primo abbonamento, ma SPENTA nel listino
+      (prova_nel_checkout false) finché l'utente non decide se
+      l'attivazione si paga all'inizio della prova o alla fine: i Termini
+      non ne parlano. Da fare: l'evento checkout.session.expired va
+      abilitato sul webhook di Stripe; l'IVA in Stripe (gli importi sono
+      IVA esclusa); la pagina (prezzi, scelta mensile o annuale) nel ramo
+      feature/prezzi-pagina.
+    status: partial
+    generate_issue: false
+    labels: [prodotto, regia]
+    test_cases:
+      - tests/fondatori.test.js
+      - tests/abbonamento.test.js
+      - tests/piani.test.js
+      - tests/cambiopiano.test.js
+      - tests/contatti.test.js
+  - id: REQ-PREZZI-001
+    title: "Il listino del 02/11/2026 (DEC-0005) a schermo: prima pagina, scelta del piano, dashboard e termini"
+    area: "src/pages/Home.jsx, src/i18n/home.it.js, src/i18n/home.en.js, src/lib/lingua.js (importo), src/lib/piani.js (STAMPANTE), src/pages/SceltaPiano.jsx, src/pages/Dashboard.jsx, src/pages/Legali.jsx, src/index.css, DESIGN.md §5.6"
+    description: >
+      Il listino deciso da Daniele il 02/11/2026 (commit 7af3bab: Base
+      32,70 € + IVA con 3 terminali, attivazione 82 € + IVA, IVA 22,
+      Fondatori, annuale a 10 mensilita', prova di 30 giorni, assistenza da
+      remoto fino a 1 ora al mese, stampanti a preventivo) detto dove il
+      titolare lo legge. La logica del Checkout (functions/, piani.test.js,
+      abbonamento.test.js) sta nel ramo feature/prezzi-logica.
+      LA PRIMA PAGINA: ogni prezzo e' l'imponibile «+ IVA» col totale IVA
+      inclusa accanto, calcolato con conIva; accanto al mensile l'annuale
+      (prezzoAnnuale); l'attivazione + IVA; il blocco «Offerta Fondatori»
+      coi numeri del listino e il criterio (primi abbonamenti a pagamento
+      attivati, in ordine di attivazione), senza posti rimasti ne' prezzi
+      barrati; la prova; le note sul tetto dell'assistenza e sulle
+      stampanti a preventivo scritto. Il confronto Base/Completo resta vero
+      (108,70 € contro 69 €, anche coi Fondatori) e non nomina piu' i
+      terminali, uguali nei due piani.
+      L'INGLESE: «€32.70 + VAT», col punto dei decimali come le virgole
+      delle migliaia (importo() in lingua.js): un formato per lingua, mai
+      mescolato.
+      LA SCELTA DEL PIANO: + IVA e IVA inclusa, mensile o annuale con
+      `periodo: 'mese' | 'anno'` nella scelta passata a avviaPagamento,
+      chiediContatto e cambiaScelta (le Functions lo validano); l'offerta
+      Fondatori come testo informativo per chi comincia un piano che il
+      listino copre: chi rientra lo decide il server.
+      LA DASHBOARD: il prezzo coi centesimi, + IVA e IVA inclusa, e l'anno
+      per chi paga l'anno (`cliente.periodo`).
+      I TERMINI: prezzi IVA esclusa con l'aliquota, annuale, prova,
+      Fondatori (criterio, 12 mesi dall'attivazione, poi listino con
+      preavviso e recesso), tetto dell'assistenza, stampanti a preventivo.
+      RESTA (TODO in Legali.jsx, da vedere con un consulente): durata del
+      preavviso, rinnovo e rimborso dell'annuale, a chi spetta la prova e
+      quando si paga l'attivazione, se il posto Fondatori decade, ore di
+      assistenza non usate; il prezzo Fondatori applicato nella dashboard,
+      quando le Functions lo scrivono.
+    status: partial
+    generate_issue: false
+    labels: [prodotto, prezzi, regia]
+    test_cases:
+      - tests/Home.test.jsx
+      - tests/HomeLingua.test.jsx
+      - tests/HomeVendita.test.jsx
+      - tests/SceltaPiano.test.jsx
+      - tests/Dashboard.test.jsx
+      - tests/Legali.test.jsx
+      - tests/lingua.test.js
+
   - id: REQ-FLOTTA-021
     title: "L'installazione on premise: il gestionale intero nel locale, col backup sul cloud"
     area: "docs/on-premise.md"
@@ -1013,6 +1112,40 @@ requirements:
       - tests/presentazione.test.js
       - tests/Backoffice.test.jsx
       - tests/rilasci.test.js
+
+  - id: REQ-FLOTTA-030
+    title: "Il passaggio fra la regia e l'app del locale con un clic, e i dati del titolare nell'app a ogni deploy"
+    area: "functions/lib/passaggio.js, functions/index.js (passaggioVersoApp, passaggioVersoRegia, scambiaPassaggio, scriviDatiDelLocale, appDi), src/pages/Accesso.jsx, src/pages/Dashboard.jsx, src/lib/db.js, firestore.rules, infra/istanza/main.tf"
+    description: >
+      L'utente, 02/11/2026: «Dobbiamo prevedere un single sign-on che se
+      siamo loggati su backoffice o siamo loggati sulla nostra istanza [...]
+      risulta loggato sia backoffice sia istanza per quell'utente», «mi
+      serve qualcosa che sia sicuro e robusto», «in generale però questo
+      deve valere per tutte le istanze», e poi Identity Platform «il prima
+      possibile». Ogni locale è un progetto con i suoi account: il titolare
+      passa con un clic, «Apri la tua app» dalla sua area e «Area clienti»
+      dall'app, con un codice casuale di 32 byte che vale 60 secondi e una
+      volta sola, conservato solo come impronta, passato dopo il # e
+      scambiato solo dal sito per cui è nato. Dalla regia all'app entra
+      solo l'account del locale con l'email del titolare, verificata, e
+      ruolo admin; dall'app alla regia solo il titolare, con un token
+      rinnovato da meno di 5 minuti. L'accesso al locale lo firma la regia
+      come l'account dell'SDK di Firebase del progetto (Terraform dà alla
+      regia firebaseauth.viewer e la firma su quell'account). È anche lo
+      scambio su cui si appoggerà l'identità centrale. A ogni deploy
+      riuscito la regia scrive nelle impostazioni dell'app, solo dove sono
+      vuote, nome, ragione sociale, indirizzo, CAP e città, telefono,
+      partita IVA, codice fiscale e sede legale (decisione dell'utente). In
+      tana-drink resta: la pagina che riceve il codice, «Area clienti», i
+      campi nuovi delle impostazioni, l'accesso Google al banco.
+    status: partial
+    generate_issue: false
+    labels: [prodotto, flotta, regia, sicurezza]
+    test_cases:
+      - tests/passaggio.test.js
+      - tests/Accesso.test.jsx
+      - tests/Dashboard.test.jsx
+      - tests/db.test.js
 
   - id: REQ-FLOTTA-029
     title: "A ogni deploy chi ha sottoscritto è l'admin del suo locale, e imposta la password dal link"

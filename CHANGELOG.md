@@ -4,8 +4,24 @@ Una voce per ogni cambiamento visibile, nello stesso commit del
 cambiamento. La versione in cima è quella in lavorazione finché non ha la
 data.
 
+## Prossima release (da decidere)
+
+- Il listino deciso il 02/11/2026 (DEC-0005): Base a 32,70 € + IVA al mese
+  con tre terminali (anche il Completo ne ha tre), attivazione 82 € + IVA
+  addebitata al Checkout, prezzi a schermo «+ IVA» con il totale IVA
+  inclusa accanto, pagamento annuale a 10 mensilità, offerta Fondatori
+  (i primi 20 abbonamenti al Base: 25 € + IVA per 12 mesi, poi il listino;
+  attivazione gratuita), assistenza da remoto inclusa fino a 1 ora al mese,
+  stampanti non supportate a preventivo. La prova di 30 giorni è pronta ma
+  spenta (`prova_nel_checkout`) finché non si decide quando si paga
+  l'attivazione (REQ-FLOTTA-031, REQ-PREZZI-001).
+
 ## 0.3.0 (in lavorazione)
 
+- «Apri la tua app»: dalla sua area il titolare entra nella sua app senza
+  password, con un codice che vale una volta sola e un minuto; e a ogni
+  deploy l'app riceve nome, indirizzo, telefono e intestazione fiscale del
+  locale, dove non li ha già (REQ-FLOTTA-030).
 - A ogni attivazione e aggiornamento, chi ha sottoscritto l'abbonamento è
   l'admin del suo locale, e riceve l'email per impostare la password:
   prima un locale nuovo nasceva senza nessuno che potesse entrare

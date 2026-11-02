@@ -23,7 +23,7 @@ vi.mock('../src/lib/firebase.js', () => ({
   get configurata() {
     return fb.configurata
   },
-  app: {},
+  app: { options: { projectId: 'drink-regia-test' } },
   db: {},
   get auth() {
     return fb.auth
@@ -69,6 +69,7 @@ vi.mock('firebase/auth', () => ({
   },
   sendEmailVerification: async (u) => fb.chiamate.push({ nome: 'verifica', dati: u.uid }),
   sendPasswordResetEmail: async (_a, email) => fb.chiamate.push({ nome: 'recupero', dati: email }),
+  signInWithCustomToken: async (_a, token) => fb.chiamate.push({ nome: 'accessoCustom', dati: token }),
 }))
 
 const db = await import('../src/lib/db.js')
@@ -302,5 +303,34 @@ describe('la richiesta di contatto (REQ-FLOTTA-017)', () => {
     expect(fb.scritti[0]).toMatchObject({ percorso: 'contatti/u1', dati: { stato: 'gestita', gestita_da: 'admin@example.com' } })
     expect(fb.scritti[0].dati.gestita_il).toMatch(/^\d{4}-\d{2}-\d{2}T/)
     expect(fb.scritti[1]).toMatchObject({ percorso: 'contatti/u1', dati: { stato: 'aperta', gestita_il: null, gestita_da: null } })
+  })
+})
+
+// IL PASSAGGIO FRA LA REGIA E L'APP (REQ-FLOTTA-030).
+describe('il passaggio', () => {
+  it('«Apri la tua app» chiede l’indirizzo con il codice, e senza indirizzo lo dice', async () => {
+    fb.risposte.passaggioVersoApp = { url: 'https://drinkpos-bar.web.app/#accesso-regia=x' }
+    expect(await db.apriLaTuaApp()).toEqual({ url: 'https://drinkpos-bar.web.app/#accesso-regia=x' })
+    expect(fb.chiamate[0]).toEqual({ nome: 'passaggioVersoApp', dati: {} })
+    fb.risposte.passaggioVersoApp = {}
+    await expect(db.apriLaTuaApp()).rejects.toThrow(/non si apre/)
+  })
+
+  it('il codice dall’app si scambia con un accesso, e si entra', async () => {
+    const fetch = vi.fn(async () => ({ ok: true, json: async () => ({ token: 'tok-1' }) }))
+    vi.stubGlobal('fetch', fetch)
+    await db.entraColPassaggio('c0d1c3')
+    expect(fetch).toHaveBeenCalledWith('https://europe-west1-drink-regia-test.cloudfunctions.net/scambiaPassaggio', expect.objectContaining({ method: 'POST', body: JSON.stringify({ codice: 'c0d1c3' }) }))
+    expect(fb.chiamate).toContainEqual({ nome: 'accessoCustom', dati: 'tok-1' })
+    vi.unstubAllGlobals()
+  })
+
+  it('un codice scaduto o già usato dice perché, e non entra', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, json: async () => ({ errore: 'Codice scaduto: riprova dal tasto.' }) })))
+    await expect(db.entraColPassaggio('x')).rejects.toThrow('Codice scaduto: riprova dal tasto.')
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, json: async () => { throw new Error('non json') } })))
+    await expect(db.entraColPassaggio('x')).rejects.toThrow(/rientra dall’app/)
+    expect(fb.chiamate.some((c) => c.nome === 'accessoCustom')).toBe(false)
+    vi.unstubAllGlobals()
   })
 })

@@ -1,5 +1,5 @@
 {
-  "_nota": "Piani e prezzi del prodotto, in un posto solo (REQ-FLOTTA-002, REQ-FLOTTA-007, REQ-FLOTTA-010). Letto dal sito (src/lib/piani.js) e dalle Functions (functions/lib/abbonamento.js, licenza.js). Gli id dei moduli sono gli stessi di src/lib/licenza.js nell'app (REQ-LIC-002 in tana-drink). Importi mensili in euro, IVA esclusa. DA CONFERMARE prima di pubblicare.",
+  "_nota": "Piani e prezzi del prodotto, in un posto solo (REQ-FLOTTA-002, REQ-FLOTTA-007, REQ-FLOTTA-010). Letto dal sito (src/lib/piani.js) e dalle Functions (functions/lib/abbonamento.js, licenza.js). Gli id dei moduli sono gli stessi di src/lib/licenza.js nell'app (REQ-LIC-002 in tana-drink). Importi mensili in euro, IVA esclusa. Base, attivazione, terminali, Fondatori, annuale, prova e assistenza: decisione dell'utente del 02/11/2026 (DEC-0005). Completo e moduli: prezzi non ancora rivisti.",
   "moduli": [
     {
       "id": "menu_tavoli",
@@ -67,16 +67,16 @@
     "base": {
       "id": "base",
       "nome": "Base",
-      "prezzo": 24,
-      "descrizione": "Cassa, comande, pagamenti in contanti e carta, scontrino sulla stampante, menù (creazione delle voci), lavoro senza rete. Un terminale.",
+      "prezzo": 32.7,
+      "descrizione": "Cassa, comande, pagamenti in contanti e carta, scontrino sulla stampante, menù (creazione delle voci), lavoro senza rete. Fino a tre terminali nello stesso locale.",
       "include": [],
-      "terminali": 1
+      "terminali": 3
     },
     "completo": {
       "id": "completo",
       "nome": "Completo",
       "prezzo": 69,
-      "descrizione": "Tutto: cassa e comande, menù digitale e ordini dal telefono, clienti, magazzino, statistiche e bilancio, personale, SumUp. Due terminali.",
+      "descrizione": "Tutto: cassa e comande, menù digitale e ordini dal telefono, clienti, magazzino, statistiche e bilancio, personale, SumUp. Fino a tre terminali nello stesso locale.",
       "include": [
         "menu_tavoli",
         "ordini_cliente",
@@ -86,26 +86,73 @@
         "staff",
         "sumup"
       ],
-      "terminali": 2
+      "terminali": 3
     }
   },
   "terminale_in_piu": 12,
-  "attivazione": 250,
+  "attivazione": 82,
+  "iva": 22,
+  "fondatori": {
+    "_nota": "Offerta di lancio: i primi 20 locali che attivano un piano a pagamento. Prezzo bloccato per 12 mesi dall'attivazione, poi listino; attivazione gratuita. Solo sui piani elencati in 'prezzi'.",
+    "posti": 20,
+    "mesi": 12,
+    "prezzi": {
+      "base": 25
+    },
+    "attivazione": 0
+  },
+  "annuale": {
+    "_nota": "Pagamento anticipato di un anno: costa 'mensilita' mesi del prezzo mensile.",
+    "mensilita": 10
+  },
+  "prova_giorni": 30,
+  "_nota_prova": "La prova al Checkout di Stripe (trial_period_days = prova_giorni) parte spenta: va accesa quando è deciso se l'attivazione si paga all'inizio della prova o alla fine (REQ-FLOTTA-031).",
+  "prova_nel_checkout": false,
+  "assistenza": {
+    "_nota": "Assistenza inclusa nell'abbonamento; oltre il tetto, a preventivo.",
+    "ore_mese": 1,
+    "modalita": "da remoto"
+  },
+  "stampante": {
+    "_nota": "Integrazione di stampanti diverse da quelle già supportate: a preventivo scritto, accettato prima del lavoro.",
+    "modalita": "preventivo"
+  },
   "ai": {
     "_nota": "Il credito AI (REQ-AI-003). I prezzi dei modelli sono quelli di Anthropic, in dollari per milione di token (ottobre 2026): si aggiornano quando Anthropic li cambia. Il cambio, il ricarico, i pacchetti di ricarica e il tetto mensile sono DA DECIDERE con l'utente: qui ci sono segnaposto (ricarico 1 = al costo). Importi in euro, IVA esclusa.",
     "modello": "claude-opus-5-5",
     "prezzi_usd_per_milione": {
-      "claude-opus-5-5": { "input": 4, "output": 20, "cache_lettura": 0.2 },
-      "claude-opus-5": { "input": 5, "output": 25, "cache_lettura": 0.5 },
-      "claude-opus-4-8": { "input": 5, "output": 25, "cache_lettura": 0.5 }
+      "claude-opus-5-5": {
+        "input": 4,
+        "output": 20,
+        "cache_lettura": 0.2
+      },
+      "claude-opus-5": {
+        "input": 5,
+        "output": 25,
+        "cache_lettura": 0.5
+      },
+      "claude-opus-4-8": {
+        "input": 5,
+        "output": 25,
+        "cache_lettura": 0.5
+      }
     },
     "cambio_eur_per_usd": 0.87,
     "ricarico": 1,
     "tetto_mensile_predefinito": 20,
     "pacchetti": [
-      { "id": "ai-10", "importo": 10 },
-      { "id": "ai-25", "importo": 25 },
-      { "id": "ai-50", "importo": 50 }
+      {
+        "id": "ai-10",
+        "importo": 10
+      },
+      {
+        "id": "ai-25",
+        "importo": 25
+      },
+      {
+        "id": "ai-50",
+        "importo": 50
+      }
     ]
   }
 }

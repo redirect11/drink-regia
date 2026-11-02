@@ -26,7 +26,8 @@ const rilasci = require('./lib/rilasci.js')
 const { sceltaCambiata, licenzaProtetta, stessaLicenza, perIlDatabase, scadenzaCoerente } = require('./lib/licenza.js')
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
 const { FieldValue, Timestamp } = require('firebase-admin/firestore')
-const { chiaveStripeVera, righeCheckout, metadatiDi, aggiornamentoDaEvento, fineDelPeriodo, STATI_STRIPE } = require('./lib/abbonamento.js')
+const { chiaveStripeVera, righeCheckout, metadatiDi, aggiornamentoDaEvento, sceltaPulita, sessioneCheckout, intervalloDi, prenotazioneDaRilasciare, fondatoreDaConfermare, DURATA_SESSIONE_MS, fineDelPeriodo, STATI_STRIPE } = require('./lib/abbonamento.js')
+const fondatori = require('./lib/fondatori.js')
 const { onTaskDispatched } = require('firebase-functions/v2/tasks')
 const { getFunctions: funzioniAdmin } = require('firebase-admin/functions')
 const { STATI: STATI_LICENZA } = require('./lib/sospensione.js')
@@ -38,6 +39,7 @@ const ai = require('./lib/ai.js')
 const elim = require('./lib/eliminazione.js')
 const conserva = require('./lib/conservazione.js')
 const presenta = require('./lib/presentazione.js')
+const passa = require('./lib/passaggio.js')
 const comunica = require('./lib/comunicazioni.js')
 const sconti = require('./lib/sconti.js')
 const free = require('./lib/free.js')
@@ -200,6 +202,7 @@ exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK
     // Ogni aggiornamento riuscito riscrive la licenza (BUG-125): un locale
     // senza licenza/attuale, con l'app nuova, si ferma.
     if (esito.stato === 'attiva') await scriviLicenza(esito.slug).catch((e) => console.error(`[licenza] ${esito.slug}:`, e?.message || e))
+    if (esito.stato === 'attiva') await scriviDatiDelLocale(esito.slug)
     try {
       await ricalcolaRilasci()
     } catch (e) {
@@ -217,6 +220,7 @@ exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK
       if (!prima?.condizioni_aggiornamenti) await ref.set({ condizioni_aggiornamenti: await regoleAggiornamenti() }, { merge: true })
       // Il locale nasce adesso: nessuno ci lavora ancora, niente taglio.
       await scriviLicenza(esito.slug, { subito: true })
+      await scriviDatiDelLocale(esito.slug)
     } catch (e) {
       console.error(`[licenza] ${esito.slug}, la prima licenza:`, e?.message || e)
     }
@@ -234,9 +238,26 @@ const stripeClient = () => {
   return new Stripe(chiave)
 }
 
+// Il contatore dei posti Fondatori (REQ-FLOTTA-031): un documento solo,
+// cambiato sempre in transazione. Lo leggono solo le Functions e l'admin.
+const POSTI_FONDATORI = () => db.doc('fondatori/posti')
+
+// Il coupon Fondatori su Stripe: si cerca per id e si crea se manca. L'id
+// dipende dall'importo, quindi un coupon trovato è quello giusto.
+async function couponSuStripe(stripe, parametri) {
+  try {
+    return (await stripe.coupons.retrieve(parametri.id)).id
+  } catch (e) {
+    if (e?.statusCode !== 404 && e?.code !== 'resource_missing') throw e
+    return (await stripe.coupons.create(parametri)).id
+  }
+}
+
 // Il titolare sceglie il piano: nasce la sessione di Checkout (abbonamento
-// mensile) e torna l'url. I metadati portano uid e scelta, che il webhook
-// userà per aggiornare il cliente.
+// mensile o annuale) e torna l'url. I metadati portano uid e scelta, che il
+// webhook userà per aggiornare il cliente. Se il piano è coperto
+// dall'offerta Fondatori e c'è un posto, il posto si prenota qui, in
+// transazione, e la sessione porta il coupon.
 exports.creaCheckout = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (req) => {
   if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
   const stripe = stripeClient()
@@ -244,7 +265,7 @@ exports.creaCheckout = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
   const uid = req.auth.uid
   const cliente = (await db.doc(`clienti/${uid}`).get()).data()
   if (!cliente) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
-  const scelta = { piano: req.data?.piano, moduli: req.data?.moduli, terminali: req.data?.terminali }
+  const scelta = sceltaPulita({ piano: req.data?.piano, moduli: req.data?.moduli, terminali: req.data?.terminali, intervallo: req.data?.intervallo })
   const inVendita = await vendita()
   // Pagamenti online spenti (REQ-FLOTTA-017): il sito non mostra il
   // Checkout, e il server non lo apre comunque.
@@ -255,20 +276,52 @@ exports.creaCheckout = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
   if (fuori.length) throw new HttpsError('failed-precondition', `Non più in vendita: ${fuori.join(', ')}.`)
   const ritorno =String(req.data?.ritorno || '').replace(/\/$/, '')
   if (!/^https?:\/\//.test(ritorno)) throw new HttpsError('invalid-argument', 'Indirizzo di ritorno non valido.')
-  const sessione = await stripe.checkout.sessions.create({
-    mode: 'subscription',
-    line_items: righeCheckout(scelta),
-    customer_email: cliente.abbonamento?.stripe_customer ? undefined : cliente.email,
-    customer: cliente.abbonamento?.stripe_customer || undefined,
-    client_reference_id: uid,
-    metadata: metadatiDi(uid, scelta),
-    subscription_data: { metadata: metadatiDi(uid, scelta) },
-    success_url: `${ritorno}/dashboard?pagamento=ok`,
-    cancel_url: `${ritorno}/dashboard?pagamento=annullato`,
-    locale: 'it',
-  })
-  return { url: sessione.url }
+  const adesso = new Date()
+  // Un posto per cliente: chi è già stato Fondatore (anche se poi ha
+  // disdetto) torna al listino.
+  let prenotato = false
+  if (fondatori.coperto(scelta.piano) && !cliente.abbonamento?.fondatore) {
+    const scadenza = new Date(adesso.getTime() + DURATA_SESSIONE_MS)
+    prenotato = await db.runTransaction(async (t) => {
+      const p = fondatori.prenota((await t.get(POSTI_FONDATORI())).data(), uid, scadenza, adesso)
+      if (p.esito === 'prenotato') t.set(POSTI_FONDATORI(), p.doc)
+      return p.esito === 'prenotato'
+    })
+  }
+  let sessione
+  try {
+    const coupon = prenotato ? await couponSuStripe(stripe, fondatori.couponFondatori(scelta.piano, scelta.intervallo)) : null
+    sessione = await stripe.checkout.sessions.create(sessioneCheckout({ uid, cliente, scelta, ritorno, coupon, adesso }))
+  } catch (e) {
+    // La sessione non è nata: il posto non resta tenuto per nessuno.
+    if (prenotato) await liberaPosto(uid).catch((x) => console.error('[fondatori] rilascio:', x?.message || x))
+    throw e
+  }
+  return { url: sessione.url, fondatore: prenotato }
 })
+
+async function liberaPosto(uid, scadenza = null) {
+  await db.runTransaction(async (t) => {
+    const ref = POSTI_FONDATORI()
+    t.set(ref, fondatori.rilascia((await t.get(ref)).data(), uid, scadenza))
+  })
+}
+
+// Il pagamento da Fondatore è confermato: il posto prenotato diventa un
+// numero, sul contatore e sul cliente, nella stessa transazione.
+async function confermaFondatore(uid) {
+  return db.runTransaction(async (t) => {
+    const ref = POSTI_FONDATORI()
+    const c = fondatori.conferma((await t.get(ref)).data(), uid, new Date())
+    t.set(ref, c.doc)
+    const cliente = db.doc(`clienti/${uid}`)
+    if (c.fondatore) t.set(cliente, { abbonamento: { fondatore: c.fondatore } }, { merge: true })
+    // Ha pagato col coupon ma il posto non c'è più (webhook arrivato dopo
+    // la scadenza della prenotazione): lo decide l'admin, non la regia.
+    else t.set(cliente, { abbonamento: { fondatore_da_verificare: new Date().toISOString() } }, { merge: true })
+    return c.esito
+  })
+}
 
 // Il webhook di Stripe: la firma si verifica sul corpo grezzo, e lo stato
 // dell'abbonamento segue gli eventi (aggiornamentoDaEvento). Una
@@ -293,6 +346,12 @@ exports.stripeWebhook = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY, STRIPE
       return res.status(200).json({ ok: true, ricarica: esito })
     }
   }
+  // Una sessione Fondatori scaduta: il posto prenotato torna libero.
+  const daLiberare = prenotazioneDaRilasciare(evento.type, evento.data?.object)
+  if (daLiberare) {
+    await liberaPosto(daLiberare.uid, daLiberare.scadenza)
+    return res.status(200).json({ ok: true, fondatori: 'rilasciato' })
+  }
   const agg = aggiornamentoDaEvento(evento.type, evento.data?.object)
   if (!agg) return res.status(200).json({ ok: true, ignorato: evento.type })
   let uid = agg.uid
@@ -304,6 +363,12 @@ exports.stripeWebhook = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY, STRIPE
   const ref = db.doc(`clienti/${uid}`)
   if (agg.patch.abbonamento) await ref.set(agg.patch, { merge: true })
   else await ref.update({ ...agg.patch, 'abbonamento.visto_il': FieldValue.serverTimestamp() })
+  // Dopo l'abbonamento, che con merge non tocca abbonamento.fondatore.
+  const daConfermare = fondatoreDaConfermare(evento.type, evento.data?.object)
+  if (daConfermare) {
+    const esito = await confermaFondatore(daConfermare)
+    if (esito === 'esauriti') console.error(`[fondatori] ${daConfermare}: pagato col coupon, posti esauriti: da verificare`)
+  }
   res.status(200).json({ ok: true })
 })
 
@@ -311,10 +376,17 @@ exports.stripeWebhook = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY, STRIPE
 
 // Il Firestore di un'istanza, da qui: un'app admin per progetto. Il
 // service account di runtime della regia ha `roles/datastore.user` sul
-// progetto (lo dà Terraform).
+// progetto (lo dà Terraform). Per il passaggio (REQ-FLOTTA-030) firma gli
+// accessi COME l'account dell'SDK di Firebase del locale: Firebase accetta
+// un accesso solo se firmato da un account del suo progetto. Serve
+// roles/iam.serviceAccountTokenCreator su quell'account, e
+// roles/firebaseauth.viewer sul progetto per leggere l'account del titolare.
 function appDi(progetto) {
   const nome = `istanza-${progetto}`
-  return getApps().find((a) => a.name === nome) || initializeAppCon({ projectId: progetto }, nome)
+  return (
+    getApps().find((a) => a.name === nome) ||
+    initializeAppCon({ projectId: progetto, serviceAccountId: `firebase-adminsdk-fbsvc@${progetto}.iam.gserviceaccount.com` }, nome)
+  )
 }
 const firestoreDi = (progetto) => getFirestore(appDi(progetto))
 
@@ -1054,6 +1126,109 @@ exports.sceltaDallApp = onRequest({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN], c
   return res.status(200).json({ ok: true, scelta })
 })
 
+// ── IL PASSAGGIO FRA LA REGIA E L'APP DEL LOCALE (REQ-FLOTTA-030) ──────
+// Le regole in lib/passaggio.js. I codici stanno in passaggi/{impronta}:
+// li scrivono e li cancellano solo le Functions.
+
+// I dati del titolare (nome, indirizzo, telefono, intestazione fiscale)
+// nelle impostazioni dell'app, solo dove sono vuoti. Un errore non ferma
+// niente: si riprova al prossimo deploy.
+async function scriviDatiDelLocale(slug) {
+  try {
+    const ist = (await db.doc(`istanze/${slug}`).get()).data()
+    if (!riceveLicenza(ist)) return
+    const cliente = await clienteDi(slug)
+    if (!cliente) return
+    const bar = firestoreDi(ist.progetto).doc('settings/bar')
+    const patch = passa.soloIVuoti((await bar.get()).data(), passa.datiDelLocale(cliente))
+    if (Object.keys(patch).length) await bar.set(patch, { merge: true })
+  } catch (e) {
+    console.error(`[dati del locale] ${slug}:`, e?.message || e)
+  }
+}
+
+// Un codice nuovo per un passaggio: l'impronta nel database, il codice
+// solo nella risposta.
+async function creaPassaggio(dati) {
+  const codice = passa.nuovoCodice()
+  await db.doc(`passaggi/${passa.impronta(codice)}`).set(passa.nuovoPassaggio(dati))
+  return codice
+}
+
+// «Apri la tua app»: il titolare, entrato nella regia, passa nella sua app.
+exports.passaggioVersoApp = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Prima conferma la tua email.')
+  const cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data()
+  const ist = cliente?.slug ? (await db.doc(`istanze/${cliente.slug}`).get()).data() : null
+  if (!ist?.progetto || ist.stato !== 'attiva' || !ist.url) throw new HttpsError('failed-precondition', 'La tua app non è ancora attiva.')
+  const utente = await getAuth(appDi(ist.progetto))
+    .getUserByEmail(cliente.email)
+    .catch((e) => (e?.code === 'auth/user-not-found' ? null : Promise.reject(e)))
+  const ok = passa.titolareNelLocale(utente, cliente)
+  if (!ok.ok) throw new HttpsError('failed-precondition', ok.perche)
+  const codice = await creaPassaggio({ verso: 'app', progetto: ist.progetto, uid: utente.uid, url: ist.url })
+  return { url: `${ist.url.replace(/\/$/, '')}/#accesso-regia=${codice}` }
+})
+
+// «Area clienti»: dall'app, il titolare passa nella regia. Come la
+// presentazione: POST con `Authorization: Bearer <ID token>` del locale,
+// appena rinnovato. Risponde { url } da aprire.
+exports.passaggioVersoRegia = onRequest({ ...OPTS, cors: false }, async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*')
+  res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+  res.set('Access-Control-Allow-Methods', 'POST')
+  if (req.method === 'OPTIONS') return res.status(204).send('')
+  if (req.method !== 'POST') return res.status(405).json({ errore: 'Solo POST.' })
+  if (!REGIA_URL) return res.status(503).json({ errore: 'La regia non sa il suo indirizzo.' })
+  const token = aggiornamenti.bearerDi(req.get('authorization'))
+  const progetto = aggiornamenti.progettoDelToken(token)
+  if (!progetto) return res.status(401).json({ errore: 'Serve l’accesso.' })
+  const trovata = (await db.collection('istanze').where('progetto', '==', progetto).limit(1).get()).docs[0]
+  const ist = trovata?.data()
+  if (!ist || ist.stato === 'eliminata') return res.status(404).json({ errore: 'Locale sconosciuto.' })
+  let chi
+  try {
+    chi = await getAuth(appDi(progetto)).verifyIdToken(token)
+  } catch {
+    return res.status(401).json({ errore: 'Accesso non valido: entra di nuovo.' })
+  }
+  const cliente = await clienteDi(trovata.id)
+  const ok = passa.titolareDallApp(chi, cliente)
+  if (!ok.ok) return res.status(403).json({ errore: ok.perche })
+  const codice = await creaPassaggio({ verso: 'regia', uid: cliente.uid, url: REGIA_URL })
+  return res.status(200).json({ url: `${REGIA_URL.replace(/\/$/, '')}/accesso#accesso-regia=${codice}` })
+})
+
+// Lo scambio: il codice, una volta sola e solo dal suo sito, diventa un
+// accesso firmato per il progetto giusto. `{ codice }` → `{ token }`.
+exports.scambiaPassaggio = onRequest({ ...OPTS, cors: false }, async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*')
+  res.set('Access-Control-Allow-Headers', 'Content-Type')
+  res.set('Access-Control-Allow-Methods', 'POST')
+  if (req.method === 'OPTIONS') return res.status(204).send('')
+  if (req.method !== 'POST') return res.status(405).json({ errore: 'Solo POST.' })
+  const codice = passa.codiceDelCorpo(req.body)
+  if (!codice) return res.status(400).json({ errore: 'Codice non valido.' })
+  const ref = db.doc(`passaggi/${passa.impronta(codice)}`)
+  // Una volta sola: lo si legge e lo si cancella nella stessa transazione.
+  const esito = await db.runTransaction(async (tx) => {
+    const doc = (await tx.get(ref)).data() || null
+    const v = passa.passaggioValido(doc, { origin: req.get('origin') })
+    if (doc) tx.delete(ref)
+    return { ...v, doc }
+  })
+  if (!esito.ok) return res.status(403).json({ errore: esito.perche })
+  const { verso, progetto, uid } = esito.doc
+  try {
+    const token = await getAuth(verso === 'app' ? appDi(progetto) : undefined).createCustomToken(uid)
+    return res.status(200).json({ token })
+  } catch (e) {
+    console.error(`[passaggio] verso ${verso} ${progetto || 'regia'}:`, e?.message || e)
+    return res.status(503).json({ errore: 'L’accesso non si è firmato: riprova fra poco.' })
+  }
+})
+
 // ── IL SITO SI PRESENTA ALLA REGIA (REQ-FLOTTA-026) ────────────────────
 // Al primo avvio di ogni versione l'app chiama qui, col token di chi ha
 // fatto l'accesso nel progetto del locale: `POST`, `Authorization: Bearer
@@ -1103,6 +1278,25 @@ exports.presentazione = onRequest({ ...OPTS, cors: false }, async (req, res) => 
 })
 
 // ── IL PIANO CHE CAMBIA (REQ-FLOTTA-010) ──────────────────────────────
+
+// Le righe nuove al posto delle vecchie, con l'intervallo che la
+// subscription ha già (mensile o annuale). Un Fondatore che passa a un
+// piano che l'offerta non copre perde lo sconto (REQ-FLOTTA-031): il
+// coupon si toglie e il segno sulla subscription pure.
+async function aggiornaSubscription(stripe, sub, uid, scelta) {
+  const attuale = await stripe.subscriptions.retrieve(sub)
+  const conIntervallo = { ...scelta, intervallo: intervalloDi(attuale) }
+  const togli = fondatori.scontoDaTogliere(attuale.metadata, sceltaPulita(conIntervallo).piano)
+  await stripe.subscriptions.update(sub, {
+    items: [...attuale.items.data.map((i) => ({ id: i.id, deleted: true })), ...righeCheckout(conIntervallo)],
+    metadata: { ...metadatiDi(uid, conIntervallo), ...(togli ? { fondatore: '' } : {}) },
+    proration_behavior: 'create_prorations',
+  })
+  if (togli) {
+    await stripe.subscriptions.deleteDiscount(sub)
+    await db.doc(`clienti/${uid}`).set({ abbonamento: { fondatore: { tolto_il: new Date().toISOString(), perche: `piano ${scelta.piano}` } } }, { merge: true })
+  }
+}
 // Il titolare cambia piano, moduli o terminali: con Stripe si aggiorna la
 // subscription (gli importi si conguagliano) e il webhook riporta la
 // scelta sul cliente; senza Stripe (piano a mano) si scrive subito. In
@@ -1134,12 +1328,7 @@ exports.cambiaScelta = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
   const sub = cliente.abbonamento?.stripe_subscription
   const stripe = stripeClient()
   if (sub && stripe) {
-    const attuale = await stripe.subscriptions.retrieve(sub)
-    await stripe.subscriptions.update(sub, {
-      items: [...attuale.items.data.map((i) => ({ id: i.id, deleted: true })), ...righeCheckout(scelta)],
-      metadata: metadatiDi(uid, scelta),
-      proration_behavior: 'create_prorations',
-    })
+    await aggiornaSubscription(stripe, sub, uid, scelta)
     return { ok: true, via: 'stripe' }
   }
   // Da Free a un piano a pagamento si passa solo dal Checkout (REQ-FLOTTA-015):
@@ -1747,13 +1936,7 @@ exports.cambiaPianoAdmin = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, asy
   if (req.data.modo === 'stripe') {
     const stripe = stripeClient()
     if (!stripe) throw new HttpsError('failed-precondition', 'Stripe non è configurato.')
-    const sub = cliente.abbonamento.stripe_subscription
-    const attuale = await stripe.subscriptions.retrieve(sub)
-    await stripe.subscriptions.update(sub, {
-      items: [...attuale.items.data.map((i) => ({ id: i.id, deleted: true })), ...righeCheckout(c.scelta)],
-      metadata: metadatiDi(cliente.uid, c.scelta),
-      proration_behavior: 'create_prorations',
-    })
+    await aggiornaSubscription(stripe, cliente.abbonamento.stripe_subscription, cliente.uid, c.scelta)
   } else {
     await doc.ref.set(c.cliente, { merge: true })
   }
