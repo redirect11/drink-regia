@@ -33,6 +33,24 @@ const STATI = ['bozza', 'pubblicato', 'ritirato']
 
 const testo = (v) => (typeof v === 'string' ? v.trim() : '')
 
+// I TEMI DEL REPOSITORY (REQ-FLOTTA-033). L'utente, 02/11/2026: «senza
+// spendere crediti, tu potresti creare temi, o un agente, e li carica sul
+// marketplace». I temi disegnati dal fornitore (o da un agente, con una PR)
+// stanno in functions/temi/catalogo.json: i test li controllano, il deploy
+// li pubblica. Quello nel database (dal backoffice) con lo stesso id vince.
+const TEMI_DEL_REPOSITORY = require('../temi/catalogo.json').temi.map((t) => ({ ...t, stato: t.stato || 'pubblicato', dal_repository: true }))
+
+// Il contrasto fra due colori #rrggbb, come lo misura il WCAG (da 1 a 21).
+// I temi del repository devono farsi leggere: i test lo controllano.
+function luminanza(hex) {
+  const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+}
+function contrasto(a, b) {
+  const [chiaro, scuro] = [luminanza(a), luminanza(b)].sort((x, y) => y - x)
+  return (chiaro + 0.05) / (scuro + 0.05)
+}
+
 // Un tema scritto dall'admin → { tema } da salvare, o { errore }.
 function temaPulito(dati) {
   const id = testo(dati?.id).toLowerCase()
@@ -67,10 +85,13 @@ const perIlCatalogo = (doc) => ({
   stile: doc.stile,
 })
 
-// Il catalogo pubblico: solo i pubblicati, e solo se ancora validi (uno
-// salvato con regole vecchie non esce), in ordine di nome.
-function catalogoPubblico(docs) {
-  return (docs || [])
+// Il catalogo pubblico: i temi del repository con sopra quelli del database
+// (lo stesso id vince il database), solo i pubblicati, e solo se ancora
+// validi (uno salvato con regole vecchie non esce), in ordine di nome.
+function catalogoPubblico(docs, daRepository = TEMI_DEL_REPOSITORY) {
+  const perId = new Map((daRepository || []).map((t) => [t.id, t]))
+  for (const d of docs || []) if (d?.id) perId.set(d.id, d)
+  return [...perId.values()]
     .filter((d) => d?.stato === 'pubblicato' && !temaPulito(d).errore)
     .map(perIlCatalogo)
     .sort((a, b) => a.nome.localeCompare(b.nome, 'it'))
@@ -101,4 +122,8 @@ function azioneSuTema(prima, azione, dati, { da = null, adesso = new Date() } = 
   return { errore: 'Azione sconosciuta.' }
 }
 
-module.exports = { BASI, STILI, ESCLUSIVI, CHIAVI_COLORE, STATI, temaPulito, perIlCatalogo, catalogoPubblico, azioneSuTema }
+// Il tema del repository con quell'id, come se fosse nel database: serve a
+// ritirarlo (o ripubblicarlo) dal backoffice.
+const dalRepository = (id, daRepository = TEMI_DEL_REPOSITORY) => daRepository.find((t) => t.id === id) || null
+
+module.exports = { BASI, STILI, ESCLUSIVI, CHIAVI_COLORE, STATI, TEMI_DEL_REPOSITORY, temaPulito, perIlCatalogo, catalogoPubblico, azioneSuTema, dalRepository, contrasto }

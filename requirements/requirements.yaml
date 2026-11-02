@@ -1113,6 +1113,29 @@ requirements:
       - tests/Backoffice.test.jsx
       - tests/rilasci.test.js
 
+  - id: REQ-FLOTTA-033
+    title: "I temi del repository: disegnati dal fornitore o da un agente, pubblicati col deploy"
+    area: "functions/temi/catalogo.json, functions/lib/temi.js (TEMI_DEL_REPOSITORY, catalogoPubblico, dalRepository, contrasto), functions/index.js (gestisciTemi), src/lib/temi.js, src/pages/CatalogoTemi.jsx"
+    description: >
+      L'utente, 02/11/2026: «i temi pensavo di crearli con l'AI non a mano»,
+      e poi «senza spendere crediti, tu potresti creare temi, o un agente, e
+      li carica sul marketplace». I temi disegnati dal fornitore, o da un
+      agente con una PR, stanno in functions/temi/catalogo.json: i test li
+      controllano con le regole dell'app e vogliono che si leggano
+      (contrasto WCAG: testo 7, testo tenue 4,5, prezzo 3 sul fondo e
+      sulla card), il deploy li pubblica in catalogoTemi insieme a quelli
+      del database. Lo stesso id nel database vince: dal backoffice un tema
+      del repository si ritira (o si ripubblica) scrivendone la copia; si
+      cambia nel suo file. Nel backoffice si vedono con «dal repository».
+      Primi otto: Smeraldo, Bordeaux, Agrumi, Ardesia, Seppia, Velluto,
+      Menta, Neon.
+    status: implemented
+    generate_issue: false
+    labels: [prodotto, regia, menu]
+    test_cases:
+      - tests/temi.test.js
+      - tests/CatalogoTemi.test.jsx
+
   - id: REQ-FLOTTA-032
     title: "Il catalogo dei temi: la regia pubblica, l'app legge (catalogoTemi)"
     area: "functions/lib/temi.js, functions/index.js (catalogoTemi, gestisciTemi), src/lib/temi.js, src/pages/CatalogoTemi.jsx, src/lib/backoffice.js, src/lib/db.js, firestore.rules"

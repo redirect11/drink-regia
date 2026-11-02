@@ -50,7 +50,11 @@ describe('il catalogo dei temi', () => {
     const user = userEvent.setup()
     db.elencoTemi.mockResolvedValue([])
     render(<CatalogoTemi onErrore={onErrore} />)
-    expect(await screen.findByText('Nessun tema ancora.')).toBeInTheDocument()
+    // I temi del repository ci sono sempre (REQ-FLOTTA-033): si cambiano nel file, non qui.
+    const delRepository = await screen.findByTestId('tema-smeraldo')
+    expect(delRepository).toHaveTextContent('dal repository')
+    expect(within(delRepository).queryByRole('button', { name: 'Modifica' })).toBeNull()
+    expect(within(delRepository).getByRole('button', { name: 'Ritira' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Nuovo tema' }))
     const modulo = screen.getByRole('form', { name: 'Nuovo tema' })
     await user.type(within(modulo).getByLabelText('Identificativo'), 'riviera-notte')

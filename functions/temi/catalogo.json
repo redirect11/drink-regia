@@ -1,0 +1,93 @@
+{
+  "_nota": "I temi del catalogo scritti nel repository (REQ-FLOTTA-033): li disegna il fornitore, o un agente con una PR; tests/temi.test.js li controlla con le regole dell'app (leggiTema di tana-drink) e il deploy li pubblica. Un tema con lo stesso id nel database (dal backoffice) vince su questo: è così che si ritira. Colori #rrggbb; basi e stili in functions/lib/temi.js.",
+  "temi": [
+    {
+      "id": "smeraldo",
+      "nome": "Smeraldo",
+      "descrizione": "Art déco sul verde bottiglia: oro antico, maiuscole sottili e cornici.",
+      "stato": "pubblicato",
+      "tavolozza": {
+        "base": "notte-blu",
+        "colori": { "--bg": "#0b1f1a", "--bg-2": "#10291f", "--card": "#143326", "--accent": "#d4af37", "--accent-2": "#e8d9a8", "--text": "#f1efe6", "--muted": "#9fb5a8" }
+      },
+      "stile": "deco"
+    },
+    {
+      "id": "bordeaux",
+      "nome": "Bordeaux",
+      "descrizione": "Il menù a card su un rosso vino profondo, con accenti d’ambra.",
+      "stato": "pubblicato",
+      "tavolozza": {
+        "base": "tana-scuro",
+        "colori": { "--bg": "#1a0d12", "--bg-2": "#22111a", "--card": "#2a1520", "--accent": "#c9375a", "--accent-2": "#e8b04a", "--text": "#f6eef0", "--muted": "#b39aa3" }
+      },
+      "stile": "classico"
+    },
+    {
+      "id": "agrumi",
+      "nome": "Agrumi",
+      "descrizione": "Aperitivo d’estate all’aperto: arancio, verde foglia e un fondo chiaro.",
+      "stato": "pubblicato",
+      "tavolozza": {
+        "base": "crema",
+        "colori": { "--bg": "#fff7e8", "--bg-2": "#fffcf3", "--card": "#ffffff", "--accent": "#d4621a", "--accent-2": "#2f8f5b", "--text": "#2b2116", "--muted": "#76664f" }
+      },
+      "stile": "riviera"
+    },
+    {
+      "id": "ardesia",
+      "nome": "Ardesia",
+      "descrizione": "La lavagna grigio ardesia, col gesso giallo e verde acqua.",
+      "stato": "pubblicato",
+      "tavolozza": {
+        "base": "pico-scuro",
+        "colori": { "--bg": "#1e2526", "--bg-2": "#242c2d", "--card": "#2a3334", "--accent": "#f2c14e", "--accent-2": "#8fd3c7", "--text": "#eef1ec", "--muted": "#a7b2ad" }
+      },
+      "stile": "lavagna"
+    },
+    {
+      "id": "seppia",
+      "nome": "Seppia",
+      "descrizione": "La carta stampata invecchiata: fondo avorio, inchiostro bruno, voci in colonna.",
+      "stato": "pubblicato",
+      "tavolozza": {
+        "base": "crema",
+        "colori": { "--bg": "#f3ead8", "--bg-2": "#f8f1e2", "--card": "#fbf6ea", "--accent": "#7a3b1d", "--accent-2": "#5c4a2a", "--text": "#2a2117", "--muted": "#6b5d49" }
+      },
+      "stile": "giornale"
+    },
+    {
+      "id": "velluto",
+      "nome": "Velluto",
+      "descrizione": "Viola velluto e oro tenue, con le cornici dello stile Grand Hotel.",
+      "stato": "pubblicato",
+      "tavolozza": {
+        "base": "catppuccin",
+        "colori": { "--bg": "#140f1f", "--bg-2": "#1b1429", "--card": "#221a33", "--accent": "#c7a4ff", "--accent-2": "#f3c97a", "--text": "#ece6f7", "--muted": "#a99cbf" }
+      },
+      "stile": "deco"
+    },
+    {
+      "id": "menta",
+      "nome": "Menta",
+      "descrizione": "Fresco e luminoso: verde menta, card bianche e accenti d’ambra.",
+      "stato": "pubblicato",
+      "tavolozza": {
+        "base": "pico-chiaro",
+        "colori": { "--bg": "#eef7f3", "--bg-2": "#ffffff", "--card": "#ffffff", "--accent": "#0f7a5f", "--accent-2": "#b45309", "--text": "#1d2b26", "--muted": "#56685f" }
+      },
+      "stile": "classico"
+    },
+    {
+      "id": "neon",
+      "nome": "Neon",
+      "descrizione": "Il locale notturno: fucsia e ciano su un nero pieno.",
+      "stato": "pubblicato",
+      "tavolozza": {
+        "base": "tana-scuro",
+        "colori": { "--bg": "#07070d", "--bg-2": "#0e0e18", "--card": "#13131f", "--accent": "#ff2fb3", "--accent-2": "#2ff3e0", "--text": "#f4f4ff", "--muted": "#9a9ab8" }
+      },
+      "stile": "classico"
+    }
+  ]
+}

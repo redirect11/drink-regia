@@ -84,11 +84,11 @@ describe('il catalogo pubblico', () => {
       { ...oro, id: 'aurora', nome: 'Aurora', stato: 'pubblicato', tavolozza: { base: 'crema' } },
       { ...oro, id: 'rotto', nome: 'Rotto', stato: 'pubblicato', stile: 'barocco' },
     ]
-    expect(t.catalogoPubblico(docs)).toEqual([
+    expect(t.catalogoPubblico(docs, [])).toEqual([
       { id: 'aurora', nome: 'Aurora', descrizione: 'Il blu di mezzanotte con l’oro.', prezzo: 0, tavolozza: { base: 'crema', colori: {} }, stile: 'deco' },
       { id: 'grand-hotel-oro', nome: 'Grand Hotel oro', descrizione: 'Il blu di mezzanotte con l’oro.', prezzo: 0, tavolozza: { base: 'notte-blu', colori: { '--accent': '#D4AF37' } }, stile: 'deco' },
     ])
-    expect(t.catalogoPubblico(undefined)).toEqual([])
+    expect(t.catalogoPubblico(undefined, [])).toEqual([])
   })
 })
 
@@ -116,5 +116,41 @@ describe('nel sito e nella regia', () => {
     const blocco = regole.slice(regole.indexOf('match /temi/{id}'), regole.indexOf('match /sconti/{codice}'))
     expect(blocco).toContain('allow read: if admin();')
     expect(blocco).toContain('allow write: if false;')
+  })
+})
+
+// I TEMI DEL REPOSITORY (REQ-FLOTTA-033). L'utente, 02/11/2026: «senza
+// spendere crediti, tu potresti creare temi, o un agente, e li carica sul
+// marketplace». Stanno in functions/temi/catalogo.json; il deploy li
+// pubblica; qui si controlla che l'app li accetti e che si leggano.
+describe('i temi del repository', () => {
+  it('ognuno passa le regole dell’app, con un id suo', () => {
+    expect(t.TEMI_DEL_REPOSITORY.length).toBeGreaterThan(0)
+    for (const tema of t.TEMI_DEL_REPOSITORY) expect([tema.id, t.temaPulito(tema).errore]).toEqual([tema.id, undefined])
+    const ids = t.TEMI_DEL_REPOSITORY.map((x) => x.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    // Non rifanno quelli che l'app ha già nel suo catalogo iniziale.
+    for (const giaNellApp of ['classico', 'lavagna', 'grand-hotel', 'riviera', 'pastello', 'gazzetta', 'inchiostro', 'notte']) expect(ids).not.toContain(giaNellApp)
+  })
+
+  it('si leggono: testo, testo tenue e prezzo contrastano col fondo e con la card', () => {
+    for (const tema of t.TEMI_DEL_REPOSITORY) {
+      const k = { ...coloriDelTema(tema.tavolozza) }
+      expect([tema.id, t.contrasto(k['--text'], k['--bg']) >= 7]).toEqual([tema.id, true])
+      expect([tema.id, t.contrasto(k['--text'], k['--card']) >= 7]).toEqual([tema.id, true])
+      expect([tema.id, t.contrasto(k['--muted'], k['--card']) >= 4.5]).toEqual([tema.id, true])
+      expect([tema.id, t.contrasto(k['--accent'], k['--card']) >= 3]).toEqual([tema.id, true])
+    }
+    expect(t.contrasto('#000000', '#ffffff')).toBeCloseTo(21, 0)
+    expect(t.contrasto('#777777', '#777777')).toBe(1)
+  })
+
+  it('nel catalogo con quelli del database: lo stesso id vince il database (così si ritira)', () => {
+    const repo = [{ ...oro, prezzo: 0, stato: 'pubblicato' }, { ...oro, id: 'aurora', nome: 'Aurora', stato: 'pubblicato' }]
+    expect(t.catalogoPubblico([], repo).map((x) => x.id)).toEqual(['aurora', 'grand-hotel-oro'])
+    expect(t.catalogoPubblico([{ ...oro, stato: 'ritirato' }], repo).map((x) => x.id)).toEqual(['aurora'])
+    expect(t.catalogoPubblico([]).length).toBe(t.TEMI_DEL_REPOSITORY.length)
+    expect(t.dalRepository(t.TEMI_DEL_REPOSITORY[0].id)).toMatchObject({ dal_repository: true, stato: 'pubblicato' })
+    expect(t.dalRepository('nessuno')).toBeNull()
   })
 })

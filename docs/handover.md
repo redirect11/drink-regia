@@ -670,6 +670,13 @@ L'elenco completo con i riferimenti al codice è in
    l'anteprima: se tana-drink cambia una base, si cambia anche lì; uno
    stile nuovo dell'app si aggiunge a `STILI` (functions/lib/temi.js e
    src/lib/temi.js).
+33. **I temi del repository (REQ-FLOTTA-033)**, ramo
+   `feature/temi-nel-repository`, 02/11/2026. L'utente: «senza spendere
+   crediti, tu potresti creare temi, o un agente». Un tema nuovo è una voce
+   in `functions/temi/catalogo.json`: i test lo controllano (regole
+   dell'app e contrasto), il deploy lo pubblica. Si ritira dal backoffice
+   (la copia nel database vince); si cambia nel file. Così un agente può
+   proporre temi con una PR, senza credito AI.
 
 ---
 

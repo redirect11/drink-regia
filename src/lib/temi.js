@@ -4,6 +4,8 @@
 // sette colori; se l'app ne cambia uno, si cambia anche qui. Le regole vere
 // (cosa si può pubblicare) stanno nelle Functions (functions/lib/temi.js).
 
+import catalogo from '../../functions/temi/catalogo.json'
+
 export const CHIAVI_COLORE = [
   { key: '--bg', label: 'Sfondo' },
   { key: '--bg-2', label: 'Sfondo secondario' },
@@ -50,6 +52,16 @@ export const STATI_DETTI = { bozza: 'Bozza', pubblicato: 'Pubblicato', ritirato:
 export function coloriDelTema(tavolozza) {
   const base = BASI.find((b) => b.id === tavolozza?.base) || BASI[0]
   return { ...base.colori, ...(tavolozza?.colori || {}) }
+}
+
+// I temi del repository (REQ-FLOTTA-033): pubblicati col deploy. Nel
+// backoffice si vedono insieme a quelli del database; uno con lo stesso id
+// nel database vince (è così che si ritirano).
+export const TEMI_DEL_REPOSITORY = catalogo.temi.map((t) => ({ ...t, stato: t.stato || 'pubblicato', dal_repository: true }))
+
+export function temiDaMostrare(nelDatabase) {
+  const ids = new Set((nelDatabase || []).map((t) => t.id))
+  return [...(nelDatabase || []), ...TEMI_DEL_REPOSITORY.filter((t) => !ids.has(t.id))]
 }
 
 export const temaVuoto = () => ({ id: '', nome: '', descrizione: '', tavolozza: { base: 'tana-scuro', colori: {} }, stile: 'classico' })

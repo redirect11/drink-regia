@@ -1256,8 +1256,12 @@ exports.gestisciTemi = onCall(OPTS, async (req) => {
   const id = String((azione === 'salva' ? req.data?.tema?.id : req.data?.id) || '').trim().toLowerCase()
   if (!/^[a-z0-9][a-z0-9-]{1,40}$/.test(id)) throw new HttpsError('invalid-argument', 'Identificativo del tema non valido.')
   const ref = db.doc(`temi/${id}`)
-  const prima = (await ref.get()).data() || null
-  if (azione === 'salva' && prima && req.data?.nuovo === true) throw new HttpsError('already-exists', `Il tema ${id} esiste già.`)
+  // Un tema del repository senza copia nel database: si ritira (o si
+  // ripubblica) scrivendone la copia, che vince sul repository.
+  const nelDatabase = (await ref.get()).data() || null
+  const delRepository = temi.dalRepository(id)
+  if (azione === 'salva' && req.data?.nuovo === true && (nelDatabase || delRepository)) throw new HttpsError('already-exists', `Il tema ${id} esiste già.`)
+  const prima = nelDatabase || (azione !== 'salva' && delRepository ? { ...delRepository } : null)
   const esito = temi.azioneSuTema(prima, azione, req.data?.tema, { da: req.auth.token.email || req.auth.uid })
   if (esito.errore) throw new HttpsError('failed-precondition', esito.errore)
   await ref.set(esito.doc)
