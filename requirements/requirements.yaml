@@ -77,7 +77,7 @@ requirements:
       del titolo (A, B o C), il nome del prodotto, la prova sociale, `/en`
       per chi non esegue JavaScript, la verifica Lighthouse sul telefono.
     status: partial
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, flotta, regia]
     test_cases:
       - tests/piani.test.js
@@ -119,7 +119,7 @@ requirements:
       privacy (src/pages/Legali.jsx) sono una struttura, non un
       parere legale.
     status: implemented
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, flotta, regia]
     test_cases:
       - tests/clienti.test.js
@@ -139,7 +139,7 @@ requirements:
       la dashboard riporta il motivo. `puoAttivare` decide solo se il
       tasto e' acceso: la regola che conta la rifa' il server.
     status: implemented
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, flotta, regia]
     test_cases:
       - tests/istanze.test.js
@@ -190,7 +190,7 @@ requirements:
       produzione) e la pagina non la scrive; l'esito dice il ref che la
       Function restituisce.
     status: implemented
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, flotta, regia]
     test_cases:
       - tests/Backoffice.test.jsx
@@ -224,7 +224,7 @@ requirements:
       pagamento» spiega che il pagamento online non e' attivo e l'admin
       segna il piano a mano dal backoffice (REQ-FLOTTA-005).
     status: implemented
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, flotta, regia]
     test_cases:
       - tests/abbonamento.test.js
@@ -266,7 +266,7 @@ requirements:
       da una persona; la regola pura sta in scripts/lib-iam.js. Portato
       da tana-drink col ramo feature/flotta, chiuso il 30/10/2026.
     status: implemented
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, flotta, regia]
     test_cases:
       - tests/provisioning.test.js
@@ -280,7 +280,7 @@ requirements:
       test citato esiste, ogni voce ha id, titolo, stato e test. Un test lo
       controlla, cosi' il registro non invecchia in silenzio.
     status: implemented
-    generate_issue: false
+    generate_issue: true
     labels: [metodo]
     test_cases:
       - tests/requisiti.test.js
@@ -323,7 +323,7 @@ requirements:
       drink-regia-test, i service account del deploy, l'environment `test`
       e i segreti si fanno col permesso dell'utente (docs/handover.md §5).
     status: implemented
-    generate_issue: false
+    generate_issue: true
     labels: [metodo, regia]
     test_cases:
       - tests/versione.test.js
@@ -348,7 +348,7 @@ requirements:
       solo col segreto PROJECT_TOKEN (token personale con scope project,
       lo mette l'utente); senza, le issue si aggiornano lo stesso.
     status: implemented
-    generate_issue: false
+    generate_issue: true
     labels: [metodo, regia]
     test_cases:
       - tests/issue.test.js
@@ -372,7 +372,7 @@ requirements:
       La cancellazione vera del progetto, dopo i 30 giorni promessi, la fa
       elimina-istanza.yml, e solo dopo il backup verificato (REQ-FLOTTA-014).
     status: implemented
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, flotta, regia]
     test_cases:
       - tests/sospensione.test.js
@@ -407,7 +407,7 @@ requirements:
       prima di creare qualcosa se l'app non sa compilare per un cliente.
       Un ramo (develop) passa solo sulla regia di test.
     status: implemented
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, flotta, regia]
     test_cases:
       - tests/provisioning.test.js
@@ -433,7 +433,7 @@ requirements:
       magazzino → conta; il completo accende tutto). L'app li legge subito
       (lib/licenza.js di tana-drink: incluso e acceso).
     status: implemented
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, flotta, regia]
     test_cases:
       - tests/licenza.test.js
@@ -469,7 +469,7 @@ requirements:
       richiesta di attivazione gia' in coda. I consensi restano da
       raccogliere e il documento lo dice.
     status: implemented
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, flotta, regia]
     test_cases:
       - tests/istanze.test.js
@@ -505,7 +505,7 @@ requirements:
       alla versione di prima (un tag), poi si riprende con l'ondata
       successiva. L'ultima ondata finita chiude il rilascio.
     status: implemented
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, flotta, regia]
     test_cases:
       - tests/rilasci.test.js
@@ -713,7 +713,7 @@ requirements:
       che addebita ancora, mai il Free su Stripe. Ogni cambio va nello
       storico del cliente (storico_piano).
     status: implemented
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, regia]
     test_cases:
       - tests/prove.test.js
@@ -743,7 +743,7 @@ requirements:
       c'e' gia' non passano dal contatto. I termini dicono che si paga
       anche con i mezzi concordati.
     status: implemented
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, regia]
     test_cases:
       - tests/contatti.test.js
@@ -781,7 +781,7 @@ requirements:
       e Chiudi. Resta da fare: i ruoli del provisioning sui progetti della
       Tana (col permesso dell'utente) e la prova su tana-drink-test.
     status: partial
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, flotta, regia]
     test_cases:
       - tests/esistente.test.js
@@ -813,7 +813,7 @@ requirements:
       produzione come locale esistente (progetto drinkpos-demo, cartella
       demo, aggiornamenti dalla regia) e aggiornarla da lì.
     status: partial
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, flotta, regia, sicurezza]
     test_cases:
       - tests/flotta.test.js
@@ -858,7 +858,7 @@ requirements:
       testo approvato dall'utente il 31/10/2026, come quello dell'avviso.
       Resta da fare: l'app in tana-drink.
     status: partial
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, flotta, regia]
     test_cases:
       - tests/aggiornamenti.test.js
@@ -906,7 +906,7 @@ requirements:
       IVA esclusa); la pagina (prezzi, scelta mensile o annuale) nel ramo
       feature/prezzi-pagina.
     status: partial
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, regia]
     test_cases:
       - tests/fondatori.test.js
@@ -952,7 +952,7 @@ requirements:
       assistenza non usate; il prezzo Fondatori applicato nella dashboard,
       quando le Functions lo scrivono.
     status: partial
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, prezzi, regia]
     test_cases:
       - tests/Home.test.jsx
@@ -994,7 +994,7 @@ requirements:
       sostituzione. Già vero oggi, e provato: nessun workflow della regia
       pubblica un locale collegato agli emulatori.
     status: todo
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, flotta, regia]
     test_cases:
       - tests/flotta.test.js
@@ -1042,7 +1042,7 @@ requirements:
       da solo col portale clienti di Stripe («Gestisci l'abbonamento»:
       disdetta a fine periodo, carta, fatture).
     status: implemented
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, regia, abbonamento]
     test_cases:
       - tests/scadenze.test.js
@@ -1072,7 +1072,7 @@ requirements:
       dell'utente): da installare con l'account e le credenziali
       dell'utente.
     status: partial
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, regia, abbonamento, comunicazioni]
     test_cases:
       - tests/comunicazioni.test.js
@@ -1106,7 +1106,7 @@ requirements:
       Tana l'interruttore «licenza dalla regia» e il permesso alla regia
       sui suoi progetti.
     status: partial
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, flotta, regia, licenza]
     test_cases:
       - tests/presentazione.test.js
@@ -1137,7 +1137,7 @@ requirements:
       temi che li usano. In tana-drink resta: il motore, i caratteri nuovi,
       la lettura degli stili dal catalogo (docs/stili-a-ricetta.md).
     status: partial
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, regia, menu]
     test_cases:
       - tests/stili.test.js
@@ -1162,7 +1162,7 @@ requirements:
       Primi otto: Smeraldo, Bordeaux, Agrumi, Ardesia, Seppia, Velluto,
       Menta, Neon.
     status: implemented
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, regia, menu]
     test_cases:
       - tests/temi.test.js
@@ -1191,7 +1191,7 @@ requirements:
       per ora: i temi a pagamento (REQ-LIC-011 di tana-drink) e i designer
       esterni.
     status: implemented
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, regia, menu]
     test_cases:
       - tests/temi.test.js
@@ -1225,7 +1225,7 @@ requirements:
       tana-drink resta: la pagina che riceve il codice, «Area clienti», i
       campi nuovi delle impostazioni, l'accesso Google al banco.
     status: partial
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, flotta, regia, sicurezza]
     test_cases:
       - tests/passaggio.test.js
@@ -1254,7 +1254,7 @@ requirements:
       con Google al banco: in tana-drink «Entra con Google» nella pagina
       del banco, e il fornitore Google acceso sui progetti dei locali.
     status: partial
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, flotta, regia, sicurezza]
     test_cases:
       - tests/titolare.test.js
@@ -1281,7 +1281,7 @@ requirements:
       clienti lasciava al titolare moduli, terminali e prove, che la regia
       trasforma in licenza; ora il titolare cambia solo i dati anagrafici.
     status: implemented
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, regia, abbonamento, licenza, sicurezza]
     test_cases:
       - tests/sconti.test.js
@@ -1320,7 +1320,7 @@ requirements:
       valida (niente «documento assente = nessun limite»), alla_scadenza,
       l'avviso della cancellazione, e licenza/attuale per la Tana.
     status: partial
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, flotta, regia, licenza, privacy]
     test_cases:
       - tests/conservazione.test.js
@@ -1351,7 +1351,7 @@ requirements:
       (istanze/<slug>.riduzione_al_taglio). La verifica delle licenze
       riconosce la licenza tenuta fino al taglio.
     status: implemented
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, flotta, regia, licenza]
     test_cases:
       - tests/taglio.test.js
@@ -1393,7 +1393,7 @@ requirements:
       in tana-drink; poi smettere di scrivere settings/bar.licenza e
       cancellarla.
     status: partial
-    generate_issue: false
+    generate_issue: true
     labels: [prodotto, flotta, regia, sicurezza]
     test_cases:
       - tests/licenza.test.js

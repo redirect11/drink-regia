@@ -217,7 +217,12 @@ porta la scheda su «Implemented», su `develop` su «In test» (etichetta
 `in-test`), su `main` chiude l'issue. Le segnalazioni dell'utente
 diventano voci `REQ-*` o, per i difetti, voci di `requirements/bugs.yaml`
 (stesso formato; stati `todo`/`fixed`/`wontfix`, campo `in_produzione`,
-`severity`, `priority`), da creare alla prima segnalazione.
+`severity`, `priority`), da creare alla prima segnalazione. **Ogni voce
+nasce con `generate_issue: true` e lo tiene anche da finita**: vuol dire
+«seguita su GitHub», e una voce già `implemented` non apre comunque
+un'issue nuova (`deveNascere` in `lib-requisiti.mjs`). Le voci dalla
+REQ-FLOTTA-016 alla 034 erano nate con `false` e sulla bacheca non
+c'erano: riallineate il 02/11/2026.
 
 **La bacheca** è il project GitHub **«drink-regia», n. 5**
 (https://github.com/users/redirect11/projects/5), creato il 22/10 con le
