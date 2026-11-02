@@ -973,6 +973,20 @@ describe('le licenze protette nel backoffice', () => {
     const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
     expect(attivo).toHaveTextContent(/Programmata per il .*\(fine della conservazione dei dati: il locale è fermo\) · avvisi mandati: 1/)
   })
+
+  // REQ-FLOTTA-026: la versione che l'app stessa ha detto alla regia.
+  it('la scheda dice la versione che l’app ha presentato, e da quando', async () => {
+    db.elencoIstanze.mockResolvedValue({
+      'bar-attivo': {
+        stato: 'attiva',
+        progetto: 'drinkpos-bar-attivo',
+        presentazione: { versione: 'v1.10.4', prima_il: '2026-11-02T10:00:00Z', il: '2026-11-03T10:00:00Z', da: 'u1' },
+      },
+    })
+    mostra()
+    const attivo = (await screen.findAllByRole('article')).find((r) => r.textContent.includes('Bar Attivo'))
+    expect(within(attivo).getByTestId('presentazione')).toHaveTextContent(/^v1\.10\.4 · dal 0?2\/11\/2026 · ultima volta il 0?3\/11\/2026$/)
+  })
 })
 
 // LE SCADENZE A EVENTI (REQ-FLOTTA-023): un piano pagato fuori da Stripe ha

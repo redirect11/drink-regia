@@ -567,6 +567,22 @@ L'elenco completo con i riferimenti al codice è in
    `docs/licenza-valida.md` sul ramo `feature/licenza-valida` (regole
    che negano tutto senza licenza valida, `alla_scadenza`, l'avviso
    della cancellazione, la licenza della Tana).
+27. **Il sito si presenta alla regia (REQ-FLOTTA-026)**, ramo
+   `feature/presentazione-alla-regia`, 02/11/2026. L'utente: «non deve
+   essere il deploy ad avvisare la regia ma l'istanza del sito stesso».
+   Al primo avvio di ogni versione l'app chiama `presentazione` col token
+   di chi ha fatto l'accesso; la regia riconosce il progetto, si segna la
+   versione (`istanze/<slug>.presentazione`) e, se manca, scrive la
+   licenza: è l'attivazione, da qualunque deploy (della regia o di GitHub).
+   I workflow della regia mettono nella build `VITE_REGIA_PROGETTO`. **La
+   Tana** si collega così quando: (1) la regia di produzione è online; (2)
+   la regia ha `roles/datastore.user` sui progetti della Tana (comando da
+   lanciare l'utente); (3) la sua istanza nella regia passa a
+   `licenza_dalla_regia: true` (un interruttore da fare). Fino ad allora
+   la licenza della Tana la crea il deploy di tana-drink, solo se manca
+   (la loro PR #261), e la presentazione segna solo la versione. In
+   tana-drink: `docs/presentazione-alla-regia.md`, ramo
+   `feature/presentazione-alla-regia`.
 
 ---
 
@@ -668,6 +684,19 @@ moduli, la licenza nell'istanza e la Tana.
   arriva al **taglio della giornata** del locale (REQ-FLOTTA-024): fino
   ad allora la licenza è quella di prima più le aggiunte. Le sospensioni e
   le chiusure dell'admin o del titolare valgono subito.
+- **La presentazione alla regia** (REQ-FLOTTA-026, dal 02/11/2026). Al
+  primo avvio di ogni versione l'app fa `POST
+  https://europe-west1-<VITE_REGIA_PROGETTO>.cloudfunctions.net/presentazione`
+  con `Authorization: Bearer <ID token>` di un utente qualunque del
+  locale e il corpo `{ "versione": "v1.10.4" }`. Il progetto della regia
+  arriva nella build (`VITE_REGIA_PROGETTO`: `drink-regia` o
+  `drink-regia-test`; l'app accetta solo quei due, come per
+  `scelta_url`). Risposte: `200 { ok, licenza: 'scritta' | 'presente' |
+  'non_dalla_regia' | 'non_attiva' }`; `400` versione non valida; `401`
+  token mancante o non valido; `404` progetto che la regia non conosce;
+  `503` la licenza non si è scritta. L'app la richiama solo a una
+  versione nuova, o se manca ancora la licenza (aprendo l'app, o col tasto
+  «Riprova» della schermata «Installazione non attivata»): mai a tempo.
 - **Gli aggiornamenti obbligatori o a scelta** (REQ-FLOTTA-020, dal
   31/10/2026, per intero in tana-drink, `docs/aggiornamenti-dalla-regia.md`).
   La regia scrive `settings/bar.licenza.aggiornamenti` = `{ modalita:

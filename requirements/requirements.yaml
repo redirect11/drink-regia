@@ -934,6 +934,35 @@ requirements:
       - tests/Backoffice.test.jsx
       - tests/db.test.js
 
+  - id: REQ-FLOTTA-026
+    title: "Il sito si presenta alla regia: la versione che gira e, se manca, la licenza"
+    area: "functions/lib/presentazione.js, functions/index.js (presentazione), .github/workflows/provisiona-istanza.yml, .github/workflows/aggiorna-istanza.yml, src/pages/Backoffice.jsx"
+    description: >
+      L'utente, 02/11/2026: «non deve essere il deploy ad avvisare la regia
+      ma l'istanza del sito stesso in qualche modo. Cioè regia e il sito
+      custom del bar si devono parlare dopo il deploy e si scambiano dati
+      tra loro rispetto alle licenze attivazione e etc.» Al primo avvio di
+      ogni versione l'app chiama la Function presentazione col token di chi
+      ha fatto l'accesso nel progetto del locale e la sua versione. La
+      regia riconosce il progetto fra le sue istanze, verifica il token con
+      quel progetto, si segna la versione (presentazione: versione, prima
+      e ultima volta, chi) senza riscriverla se la stessa versione è
+      arrivata da poco, e, se il locale non ha licenza/attuale, la scrive
+      subito: è l'attivazione, da qualunque deploy arrivi l'app, della
+      regia o di GitHub. Un locale esistente con la licenza sua (la Tana,
+      finché non la si collega) segna solo la versione. Le build della
+      regia portano VITE_REGIA_PROGETTO. Niente giri a tempo: si chiama a
+      una versione nuova o finché la licenza manca. Resta da fare in
+      tana-drink: la chiamata (docs/presentazione-alla-regia.md); e per la
+      Tana l'interruttore «licenza dalla regia» e il permesso alla regia
+      sui suoi progetti.
+    status: partial
+    generate_issue: false
+    labels: [prodotto, flotta, regia, licenza]
+    test_cases:
+      - tests/presentazione.test.js
+      - tests/Backoffice.test.jsx
+
   - id: REQ-FLOTTA-025
     title: "Senza licenza valida il prodotto non parte; i dati di un locale fermo si conservano 90 giorni, con gli avvisi"
     area: "functions/lib/conservazione.js, functions/lib/licenza.js, functions/lib/scadenze.js, functions/index.js (eseguiAzionePagamento, impostaStatoIstanza, gestisciEliminazione, scadenza, scriviLicenza), src/pages/ChiudiLocale.jsx, src/pages/Dashboard.jsx, src/pages/Backoffice.jsx, src/pages/Legali.jsx"

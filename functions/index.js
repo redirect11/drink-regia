@@ -37,6 +37,7 @@ const { getAuth } = require('firebase-admin/auth')
 const ai = require('./lib/ai.js')
 const elim = require('./lib/eliminazione.js')
 const conserva = require('./lib/conservazione.js')
+const presenta = require('./lib/presentazione.js')
 const free = require('./lib/free.js')
 const contatti = require('./lib/contatti.js')
 const { getStorage } = require('firebase-admin/storage')
@@ -1006,6 +1007,53 @@ exports.sceltaDallApp = onRequest({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN], c
   if (perche === GIA_SCELTA) return res.status(409).json({ errore: GIA_SCELTA })
   if (perche) return res.status(502).json({ errore: perche })
   return res.status(200).json({ ok: true, scelta })
+})
+
+// ── IL SITO SI PRESENTA ALLA REGIA (REQ-FLOTTA-026) ────────────────────
+// Al primo avvio di ogni versione l'app chiama qui, col token di chi ha
+// fatto l'accesso nel progetto del locale: `POST`, `Authorization: Bearer
+// <ID token>`, corpo `{ versione }`. La regia riconosce il progetto fra le
+// sue istanze, verifica il token con quel progetto, si segna la versione e,
+// se il sito non ha la licenza, gliela scrive (l'attivazione). Basta un
+// utente qualunque del locale: la licenza la decide la regia, non chi
+// chiama. Risposte: 200 { ok, licenza: 'scritta' | 'presente' |
+// 'non_dalla_regia' | 'non_attiva' }; 400 corpo sbagliato; 401 token
+// mancante o non valido; 404 progetto che la regia non conosce; 503 la
+// licenza non si è scritta (si riprova aprendo l'app).
+exports.presentazione = onRequest({ ...OPTS, cors: false }, async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*')
+  res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+  res.set('Access-Control-Allow-Methods', 'POST')
+  if (req.method === 'OPTIONS') return res.status(204).send('')
+  if (req.method !== 'POST') return res.status(405).json({ errore: 'Solo POST.' })
+  const token = aggiornamenti.bearerDi(req.get('authorization'))
+  const progetto = aggiornamenti.progettoDelToken(token)
+  if (!progetto) return res.status(401).json({ errore: 'Serve l’accesso.' })
+  const trovata = (await db.collection('istanze').where('progetto', '==', progetto).limit(1).get()).docs[0]
+  if (!trovata || trovata.data().stato === 'eliminata') return res.status(404).json({ errore: 'Installazione non registrata nella regia.' })
+  let chi
+  try {
+    chi = await getAuth(appDi(progetto)).verifyIdToken(token)
+  } catch {
+    return res.status(401).json({ errore: 'Accesso non valido: entra di nuovo.' })
+  }
+  const corpo = presenta.corpoPresentazione(req.body)
+  if (!corpo) return res.status(400).json({ errore: 'Versione non valida.' })
+  const slug = trovata.id
+  const ist = trovata.data()
+  if (presenta.daRegistrare(ist, corpo.versione)) await trovata.ref.update(presenta.registroPresentazione(ist, { versione: corpo.versione, uid: chi.uid }))
+  const riceve = riceveLicenza(ist)
+  const esiste = riceve ? (await firestoreDi(progetto).doc(LICENZA_PROTETTA).get()).exists : false
+  const cosa = presenta.cosaFareConLaLicenza(ist, { esiste, riceve })
+  if (cosa !== 'scrivi') return res.status(200).json({ ok: true, licenza: cosa })
+  // Nessuno ci lavora ancora: la prima licenza si scrive subito, niente taglio.
+  const scritta = await scriviLicenza(slug, { subito: true }).catch((e) => ({ ok: false, perche: e?.message || String(e) }))
+  if (!scritta.ok) {
+    console.error(`[presentazione] ${slug}: la licenza non si è scritta: ${scritta.perche}`)
+    return res.status(503).json({ errore: 'La licenza non si è scritta: riprova fra poco.' })
+  }
+  console.log(`[presentazione] ${slug} ${corpo.versione}: licenza scritta`)
+  return res.status(200).json({ ok: true, licenza: 'scritta' })
 })
 
 // ── IL PIANO CHE CAMBIA (REQ-FLOTTA-010) ──────────────────────────────
