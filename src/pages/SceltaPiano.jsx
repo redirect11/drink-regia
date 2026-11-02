@@ -1,5 +1,18 @@
 import { useEffect, useState } from 'react'
-import { PIANI, MODULI, TERMINALE_IN_PIU, ATTIVAZIONE, prezzoMensile, euro } from '../lib/piani.js'
+import {
+  PIANI,
+  MODULI,
+  TERMINALE_IN_PIU,
+  ATTIVAZIONE,
+  ANNUALE,
+  FONDATORI,
+  PROVA_GIORNI,
+  prezzoMensile,
+  prezzoAnnuale,
+  prezzoFondatori,
+  conIva,
+  euro,
+} from '../lib/piani.js'
 import { avviaPagamento, cambiaScelta, chiediContatto, osservaContatto, osservaVendita, scegliFree } from '../lib/db.js'
 import { EMAIL_CONTATTI } from '../lib/prodotto.js'
 import { venditaPulita, pianiInVendita, moduloVisibile, eGratuito } from '../lib/vendita.js'
@@ -17,12 +30,29 @@ import { venditaPulita, pianiInVendita, moduloVisibile, eGratuito } from '../lib
 // PAGAMENTI ONLINE SPENTI (REQ-FLOTTA-017): finché l'admin non li accende,
 // al posto del Checkout il titolare lascia un recapito e lo contattiamo
 // noi; il pagamento si concorda fuori dal sito e il piano lo attiva l'admin.
+// IL LISTINO DEL 02/11/2026 (DEC-0005): prezzi «+ IVA» col totale IVA
+// inclusa accanto; mensile o annuale (`periodo: 'mese' | 'anno'` nella
+// scelta, che le Functions validano: qui si mostra soltanto); l'offerta
+// Fondatori detta come informazione, perché chi rientra lo decide il
+// server contando gli abbonamenti attivati: la pagina non ha il conteggio
+// e non mostra i posti rimasti.
+
+// «32,70 € + IVA» e «39,89 € IVA inclusa»: le due metà di ogni prezzo.
+const piuIva = (n) => `${euro(n)} + IVA`
+const ivaInclusa = (n) => `${euro(conIva(n))} IVA inclusa`
+
+const testoFondatori = (p, prezzo) =>
+  `Offerta Fondatori: i primi ${FONDATORI.posti} abbonamenti a pagamento attivati hanno il ${p.nome} a ${piuIva(prezzo)} al mese ` +
+  `(${ivaInclusa(prezzo)}) per ${FONDATORI.mesi} mesi dall’attivazione, poi ${piuIva(p.prezzo)}; ` +
+  (FONDATORI.attivazione ? `attivazione a ${piuIva(FONDATORI.attivazione)}.` : 'attivazione gratuita.')
+
 export default function SceltaPiano({ cliente, modifica = false, vai = (url) => window.location.assign(url) }) {
   const [vendita, setVendita] = useState(() => venditaPulita(null))
   useEffect(() => osservaVendita((v) => setVendita(venditaPulita(v))), [])
   const [piano, setPiano] = useState(cliente.piano && !eGratuito(cliente.piano) ? cliente.piano : 'base')
   const [moduli, setModuli] = useState(cliente.moduli || [])
   const [terminali, setTerminali] = useState(cliente.terminali || 1)
+  const [periodo, setPeriodo] = useState(cliente.periodo === 'anno' ? 'anno' : 'mese')
   const [errore, setErrore] = useState(null)
   const [inCorso, setInCorso] = useState(false)
   const [fatto, setFatto] = useState(null)
@@ -33,7 +63,12 @@ export default function SceltaPiano({ cliente, modifica = false, vai = (url) => 
   const gratuito = eGratuito(piano)
   // Il Checkout serve solo a chi comincia un piano a pagamento.
   const daContattare = !gratuito && !modifica && !vendita.pagamenti_online
-  const scelta = gratuito ? { piano, moduli: [], terminali: 1 } : { piano, moduli, terminali }
+  const scelta = gratuito ? { piano, moduli: [], terminali: 1 } : { piano, moduli, terminali, periodo }
+  const mensile = prezzoMensile(scelta)
+  const annuale = periodo === 'anno' && !gratuito
+  const daPagare = annuale ? prezzoAnnuale(mensile) : mensile
+  // L'offerta si racconta a chi comincia un abbonamento, non a chi lo cambia.
+  const fondatori = !gratuito && !modifica && FONDATORI?.posti > 0 ? prezzoFondatori(piano) : null
   const p = PIANI[piano]
   const inclusi = new Set(p.include)
   const giaSuoi = cliente.moduli || []
@@ -77,7 +112,8 @@ export default function SceltaPiano({ cliente, modifica = false, vai = (url) => 
         {piani.map((x) => (
           <label key={x.id} className={`opzione${piano === x.id ? ' scelta' : ''}`}>
             <input type="radio" name="piano" value={x.id} checked={piano === x.id} onChange={() => setPiano(x.id)} />
-            <strong>{x.nome}</strong> · {euro(x.prezzo)} / mese
+            <strong>{x.nome}</strong> ·{' '}
+            {x.gratuito ? `${euro(0)} / mese` : `${piuIva(x.prezzo)} / mese (${ivaInclusa(x.prezzo)})`}
             <div className="muted small">{x.descrizione}</div>
           </label>
         ))}
@@ -93,17 +129,57 @@ export default function SceltaPiano({ cliente, modifica = false, vai = (url) => 
                 disabled={inclusi.has(m.id)}
                 onChange={(e) => setModuli((v) => (e.target.checked ? [...new Set([...v, m.id])] : v.filter((id) => id !== m.id)))}
               />
-              {m.nome} · {inclusi.has(m.id) ? <span className="muted small">incluso</span> : `${euro(m.prezzo)} / mese`}
+              {m.nome} · {inclusi.has(m.id) ? <span className="muted small">incluso</span> : `${piuIva(m.prezzo)} / mese`}
             </label>
           ))}
-          <label htmlFor="terminali">Terminali (oltre {p.terminali || 1} {p.terminali > 1 ? 'inclusi' : 'incluso'}: {euro(TERMINALE_IN_PIU)} / mese ciascuno)</label>
+          <label htmlFor="terminali">Terminali (oltre {p.terminali || 1} {p.terminali > 1 ? 'inclusi' : 'incluso'}: {piuIva(TERMINALE_IN_PIU)} / mese ciascuno)</label>
           <input id="terminali" type="number" min={1} max={10} value={terminali} onChange={(e) => setTerminali(Math.max(1, Number(e.target.value) || 1))} />
+          {ANNUALE?.mensilita > 0 && (
+            <fieldset className="periodo">
+              <legend>Come paghi</legend>
+              <label className="opzione">
+                <input type="radio" name="periodo" value="mese" checked={periodo === 'mese'} onChange={() => setPeriodo('mese')} />
+                Ogni mese
+              </label>
+              <label className="opzione">
+                <input type="radio" name="periodo" value="anno" checked={periodo === 'anno'} onChange={() => setPeriodo('anno')} />
+                Un anno in anticipo ({ANNUALE.mensilita} mensilità)
+              </label>
+            </fieldset>
+          )}
         </>
       )}
       <p className="prezzo" data-testid="prezzo-scelta">
-        {euro(prezzoMensile(scelta))}{' '}
-        <span className="muted small">{gratuito ? '/ mese, senza pagamento' : `/ mese, IVA esclusa · attivazione ${euro(ATTIVAZIONE)} una volta`}</span>
+        {gratuito ? (
+          <>
+            {euro(0)} <span className="muted small">/ mese, senza pagamento</span>
+          </>
+        ) : (
+          <>
+            {piuIva(daPagare)} <span className="muted small">{annuale ? 'all’anno' : 'al mese'}</span>
+          </>
+        )}
       </p>
+      {!gratuito && (
+        <p className="muted small" data-testid="prezzo-dettaglio">
+          {ivaInclusa(daPagare)}
+          {annuale && ` · pari a ${ANNUALE.mensilita} mensilità da ${piuIva(mensile)}`}
+          {!modifica && ` · attivazione ${piuIva(ATTIVAZIONE)} (${ivaInclusa(ATTIVAZIONE)}) una volta`}
+        </p>
+      )}
+      {fondatori != null && (
+        <p className="muted small" data-testid="fondatori">
+          {testoFondatori(p, fondatori)}{' '}
+          {daContattare
+            ? 'Se rientri lo verifichiamo noi all’attivazione, e te lo confermiamo quando ti contattiamo.'
+            : 'Se rientri lo verifichiamo noi all’attivazione, e il prezzo applicato lo vedi nel riepilogo del pagamento.'}
+        </p>
+      )}
+      {!gratuito && !modifica && PROVA_GIORNI > 0 && (
+        <p className="muted small" data-testid="prova">
+          I primi {PROVA_GIORNI} giorni sono di prova: il canone parte alla fine della prova.
+        </p>
+      )}
       {daContattare && (
         <div className="contatto" data-testid="contatto">
           <p className="muted small">

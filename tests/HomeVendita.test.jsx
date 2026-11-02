@@ -38,7 +38,10 @@ describe('la vendita nella prima pagina', () => {
   it('col Free in vendita c’è la sua scheda, a 0 €', () => {
     stato.vendita = venditaPulita({ free: true })
     mostra()
-    expect(screen.getByRole('article', { name: 'Piano Free' })).toHaveTextContent('0 €')
+    const free = screen.getByRole('article', { name: 'Piano Free' })
+    expect(free).toHaveTextContent('0 €')
+    // Il Free non ha IVA né annuale da mostrare.
+    expect(free).not.toHaveTextContent('IVA')
   })
 
   it('un modulo tolto dalla vendita non compare nella tabella dei prezzi', () => {

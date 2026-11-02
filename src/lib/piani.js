@@ -18,6 +18,9 @@ export const FONDATORI = listino.fondatori
 export const ANNUALE = listino.annuale
 export const PROVA_GIORNI = listino.prova_giorni
 export const ASSISTENZA = listino.assistenza
+// Le stampanti fuori da quelle supportate: a preventivo (DEC-0005). La
+// pagina dei prezzi e i termini lo dicono solo se il listino lo prevede.
+export const STAMPANTE = listino.stampante
 
 // Al centesimo: i prezzi hanno i decimali (32,70 €) e le somme in virgola
 // mobile lasciano code (32.7 + 12 = 44.699999…).

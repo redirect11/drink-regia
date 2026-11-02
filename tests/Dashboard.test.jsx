@@ -78,8 +78,17 @@ describe('la dashboard', () => {
   it('dice locale, piano col prezzo del mese e stato dell’istanza', () => {
     mostra()
     expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Bar Mario')
-    expect(screen.getAllByText('Base')[0].closest('p')).toHaveTextContent('46 €') // 24 + 10 (staff) + 12 (secondo terminale)
+    // 32,70 + 10 (staff); il secondo terminale è fra i 3 inclusi (DEC-0005).
+    // Coi centesimi e «+ IVA», e il totale IVA inclusa accanto.
+    expect(screen.getByTestId('prezzo-piano')).toHaveTextContent('42,70 € + IVA al mese (52,09 € IVA inclusa)')
     expect(screen.getByTestId('stato-istanza')).toHaveTextContent('Non ancora attivata')
+  })
+
+  it('chi paga l’anno vede il prezzo dell’anno', () => {
+    stato.cliente = { ...stato.cliente, moduli: [], terminali: 1, periodo: 'anno' }
+    mostra()
+    // 10 mensilità da 32,70 €: 327 € + IVA, 398,94 € IVA inclusa.
+    expect(screen.getByTestId('prezzo-piano')).toHaveTextContent('327 € + IVA all’anno (398,94 € IVA inclusa)')
   })
 
   // REQ-FLOTTA-010: con l'abbonamento attivo si cambia piano o moduli.
