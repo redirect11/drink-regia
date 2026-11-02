@@ -19,6 +19,10 @@ vi.mock('../src/lib/db.js', () => ({
     return () => {}
   },
   esci: vi.fn(),
+  // I codici sconto (REQ-FLOTTA-028) hanno i loro test in Backoffice.test.jsx.
+  elencoSconti: vi.fn(async () => []),
+  gestisciSconti: vi.fn(async () => ({ ok: true })),
+  applicaSconto: vi.fn(async () => ({ ok: true })),
   // La prima pagina legge la vendita (REQ-FLOTTA-015): qui quella di partenza.
   osservaVendita: (cb) => {
     cb(null)

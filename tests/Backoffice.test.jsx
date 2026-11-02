@@ -60,6 +60,10 @@ const db = vi.hoisted(() => ({
   }),
   gestisciLicenze: vi.fn(async () => ({ ok: true })),
   registraPagamento: vi.fn(async () => ({ ok: true })),
+  // I codici sconto (REQ-FLOTTA-028) hanno i loro test in Backoffice.test.jsx.
+  elencoSconti: vi.fn(async () => []),
+  gestisciSconti: vi.fn(async () => ({ ok: true })),
+  applicaSconto: vi.fn(async () => ({ ok: true })),
   programmaScadenze: vi.fn(async () => ({ ok: true, programmati: 3, errori: [] })),
 }))
 const regia = vi.hoisted(() => ({ impostazioni: {}, vendita: { free: false, moduli: {} }, contatti: [], aggiornamenti: {}, licenze: null }))
@@ -356,7 +360,10 @@ describe('il backoffice e il credito AI', () => {
     const modulo = within(tana).getByRole('form', { name: 'Chi pubblica La Tana' })
     expect(within(modulo).getByLabelText('Cartella in clienti/ dell’app')).toHaveValue('tana-drink')
     expect(within(modulo).getByLabelText('Chiave VAPID delle notifiche')).toHaveValue('vapid-1')
-    await user.click(within(modulo).getByRole('checkbox'))
+    await user.click(within(modulo).getByRole('checkbox', { name: /La aggiorna la regia/ }))
+    // REQ-FLOTTA-028: la licenza dalla regia, coi moduli del suo piano.
+    await user.click(within(modulo).getByRole('checkbox', { name: /La licenza la scrive la regia/ }))
+    expect(within(modulo).getByText(/serve che la regia ci possa scrivere/)).toBeInTheDocument()
     await user.clear(within(modulo).getByLabelText('Cartella in clienti/ dell’app'))
     await user.type(within(modulo).getByLabelText('Cartella in clienti/ dell’app'), 'tana')
     await user.type(within(modulo).getByLabelText('Chiave reCAPTCHA di App Check'), '6Lc-abc')
@@ -364,6 +371,7 @@ describe('il backoffice e il credito AI', () => {
     expect(db.impostaAggiornamentiEsistente).toHaveBeenCalledWith({
       slug: 'tana-drink',
       aggiornamenti_dalla_regia: true,
+      licenza_dalla_regia: true,
       cliente: 'tana',
       build: { VITE_FIREBASE_VAPID_KEY: 'vapid-1', VITE_RECAPTCHA_SITE_KEY: '6Lc-abc', VITE_FIREBASE_MEASUREMENT_ID: '' },
     })
@@ -1046,5 +1054,72 @@ describe('le scadenze nel backoffice', () => {
     await user.click(within(riquadro).getByRole('button', { name: 'Programma le scadenze' }))
     expect(db.programmaScadenze).toHaveBeenCalled()
     expect(await within(riquadro).findByRole('status')).toHaveTextContent('Programmate 3 scadenze.')
+  })
+})
+
+// I CODICI SCONTO (REQ-FLOTTA-028): si creano e si disattivano in
+// «Vendita», si applicano dalla scheda del locale.
+describe('i codici sconto nel backoffice', () => {
+  it('l’elenco, un codice nuovo, e disattivarne uno', async () => {
+    const user = userEvent.setup()
+    db.elencoSconti.mockResolvedValue([
+      { codice: 'TANA-100', percentuale: 100, durata_mesi: null, descrizione: 'La Tana', attivo: true },
+      { codice: 'VECCHIO', percentuale: 10, durata_mesi: 3, attivo: false },
+    ])
+    mostra('/backoffice/vendita')
+    const riquadro = await screen.findByRole('region', { name: 'Codici sconto' })
+    expect(await within(riquadro).findByTestId('codice-TANA-100')).toHaveTextContent('TANA-100 · 100% · illimitato · La Tana')
+    expect(within(riquadro).getByTestId('codice-VECCHIO')).toHaveTextContent('3 mesi · disattivato')
+    const modulo = within(riquadro).getByRole('form', { name: 'Nuovo codice sconto' })
+    await user.type(within(modulo).getByLabelText('Codice'), 'PROVA20')
+    await user.type(within(modulo).getByLabelText('Percentuale'), '20')
+    await user.type(within(modulo).getByLabelText(/Durata in mesi/), '3')
+    await user.click(within(modulo).getByRole('button', { name: 'Crea il codice' }))
+    expect(db.gestisciSconti).toHaveBeenCalledWith('crea', { codice: 'PROVA20', percentuale: 20, durata_mesi: 3, descrizione: '' })
+    await user.click(within(within(riquadro).getByTestId('codice-TANA-100')).getByRole('button', { name: 'Disattiva' }))
+    expect(db.gestisciSconti).toHaveBeenCalledWith('disattiva', { codice: 'TANA-100' })
+    // Un disattivato non ha il tasto.
+    expect(within(within(riquadro).getByTestId('codice-VECCHIO')).queryByRole('button')).toBeNull()
+  })
+
+  it('senza durata il codice è illimitato', async () => {
+    const user = userEvent.setup()
+    db.elencoSconti.mockResolvedValue([])
+    mostra('/backoffice/vendita')
+    const modulo = await screen.findByRole('form', { name: 'Nuovo codice sconto' })
+    await user.type(within(modulo).getByLabelText('Codice'), 'TANA-100')
+    await user.type(within(modulo).getByLabelText('Percentuale'), '100')
+    await user.click(within(modulo).getByRole('button', { name: 'Crea il codice' }))
+    expect(db.gestisciSconti).toHaveBeenCalledWith('crea', { codice: 'TANA-100', percentuale: 100, durata_mesi: null, descrizione: '' })
+  })
+
+  it('la scheda dice lo sconto e il prezzo dopo, e «Sconto…» lo applica', async () => {
+    const user = userEvent.setup()
+    db.elencoClienti.mockResolvedValue([
+      { uid: 't', slug: 'tana-drink', nome_locale: 'La Tana', email: 't@x.it', piano: 'completo', creato_il: '2026-10-24', sconto: { codice: 'TANA-100', percentuale: 100, fino: null } },
+    ])
+    db.elencoIstanze.mockResolvedValue({ 'tana-drink': { stato: 'attiva', progetto: 'tana-drink', origine: 'esistente', interna: true } })
+    vi.spyOn(window, 'prompt').mockReturnValueOnce(null).mockReturnValueOnce(' TANA-100 ')
+    mostra()
+    const tana = await screen.findByRole('article', { name: 'La Tana' })
+    expect(within(tana).getByTestId('sconto-tana-drink')).toHaveTextContent('sconto TANA-100, 100%, illimitato')
+    expect(tana).toHaveTextContent(/Completo · 0\s?€/)
+    // Annullato: niente.
+    await user.click(within(tana).getByRole('button', { name: 'Sconto…' }))
+    expect(db.applicaSconto).not.toHaveBeenCalled()
+    await user.click(within(tana).getByRole('button', { name: 'Sconto…' }))
+    expect(db.applicaSconto).toHaveBeenCalledWith('tana-drink', 'TANA-100')
+  })
+
+  it('se lo sconto non si applica, lo dice', async () => {
+    const user = userEvent.setup()
+    db.elencoClienti.mockResolvedValue([{ uid: 'm', slug: 'bar-mario', nome_locale: 'Bar Mario', email: 'm@x.it', piano: 'base', creato_il: '2026-10-05' }])
+    db.elencoIstanze.mockResolvedValue({})
+    db.applicaSconto.mockRejectedValueOnce(new Error('Codice sconosciuto o disattivato.'))
+    vi.spyOn(window, 'prompt').mockReturnValueOnce('NIENTE')
+    mostra()
+    const scheda = await screen.findByRole('article', { name: 'Bar Mario' })
+    await user.click(within(scheda).getByRole('button', { name: 'Sconto…' }))
+    expect(await screen.findByText('Codice sconosciuto o disattivato.')).toBeInTheDocument()
   })
 })

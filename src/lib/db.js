@@ -323,6 +323,29 @@ export async function registraLocaleEsistente(dati) {
 
 // Un locale esistente affidato alla regia per gli aggiornamenti, o
 // restituito al suo repository (REQ-FLOTTA-018).
+// I codici sconto (REQ-FLOTTA-028): l'elenco lo legge l'admin; crearli,
+// disattivarli e applicarli passa dalle Functions.
+export async function elencoSconti() {
+  serve()
+  const snap = await getDocs(query(collection(db, 'sconti'), orderBy('creato_il', 'desc')))
+  return snap.docs.map((d) => d.data())
+}
+
+export async function gestisciSconti(azione, dati = {}) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'gestisciSconti')
+  const { data } = await fn({ ...dati, azione })
+  return data
+}
+
+// Codice vuoto: lo sconto si toglie.
+export async function applicaSconto(slug, codice) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'applicaSconto')
+  const { data } = await fn({ slug, codice: codice || null })
+  return data
+}
+
 export async function impostaAggiornamentiEsistente(dati) {
   serve()
   const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'impostaAggiornamentiEsistente')

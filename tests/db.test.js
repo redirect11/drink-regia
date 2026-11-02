@@ -109,6 +109,10 @@ const FUNCTIONS = [
   // Le scadenze a eventi (REQ-FLOTTA-023).
   ['registraPagamento', ['bar', '2026-11-30'], 'registraPagamento', { slug: 'bar', pagato_fino_al: '2026-11-30' }],
   ['programmaScadenze', [], 'programmaScadenze', {}],
+  // I codici sconto (REQ-FLOTTA-028); un codice vuoto toglie lo sconto.
+  ['gestisciSconti', ['crea', { codice: 'X1Y' }], 'gestisciSconti', { codice: 'X1Y', azione: 'crea' }],
+  ['applicaSconto', ['bar', 'TANA-100'], 'applicaSconto', { slug: 'bar', codice: 'TANA-100' }],
+  ['applicaSconto', ['bar', ''], 'applicaSconto', { slug: 'bar', codice: null }],
 ]
 
 describe('le chiamate alle Functions', () => {
