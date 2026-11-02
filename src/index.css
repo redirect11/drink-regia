@@ -316,6 +316,25 @@ input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--
 /* Cosa fa «Aggiorna subito», accanto al bottone e sempre visibile. */
 .spiega-azione { flex: 1 1 16rem; }
 .locali { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 12px; }
+/* LA TABELLA DEI LOCALI (02/11/2026): una riga per locale, il nome apre
+   la scheda sotto. Su un telefono scorre dentro il suo riquadro, mai la
+   pagina, e le colonne secondarie si nascondono. */
+.tabella-scorre { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--raggio); background: var(--bg-2); }
+.tabella-locali { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+.tabella-locali th, .tabella-locali td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.tabella-locali thead th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+.tabella-locali tbody th { font-weight: 400; }
+.riga-locale { cursor: pointer; border-left: 3px solid transparent; }
+.riga-locale:hover, .riga-locale.aperta { background: rgba(255, 255, 255, 0.03); }
+.riga-locale.tono-ok > th { box-shadow: inset 3px 0 0 #5fd3a1; }
+.riga-locale.tono-errore > th { box-shadow: inset 3px 0 0 var(--errore); }
+.riga-locale.tono-attesa > th { box-shadow: inset 3px 0 0 var(--accent); }
+.riga-locale.tono-avviso > th { box-shadow: inset 3px 0 0 #e67e22; }
+.nome-locale { background: none; border: 0; padding: 0; color: var(--text); font: inherit; font-weight: 600; cursor: pointer; text-align: left; }
+.nome-locale:hover, .nome-locale:focus-visible { color: var(--accent); text-decoration: underline; }
+.riga-dettaglio > td { padding: 0 10px 14px; background: rgba(255, 255, 255, 0.03); }
+.riga-dettaglio .locale { margin-top: 4px; }
+@media (max-width: 720px) { .tabella-locali .col-secondaria { display: none; } }
 .locale { background: var(--bg-2); border: 1px solid var(--line); border-left: 3px solid var(--line); border-radius: var(--raggio); padding: 16px 18px; display: grid; gap: 14px; }
 .locale.tono-ok { border-left-color: #5fd3a1; }
 .locale.tono-errore { border-left-color: var(--errore); background: linear-gradient(90deg, rgba(231, 76, 60, 0.07), var(--bg-2) 45%); }
