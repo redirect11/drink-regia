@@ -14,8 +14,9 @@ import '@testing-library/jest-dom/vitest'
 
 let utenteOsservato = null
 vi.mock('../src/lib/db.js', () => ({
+  // undefined: Firebase non ha ancora detto chi è (l'accesso in corso).
   osservaUtente: (cb) => {
-    cb(utenteOsservato)
+    if (utenteOsservato !== undefined) cb(utenteOsservato)
     return () => {}
   },
   esci: vi.fn(),
@@ -163,5 +164,31 @@ describe('le sotto-rotte del backoffice', () => {
     mostra('/backoffice')
     const nav = await screen.findByRole('navigation', { name: 'Sezioni del backoffice' })
     expect(await within(nav).findByRole('link', { current: 'page' })).toHaveAttribute('href', '/backoffice/locali')
+  })
+})
+
+// La prima pagina non aspetta l'accesso (03/11/2026): è la vetrina, e la
+// prima schermata compare subito, coi bottoni di chi non è entrato. Le
+// pagine che dipendono dall'utente aspettano di sapere chi è.
+describe('mentre l’accesso è in corso', () => {
+  it('la prima pagina c’è già, in tutte e due le lingue', () => {
+    utenteOsservato = undefined
+    mostra('/')
+    expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: 'Attiva il tuo locale' }).length).toBeGreaterThan(0)
+  })
+
+  it('su /en anche', () => {
+    utenteOsservato = undefined
+    mostra('/en')
+    expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument()
+  })
+
+  it('le pagine dell’account aspettano: nessun rinvio all’accesso prima del tempo', () => {
+    utenteOsservato = undefined
+    mostra('/dashboard')
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Accedi' })).toBeNull()
+    expect(screen.queryByLabelText('Password')).toBeNull()
   })
 })

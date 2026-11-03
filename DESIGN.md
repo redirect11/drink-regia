@@ -95,6 +95,33 @@ non un'app da ufficio. Si mantiene il tema della regia (sfondo quasi
 nero, accento oro), ma con più aria, contrasti più netti, titoli più
 grandi e immagini dell'app vera.
 
+**Il restyling del 03/11/2026** (l'utente: «renderla più moderna, elegante
+e accattivante»). Stessi testi e stesso ordine; cambia la messa in scena:
+
+- **La prima schermata** è centrata e alta quasi quanto lo schermo. Il
+  fondo sono le luci di un bar di sera, sfocate: gradienti caldi e piccoli
+  dischi morbidi disegnati dal CSS (`.hero-luci`), con una grana appena
+  percettibile. Nessuna immagine da scaricare. In basso una riga d'oro, la
+  luce del bancone.
+- **Il titolo in due tempi**: la scena in bianco, la svolta in oro sfumato
+  («La serata non si ferma. / *Nemmeno quando cade il Wi-Fi.*»). Il testo
+  in `src/i18n` resta una frase intera; la pagina lo taglia alla prima
+  frase. Da tablet in su la svolta va a capo.
+- **Il filo d'oro**: carte, piani e riquadri hanno un bordo sfumato, oro in
+  alto a sinistra e quasi niente al centro (`--bordo-sfumato`). Il piano in
+  evidenza e la chiusura hanno il bordo d'oro pieno (`--oro-pieno`), con un
+  alone.
+- **I bottoni** della vetrina sono pillole: l'oro pieno con un alone per
+  l'azione principale, il vetro scuro per la seconda.
+- **Il ritmo**: il problema è una scena centrata e grande, chiusa fra due
+  fili d'oro. I pilastri sono numerati (01, 02, 03, decorativi). I passi
+  sono una linea del tempo: orizzontale da tablet, verticale sul telefono.
+  Le domande sono righe editoriali, col titolo che resta fermo a sinistra
+  da 900px in su. Il «+» ruota e diventa «×».
+- **Il marchio** nella barra è in Playfair, come i titoli.
+- **Le cifre** di Playfair sono «da testo», di altezze diverse: nei prezzi
+  e nei numeri si usano quelle allineate (`lining-nums`).
+
 ### Colori
 
 Si parte dai token di `src/index.css`; se ne aggiungono due.
@@ -121,18 +148,21 @@ L'oro `--accent` sul bottone ha il testo scuro `#1a1a1a`, mai bianco.
   anche l'app), self-hosted in `public/fonts/` in formato woff2, solo i
   pesi 600 e 700. Niente font caricati da servizi esterni.
 - **Testo e interfaccia**: `system-ui`, come oggi.
-- **Scala** (desktop / telefono): `h1` 3,5rem / 2,25rem, interlinea 1,05,
-  spaziatura −0,02em; `h2` 2,25rem / 1,75rem; testo 1,0625rem / 1rem,
-  interlinea 1,6; occhielli 0,8125rem, maiuscoletto, spaziatura +0,08em,
-  colore `--accent-2`.
+- **Scala**, fluida fra telefono e desktop (`clamp`): `h1` da 2,5rem a
+  5,25rem, interlinea 1,02, spaziatura −0,02em; `h2` da 2rem a 3rem (il
+  problema fino a 3,75rem); i titoli delle funzioni in Playfair da 1,625rem
+  a 2,125rem; testo 1,0625rem / 1rem, interlinea 1,65; occhielli
+  0,8125rem, maiuscoletto, spaziatura +0,12em, colore `--accent-2`. Nella
+  prima schermata il testo secondario è `#c9c9d4`, più chiaro di `--muted`.
 - Le righe di testo non superano i 65 caratteri (`max-width: 38rem`).
 
 ### Spazi e griglia
 
-- Scala degli spazi: 4, 8, 12, 16, 24, 32, 48, 64, 96 px.
+- Scala degli spazi: 4, 8, 12, 16, 24, 32, 48, 64, 72, 96, 120 px.
 - Contenuto largo al massimo 1120px, margini laterali 20px sul telefono e
   32px dal tablet in su.
-- Tra una sezione e l'altra: 96px su desktop, 64px sul telefono.
+- Tra una sezione e l'altra: 120px da tablet in su, 72px sul telefono.
+  I pilastri seguono il problema senza un secondo stacco.
 - Griglia a 12 colonne su desktop; le card stanno su 3 colonne da 1024px,
   2 da 640px, 1 sotto.
 
@@ -142,8 +172,10 @@ L'oro `--accent` sul bottone ha il testo scuro `#1a1a1a`, mai bianco.
   una cornice da tablet, mai disegni generici di «dashboard». Servono
   quattro schermate: il conto aperto, la coda delle comande, il menù
   digitale sul telefono, il magazzino.
-- La foto del banco (`public/hero.jpg`) resta come fondo della prima
-  schermata, scurita (velo `--bg` al 60%), con la cornice del tablet sopra.
+- La prima schermata non ha una foto (03/11/2026): `public/hero.jpg` era un
+  segnaposto disegnato (un bicchiere su tre cerchi) ed è stato tolto. Il
+  fondo sono le luci del CSS (§4, «Atmosfera»). Se arriva una foto vera del
+  banco, va sotto le luci, scurita perché il testo resti sopra 4,5:1.
 - Formato WebP o AVIF, larghezza 1600px al massimo, `loading="lazy"`
   sotto la prima schermata, `width` e `height` sempre scritti.
 

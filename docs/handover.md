@@ -771,6 +771,21 @@ L'elenco completo con i riferimenti al codice è in
    abbonamento Stripe attivo. Da provare dopo il deploy su
    `drink-regia-test`, da un locale della flotta di test (la Tana non ha
    `regia_url` e non mostra i tasti).
+40. **Il restyling della prima pagina (REQ-FLOTTA-002)**, ramo
+   `feature/home-elegante`, 03/11/2026. L'utente: «più moderna, elegante e
+   accattivante», e in inglese. L'inglese c'era già su `/en`, ma solo in
+   `develop`: la produzione è ferma alla 0.2.1 e mostra la home vecchia,
+   solo in italiano, finché non esce la 0.3.0. Stessi testi, messa in scena
+   nuova (DESIGN.md §4, «Atmosfera»):
+   - le luci del bar disegnate dal CSS al posto del segnaposto `hero.jpg`,
+     che è stato tolto;
+   - il titolo in due tempi con la svolta in oro;
+   - il filo d'oro sulle carte e i bottoni a pillola;
+   - i passi come linea del tempo, le domande come righe editoriali.
+
+   La prima pagina non aspetta più l'accesso per comparire. Restano da
+   fare le schermate vere dell'app nei riquadri delle funzioni
+   (DESIGN.md §9.5).
 
 ---
 

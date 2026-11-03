@@ -6,6 +6,11 @@ data.
 
 ## Prossima release (da decidere)
 
+- La prima pagina ha un aspetto nuovo, in italiano e in inglese: le luci
+  di un bar di sera nella prima schermata, il titolo con la seconda frase
+  in oro, carte e piani col bordo d'oro, i passi in fila su una linea e le
+  domande in righe. La pagina compare subito, senza aspettare l'accesso, e
+  non scarica più l'immagine di fondo (REQ-FLOTTA-002).
 - Il titolare prova, aggiunge e disdice un modulo dall'app del suo locale
   («Marketplace → Moduli»): la regia espone il listino dei moduli in
   vendita e cambia l'abbonamento Stripe col conguaglio, e la licenza
