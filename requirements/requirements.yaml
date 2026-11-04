@@ -1613,12 +1613,22 @@ requirements:
       dell'installazione (Hosting del progetto, l'indirizzo registrato,
       `domini`; 400), il modulo nel listino e in vendita (409; per disdire
       basta che esista). La prova è la stessa regola della dashboard, in
-      una funzione sola (accendiProva). Aggiungere e disdire cambiano la
-      subscription come «Cambia piano» (aggiornaSubscription, conguaglio e
-      IVA) e solo su un abbonamento Stripe attivo: sul Free «I moduli si
-      aggiungono ai piani a pagamento», su un piano a mano o regalato «Il
-      piano è gestito dall'assistenza». Un modulo compreso nel piano non si
-      disdice; uno in prova si spegne alla fine della prova. Disdire
+      una funzione sola (accendiProva). Aggiungere e disdire su un
+      abbonamento Stripe attivo cambiano la subscription come «Cambia
+      piano» (aggiornaSubscription, conguaglio e IVA); sul Free «I moduli si
+      aggiungono ai piani a pagamento»; su un abbonamento Stripe non attivo
+      prima si sistema il pagamento. Dal 04/11/2026 (il contratto della sera
+      del 02/11 in tana-drink) su un piano gestito a mano o regalato
+      (origine manuale o sconto) non è un errore ma una richiesta
+      all'assistenza: la regia scrive una richiesta di contatto
+      (REQ-FLOTTA-017) in `contatti/<uid>_<modulo>`, con la scelta che
+      l'admin deve scrivere e la nota «Dall'app: aggiungere …», e risponde
+      `{ ok: true, in_attesa: true }`; l'app dice «richiesta inviata
+      all'assistenza», l'admin la vede in «Richieste», la evade con «Cambia
+      piano» fuori da Stripe e la segna gestita. La stessa richiesta ancora
+      aperta non si ripete (409); una per modulo, così non cancella quella
+      della dashboard né un altro modulo. Un modulo compreso nel piano non
+      si disdice; uno in prova si spegne alla fine della prova. Disdire
       risponde `dal` = oggi: la subscription si aggiorna subito col
       conguaglio, e la licenza che toglie aspetta il taglio della giornata
       (REQ-FLOTTA-024). Nessun Checkout da qui: la licenza non cambia mai per
@@ -1631,6 +1641,8 @@ requirements:
     test_cases:
       - tests/moduliapp.test.js
       - tests/prove.test.js
+      - tests/db.test.js
+      - tests/Backoffice.test.jsx
 
   - id: REQ-FLOTTA-036
 

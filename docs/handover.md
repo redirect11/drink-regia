@@ -769,10 +769,15 @@ L'elenco completo con i riferimenti al codice è in
    `catalogoModuli` e `moduloDallApp` (`functions/lib/moduliapp.js`): il
    titolare prova, aggiunge e disdice un modulo dal gestionale. La prova è
    una funzione sola con la dashboard (`accendiProva`); aggiungere e
-   disdire cambiano la subscription come «Cambia piano», solo su un
-   abbonamento Stripe attivo. Da provare dopo il deploy su
-   `drink-regia-test`, da un locale della flotta di test (la Tana non ha
-   `regia_url` e non mostra i tasti).
+   disdire cambiano la subscription come «Cambia piano» su un abbonamento
+   Stripe attivo. Dal 04/11/2026 (ramo `feature/moduli-in-attesa`, per il
+   contratto `in_attesa` che tana-drink ha scritto la sera del 02/11) su
+   un piano gestito a mano la richiesta diventa una richiesta di contatto
+   (`contatti/<uid>_<modulo>`, REQ-FLOTTA-017): l'admin la trova in
+   «Richieste», scrive il piano con «Cambia piano» fuori da Stripe e la
+   segna gestita. Da provare dopo il deploy su `drink-regia-test`, da un
+   locale della flotta di test (la Tana non ha `regia_url` e non mostra i
+   tasti).
 40. **Il restyling della prima pagina (REQ-FLOTTA-002)**, ramo
    `feature/home-elegante`, 03/11/2026. L'utente: «più moderna, elegante e
    accattivante», e in inglese. L'inglese c'era già su `/en`, ma solo in
@@ -941,10 +946,14 @@ moduli, la licenza nell'istanza e la Tana.
   …/moduloDallApp` con `Authorization: Bearer <ID token>` dell'app, corpo
   `{ modulo, azione: 'prova' | 'aggiungi' | 'disdici', ritorno }` → `200 {
   ok: true }` (aggiunto), `{ ok: true, scade_il }` (prova), `{ ok: true,
-  dal }` (disdetto); errori `{ ok: false, errore }` con 400, 401, 403, 404,
-  409, 502, 503, e `errore` impersonale da mostrare così com'è. Oggi la
-  regia non risponde mai `checkout_url`: un modulo si compra solo su un
-  abbonamento Stripe già attivo.
+  dal }` (disdetto), e dal 04/11/2026 `{ ok: true, in_attesa: true }` su un
+  piano gestito a mano (la richiesta va all'assistenza: l'admin la evade
+  dal backoffice e l'app vede il cambio dalla licenza); errori `{ ok:
+  false, errore }` con 400, 401, 403, 404, 409, 502, 503, e `errore`
+  impersonale da mostrare così com'è. Oggi la regia non risponde mai
+  `checkout_url`: un modulo si compra online solo su un abbonamento Stripe
+  già attivo. Disdire online risponde `dal` = oggi, col conguaglio come
+  «Cambia piano», non la fine del periodo pagato.
 - **La presentazione alla regia** (REQ-FLOTTA-026, dal 02/11/2026). Al
   primo avvio di ogni versione l'app fa `POST
   https://europe-west1-<VITE_REGIA_PROGETTO>.cloudfunctions.net/presentazione`

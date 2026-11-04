@@ -626,16 +626,24 @@ describe('i pagamenti online e le richieste di contatto', () => {
     regia.contatti = [
       { uid: 'u9', email: 'bar@example.com', nome_locale: 'Bar Nove', telefono: '+39 333 1234567', nota: 'Di mattina', scelta: { piano: 'base', moduli: ['staff'], terminali: 2 }, stato: 'aperta', chiesta_il: '2026-10-30T10:00:00.000Z' },
       { uid: 'u8', email: 'otto@example.com', scelta: { piano: 'completo', moduli: [], terminali: 1 }, stato: 'gestita', chiesta_il: '2026-10-29T10:00:00.000Z', gestita_il: '2026-10-29T12:00:00.000Z' },
+      // Un modulo chiesto dall'app su un piano a mano (REQ-FLOTTA-037): la
+      // stessa riga, con la nota che dice cosa, e si segna col suo id.
+      { uid: 'u7_magazzino', email: 'sette@example.com', nome_locale: 'Bar Sette', nota: 'Dall’app: aggiungere Magazzino e fornitori.', scelta: { piano: 'base', moduli: ['magazzino'], terminali: 1 }, dall_app: { azione: 'aggiungi', modulo: 'magazzino', da: 'sette@example.com' }, stato: 'aperta', chiesta_il: '2026-11-04T10:00:00.000Z' },
     ]
     mostra('/backoffice/richieste')
     const sezione = await screen.findByRole('region', { name: 'Richieste di contatto' })
-    expect(sezione).toHaveTextContent('1 da gestire')
+    expect(sezione).toHaveTextContent('2 da gestire')
     expect(sezione).toHaveTextContent('Bar Nove')
     expect(sezione).toHaveTextContent('+39 333 1234567')
     expect(sezione).toHaveTextContent('«Di mattina»')
     expect(within(sezione).getByRole('link', { name: '+39 333 1234567' })).toHaveAttribute('href', 'tel:+393331234567')
-    await user.click(within(sezione).getByRole('button', { name: 'Segna gestita' }))
+    expect(sezione).toHaveTextContent('Bar Sette · Base + Magazzino e fornitori')
+    expect(sezione).toHaveTextContent('«Dall’app: aggiungere Magazzino e fornitori.»')
+    const [nove, sette] = within(sezione).getAllByRole('button', { name: 'Segna gestita' })
+    await user.click(nove)
     expect(db.segnaContatto).toHaveBeenCalledWith('u9', 'gestita')
+    await user.click(sette)
+    expect(db.segnaContatto).toHaveBeenCalledWith('u7_magazzino', 'gestita')
     await user.click(within(sezione).getByRole('button', { name: 'Riapri' }))
     expect(db.segnaContatto).toHaveBeenCalledWith('u8', 'aperta')
     regia.contatti = []

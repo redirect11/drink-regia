@@ -342,8 +342,16 @@ describe('la richiesta di contatto (REQ-FLOTTA-017)', () => {
   })
 
   it('l’admin elenca le richieste e le segna gestite, con chi e quando, o le riapre', async () => {
-    fb.documenti.contatti = [['u1', { stato: 'aperta' }]]
-    expect(await db.elencoContatti()).toEqual([{ uid: 'u1', stato: 'aperta' }])
+    // Una richiesta dall'app (REQ-FLOTTA-037) sta in `<uid>_<modulo>`: per
+    // il backoffice `uid` è l'id del documento, quello da segnare.
+    fb.documenti.contatti = [
+      ['u1', { stato: 'aperta' }],
+      ['u1_magazzino', { uid: 'u1', stato: 'aperta' }],
+    ]
+    expect(await db.elencoContatti()).toEqual([
+      { uid: 'u1', stato: 'aperta' },
+      { uid: 'u1_magazzino', stato: 'aperta' },
+    ])
     await db.segnaContatto('u1', 'gestita')
     await db.segnaContatto('u1', 'aperta')
     expect(fb.scritti[0]).toMatchObject({ percorso: 'contatti/u1', dati: { stato: 'gestita', gestita_da: 'admin@example.com' } })

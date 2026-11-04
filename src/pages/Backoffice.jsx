@@ -1521,9 +1521,11 @@ function Vendita({ onErrore }) {
 // LE RICHIESTE DI CONTATTO (REQ-FLOTTA-017): coi pagamenti online spenti
 // il titolare sceglie il piano e lascia un recapito. L'admin lo contatta,
 // concorda il pagamento, attiva il piano con «Cambia piano» fuori da Stripe
-// sulla scheda del locale, e segna la richiesta gestita. L'elenco lo legge
-// il Backoffice, che lo conta per il sotto-menù, e lo rilegge dopo ogni
-// richiesta segnata.
+// sulla scheda del locale, e segna la richiesta gestita. Qui arrivano anche
+// i moduli chiesti dall'app su un piano gestito a mano (REQ-FLOTTA-037): la
+// nota dice «Dall'app: aggiungere …», e la scelta è il piano da scrivere.
+// L'elenco lo legge il Backoffice, che lo conta per il sotto-menù, e lo
+// rilegge dopo ogni richiesta segnata.
 function Contatti({ elenco, onSegna: segna }) {
   const aperte = elenco.filter((c) => c.stato === 'aperta')
   return (
