@@ -81,19 +81,17 @@ export default function Registrati({ completa = null }) {
         <h2>{completa ? 'Completa la registrazione' : 'Registra il tuo locale'}</h2>
         {completa && <p className="muted">Sei entrato come {completa.email}. Mancano i dati del locale.</p>}
         <ol className="passi" aria-label="Passi della registrazione">
-          {PASSI.map((n, i) =>
-            i < primo ? null : (
-              <li key={n} className={i === passo ? 'corrente' : i < passo ? 'fatto' : ''} aria-current={i === passo ? 'step' : undefined}>
-                {n}
-              </li>
-            )
-          )}
+          {PASSI.map((n, i) => (
+            <li key={n} className={i === passo ? 'corrente' : i < passo ? 'fatto' : ''} aria-current={i === passo ? 'step' : undefined}>
+              {n}
+            </li>
+          )).slice(primo)}
         </ol>
 
-        {passo === 0 && <EntraConGoogle etichetta="Registrati con Google" />}
         {passo === 0 && (
           <fieldset>
             <legend>Il tuo account</legend>
+            <EntraConGoogle etichetta="Registrati con Google" />
             {campo('email', 'Email', account.email, (v) => setAccount({ ...account, email: v }), { type: 'email', autoComplete: 'email' })}
             {campo('password', 'Password (almeno 10 caratteri, con una cifra)', account.password, (v) => setAccount({ ...account, password: v }), { type: 'password', autoComplete: 'new-password' })}
             {campo('conferma', 'Ripeti la password', account.conferma, (v) => setAccount({ ...account, conferma: v }), { type: 'password', autoComplete: 'new-password' })}
@@ -197,23 +195,27 @@ export default function Registrati({ completa = null }) {
             </button>
           )}
         </div>
-        {completa ? (
-          <p className="muted small">
-            Non è l’account giusto?{' '}
-            <button type="button" className="link" onClick={() => esci()}>
-              Esci
-            </button>
-          </p>
-        ) : (
-          <p className="muted small">
-            Hai già un account? <Link to="/accedi">Accedi</Link>
-          </p>
-        )}
+        <p className="muted small">
+          {completa ? (
+            <>
+              Non è l’account giusto?{' '}
+              <button type="button" className="link" onClick={esci}>
+                Esci
+              </button>
+            </>
+          ) : (
+            <>
+              Hai già un account? <Link to="/accedi">Accedi</Link>
+            </>
+          )}
+        </p>
       </form>
     </main>
   )
 }
 
+// Gli errori di Firebase Auth in italiano, per la registrazione, l'accesso
+// e la finestra di Google (REQ-FLOTTA-038).
 export function messaggio(err) {
   const codice = err?.code || ''
   if (codice.includes('email-already-in-use')) return 'Questa email ha già un account: accedi.'
@@ -223,5 +225,12 @@ export function messaggio(err) {
   if (codice.includes('invalid-credential') || codice.includes('wrong-password') || codice.includes('user-not-found')) {
     return 'Email o password non corrispondono.'
   }
+  if (codice.includes('popup-blocked')) return 'Il browser ha bloccato la finestra di Google: consenti le finestre per questo sito e riprova.'
+  // Un account con la password e un'email che Google non garantisce (non
+  // Gmail): Firebase non li unisce da sé, per non consegnare l'account a
+  // chi ha solo l'indirizzo.
+  if (codice.includes('account-exists-with-different-credential')) return 'Questa email ha già un account con la password: entra con email e password.'
+  if (codice.includes('operation-not-allowed') || codice.includes('unauthorized-domain')) return 'L’accesso con Google non è ancora attivo: entra con email e password.'
+  if (codice.includes('network-request-failed')) return 'Connessione assente: riprova.'
   return err?.message || 'Qualcosa non è andato. Riprova.'
 }

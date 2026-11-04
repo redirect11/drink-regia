@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { entraConGoogle } from '../lib/db.js'
+import { messaggio } from './Registrati.jsx'
 
 // IL TASTO DI GOOGLE (REQ-FLOTTA-038), uguale in «Accedi» e «Registrati».
 // Dopo l'accesso si va alla dashboard: lì chi ha già il locale lo trova, e
@@ -18,14 +19,14 @@ export default function EntraConGoogle({ etichetta = 'Entra con Google' }) {
       await entraConGoogle()
       navigate('/dashboard', { replace: true })
     } catch (err) {
-      setErrore(messaggioGoogle(err))
+      if (!finestraChiusa(err)) setErrore(messaggio(err))
     } finally {
       setInCorso(false)
     }
   }
 
   return (
-    <div className="con-google">
+    <div>
       <button type="button" className="btn ghost block" onClick={entra} disabled={inCorso}>
         {inCorso ? 'Un momento…' : etichetta}
       </button>
@@ -37,17 +38,5 @@ export default function EntraConGoogle({ etichetta = 'Entra con Google' }) {
   )
 }
 
-// Gli errori della finestra di Google in italiano; null se l'ha chiusa chi
-// stava entrando.
-export function messaggioGoogle(err) {
-  const codice = err?.code || ''
-  if (codice.includes('popup-closed-by-user') || codice.includes('cancelled-popup-request')) return null
-  if (codice.includes('popup-blocked')) return 'Il browser ha bloccato la finestra di Google: consenti le finestre per questo sito e riprova.'
-  // Un account con la password e un'email che Google non garantisce (non
-  // Gmail): Firebase non li unisce da sé, per non consegnare l'account a
-  // chi ha solo l'indirizzo.
-  if (codice.includes('account-exists-with-different-credential')) return 'Questa email ha già un account con la password: entra con email e password.'
-  if (codice.includes('operation-not-allowed') || codice.includes('unauthorized-domain')) return 'L’accesso con Google non è ancora attivo: entra con email e password.'
-  if (codice.includes('network-request-failed')) return 'Connessione assente: riprova.'
-  return 'L’accesso con Google non è riuscito. Riprova.'
-}
+// La finestra di Google chiusa da chi stava entrando, o aperta due volte.
+export const finestraChiusa = (err) => /popup-closed-by-user|cancelled-popup-request/.test(err?.code || '')

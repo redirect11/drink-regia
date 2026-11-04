@@ -40,16 +40,23 @@ export function osservaUtente(cb) {
 
 export const osservaAccesso = (cb) => (configurata ? onAuthStateChanged(auth, cb) : (cb(null), () => {}))
 
-// La registrazione (REQ-FLOTTA-003): l'account, il documento del cliente
-// con tutti i blocchi, e l'email di verifica. Se l'email non parte la
-// registrazione resta valida: si rimanda dalla dashboard.
-export async function registra({ email, password, locale, fatturazione, referente }) {
+// Il documento del cliente per un account di Firebase, con tutti i blocchi,
+// e l'email di verifica se l'email non lo è ancora (Google la dà
+// verificata). Se l'email non parte la registrazione resta valida: si
+// rimanda dalla dashboard. È l'unico punto del sito che scrive
+// clienti/{uid} (tests/clienti.test.js).
+async function creaCliente(u, { locale, fatturazione, referente }) {
+  const cliente = nuovoCliente({ uid: u.uid, email: u.email, locale, fatturazione, referente })
+  await setDoc(doc(db, 'clienti', u.uid), cliente)
+  if (!u.emailVerified) await sendEmailVerification(u).catch(() => {})
+  return cliente
+}
+
+// La registrazione (REQ-FLOTTA-003): l'account, poi il documento del cliente.
+export async function registra({ email, password, ...dati }) {
   serve()
   const cred = await createUserWithEmailAndPassword(auth, email, password)
-  const cliente = nuovoCliente({ uid: cred.user.uid, email, locale, fatturazione, referente })
-  await setDoc(doc(db, 'clienti', cred.user.uid), cliente)
-  await sendEmailVerification(cred.user).catch(() => {})
-  return cliente
+  return creaCliente(cred.user, dati)
 }
 
 // L'ACCESSO CON GOOGLE (REQ-FLOTTA-038). Firebase tiene un account per
@@ -70,17 +77,12 @@ export async function entraConGoogle() {
 }
 
 // Il documento del cliente per chi ha già l'account (entrato con Google):
-// gli stessi blocchi e gli stessi controlli della registrazione, e l'email
-// è quella dell'account. Google dà l'email già verificata; se non lo fosse,
-// parte l'email di verifica come nella registrazione.
-export async function completaRegistrazione({ locale, fatturazione, referente }) {
+// l'email è quella dell'account.
+export async function completaRegistrazione(dati) {
   serve()
   const u = auth.currentUser
   if (!u?.email) throw new Error('Serve l’accesso.')
-  const cliente = nuovoCliente({ uid: u.uid, email: u.email, locale, fatturazione, referente })
-  await setDoc(doc(db, 'clienti', u.uid), cliente)
-  if (!u.emailVerified) await sendEmailVerification(u).catch(() => {})
-  return cliente
+  return creaCliente(u, dati)
 }
 
 export async function inviaVerificaEmail() {

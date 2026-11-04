@@ -12,17 +12,17 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import '@testing-library/jest-dom/vitest'
 
-const db = vi.hoisted(() => ({ registra: vi.fn() }))
+const db = vi.hoisted(() => ({ registra: vi.fn(), completaRegistrazione: vi.fn(async () => ({})), entraConGoogle: vi.fn(), esci: vi.fn(async () => {}) }))
 vi.mock('../src/lib/db.js', () => db)
 
 import Registrati from '../src/pages/Registrati.jsx'
 
 const FUTURO = { v7_startTransition: true, v7_relativeSplatPath: true }
-const mostra = () =>
+const mostra = (pagina = <Registrati />) =>
   render(
     <MemoryRouter future={FUTURO} initialEntries={['/registrati']}>
       <Routes>
-        <Route path="/registrati" element={<Registrati />} />
+        <Route path="/registrati" element={pagina} />
         <Route path="/dashboard" element={<div>DASHBOARD</div>} />
       </Routes>
     </MemoryRouter>
@@ -127,5 +127,41 @@ describe('registrarsi', () => {
     await user.click(screen.getByLabelText(/informativa sulla privacy/))
     await user.click(screen.getByRole('button', { name: /Crea l’account/ }))
     expect(await screen.findByText(/ha già un account/)).toBeInTheDocument()
+  })
+})
+
+// REQ-FLOTTA-038: chi è entrato con Google ha l'account ma non il locale.
+describe('completare la registrazione con l’account che c’è già', () => {
+  const utente = { uid: 'g1', email: 'mario@gmail.com', emailVerificata: true }
+
+  it('parte dal locale, senza il passo dell’account né «Indietro», e alla fine scrive solo il cliente', async () => {
+    const user = userEvent.setup()
+    mostra(<Registrati completa={utente} />)
+    expect(screen.getByRole('heading', { name: 'Completa la registrazione' })).toBeInTheDocument()
+    expect(screen.getByText(/Sei entrato come mario@gmail\.com/)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/^Password/)).toBeNull()
+    expect(screen.queryByRole('button', { name: /con Google/ })).toBeNull()
+    expect(screen.queryByText('Account', { selector: 'li' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Indietro' })).toBeNull()
+    await passoLocale(user)
+    await passoFatturazione(user)
+    await user.type(screen.getByLabelText('Nome'), 'Mario')
+    await user.type(screen.getByLabelText('Cognome'), 'Rossi')
+    await user.click(screen.getByLabelText(/accetto i/))
+    await user.click(screen.getByLabelText(/informativa sulla privacy/))
+    await user.click(screen.getByRole('button', { name: 'Salva i dati del locale' }))
+    expect(db.completaRegistrazione).toHaveBeenCalledWith({
+      locale: expect.objectContaining({ nome: 'Bar Mario', provincia: 'NA' }),
+      fatturazione: expect.objectContaining({ partita_iva: '01234567897' }),
+      referente: expect.objectContaining({ nome: 'Mario', termini: true, privacy: true }),
+    })
+    expect(db.registra).not.toHaveBeenCalled()
+  })
+
+  it('con l’account sbagliato si esce', async () => {
+    const user = userEvent.setup()
+    mostra(<Registrati completa={utente} />)
+    await user.click(screen.getByRole('button', { name: 'Esci' }))
+    expect(db.esci).toHaveBeenCalledTimes(1)
   })
 })
