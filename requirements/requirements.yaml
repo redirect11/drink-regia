@@ -73,6 +73,18 @@ requirements:
       si vede subito); `/EN` vale `/en`; se il browser non lascia salvare
       la lingua, la scelta vecchia si toglie e la nuova vale in memoria. Il
       preload del font solo sulla prima pagina, il peso 600 tolto.
+      IL RESTYLING (03/11/2026). L'utente: «Dobbiamo fare la pagina in
+      inglese anche e soprattutto renderla più moderna, elegante e
+      accattivante». L'inglese c'era già (/en); cambia la messa in scena,
+      con gli stessi testi nelle due lingue (DESIGN.md §4, «Atmosfera»).
+      Al posto del segnaposto hero.jpg ci sono le luci di un bar di sera
+      disegnate dal CSS: la prima schermata non scarica immagini, e le luci
+      sono fuori dai lettori di schermo. Il titolo è in due tempi, con la
+      seconda frase in oro, e resta una frase intera per chi lo legge. Le
+      carte hanno il filo d'oro, i bottoni sono pillole, i passi una linea
+      del tempo, le domande righe editoriali. La prima pagina non aspetta
+      più di sapere chi ha fatto l'accesso: compare subito coi bottoni di
+      chi non è entrato. Le pagine che dipendono dall'utente aspettano.
       RESTA (DESIGN.md §9): le quattro schermate vere dell'app, la scelta
       del titolo (A, B o C), il nome del prodotto, la prova sociale, `/en`
       per chi non esegue JavaScript, la verifica Lighthouse sul telefono.

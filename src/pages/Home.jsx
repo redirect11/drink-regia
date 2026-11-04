@@ -122,6 +122,16 @@ function AvvisoLingua({ lingua, proposta, chiudi }) {
   )
 }
 
+// Il titolo in due tempi: la scena, poi la svolta in oro («La serata non si
+// ferma. / Nemmeno quando cade il Wi-Fi.»). Si taglia alla prima frase, così
+// i testi in src/i18n restano una frase intera per lingua; un titolo di una
+// frase sola resta tutto bianco.
+function dueTempi(testo) {
+  const taglio = testo.search(/[.?]\s/)
+  if (taglio < 0) return { prima: testo, seconda: '' }
+  return { prima: testo.slice(0, taglio + 1), seconda: testo.slice(taglio + 2) }
+}
+
 // L'aliquota del listino, scritta una volta («IVA esclusa, al 22%»).
 const IVA_PERCENTO = `${IVA}%`
 
@@ -155,6 +165,7 @@ export default function Home({ utente, lingua = 'it' }) {
     [lingua, t]
   )
 
+  const titolo = dueTempi(t.hero.titolo)
   const radice = useRef(null)
   useEffect(() => osservaComparsa(radice.current), [])
 
@@ -229,11 +240,21 @@ export default function Home({ utente, lingua = 'it' }) {
       {proposta && <AvvisoLingua lingua={lingua} proposta={proposta} chiudi={() => setProposta(null)} />}
 
       <section className="hero" aria-labelledby="hero-titolo">
-        {/* La foto del banco è uno sfondo: il testo alternativo vuoto la toglie ai lettori di schermo. */}
-        <img className="hero-fondo" src="/hero.jpg" alt="" width="1600" height="600" fetchpriority="high" />
+        {/* L'atmosfera del bar di sera (DESIGN.md §4, 03/11/2026): luci
+            sfocate disegnate dal CSS, al posto del segnaposto hero.jpg.
+            Decorative: fuori dall'albero dell'accessibilità. */}
+        <div className="hero-luci" aria-hidden="true" />
         <div className="contenitore hero-testo">
-          <p className="occhiello">{t.hero.occhiello}</p>
-          <h1 id="hero-titolo">{t.hero.titolo}</h1>
+          <p className="occhiello hero-occhiello">{t.hero.occhiello}</p>
+          <h1 id="hero-titolo">
+            {titolo.prima}
+            {titolo.seconda && (
+              <>
+                {' '}
+                <span className="titolo-oro">{titolo.seconda}</span>
+              </>
+            )}
+          </h1>
           <p className="hero-sotto">{t.hero.sottotitolo}</p>
           <div className="azioni">
             {azionePrincipale(t.hero)}
@@ -270,6 +291,9 @@ export default function Home({ utente, lingua = 'it' }) {
               <li key={p.titolo} className="pilastro">
                 <span className="pilastro-icona">
                   <Icona d={ICONE_PILASTRI[i]} />
+                </span>
+                <span className="pilastro-numero" aria-hidden="true">
+                  {String(i + 1).padStart(2, '0')}
                 </span>
                 <h3>{p.titolo}</h3>
                 <p>{p.testo}</p>
@@ -492,7 +516,8 @@ export default function Home({ utente, lingua = 'it' }) {
       </section>
 
       <section id="domande" className="sezione" aria-labelledby="domande-titolo" data-comparsa>
-        <div className="contenitore stretto">
+        {/* Da tablet in su il titolo resta a sinistra e le domande scorrono a destra. */}
+        <div className="contenitore domande-griglia">
           <h2 id="domande-titolo">{t.domande.titolo}</h2>
           <div className="domande">
             {t.domande.voci.map(([d, r]) => (

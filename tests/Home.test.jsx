@@ -8,8 +8,8 @@
 // 30/10/2026, la home nuova (l'utente: «più moderna… con slogan
 // migliori»): il titolo non è più il nome del prodotto ma la promessa
 // (DESIGN.md §1 e §5.1), il bottone dice «Attiva il tuo locale» invece di
-// «Registra il tuo locale», la foto del banco è uno sfondo (testo
-// alternativo vuoto) e la tabella dei moduli ha la colonna del Completo.
+// «Registra il tuo locale» e la tabella dei moduli ha la colonna del
+// Completo.
 // I vincoli di prima restano: prezzi solo dal listino, il Free solo se in
 // vendita, la nota sullo scontrino non fiscale, chi è dentro va alla
 // dashboard.
@@ -213,12 +213,21 @@ describe('la prima pagina', () => {
     expect(testo).not.toContain('!')
   })
 
-  it('la foto del banco è uno sfondo: alt vuoto e dimensioni scritte', () => {
+  // 03/11/2026 (l'utente: «più moderna, elegante e accattivante»): le luci
+  // del bar al posto del segnaposto hero.jpg, disegnate dal CSS, e il
+  // titolo in due tempi con la svolta in oro.
+  it('la prima schermata non scarica immagini: le luci sono decorative, fuori dai lettori di schermo', () => {
     mostra()
-    const foto = document.querySelector('img.hero-fondo')
-    expect(foto).toHaveAttribute('alt', '')
-    expect(foto).toHaveAttribute('width', '1600')
-    expect(foto).toHaveAttribute('height', '600')
+    const hero = document.querySelector('.hero')
+    expect(hero.querySelector('img')).toBeNull()
+    expect(hero.querySelector('.hero-luci')).toHaveAttribute('aria-hidden', 'true')
+  })
+
+  it('il titolo resta una frase intera, con la seconda parte in oro', () => {
+    mostra()
+    const h1 = screen.getByRole('heading', { level: 1 })
+    expect(h1).toHaveTextContent(it_.hero.titolo)
+    expect(h1.querySelector('.titolo-oro')).toHaveTextContent('Nemmeno quando cade il Wi-Fi.')
   })
 
   it('mette lingua, titolo e alternative della pagina, e li toglie uscendo', () => {

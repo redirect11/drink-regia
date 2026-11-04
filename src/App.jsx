@@ -67,6 +67,11 @@ export default function App() {
   useEffect(() => setMenuAperto(false), [posizione])
 
   const pronto = utente !== undefined
+  // La prima pagina non aspetta l'accesso (03/11/2026): è la vetrina, e
+  // la prima schermata deve comparire subito; finché non si sa chi è, i
+  // bottoni sono quelli di chi non è entrato. Le altre pagine decidono in
+  // base all'utente, e aspettano.
+  const dopoLAccesso = (pagina) => (pronto ? pagina : null)
   // La lingua viene dall'indirizzo: inglese solo la prima pagina su /en; il
   // resto del sito per ora è solo in italiano.
   const lingua = linguaDelPercorso(posizione.pathname)
@@ -130,23 +135,21 @@ export default function App() {
           )}
         </nav>
       </header>
-      {pronto && (
-        <Routes>
-          {/* key: le due lingue sono due pagine, ognuna col suo stato (l'avviso della lingua). */}
-          <Route path="/" element={<PrimaPagina key="it" utente={utente} lingua="it" />} />
-          <Route path="/en" element={<PrimaPagina key="en" utente={utente} lingua="en" />} />
-          <Route path="/registrati" element={utente ? <Navigate to="/dashboard" replace /> : <Registrati />} />
-          <Route path="/accedi" element={utente ? <Navigate to="/dashboard" replace /> : <Accedi />} />
-          {/* Il passaggio dall'app del locale (REQ-FLOTTA-030): sempre qui, anche già entrati. */}
-          <Route path="/accesso" element={<Accesso />} />
-          <Route path="/dashboard" element={utente ? <Dashboard utente={utente} /> : <Navigate to="/accedi" replace />} />
-          {/* Le sezioni del backoffice (REQ-FLOTTA-005, 30/10/2026) sono sotto-rotte: «/*» le porta tutte a Backoffice, e il controllo del claim admin vale per ognuna. */}
-          <Route path="/backoffice/*" element={utente?.admin ? <Backoffice /> : <Navigate to="/" replace />} />
-          <Route path="/termini" element={<Termini />} />
-          <Route path="/privacy" element={<Privacy />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      )}
+      <Routes>
+        {/* key: le due lingue sono due pagine, ognuna col suo stato (l'avviso della lingua). */}
+        <Route path="/" element={<PrimaPagina key="it" utente={utente} lingua="it" />} />
+        <Route path="/en" element={<PrimaPagina key="en" utente={utente} lingua="en" />} />
+        <Route path="/registrati" element={dopoLAccesso(utente ? <Navigate to="/dashboard" replace /> : <Registrati />)} />
+        <Route path="/accedi" element={dopoLAccesso(utente ? <Navigate to="/dashboard" replace /> : <Accedi />)} />
+        {/* Il passaggio dall'app del locale (REQ-FLOTTA-030): sempre qui, anche già entrati. */}
+        <Route path="/accesso" element={dopoLAccesso(<Accesso />)} />
+        <Route path="/dashboard" element={dopoLAccesso(utente ? <Dashboard utente={utente} /> : <Navigate to="/accedi" replace />)} />
+        {/* Le sezioni del backoffice (REQ-FLOTTA-005, 30/10/2026) sono sotto-rotte: «/*» le porta tutte a Backoffice, e il controllo del claim admin vale per ognuna. */}
+        <Route path="/backoffice/*" element={dopoLAccesso(utente?.admin ? <Backoffice /> : <Navigate to="/" replace />)} />
+        <Route path="/termini" element={dopoLAccesso(<Termini />)} />
+        <Route path="/privacy" element={dopoLAccesso(<Privacy />)} />
+        <Route path="*" element={dopoLAccesso(<Navigate to="/" replace />)} />
+      </Routes>
       <footer className="piede">
         <div className="piede-colonne">
           <div>
