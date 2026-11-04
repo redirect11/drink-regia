@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { accedi, recuperaPassword } from '../lib/db.js'
 import { messaggio } from './Registrati.jsx'
+import EntraConGoogle from './EntraConGoogle.jsx'
 
 export default function Accedi() {
   const navigate = useNavigate()
@@ -42,6 +43,7 @@ export default function Accedi() {
     <main className="pagina stretta">
       <form className="card" onSubmit={invia}>
         <h2>Accedi</h2>
+        <EntraConGoogle />
         <label htmlFor="a-email">Email</label>
         <input id="a-email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         <label htmlFor="a-password">Password</label>

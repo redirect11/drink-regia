@@ -117,6 +117,12 @@ describe('le regole di clienti/{uid} (H1)', () => {
       .filter((f) => /\.(js|jsx)$/.test(f))
       // Il percorso con «/» anche su Windows, dove join() mette «\».
       .flatMap((f) => readFileSync(f, 'utf8').split('\n').filter((r) => /(setDoc|updateDoc|deleteDoc)\(doc\(db, 'clienti'/.test(r)).map((r) => `${f.split(sep).join('/')}: ${r.trim()}`))
-    expect(scritture).toEqual(["src/lib/db.js: await setDoc(doc(db, 'clienti', cred.user.uid), cliente)"])
+    // Due creazioni: la registrazione con la password e chi entra con
+    // Google e completa i dati (REQ-FLOTTA-038). Tutte e due passano dalla
+    // regola `create`; un documento che c'è già non si riscrive di qui.
+    expect(scritture).toEqual([
+      "src/lib/db.js: await setDoc(doc(db, 'clienti', cred.user.uid), cliente)",
+      "src/lib/db.js: await setDoc(doc(db, 'clienti', u.uid), cliente)",
+    ])
   })
 })

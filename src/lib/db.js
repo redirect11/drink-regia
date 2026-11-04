@@ -10,6 +10,8 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
   signInWithCustomToken,
+  signInWithPopup,
+  GoogleAuthProvider,
 } from 'firebase/auth'
 import { doc, setDoc, getDoc, onSnapshot, collection, getDocs, orderBy, query, updateDoc, limit, addDoc } from 'firebase/firestore'
 import { getFunctions, httpsCallable } from 'firebase/functions'
@@ -47,6 +49,37 @@ export async function registra({ email, password, locale, fatturazione, referent
   const cliente = nuovoCliente({ uid: cred.user.uid, email, locale, fatturazione, referente })
   await setDoc(doc(db, 'clienti', cred.user.uid), cliente)
   await sendEmailVerification(cred.user).catch(() => {})
+  return cliente
+}
+
+// L'ACCESSO CON GOOGLE (REQ-FLOTTA-038). Firebase tiene un account per
+// email: chi si è registrato con email e password e ha l'email verificata
+// ritrova lo stesso account, con lo stesso uid, e quindi il suo locale e il
+// ruolo admin. Chi entra con Google per la prima volta ha l'account ma non
+// ancora il locale: la dashboard gli chiede i dati (completaRegistrazione).
+// La finestra di Google e non il reindirizzamento: il sito e il dominio di
+// Firebase Auth (authDomain) sono diversi, e col reindirizzamento i browser
+// che bloccano i cookie di terze parti perdono l'accesso al ritorno.
+export async function entraConGoogle() {
+  serve()
+  const google = new GoogleAuthProvider()
+  // Chi ha più account Google sceglie ogni volta: entrare col locale
+  // sbagliato è più facile che sembri.
+  google.setCustomParameters({ prompt: 'select_account' })
+  await signInWithPopup(auth, google)
+}
+
+// Il documento del cliente per chi ha già l'account (entrato con Google):
+// gli stessi blocchi e gli stessi controlli della registrazione, e l'email
+// è quella dell'account. Google dà l'email già verificata; se non lo fosse,
+// parte l'email di verifica come nella registrazione.
+export async function completaRegistrazione({ locale, fatturazione, referente }) {
+  serve()
+  const u = auth.currentUser
+  if (!u?.email) throw new Error('Serve l’accesso.')
+  const cliente = nuovoCliente({ uid: u.uid, email: u.email, locale, fatturazione, referente })
+  await setDoc(doc(db, 'clienti', u.uid), cliente)
+  if (!u.emailVerified) await sendEmailVerification(u).catch(() => {})
   return cliente
 }
 
