@@ -300,8 +300,10 @@ gcloud auth application-default login   # oppure GOOGLE_APPLICATION_CREDENTIALS
 node scripts/admin-regia.mjs --email <email>
 ```
 
-e si esce e rientra: compare «Backoffice». Non esiste login con Google
-nella regia (scelta del 22/10: prima l'MFA sugli admin).
+e si esce e rientra: compare «Backoffice». Dal 04/11/2026 si entra anche
+con Google (REQ-FLOTTA-038, voce 41): il fornitore va acceso a mano sul
+progetto. L'MFA sugli admin, che il 22/10 doveva venire prima, resta da
+fare.
 
 **In locale.** `npm run dev` serve il sito; senza `.env` con le
 `VITE_FIREBASE_*` di `drink-regia` è solo vetrina. Non ci sono emulatori
@@ -786,6 +788,20 @@ L'elenco completo con i riferimenti al codice è in
    La prima pagina non aspetta più l'accesso per comparire. Restano da
    fare le schermate vere dell'app nei riquadri delle funzioni
    (DESIGN.md §9.5).
+41. **L'accesso con Google (REQ-FLOTTA-038)**, ramo `feature/accesso-google`,
+   04/11/2026. «Entra con Google» in Accedi e «Registrati con Google»;
+   chi entra la prima volta completa i dati del locale dalla dashboard.
+   Stessa email, stesso account: la Tana e i locali esistenti ritrovano il
+   loro. **Da fare a mano, dall'utente**, prima sul test e poi in
+   produzione (col via libera): Firebase console → Authentication → Metodo
+   di accesso → Google → Attiva, con l'email di assistenza; in Impostazioni
+   → Domini autorizzati, il dominio del sito se non è `*.web.app` o
+   `*.firebaseapp.com`. Finché è spento il tasto risponde «non è ancora
+   attivo». Restano: l'MFA sugli admin; nell'informativa privacy, Google
+   come fornitore dell'accesso (con gli altri testi legali, voce 3).
+   **La Tana in produzione** (Flavio titolare, email, passaggio): l'ordine
+   del giorno è in tana-drink, `docs/la-tana-nella-regia.md` sul ramo
+   `feature/passaggio-dalla-regia`, insieme al lato app che manca.
 
 ---
 

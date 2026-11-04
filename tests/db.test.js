@@ -70,6 +70,12 @@ vi.mock('firebase/auth', () => ({
   sendEmailVerification: async (u) => fb.chiamate.push({ nome: 'verifica', dati: u.uid }),
   sendPasswordResetEmail: async (_a, email) => fb.chiamate.push({ nome: 'recupero', dati: email }),
   signInWithCustomToken: async (_a, token) => fb.chiamate.push({ nome: 'accessoCustom', dati: token }),
+  signInWithPopup: async (_a, fornitore) => fb.chiamate.push({ nome: 'google', dati: fornitore.parametri }),
+  GoogleAuthProvider: class {
+    setCustomParameters(p) {
+      this.parametri = p
+    }
+  },
 }))
 
 const db = await import('../src/lib/db.js')
@@ -190,6 +196,31 @@ describe('l’accesso', () => {
     expect(fb.chiamate[2].dati).toBe('a@b.it')
     fb.auth = { currentUser: null }
     expect(await db.rileggiUtente()).toBe(false)
+  })
+
+  // REQ-FLOTTA-038
+  it('con Google si apre la finestra, e si sceglie ogni volta l’account', async () => {
+    await db.entraConGoogle()
+    expect(fb.chiamate).toEqual([{ nome: 'google', dati: { prompt: 'select_account' } }])
+  })
+
+  it('chi è entrato con Google completa il cliente con l’email del suo account, senza verifica se è già verificata', async () => {
+    fb.auth = { currentUser: { uid: 'g1', email: 'Mario@Gmail.com', emailVerified: true } }
+    const cliente = await db.completaRegistrazione({ locale: { nome: 'Bar Mario' }, fatturazione: {}, referente: { termini: true, privacy: true } })
+    expect(cliente).toMatchObject({ uid: 'g1', email: 'mario@gmail.com', slug: 'bar-mario' })
+    expect(fb.scritti).toEqual([expect.objectContaining({ come: 'set', percorso: 'clienti/g1' })])
+    expect(fb.chiamate).toEqual([])
+    fb.auth.currentUser.emailVerified = false
+    await db.completaRegistrazione({ locale: { nome: 'Bar Mario' }, fatturazione: {}, referente: {} })
+    expect(fb.chiamate).toEqual([{ nome: 'verifica', dati: 'g1' }])
+  })
+
+  it('senza accesso non si completa niente, e senza Firebase dice cosa manca', async () => {
+    fb.auth = { currentUser: null }
+    await expect(db.completaRegistrazione({ locale: { nome: 'Bar Mario' } })).rejects.toThrow(/Serve l’accesso/)
+    expect(fb.scritti).toEqual([])
+    fb.configurata = false
+    await expect(db.entraConGoogle()).rejects.toThrow(/VITE_FIREBASE/)
   })
 })
 

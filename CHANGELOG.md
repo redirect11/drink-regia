@@ -6,6 +6,9 @@ data.
 
 ## Prossima release (da decidere)
 
+- Si entra e ci si registra anche con Google. Chi ha già un account con la
+  stessa email ritrova il suo locale; chi è nuovo completa i dati del
+  locale dopo l'accesso (REQ-FLOTTA-038).
 - La prima pagina ha un aspetto nuovo, in italiano e in inglese: le luci
   di un bar di sera nella prima schermata, il titolo con la seconda frase
   in oro, carte e piani col bordo d'oro, i passi in fila su una linea e le

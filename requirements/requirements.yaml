@@ -1561,6 +1561,36 @@ requirements:
       - tests/abbonamento.test.js
       - tests/ai.test.js
 
+  - id: REQ-FLOTTA-038
+    title: "Si entra e ci si registra nella regia anche con Google"
+    area: "src/lib/db.js (entraConGoogle, completaRegistrazione), src/pages/EntraConGoogle.jsx, src/pages/Accedi.jsx, src/pages/Registrati.jsx, src/pages/Dashboard.jsx"
+    description: >
+      L'utente, 04/11/2026, alla domanda sul perché nella regia non ci fosse
+      l'accesso con Google: «si». Era rimandato dal 22/10 («prima l'MFA
+      sugli admin»); la verifica in due passaggi degli admin resta un lavoro
+      a sé. «Entra con Google» in Accedi e «Registrati con Google» al primo
+      passo della registrazione, con la finestra di Google (non il
+      reindirizzamento) e la scelta dell'account ogni volta. Firebase tiene
+      un account per email: chi ha già l'account con la password e l'email
+      verificata (come i locali esistenti, la Tana) ritrova lo stesso uid,
+      quindi il suo locale e il ruolo admin; il passaggio verso l'app
+      confronta le email (REQ-FLOTTA-030) e non cambia. Chi entra con Google
+      la prima volta ha l'account ma non il locale: la dashboard gli mostra
+      la registrazione senza il passo dell'account («Completa la
+      registrazione»), con gli stessi controlli, e alla fine scrive solo
+      clienti/{uid} con l'email dell'account (le regole già lo vogliono).
+      L'amministratore della regia senza locale vede ancora «Nessun locale
+      registrato». Chiudere la finestra non è un errore; finestra bloccata,
+      email con la password che Google non garantisce, fornitore spento o
+      dominio non autorizzato si spiegano in italiano. Il fornitore Google
+      si accende a mano, una volta per progetto, nella console di Firebase.
+    status: implemented
+    generate_issue: true
+    labels: [regia, accesso, sicurezza]
+    test_cases:
+      - tests/AccessoGoogle.test.jsx
+      - tests/db.test.js
+
   - id: REQ-FLOTTA-037
     title: "I moduli si provano, si aggiungono e si disdicono dall'app del locale"
     area: "functions/lib/moduliapp.js, functions/lib/prove.js (puoProvare), functions/index.js (catalogoModuli, moduloDallApp, accendiProva, provaModulo)"

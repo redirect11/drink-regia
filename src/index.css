@@ -75,6 +75,9 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .btn.ghost:hover { border-color: var(--accent); }
 .btn.small { padding: 6px 12px; font-size: 0.9rem; }
 .btn.block { display: block; width: 100%; margin-top: 12px; text-align: center; }
+/* Google sopra il modulo (REQ-FLOTTA-038), poi «oppure» fra due righe. */
+.oppure { display: flex; align-items: center; gap: 12px; margin: 16px 0 4px; }
+.oppure::before, .oppure::after { content: ''; flex: 1; border-top: 1px solid var(--line); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .card { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--raggio); padding: 18px; }
 /* Due riquadri uno sotto l'altro non si toccano (l'utente, 31/10/2026:

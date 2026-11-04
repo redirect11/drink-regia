@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { registra } from '../lib/db.js'
+import { registra, completaRegistrazione, esci } from '../lib/db.js'
+import EntraConGoogle from './EntraConGoogle.jsx'
 import { slugDi, problemaSlug } from '../lib/clienti.js'
 import { urlDi } from '../lib/istanze.js'
 import { TIPI_LOCALE, problemiAccount, problemiLocale, problemiFatturazione, problemiReferente } from '../lib/validazione.js'
@@ -10,12 +11,17 @@ import { TIPI_LOCALE, problemiAccount, problemiLocale, problemiFatturazione, pro
 // di andare avanti, e gli errori stanno accanto alla casella. Lo slug si
 // vede mentre si scrive il nome, perché è l'indirizzo che l'app avrà e non
 // si cambia dopo. Alla fine parte l'email di verifica.
+//
+// CON GOOGLE (REQ-FLOTTA-038) l'account c'è già: la dashboard mostra questa
+// stessa pagina con `completa` (l'utente entrato), senza il passo
+// dell'account, e alla fine scrive solo il documento del cliente.
 
 const PASSI = ['Account', 'Il locale', 'Fatturazione', 'Referente']
 
-export default function Registrati() {
+export default function Registrati({ completa = null }) {
   const navigate = useNavigate()
-  const [passo, setPasso] = useState(0)
+  const primo = completa ? 1 : 0
+  const [passo, setPasso] = useState(primo)
   const [account, setAccount] = useState({ email: '', password: '', conferma: '' })
   const [locale, setLocale] = useState({ nome: '', tipo: '', via: '', cap: '', citta: '', provincia: '', telefono: '', sito: '' })
   const [fatturazione, setFatturazione] = useState({ ragione_sociale: '', partita_iva: '', codice_fiscale: '', pec: '', sdi: '', stessa_sede: true, via: '', cap: '', citta: '', provincia: '' })
@@ -48,8 +54,12 @@ export default function Registrati() {
     setErrore(null)
     setInCorso(true)
     try {
-      await registra({ email: account.email, password: account.password, locale, fatturazione, referente })
-      navigate('/dashboard', { replace: true })
+      // Completata, la dashboard vede il cliente da sé (osservaCliente).
+      if (completa) await completaRegistrazione({ locale, fatturazione, referente })
+      else {
+        await registra({ email: account.email, password: account.password, locale, fatturazione, referente })
+        navigate('/dashboard', { replace: true })
+      }
     } catch (err) {
       setErrore(messaggio(err))
     } finally {
@@ -68,15 +78,19 @@ export default function Registrati() {
   return (
     <main className="pagina stretta">
       <form className="card" onSubmit={invia} noValidate>
-        <h2>Registra il tuo locale</h2>
+        <h2>{completa ? 'Completa la registrazione' : 'Registra il tuo locale'}</h2>
+        {completa && <p className="muted">Sei entrato come {completa.email}. Mancano i dati del locale.</p>}
         <ol className="passi" aria-label="Passi della registrazione">
-          {PASSI.map((n, i) => (
-            <li key={n} className={i === passo ? 'corrente' : i < passo ? 'fatto' : ''} aria-current={i === passo ? 'step' : undefined}>
-              {n}
-            </li>
-          ))}
+          {PASSI.map((n, i) =>
+            i < primo ? null : (
+              <li key={n} className={i === passo ? 'corrente' : i < passo ? 'fatto' : ''} aria-current={i === passo ? 'step' : undefined}>
+                {n}
+              </li>
+            )
+          )}
         </ol>
 
+        {passo === 0 && <EntraConGoogle etichetta="Registrati con Google" />}
         {passo === 0 && (
           <fieldset>
             <legend>Il tuo account</legend>
@@ -168,7 +182,7 @@ export default function Registrati() {
 
         {errore && <p className="errore">{errore}</p>}
         <div className="azioni">
-          {passo > 0 && (
+          {passo > primo && (
             <button type="button" className="btn ghost" onClick={() => setPasso((x) => x - 1)}>
               Indietro
             </button>
@@ -179,13 +193,22 @@ export default function Registrati() {
             </button>
           ) : (
             <button type="submit" className="btn" disabled={inCorso}>
-              {inCorso ? 'Un momento…' : 'Crea l’account'}
+              {inCorso ? 'Un momento…' : completa ? 'Salva i dati del locale' : 'Crea l’account'}
             </button>
           )}
         </div>
-        <p className="muted small">
-          Hai già un account? <Link to="/accedi">Accedi</Link>
-        </p>
+        {completa ? (
+          <p className="muted small">
+            Non è l’account giusto?{' '}
+            <button type="button" className="link" onClick={() => esci()}>
+              Esci
+            </button>
+          </p>
+        ) : (
+          <p className="muted small">
+            Hai già un account? <Link to="/accedi">Accedi</Link>
+          </p>
+        )}
       </form>
     </main>
   )

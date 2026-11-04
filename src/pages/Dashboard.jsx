@@ -8,6 +8,7 @@ import CreditoAI from './CreditoAI.jsx'
 import ChiudiLocale from './ChiudiLocale.jsx'
 import ProveModuli from './ProveModuli.jsx'
 import AggiornamentiLocale from './AggiornamentiLocale.jsx'
+import Registrati from './Registrati.jsx'
 
 // LA DASHBOARD DEL TITOLARE (REQ-FLOTTA-004): il suo locale, il piano, lo
 // stato dell'istanza e, quando è attiva, l'indirizzo dell'app.
@@ -35,7 +36,9 @@ export default function Dashboard({ utente }) {
   }, [cliente?.slug])
 
   if (cliente === undefined) return <main className="pagina stretta muted">Carico…</main>
-  if (!cliente) return <main className="pagina stretta">Nessun locale registrato per questo account.</main>
+  // Senza locale: chi è entrato con Google per la prima volta completa qui i
+  // dati (REQ-FLOTTA-038). L'amministratore della regia non ha un locale.
+  if (!cliente) return utente.admin ? <main className="pagina stretta">Nessun locale registrato per questo account.</main> : <Registrati completa={utente} />
 
   const stato = statoIstanza(istanza, richiesta)
   const via = puoAttivare(cliente, istanza, richiesta, { emailVerificata: utente.emailVerificata !== false })
