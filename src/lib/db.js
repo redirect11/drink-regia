@@ -529,11 +529,14 @@ export function osservaContatto(uid, cb) {
   return onSnapshot(doc(db, 'contatti', uid), (s) => cb(s.exists() ? s.data() : null), () => cb(null))
 }
 
-// L'admin: le richieste di contatto, le più recenti prima.
+// L'admin: le richieste di contatto, le più recenti prima. `uid` è l'id del
+// documento, quello che segnaContatto riceve: per la richiesta della
+// dashboard è l'account, per una dall'app (REQ-FLOTTA-037) è
+// `<account>_<modulo>`.
 export async function elencoContatti() {
   serve()
   const snap = await getDocs(query(collection(db, 'contatti'), orderBy('chiesta_il', 'desc')))
-  return snap.docs.map((d) => ({ uid: d.id, ...d.data() }))
+  return snap.docs.map((d) => ({ ...d.data(), uid: d.id }))
 }
 
 // L'admin segna una richiesta come gestita (o la riapre).

@@ -2282,12 +2282,15 @@ exports.catalogoModuli = onRequest({ ...OPTS, cors: false }, async (req, res) =>
 // dell'app, 403), il ritorno sui domini dell'installazione (400), il
 // modulo nel listino e in vendita (409; per disdire basta che esista).
 // Risposte: 200 { ok: true } (aggiunto), { ok: true, scade_il } (prova),
-// { ok: true, dal } (disdetto); { ok: false, errore } col motivo, che
-// l'app mostra al titolare così com'è. Aggiungere e disdire cambiano la
-// subscription come «Cambia piano» (aggiornaSubscription, col conguaglio e
-// l'IVA): il webhook riporta la scelta sul cliente, e la licenza segue.
-// Nessun Checkout da qui: un modulo si compra solo su un abbonamento Stripe
-// già attivo, e la licenza non cambia mai per un ritorno dal browser.
+// { ok: true, dal } (disdetto), { ok: true, in_attesa: true } (richiesta
+// all'assistenza); { ok: false, errore } col motivo, che l'app mostra al
+// titolare così com'è. Su un abbonamento Stripe aggiungere e disdire
+// cambiano la subscription come «Cambia piano» (aggiornaSubscription, col
+// conguaglio e l'IVA): il webhook riporta la scelta sul cliente, e la
+// licenza segue. Su un piano gestito a mano la regia scrive una richiesta
+// di contatto (REQ-FLOTTA-017) e l'admin accende o spegne il modulo dal
+// backoffice. Nessun Checkout da qui, e la licenza non cambia mai per un
+// ritorno dal browser.
 exports.moduloDallApp = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY], cors: false }, async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*')
   res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type')
@@ -2328,6 +2331,14 @@ exports.moduloDallApp = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY], cors:
   const adesso = new Date()
   const d = corpo.azione === 'aggiungi' ? moduliApp.sceltaPerAggiungere(cliente, ist, corpo.modulo, inVendita) : moduliApp.sceltaPerDisdire(cliente, ist, corpo.modulo, adesso)
   if (d.errore) return no(409, d.errore)
+  if (d.modo === 'richiesta') {
+    const refRichiesta = db.doc(`contatti/${moduliApp.idRichiesta(docCliente.id, corpo.modulo)}`)
+    const r = moduliApp.richiestaDallApp({ uid: docCliente.id, ...cliente }, { ...corpo, scelta: d.scelta }, chi.email || chi.uid, (await refRichiesta.get()).data(), adesso)
+    if (r.errore) return no(409, r.errore)
+    await refRichiesta.set(r.documento)
+    console.log(`[moduli dall'app] ${trovata.id}: ${corpo.azione} ${corpo.modulo} chiesto all'assistenza (${chi.email || chi.uid})`)
+    return res.status(200).json({ ok: true, in_attesa: true })
+  }
   const stripe = stripeClient()
   if (!stripe) return no(503, 'Il pagamento online non è disponibile al momento: riprovare più tardi.')
   try {

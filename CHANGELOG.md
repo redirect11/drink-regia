@@ -19,6 +19,10 @@ data.
   vendita e cambia l'abbonamento Stripe col conguaglio, e la licenza
   dell'istanza segue. I motivi di un rifiuto sono scritti in forma
   impersonale, uguali sulla dashboard e nell'app (REQ-FLOTTA-037).
+- Su un piano gestito a mano, un modulo chiesto dall'app non è più un
+  rifiuto: diventa una richiesta all'assistenza, che l'amministratore trova
+  fra le richieste di contatto del backoffice ed evade con «Cambia piano»
+  (REQ-FLOTTA-037).
 - I codici sconto hanno un limite di usi, che l'amministratore scrive alla
   creazione e cambia dopo con «Limite…»; l'elenco dice quanti usi ha
   ciascuno. Un codice esaurito non vale più per nessun locale nuovo

@@ -85,30 +85,39 @@ function localeAttivo(istanza) {
   return null
 }
 
-// Un modulo cambia solo su un abbonamento pagato con Stripe: sul Free i
-// moduli comprati non si accendono, e su un piano scritto a mano da qui si
-// scriverebbe il modulo senza nessun pagamento (lo fa l'assistenza).
-function abbonamentoCheCambia(cliente) {
+// Come cambia un modulo, secondo il piano: → { modo } o { errore }.
+//   - 'stripe': la subscription, col conguaglio, come «Cambia piano»;
+//   - 'richiesta': un piano gestito a mano (pagato fuori da Stripe, o
+//     regalato): da qui si scriverebbe il modulo senza nessun pagamento,
+//     quindi la regia registra una richiesta per l'assistenza e l'admin
+//     accende il modulo dal backoffice a pagamento ricevuto (il contratto
+//     del 02/11/2026 sera, `in_attesa`);
+//   - sul Free i moduli comprati non si accendono, e un abbonamento Stripe
+//     non attivo prima si sistema.
+function comeCambia(cliente) {
   const ab = cliente?.abbonamento || {}
-  if (ab.origine === 'gratuito' || cliente?.piano === 'free') return 'I moduli si aggiungono ai piani a pagamento: il piano si cambia dall’area clienti.'
-  if (ab.origine !== 'stripe' || !ab.stripe_subscription) return 'Il piano è gestito dall’assistenza: per aggiungere o togliere un modulo contattarla.'
-  if (ab.stato !== 'attivo') return 'L’abbonamento non è attivo: prima va sistemato il pagamento dall’area clienti.'
-  return null
+  if (ab.origine === 'gratuito' || cliente?.piano === 'free') return { errore: 'I moduli si aggiungono ai piani a pagamento: il piano si cambia dall’area clienti.' }
+  if (ab.origine !== 'stripe' || !ab.stripe_subscription) return { modo: 'richiesta' }
+  if (ab.stato !== 'attivo') return { errore: 'L’abbonamento non è attivo: prima va sistemato il pagamento dall’area clienti.' }
+  return { modo: 'stripe' }
 }
 
 const sceltaCon = (cliente, moduli) => ({ piano: cliente.piano, moduli, terminali: cliente.terminali || 1 })
 
-// AGGIUNGI: la scelta nuova per la subscription (stesso piano, stessi
-// terminali, moduli più questo), o { errore }. Un modulo in prova diventa
-// comprato: la prova la toglie poi proveDaTogliere.
+// AGGIUNGI: la scelta nuova (stesso piano, stessi terminali, moduli più
+// questo) e il modo, o { errore }. Un modulo in prova diventa comprato: la
+// prova la toglie poi proveDaTogliere.
 function sceltaPerAggiungere(cliente, istanza, id, vendita) {
-  const errore = localeAttivo(istanza) || moduloInVendita(id, vendita) || (haGiaIlModulo(cliente, id) ? `${nomeDi(id)} è già attivo.` : null) || abbonamentoCheCambia(cliente)
+  const errore = localeAttivo(istanza) || moduloInVendita(id, vendita) || (haGiaIlModulo(cliente, id) ? `${nomeDi(id)} è già attivo.` : null)
   if (errore) return { errore }
-  return { scelta: sceltaCon(cliente, [...(cliente.moduli || []), id]) }
+  const come = comeCambia(cliente)
+  if (come.errore) return come
+  return { scelta: sceltaCon(cliente, [...(cliente.moduli || []), id]), modo: come.modo }
 }
 
-// DISDICI: la scelta senza il modulo, o { errore }. Un modulo compreso nel
-// piano non si disdice da solo; uno in prova si spegne alla fine della prova.
+// DISDICI: la scelta senza il modulo e il modo, o { errore }. Un modulo
+// compreso nel piano non si disdice da solo; uno in prova si spegne alla
+// fine della prova.
 function sceltaPerDisdire(cliente, istanza, id, adesso = new Date()) {
   if (!listino.moduli.some((m) => m.id === id)) return { errore: 'Modulo sconosciuto.' }
   const errore = localeAttivo(istanza)
@@ -117,9 +126,41 @@ function sceltaPerDisdire(cliente, istanza, id, adesso = new Date()) {
   if (!(cliente?.moduli || []).includes(id)) {
     return { errore: proveAttive(cliente, adesso).includes(id) ? 'Il modulo è in prova: si spegne da solo alla fine della prova.' : 'Il modulo non è attivo.' }
   }
-  const ab = abbonamentoCheCambia(cliente)
-  if (ab) return { errore: ab }
-  return { scelta: sceltaCon(cliente, cliente.moduli.filter((m) => m !== id)) }
+  const come = comeCambia(cliente)
+  if (come.errore) return come
+  return { scelta: sceltaCon(cliente, cliente.moduli.filter((m) => m !== id)), modo: come.modo }
+}
+
+// ── LA RICHIESTA ALL'ASSISTENZA (un piano gestito a mano) ──────────────
+// È una richiesta di contatto come quelle della dashboard coi pagamenti
+// spenti (REQ-FLOTTA-017): stesso documento, stesso elenco nel backoffice,
+// dove l'admin la evade con «Cambia piano» fuori da Stripe e la segna
+// gestita. Una per modulo, `contatti/<uid>_<modulo>`, così due moduli
+// chiesti di fila non si cancellano a vicenda e la richiesta della
+// dashboard (`contatti/<uid>`) resta. `scelta` è il piano che l'admin deve
+// scrivere: con questo modulo in più, o in meno.
+const idRichiesta = (uid, modulo) => `${uid}_${modulo}`
+
+// → { documento } o { errore }. `aperta` è la richiesta già scritta per
+// questo modulo, se c'è: la stessa azione ancora in attesa non si ripete
+// (e non si rinnova la data), un'azione diversa la sostituisce.
+function richiestaDallApp(cliente, { azione, modulo, scelta }, da, aperta, adesso = new Date()) {
+  if (aperta?.stato === 'aperta' && aperta.dall_app?.azione === azione) return { errore: 'La richiesta per questo modulo è già all’assistenza.' }
+  return {
+    documento: {
+      uid: cliente.uid || null,
+      email: cliente.email || null,
+      nome_locale: cliente.nome_locale || null,
+      slug: cliente.slug || null,
+      scelta,
+      telefono: null,
+      nota: `Dall’app: ${azione === 'aggiungi' ? 'aggiungere' : 'togliere'} ${nomeDi(modulo)}.`,
+      codice: null,
+      dall_app: { azione, modulo, da },
+      stato: 'aperta',
+      chiesta_il: adesso.toISOString(),
+    },
+  }
 }
 
 // Da quando il modulo si spegne: la subscription si aggiorna subito col
@@ -128,4 +169,4 @@ function sceltaPerDisdire(cliente, istanza, id, adesso = new Date()) {
 // titolare chiude la serata con quello che aveva.
 const dalGiorno = (adesso = new Date()) => adesso.toISOString().slice(0, 10)
 
-module.exports = { AZIONI, catalogoModuli, corpoModulo, dominiDi, ritornoValido, moduloInVendita, localeAttivo, sceltaPerAggiungere, sceltaPerDisdire, dalGiorno }
+module.exports = { AZIONI, catalogoModuli, corpoModulo, dominiDi, ritornoValido, moduloInVendita, localeAttivo, comeCambia, sceltaPerAggiungere, sceltaPerDisdire, dalGiorno, idRichiesta, richiestaDallApp }

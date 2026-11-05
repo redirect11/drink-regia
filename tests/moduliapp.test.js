@@ -67,7 +67,7 @@ describe('la richiesta', () => {
 
 describe('aggiungere un modulo', () => {
   it('su un abbonamento Stripe attivo: stesso piano, stessi terminali, i moduli più questo', () => {
-    expect(m.sceltaPerAggiungere(base, istanza, 'magazzino', vendita)).toEqual({ scelta: { piano: 'base', moduli: ['clienti', 'magazzino'], terminali: 2 } })
+    expect(m.sceltaPerAggiungere(base, istanza, 'magazzino', vendita)).toEqual({ scelta: { piano: 'base', moduli: ['clienti', 'magazzino'], terminali: 2 }, modo: 'stripe' })
   })
 
   it('un modulo in prova diventa comprato', () => {
@@ -75,12 +75,19 @@ describe('aggiungere un modulo', () => {
     expect(m.sceltaPerAggiungere(inProva, istanza, 'magazzino', vendita).scelta.moduli).toContain('magazzino')
   })
 
-  it('no sul Free, su un piano scritto a mano o regalato, su un abbonamento non attivo', () => {
+  it('no sul Free e su un abbonamento Stripe non attivo', () => {
     const errore = (cliente) => m.sceltaPerAggiungere(cliente, istanza, 'magazzino', vendita).errore
     expect(errore({ ...base, piano: 'free', abbonamento: { stato: 'attivo', origine: 'gratuito' } })).toBe('I moduli si aggiungono ai piani a pagamento: il piano si cambia dall’area clienti.')
-    expect(errore({ ...base, abbonamento: { stato: 'attivo', origine: 'manuale' } })).toMatch(/gestito dall’assistenza/)
-    expect(errore({ ...base, abbonamento: { stato: 'attivo', origine: 'sconto' } })).toMatch(/gestito dall’assistenza/)
     expect(errore({ ...base, abbonamento: { ...stripe, stato: 'in sospeso' } })).toMatch(/non è attivo/)
+  })
+
+  // Il contratto della sera del 02/11/2026 (tana-drink, REQ-LIC-012): su un
+  // piano gestito a mano non è un errore ma una richiesta all'assistenza.
+  it('su un piano scritto a mano o regalato è una richiesta all’assistenza, con la scelta che l’admin deve scrivere', () => {
+    for (const abbonamento of [{ stato: 'attivo', origine: 'manuale', pagato_fino_al: '2026-12-31' }, { stato: 'attivo', origine: 'sconto' }]) {
+      expect(m.sceltaPerAggiungere({ ...base, abbonamento }, istanza, 'magazzino', vendita)).toEqual({ scelta: { piano: 'base', moduli: ['clienti', 'magazzino'], terminali: 2 }, modo: 'richiesta' })
+    }
+    expect(m.sceltaPerAggiungere(base, istanza, 'magazzino', vendita).modo).toBe('stripe')
   })
 
   it('no per un modulo già attivo, fuori vendita o sconosciuto, o un locale fermo', () => {
@@ -95,19 +102,58 @@ describe('aggiungere un modulo', () => {
 
 describe('disdire un modulo', () => {
   it('si toglie dall’abbonamento; si spegne da oggi, col conguaglio', () => {
-    expect(m.sceltaPerDisdire(base, istanza, 'clienti', ADESSO)).toEqual({ scelta: { piano: 'base', moduli: [], terminali: 2 } })
+    expect(m.sceltaPerDisdire(base, istanza, 'clienti', ADESSO)).toEqual({ scelta: { piano: 'base', moduli: [], terminali: 2 }, modo: 'stripe' })
     expect(m.dalGiorno(ADESSO)).toBe('2026-11-02')
+  })
+
+  it('su un piano gestito a mano è una richiesta all’assistenza', () => {
+    expect(m.sceltaPerDisdire({ ...base, abbonamento: { stato: 'attivo', origine: 'manuale' } }, istanza, 'clienti', ADESSO)).toEqual({ scelta: { piano: 'base', moduli: [], terminali: 2 }, modo: 'richiesta' })
   })
 
   it('anche un modulo non più in vendita: chi lo ha lo può togliere', () => {
     expect(m.sceltaPerDisdire({ ...base, moduli: ['sumup'] }, istanza, 'sumup', ADESSO).scelta.moduli).toEqual([])
   })
 
-  it('no per un modulo compreso nel piano, in prova o non attivo, e sui piani che non passano da Stripe', () => {
+  it('no per un modulo compreso nel piano, in prova o non attivo: vale anche sui piani a mano', () => {
     expect(m.sceltaPerDisdire({ ...base, piano: 'completo', moduli: [] }, istanza, 'magazzino', ADESSO).errore).toBe('Il modulo è compreso nel piano: si toglie cambiando piano.')
     expect(m.sceltaPerDisdire({ ...base, prove: { magazzino: { scade_il: '2026-11-10T00:00:00Z' } } }, istanza, 'magazzino', ADESSO).errore).toMatch(/in prova/)
     expect(m.sceltaPerDisdire(base, istanza, 'magazzino', ADESSO).errore).toBe('Il modulo non è attivo.')
-    expect(m.sceltaPerDisdire({ ...base, abbonamento: { stato: 'attivo', origine: 'manuale' } }, istanza, 'clienti', ADESSO).errore).toMatch(/gestito dall’assistenza/)
+    expect(m.sceltaPerDisdire({ ...base, abbonamento: { stato: 'attivo', origine: 'manuale' } }, istanza, 'magazzino', ADESSO).errore).toBe('Il modulo non è attivo.')
+  })
+})
+
+// Un piano gestito a mano: la richiesta è una richiesta di contatto
+// (REQ-FLOTTA-017), una per modulo, che l'admin evade con «Cambia piano».
+describe('la richiesta all’assistenza', () => {
+  const cliente = { uid: 'u1', email: 'mario@example.it', nome_locale: 'Bar Mario', slug: 'bar-mario', piano: 'base', moduli: ['clienti'], terminali: 2 }
+  const scelta = { piano: 'base', moduli: ['clienti', 'magazzino'], terminali: 2 }
+
+  it('è il documento delle richieste di contatto, con la scelta da scrivere e la nota che dice cosa e da dove', () => {
+    expect(m.idRichiesta('u1', 'magazzino')).toBe('u1_magazzino')
+    expect(m.richiestaDallApp(cliente, { azione: 'aggiungi', modulo: 'magazzino', scelta }, 'mario@example.it', undefined, ADESSO)).toEqual({
+      documento: {
+        uid: 'u1',
+        email: 'mario@example.it',
+        nome_locale: 'Bar Mario',
+        slug: 'bar-mario',
+        scelta,
+        telefono: null,
+        nota: 'Dall’app: aggiungere Magazzino e fornitori.',
+        codice: null,
+        dall_app: { azione: 'aggiungi', modulo: 'magazzino', da: 'mario@example.it' },
+        stato: 'aperta',
+        chiesta_il: '2026-11-02T10:00:00.000Z',
+      },
+    })
+    expect(m.richiestaDallApp(cliente, { azione: 'disdici', modulo: 'clienti', scelta: { ...scelta, moduli: [] } }, 'mario@example.it', undefined, ADESSO).documento.nota).toBe('Dall’app: togliere Gestione clienti.')
+  })
+
+  it('la stessa richiesta ancora aperta non si ripete; un’azione diversa, o una richiesta gestita, si sostituisce', () => {
+    const r = { azione: 'aggiungi', modulo: 'magazzino', scelta }
+    const aperta = m.richiestaDallApp(cliente, r, 'mario@example.it', undefined, ADESSO).documento
+    expect(m.richiestaDallApp(cliente, r, 'mario@example.it', aperta, ADESSO).errore).toMatch(/già all’assistenza/)
+    expect(m.richiestaDallApp(cliente, { ...r, azione: 'disdici' }, 'mario@example.it', aperta, ADESSO).documento).toBeTruthy()
+    expect(m.richiestaDallApp(cliente, r, 'mario@example.it', { ...aperta, stato: 'gestita' }, ADESSO).documento).toBeTruthy()
   })
 })
 
@@ -150,5 +196,14 @@ describe('nelle Functions', () => {
     expect(porta).toContain('await aggiornaSubscription(stripe, cliente.abbonamento.stripe_subscription, docCliente.id, d.scelta)')
     expect(porta).not.toContain('checkout.sessions.create')
     expect(porta).toContain("{ ok: true, dal: moduliApp.dalGiorno(adesso) }")
+  })
+
+  it('su un piano a mano scrive la richiesta di contatto, prima di toccare Stripe, e risponde in attesa', () => {
+    const richiesta = porta.indexOf("if (d.modo === 'richiesta')")
+    expect(richiesta).toBeGreaterThan(0)
+    expect(richiesta).toBeLessThan(porta.indexOf('const stripe = stripeClient()'))
+    expect(porta).toContain('db.doc(`contatti/${moduliApp.idRichiesta(docCliente.id, corpo.modulo)}`)')
+    expect(porta).toContain('await refRichiesta.set(r.documento)')
+    expect(porta).toContain('{ ok: true, in_attesa: true }')
   })
 })
