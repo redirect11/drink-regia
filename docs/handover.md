@@ -804,9 +804,17 @@ L'elenco completo con i riferimenti al codice è in
    `*.firebaseapp.com`. Finché è spento il tasto risponde «non è ancora
    attivo». Restano: l'MFA sugli admin; nell'informativa privacy, Google
    come fornitore dell'accesso (con gli altri testi legali, voce 3).
+   **Se un titolare «non entra più con la password»** dopo aver usato
+   Google: con «un account per email», Google con la stessa email di un
+   account la cui email non era confermata prende il posto della password
+   (stesso uid, il locale resta); si rientra con Google, o si rifà la
+   password con «Password dimenticata?». Con l'email confermata i due
+   accessi convivono. Non è un difetto (05/11/2026, da tana-drink).
    **La Tana in produzione** (Flavio titolare, email, passaggio): l'ordine
-   del giorno è in tana-drink, `docs/la-tana-nella-regia.md` sul ramo
-   `feature/passaggio-dalla-regia`, insieme al lato app che manca.
+   del giorno è in tana-drink, `docs/la-tana-nella-regia.md`; dal
+   05/11/2026 il lato app del passaggio è fatto e sta in `release/1.10.x`
+   della Tana (REQ-FLOTTA-030 di tana-drink, `src/lib/passaggioRegia.js`),
+   e arriva in produzione con la 1.10 su `main`.
 
 ---
 
