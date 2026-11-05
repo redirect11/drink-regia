@@ -1584,6 +1584,15 @@ requirements:
       email con la password che Google non garantisce, fornitore spento o
       dominio non autorizzato si spiegano in italiano. Il fornitore Google
       si accende a mano, una volta per progetto, nella console di Firebase.
+      L'EMAIL NON CONFERMATA (05/11/2026, scoperto in tana-drink,
+      REQ-FLOTTA-030): con «un account per email», chi entra con Google con
+      la stessa email di un account con la password la cui email NON è
+      confermata prende il posto di quell'accesso: l'uid resta lo stesso,
+      quindi il titolare ritrova il locale, ma Firebase toglie la password,
+      e da lì si entra solo con Google (o si rifà la password con «Password
+      dimenticata?»). Con l'email confermata i due accessi si collegano e
+      valgono entrambi. Non è un difetto da correggere: la password mai
+      confermata vale meno dell'email che Google garantisce.
     status: implemented
     generate_issue: true
     labels: [regia, accesso, sicurezza]

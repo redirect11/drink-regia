@@ -228,7 +228,10 @@ export function messaggio(err) {
   if (codice.includes('popup-blocked')) return 'Il browser ha bloccato la finestra di Google: consenti le finestre per questo sito e riprova.'
   // Un account con la password e un'email che Google non garantisce (non
   // Gmail): Firebase non li unisce da sé, per non consegnare l'account a
-  // chi ha solo l'indirizzo.
+  // chi ha solo l'indirizzo. Il caso opposto non dà errore: con un'email
+  // che Google garantisce ma non confermata da noi, Google prende il posto
+  // della password (stesso uid, il locale resta; «Password dimenticata?»
+  // la rimette). Con l'email confermata i due accessi convivono.
   if (codice.includes('account-exists-with-different-credential')) return 'Questa email ha già un account con la password: entra con email e password.'
   if (codice.includes('operation-not-allowed') || codice.includes('unauthorized-domain')) return 'L’accesso con Google non è ancora attivo: entra con email e password.'
   if (codice.includes('network-request-failed')) return 'Connessione assente: riprova.'
