@@ -1589,6 +1589,7 @@ requirements:
     labels: [regia, accesso, sicurezza]
     test_cases:
       - tests/AccessoGoogle.test.jsx
+      - tests/Registrati.test.jsx
       - tests/db.test.js
 
   - id: REQ-FLOTTA-037

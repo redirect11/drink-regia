@@ -36,9 +36,11 @@ export default function Dashboard({ utente }) {
   }, [cliente?.slug])
 
   if (cliente === undefined) return <main className="pagina stretta muted">Carico…</main>
-  // Senza locale: chi è entrato con Google per la prima volta completa qui i
-  // dati (REQ-FLOTTA-038). L'amministratore della regia non ha un locale.
-  if (!cliente) return utente.admin ? <main className="pagina stretta">Nessun locale registrato per questo account.</main> : <Registrati completa={utente} />
+  // Un account senza locale (entrato con Google la prima volta, o una
+  // registrazione interrotta) completa qui i dati (REQ-FLOTTA-038).
+  // L'amministratore della regia non ha un locale.
+  if (!cliente && !utente.admin) return <Registrati completa={utente} />
+  if (!cliente) return <main className="pagina stretta">Nessun locale registrato per questo account.</main>
 
   const stato = statoIstanza(istanza, richiesta)
   const via = puoAttivare(cliente, istanza, richiesta, { emailVerificata: utente.emailVerificata !== false })

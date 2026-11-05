@@ -2,9 +2,9 @@
 'use strict'
 
 // L'ACCESSO CON GOOGLE (REQ-FLOTTA-038): il tasto in «Accedi» e in
-// «Registrati», gli errori della finestra in italiano, e chi entra con
-// Google per la prima volta completa i dati del locale dalla dashboard,
-// senza il passo dell'account.
+// «Registrati», gli errori della finestra in italiano, e la dashboard che a
+// chi non ha il locale chiede i dati (il modulo si prova in
+// Registrati.test.jsx).
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
@@ -27,9 +27,9 @@ const db = vi.hoisted(() => ({
 vi.mock('../src/lib/db.js', () => db)
 
 import Accedi from '../src/pages/Accedi.jsx'
-import Registrati from '../src/pages/Registrati.jsx'
+import Registrati, { messaggio } from '../src/pages/Registrati.jsx'
 import Dashboard from '../src/pages/Dashboard.jsx'
-import { messaggioGoogle } from '../src/pages/EntraConGoogle.jsx'
+import { finestraChiusa } from '../src/pages/EntraConGoogle.jsx'
 
 const FUTURO = { v7_startTransition: true, v7_relativeSplatPath: true }
 const mostra = (pagina, da = '/accedi') =>
@@ -72,68 +72,29 @@ describe('il tasto di Google', () => {
     expect(screen.queryByText('DASHBOARD')).toBeNull()
   })
 
-  it('gli errori di Google si leggono in italiano', () => {
-    expect(messaggioGoogle({ code: 'auth/cancelled-popup-request' })).toBeNull()
-    expect(messaggioGoogle({ code: 'auth/account-exists-with-different-credential' })).toMatch(/entra con email e password/)
-    expect(messaggioGoogle({ code: 'auth/operation-not-allowed' })).toMatch(/non è ancora attivo/)
-    expect(messaggioGoogle({ code: 'auth/unauthorized-domain' })).toMatch(/non è ancora attivo/)
-    expect(messaggioGoogle({ code: 'auth/network-request-failed' })).toMatch(/Connessione/)
-    expect(messaggioGoogle(new Error('x'))).toMatch(/non è riuscito/)
+  it('gli errori di Google si leggono in italiano, dalla stessa mappa di email e password', () => {
+    expect(finestraChiusa({ code: 'auth/cancelled-popup-request' })).toBe(true)
+    expect(finestraChiusa({ code: 'auth/popup-blocked' })).toBe(false)
+    expect(messaggio({ code: 'auth/account-exists-with-different-credential' })).toMatch(/entra con email e password/)
+    expect(messaggio({ code: 'auth/operation-not-allowed' })).toMatch(/non è ancora attivo/)
+    expect(messaggio({ code: 'auth/unauthorized-domain' })).toMatch(/non è ancora attivo/)
+    expect(messaggio({ code: 'auth/network-request-failed' })).toMatch(/Connessione/)
   })
 })
 
-describe('chi entra con Google la prima volta', () => {
+describe('la dashboard di chi non ha il locale', () => {
   const utente = { uid: 'g1', email: 'mario@gmail.com', emailVerificata: true }
 
-  it('la dashboard senza locale chiede i dati del locale, senza il passo dell’account', () => {
+  it('chiede i dati del locale, senza il passo dell’account', () => {
     mostra(<Dashboard utente={utente} />, '/dashboard-g')
     expect(screen.getByRole('heading', { name: 'Completa la registrazione' })).toBeInTheDocument()
-    expect(screen.getByText(/Sei entrato come mario@gmail\.com/)).toBeInTheDocument()
     expect(screen.getByLabelText('Nome del locale')).toBeInTheDocument()
     expect(screen.queryByLabelText(/^Password/)).toBeNull()
-    expect(screen.queryByRole('button', { name: /con Google/ })).toBeNull()
-    expect(screen.queryByText('Account', { selector: 'li' })).toBeNull()
   })
 
-  it('l’amministratore della regia senza locale non deve registrarne uno', () => {
+  it('all’amministratore della regia non chiede niente', () => {
     mostra(<Dashboard utente={{ ...utente, admin: true }} />, '/dashboard-g')
     expect(screen.getByText('Nessun locale registrato per questo account.')).toBeInTheDocument()
     expect(screen.queryByLabelText('Nome del locale')).toBeNull()
-  })
-
-  it('completa con locale, fatturazione e consensi, senza creare un altro account', async () => {
-    const user = userEvent.setup()
-    mostra(<Registrati completa={utente} />, '/dashboard-g')
-    expect(screen.queryByRole('button', { name: 'Indietro' })).toBeNull()
-    await user.type(screen.getByLabelText('Nome del locale'), 'Bar Mario')
-    await user.selectOptions(screen.getByLabelText('Tipo di locale'), 'bar')
-    await user.type(screen.getByLabelText('Indirizzo'), 'Via Roma 1')
-    await user.type(screen.getByLabelText('CAP'), '80035')
-    await user.type(screen.getByLabelText('Città'), 'Nola')
-    await user.type(screen.getByLabelText('Provincia'), 'na')
-    await user.type(screen.getByLabelText('Telefono del locale'), '081 1234567')
-    await user.click(screen.getByRole('button', { name: 'Avanti' }))
-    await user.type(screen.getByLabelText('Ragione sociale'), 'Bar Mario srl')
-    await user.type(screen.getByLabelText('Partita IVA'), '01234567897')
-    await user.type(screen.getByLabelText('PEC'), 'bar@pec.it')
-    await user.click(screen.getByRole('button', { name: 'Avanti' }))
-    await user.type(screen.getByLabelText('Nome'), 'Mario')
-    await user.type(screen.getByLabelText('Cognome'), 'Rossi')
-    await user.click(screen.getByLabelText(/accetto i/))
-    await user.click(screen.getByLabelText(/informativa sulla privacy/))
-    await user.click(screen.getByRole('button', { name: 'Salva i dati del locale' }))
-    expect(db.completaRegistrazione).toHaveBeenCalledWith({
-      locale: expect.objectContaining({ nome: 'Bar Mario', provincia: 'NA' }),
-      fatturazione: expect.objectContaining({ partita_iva: '01234567897' }),
-      referente: expect.objectContaining({ nome: 'Mario', termini: true, privacy: true }),
-    })
-    expect(db.registra).not.toHaveBeenCalled()
-  })
-
-  it('con l’account Google sbagliato si esce', async () => {
-    const user = userEvent.setup()
-    mostra(<Registrati completa={utente} />, '/dashboard-g')
-    await user.click(screen.getByRole('button', { name: 'Esci' }))
-    expect(db.esci).toHaveBeenCalledTimes(1)
   })
 })
