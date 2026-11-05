@@ -815,6 +815,15 @@ L'elenco completo con i riferimenti al codice è in
    05/11/2026 il lato app del passaggio è fatto e sta in `release/1.10.x`
    della Tana (REQ-FLOTTA-030 di tana-drink, `src/lib/passaggioRegia.js`),
    e arriva in produzione con la 1.10 su `main`.
+42. **I temi dei locali (REQ-FLOTTA-039)**, ramo `feature/temi-in-licenza`,
+   05/11/2026, richiesta da tana-drink (`docs/temi-dei-locali.md`).
+   `clienti/{uid}.temi` → `licenza.temi`: gli esclusivi della Tana («Notte»,
+   «Meraviglie») non spariscono più il giorno di «La licenza la scrive la
+   regia». L'admin li assegna dalla scheda del locale («Temi…») e dal
+   modulo «Locale esistente»; la scheda elenca moduli, temi in licenza e
+   gli installati nell'app, letti dal progetto del locale all'apertura
+   (`temiDelLocale`) e mai salvati. **Per la Tana in produzione**: registrarla
+   con Notte e Meraviglie spuntati, prima del passo della licenza.
 
 ---
 
@@ -874,9 +883,13 @@ moduli, la licenza nell'istanza e la Tana.
   `url`, `errore`, `versione`, `ref`, `ambiente`, `operazione` (sotto,
   «Rilasci a ondate»). È l'unico esito che arriva ancora da tana-drink.
 - **Licenza nell'istanza** (BUG-125 di tana-drink, dal 31/10/2026):
-  `licenza/attuale` = `{ piano, moduli: {id: bool}, terminali, limiti,
-  prove, stato: attiva|sospesa|chiusa, motivo, dal, slug, regia_url,
-  aggiornamenti, valida_fino, alla_scadenza, cancellazione, scritta_il }`.
+  `licenza/attuale` = `{ piano, moduli: {id: bool}, terminali, temi,
+  limiti, prove, stato: attiva|sospesa|chiusa, motivo, dal, slug,
+  regia_url, aggiornamenti, valida_fino, alla_scadenza, cancellazione,
+  scritta_il }`. `temi` (dal 05/11/2026, REQ-FLOTTA-039, per REQ-LIC-010 di
+  tana-drink) è l'elenco degli id degli stili in licenza, esclusivi o
+  comprati (`notte`, `meraviglie`): l'app accende uno stile `inLicenza`
+  solo se è lì. Viene da `clienti/{uid}.temi`, che scrive l'admin.
   `valida_fino` (dal 31/10/2026, per tana-drink) è il momento in cui la
   regia fermerebbe il locale se nessuno paga: per un piano pagato a mano
   «pagato fino al» più i giorni di grazia, portato al taglio della giornata

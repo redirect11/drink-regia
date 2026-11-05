@@ -10,7 +10,7 @@
 import { describe, it, expect } from 'vitest'
 import { createRequire } from 'node:module'
 import { readFileSync } from 'node:fs'
-import { BASI as BASI_SITO, STILI as STILI_SITO, CHIAVI_COLORE as CHIAVI_SITO, coloriDelTema, temaVuoto } from '../src/lib/temi.js'
+import { BASI as BASI_SITO, STILI as STILI_SITO, ESCLUSIVI as ESCLUSIVI_SITO, CHIAVI_COLORE as CHIAVI_SITO, coloriDelTema, temaVuoto, nomeStile } from '../src/lib/temi.js'
 
 const require = createRequire(import.meta.url)
 const t = require('../functions/lib/temi.js')
@@ -41,14 +41,17 @@ describe('un tema da pubblicare', () => {
     expect(t.temaPulito({ ...oro, tavolozza: { base: 'crema', colori: { '--bg': '#fff' } } }).errore).toMatch(/#rrggbb/)
   })
 
-  it('«notte» è esclusivo della Tana; e per ora niente temi a pagamento', () => {
+  it('«notte» e «meraviglie» sono esclusivi della Tana; e per ora niente temi a pagamento', () => {
     expect(t.temaPulito({ ...oro, stile: 'notte' }).errore).toMatch(/esclusivo/)
+    expect(t.temaPulito({ ...oro, stile: 'meraviglie' }).errore).toMatch(/esclusivo/)
     expect(t.temaPulito({ ...oro, prezzo: 3 }).errore).toMatch(/tutti gratis/)
   })
 
-  it('basi, stili e colori sono gli stessi nella regia e nell’anteprima del sito', () => {
+  it('basi, stili, esclusivi e colori sono gli stessi nella regia e nell’anteprima del sito', () => {
     expect(BASI_SITO.map((b) => b.id)).toEqual(t.BASI)
     expect(STILI_SITO.map((s) => s.id)).toEqual(t.STILI)
+    expect(ESCLUSIVI_SITO.map((s) => s.id)).toEqual(t.ESCLUSIVI)
+    expect(nomeStile('meraviglie')).toBe('Meraviglie')
     expect(CHIAVI_SITO.map((c) => c.key)).toEqual(t.CHIAVI_COLORE)
     for (const b of BASI_SITO) expect(Object.keys(b.colori)).toEqual(t.CHIAVI_COLORE)
   })
@@ -118,6 +121,55 @@ describe('nel sito e nella regia', () => {
     const blocco = regole.slice(regole.indexOf('match /temi/{id}'), regole.indexOf('match /sconti/{codice}'))
     expect(blocco).toContain('allow read: if admin();')
     expect(blocco).toContain('allow write: if false;')
+  })
+})
+
+// I TEMI IN LICENZA DEI LOCALI (REQ-FLOTTA-039, richiesta da tana-drink del
+// 05/11/2026): gli esclusivi stanno in clienti/{uid}.temi e la licenza li
+// nomina; quello che il locale ha installato dall'app la regia lo legge dal
+// suo settings/bar, al momento, senza salvarlo.
+describe('i temi in licenza dei locali', () => {
+  it('l’elenco si pulisce: minuscolo, senza doppioni, in ordine; vuoto se manca; null se non è un elenco di id', () => {
+    expect(t.temiPuliti(['Notte', 'meraviglie', 'notte '])).toEqual(['meraviglie', 'notte'])
+    expect(t.temiPuliti(undefined)).toEqual([])
+    expect(t.temiPuliti([])).toEqual([])
+    // Un id che l'app non conosce passa: l'app lo ignora, e si può scrivere prima che l'app lo abbia.
+    expect(t.temiPuliti(['aurora-2027'])).toEqual(['aurora-2027'])
+    for (const brutto of ['notte', [''], ['Notte!'], [3], [{ id: 'notte' }], Array(21).fill('notte')]) expect(t.temiPuliti(brutto)).toBeNull()
+  })
+
+  it('gli installati dall’app: solo id validi, i temi con nome e stile, lo stile in uso', () => {
+    const bar = {
+      stili_installati: ['lavagna', 'Deco!', 7],
+      temi_installati: [
+        { id: 'grand-hotel', nome: ' Grand Hotel ', stile: 'deco', tavolozza: { base: 'notte-blu' } },
+        { id: 'senza-nome', stile: 'barocco?' },
+        { nome: 'senza id' },
+      ],
+      stile_menu: 'notte',
+    }
+    expect(t.installatiDalLocale(bar)).toEqual({
+      stili_installati: ['lavagna'],
+      temi_installati: [
+        { id: 'grand-hotel', nome: 'Grand Hotel', stile: 'deco' },
+        { id: 'senza-nome', nome: 'senza-nome', stile: null },
+      ],
+      stile_menu: 'notte',
+    })
+    expect(t.installatiDalLocale(undefined)).toEqual({ stili_installati: [], temi_installati: [], stile_menu: null })
+  })
+
+  it('nelle Functions: i temi li scrive solo l’admin, puliti; gli installati si leggono dal progetto del locale e non si scrivono', () => {
+    const codice = readFileSync('functions/index.js', 'utf8')
+    const imposta = codice.slice(codice.indexOf('exports.impostaTemi'), codice.indexOf('exports.temiDelLocale'))
+    expect(imposta).toContain("req.auth?.token?.admin !== true")
+    expect(imposta).toContain('temi.temiPuliti(req.data?.temi)')
+    expect(imposta).toContain('await doc.ref.update({ temi: temiNuovi })')
+    const legge = codice.slice(codice.indexOf('exports.temiDelLocale'), codice.indexOf("// ── L'ELIMINAZIONE DI UN LOCALE"))
+    expect(legge).toContain("req.auth?.token?.admin !== true")
+    expect(legge).toContain("firestoreDi(ist.progetto).doc('settings/bar').get()")
+    expect(legge).toContain('return temi.installatiDalLocale(bar)')
+    expect(legge).not.toMatch(/\.(set|update|add)\(/)
   })
 })
 

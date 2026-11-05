@@ -69,6 +69,9 @@ const db = vi.hoisted(() => ({
   gestisciSconti: vi.fn(async () => ({ ok: true })),
   applicaSconto: vi.fn(async () => ({ ok: true })),
   programmaScadenze: vi.fn(async () => ({ ok: true, programmati: 3, errori: [] })),
+  // I temi dei locali (REQ-FLOTTA-039).
+  impostaTemi: vi.fn(async () => ({ ok: true })),
+  temiDelLocale: vi.fn(async () => ({ stili_installati: [], temi_installati: [], stile_menu: null })),
 }))
 const regia = vi.hoisted(() => ({ impostazioni: {}, vendita: { free: false, moduli: {} }, contatti: [], aggiornamenti: {}, licenze: null }))
 vi.mock('../src/lib/db.js', () => db)
@@ -340,6 +343,9 @@ describe('il backoffice e il credito AI', () => {
     await user.type(within(modulo).getByLabelText('Progetto Firebase'), 'tana-drink')
     await user.type(within(modulo).getByLabelText('Indirizzo dell’app'), 'https://tana-drink.web.app')
     expect(within(modulo).getByLabelText(/Installazione interna/)).toBeChecked()
+    // REQ-FLOTTA-039: la Tana entra coi suoi esclusivi già scritti.
+    await user.click(within(modulo).getByLabelText('Tema in licenza: Notte'))
+    await user.click(within(modulo).getByLabelText('Tema in licenza: Meraviglie'))
     await user.click(within(modulo).getByRole('button', { name: 'Registra il locale' }))
     expect(db.registraLocaleEsistente).toHaveBeenCalledWith({
       nome_locale: 'La Tana del Coniglio',
@@ -348,7 +354,38 @@ describe('il backoffice e il credito AI', () => {
       progetto: 'tana-drink',
       url: 'https://tana-drink.web.app',
       interna: true,
+      temi: ['notte', 'meraviglie'],
     })
+  })
+
+  // REQ-FLOTTA-039 (richiesta da tana-drink): «la regia deve sempre
+  // elencare moduli e temi acquistati in app». Gli installati si leggono
+  // dal locale all'apertura della scheda; i temi in licenza li scrive l'admin.
+  it('la scheda elenca moduli, temi in licenza e installati nell’app; l’admin assegna gli esclusivi', async () => {
+    const user = userEvent.setup()
+    db.elencoClienti.mockResolvedValue([{ uid: 'a', slug: 'bar-attivo', nome_locale: 'Bar Attivo', email: 'a@x.it', piano: 'base', moduli: ['magazzino'], temi: ['notte'], creato_il: '2026-10-01' }])
+    db.temiDelLocale.mockResolvedValueOnce({ stili_installati: ['lavagna'], temi_installati: [{ id: 'grand-hotel', nome: 'Grand Hotel', stile: 'deco' }], stile_menu: 'notte' })
+    mostra()
+    const scheda = await apri('Bar Attivo')
+    expect(within(scheda).getByTestId('moduli-bar-attivo')).toHaveTextContent('Magazzino e fornitori')
+    expect(within(scheda).getByTestId('temi-bar-attivo')).toHaveTextContent('Notte')
+    expect(db.temiDelLocale).toHaveBeenCalledWith('bar-attivo')
+    expect(await within(scheda).findByTestId('installati-bar-attivo')).toHaveTextContent('stili: Lavagna · temi: Grand Hotel (Deco) · in uso: Notte')
+    await user.click(within(scheda).getByRole('button', { name: 'Temi…' }))
+    const modulo = within(scheda).getByRole('form', { name: 'Temi in licenza di Bar Attivo' })
+    expect(within(modulo).getByLabelText('Notte')).toBeChecked()
+    await user.click(within(modulo).getByLabelText('Meraviglie'))
+    await user.type(within(modulo).getByLabelText('Altri id, separati da virgola'), 'Aurora, ')
+    await user.click(within(modulo).getByRole('button', { name: 'Salva i temi' }))
+    expect(db.impostaTemi).toHaveBeenCalledWith('bar-attivo', ['notte', 'meraviglie', 'aurora'])
+  })
+
+  it('se il progetto del locale non risponde, la scheda lo dice e il resto resta', async () => {
+    db.temiDelLocale.mockRejectedValueOnce(new Error('Il progetto del locale non risponde: riprova fra poco.'))
+    mostra()
+    const scheda = await apri('Bar Attivo')
+    expect(await within(scheda).findByText('Il progetto del locale non risponde: riprova fra poco.')).toBeInTheDocument()
+    expect(within(scheda).getByTestId('temi-bar-attivo')).toHaveTextContent('nessuno')
   })
 
   it('un locale esistente non si aggiorna, sospende o chiude dalla flotta', async () => {

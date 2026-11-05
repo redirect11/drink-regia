@@ -12,6 +12,12 @@ const { licenzaAggiornamenti, ripiegaInveceDiSospendere } = require('./aggiornam
 const { prossimoTaglio, ORA_DEL_TAGLIO } = require('./taglio.js')
 const { cancellazioneDellaLicenza } = require('./conservazione.js')
 const { scadenzaPagamento, GIORNI_DI_GRAZIA } = require('./scadenze.js')
+const { temiPuliti } = require('./temi.js')
+
+// I temi in licenza (REQ-FLOTTA-039): gli id degli stili esclusivi o
+// comprati, da clienti/{uid}.temi. Non dipendono dal piano: un esclusivo
+// assegnato dal fornitore resta anche a chi torna al Free.
+const temiLicenza = (cliente) => temiPuliti(cliente?.temi) || []
 
 // Stessi id nel listino e nell'app (REQ-LIC-002 in tana-drink); il
 // magazzino porta con sé i suoi tre moduli di dettaglio.
@@ -52,6 +58,7 @@ function patchLicenzaPiano(scelta, adesso = new Date()) {
     'licenza.piano': p,
     'licenza.moduli': moduliLicenza({ piano: p, moduli: scelta?.moduli, prove: proveAttive(scelta, adesso) }),
     'licenza.terminali': Math.max(1, Number(scelta?.terminali) || 1),
+    'licenza.temi': temiLicenza(scelta),
     'licenza.limiti': limitiLicenza(p),
     'licenza.prove': proveInCorso(scelta, adesso),
     'licenza.scritta_il': adesso.toISOString(),
@@ -63,7 +70,7 @@ function patchLicenzaPiano(scelta, adesso = new Date()) {
 // Lo stato (attiva, sospesa, chiusa: REQ-FLOTTA-008) non si tocca se la
 // regia l'ha già scritto: una riattivazione passa da lì, non da un deploy.
 // Il nome del locale si scrive solo se manca: lo cambia il locale.
-function licenzaIniziale(attuale, { piano = 'base', moduli = [], slug, nome, regiaUrl }, adesso = new Date()) {
+function licenzaIniziale(attuale, { piano = 'base', moduli = [], temi = [], slug, nome, regiaUrl }, adesso = new Date()) {
   const p = listino.piani[piano] ? piano : 'base'
   const nomeLocale = String(nome || slug)
   const patch = {
@@ -71,6 +78,7 @@ function licenzaIniziale(attuale, { piano = 'base', moduli = [], slug, nome, reg
       ...(attuale?.licenza || {}),
       piano: p,
       moduli: moduliLicenza({ piano: p, moduli }),
+      temi: temiLicenza({ temi }),
       limiti: limitiLicenza(p),
       stato: attuale?.licenza?.stato || 'attiva',
       slug,
@@ -84,10 +92,11 @@ function licenzaIniziale(attuale, { piano = 'base', moduli = [], slug, nome, reg
 }
 
 // È cambiato qualcosa che la licenza deve sapere?
-// Anche una prova accesa o tolta (REQ-FLOTTA-016): la licenza la deve sapere.
+// Anche una prova accesa o tolta (REQ-FLOTTA-016), o un tema in licenza
+// (REQ-FLOTTA-039): la licenza li deve sapere.
 function sceltaCambiata(prima, dopo) {
   const prove = (c) => Object.entries(c?.prove || {}).map(([id, p]) => `${id}@${p?.scade_il}`).sort()
-  const chiave = (c) => JSON.stringify([c?.piano || null, [...(c?.moduli || [])].sort(), Number(c?.terminali) || 1, prove(c)])
+  const chiave = (c) => JSON.stringify([c?.piano || null, [...(c?.moduli || [])].sort(), Number(c?.terminali) || 1, prove(c), temiLicenza(c)])
   return chiave(prima) !== chiave(dopo)
 }
 
@@ -140,6 +149,7 @@ function licenzaProtetta(ist, cliente, { slug, regiaUrl = null, sceltaUrl = null
     piano: p,
     moduli: moduliLicenza({ piano: p, moduli: scelta?.moduli, prove: proveAttive(scelta, adesso) }),
     terminali: Math.max(1, Number(scelta?.terminali) || 1),
+    temi: temiLicenza(cliente),
     limiti: limitiLicenza(p),
     prove: proveInCorso(scelta, adesso),
     stato: ist?.licenza_stato || 'attiva',
@@ -158,7 +168,7 @@ function licenzaProtetta(ist, cliente, { slug, regiaUrl = null, sceltaUrl = null
 }
 
 // Due licenze dicono la stessa cosa? La data di scrittura non conta.
-const CHIAVI_PROTETTA = ['piano', 'moduli', 'terminali', 'limiti', 'prove', 'stato', 'motivo', 'slug', 'regia_url', 'aggiornamenti', 'valida_fino', 'alla_scadenza', 'cancellazione']
+const CHIAVI_PROTETTA = ['piano', 'moduli', 'terminali', 'temi', 'limiti', 'prove', 'stato', 'motivo', 'slug', 'regia_url', 'aggiornamenti', 'valida_fino', 'alla_scadenza', 'cancellazione']
 function ordinato(v) {
   if (Array.isArray(v)) return v.map(ordinato)
   if (v && typeof v === 'object') return Object.fromEntries(Object.keys(v).sort().map((k) => [k, ordinato(v[k])]))
@@ -185,4 +195,4 @@ function scadenzaCoerente(doc) {
   return typeof ts?.toMillis === 'function' && ts.toMillis() === testo
 }
 
-module.exports = { moduliLicenza, patchLicenzaPiano, licenzaIniziale, sceltaCambiata, licenzaProtetta, stessaLicenza, validaFino, perIlDatabase, scadenzaCoerente, TUTTI }
+module.exports = { moduliLicenza, temiLicenza, patchLicenzaPiano, licenzaIniziale, sceltaCambiata, licenzaProtetta, stessaLicenza, validaFino, perIlDatabase, scadenzaCoerente, TUTTI }

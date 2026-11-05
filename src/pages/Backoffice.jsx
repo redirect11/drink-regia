@@ -34,8 +34,11 @@ import {
   gestisciSconti,
   applicaSconto,
   programmaScadenze,
+  impostaTemi,
+  temiDelLocale,
 } from '../lib/db.js'
 import { venditaPulita } from '../lib/vendita.js'
+import { ESCLUSIVI, nomeStile } from '../lib/temi.js'
 import { statoIstanza, statoDetto, STATI, progettoDi, riduzioneDetta } from '../lib/istanze.js'
 import { PIANI, MODULI, prezzoMensile, euro } from '../lib/piani.js'
 import { prezzoConSconto, scontoDetto, usiDetti } from '../lib/sconti.js'
@@ -720,6 +723,8 @@ function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaApert
         )}
       </dl>
 
+      <ModuliETemi cliente={c} istanza={istanza} stato={stato} onErrore={az.onErrore} onFatto={az.carica} />
+
       <footer className="locale-azioni">
         <div className="gruppo-azioni" aria-label="Istanza">
           {stato === STATI.ERRORE && (
@@ -1276,13 +1281,14 @@ function LocaleEsistente({ onFatto, onErrore }) {
   const [progetto, setProgetto] = useState('')
   const [url, setUrl] = useState('')
   const [interna, setInterna] = useState(true)
+  const [temi, setTemi] = useState([])
   const [inCorso, setInCorso] = useState(false)
 
   const invia = async (e) => {
     e.preventDefault()
     setInCorso(true)
     try {
-      await registraLocaleEsistente({ nome_locale: nome, slug, email, progetto, url, interna })
+      await registraLocaleEsistente({ nome_locale: nome, slug, email, progetto, url, interna, temi })
       onFatto()
     } catch (err) {
       onErrore(err.message)
@@ -1324,6 +1330,20 @@ function LocaleEsistente({ onFatto, onErrore }) {
         <input type="checkbox" checked={interna} onChange={(e) => setInterna(e.target.checked)} />
         Installazione interna (non si sospende per pagamenti, il credito AI lo ricarichiamo noi)
       </label>
+      {/* I temi in licenza (REQ-FLOTTA-039): la Tana entra coi suoi esclusivi
+          già scritti, così la licenza dalla regia non glieli toglie. */}
+      <div className="vendita-moduli">
+        {ESCLUSIVI.map((s) => (
+          <label key={s.id} className="opzione">
+            <input
+              type="checkbox"
+              checked={temi.includes(s.id)}
+              onChange={(e) => setTemi((v) => (e.target.checked ? [...new Set([...v, s.id])] : v.filter((id) => id !== s.id)))}
+            />
+            Tema in licenza: {s.nome}
+          </label>
+        ))}
+      </div>
       <button type="submit" className="btn" disabled={inCorso}>
         {inCorso ? 'Un momento…' : 'Registra il locale'}
       </button>
@@ -1671,6 +1691,118 @@ function CambiaPiano({ cliente, onFatto, onErrore }) {
         </button>
       </div>
     </form>
+  )
+}
+
+// MODULI E TEMI DEL LOCALE (REQ-FLOTTA-039, richiesta da tana-drink: «la
+// regia deve sempre elencare moduli e temi acquistati in app»). Tre righe:
+// i moduli (compresi nel piano e comprati); i temi in licenza (gli
+// esclusivi, che assegna l'admin: clienti/{uid}.temi, e la licenza li
+// nomina); e quello che il locale ha installato dall'app, letto dal suo
+// progetto quando si apre la scheda e mai salvato qui.
+function ModuliETemi({ cliente: c, istanza, stato, onErrore, onFatto }) {
+  const inclusi = PIANI[c.piano]?.include || []
+  const moduli = [...new Set([...inclusi, ...(c.moduli || [])])].map((id) => MODULI.find((m) => m.id === id)?.nome || id)
+  const temi = c.temi || []
+  return (
+    <section className="moduli-temi" aria-label={`Moduli e temi di ${c.nome_locale}`}>
+      <div>
+        <strong>Moduli</strong>
+        <span data-testid={`moduli-${c.slug}`}>{moduli.length ? moduli.join(', ') : 'nessuno'}</span>
+      </div>
+      <div>
+        <strong>Temi in licenza</strong>
+        <span data-testid={`temi-${c.slug}`}>{temi.length ? temi.map(nomeStile).join(', ') : 'nessuno'}</span>
+        <TemiInLicenza cliente={c} onErrore={onErrore} onFatto={onFatto} />
+      </div>
+      {istanza?.progetto && stato === STATI.ATTIVA && <InstallatiDallApp cliente={c} />}
+    </section>
+  )
+}
+
+// L'admin assegna gli esclusivi: le caselle degli stili in licenza noti, e
+// gli altri id a mano (un id che l'app non conosce l'app lo ignora, quindi
+// si può scrivere prima che l'app lo abbia).
+function TemiInLicenza({ cliente: c, onErrore, onFatto }) {
+  const [aperto, setAperto] = useState(false)
+  const [scelti, setScelti] = useState(c.temi || [])
+  const [altri, setAltri] = useState((c.temi || []).filter((id) => !ESCLUSIVI.some((e) => e.id === id)).join(', '))
+  const [inCorso, setInCorso] = useState(false)
+  const salva = async (e) => {
+    e.preventDefault()
+    setInCorso(true)
+    try {
+      const aMano = altri.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
+      await impostaTemi(c.slug, [...new Set([...scelti.filter((id) => ESCLUSIVI.some((x) => x.id === id)), ...aMano])])
+      setAperto(false)
+      onFatto()
+    } catch (err) {
+      onErrore(err.message)
+    } finally {
+      setInCorso(false)
+    }
+  }
+  if (!aperto) {
+    return (
+      <button type="button" className="btn ghost small" onClick={() => setAperto(true)}>
+        Temi…
+      </button>
+    )
+  }
+  return (
+    <form className="cambia-piano" onSubmit={salva} aria-label={`Temi in licenza di ${c.nome_locale}`}>
+      {ESCLUSIVI.map((s) => (
+        <label key={s.id} className="opzione">
+          <input
+            type="checkbox"
+            checked={scelti.includes(s.id)}
+            onChange={(e) => setScelti((v) => (e.target.checked ? [...new Set([...v, s.id])] : v.filter((id) => id !== s.id)))}
+          />
+          {s.nome}
+        </label>
+      ))}
+      <label htmlFor={`temi-altri-${c.slug}`}>Altri id, separati da virgola</label>
+      <input id={`temi-altri-${c.slug}`} value={altri} onChange={(e) => setAltri(e.target.value)} placeholder="es. aurora" />
+      <div className="azioni">
+        <button type="submit" className="btn small" disabled={inCorso}>
+          {inCorso ? 'Un momento…' : 'Salva i temi'}
+        </button>
+        <button type="button" className="btn ghost small" onClick={() => setAperto(false)}>
+          Annulla
+        </button>
+      </div>
+    </form>
+  )
+}
+
+// Gli installati dall'app si leggono dal locale all'apertura della scheda:
+// la fonte della verità è il suo settings/bar, e letto adesso è sempre
+// esatto. Se il progetto non risponde, lo si dice e il resto resta.
+function InstallatiDallApp({ cliente: c }) {
+  const [esito, setEsito] = useState(null)
+  useEffect(() => {
+    let vivo = true
+    temiDelLocale(c.slug)
+      .then((dati) => vivo && setEsito({ dati }))
+      .catch((err) => vivo && setEsito({ errore: err.message }))
+    return () => {
+      vivo = false
+    }
+  }, [c.slug])
+  const d = esito?.dati
+  return (
+    <div>
+      <strong>Installati nell’app</strong>
+      {!esito && <span className="muted small">leggo dal locale…</span>}
+      {esito?.errore && <span className="errore small">{esito.errore}</span>}
+      {d && (
+        <span data-testid={`installati-${c.slug}`}>
+          stili: {d.stili_installati.length ? d.stili_installati.map(nomeStile).join(', ') : 'nessuno'} · temi:{' '}
+          {d.temi_installati.length ? d.temi_installati.map((t) => `${t.nome}${t.stile ? ` (${nomeStile(t.stile)})` : ''}`).join(', ') : 'nessuno'} · in uso:{' '}
+          {d.stile_menu ? nomeStile(d.stile_menu) : '—'}
+        </span>
+      )}
+    </div>
   )
 }
 

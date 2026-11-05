@@ -15,6 +15,8 @@
 // - il cassetto AI nasce vuoto: finché l'installazione non ha la sua
 //   chiave della regia, lì le funzioni AI restano spente come oggi.
 
+const { temiPuliti } = require('./temi.js')
+
 const SLUG = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/
 // Gli id dei progetti Google hanno la stessa forma degli slug.
 const PROGETTO = SLUG
@@ -95,13 +97,17 @@ function datiEsistente(dati) {
   const progetto = String(dati?.progetto || '').trim()
   const url = String(dati?.url || '').trim().replace(/\/$/, '')
   const terminali = Math.max(1, Math.min(20, Math.floor(Number(dati?.terminali) || 2)))
+  // I temi in licenza (REQ-FLOTTA-039): la Tana entra coi suoi esclusivi
+  // già scritti, così il giorno della licenza dalla regia non li perde.
+  const temi = temiPuliti(dati?.temi)
   if (nome.length < 2) throw new DatiNonValidi('Serve il nome del locale.')
+  if (!temi) throw new DatiNonValidi('I temi in licenza sono id di stili: minuscole, cifre e trattini.')
   if (!SLUG.test(slug)) throw new DatiNonValidi(`Identificativo «${slug}» non valido: minuscole, cifre e trattini, da 6 a 30 caratteri.`)
   if (!EMAIL.test(email)) throw new DatiNonValidi('Email del titolare non valida.')
   if (!PROGETTO.test(progetto)) throw new DatiNonValidi(`Progetto Firebase «${progetto}» non valido.`)
   if (PROGETTI_DELLA_REGIA.includes(progetto)) throw new DatiNonValidi(`«${progetto}» è un progetto della regia, non di un locale.`)
   if (!/^https:\/\/[^\s/]+/.test(url)) throw new DatiNonValidi('L’indirizzo dell’app deve cominciare con https://.')
-  return { nome, slug, email, progetto, url, terminali, interna: dati?.interna !== false, gestione: gestioneEsistente(dati, { slug, progetto }) }
+  return { nome, slug, email, progetto, url, terminali, temi, interna: dati?.interna !== false, gestione: gestioneEsistente(dati, { slug, progetto }) }
 }
 
 // I tre documenti: clienti/{uid}, istanze/{slug} e il cassetto ai/{slug}
@@ -122,6 +128,7 @@ function documentiEsistente(d, { uid, adesso = new Date() }) {
       consensi: { termini_il: null, privacy_il: null, marketing: false, nota: 'locale esistente registrato dall’amministratore' },
       piano: 'completo',
       moduli: [],
+      temi: d.temi,
       terminali: d.terminali,
       abbonamento: { stato: 'attivo', origine: d.interna ? 'interna' : 'manuale', dal: ora },
       interna: d.interna,

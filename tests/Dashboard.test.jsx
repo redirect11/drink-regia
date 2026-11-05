@@ -112,6 +112,13 @@ describe('la dashboard', () => {
     expect(screen.queryByRole('button', { name: 'Gestisci l’abbonamento' })).toBeNull()
   })
 
+  // REQ-FLOTTA-039: i temi in licenza si vedono col piano, come i moduli.
+  it('i temi in licenza stanno accanto al piano, col loro nome', () => {
+    stato.cliente = { ...stato.cliente, temi: ['notte', 'meraviglie'] }
+    mostra()
+    expect(screen.getByText(/temi: Notte, Meraviglie/)).toBeInTheDocument()
+  })
+
   it('se il portale non si apre, lo dice', async () => {
     const user = userEvent.setup()
     db.apriPortaleAbbonamento.mockRejectedValueOnce(new Error('La gestione dell’abbonamento non è disponibile al momento: scrivici.'))

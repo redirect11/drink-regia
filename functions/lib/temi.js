@@ -24,8 +24,10 @@ const BASI = ['tana-scuro', 'notte-blu', 'catppuccin', 'catppuccin-chiaro', 'pic
 // Gli stili che ogni app conosce. Uno stile nuovo arriva con una versione
 // dell'app, e allora si aggiunge qui.
 const STILI = ['classico', 'lavagna', 'deco', 'riviera', 'giornale']
-// «notte» è esclusivo della Tana: non va in un tema pubblicato per tutti.
-const ESCLUSIVI = ['notte']
+// Gli stili in licenza (tana-drink, stileMenu.js, `inLicenza`): «notte» e
+// «meraviglie» sono esclusivi della Tana, non vanno in un tema pubblicato
+// per tutti. Li assegna l'admin dalla scheda del locale (REQ-FLOTTA-039).
+const ESCLUSIVI = ['notte', 'meraviglie']
 const CHIAVI_COLORE = ['--bg', '--bg-2', '--card', '--accent', '--accent-2', '--text', '--muted']
 const ID = /^[a-z0-9][a-z0-9-]{1,40}$/
 const COLORE = /^#[0-9a-fA-F]{6}$/
@@ -132,4 +134,35 @@ function azioneSuTema(prima, azione, dati, { da = null, adesso = new Date(), sti
 // ritirarlo (o ripubblicarlo) dal backoffice.
 const dalRepository = (id, daRepository = TEMI_DEL_REPOSITORY) => daRepository.find((t) => t.id === id) || null
 
-module.exports = { BASI, STILI, ESCLUSIVI, CHIAVI_COLORE, STATI, TEMI_DEL_REPOSITORY, temaPulito, perIlCatalogo, catalogoPubblico, azioneSuTema, dalRepository, contrasto }
+// ── I TEMI IN LICENZA DI UN LOCALE (REQ-FLOTTA-039) ─────────────────────
+// Richiesta da tana-drink, 05/11/2026: «i temi esclusivi per la Tana
+// dovrebbero essere anche visibili in regia, come se la Tana li avesse
+// acquistati». Gli id degli stili che la licenza nomina in `temi`
+// (clienti/{uid}.temi → licenza.temi): l'app accende uno stile `inLicenza`
+// solo se è lì. Un id che l'app non conosce l'app lo ignora, quindi si può
+// scrivere prima che l'app lo abbia. → l'elenco pulito (minuscolo, senza
+// doppioni, in ordine), o null se non è un elenco di id.
+function temiPuliti(valore) {
+  if (valore == null) return []
+  if (!Array.isArray(valore) || valore.length > 20) return null
+  const temi = valore.map((t) => (typeof t === 'string' ? t.trim().toLowerCase() : ''))
+  if (!temi.every((t) => ID.test(t))) return null
+  return [...new Set(temi)].sort()
+}
+
+// Quello che il locale ha installato dall'app, letto adesso dal suo
+// settings/bar (stili gratis, temi del marketplace, lo stile in uso): solo
+// quello che la scheda mostra, e niente si salva nella regia.
+function installatiDalLocale(bar) {
+  const idValido = (v) => typeof v === 'string' && ID.test(v)
+  const elenco = (v) => (Array.isArray(v) ? v : [])
+  return {
+    stili_installati: elenco(bar?.stili_installati).filter(idValido),
+    temi_installati: elenco(bar?.temi_installati)
+      .filter((t) => idValido(t?.id))
+      .map((t) => ({ id: t.id, nome: testo(t.nome).slice(0, 40) || t.id, stile: idValido(t.stile) ? t.stile : null })),
+    stile_menu: idValido(bar?.stile_menu) ? bar.stile_menu : null,
+  }
+}
+
+module.exports = { BASI, STILI, ESCLUSIVI, CHIAVI_COLORE, STATI, TEMI_DEL_REPOSITORY, temaPulito, perIlCatalogo, catalogoPubblico, azioneSuTema, dalRepository, contrasto, temiPuliti, installatiDalLocale }
