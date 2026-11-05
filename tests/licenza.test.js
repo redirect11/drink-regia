@@ -36,6 +36,7 @@ describe('patchLicenzaPiano e sceltaCambiata', () => {
       'licenza.piano': 'base',
       'licenza.moduli': p['licenza.moduli'],
       'licenza.terminali': 2,
+      'licenza.temi': [],
       'licenza.limiti': null,
       'licenza.prove': {},
       'licenza.scritta_il': '2026-10-22T10:00:00.000Z',
@@ -70,6 +71,7 @@ describe('licenzaIniziale', () => {
     expect(p.licenza).toEqual({
       piano: 'base',
       moduli: moduliLicenza({ piano: 'base', moduli: ['staff'] }),
+      temi: [],
       limiti: null,
       stato: 'attiva',
       slug: 'bar-mario',
@@ -107,6 +109,7 @@ describe('la licenza protetta, dai dati della regia', () => {
     expect(lic).toMatchObject({
       piano: 'base',
       terminali: 2,
+      temi: [],
       limiti: null,
       prove: {},
       stato: 'attiva',
@@ -140,6 +143,21 @@ describe('la licenza protetta, dai dati della regia', () => {
     // Conta per «stessa licenza»: un pagamento registrato la cambia.
     const a = licenzaProtetta({ stato: 'attiva' }, aMano, { adesso: ADESSO })
     expect(stessaLicenza(a, { ...a, valida_fino: '2027-01-07T23:59:59.000Z' })).toBe(false)
+  })
+
+  // REQ-FLOTTA-039 (tana-drink, 05/11/2026): senza `temi` nella licenza
+  // gli esclusivi della Tana sparirebbero il giorno della licenza dalla regia.
+  it('i temi in licenza vengono dal cliente, puliti, anche tornato al Free; un cambio riscrive la licenza', () => {
+    const conTemi = { ...cliente, temi: ['Notte', 'meraviglie', 'notte'] }
+    expect(licenzaProtetta({ stato: 'attiva' }, conTemi, { adesso: ADESSO }).temi).toEqual(['meraviglie', 'notte'])
+    expect(licenzaProtetta({ stato: 'attiva', ripiego_free: { dal: 'x' } }, conTemi, { adesso: ADESSO }).temi).toEqual(['meraviglie', 'notte'])
+    expect(licenzaProtetta({ stato: 'attiva' }, { ...cliente, temi: 'notte' }, { adesso: ADESSO }).temi).toEqual([])
+    const a = licenzaProtetta({ stato: 'attiva' }, cliente, { adesso: ADESSO })
+    expect(stessaLicenza(a, { ...a, temi: ['notte'] })).toBe(false)
+    expect(sceltaCambiata(cliente, conTemi)).toBe(true)
+    expect(sceltaCambiata(conTemi, { ...cliente, temi: ['meraviglie', 'notte'] })).toBe(false)
+    expect(licenzaIniziale({}, { piano: 'completo', temi: ['notte'], slug: 'tana', regiaUrl: 'https://r' }, ADESSO).licenza.temi).toEqual(['notte'])
+    expect(licenzaIniziale({}, { piano: 'base', slug: 'bar', regiaUrl: 'https://r' }, ADESSO).licenza.temi).toEqual([])
   })
 
   it('sospesa o chiusa porta il motivo e la data; attiva no', () => {

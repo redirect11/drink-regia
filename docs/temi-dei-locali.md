@@ -90,7 +90,16 @@ progetto non risponde, la scheda lo dice e mostra gli altri due elenchi.
   `clienti/tana/licenza-iniziale.json`.
 - Nessuna chiamata nuova verso la regia: i campi del punto 3 ci sono già.
 
-## Prima di collegare la Tana alla regia
+## Fatto nella regia (05/11/2026, ramo `feature/temi-in-licenza`)
 
-Con questa richiesta non ancora fatta, **non scegliere «La licenza la
-scrive la regia» per la Tana**: la licenza perderebbe i temi.
+Tutti e tre i punti, con due scelte da sapere:
+
+- `temi` si pulisce (`temiPuliti` in `functions/lib/temi.js`: minuscolo,
+  senza doppioni, in ordine, fino a 20 id) e **non dipende dal piano**: un
+  esclusivo assegnato dal fornitore resta anche a chi torna al Free.
+- `temiDelLocale` restituisce dei temi installati solo `id`, `nome` e
+  `stile`, non la tavolozza: la scheda mostra i nomi, non i colori.
+
+Prima di collegare la Tana alla regia: registrarla con «Notte» e
+«Meraviglie» spuntati nel modulo «Locale esistente», o assegnarli dalla
+scheda con «Temi…». Poi «La licenza la scrive la regia» non toglie niente.

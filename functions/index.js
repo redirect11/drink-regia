@@ -2102,6 +2102,44 @@ exports.registraLocaleEsistente = onCall(OPTS, async (req) => {
   return { uid: utente.uid, slug: d.slug }
 })
 
+// ── I TEMI DEI LOCALI (REQ-FLOTTA-039, richiesta da tana-drink) ────────
+// Gli stili esclusivi o comprati stanno in clienti/{uid}.temi, e la licenza
+// li nomina in `temi`: licenzaSegueIlPiano la riscrive come per un modulo.
+// Li assegna l'admin, perché un esclusivo non si compra. Il contratto in
+// docs/temi-dei-locali.md.
+exports.impostaTemi = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const slug = String(req.data?.slug || '')
+  const temiNuovi = temi.temiPuliti(req.data?.temi)
+  if (!temiNuovi) throw new HttpsError('invalid-argument', 'I temi in licenza sono id di stili: minuscole, cifre e trattini.')
+  const doc = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]
+  if (!doc) throw new HttpsError('not-found', 'Cliente sconosciuto.')
+  await doc.ref.update({ temi: temiNuovi })
+  console.log(`[temi] ${slug}: ${temiNuovi.join(', ') || 'nessuno'} (${req.auth.token.email || req.auth.uid})`)
+  return { ok: true, temi: temiNuovi }
+})
+
+// Quello che il locale ha installato dall'app (gli stili gratis, i temi del
+// marketplace, lo stile in uso): la regia lo LEGGE dal suo settings/bar al
+// momento e non lo salva. È un dato operativo del locale, e letto adesso è
+// esatto per costruzione: niente sincronizzazione che resta indietro.
+// L'account delle Functions ha già datastore.user sul progetto, per la
+// licenza.
+exports.temiDelLocale = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const slug = String(req.data?.slug || '')
+  const ist = (await db.doc(`istanze/${slug}`).get()).data()
+  if (!ist?.progetto) throw new HttpsError('failed-precondition', 'Il locale non ha ancora un progetto.')
+  let bar
+  try {
+    bar = (await firestoreDi(ist.progetto).doc('settings/bar').get()).data()
+  } catch (e) {
+    console.error(`[temi] ${slug}, settings/bar:`, e?.message || e)
+    throw new HttpsError('unavailable', 'Il progetto del locale non risponde: riprova fra poco.')
+  }
+  return temi.installatiDalLocale(bar)
+})
+
 // ── L'ELIMINAZIONE DI UN LOCALE (REQ-FLOTTA-014) ───────────────────────
 //
 // Decisioni dell'utente del 29/10/2026. Il TITOLARE, dalla sua dashboard,

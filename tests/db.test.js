@@ -126,6 +126,9 @@ const FUNCTIONS = [
   // Il catalogo dei temi (REQ-FLOTTA-032).
   ['gestisciTemi', ['pubblica', { id: 'aurora' }], 'gestisciTemi', { id: 'aurora', azione: 'pubblica' }],
   ['gestisciStili', ['ritira', 'osteria'], 'gestisciStili', { azione: 'ritira', id: 'osteria' }],
+  // I temi dei locali (REQ-FLOTTA-039).
+  ['impostaTemi', ['tana-drink', ['notte']], 'impostaTemi', { slug: 'tana-drink', temi: ['notte'] }],
+  ['temiDelLocale', ['tana-drink'], 'temiDelLocale', { slug: 'tana-drink' }],
 ]
 
 describe('le chiamate alle Functions', () => {

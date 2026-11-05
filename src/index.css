@@ -518,3 +518,7 @@ code { background: rgba(255, 255, 255, 0.06); padding: 1px 5px; border-radius: 5
 .contatti li.gestita { opacity: 0.6; }
 .cambia-piano { display: grid; gap: 8px; margin-top: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
 .cambia-piano label { margin: 0; }
+/* Moduli e temi del locale (REQ-FLOTTA-039): tre righe fra i dati e i tasti. */
+.moduli-temi { display: grid; gap: 6px; margin: 12px 0; padding-top: 10px; border-top: 1px solid var(--line); font-size: 0.9rem; }
+.moduli-temi strong { font-weight: 600; margin-right: 4px; }
+.moduli-temi .btn { margin-left: 8px; }

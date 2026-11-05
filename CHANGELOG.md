@@ -6,6 +6,11 @@ data.
 
 ## Prossima release (da decidere)
 
+- I temi in licenza di un locale (gli esclusivi della Tana, «Notte» e
+  «Meraviglie») si assegnano dal backoffice e la licenza li porta all'app;
+  la scheda del locale elenca moduli, temi in licenza e quello che il
+  locale ha installato nell'app, letto dal suo progetto. Il titolare vede
+  i suoi temi accanto al piano (REQ-FLOTTA-039).
 - Si entra e ci si registra anche con Google. Chi ha già un account con la
   stessa email ritrova il suo locale; chi è nuovo completa i dati del
   locale dopo l'accesso (REQ-FLOTTA-038).

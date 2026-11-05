@@ -3,6 +3,7 @@ import { osservaCliente, osservaIstanza, osservaRichiesta, chiediAttivazione, in
 import { statoIstanza, statoDetto, puoAttivare, urlDi, progettoDi, riduzioneDetta, STATI } from '../lib/istanze.js'
 import { PIANI, MODULI, prezzoMensile, prezzoAnnuale, prezzoFondatori, conIva, euro } from '../lib/piani.js'
 import { prezzoConSconto, scontoDetto } from '../lib/sconti.js'
+import { nomeStile } from '../lib/temi.js'
 import SceltaPiano from './SceltaPiano.jsx'
 import CreditoAI from './CreditoAI.jsx'
 import ChiudiLocale from './ChiudiLocale.jsx'
@@ -176,6 +177,8 @@ export default function Dashboard({ utente }) {
                 <span className="muted"> · moduli: {cliente.moduli.map((id) => MODULI.find((m) => m.id === id)?.nome || id).join(', ')}</span>
               )}
               {cliente.terminali > 1 && <span className="muted"> · {cliente.terminali} terminali</span>}
+              {/* I temi in licenza (REQ-FLOTTA-039): gli esclusivi che il fornitore ha dato al locale. */}
+              {cliente.temi?.length > 0 && <span className="muted"> · temi: {cliente.temi.map(nomeStile).join(', ')}</span>}
               {/* I limiti del Free si dicono qui, chiari (REQ-FLOTTA-015). */}
               {piano.limiti && (
                 <span className="muted small" data-testid="limiti-piano">

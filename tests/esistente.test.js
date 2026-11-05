@@ -23,10 +23,20 @@ describe('i dati del locale esistente', () => {
       progetto: 'tana-drink',
       url: 'https://tana-drink.web.app',
       terminali: 2,
+      temi: [],
       interna: true,
       // REQ-FLOTTA-018: di norma pubblica da sé, dalla sua cartella.
       gestione: { aggiornamenti_dalla_regia: false, licenza_dalla_regia: false, cliente: 'tana-drink', build: {} },
     })
+  })
+
+  // REQ-FLOTTA-039: la Tana entra coi suoi esclusivi già scritti.
+  it('i temi in licenza si scrivono alla registrazione, puliti; un elenco storto si ferma', () => {
+    const d = datiEsistente({ ...TANA, temi: ['Notte', 'meraviglie'] })
+    expect(d.temi).toEqual(['meraviglie', 'notte'])
+    expect(documentiEsistente(d, { uid: 'u', adesso: ADESSO }).cliente.temi).toEqual(['meraviglie', 'notte'])
+    expect(documentiEsistente(datiEsistente(TANA), { uid: 'u', adesso: ADESSO }).cliente.temi).toEqual([])
+    expect(() => datiEsistente({ ...TANA, temi: 'notte' })).toThrow(/temi/)
   })
 
   it('senza slug lo si ricava dal nome', () => {

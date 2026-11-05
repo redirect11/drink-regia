@@ -1699,7 +1699,7 @@ requirements:
 
   - id: REQ-FLOTTA-039
     title: "I temi dei locali: in licenza dalla scheda del cliente, ed elencati con i moduli nella scheda del locale"
-    area: "functions/lib/licenza.js (licenzaProtetta, CHIAVI_PROTETTA), clienti/{uid}.temi, src/pages/Backoffice.jsx (scheda del locale, Locale esistente), una Function per leggere i temi installati dal locale, docs/temi-dei-locali.md"
+    area: "functions/lib/temi.js (ESCLUSIVI, temiPuliti, installatiDalLocale), functions/lib/licenza.js (temiLicenza, licenzaProtetta, licenzaIniziale, sceltaCambiata, CHIAVI_PROTETTA), functions/lib/esistente.js (temi), functions/index.js (impostaTemi, temiDelLocale), scripts/licenza-istanza.mjs (--temi), src/lib/temi.js (ESCLUSIVI, nomeStile), src/lib/db.js, src/pages/Backoffice.jsx (ModuliETemi, TemiInLicenza, InstallatiDallApp, Locale esistente), src/pages/Dashboard.jsx, docs/temi-dei-locali.md"
     description: >
       Richiesta da tana-drink, 05/11/2026. L'utente: «i temi esclusivi per
       la Tana dovrebbero essere anche visibili in regia, come se la Tana li
@@ -1719,7 +1719,31 @@ requirements:
       esatto per costruzione, e l'account delle Functions ha già
       datastore.user sui progetti dei locali per la licenza. Il contratto
       intero in docs/temi-dei-locali.md.
-    status: todo
+      FATTO (05/11/2026, ramo feature/temi-in-licenza). `clienti/{uid}.temi`
+      è l'elenco pulito degli id (temiPuliti: minuscolo, senza doppioni, in
+      ordine, fino a 20; un id che l'app non conosce passa, l'app lo
+      ignora). La licenza lo porta in `temi` (licenzaProtetta e
+      licenzaIniziale), CHIAVI_PROTETTA lo confronta e sceltaCambiata lo
+      conta, così licenzaSegueIlPiano la riscrive come per un modulo; i
+      temi non dipendono dal piano: un esclusivo resta anche a chi torna al
+      Free. Gli esclusivi noti sono «Notte» e «Meraviglie» (ESCLUSIVI, nella
+      regia e nel sito); li assegna l'admin con impostaTemi dalla scheda del
+      locale («Temi…»: le caselle degli esclusivi più altri id a mano) e
+      dal modulo «Locale esistente», così la Tana entra coi suoi. Nella
+      scheda, «Moduli e temi»: i moduli (compresi nel piano e comprati), i
+      temi in licenza, e gli installati nell'app letti con temiDelLocale
+      all'apertura della scheda (stili_installati, temi_installati con id,
+      nome e stile, stile_menu), mai salvati; se il progetto non risponde
+      lo dice e il resto resta. Il titolare vede i suoi temi accanto al
+      piano nella dashboard. Nessuna email né chiamata nuova dall'app.
+    status: implemented
     generate_issue: true
     labels: [flotta, regia, temi]
-    test_cases: []
+    test_cases:
+      - tests/temi.test.js
+      - tests/licenza.test.js
+      - tests/esistente.test.js
+      - tests/Backoffice.test.jsx
+      - tests/Dashboard.test.jsx
+      - tests/db.test.js
+      - tests/clienti.test.js

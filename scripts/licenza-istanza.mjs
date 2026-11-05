@@ -33,9 +33,12 @@ const SLUG = arg('slug')
 const NOME = arg('nome', SLUG)
 const PIANO = arg('piano', 'base')
 const MODULI = (arg('moduli', '') || '').split(',').map((s) => s.trim()).filter(Boolean)
+// I temi in licenza (REQ-FLOTTA-039): di norma nessuno alla prima licenza;
+// poi li riscrivono le Functions dal cliente.
+const TEMI = (arg('temi', '') || '').split(',').map((s) => s.trim()).filter(Boolean)
 const REGIA_URL = arg('regia', process.env.REGIA_URL || '')
 if (!PROGETTO || !SLUG || !REGIA_URL) {
-  console.error('Uso: node scripts/licenza-istanza.mjs --project <id> --slug <slug> --regia <url> [--nome …] [--piano …] [--moduli a,b]')
+  console.error('Uso: node scripts/licenza-istanza.mjs --project <id> --slug <slug> --regia <url> [--nome …] [--piano …] [--moduli a,b] [--temi x,y]')
   process.exit(1)
 }
 
@@ -44,7 +47,7 @@ const db = getFirestore()
 const [bar, protetta] = await Promise.all([db.doc('settings/bar').get(), db.doc('licenza/attuale').get()])
 // Si parte da licenza/attuale, mai da settings/bar.licenza: lì la può aver
 // riscritta un bartender (BUG-125). Da settings/bar solo il nome del locale.
-const patch = licenzaIniziale({ ...(bar.exists ? bar.data() : {}), licenza: protetta.exists ? protetta.data() : undefined }, { piano: PIANO, moduli: MODULI, slug: SLUG, nome: NOME, regiaUrl: REGIA_URL })
+const patch = licenzaIniziale({ ...(bar.exists ? bar.data() : {}), licenza: protetta.exists ? protetta.data() : undefined }, { piano: PIANO, moduli: MODULI, temi: TEMI, slug: SLUG, nome: NOME, regiaUrl: REGIA_URL })
 await db.doc('licenza/attuale').set(patch.licenza)
 await db.doc('settings/bar').set(patch, { merge: true })
 const accesi = Object.entries(patch.licenza.moduli).filter(([, v]) => v).map(([m]) => m)

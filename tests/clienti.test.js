@@ -88,7 +88,7 @@ describe('le regole di clienti/{uid} (H1)', () => {
 
   it('il titolare cambia solo i suoi dati anagrafici: piano, moduli, terminali, prove, sconto, abbonamento solo admin e Functions', () => {
     expect(update).toContain("affectedKeys().hasOnly(['locale', 'fatturazione', 'referente', 'consensi'])")
-    for (const campo of ['piano', 'moduli', 'terminali', 'prove', 'sconto', 'abbonamento', 'email', 'slug', 'uid', 'interna', 'esistente']) {
+    for (const campo of ['piano', 'moduli', 'temi', 'terminali', 'prove', 'sconto', 'abbonamento', 'email', 'slug', 'uid', 'interna', 'esistente']) {
       expect(update).not.toMatch(new RegExp(`hasOnly\\(\\[[^\\]]*'${campo}'`))
     }
   })

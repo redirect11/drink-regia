@@ -445,6 +445,24 @@ export async function gestisciTemi(azione, dati = {}) {
   return data
 }
 
+// I temi in licenza di un locale, dall'admin (REQ-FLOTTA-039): gli id degli
+// stili esclusivi o comprati; la licenza li segue.
+export async function impostaTemi(slug, temi) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'impostaTemi')
+  const { data } = await fn({ slug, temi })
+  return data
+}
+
+// Quello che il locale ha installato dall'app (stili, temi, lo stile in
+// uso), letto adesso dal suo progetto: { stili_installati, temi_installati, stile_menu }.
+export async function temiDelLocale(slug) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'temiDelLocale')
+  const { data } = await fn({ slug })
+  return data
+}
+
 // I codici sconto (REQ-FLOTTA-028): l'elenco lo legge l'admin; crearli,
 // disattivarli e applicarli passa dalle Functions.
 export async function elencoSconti() {

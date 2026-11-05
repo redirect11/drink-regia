@@ -47,6 +47,14 @@ export const STILI = [
   { id: 'giornale', nome: 'Giornale' },
 ]
 
+// Gli stili in licenza (REQ-FLOTTA-039): gli esclusivi della Tana, che
+// l'admin assegna dalla scheda del locale e la licenza nomina in `temi`.
+// Gli id sono quelli `inLicenza` di src/lib/stileMenu.js in tana-drink.
+export const ESCLUSIVI = [
+  { id: 'notte', nome: 'Notte' },
+  { id: 'meraviglie', nome: 'Meraviglie' },
+]
+
 // Gli stili a ricetta del repository (REQ-FLOTTA-034): un tema li può
 // usare come quelli dell'app. Nel backoffice si vedono e si ritirano.
 export const STILI_RICETTA = catalogoStili.stili.map((s) => ({ ...s, stato: s.stato || 'pubblicato', dal_repository: true }))
@@ -56,8 +64,8 @@ export function stiliDaMostrare(nelDatabase) {
   return [...(nelDatabase || []), ...STILI_RICETTA.filter((s) => !ids.has(s.id))]
 }
 
-// Il nome di uno stile, dell'app o a ricetta.
-export const nomeStile = (id) => STILI.find((s) => s.id === id)?.nome || STILI_RICETTA.find((s) => s.id === id)?.nome || id
+// Il nome di uno stile: dell'app, in licenza, o a ricetta.
+export const nomeStile = (id) => [...STILI, ...ESCLUSIVI, ...STILI_RICETTA].find((s) => s.id === id)?.nome || id
 
 export const STATI_DETTI = { bozza: 'Bozza', pubblicato: 'Pubblicato', ritirato: 'Ritirato' }
 
