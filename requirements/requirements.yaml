@@ -1696,3 +1696,30 @@ requirements:
     test_cases:
       - tests/eventistripe.test.js
       - tests/abbonamento.test.js
+
+  - id: REQ-FLOTTA-039
+    title: "I temi dei locali: in licenza dalla scheda del cliente, ed elencati con i moduli nella scheda del locale"
+    area: "functions/lib/licenza.js (licenzaProtetta, CHIAVI_PROTETTA), clienti/{uid}.temi, src/pages/Backoffice.jsx (scheda del locale, Locale esistente), una Function per leggere i temi installati dal locale, docs/temi-dei-locali.md"
+    description: >
+      Richiesta da tana-drink, 05/11/2026. L'utente: «i temi esclusivi per
+      la Tana dovrebbero essere anche visibili in regia, come se la Tana li
+      avesse acquistati», «la regia deve sempre elencare moduli e temi
+      acquistati in app», «deve essere sempre tutto sincronizzato».
+      IL PROBLEMA: licenzaProtetta non scrive `temi`, e in tana-drink gli
+      stili esclusivi («Notte», presto «Meraviglie», della Tana) si
+      accendono solo se licenza.temi li nomina. Il giorno in cui la Tana
+      passa a «La licenza la scrive la regia» i suoi temi spariscono: va
+      fatto prima. COSA SERVE: `temi` nel documento del cliente, scritto
+      dall'admin nella scheda del locale e dal modulo «Locale esistente»,
+      e scritto da licenzaProtetta in licenza.temi (con CHIAVI_PROTETTA);
+      nella scheda del locale una sezione «Moduli e temi» con i moduli, i
+      temi in licenza e quelli installati dall'app. QUELLI INSTALLATI LI
+      LEGGE LA REGIA dal settings/bar del locale (stili_installati,
+      temi_installati, stile_menu), al momento e senza salvarli: è sempre
+      esatto per costruzione, e l'account delle Functions ha già
+      datastore.user sui progetti dei locali per la licenza. Il contratto
+      intero in docs/temi-dei-locali.md.
+    status: todo
+    generate_issue: true
+    labels: [flotta, regia, temi]
+    test_cases: []
