@@ -326,8 +326,12 @@ describe('la ricarica con Stripe', () => {
     expect(script).toContain("['roles/iam.serviceAccountUser']")
     expect(script).toContain('account.uniqueId')
     // Il file di ambiente del test spiega le cinque variabili.
-    const env = readFileSync('functions/.env.drink-regia-test', 'utf8')
-    for (const v of ['AI_SERVICE_ACCOUNT', 'ANTHROPIC_FEDERATION_RULE_ID', 'ANTHROPIC_ORGANIZATION_ID', 'ANTHROPIC_SERVICE_ACCOUNT_ID', 'ANTHROPIC_WORKSPACE_ID']) expect(env).toContain(v)
+    // Test e produzione hanno ciascuno il proprio account Google e la propria regola, nella stessa area di lavoro.
+    for (const progetto of ['drink-regia-test', 'drink-regia']) {
+      const env = readFileSync(`functions/.env.${progetto}`, 'utf8')
+      expect(env).toContain(`\nAI_SERVICE_ACCOUNT=ai-regia@${progetto}.iam.gserviceaccount.com`)
+      for (const v of ['ANTHROPIC_FEDERATION_RULE_ID=fdrl_', 'ANTHROPIC_ORGANIZATION_ID=', 'ANTHROPIC_SERVICE_ACCOUNT_ID=svac_', 'ANTHROPIC_WORKSPACE_ID=wrkspc_']) expect(env).toContain(`\n${v}`)
+    }
   })
 
   it('un cassetto nuovo nasce vuoto, acceso, col tetto del listino', () => {
