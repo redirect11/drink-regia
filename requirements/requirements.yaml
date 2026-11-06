@@ -86,12 +86,15 @@ requirements:
       più di sapere chi ha fatto l'accesso: compare subito coi bottoni di
       chi non è entrato. Le pagine che dipendono dall'utente aspettano.
       I TESTI (06/11/2026). L'utente: «gli slogan della home sono
-      orribili… qualcosa di piu' decente e accattivante». Riscritti nelle
-      due lingue da un copy di marketing nel registro di DESIGN.md §2, su
-      una linea sola, «il venerdi' sera non aspetta nessuno»: titolo «E'
-      caduto il Wi-Fi. La cassa non se n'e' accorta.», problema, pilastri,
-      funzioni, passi, prezzi, chiusura, meta e pie' di pagina; le tre
-      alternative del titolo e il perche' della scelta in DESIGN.md §5.1.
+      orribili… qualcosa di piu' decente e accattivante», e poi, su una
+      prima proposta costruita sul Wi-Fi che cade: «bruttissime… fanno
+      riferimento a questa feature in particolare che non e' l'unico
+      pezzo forte dell'app… devono essere meno stupide». Riscritti nelle
+      due lingue nel registro di DESIGN.md §2, senza trovate e col
+      prodotto per intero; fra tre direzioni l'utente ha scelto la
+      credibilita', «Scritto dietro il banco. In servizio ogni sera.»:
+      problema, pilastri, funzioni, prezzi, chiusura, meta e pie' di
+      pagina seguono quel filo; le altre due direzioni in DESIGN.md §5.1.
       RESTA (DESIGN.md §9): le quattro schermate vere dell'app, il nome
       del prodotto, la prova sociale, `/en` per chi non esegue JavaScript,
       la verifica Lighthouse sul telefono.
