@@ -80,6 +80,14 @@ describe('uno stile a ricetta', () => {
   })
 })
 
+// Gli id riservati sono gli stili scritti nell'app (tana-drink,
+// src/lib/stiliRicetta.js): uno che manca qui lascerebbe a uno stile a
+// ricetta l'id di uno stile vero. Mancavano «meraviglie» e «carte».
+it('gli stili dell’app sono quelli di tana-drink', () => {
+  expect(s.STILI_DELL_APP).toEqual(['classico', 'notte', 'meraviglie', 'carte', 'lavagna', 'deco', 'riviera', 'giornale'])
+  expect(s.stilePulito({ id: 'carte' }).errore).toMatch(/scritto nell’app/)
+})
+
 describe('gli stili del repository', () => {
   it('ognuno è valido, con un id suo, diverso dagli stili dell’app', () => {
     expect(s.STILI_DEL_REPOSITORY.length).toBeGreaterThan(0)

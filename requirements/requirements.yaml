@@ -1753,6 +1753,11 @@ requirements:
       nome e stile, stile_menu), mai salvati; se il progetto non risponde
       lo dice e il resto resta. Il titolare vede i suoi temi accanto al
       piano nella dashboard. Nessuna email né chiamata nuova dall'app.
+      06/11/2026: «Carte» (tana-drink REQ-MENU-029, il menù come un mazzo
+      di carte francesi) è il terzo esclusivo, in ESCLUSIVI della regia e
+      del sito; e STILI_DELL_APP (functions/lib/stili.js), gli id che uno
+      stile a ricetta non può prendere, è allineato a quello dell'app
+      (mancavano anche «meraviglie»).
     status: implemented
     generate_issue: true
     labels: [flotta, regia, temi]

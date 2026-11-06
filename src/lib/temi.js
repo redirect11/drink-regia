@@ -53,6 +53,7 @@ export const STILI = [
 export const ESCLUSIVI = [
   { id: 'notte', nome: 'Notte' },
   { id: 'meraviglie', nome: 'Meraviglie' },
+  { id: 'carte', nome: 'Carte' },
 ]
 
 // Gli stili a ricetta del repository (REQ-FLOTTA-034): un tema li può

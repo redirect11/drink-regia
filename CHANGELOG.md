@@ -6,6 +6,9 @@ data.
 
 ## Prossima release (da decidere)
 
+- «Carte», il menù come un mazzo di carte francesi, è un tema esclusivo
+  che si assegna dalla scheda del locale, come «Notte» e «Meraviglie».
+
 - I temi su misura di un locale: dalla dashboard il titolare carica il
   mockup di un tema (Canva o simili) e, col credito AI, la regia ne ricava
   un tema del suo locale; oppure chiede un tema fatto da noi, che
