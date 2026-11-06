@@ -15,9 +15,9 @@ import { MODULI, PIANI } from '../lib/piani.js'
 
 export default {
   meta: {
-    titolo: 'Comande, conti e cassa per bar e ristoranti',
+    titolo: 'Cassa e comande per bar e ristoranti, anche senza rete',
     descrizione:
-      'Comande, conti, cassa, menù digitale e magazzino in un’unica app. Funziona anche senza rete, e ogni locale ha la sua installazione e i suoi dati.',
+      'Comande, conti, cassa, menù con QR e magazzino in un’app sola. Lavora anche senza rete, e ogni locale ha la sua installazione e i suoi dati.',
   },
   barra: {
     principale: 'Principale',
@@ -33,7 +33,7 @@ export default {
     lingua: 'Lingua',
   },
   piede: {
-    descrizione: 'Un’installazione per ogni locale. I dati restano suoi.',
+    descrizione: 'Nata al banco di un cocktail bar. Un’installazione per ogni locale, e i dati restano suoi.',
     prodotto: 'Prodotto',
     account: 'Account',
     informazioni: 'Informazioni',
@@ -60,12 +60,16 @@ export default {
   // italiano; su quella italiana non serve.
   soloItaliano: '',
   hero: {
-    occhiello: 'Comande, conti e cassa per bar e ristoranti',
-    // DESIGN.md §5.1, titolo A (consigliato): la scena che ogni titolare ha
-    // vissuto, e il punto che nessun concorrente in abbonamento promette.
-    titolo: 'La serata non si ferma. Nemmeno quando cade il Wi-Fi.',
+    occhiello: 'Cassa, comande e magazzino per bar e ristoranti',
+    // Riscritti il 06/11/2026 (l'utente: «gli slogan sono orribili… qualcosa
+    // di più accattivante»), con una linea sola: il venerdì sera non aspetta
+    // nessuno. Il titolo è la scena che ogni titolare ha vissuto, con la
+    // svolta in oro; «non se n'è accorta» è una figura che il sottotitolo
+    // rende letterale (il lavoro continua, le modifiche partono al ritorno
+    // della rete). Alternative scartate in DESIGN.md §5.1.
+    titolo: 'È caduto il Wi-Fi. La cassa non se n’è accorta.',
     sottotitolo:
-      'Comande, conti, cassa, menù digitale e magazzino in un’unica app pensata per il servizio, al banco e in sala. Ogni locale ha la sua installazione e i suoi dati, separati da tutti gli altri.',
+      'Comande, conti, cassa, menù con QR e magazzino in un’unica app, pensata per il banco e la sala. Ogni locale ha la sua installazione e i suoi dati: nessun altro li vede, e quando la rete cade il lavoro continua.',
     attiva: 'Attiva il tuo locale',
     dashboard: 'La mia dashboard',
     demo: 'Prova la demo',
@@ -83,55 +87,55 @@ export default {
     concordata: 'Attivazione concordata con noi',
   },
   problema: {
-    titolo: 'Venerdì sera, locale pieno.',
+    titolo: 'Il venerdì sera non aspetta nessuno.',
     testo:
-      'La rete salta e la cassa si blocca. Una comanda si perde tra la sala e il banco. A fine serata nessuno sa quante bottiglie sono uscite davvero.',
+      'Non aspetta che torni la rete, con la cassa ferma. Non aspetta la comanda rimasta tra la sala e il banco. E a fine serata nessuno sa quante bottiglie sono uscite davvero.',
     // Neutro finché l'utente non decide se nominare il locale dove l'app è
     // nata (DESIGN.md §9.3).
-    chiusa: 'L’app è nata al banco di un cocktail bar, proprio per serate così.',
+    chiusa: 'È per serate così che l’app è nata, al banco di un cocktail bar.',
   },
   pilastri: {
-    titolo: 'Su cosa puoi contare',
+    titolo: 'Tre cose che reggono a locale pieno',
     voci: [
       {
         // «Non si ferma mai» prometteva più dei Termini («senza garanzia di
         // continuità assoluta», Legali.jsx §5). Si dice quello che l'app fa
         // davvero (tana-drink, REQ-OFFLINE-001 e 006): le scritture restano
         // sul dispositivo e partono al ritorno della rete.
-        titolo: 'Lavora anche senza rete.',
-        testo: 'Comande, conti e incassi continuano quando la rete cade: le modifiche restano sul dispositivo e partono da sole appena la connessione torna.',
+        titolo: 'La rete cade. Il servizio no.',
+        testo: 'Comande, conti e incassi restano sul tablet e vanno avanti; appena la connessione torna, le modifiche partono da sole.',
       },
       {
-        titolo: 'I tuoi dati sono solo tuoi.',
-        testo: 'Ogni locale ha la sua installazione, il suo database e il suo indirizzo. Nessun altro locale li vede.',
+        titolo: 'Un’installazione per locale. La tua.',
+        testo: 'Il tuo locale ha il suo database e il suo indirizzo, separati da tutti gli altri. Nessun altro locale vede i tuoi conti, i tuoi prezzi, i tuoi numeri.',
       },
       {
-        titolo: 'Fatta per il servizio.',
-        testo: 'Nata al banco di un cocktail bar, pensata per lavorare in fretta con il locale pieno, al banco e in sala.',
+        titolo: 'Nata al banco, non in un ufficio.',
+        testo: 'È nata e lavora al banco di un cocktail bar vero, con il locale pieno: ogni schermata è fatta per andare in fretta, al banco e in sala.',
       },
     ],
   },
   funzioni: {
     occhiello: 'Funzioni',
-    titolo: 'Tutto il servizio, in un’app sola',
-    sotto: 'Ogni funzione nasce da una serata vera. Quelle che stanno in un modulo lo dicono: il prezzo lo trovi più sotto.',
+    titolo: 'Dalla prima comanda alla chiusura di cassa.',
+    sotto: 'Ogni funzione è nata da un bisogno vero al banco. Quelle che stanno in un modulo lo dicono qui; il prezzo lo trovi più sotto.',
     nelPiano: 'Nel piano {piano}',
     modulo: 'Modulo {nome}',
     punti: 'Cosa comprende',
     voci: {
       conti: {
-        occhiello: 'Conti e comande',
-        titolo: 'Dalla comanda al conto, senza passaggi in più.',
+        occhiello: 'Comande e conti',
+        titolo: 'La comanda arriva al banco prima di te.',
         // La stampa automatica è una scelta del locale (tana-drink,
         // REQ-STAMPA-001); i terminali oltre quelli del piano (3 dal
         // 02/11/2026) si pagano a parte.
-        testo: 'La comanda arriva al banco e, se lo scegli, si stampa da sola; il conto si chiude in contanti o con carta.',
+        testo: 'La prendi al tavolo o al banco: arriva subito e, se lo scegli, si stampa da sola. Il conto ha già tutto sopra e si chiude in contanti o con carta.',
         punti: ['Comanda stampata al banco', 'Contanti e carta', 'Altri terminali a {terminale} al mese'],
       },
       menu: {
         occhiello: 'Menù digitale e ordini dal tavolo',
-        titolo: 'Il menù sul telefono del cliente.',
-        testo: 'Il QR sul tavolo apre il menù con i prezzi; il cliente ordina e segue lo stato del suo ordine.',
+        titolo: 'Il QR sul tavolo, il menù nel telefono, l’ordine al banco.',
+        testo: 'Il cliente apre il menù con i prezzi, ordina e segue lo stato del suo ordine. Niente app da scaricare, niente menù di carta da ristampare quando cambi un prezzo.',
         punti: ['Menù sempre aggiornato', 'Ordini che arrivano dritti al banco', 'Nessuna app da scaricare'],
       },
       magazzino: {
@@ -139,27 +143,27 @@ export default {
         // Si scarica quando la comanda è pronta, o alla riscossione se il
         // locale non segue gli stati (tana-drink, REQ-MAG-003); l'avviso è la
         // soglia di riordino del prodotto (REQ-MAG-006).
-        titolo: 'Il magazzino segue le comande.',
-        testo: 'Ogni comanda preparata scarica gli ingredienti della sua ricetta, e la soglia di riordino ti dice cosa sta finendo.',
+        titolo: 'Sai cosa sta finendo prima che finisca.',
+        testo: 'Ogni comanda preparata scarica gli ingredienti della sua ricetta; quando una giacenza scende sotto la soglia, l’app te lo dice. L’inventario periodico e le fatture dei fornitori chiudono il cerchio.',
         punti: ['Giacenze e soglie di riordino', 'Inventario periodico', 'Fatture dei fornitori'],
       },
       statistiche: {
         occhiello: 'Statistiche',
-        titolo: 'I numeri della serata, chiari.',
-        testo: 'Incassi per serata e periodo, venduto per fascia oraria, bilancio per categorie.',
+        titolo: 'La serata in numeri, prima di chiudere.',
+        testo: 'Incassi per serata e per periodo, venduto per fascia oraria, bilancio per categorie: vedi le ore di punta e il confronto con la settimana scorsa senza fogli Excel.',
         punti: ['Confronto tra periodi', 'Le ore di punta', 'Il bilancio per macro-categorie'],
       },
     },
     minori: {
-      staff: 'Ore e paghe del personale, e le chiamate allo staff.',
-      sumup: 'Il conto va al lettore SumUp e torna pagato da solo.',
+      staff: 'Le ore e le paghe del personale, e le chiamate allo staff, in un posto solo.',
+      sumup: 'Il conto passa al lettore SumUp e torna indietro già pagato.',
     },
   },
   passi: {
-    titolo: 'Come si comincia',
+    titolo: 'Dalla registrazione alla prima comanda',
     voci: [
-      { titolo: 'Registra il locale.', testo: 'Nome, dati di fatturazione e un referente, poi la conferma dell’email.' },
-      { titolo: 'Scegli il piano.', testo: 'Parti dal {base} e aggiungi i moduli quando ti servono, anche dopo.' },
+      { titolo: 'Registra il tuo locale.', testo: 'Nome, dati di fatturazione e un referente, poi la conferma dell’email.' },
+      { titolo: 'Scegli piano e moduli.', testo: 'Parti dal {base} e aggiungi i moduli quando ti servono, anche dopo.' },
       {
         titolo: 'Apri la cassa.',
         testo: 'La tua installazione nasce da sola, con il suo indirizzo. Entri dal tablet e lavori.',
@@ -170,7 +174,7 @@ export default {
   prezzi: {
     // Descrittivo: c'è un canone fisso, l'attivazione e il Completo a
     // pacchetto, quindi «paghi solo quello che usi» non era esatto.
-    titolo: 'Un piano al mese, e i moduli che scegli.',
+    titolo: 'Un piano, i moduli che ti servono, e il prezzo tutto scritto qui.',
     // DEC-0005: prezzi IVA esclusa, col totale IVA inclusa accanto.
     sotto: 'Abbonamento mensile o annuale. Prezzi IVA esclusa (IVA al {iva}), con il totale IVA inclusa accanto. Attivazione una tantum: {attivazione} ({lordo}).',
     // La prova (DEC-0005). Si dice solo cosa vale: la durata, e che il
@@ -270,8 +274,8 @@ export default {
     ],
   },
   chiusura: {
-    titolo: 'Pronto per il prossimo venerdì sera?',
-    testo: 'Attiva il tuo locale, oppure scrivici e te lo mostriamo con il tuo menù.',
+    titolo: 'Il prossimo venerdì sera arriva comunque.',
+    testo: 'Attiva il tuo locale, oppure scrivici: te lo mostriamo con il tuo menù e i tuoi prezzi, e decidi dopo.',
     attiva: 'Attiva il tuo locale',
     dashboard: 'La mia dashboard',
     scrivici: 'Scrivici',
