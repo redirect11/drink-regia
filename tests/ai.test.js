@@ -307,6 +307,29 @@ describe('la ricarica con Stripe', () => {
     expect(omaggio).toContain('await accreditaRicarica(')
   })
 
+  // L'utente, 06/11/2026: un workspace Anthropic per la regia, con la
+  // federazione delle identità al posto della chiave statica.
+  it('con la regola di federazione configurata le Functions AI usano il token dell’account di servizio dedicato, non la chiave', () => {
+    const codice = readFileSync('functions/index.js', 'utf8')
+    const client = codice.slice(codice.indexOf('const claude = () => {'), codice.indexOf('// Una ricarica (Stripe o a mano)'))
+    expect(client).toContain("if (!federazione) return { Anthropic, client: new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() }) }")
+    expect(client).toContain("require('@anthropic-ai/sdk/lib/credentials/oidc-federation')")
+    expect(client).toContain("headers: { 'Metadata-Flavor': 'Google' }")
+    expect(client).toContain('new Anthropic({ credentials })')
+    expect(codice).toContain("'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=https://api.anthropic.com&format=full'")
+    expect(codice).toContain('federationRuleId: process.env.ANTHROPIC_FEDERATION_RULE_ID')
+    expect(codice).toContain('organizationId: process.env.ANTHROPIC_ORGANIZATION_ID')
+    expect(codice).toContain('serviceAccountId: process.env.ANTHROPIC_SERVICE_ACCOUNT_ID')
+    // Lo script dell'account: Firestore e log sul progetto, il deploy che agisce come lui, email e id numerico per la Console.
+    const script = readFileSync('scripts/account-ai.mjs', 'utf8')
+    expect(script).toContain("const RUOLI_PROGETTO = ['roles/datastore.user', 'roles/logging.logWriter']")
+    expect(script).toContain("['roles/iam.serviceAccountUser']")
+    expect(script).toContain('account.uniqueId')
+    // Il file di ambiente del test spiega le cinque variabili.
+    const env = readFileSync('functions/.env.drink-regia-test', 'utf8')
+    for (const v of ['AI_SERVICE_ACCOUNT', 'ANTHROPIC_FEDERATION_RULE_ID', 'ANTHROPIC_ORGANIZATION_ID', 'ANTHROPIC_SERVICE_ACCOUNT_ID', 'ANTHROPIC_WORKSPACE_ID']) expect(env).toContain(v)
+  })
+
   it('un cassetto nuovo nasce vuoto, acceso, col tetto del listino', () => {
     expect(ai.nuovoCassetto({ slug: 'bar-mario', uid: 'u1', adesso: ADESSO })).toEqual({
       slug: 'bar-mario',

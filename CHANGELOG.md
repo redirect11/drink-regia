@@ -16,6 +16,10 @@ data.
 - Dal backoffice si regala credito AI a un locale («Regala AI»), senza
   pagamento; il titolare vede le ultime ricariche con la loro origine,
   omaggi compresi (REQ-AI-003).
+- Le Functions AI si presentano ad Anthropic con la federazione delle
+  identità, con un account di servizio dedicato e un workspace della
+  regia, al posto della chiave statica; finché la regola non è
+  configurata resta la chiave (REQ-AI-003).
 - I temi in licenza di un locale (gli esclusivi della Tana, «Notte» e
   «Meraviglie») si assegnano dal backoffice e la licenza li porta all'app;
   la scheda del locale elenca moduli, temi in licenza e quello che il

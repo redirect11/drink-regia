@@ -332,7 +332,7 @@ canale di anteprima col via libera.
 | Blaze | attivo |
 | Environment GitHub `production` | segreti `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID`; **manca `FIREBASE_SERVICE_ACCOUNT`** (chiave del SA di deploy: senza, il deploy da tag fallisce) |
 | Segreti delle Functions | `PROVISIONING_CALLBACK_SECRET` presente; **mancano `GITHUB_DISPATCH_TOKEN`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`** e, dal ramo `feature/cassetto-ai` (24/10), **`ANTHROPIC_API_KEY`**: senza, il deploy delle Functions si ferma |
-| Cassetto AI (REQ-AI-003) | **scritto, non pubblicato**, sul ramo `feature/cassetto-ai`. La chiave Anthropic e la ricarica automatica del credito Anthropic sono da impostare nella Console di Claude (vedi §7, «Cassetto AI») |
+| Cassetto AI (REQ-AI-003) | Functions pubblicate sul test; `ANTHROPIC_API_KEY` è un segnaposto. Dal 06/11/2026 la strada è la **federazione** (§7, «Cassetto AI»): da fare, dall'utente, `node scripts/account-ai.mjs --progetto drink-regia-test`, poi nella Console «Connetti carico di lavoro → Google Cloud» in un workspace «drink» nuovo, poi i quattro id in `functions/.env.drink-regia-test` e un deploy. La ricarica automatica del credito Anthropic va impostata nella Console |
 | `functions/.env` | `GITHUB_REPO=redirect11/drink-regia`, `FLOTTA_REF=main`, `APP_REF=main`: in produzione solo quello che è su `main` di tana-drink, quindi niente attivazioni finché la 1.10 non ci arriva. Il test usa `develop` (`functions/.env.drink-regia-test`) |
 | Segnaposto da decidere (utente) | nome del prodotto «Drink», prezzi, email `info@drink.app`, dominio `drink.app`, dati della società in `Legali.jsx` |
 
@@ -1065,6 +1065,25 @@ moduli, la licenza nell'istanza e la Tana.
   imponibile, iva, totale, da_verificare: [] }`, con `null` per i dati
   assenti. Tutto è una **proposta da rivedere** prima di pubblicarla o
   registrarla. Gli schemi stanno in `functions/lib/ai.js`.
+  **Come la regia si presenta ad Anthropic** (dal 06/11/2026): con la
+  **federazione delle identità**, non con una chiave. L'emittente
+  `google-cloud` nella Console (`accounts.google.com`, creato il
+  02/11/2026) serve già a forkdiary: la regia ha un **workspace suo**
+  («drink»), un account di servizio Anthropic e una regola per ogni
+  regia (test e produzione), ognuna legata all'account Google
+  `ai-regia@<progetto>.iam.gserviceaccount.com`, che crea
+  `scripts/account-ai.mjs` (Firestore e log sul progetto; il deploy che
+  agisce come lui). Le due Functions AI (`richiestaAI`, `temaDaMockup`)
+  girano con quell'account (`AI_SERVICE_ACCOUNT`), che nei progetti dei
+  locali non entra: per questo la licenza dopo un tema su misura la
+  riscrive il trigger `licenzaSegueITemiSuMisura`. I quattro id della
+  regola (`ANTHROPIC_FEDERATION_RULE_ID`, `ANTHROPIC_ORGANIZATION_ID`,
+  `ANTHROPIC_SERVICE_ACCOUNT_ID`, `ANTHROPIC_WORKSPACE_ID`) stanno in
+  `functions/.env.<progetto>`: identificativi, non segreti. Senza la regola
+  configurata vale ancora `ANTHROPIC_API_KEY`, e il segreto resta legato
+  (anche vuoto, per il deploy). Il credito prepagato è quello
+  dell'organizzazione nella Console; i consumi finiscono sul workspace
+  della regola.
 - **Rilasci a ondate** (REQ-FLOTTA-012, dal 27/10/2026). La regia porta
   un rilascio ai locali un'ondata alla volta con `aggiorna-istanza.yml`
   (dal 29/10/2026 il suo, che manda già `"operazione"` nel callback). Il

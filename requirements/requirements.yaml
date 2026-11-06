@@ -594,6 +594,16 @@ requirements:
       l'origine (pagamento, accreditata da noi, in omaggio) nel riquadro
       del credito. «Ricarica AI» resta per un pagamento ricevuto fuori da
       Stripe (origine «manuale»).
+      LA FEDERAZIONE (l'utente, 06/11/2026: un workspace Anthropic per la
+      regia): le Functions AI girano con l'account di servizio Google
+      dedicato (scripts/account-ai.mjs: Firestore e log sul progetto, mai
+      i progetti dei locali, quindi la licenza dopo un tema su misura la
+      riscrive il trigger licenzaSegueITemiSuMisura), e l'SDK scambia il
+      token del server dei metadati con un token Anthropic legato alla
+      regola di federazione (i quattro id in functions/.env.<progetto>,
+      non segreti). Senza la regola configurata resta ANTHROPIC_API_KEY.
+      Lato Console, dall'utente: workspace «drink», account di servizio e
+      regola per ogni regia (quella del 02/11/2026 è di forkdiary).
       LA TANA: `registraLocaleEsistente` la registra senza provisioning
       (nessuna richiesta), col suo progetto, piano completo, istanza
       `interna` ed `esistente` con `licenza_dalla_regia: false`: la

@@ -16,7 +16,7 @@
 // APP_REPO (il repository dell'app, da cui si leggono le note di un
 // rilascio: di norma redirect11/tana-drink).
 
-const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore')
+const { onDocumentCreated, onDocumentUpdated, onDocumentWritten } = require('firebase-functions/v2/firestore')
 const { onRequest } = require('firebase-functions/v2/https')
 const { defineSecret } = require('firebase-functions/params')
 const eventiStripe = require('./lib/eventistripe.js')
@@ -62,6 +62,19 @@ const PROVISIONING_CALLBACK_SECRET = defineSecret('PROVISIONING_CALLBACK_SECRET'
 const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY')
 const STRIPE_WEBHOOK_SECRET = defineSecret('STRIPE_WEBHOOK_SECRET')
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY')
+// Le Functions che chiamano Claude (REQ-AI-003, REQ-FLOTTA-040): con la
+// federazione girano con l'account di servizio dedicato (AI_SERVICE_ACCOUNT
+// in functions/.env.<progetto>, docs/handover.md §7 «Cassetto AI»), che ha
+// solo Firestore della regia: per questo non scrivono nei progetti dei
+// locali, e la licenza la riscrive un trigger. Il segreto della chiave resta
+// legato finché la federazione non è configurata ovunque.
+const OPTS_AI = {
+  ...OPTS,
+  secrets: [ANTHROPIC_API_KEY],
+  timeoutSeconds: 300,
+  memory: '512MiB',
+  ...(process.env.AI_SERVICE_ACCOUNT ? { serviceAccount: process.env.AI_SERVICE_ACCOUNT } : {}),
+}
 const REPO = process.env.GITHUB_REPO || 'redirect11/drink-regia'
 const REF = process.env.FLOTTA_REF || 'main'
 const WORKFLOW = 'provisiona-istanza.yml'
@@ -1530,7 +1543,7 @@ exports.gestisciStili = onCall(OPTS, async (req) => {
 // la proposta come ogni tema e la mette subito fra i suoi temi, pubblicata.
 // Una proposta che non regge (colori illeggibili) non si scrive, e il
 // tentativo resta addebitato: lo si dice.
-exports.temaDaMockup = onCall({ ...OPTS, secrets: [ANTHROPIC_API_KEY], timeoutSeconds: 300, memory: '512MiB' }, async (req) => {
+exports.temaDaMockup = onCall(OPTS_AI, async (req) => {
   if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
   if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Prima conferma la tua email.')
   const uid = req.auth.uid
@@ -1559,9 +1572,19 @@ exports.temaDaMockup = onCall({ ...OPTS, secrets: [ANTHROPIC_API_KEY], timeoutSe
     aggiornato_da: uid,
     mockup: { media_type: String(req.data?.media_type || ''), struttura: messaggio.struttura, costo_eur: esito.costo_eur },
   }
+  // La licenza la riscrive licenzaSegueITemiSuMisura: questa Function gira
+  // con l'account AI, che nei progetti dei locali non entra.
   await db.doc(`clienti/${uid}/temi_su_misura/${tema.id}`).set(doc)
-  await scriviLicenza(cliente.slug).catch((e) => console.error(`[temi] ${cliente.slug}, la licenza:`, e?.message || e))
   return { ok: true, tema: doc, costo_eur: esito.costo_eur, credito_eur: esito.credito_eur }
+})
+
+// Ogni cambio di un tema su misura riscrive la licenza del locale: qui, e
+// non dentro le due Functions che li scrivono, perché il tema dal mockup
+// gira con l'account AI, che nei progetti dei locali non entra.
+exports.licenzaSegueITemiSuMisura = onDocumentWritten({ ...OPTS, document: 'clienti/{uid}/temi_su_misura/{id}' }, async (event) => {
+  const cliente = (await db.doc(`clienti/${event.params.uid}`).get()).data()
+  if (!cliente?.slug) return
+  await scriviLicenza(cliente.slug).catch((e) => console.error(`[temi] ${cliente.slug}, la licenza:`, e?.message || e))
 })
 
 // L'admin scrive, pubblica e ritira un tema su misura dalla scheda del
@@ -1584,8 +1607,8 @@ exports.gestisciTemiSuMisura = onCall(OPTS, async (req) => {
   const stiliRicetta = stili.catalogoStili(docsStili).map((s) => s.id)
   const esito = temi.azioneSuTemaSuMisura(prima, azione, req.data?.tema, { da: req.auth.token.email || req.auth.uid, stiliRicetta, origine: 'fornitore' })
   if (esito.errore) throw new HttpsError('failed-precondition', esito.errore)
+  // La licenza la riscrive licenzaSegueITemiSuMisura.
   await ref.set(esito.doc)
-  await scriviLicenza(cliente.slug).catch((e) => console.error(`[temi] ${cliente.slug}, la licenza:`, e?.message || e))
   return { ok: true, tema: esito.doc }
 })
 
@@ -1888,10 +1911,42 @@ exports.creaCliente = onCall(OPTS, async (req) => {
 
 // Caricato qui e non in cima, come Stripe: le altre Functions non ne hanno
 // bisogno e partono più leggere.
+//
+// CON LA FEDERAZIONE DELLE IDENTITÀ (l'utente, 06/11/2026: un workspace
+// Anthropic per la regia, niente chiave statica): le Functions AI girano
+// con un account di servizio Google dedicato (AI_SERVICE_ACCOUNT, creato
+// da scripts/account-ai.mjs), il server dei metadati di Cloud Run dà un
+// token firmato per quell'account, e l'SDK lo scambia da sé con un token
+// Anthropic di breve durata, legato alla regola di federazione e
+// all'account di servizio Anthropic scritti in functions/.env.<progetto>
+// (identificativi, non segreti: docs/handover.md §7, «Cassetto AI»). Senza
+// la regola configurata resta la chiave del segreto: gli emulatori, e il
+// tempo di passare.
+const METADATA_IDENTITY = 'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=https://api.anthropic.com&format=full'
+const federazioneAnthropic = () =>
+  process.env.ANTHROPIC_FEDERATION_RULE_ID
+    ? {
+        federationRuleId: process.env.ANTHROPIC_FEDERATION_RULE_ID,
+        organizationId: process.env.ANTHROPIC_ORGANIZATION_ID,
+        serviceAccountId: process.env.ANTHROPIC_SERVICE_ACCOUNT_ID,
+        workspaceId: process.env.ANTHROPIC_WORKSPACE_ID || undefined,
+      }
+    : null
+
 const claude = () => {
   const sdk = require('@anthropic-ai/sdk')
   const Anthropic = sdk.default || sdk
-  return { Anthropic, client: new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() }) }
+  const federazione = federazioneAnthropic()
+  if (!federazione) return { Anthropic, client: new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() }) }
+  const { oidcFederationProvider } = require('@anthropic-ai/sdk/lib/credentials/oidc-federation')
+  const identityTokenProvider = async () => {
+    const res = await fetch(METADATA_IDENTITY, { headers: { 'Metadata-Flavor': 'Google' } })
+    if (!res.ok) throw new Error(`Il server dei metadati non dà il token: ${res.status}`)
+    return res.text()
+  }
+  // L'SDK tiene il token Anthropic in cache e lo rinnova prima che scada.
+  const credentials = oidcFederationProvider({ ...federazione, identityTokenProvider, baseURL: 'https://api.anthropic.com', fetch })
+  return { Anthropic, client: new Anthropic({ credentials }) }
 }
 
 // Una ricarica (Stripe o a mano) diventa credito una volta sola: il
@@ -1937,7 +1992,7 @@ async function cassettoDi(slug) {
 // risponde. È HTTP e non callable perché a chiamarla è il server
 // dell'installazione, non un utente di questo sito.
 exports.richiestaAI = onRequest(
-  { ...OPTS, secrets: [ANTHROPIC_API_KEY], cors: false, timeoutSeconds: 300, memory: '512MiB', maxInstances: 10 },
+  { ...OPTS_AI, cors: false, maxInstances: 10 },
   async (req, res) => {
     if (req.method !== 'POST') return res.status(405).json({ errore: 'Solo POST.' })
     const chi = ai.leggiBearer(req.get('authorization'))

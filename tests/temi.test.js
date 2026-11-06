@@ -293,20 +293,31 @@ describe('i temi su misura', () => {
 
   it('nelle Functions: il mockup passa dal credito del cassetto e dal controllo del tema; i temi del locale riscrivono la licenza; il titolare solo toglie e rimette', () => {
     const codice = readFileSync('functions/index.js', 'utf8')
-    const mockup = codice.slice(codice.indexOf('exports.temaDaMockup'), codice.indexOf('exports.gestisciTemiSuMisura'))
-    expect(mockup).toContain('secrets: [ANTHROPIC_API_KEY]')
+    const mockup = codice.slice(codice.indexOf('exports.temaDaMockup'), codice.indexOf('exports.licenzaSegueITemiSuMisura'))
+    // Le opzioni delle Functions AI: il segreto della chiave e, con la
+    // federazione, l'account di servizio dedicato.
+    expect(mockup).toContain('onCall(OPTS_AI,')
+    const opts = codice.slice(codice.indexOf('const OPTS_AI'), codice.indexOf('const OPTS_AI') + 400)
+    expect(opts).toContain('secrets: [ANTHROPIC_API_KEY]')
+    expect(opts).toContain('serviceAccount: process.env.AI_SERVICE_ACCOUNT')
     expect(mockup).toContain('req.auth.token?.email_verified !== true')
     expect(mockup).toContain("ai.preparaMessaggio({ ...(req.data || {}), tipo: 'tema' })")
     expect(mockup).toContain('await interrogaClaude(cliente.slug, messaggio)')
     expect(mockup).toContain('temi.temaDalMockup(esito.risultato, { struttura: messaggio.struttura })')
     expect(mockup).toContain('db.doc(`clienti/${uid}/temi_su_misura/${tema.id}`).set(doc)')
-    expect(mockup).toContain('await scriviLicenza(cliente.slug)')
+    // La licenza la riscrive il trigger, non le Functions che scrivono i
+    // temi: quella dal mockup gira con l'account AI, che nei progetti dei
+    // locali non entra.
+    expect(mockup).not.toContain('scriviLicenza(')
+    const trigger = codice.slice(codice.indexOf('exports.licenzaSegueITemiSuMisura'), codice.indexOf('exports.gestisciTemiSuMisura'))
+    expect(trigger).toContain("onDocumentWritten({ ...OPTS, document: 'clienti/{uid}/temi_su_misura/{id}' }")
+    expect(trigger).toContain('await scriviLicenza(cliente.slug)')
     // Il mockup non si salva: nel documento vanno solo il tipo, la struttura e il costo.
     expect(mockup).not.toMatch(/mockup: \{[^}]*file/)
     const gestisci = codice.slice(codice.indexOf('exports.gestisciTemiSuMisura'), codice.indexOf('exports.chiediTemaSuMisura'))
     expect(gestisci).toContain("if (!admin && !['pubblica', 'ritira'].includes(azione))")
     expect(gestisci).toContain('temi.azioneSuTemaSuMisura(prima, azione, req.data?.tema')
-    expect(gestisci).toContain('await scriviLicenza(cliente.slug)')
+    expect(gestisci).not.toContain('scriviLicenza(')
     const chiedi = codice.slice(codice.indexOf('exports.chiediTemaSuMisura'), codice.indexOf('// ── IL SITO SI PRESENTA ALLA REGIA'))
     expect(chiedi).toContain('contatti.richiestaTemaSuMisura(')
     expect(chiedi).toContain('db.doc(`contatti/${contatti.idRichiestaTema(req.auth.uid)}`).set(r.documento)')
