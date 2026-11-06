@@ -267,6 +267,8 @@ describe('i documenti della regia', () => {
     expect(visti).toEqual([null, null])
     fb.documenti['ai/bar/consumi'] = [['c1', { il: 'x' }]]
     expect(await db.ultimiConsumiAI('bar')).toEqual([{ il: 'x' }])
+    fb.documenti['ai/bar/ricariche'] = [['r1', { il: 'y', origine: 'omaggio' }]]
+    expect(await db.ultimeRicaricheAI('bar')).toEqual([{ il: 'y', origine: 'omaggio' }])
     fb.documenti.ai = [['bar', { credito: 1 }]]
     expect(await db.elencoCassettiAI()).toEqual({ bar: { credito: 1 } })
   })

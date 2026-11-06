@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { osservaCassettoAI, ultimiConsumiAI, avviaRicaricaAI, osservaVendita } from '../lib/db.js'
+import { osservaCassettoAI, ultimiConsumiAI, ultimeRicaricheAI, avviaRicaricaAI, osservaVendita } from '../lib/db.js'
 import { venditaPulita } from '../lib/vendita.js'
 import { EMAIL_CONTATTI } from '../lib/prodotto.js'
-import { PACCHETTI_AI, statoCredito, euroCent, daMicro, tipoDetto, esitoDetto } from '../lib/ai.js'
+import { PACCHETTI_AI, statoCredito, euroCent, daMicro, tipoDetto, esitoDetto, origineDetta } from '../lib/ai.js'
 
 // IL CREDITO AI DEL LOCALE (REQ-AI-003): quanto resta, quanto si è speso
 // questo mese contro il tetto, gli ultimi consumi, e la ricarica a
@@ -13,6 +13,7 @@ import { PACCHETTI_AI, statoCredito, euroCent, daMicro, tipoDetto, esitoDetto } 
 export default function CreditoAI({ slug, istanzaAttiva, vai = (url) => window.location.assign(url) }) {
   const [cassetto, setCassetto] = useState(undefined)
   const [consumi, setConsumi] = useState([])
+  const [ricariche, setRicariche] = useState([])
   const [inCorso, setInCorso] = useState(null)
   const [errore, setErrore] = useState(null)
   // Coi pagamenti online spenti (REQ-FLOTTA-017) la ricarica la fa l'admin.
@@ -25,6 +26,9 @@ export default function CreditoAI({ slug, istanzaAttiva, vai = (url) => window.l
     ultimiConsumiAI(slug)
       .then(setConsumi)
       .catch(() => setConsumi([]))
+    ultimeRicaricheAI(slug)
+      .then(setRicariche)
+      .catch(() => setRicariche([]))
   }, [slug, cassetto])
 
   // Senza cassetto e senza istanza attiva non c'è niente da dire: l'AI
@@ -86,6 +90,15 @@ export default function CreditoAI({ slug, istanzaAttiva, vai = (url) => window.l
         <p className="muted small">Pagamento ricevuto: il credito compare qui appena Stripe ce lo conferma, di solito in pochi secondi.</p>
       )}
 
+      {/* Le ricariche con l'origine: un credito regalato si vede come tale. */}
+      {ricariche.length > 0 && (
+        <p className="muted small" data-testid="ricariche-ai">
+          Ultime ricariche:{' '}
+          {ricariche
+            .map((r) => `${euroCent(daMicro(r.importo_microeuro))} ${origineDetta(r.origine)} il ${new Date(r.il).toLocaleDateString('it-IT')}${r.origine === 'omaggio' && r.nota ? ` («${r.nota}»)` : ''}`)
+            .join(' · ')}
+        </p>
+      )}
       {consumi.length > 0 && (
         <table className="clienti" aria-label="Ultimi consumi AI">
           <thead>

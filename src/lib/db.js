@@ -380,6 +380,14 @@ export async function ultimiConsumiAI(slug, quanti = 10) {
   return snap.docs.map((d) => d.data())
 }
 
+// Le ultime ricariche, con l'origine (pagamento, a mano, omaggio): il
+// titolare vede anche un credito regalato.
+export async function ultimeRicaricheAI(slug, quanti = 5) {
+  serve()
+  const snap = await getDocs(query(collection(db, 'ai', slug, 'ricariche'), orderBy('il', 'desc'), limit(quanti)))
+  return snap.docs.map((d) => d.data())
+}
+
 // Il titolare compra un pacchetto: la Function apre il Checkout di Stripe,
 // e il credito arriva col webhook a pagamento confermato.
 export async function avviaRicaricaAI(pacchetto) {

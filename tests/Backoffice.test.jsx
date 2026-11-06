@@ -318,6 +318,10 @@ describe('il backoffice e il credito AI', () => {
     expect(attivo).toHaveTextContent('mese 3,00 € / 20,00 €')
     await user.click(within(attivo).getByRole('button', { name: 'Ricarica AI' }))
     expect(db.gestisciCassettoAI).toHaveBeenCalledWith('bar-attivo', 'ricarica', { importo: 15.5, nota: 'prima ricarica' })
+    // Un omaggio (06/11/2026): credito regalato, segnato come tale.
+    window.prompt.mockReturnValueOnce('5').mockReturnValueOnce('benvenuto')
+    await user.click(within(attivo).getByRole('button', { name: 'Regala AI' }))
+    expect(db.gestisciCassettoAI).toHaveBeenCalledWith('bar-attivo', 'omaggio', { importo: 5, nota: 'benvenuto' })
   })
 
   it('la chiave nuova si vede una volta sola, e prima di sostituirne una si chiede', async () => {

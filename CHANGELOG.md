@@ -13,6 +13,9 @@ data.
   menù (una pagina, una per categoria, una per macro categoria) e una
   ricetta. I temi su misura arrivano all'app con la licenza
   (REQ-FLOTTA-040).
+- Dal backoffice si regala credito AI a un locale («Regala AI»), senza
+  pagamento; il titolare vede le ultime ricariche con la loro origine,
+  omaggi compresi (REQ-AI-003).
 - I temi in licenza di un locale (gli esclusivi della Tana, «Notte» e
   «Meraviglie») si assegnano dal backoffice e la licenza li porta all'app;
   la scheda del locale elenca moduli, temi in licenza e quello che il

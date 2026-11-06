@@ -506,6 +506,14 @@ function ricaricaDaSessione(sessione) {
   return { slug: md.slug, uid: md.uid, sessione: sessione.id, pacchetto: md.pacchetto || null, importo_microeuro: cent * 10_000 }
 }
 
+// DA DOVE ARRIVA UNA RICARICA (ai/{slug}/ricariche.origine): «stripe» un
+// pagamento dal sito; «manuale» un pagamento ricevuto fuori da Stripe e
+// accreditato dall'admin; «omaggio» un regalo del fornitore (l'utente,
+// 06/11/2026), senza pagamento. Il titolare le legge tutte, con l'origine.
+const ORIGINI_RICARICA = ['stripe', 'manuale', 'omaggio']
+// Un omaggio è un regalo, non un listino: fino a 200 €.
+const MAX_OMAGGIO = 200
+
 // Il cassetto di un'installazione appena nata, o della Tana.
 function nuovoCassetto({ slug, uid, interna = false, adesso = new Date() }) {
   return {
@@ -546,4 +554,6 @@ module.exports = {
   metadatiRicarica,
   ricaricaDaSessione,
   nuovoCassetto,
+  ORIGINI_RICARICA,
+  MAX_OMAGGIO,
 }

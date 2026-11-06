@@ -6,6 +6,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { createRequire } from 'node:module'
+import { readFileSync } from 'node:fs'
 
 const require = createRequire(import.meta.url)
 const ai = require('../functions/lib/ai.js')
@@ -293,6 +294,17 @@ describe('la ricarica con Stripe', () => {
   it('l’abbonamento non scambia una ricarica per un piano pagato', () => {
     expect(aggiornamentoDaEvento('checkout.session.completed', sessione)).toBeNull()
     expect(aggiornamentoDaEvento('checkout.session.completed', { metadata: { uid: 'u1', piano: 'base' } })).not.toBeNull()
+  })
+
+  // L'utente, 06/11/2026: «regalare crediti a un cassetto AI di un gestore».
+  it('un omaggio è una ricarica con la sua origine, fino a 200 €, che l’admin accredita senza pagamento', () => {
+    expect(ai.ORIGINI_RICARICA).toEqual(['stripe', 'manuale', 'omaggio'])
+    expect(ai.MAX_OMAGGIO).toBe(200)
+    const codice = readFileSync('functions/index.js', 'utf8')
+    const omaggio = codice.slice(codice.indexOf("if (azione === 'omaggio')"), codice.indexOf("if (azione === 'tetto')"))
+    expect(omaggio).toContain('importo > ai.MAX_OMAGGIO')
+    expect(omaggio).toContain("{ origine: 'omaggio', nota:")
+    expect(omaggio).toContain('await accreditaRicarica(')
   })
 
   it('un cassetto nuovo nasce vuoto, acceso, col tetto del listino', () => {

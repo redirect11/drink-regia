@@ -2074,6 +2074,19 @@ exports.gestisciCassettoAI = onCall(OPTS, async (req) => {
     )
     return { ok: true, esito }
   }
+  // Un OMAGGIO (l'utente, 06/11/2026: «regalare crediti a un cassetto AI
+  // di un gestore»): credito senza pagamento, segnato come tale, così il
+  // titolare lo vede fra le ricariche e i conti di fine anno non lo
+  // scambiano per un incasso. Importi piccoli: un regalo, non un listino.
+  if (azione === 'omaggio') {
+    if (!Number.isFinite(importo) || importo <= 0 || importo > ai.MAX_OMAGGIO) throw new HttpsError('invalid-argument', `Un omaggio va da 0 a ${ai.MAX_OMAGGIO} €.`)
+    const cassetto = (await ref.get()).data()
+    const esito = await accreditaRicarica(
+      { slug, uid: cassetto.uid, sessione: `omaggio-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, importo_microeuro: ai.daEuro(importo) },
+      { origine: 'omaggio', nota: req.data?.nota ? String(req.data.nota).slice(0, 200) : null, da: req.auth.uid }
+    )
+    return { ok: true, esito }
+  }
   if (azione === 'tetto') {
     if (!Number.isFinite(importo) || importo < 0 || importo > 5000) throw new HttpsError('invalid-argument', 'Tetto tra 0 e 5000 €.')
     await ref.update({ tetto_mensile_microeuro: ai.daEuro(importo), aggiornato_il: ora })

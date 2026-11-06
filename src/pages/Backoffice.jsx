@@ -234,6 +234,14 @@ export default function Backoffice() {
     const nota = window.prompt('Nota (facoltativa):', '') || ''
     azioneAI(c, 'ricarica', { importo: Number(String(importo).replace(',', '.')), nota })
   }
+  // Un omaggio (l'utente, 06/11/2026): credito regalato, senza pagamento,
+  // che il titolare vede come tale fra le sue ricariche.
+  const regalaAI = (c) => {
+    const importo = window.prompt(`Euro da regalare al credito AI di ${c.nome_locale}:`, '5')
+    if (importo == null) return
+    const nota = window.prompt('Nota per il titolare (facoltativa):', '') || ''
+    azioneAI(c, 'omaggio', { importo: Number(String(importo).replace(',', '.')), nota })
+  }
   const tettoAI = (c, attuale) => {
     const importo = window.prompt(`Tetto mensile del credito AI di ${c.nome_locale}, in euro:`, String(attuale ?? ''))
     if (importo == null) return
@@ -271,7 +279,7 @@ export default function Backoffice() {
     }
     carica()
   }
-  const az = { carica, cambiaStato, annullaEliminazione, aggiorna, azioneRilascio, riprova, indietro, azioneAI, ricaricaAI, tettoAI, chiaveAI, registraPagamento: pagamento, sconto, onErrore: setErrore }
+  const az = { carica, cambiaStato, annullaEliminazione, aggiorna, azioneRilascio, riprova, indietro, azioneAI, ricaricaAI, regalaAI, tettoAI, chiaveAI, registraPagamento: pagamento, sconto, onErrore: setErrore }
   // Dopo «Crea il locale» o «Registra il locale» si va a vederlo in elenco.
   const creato = () => {
     carica()
@@ -784,6 +792,9 @@ function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaApert
             <span className="gruppo-nome muted small">AI</span>
             <button type="button" className="btn ghost small" onClick={() => az.ricaricaAI(c)}>
               Ricarica AI
+            </button>
+            <button type="button" className="btn ghost small" onClick={() => az.regalaAI(c)}>
+              Regala AI
             </button>
             <button type="button" className="btn ghost small" onClick={() => az.tettoAI(c, credito?.tetto)}>
               Tetto AI

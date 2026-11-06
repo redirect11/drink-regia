@@ -587,6 +587,13 @@ requirements:
       Stripe in modalita' pagamento; il webhook accredita l'importo
       incassato una volta sola per sessione. IPOTESI in attesa della
       decisione dell'utente («pacchetti o consumo: da decidere»).
+      L'OMAGGIO (l'utente, 06/11/2026: «regalare crediti a un cassetto AI
+      di un gestore»): dal backoffice, «Regala AI», un credito senza
+      pagamento fino a 200 €, accreditato come una ricarica con origine
+      «omaggio» e una nota; il titolare vede le ultime ricariche con
+      l'origine (pagamento, accreditata da noi, in omaggio) nel riquadro
+      del credito. «Ricarica AI» resta per un pagamento ricevuto fuori da
+      Stripe (origine «manuale»).
       LA TANA: `registraLocaleEsistente` la registra senza provisioning
       (nessuna richiesta), col suo progetto, piano completo, istanza
       `interna` ed `esistente` con `licenza_dalla_regia: false`: la
