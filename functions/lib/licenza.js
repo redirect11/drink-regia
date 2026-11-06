@@ -12,12 +12,17 @@ const { licenzaAggiornamenti, ripiegaInveceDiSospendere } = require('./aggiornam
 const { prossimoTaglio, ORA_DEL_TAGLIO } = require('./taglio.js')
 const { cancellazioneDellaLicenza } = require('./conservazione.js')
 const { scadenzaPagamento, GIORNI_DI_GRAZIA } = require('./scadenze.js')
-const { temiPuliti } = require('./temi.js')
+const { temiPuliti, temiSuMisuraPerLicenza } = require('./temi.js')
 
 // I temi in licenza (REQ-FLOTTA-039): gli id degli stili esclusivi o
 // comprati, da clienti/{uid}.temi. Non dipendono dal piano: un esclusivo
 // assegnato dal fornitore resta anche a chi torna al Free.
 const temiLicenza = (cliente) => temiPuliti(cliente?.temi) || []
+
+// I temi su misura del locale (REQ-FLOTTA-040): i temi interi, dal mockup o
+// dal fornitore, da clienti/{uid}/temi_su_misura. Come gli esclusivi non
+// dipendono dal piano: chi li chiama li passa (`temiSuMisura`), con gli
+// stili a ricetta pubblicati (`stiliRicetta`) per controllarli.
 
 // Stessi id nel listino e nell'app (REQ-LIC-002 in tana-drink); il
 // magazzino porta con sé i suoi tre moduli di dettaglio.
@@ -79,6 +84,9 @@ function licenzaIniziale(attuale, { piano = 'base', moduli = [], temi = [], slug
       piano: p,
       moduli: moduliLicenza({ piano: p, moduli }),
       temi: temiLicenza({ temi }),
+      // I temi su misura arrivano con la licenza che la regia riscrive
+      // dopo l'attivazione (scriviLicenza): la prima è senza.
+      temi_su_misura: [],
       limiti: limitiLicenza(p),
       stato: attuale?.licenza?.stato || 'attiva',
       slug,
@@ -140,7 +148,7 @@ function validaFino(ist, cliente, giorniGrazia = GIORNI_DI_GRAZIA, oraTaglio = O
 // passata valida_fino sa se lavorare col Free o fermarsi.
 const allaScadenza = (ist, adesso) => (ripiegaInveceDiSospendere(ist, adesso) ? 'free' : 'ferma')
 
-function licenzaProtetta(ist, cliente, { slug, regiaUrl = null, sceltaUrl = null, giorniGrazia = GIORNI_DI_GRAZIA, oraTaglio = ORA_DEL_TAGLIO, adesso = new Date() } = {}) {
+function licenzaProtetta(ist, cliente, { slug, regiaUrl = null, sceltaUrl = null, giorniGrazia = GIORNI_DI_GRAZIA, oraTaglio = ORA_DEL_TAGLIO, adesso = new Date(), temiSuMisura = [], stiliRicetta } = {}) {
   // Tornato al Free per un pagamento mancato (REQ-FLOTTA-020): il suo piano
   // torna col pagamento, non qui.
   const scelta = ist?.ripiego_free ? { piano: 'free' } : cliente
@@ -150,6 +158,7 @@ function licenzaProtetta(ist, cliente, { slug, regiaUrl = null, sceltaUrl = null
     moduli: moduliLicenza({ piano: p, moduli: scelta?.moduli, prove: proveAttive(scelta, adesso) }),
     terminali: Math.max(1, Number(scelta?.terminali) || 1),
     temi: temiLicenza(cliente),
+    temi_su_misura: temiSuMisuraPerLicenza(temiSuMisura, stiliRicetta ? { stiliRicetta } : {}),
     limiti: limitiLicenza(p),
     prove: proveInCorso(scelta, adesso),
     stato: ist?.licenza_stato || 'attiva',
@@ -168,7 +177,7 @@ function licenzaProtetta(ist, cliente, { slug, regiaUrl = null, sceltaUrl = null
 }
 
 // Due licenze dicono la stessa cosa? La data di scrittura non conta.
-const CHIAVI_PROTETTA = ['piano', 'moduli', 'terminali', 'temi', 'limiti', 'prove', 'stato', 'motivo', 'slug', 'regia_url', 'aggiornamenti', 'valida_fino', 'alla_scadenza', 'cancellazione']
+const CHIAVI_PROTETTA = ['piano', 'moduli', 'terminali', 'temi', 'temi_su_misura', 'limiti', 'prove', 'stato', 'motivo', 'slug', 'regia_url', 'aggiornamenti', 'valida_fino', 'alla_scadenza', 'cancellazione']
 function ordinato(v) {
   if (Array.isArray(v)) return v.map(ordinato)
   if (v && typeof v === 'object') return Object.fromEntries(Object.keys(v).sort().map((k) => [k, ordinato(v[k])]))

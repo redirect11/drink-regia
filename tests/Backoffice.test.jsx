@@ -72,6 +72,8 @@ const db = vi.hoisted(() => ({
   // I temi dei locali (REQ-FLOTTA-039).
   impostaTemi: vi.fn(async () => ({ ok: true })),
   temiDelLocale: vi.fn(async () => ({ stili_installati: [], temi_installati: [], stile_menu: null })),
+  elencoTemiSuMisura: vi.fn(async () => []),
+  gestisciTemiSuMisura: vi.fn(async () => ({ ok: true })),
 }))
 const regia = vi.hoisted(() => ({ impostazioni: {}, vendita: { free: false, moduli: {} }, contatti: [], aggiornamenti: {}, licenze: null }))
 vi.mock('../src/lib/db.js', () => db)
@@ -316,6 +318,10 @@ describe('il backoffice e il credito AI', () => {
     expect(attivo).toHaveTextContent('mese 3,00 € / 20,00 €')
     await user.click(within(attivo).getByRole('button', { name: 'Ricarica AI' }))
     expect(db.gestisciCassettoAI).toHaveBeenCalledWith('bar-attivo', 'ricarica', { importo: 15.5, nota: 'prima ricarica' })
+    // Un omaggio (06/11/2026): credito regalato, segnato come tale.
+    window.prompt.mockReturnValueOnce('5').mockReturnValueOnce('benvenuto')
+    await user.click(within(attivo).getByRole('button', { name: 'Regala AI' }))
+    expect(db.gestisciCassettoAI).toHaveBeenCalledWith('bar-attivo', 'omaggio', { importo: 5, nota: 'benvenuto' })
   })
 
   it('la chiave nuova si vede una volta sola, e prima di sostituirne una si chiede', async () => {
@@ -378,6 +384,62 @@ describe('il backoffice e il credito AI', () => {
     await user.type(within(modulo).getByLabelText('Altri id, separati da virgola'), 'Aurora, ')
     await user.click(within(modulo).getByRole('button', { name: 'Salva i temi' }))
     expect(db.impostaTemi).toHaveBeenCalledWith('bar-attivo', ['notte', 'meraviglie', 'aurora'])
+  })
+
+  // REQ-FLOTTA-040 (06/11/2026): i temi su misura del locale nella scheda;
+  // l'admin ne scrive uno con la struttura del menù e la ricetta, lo
+  // pubblica e lo ritira.
+  it('la scheda elenca i temi su misura; l’admin ne scrive uno con struttura e ricetta, lo ritira e lo pubblica', { timeout: 20000 }, async () => {
+    const user = userEvent.setup()
+    db.elencoClienti.mockResolvedValue([{ uid: 'a', slug: 'bar-attivo', nome_locale: 'Bar Attivo', email: 'a@x.it', piano: 'base', creato_il: '2026-10-01' }])
+    db.elencoTemiSuMisura.mockResolvedValue([
+      { id: 'su-misura-1', nome: 'Bosco', descrizione: '', stato: 'pubblicato', origine: 'mockup', tavolozza: { base: 'tana-scuro', colori: {} }, stile: 'deco', ricetta: { versione: 1, impaginazione: 'per-categoria' } },
+      { id: 'aurora', nome: 'Aurora', descrizione: '', stato: 'bozza', origine: 'fornitore', tavolozza: { base: 'crema', colori: {} }, stile: 'riviera' },
+    ])
+    mostra()
+    const scheda = await apri('Bar Attivo')
+    expect(db.elencoTemiSuMisura).toHaveBeenCalledWith('a')
+    expect(await within(scheda).findByTestId('su-misura-bar-attivo')).toHaveTextContent('Bosco (dal tuo mockup, Una pagina per categoria, pubblicato) · Aurora (dal fornitore, stile Riviera, bozza)')
+    await user.click(within(scheda).getByRole('button', { name: 'Ritira «Bosco»' }))
+    expect(db.gestisciTemiSuMisura).toHaveBeenCalledWith('ritira', { slug: 'bar-attivo', id: 'su-misura-1' })
+    await user.click(within(scheda).getByRole('button', { name: 'Pubblica «Aurora»' }))
+    expect(db.gestisciTemiSuMisura).toHaveBeenCalledWith('pubblica', { slug: 'bar-attivo', id: 'aurora' })
+    await user.click(within(scheda).getByRole('button', { name: 'Nuovo tema su misura…' }))
+    const modulo = within(scheda).getByRole('form', { name: 'Nuovo tema su misura' })
+    await user.type(within(modulo).getByLabelText('Identificativo'), 'verde-oro')
+    await user.type(within(modulo).getByLabelText('Nome'), 'Verde e oro')
+    await user.selectOptions(within(modulo).getByLabelText('Struttura del menù'), 'per-macro-categoria')
+    await user.click(within(modulo).getByLabelText('Ricetta (JSON, facoltativa)'))
+    await user.paste('{"caratteri":{"titolo":"playfair-display","voce":"inter","testo":"inter"}}')
+    await user.click(within(modulo).getByRole('button', { name: 'Salva e pubblica' }))
+    expect(db.gestisciTemiSuMisura).toHaveBeenCalledWith('salva', {
+      slug: 'bar-attivo',
+      nuovo: true,
+      tema: {
+        id: 'verde-oro',
+        nome: 'Verde e oro',
+        descrizione: '',
+        tavolozza: { base: 'tana-scuro', colori: {} },
+        stile: 'classico',
+        ricetta: { versione: 1, caratteri: { titolo: 'playfair-display', voce: 'inter', testo: 'inter' }, impaginazione: 'per-macro-categoria' },
+      },
+    })
+    expect(db.gestisciTemiSuMisura).toHaveBeenCalledWith('pubblica', { slug: 'bar-attivo', id: 'verde-oro' })
+  })
+
+  it('una ricetta che non è JSON ferma il salvataggio e lo dice', async () => {
+    const user = userEvent.setup()
+    db.elencoClienti.mockResolvedValue([{ uid: 'a', slug: 'bar-attivo', nome_locale: 'Bar Attivo', email: 'a@x.it', piano: 'base', creato_il: '2026-10-01' }])
+    mostra()
+    const scheda = await apri('Bar Attivo')
+    await user.click(await within(scheda).findByRole('button', { name: 'Nuovo tema su misura…' }))
+    const modulo = within(scheda).getByRole('form', { name: 'Nuovo tema su misura' })
+    await user.type(within(modulo).getByLabelText('Identificativo'), 'x1')
+    await user.type(within(modulo).getByLabelText('Nome'), 'X')
+    await user.type(within(modulo).getByLabelText('Ricetta (JSON, facoltativa)'), '{{non json')
+    await user.click(within(modulo).getByRole('button', { name: 'Salva in bozza' }))
+    expect(within(modulo).getByText('La ricetta non è un JSON leggibile.')).toBeInTheDocument()
+    expect(db.gestisciTemiSuMisura).not.toHaveBeenCalled()
   })
 
   it('se il progetto del locale non risponde, la scheda lo dice e il resto resta', async () => {
@@ -666,10 +728,16 @@ describe('i pagamenti online e le richieste di contatto', () => {
       // Un modulo chiesto dall'app su un piano a mano (REQ-FLOTTA-037): la
       // stessa riga, con la nota che dice cosa, e si segna col suo id.
       { uid: 'u7_magazzino', email: 'sette@example.com', nome_locale: 'Bar Sette', nota: 'Dall’app: aggiungere Magazzino e fornitori.', scelta: { piano: 'base', moduli: ['magazzino'], terminali: 1 }, dall_app: { azione: 'aggiungi', modulo: 'magazzino', da: 'sette@example.com' }, stato: 'aperta', chiesta_il: '2026-11-04T10:00:00.000Z' },
+      // Un tema su misura chiesto al fornitore (REQ-FLOTTA-040): niente
+      // piano, la struttura del menù e il riferimento.
+      { uid: 'u6_tema', email: 'sei@example.com', nome_locale: 'Bar Sei', nota: 'Verde bosco e oro.', scelta: null, tema_su_misura: { struttura: 'per-categoria', riferimento: 'https://canva.com/x' }, stato: 'gestita', chiesta_il: '2026-11-06T10:00:00.000Z' },
     ]
     mostra('/backoffice/richieste')
     const sezione = await screen.findByRole('region', { name: 'Richieste di contatto' })
     expect(sezione).toHaveTextContent('2 da gestire')
+    expect(sezione).toHaveTextContent('Bar Sei · tema su misura · Una pagina per categoria · riferimento: https://canva.com/x')
+    expect(sezione).toHaveTextContent('«Verde bosco e oro.»')
+    expect(sezione).not.toHaveTextContent('Bar Sei · undefined')
     expect(sezione).toHaveTextContent('Bar Nove')
     expect(sezione).toHaveTextContent('+39 333 1234567')
     expect(sezione).toHaveTextContent('«Di mattina»')
@@ -681,7 +749,7 @@ describe('i pagamenti online e le richieste di contatto', () => {
     expect(db.segnaContatto).toHaveBeenCalledWith('u9', 'gestita')
     await user.click(sette)
     expect(db.segnaContatto).toHaveBeenCalledWith('u7_magazzino', 'gestita')
-    await user.click(within(sezione).getByRole('button', { name: 'Riapri' }))
+    await user.click(within(sezione).getAllByRole('button', { name: 'Riapri' })[0])
     expect(db.segnaContatto).toHaveBeenCalledWith('u8', 'aperta')
     regia.contatti = []
   })

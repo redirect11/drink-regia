@@ -587,6 +587,23 @@ requirements:
       Stripe in modalita' pagamento; il webhook accredita l'importo
       incassato una volta sola per sessione. IPOTESI in attesa della
       decisione dell'utente («pacchetti o consumo: da decidere»).
+      L'OMAGGIO (l'utente, 06/11/2026: «regalare crediti a un cassetto AI
+      di un gestore»): dal backoffice, «Regala AI», un credito senza
+      pagamento fino a 200 €, accreditato come una ricarica con origine
+      «omaggio» e una nota; il titolare vede le ultime ricariche con
+      l'origine (pagamento, accreditata da noi, in omaggio) nel riquadro
+      del credito. «Ricarica AI» resta per un pagamento ricevuto fuori da
+      Stripe (origine «manuale»).
+      LA FEDERAZIONE (l'utente, 06/11/2026: un workspace Anthropic per la
+      regia): le Functions AI girano con l'account di servizio Google
+      dedicato (scripts/account-ai.mjs: Firestore e log sul progetto, mai
+      i progetti dei locali, quindi la licenza dopo un tema su misura la
+      riscrive il trigger licenzaSegueITemiSuMisura), e l'SDK scambia il
+      token del server dei metadati con un token Anthropic legato alla
+      regola di federazione (i quattro id in functions/.env.<progetto>,
+      non segreti). Senza la regola configurata resta ANTHROPIC_API_KEY.
+      Lato Console, dall'utente: workspace «drink», account di servizio e
+      regola per ogni regia (quella del 02/11/2026 è di forkdiary).
       LA TANA: `registraLocaleEsistente` la registra senza provisioning
       (nessuna richiesta), col suo progetto, piano completo, istanza
       `interna` ed `esistente` con `licenza_dalla_regia: false`: la
@@ -1747,3 +1764,78 @@ requirements:
       - tests/Dashboard.test.jsx
       - tests/db.test.js
       - tests/clienti.test.js
+
+  - id: REQ-FLOTTA-040
+    title: "I temi su misura di un locale: dal mockup di Canva col credito AI, o fatti dal fornitore su richiesta, con la struttura del menù a scelta"
+    area: "functions/lib/temi.js (temaSuMisuraPulito, azioneSuTemaSuMisura, temiSuMisuraPerLicenza, temaDalMockup, idTemaSuMisura), functions/lib/stili.js (impaginazione, ricettaPulita), functions/lib/ai.js (tipo «tema», SCHEMA_TEMA, TIPI_INSTALLAZIONE), functions/lib/licenza.js (temi_su_misura), functions/lib/contatti.js (richiestaTemaSuMisura), functions/index.js (temaDaMockup, gestisciTemiSuMisura, chiediTemaSuMisura, interrogaClaude, temiSuMisuraDi), firestore.rules (clienti/{uid}/temi_su_misura), src/lib/temi.js (IMPAGINAZIONI), src/lib/db.js, src/pages/TemiSuMisura.jsx, src/pages/Dashboard.jsx, src/pages/CatalogoTemi.jsx (EditorTema su misura), src/pages/Backoffice.jsx (TemiSuMisuraLocale, Richieste), docs/temi-su-misura.md"
+    description: >
+      L'utente, 06/11/2026: «aggiungere la possibilità di ricreare la pagina
+      del menu e le sue sezioni utilizzando un output di canva. Vorrei un
+      servizio premium che mi consente di caricare un mockup di un tema
+      fatto con canva e se il cassetto ai ha dei crediti, creare il tema da
+      agganciare al menu e inserirlo tra i temi custom del gestore del bar.
+      Altro servizio è la creazione da parte nostra di temi che possiamo
+      fare ad hoc su richiesta. […] dovremmo fare in modo che si possa
+      scegliere tra varie strutture di menu (ad esempio tutto in una
+      pagina, una pagina per categoria o una per macro categoria)».
+      UN TEMA SU MISURA È DI UN LOCALE: sta in clienti/{uid}/temi_su_misura
+      (il titolare lo legge, l'admin pure, lo scrivono solo le Functions),
+      non nel catalogo di tutti, e arriva all'app con la licenza, in
+      `licenza.temi_su_misura`: i temi interi (id, nome, descrizione,
+      tavolozza, stile e, se c'è, la ricetta), pubblicati e validi; la
+      licenza si riscrive a ogni cambio (CHIAVI_PROTETTA). È un tema come
+      quelli del catalogo (una tavolozza e uno stile che l'app sa
+      disegnare) più, facoltativa, una RICETTA sua (lib/stili.js): un'app
+      col motore delle ricette disegna quella, una senza usa lo stile.
+      LA STRUTTURA DEL MENÙ è una dimensione nuova della ricetta,
+      `impaginazione`: unica (il menù di sempre), per-categoria (una
+      pagina per sezione), per-macro-categoria (una pagina per gruppo di
+      sezioni; i gruppi li scrive il locale nella struttura del menù, in
+      tana-drink). La sceglie chi fa il tema; il modello non la decide.
+      DAL MOCKUP (il servizio premium): nella dashboard, «Temi su misura →
+      Dal tuo mockup»: un'immagine (fino a 5 MB) o un PDF (fino a 20 MB)
+      esportato da Canva, la struttura, una nota. La callable temaDaMockup
+      chiede al modello col credito del cassetto AI del locale (la stessa
+      strada di richiestaAI: stima nel credito e nel tetto, chiamata con
+      la chiave della regia, addebito del costo vero, riga dei consumi di
+      tipo «tema»), con uno schema che chiude ogni scelta sui valori
+      dell'app (basi, stili non esclusivi, caratteri, vocabolario della
+      ricetta, i sette colori obbligatori) e istruzioni fisse. La regia
+      controlla la proposta come ogni tema e vuole che si legga (contrasto
+      WCAG: 4,5 testo su fondo e su card, 3 tenue e prezzo su fondo); se
+      non regge non si scrive e il tentativo resta addebitato, e lo si
+      dice. Il tema buono si scrive subito pubblicato (origine «mockup»,
+      con le note «da verificare» del modello) e la licenza si riscrive:
+      l'app lo vede nel marketplace, fra i suoi. Il mockup non si
+      conserva. Da un'installazione (richiestaAI) «tema» non si chiede:
+      TIPI_INSTALLAZIONE resta descrizione e fattura.
+      DAL FORNITORE: il titolare racconta il tema (struttura, riferimento)
+      e la richiesta va fra le richieste di contatto (contatti/<uid>_tema,
+      REQ-FLOTTA-017), senza passare dai pagamenti online; l'admin la
+      lavora dalla scheda del locale, «Moduli e temi → Nuovo tema su
+      misura…»: l'editor del catalogo con in più la struttura del menù e
+      la ricetta scritta come JSON (lo stesso vocabolario degli stili del
+      repository); salva, pubblica, ritira (gestisciTemiSuMisura, origine
+      «fornitore»). Il titolare, dalla dashboard, toglie e rimette i suoi
+      (ritira e pubblica), ma non li scrive.
+      DA DECIDERE CON L'UTENTE: un prezzo fisso per tema dal mockup oltre
+      al costo del modello (oggi si paga solo il costo vero, col ricarico
+      del listino), e il prezzo del tema fatto da noi (si concorda).
+      LATO APP (tana-drink, richiesta in docs/temi-su-misura.md): leggere
+      `licenza.temi_su_misura` nel marketplace («I tuoi temi»), con la
+      ricetta sul motore degli stili a ricetta; `impaginazione` nel
+      motore; le macro categorie nella struttura del menù dei clienti.
+    status: partial
+    generate_issue: true
+    labels: [flotta, regia, temi, ai]
+    priority: P2
+    test_cases:
+      - tests/temi.test.js
+      - tests/stili.test.js
+      - tests/ai.test.js
+      - tests/licenza.test.js
+      - tests/contatti.test.js
+      - tests/db.test.js
+      - tests/TemiSuMisura.test.jsx
+      - tests/Backoffice.test.jsx
+      - tests/Dashboard.test.jsx

@@ -6,6 +6,20 @@ data.
 
 ## Prossima release (da decidere)
 
+- I temi su misura di un locale: dalla dashboard il titolare carica il
+  mockup di un tema (Canva o simili) e, col credito AI, la regia ne ricava
+  un tema del suo locale; oppure chiede un tema fatto da noi, che
+  l'amministratore scrive dalla scheda del locale con la struttura del
+  menù (una pagina, una per categoria, una per macro categoria) e una
+  ricetta. I temi su misura arrivano all'app con la licenza
+  (REQ-FLOTTA-040).
+- Dal backoffice si regala credito AI a un locale («Regala AI»), senza
+  pagamento; il titolare vede le ultime ricariche con la loro origine,
+  omaggi compresi (REQ-AI-003).
+- Le Functions AI si presentano ad Anthropic con la federazione delle
+  identità, con un account di servizio dedicato e un workspace della
+  regia, al posto della chiave statica; finché la regola non è
+  configurata resta la chiave (REQ-AI-003).
 - I temi in licenza di un locale (gli esclusivi della Tana, «Notte» e
   «Meraviglie») si assegnano dal backoffice e la licenza li porta all'app;
   la scheda del locale elenca moduli, temi in licenza e quello che il

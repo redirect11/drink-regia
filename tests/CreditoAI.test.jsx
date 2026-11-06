@@ -17,6 +17,7 @@ const db = vi.hoisted(() => ({
     return () => {}
   }),
   ultimiConsumiAI: vi.fn(async () => []),
+  ultimeRicaricheAI: vi.fn(async () => []),
   avviaRicaricaAI: vi.fn(async () => ({ url: 'https://checkout.stripe.com/c/pay/x' })),
   osservaVendita: vi.fn((cb) => {
     cb(stato.vendita)
@@ -66,6 +67,18 @@ describe('il credito AI nella dashboard', () => {
     expect(within(tabella).getByText('0,05 €')).toBeInTheDocument()
     // Una descrizione costa meno di un centesimo: lo si dice, non «0,00 €».
     expect(within(tabella).getByText('meno di 0,01 €')).toBeInTheDocument()
+  })
+
+  // L'utente, 06/11/2026: «regalare crediti a un cassetto AI di un gestore».
+  it('le ultime ricariche dicono da dove arrivano, e un omaggio porta la nota', async () => {
+    stato.cassetto = { credito_microeuro: 15_000_000, mese: meseDi(), speso_mese_microeuro: 0 }
+    db.ultimeRicaricheAI.mockResolvedValue([
+      { il: '2026-11-06T10:00:00Z', importo_microeuro: 5_000_000, origine: 'omaggio', nota: 'benvenuto' },
+      { il: '2026-11-01T10:00:00Z', importo_microeuro: 10_000_000, origine: 'stripe', pacchetto: 'ai-10' },
+    ])
+    render(<CreditoAI slug="bar-mario" istanzaAttiva />)
+    expect(await screen.findByTestId('ricariche-ai')).toHaveTextContent(/5,00 € in omaggio il 0?6\/11\/2026 \(«benvenuto»\) · 10,00 € pagamento il 0?1\/11\/2026/)
+    expect(db.ultimeRicaricheAI).toHaveBeenCalledWith('bar-mario')
   })
 
   it('a credito finito dice che si ferma solo l’AI', () => {

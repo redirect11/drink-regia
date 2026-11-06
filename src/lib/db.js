@@ -380,6 +380,14 @@ export async function ultimiConsumiAI(slug, quanti = 10) {
   return snap.docs.map((d) => d.data())
 }
 
+// Le ultime ricariche, con l'origine (pagamento, a mano, omaggio): il
+// titolare vede anche un credito regalato.
+export async function ultimeRicaricheAI(slug, quanti = 5) {
+  serve()
+  const snap = await getDocs(query(collection(db, 'ai', slug, 'ricariche'), orderBy('il', 'desc'), limit(quanti)))
+  return snap.docs.map((d) => d.data())
+}
+
 // Il titolare compra un pacchetto: la Function apre il Checkout di Stripe,
 // e il credito arriva col webhook a pagamento confermato.
 export async function avviaRicaricaAI(pacchetto) {
@@ -460,6 +468,54 @@ export async function temiDelLocale(slug) {
   serve()
   const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'temiDelLocale')
   const { data } = await fn({ slug })
+  return data
+}
+
+// ── i temi su misura (REQ-FLOTTA-040) ──
+// Stanno in clienti/{uid}/temi_su_misura: il titolare li osserva nella
+// dashboard, l'admin li legge nella scheda del locale; li scrivono solo le
+// Functions.
+export function osservaTemiSuMisura(uid, cb) {
+  if (!configurata || !uid) {
+    cb([])
+    return () => {}
+  }
+  return onSnapshot(
+    query(collection(db, 'clienti', uid, 'temi_su_misura'), orderBy('creato_il', 'desc')),
+    (s) => cb(s.docs.map((d) => d.data())),
+    () => cb([])
+  )
+}
+
+export async function elencoTemiSuMisura(uid) {
+  serve()
+  const snap = await getDocs(query(collection(db, 'clienti', uid, 'temi_su_misura'), orderBy('creato_il', 'desc')))
+  return snap.docs.map((d) => d.data())
+}
+
+// Il tema dal mockup: il file in base64 col suo tipo, la struttura del menù
+// e una nota. Il modello ci mette un po': il tempo è quello della Function.
+export async function creaTemaDaMockup(dati) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'temaDaMockup', { timeout: 300_000 })
+  const { data } = await fn(dati)
+  return data
+}
+
+// L'admin scrive, pubblica e ritira (con `slug`); il titolare toglie e
+// rimette i suoi.
+export async function gestisciTemiSuMisura(azione, dati = {}) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'gestisciTemiSuMisura')
+  const { data } = await fn({ ...dati, azione })
+  return data
+}
+
+// Il titolare chiede un tema al fornitore: { descrizione, struttura, riferimento, telefono }.
+export async function chiediTemaSuMisura(dati) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'chiediTemaSuMisura')
+  const { data } = await fn(dati)
   return data
 }
 

@@ -40,6 +40,11 @@ vi.mock('../src/lib/db.js', () => ({
   },
   ultimiConsumiAI: vi.fn(async () => []),
   avviaRicaricaAI: vi.fn(),
+  // I temi su misura (REQ-FLOTTA-040) hanno i loro test in TemiSuMisura.test.jsx.
+  osservaTemiSuMisura: (uid, cb) => {
+    cb([])
+    return () => {}
+  },
   // La vendita (REQ-FLOTTA-015): qui il Free è in vendita.
   // E i pagamenti online accesi (REQ-FLOTTA-017).
   osservaVendita: (cb) => {

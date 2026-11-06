@@ -47,7 +47,7 @@ export function statoCredito(cassetto, adesso = new Date()) {
   }
 }
 
-const TIPI = { descrizione: 'Descrizione di un prodotto', fattura: 'Lettura di una fattura' }
+const TIPI = { descrizione: 'Descrizione di un prodotto', fattura: 'Lettura di una fattura', tema: 'Tema dal mockup' }
 const ESITI = {
   ok: 'riuscita',
   rifiuto: 'il modello non ha risposto',
@@ -57,3 +57,7 @@ const ESITI = {
 }
 export const tipoDetto = (t) => TIPI[t] || t
 export const esitoDetto = (e) => ESITI[e] || e
+// Da dove arriva una ricarica: un pagamento dal sito, uno ricevuto fuori
+// da Stripe e accreditato da noi, o un regalo (l'utente, 06/11/2026).
+const ORIGINI = { stripe: 'pagamento', manuale: 'accreditata da noi', omaggio: 'in omaggio' }
+export const origineDetta = (o) => ORIGINI[o] || o

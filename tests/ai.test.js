@@ -6,9 +6,12 @@
 
 import { describe, it, expect } from 'vitest'
 import { createRequire } from 'node:module'
+import { readFileSync } from 'node:fs'
 
 const require = createRequire(import.meta.url)
 const ai = require('../functions/lib/ai.js')
+const t = require('../functions/lib/temi.js')
+const s = require('../functions/lib/stili.js')
 const { aggiornamentoDaEvento } = require('../functions/lib/abbonamento.js')
 const listino = require('../functions/piani.json')
 
@@ -130,6 +133,34 @@ describe('le richieste che un’installazione può fare', () => {
     }
     controlla(ai.preparaMessaggio({ tipo: 'descrizione', nome: 'Gin' }).schema, 'descrizione')
     controlla(ai.preparaMessaggio({ tipo: 'fattura', media_type: 'application/pdf', file: 'AAAA' }).schema, 'fattura')
+    controlla(ai.preparaMessaggio({ tipo: 'tema', media_type: 'image/png', file: 'AAAA', struttura: 'unica' }).schema, 'tema')
+  })
+
+  // REQ-FLOTTA-040 (06/11/2026): il tema dal mockup di Canva, col credito AI.
+  it('un tema vuole il mockup (foto o PDF) e la struttura del menù; lo schema chiude ogni scelta sui valori dell’app', () => {
+    const m = ai.preparaMessaggio({ tipo: 'tema', media_type: 'image/png', file: 'AAAA', struttura: 'per-categoria', note: '  prezzi coi puntini  ' })
+    expect(m.tipo).toBe('tema')
+    expect(m.struttura).toBe('per-categoria')
+    expect(m.content[0]).toMatchObject({ type: 'image', source: { media_type: 'image/png', data: 'AAAA' } })
+    expect(m.content[1].text).toContain('una pagina per categoria')
+    expect(m.content[1].text).toContain('Note del locale: prezzi coi puntini')
+    expect(m.system).toMatch(/contrasto/)
+    expect(ai.parametriClaude(m).output_config.effort).toBe('medium')
+    // Gli enum sono quelli della regia: basi, stili dell'app (mai gli esclusivi), caratteri, vocabolario della ricetta.
+    const p = m.schema.properties
+    expect(p.tavolozza.properties.base.enum).toEqual(t.BASI)
+    expect(p.stile_vicino.enum).toEqual(t.STILI)
+    expect(p.stile_vicino.enum).not.toContain('notte')
+    expect(p.ricetta.properties.caratteri.properties.titolo.enum).toEqual(s.CARATTERI)
+    expect(p.ricetta.properties.sfondo.enum).toEqual(s.VALORI.sfondo)
+    expect(p.ricetta.properties.voce.properties.prezzo.enum).toEqual(s.VALORI['voce.prezzo'])
+    // La struttura la sceglie il titolare: nello schema non c'è.
+    expect(p.ricetta.properties).not.toHaveProperty('impaginazione')
+    expect(p.tavolozza.properties.colori.required).toEqual(t.CHIAVI_COLORE)
+    expect(() => ai.preparaMessaggio({ tipo: 'tema', media_type: 'image/png', file: 'AAAA' })).toThrow(/struttura del menù/)
+    expect(() => ai.preparaMessaggio({ tipo: 'tema', media_type: 'text/plain', file: 'AAAA', struttura: 'unica' })).toThrow(/Formato non accettato/)
+    // Da un'installazione si chiedono solo descrizione e fattura.
+    expect(ai.TIPI_INSTALLAZIONE).toEqual(['descrizione', 'fattura'])
   })
 })
 
@@ -263,6 +294,40 @@ describe('la ricarica con Stripe', () => {
   it('l’abbonamento non scambia una ricarica per un piano pagato', () => {
     expect(aggiornamentoDaEvento('checkout.session.completed', sessione)).toBeNull()
     expect(aggiornamentoDaEvento('checkout.session.completed', { metadata: { uid: 'u1', piano: 'base' } })).not.toBeNull()
+  })
+
+  // L'utente, 06/11/2026: «regalare crediti a un cassetto AI di un gestore».
+  it('un omaggio è una ricarica con la sua origine, fino a 200 €, che l’admin accredita senza pagamento', () => {
+    expect(ai.ORIGINI_RICARICA).toEqual(['stripe', 'manuale', 'omaggio'])
+    expect(ai.MAX_OMAGGIO).toBe(200)
+    const codice = readFileSync('functions/index.js', 'utf8')
+    const omaggio = codice.slice(codice.indexOf("if (azione === 'omaggio')"), codice.indexOf("if (azione === 'tetto')"))
+    expect(omaggio).toContain('importo > ai.MAX_OMAGGIO')
+    expect(omaggio).toContain("{ origine: 'omaggio', nota:")
+    expect(omaggio).toContain('await accreditaRicarica(')
+  })
+
+  // L'utente, 06/11/2026: un workspace Anthropic per la regia, con la
+  // federazione delle identità al posto della chiave statica.
+  it('con la regola di federazione configurata le Functions AI usano il token dell’account di servizio dedicato, non la chiave', () => {
+    const codice = readFileSync('functions/index.js', 'utf8')
+    const client = codice.slice(codice.indexOf('const claude = () => {'), codice.indexOf('// Una ricarica (Stripe o a mano)'))
+    expect(client).toContain("if (!federazione) return { Anthropic, client: new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() }) }")
+    expect(client).toContain("require('@anthropic-ai/sdk/lib/credentials/oidc-federation')")
+    expect(client).toContain("headers: { 'Metadata-Flavor': 'Google' }")
+    expect(client).toContain('new Anthropic({ credentials })')
+    expect(codice).toContain("'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=https://api.anthropic.com&format=full'")
+    expect(codice).toContain('federationRuleId: process.env.ANTHROPIC_FEDERATION_RULE_ID')
+    expect(codice).toContain('organizationId: process.env.ANTHROPIC_ORGANIZATION_ID')
+    expect(codice).toContain('serviceAccountId: process.env.ANTHROPIC_SERVICE_ACCOUNT_ID')
+    // Lo script dell'account: Firestore e log sul progetto, il deploy che agisce come lui, email e id numerico per la Console.
+    const script = readFileSync('scripts/account-ai.mjs', 'utf8')
+    expect(script).toContain("const RUOLI_PROGETTO = ['roles/datastore.user', 'roles/logging.logWriter']")
+    expect(script).toContain("['roles/iam.serviceAccountUser']")
+    expect(script).toContain('account.uniqueId')
+    // Il file di ambiente del test spiega le cinque variabili.
+    const env = readFileSync('functions/.env.drink-regia-test', 'utf8')
+    for (const v of ['AI_SERVICE_ACCOUNT', 'ANTHROPIC_FEDERATION_RULE_ID', 'ANTHROPIC_ORGANIZATION_ID', 'ANTHROPIC_SERVICE_ACCOUNT_ID', 'ANTHROPIC_WORKSPACE_ID']) expect(env).toContain(v)
   })
 
   it('un cassetto nuovo nasce vuoto, acceso, col tetto del listino', () => {

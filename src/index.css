@@ -522,3 +522,13 @@ code { background: rgba(255, 255, 255, 0.06); padding: 1px 5px; border-radius: 5
 .moduli-temi { display: grid; gap: 6px; margin: 12px 0; padding-top: 10px; border-top: 1px solid var(--line); font-size: 0.9rem; }
 .moduli-temi strong { font-weight: 600; margin-right: 4px; }
 .moduli-temi .btn { margin-left: 8px; }
+/* I temi su misura (REQ-FLOTTA-040): nella dashboard e nella scheda del locale. */
+.temi-su-misura { list-style: none; padding: 0; margin: 0 0 16px; display: grid; gap: 14px; }
+.temi-su-misura li { display: grid; gap: 6px; justify-items: start; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.temi-su-misura li.ritirato .anteprima-tema { opacity: 0.5; }
+.temi-su-misura .anteprima-tema { width: 100%; max-width: 320px; }
+.da-verificare { margin: 0; padding-left: 18px; }
+.tema-dal-mockup, .tema-dal-fornitore { display: grid; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.tema-dal-mockup h4, .tema-dal-fornitore h4 { margin: 0; }
+.tema-dal-mockup textarea, .tema-dal-fornitore textarea, .tema-dal-fornitore input, .tema-dal-mockup select, .tema-dal-fornitore select { width: 100%; max-width: 520px; }
+.moduli-temi .temi-su-misura { margin-top: 8px; }

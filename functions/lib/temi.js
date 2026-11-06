@@ -109,17 +109,22 @@ function catalogoPubblico(docs, daRepository = TEMI_DEL_REPOSITORY, { stiliRicet
 // - salva: il tema com'è scritto; uno nuovo nasce bozza, uno pubblicato
 //   resta pubblicato (il ritocco va subito nel catalogo);
 // - pubblica / ritira: cambia lo stato, ricontrollando il tema.
-function azioneSuTema(prima, azione, dati, { da = null, adesso = new Date(), stiliRicetta = STILI_RICETTA() } = {}) {
+// `pulisci` è la regola del tema: quella del catalogo, o quella di un tema
+// su misura (REQ-FLOTTA-040), che ha anche la ricetta; `nascita` sono i
+// campi di un tema nuovo oltre a creato_il e stato.
+function azioneSuTema(prima, azione, dati, { da = null, adesso = new Date(), stiliRicetta = STILI_RICETTA(), pulisci = temaPulito, nascita = {} } = {}) {
   const ora = adesso.toISOString()
   if (azione === 'salva') {
-    const { tema, errore } = temaPulito(dati, { stiliRicetta })
+    const { tema, errore } = pulisci(dati, { stiliRicetta })
     if (errore) return { errore }
     if (prima && prima.id !== tema.id) return { errore: 'L’identificativo di un tema non cambia: creane uno nuovo.' }
-    return { doc: { ...(prima || { creato_il: ora, stato: 'bozza' }), ...tema, aggiornato_il: ora, aggiornato_da: da } }
+    // La ricetta di un tema su misura si sostituisce intera: senza, va via.
+    const { ricetta: _via, ...base } = prima || { creato_il: ora, stato: 'bozza', ...nascita }
+    return { doc: { ...base, ...tema, aggiornato_il: ora, aggiornato_da: da } }
   }
   if (!prima) return { errore: 'Tema sconosciuto.' }
   if (azione === 'pubblica') {
-    const { errore } = temaPulito(prima, { stiliRicetta })
+    const { errore } = pulisci(prima, { stiliRicetta })
     if (errore) return { errore: `Non si pubblica: ${errore}` }
     return { doc: { ...prima, stato: 'pubblicato', pubblicato_il: ora, aggiornato_da: da } }
   }
@@ -165,4 +170,79 @@ function installatiDalLocale(bar) {
   }
 }
 
-module.exports = { BASI, STILI, ESCLUSIVI, CHIAVI_COLORE, STATI, TEMI_DEL_REPOSITORY, temaPulito, perIlCatalogo, catalogoPubblico, azioneSuTema, dalRepository, contrasto, temiPuliti, installatiDalLocale }
+// ── I TEMI SU MISURA DI UN LOCALE (REQ-FLOTTA-040) ──────────────────────
+// L'utente, 06/11/2026: un servizio premium con cui il titolare carica il
+// mockup di un tema fatto con Canva e, se il cassetto AI ha credito, la
+// regia ne ricava il tema e lo mette fra i temi su misura del locale; e un
+// servizio in cui il tema lo facciamo noi, su richiesta. In tutti e due i
+// casi il tema è di UN locale: sta in clienti/{uid}/temi_su_misura/{id},
+// non nel catalogo di tutti, e arriva all'app con la licenza
+// (licenza.temi_su_misura), che la regia scrive già nel progetto del
+// locale. È un tema come gli altri (tavolozza e uno stile che l'app sa
+// disegnare) più, se c'è, una RICETTA sua (lib/stili.js): un'app col
+// motore delle ricette disegna quella, una senza usa lo stile.
+const ORIGINI = ['mockup', 'fornitore']
+
+function temaSuMisuraPulito(dati, { stiliRicetta = STILI_RICETTA() } = {}) {
+  const { tema, errore } = temaPulito(dati, { stiliRicetta })
+  if (errore) return { errore }
+  if (dati?.ricetta == null) return { tema }
+  const r = stili.ricettaPulita(dati.ricetta)
+  if (r.errore) return { errore: `La ricetta: ${r.errore}` }
+  return { tema: { ...tema, ricetta: r.ricetta } }
+}
+
+// L'azione su un tema su misura: come su uno del catalogo, con la ricetta
+// e l'origine (chi l'ha fatto: il modello dal mockup, o il fornitore).
+const azioneSuTemaSuMisura = (prima, azione, dati, { origine = 'fornitore', ...opts } = {}) =>
+  azioneSuTema(prima, azione, dati, { ...opts, pulisci: temaSuMisuraPulito, nascita: { origine: ORIGINI.includes(origine) ? origine : 'fornitore' } })
+
+// L'id di un tema nato adesso: non lo sceglie nessuno, e due nello stesso
+// istante per lo stesso locale non capitano.
+const idTemaSuMisura = (adesso = new Date()) => `su-misura-${adesso.getTime().toString(36)}`
+
+// Quello che va nella licenza del locale: i suoi temi su misura pubblicati e
+// ancora validi, con la ricetta se c'è, in ordine di nome.
+function temiSuMisuraPerLicenza(docs, { stiliRicetta = STILI_RICETTA() } = {}) {
+  return (docs || [])
+    .filter((d) => d?.stato === 'pubblicato')
+    .map((d) => temaSuMisuraPulito(d, { stiliRicetta }).tema)
+    .filter(Boolean)
+    // La ricetta esce intera, coi valori che la ricetta non diceva: l'app
+    // non deve indovinare niente.
+    .map((tema) => ({ ...perIlCatalogo(tema), ...(tema.ricetta ? { ricetta: tema.ricetta } : {}) }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'it'))
+}
+
+// IL TEMA DAL MOCKUP: la risposta del modello (lib/ai.js, tipo «tema») →
+// { tema } pronto da salvare, o { errore }. Il modello sceglie fra valori
+// chiusi (lo schema glieli impone), ma la regola resta la stessa di ogni
+// tema: quello che l'app scarterebbe non si scrive. La struttura del menù
+// l'ha scelta il titolare, non il modello. I colori devono leggersi, come
+// per i temi del repository ma con la soglia dell'AA (4,5 testo, 3 tenue e
+// prezzo): un mockup fatto per la stampa può avere colori che a schermo
+// non reggono, e un tema illeggibile non è un servizio.
+function temaDalMockup(risultato, { struttura, adesso = new Date() } = {}) {
+  const r = risultato || {}
+  if (!stili.IMPAGINAZIONI.includes(struttura)) return { errore: 'Struttura del menù sconosciuta.' }
+  const dati = {
+    id: idTemaSuMisura(adesso),
+    nome: r.nome,
+    descrizione: r.descrizione,
+    tavolozza: { base: r.tavolozza?.base, colori: r.tavolozza?.colori },
+    stile: r.stile_vicino,
+    ricetta: { versione: stili.VERSIONE, ...(r.ricetta || {}), impaginazione: struttura },
+  }
+  // Lo stile vicino è uno dell'app: una ricetta del catalogo non c'entra.
+  const { tema, errore } = temaSuMisuraPulito(dati, { stiliRicetta: [] })
+  if (errore) return { errore }
+  const c = tema.tavolozza.colori
+  const manca = CHIAVI_COLORE.filter((k) => !c[k])
+  if (manca.length) return { errore: `Mancano i colori: ${manca.join(', ')}.` }
+  if (contrasto(c['--text'], c['--bg']) < 4.5 || contrasto(c['--text'], c['--card']) < 4.5) return { errore: 'Il testo non si legge sul fondo: contrasto sotto 4,5.' }
+  if (contrasto(c['--muted'], c['--bg']) < 3 || contrasto(c['--accent'], c['--bg']) < 3) return { errore: 'Il testo attenuato o i prezzi non si leggono sul fondo: contrasto sotto 3.' }
+  const daVerificare = (Array.isArray(r.da_verificare) ? r.da_verificare : []).filter((v) => typeof v === 'string' && v.trim()).map((v) => v.trim().slice(0, 200)).slice(0, 10)
+  return { tema: { ...tema, origine: 'mockup', da_verificare: daVerificare } }
+}
+
+module.exports = { BASI, STILI, ESCLUSIVI, CHIAVI_COLORE, STATI, ORIGINI, TEMI_DEL_REPOSITORY, temaPulito, perIlCatalogo, catalogoPubblico, azioneSuTema, dalRepository, contrasto, temiPuliti, installatiDalLocale, temaSuMisuraPulito, azioneSuTemaSuMisura, idTemaSuMisura, temiSuMisuraPerLicenza, temaDalMockup }

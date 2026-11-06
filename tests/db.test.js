@@ -129,6 +129,10 @@ const FUNCTIONS = [
   // I temi dei locali (REQ-FLOTTA-039).
   ['impostaTemi', ['tana-drink', ['notte']], 'impostaTemi', { slug: 'tana-drink', temi: ['notte'] }],
   ['temiDelLocale', ['tana-drink'], 'temiDelLocale', { slug: 'tana-drink' }],
+  // I temi su misura (REQ-FLOTTA-040).
+  ['creaTemaDaMockup', [{ file: 'AAAA', media_type: 'image/png', struttura: 'unica', note: '' }], 'temaDaMockup', { file: 'AAAA', media_type: 'image/png', struttura: 'unica', note: '' }],
+  ['gestisciTemiSuMisura', ['ritira', { id: 'su-misura-1' }], 'gestisciTemiSuMisura', { id: 'su-misura-1', azione: 'ritira' }],
+  ['chiediTemaSuMisura', [{ descrizione: 'Verde bosco', struttura: 'per-categoria' }], 'chiediTemaSuMisura', { descrizione: 'Verde bosco', struttura: 'per-categoria' }],
 ]
 
 describe('le chiamate alle Functions', () => {
@@ -263,6 +267,8 @@ describe('i documenti della regia', () => {
     expect(visti).toEqual([null, null])
     fb.documenti['ai/bar/consumi'] = [['c1', { il: 'x' }]]
     expect(await db.ultimiConsumiAI('bar')).toEqual([{ il: 'x' }])
+    fb.documenti['ai/bar/ricariche'] = [['r1', { il: 'y', origine: 'omaggio' }]]
+    expect(await db.ultimeRicaricheAI('bar')).toEqual([{ il: 'y', origine: 'omaggio' }])
     fb.documenti.ai = [['bar', { credito: 1 }]]
     expect(await db.elencoCassettiAI()).toEqual({ bar: { credito: 1 } })
   })

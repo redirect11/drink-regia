@@ -39,9 +39,22 @@ describe('uno stile a ricetta', () => {
           cornice: 'nessuna',
           angoli: 'morbidi',
           sfondo: 'tinta',
+          impaginazione: 'unica',
         },
       },
     })
+  })
+
+  // REQ-FLOTTA-040 (l'utente, 06/11/2026): «si possa scegliere tra varie
+  // strutture di menu, ad esempio tutto in una pagina, una pagina per
+  // categoria o una per macro categoria».
+  it('la struttura del menù è una dimensione della ricetta: una pagina, per categoria, per macro categoria', () => {
+    expect(s.IMPAGINAZIONI).toEqual(['unica', 'per-categoria', 'per-macro-categoria'])
+    expect(s.stilePulito(stile({ ricetta: ricetta({ impaginazione: 'per-macro-categoria' }) })).stile.ricetta.impaginazione).toBe('per-macro-categoria')
+    expect(s.stilePulito(stile({ ricetta: ricetta({ impaginazione: 'a-fisarmonica' }) })).errore).toMatch(/impaginazione è uno fra/)
+    // La ricetta da sola, per un tema su misura.
+    expect(s.ricettaPulita(ricetta({ impaginazione: 'per-categoria' })).ricetta.impaginazione).toBe('per-categoria')
+    expect(s.ricettaPulita(null).errore).toMatch(/Manca la ricetta/)
   })
 
   it('colori propri facoltativi, come la Lavagna', () => {
