@@ -42,9 +42,10 @@ da portare alla sessione della regia: la regia non la scrive tana-drink.
 - **Si mettono dal backoffice**, nella scheda del locale (l'admin; un tema
   esclusivo non si compra, lo assegna il fornitore), e dal modulo «Locale
   esistente», così la Tana entra nella regia **con i suoi temi già
-  scritti**: `notte` e `meraviglie`.
+  scritti**: `notte`, `meraviglie` e `carte`.
 - Gli id validi sono gli stili `inLicenza` di tana-drink (`STILI_MENU` in
-  `src/lib/stileMenu.js`): oggi `notte`; a breve `meraviglie`. Un id che
+  `src/lib/stileMenu.js`): `notte`, `meraviglie` e, dal 06/11/2026,
+  `carte` (il menù come un mazzo di carte, REQ-MENU-029). Un id che
   l'app non conosce l'app lo ignora (resta il classico), quindi si possono
   scrivere anche prima che l'app li abbia.
 

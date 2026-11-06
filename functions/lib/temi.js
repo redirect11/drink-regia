@@ -24,10 +24,11 @@ const BASI = ['tana-scuro', 'notte-blu', 'catppuccin', 'catppuccin-chiaro', 'pic
 // Gli stili che ogni app conosce. Uno stile nuovo arriva con una versione
 // dell'app, e allora si aggiunge qui.
 const STILI = ['classico', 'lavagna', 'deco', 'riviera', 'giornale']
-// Gli stili in licenza (tana-drink, stileMenu.js, `inLicenza`): «notte» e
-// «meraviglie» sono esclusivi della Tana, non vanno in un tema pubblicato
-// per tutti. Li assegna l'admin dalla scheda del locale (REQ-FLOTTA-039).
-const ESCLUSIVI = ['notte', 'meraviglie']
+// Gli stili in licenza (tana-drink, stileMenu.js, `inLicenza`): «notte»,
+// «meraviglie» e «carte» (tana-drink REQ-MENU-029, dal 06/11/2026) sono
+// esclusivi della Tana, non vanno in un tema pubblicato per tutti. Li
+// assegna l'admin dalla scheda del locale (REQ-FLOTTA-039).
+const ESCLUSIVI = ['notte', 'meraviglie', 'carte']
 const CHIAVI_COLORE = ['--bg', '--bg-2', '--card', '--accent', '--accent-2', '--text', '--muted']
 const ID = /^[a-z0-9][a-z0-9-]{1,40}$/
 const COLORE = /^#[0-9a-fA-F]{6}$/

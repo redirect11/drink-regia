@@ -42,9 +42,10 @@ describe('un tema da pubblicare', () => {
     expect(t.temaPulito({ ...oro, tavolozza: { base: 'crema', colori: { '--bg': '#fff' } } }).errore).toMatch(/#rrggbb/)
   })
 
-  it('«notte» e «meraviglie» sono esclusivi della Tana; e per ora niente temi a pagamento', () => {
+  it('«notte», «meraviglie» e «carte» sono esclusivi della Tana; e per ora niente temi a pagamento', () => {
     expect(t.temaPulito({ ...oro, stile: 'notte' }).errore).toMatch(/esclusivo/)
     expect(t.temaPulito({ ...oro, stile: 'meraviglie' }).errore).toMatch(/esclusivo/)
+    expect(t.temaPulito({ ...oro, stile: 'carte' }).errore).toMatch(/esclusivo/)
     expect(t.temaPulito({ ...oro, prezzo: 3 }).errore).toMatch(/tutti gratis/)
   })
 
@@ -53,6 +54,7 @@ describe('un tema da pubblicare', () => {
     expect(STILI_SITO.map((s) => s.id)).toEqual(t.STILI)
     expect(ESCLUSIVI_SITO.map((s) => s.id)).toEqual(t.ESCLUSIVI)
     expect(nomeStile('meraviglie')).toBe('Meraviglie')
+    expect(nomeStile('carte')).toBe('Carte')
     expect(CHIAVI_SITO.map((c) => c.key)).toEqual(t.CHIAVI_COLORE)
     for (const b of BASI_SITO) expect(Object.keys(b.colori)).toEqual(t.CHIAVI_COLORE)
   })

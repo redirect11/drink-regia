@@ -74,7 +74,9 @@ const VALORI = {
 const IMPAGINAZIONI = VALORI.impaginazione
 
 // Gli stili scritti nell'app: un id di uno stile a ricetta non li copre.
-const STILI_DELL_APP = ['classico', 'notte', 'lavagna', 'deco', 'riviera', 'giornale']
+// Sono quelli di STILI_DELL_APP in src/lib/stiliRicetta.js di tana-drink, e
+// nello stesso ordine: mancavano «meraviglie» e «carte» (06/11/2026).
+const STILI_DELL_APP = ['classico', 'notte', 'meraviglie', 'carte', 'lavagna', 'deco', 'riviera', 'giornale']
 const ID = /^[a-z0-9][a-z0-9-]{1,40}$/
 const COLORE = /^#[0-9a-fA-F]{6}$/
 const CHIAVI_COLORE = ['--bg', '--bg-2', '--card', '--accent', '--accent-2', '--text', '--muted']
