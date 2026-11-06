@@ -6,6 +6,7 @@ import { prezzoConSconto, scontoDetto } from '../lib/sconti.js'
 import { nomeStile } from '../lib/temi.js'
 import SceltaPiano from './SceltaPiano.jsx'
 import CreditoAI from './CreditoAI.jsx'
+import TemiSuMisura from './TemiSuMisura.jsx'
 import ChiudiLocale from './ChiudiLocale.jsx'
 import ProveModuli from './ProveModuli.jsx'
 import AggiornamentiLocale from './AggiornamentiLocale.jsx'
@@ -222,6 +223,8 @@ export default function Dashboard({ utente }) {
         {stato === STATI.ATTIVA && <AggiornamentiLocale istanza={istanza} />}
         <CreditoAI slug={cliente.slug} istanzaAttiva={stato === STATI.ATTIVA} />
         <ProveModuli cliente={cliente} istanza={istanza} />
+        {/* I temi su misura (REQ-FLOTTA-040) arrivano all'app con la licenza: con l'app attiva. */}
+        {stato === STATI.ATTIVA && <TemiSuMisura uid={utente.uid} slug={cliente.slug} />}
         {/* Senza un abbonamento attivo si sceglie (o si rinnova) il piano. Dal
             Free a un piano a pagamento si passa dal Checkout, non da «modifica»
             (REQ-FLOTTA-015). */}

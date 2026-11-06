@@ -61,7 +61,17 @@ const VALORI = {
   cornice: ['nessuna', 'sottile', 'doppia', 'angoli'],
   angoli: ['morbidi', 'vivi', 'tondi'],
   sfondo: ['tinta', 'grana', 'carta', 'gesso', 'righe', 'quadretti'],
+  // LA STRUTTURA DEL MENÙ (REQ-FLOTTA-040; l'utente, 06/11/2026: «si possa
+  // scegliere tra varie strutture di menu, ad esempio tutto in una pagina,
+  // una pagina per categoria o una per macro categoria»): com'è diviso il
+  // menù dei clienti, non com'è disegnata una voce. «unica» è il menù di
+  // sempre; «per-categoria» una pagina per sezione; «per-macro-categoria»
+  // una pagina per gruppo di sezioni (i gruppi li scrive il locale nella
+  // struttura del menù, in tana-drink). Un'app senza i gruppi disegna
+  // «per-macro-categoria» come «per-categoria».
+  impaginazione: ['unica', 'per-categoria', 'per-macro-categoria'],
 }
+const IMPAGINAZIONI = VALORI.impaginazione
 
 // Gli stili scritti nell'app: un id di uno stile a ricetta non li copre.
 const STILI_DELL_APP = ['classico', 'notte', 'lavagna', 'deco', 'riviera', 'giornale']
@@ -84,7 +94,14 @@ function stilePulito(dati) {
   const descrizione = testo(dati?.descrizione)
   if (descrizione.length > 240) return { errore: 'La descrizione arriva al massimo a 240 caratteri.' }
   if (Number(dati?.prezzo || 0) !== 0) return { errore: 'Per ora gli stili sono tutti gratis.' }
-  const r = dati?.ricetta
+  const { ricetta, errore } = ricettaPulita(dati?.ricetta)
+  if (errore) return { errore }
+  return { stile: { id, nome, descrizione, prezzo: 0, ricetta } }
+}
+
+// La ricetta da sola → { ricetta } o { errore }. La usa anche un tema su
+// misura (REQ-FLOTTA-040), che porta la sua ricetta dentro di sé.
+function ricettaPulita(r) {
   if (!r || typeof r !== 'object') return { errore: 'Manca la ricetta.' }
   if (r.versione !== VERSIONE) return { errore: `La ricetta è della versione ${VERSIONE}.` }
   const caratteri = {}
@@ -117,7 +134,7 @@ function stilePulito(dati) {
     }
     if (Object.keys(colori).length) ricetta.colori = colori
   }
-  return { stile: { id, nome, descrizione, prezzo: 0, ricetta } }
+  return { ricetta }
 }
 
 // GLI STILI DEL REPOSITORY: come i temi (REQ-FLOTTA-033), disegnati dal
@@ -140,4 +157,4 @@ function catalogoStili(docs, daRepository = STILI_DEL_REPOSITORY) {
 
 const stileDalRepository = (id, daRepository = STILI_DEL_REPOSITORY) => daRepository.find((s) => s.id === id) || null
 
-module.exports = { CARATTERI, VALORI, STILI_DELL_APP, VERSIONE, STILI_DEL_REPOSITORY, stilePulito, catalogoStili, stileDalRepository }
+module.exports = { CARATTERI, VALORI, IMPAGINAZIONI, STILI_DELL_APP, VERSIONE, STILI_DEL_REPOSITORY, stilePulito, ricettaPulita, catalogoStili, stileDalRepository }

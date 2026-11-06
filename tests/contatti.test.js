@@ -10,7 +10,7 @@ import { describe, it, expect } from 'vitest'
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
-const { pagamentiOnline, richiestaContatto, NOTA_MAX } = require('../functions/lib/contatti.js')
+const { pagamentiOnline, richiestaContatto, NOTA_MAX, richiestaTemaSuMisura, idRichiestaTema } = require('../functions/lib/contatti.js')
 const { venditaPulita } = require('../functions/lib/free.js')
 
 const cliente = { uid: 'u1', email: 'bar@example.com', nome_locale: 'Bar Mario', slug: 'bar-mario', moduli: [] }
@@ -67,5 +67,37 @@ describe('la richiesta di contatto', () => {
     const r = richiestaContatto({ ...cliente, moduli: ['sumup'] }, { piano: 'base', moduli: ['sumup'] }, spenti, ADESSO)
     expect(r.ok).toBe(true)
     expect(r.documento.scelta.moduli).toEqual(['sumup'])
+  })
+})
+
+// UN TEMA SU MISURA DAL FORNITORE (REQ-FLOTTA-040; l'utente, 06/11/2026: «la
+// creazione da parte nostra di temi che possiamo fare ad hoc su richiesta»).
+// Una richiesta di contatto a sé, in contatti/<uid>_tema, con la struttura
+// del menù scelta e un riferimento.
+describe('la richiesta di un tema su misura', () => {
+  it('porta il racconto, la struttura del menù, il riferimento e il recapito; senza scelta di piano', () => {
+    const r = richiestaTemaSuMisura(cliente, { descrizione: ' Verde bosco, caratteri serif, come il locale di Milano ', struttura: 'per-categoria', riferimento: ' https://canva.com/x ', telefono: '333 1234567' }, ADESSO)
+    expect(r.ok).toBe(true)
+    expect(r.documento).toEqual({
+      uid: 'u1',
+      email: 'bar@example.com',
+      nome_locale: 'Bar Mario',
+      slug: 'bar-mario',
+      scelta: null,
+      telefono: '333 1234567',
+      nota: 'Verde bosco, caratteri serif, come il locale di Milano',
+      codice: null,
+      tema_su_misura: { struttura: 'per-categoria', riferimento: 'https://canva.com/x' },
+      stato: 'aperta',
+      chiesta_il: '2026-10-30T10:00:00.000Z',
+    })
+    expect(idRichiestaTema('u1')).toBe('u1_tema')
+  })
+
+  it('una struttura sconosciuta vale «unica»; senza racconto, senza cliente o con un telefono strano si ferma', () => {
+    expect(richiestaTemaSuMisura(cliente, { descrizione: 'Verde bosco e oro.', struttura: 'a-fisarmonica' }, ADESSO).documento.tema_su_misura).toEqual({ struttura: 'unica', riferimento: null })
+    expect(richiestaTemaSuMisura(cliente, { descrizione: 'corto' }).perche).toMatch(/Racconta il tema/)
+    expect(richiestaTemaSuMisura(null, { descrizione: 'Verde bosco e oro.' }).perche).toMatch(/Nessun locale/)
+    expect(richiestaTemaSuMisura(cliente, { descrizione: 'Verde bosco e oro.', telefono: 'chiamami' }).perche).toMatch(/telefono/)
   })
 })

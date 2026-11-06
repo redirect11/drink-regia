@@ -69,6 +69,19 @@ export const nomeStile = (id) => [...STILI, ...ESCLUSIVI, ...STILI_RICETTA].find
 
 export const STATI_DETTI = { bozza: 'Bozza', pubblicato: 'Pubblicato', ritirato: 'Ritirato' }
 
+// LA STRUTTURA DEL MENÙ (REQ-FLOTTA-040): come il menù dei clienti è diviso
+// in pagine. Gli id sono quelli di `impaginazione` nella ricetta degli
+// stili (functions/lib/stili.js).
+export const IMPAGINAZIONI = [
+  { id: 'unica', nome: 'Tutto in una pagina' },
+  { id: 'per-categoria', nome: 'Una pagina per categoria' },
+  { id: 'per-macro-categoria', nome: 'Una pagina per macro categoria' },
+]
+export const nomeImpaginazione = (id) => IMPAGINAZIONI.find((i) => i.id === id)?.nome || id
+
+// Chi ha fatto un tema su misura.
+export const ORIGINI_DETTE = { mockup: 'dal tuo mockup', fornitore: 'dal fornitore' }
+
 // I sette colori di un tema: quelli della base, con sopra i ritocchi.
 export function coloriDelTema(tavolozza) {
   const base = BASI.find((b) => b.id === tavolozza?.base) || BASI[0]

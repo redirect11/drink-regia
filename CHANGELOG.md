@@ -6,6 +6,13 @@ data.
 
 ## Prossima release (da decidere)
 
+- I temi su misura di un locale: dalla dashboard il titolare carica il
+  mockup di un tema (Canva o simili) e, col credito AI, la regia ne ricava
+  un tema del suo locale; oppure chiede un tema fatto da noi, che
+  l'amministratore scrive dalla scheda del locale con la struttura del
+  menù (una pagina, una per categoria, una per macro categoria) e una
+  ricetta. I temi su misura arrivano all'app con la licenza
+  (REQ-FLOTTA-040).
 - I temi in licenza di un locale (gli esclusivi della Tana, «Notte» e
   «Meraviglie») si assegnano dal backoffice e la licenza li porta all'app;
   la scheda del locale elenca moduli, temi in licenza e quello che il

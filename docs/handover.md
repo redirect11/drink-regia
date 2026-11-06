@@ -824,6 +824,22 @@ L'elenco completo con i riferimenti al codice è in
    gli installati nell'app, letti dal progetto del locale all'apertura
    (`temiDelLocale`) e mai salvati. **Per la Tana in produzione**: registrarla
    con Notte e Meraviglie spuntati, prima del passo della licenza.
+43. **I temi su misura (REQ-FLOTTA-040)**, ramo `feature/temi-su-misura`,
+   06/11/2026 (`docs/temi-su-misura.md`). Due servizi: il tema dal mockup
+   di Canva col credito AI (`temaDaMockup`, dalla dashboard: il modello
+   legge il mockup, la regia controlla il tema e lo scrive in
+   `clienti/{uid}/temi_su_misura`), e il tema fatto da noi su richiesta
+   (`chiediTemaSuMisura` → richiesta di contatto; l'admin lo scrive dalla
+   scheda del locale, «Nuovo tema su misura…», con la struttura del menù
+   e la ricetta in JSON). La licenza porta `temi_su_misura` (§7). **Da
+   decidere**: un prezzo fisso per tema oltre al costo del modello.
+   **Da fare in tana-drink** (richiesta mandata lo stesso giorno): «I tuoi
+   temi» nel marketplace dalla licenza, `impaginazione` nel motore delle
+   ricette, le macro categorie nella struttura del menù. **Come si prova**:
+   sul test, con un cassetto AI carico, dalla dashboard di un locale
+   attivo: un PNG esportato da Canva, «Crea il tema col credito AI»; il
+   tema compare nel riquadro e in `licenza/attuale.temi_su_misura` del
+   progetto del locale.
 
 ---
 
@@ -884,12 +900,21 @@ moduli, la licenza nell'istanza e la Tana.
   «Rilasci a ondate»). È l'unico esito che arriva ancora da tana-drink.
 - **Licenza nell'istanza** (BUG-125 di tana-drink, dal 31/10/2026):
   `licenza/attuale` = `{ piano, moduli: {id: bool}, terminali, temi,
-  limiti, prove, stato: attiva|sospesa|chiusa, motivo, dal, slug,
-  regia_url, aggiornamenti, valida_fino, alla_scadenza, cancellazione,
-  scritta_il }`. `temi` (dal 05/11/2026, REQ-FLOTTA-039, per REQ-LIC-010 di
-  tana-drink) è l'elenco degli id degli stili in licenza, esclusivi o
-  comprati (`notte`, `meraviglie`): l'app accende uno stile `inLicenza`
-  solo se è lì. Viene da `clienti/{uid}.temi`, che scrive l'admin.
+  temi_su_misura, limiti, prove, stato: attiva|sospesa|chiusa, motivo, dal,
+  slug, regia_url, aggiornamenti, valida_fino, alla_scadenza,
+  cancellazione, scritta_il }`. `temi` (dal 05/11/2026, REQ-FLOTTA-039, per
+  REQ-LIC-010 di tana-drink) è l'elenco degli id degli stili in licenza,
+  esclusivi o comprati (`notte`, `meraviglie`): l'app accende uno stile
+  `inLicenza` solo se è lì. Viene da `clienti/{uid}.temi`, che scrive
+  l'admin. `temi_su_misura` (dal 06/11/2026, REQ-FLOTTA-040,
+  `docs/temi-su-misura.md`) è l'elenco dei temi fatti per quel locale,
+  interi: `[{ id, nome, descrizione, prezzo: 0, tavolozza, stile,
+  ricetta? }]`, lo stesso oggetto del catalogo più, se c'è, la ricetta
+  (il vocabolario degli stili a ricetta, con `impaginazione`: `unica`,
+  `per-categoria`, `per-macro-categoria`). Vengono da
+  `clienti/{uid}/temi_su_misura`, i pubblicati; `[]` se il locale non ne
+  ha. L'app li mostra nel marketplace fra i suoi, e con la ricetta li
+  disegna col motore, senza usa lo stile.
   `valida_fino` (dal 31/10/2026, per tana-drink) è il momento in cui la
   regia fermerebbe il locale se nessuno paga: per un piano pagato a mano
   «pagato fino al» più i giorni di grazia, portato al taglio della giornata

@@ -169,6 +169,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // I temi su misura di un locale (REQ-FLOTTA-040): li legge il titolare
+    // (sono suoi) e l'admin; li scrivono solo le Functions.
+    match /clienti/{uid}/temi_su_misura/{id} {
+      allow read: if mio(uid) || admin();
+      allow write: if false;
+    }
+
     // Gli stili a ricetta (REQ-FLOTTA-034): come i temi.
     match /stili/{id} {
       allow read: if admin();

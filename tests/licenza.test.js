@@ -72,6 +72,7 @@ describe('licenzaIniziale', () => {
       piano: 'base',
       moduli: moduliLicenza({ piano: 'base', moduli: ['staff'] }),
       temi: [],
+      temi_su_misura: [],
       limiti: null,
       stato: 'attiva',
       slug: 'bar-mario',
@@ -158,6 +159,23 @@ describe('la licenza protetta, dai dati della regia', () => {
     expect(sceltaCambiata(conTemi, { ...cliente, temi: ['meraviglie', 'notte'] })).toBe(false)
     expect(licenzaIniziale({}, { piano: 'completo', temi: ['notte'], slug: 'tana', regiaUrl: 'https://r' }, ADESSO).licenza.temi).toEqual(['notte'])
     expect(licenzaIniziale({}, { piano: 'base', slug: 'bar', regiaUrl: 'https://r' }, ADESSO).licenza.temi).toEqual([])
+  })
+
+  // REQ-FLOTTA-040 (06/11/2026): i temi su misura del locale, interi, nella
+  // licenza; chi la scrive li passa dalla sottoraccolta del cliente.
+  it('i temi su misura pubblicati e validi vanno nella licenza con la ricetta; un cambio la riscrive', () => {
+    const tema = { id: 'su-misura-1', nome: 'Aurora', descrizione: '', prezzo: 0, tavolozza: { base: 'crema', colori: {} }, stile: 'riviera', stato: 'pubblicato', origine: 'mockup', creato_il: 'x' }
+    const ricetta = { versione: 1, caratteri: { titolo: 'bebas-neue', voce: 'inter', testo: 'inter' }, titoli: { maiuscolo: false, corsivo: false, allineamento: 'sinistra', dimensione: 'normale', spaziatura: 'normale' }, intestazione: 'nessuna', voce: { forma: 'riga', prezzo: 'puntini', separatore: 'nessuno', immagine: 'tonda' }, cornice: 'nessuna', angoli: 'morbidi', sfondo: 'tinta', impaginazione: 'per-categoria' }
+    const docs = [{ ...tema, id: 'su-misura-2', nome: 'Bosco', ricetta }, tema, { ...tema, id: 'su-misura-3', stato: 'ritirato' }, { ...tema, id: 'su-misura-4', stile: 'notte' }]
+    const lic = licenzaProtetta({ stato: 'attiva' }, cliente, { adesso: ADESSO, temiSuMisura: docs })
+    expect(lic.temi_su_misura).toEqual([
+      { id: 'su-misura-1', nome: 'Aurora', descrizione: '', prezzo: 0, tavolozza: { base: 'crema', colori: {} }, stile: 'riviera' },
+      { id: 'su-misura-2', nome: 'Bosco', descrizione: '', prezzo: 0, tavolozza: { base: 'crema', colori: {} }, stile: 'riviera', ricetta },
+    ])
+    expect(licenzaProtetta({ stato: 'attiva' }, cliente, { adesso: ADESSO }).temi_su_misura).toEqual([])
+    const a = licenzaProtetta({ stato: 'attiva' }, cliente, { adesso: ADESSO })
+    expect(stessaLicenza(a, { ...a, temi_su_misura: lic.temi_su_misura })).toBe(false)
+    expect(stessaLicenza(lic, { ...lic, scritta_il: 'altra' })).toBe(true)
   })
 
   it('sospesa o chiusa porta il motivo e la data; attiva no', () => {

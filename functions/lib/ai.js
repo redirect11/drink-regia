@@ -14,6 +14,8 @@
 
 const crypto = require('node:crypto')
 const listino = require('../piani.json')
+const temi = require('./temi.js')
+const stili = require('./stili.js')
 
 const AI = listino.ai
 const MICRO = 1_000_000
@@ -92,11 +94,14 @@ function costoMicroeuro(risposta, { modelloChiesto = AI.modello } = {}) {
   return Math.ceil(usd * AI.cambio_eur_per_usd * AI.ricarico * MICRO)
 }
 
-// ── le richieste che le installazioni possono fare ──
-// Due sole, quelle dei requisiti dell'app (tana-drink): la descrizione di
-// un prodotto per il menù (REQ-AI-002) e la lettura di una fattura
-// d'acquisto (REQ-AI-001). Niente testo libero: una chiave rubata a
-// un'installazione non diventa un accesso generico al modello.
+// ── le richieste che si possono fare ──
+// Dalle installazioni due sole, quelle dei requisiti dell'app (tana-drink):
+// la descrizione di un prodotto per il menù (REQ-AI-002) e la lettura di
+// una fattura d'acquisto (REQ-AI-001). Niente testo libero: una chiave
+// rubata a un'installazione non diventa un accesso generico al modello.
+// La terza, «tema» (REQ-FLOTTA-040: il tema dal mockup di Canva), la chiede
+// il titolare dal sito della regia, con lo stesso credito.
+const TIPI_INSTALLAZIONE = ['descrizione', 'fattura']
 
 const MEDIA_IMMAGINE = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
 const MEDIA_PDF = 'application/pdf'
@@ -159,6 +164,79 @@ const SCHEMA_FATTURA = {
   additionalProperties: false,
 }
 
+// IL TEMA DAL MOCKUP (REQ-FLOTTA-040): lo schema chiude ogni scelta sui
+// valori che l'app sa disegnare (le basi e gli stili di lib/temi.js, i
+// caratteri e il vocabolario della ricetta di lib/stili.js), così il
+// modello non inventa un carattere o uno sfondo che non esistono. La
+// struttura del menù non c'è: l'ha scelta il titolare, e la mette la regia.
+// I colori propri della ricetta nemmeno: i colori sono quelli del tema.
+const unoFra = (valori) => ({ type: 'string', enum: valori })
+const SCHEMA_TEMA = {
+  type: 'object',
+  properties: {
+    nome: { type: 'string' },
+    descrizione: { type: 'string' },
+    tavolozza: {
+      type: 'object',
+      properties: {
+        base: unoFra(temi.BASI),
+        colori: {
+          type: 'object',
+          properties: Object.fromEntries(temi.CHIAVI_COLORE.map((k) => [k, { type: 'string' }])),
+          required: temi.CHIAVI_COLORE,
+          additionalProperties: false,
+        },
+      },
+      required: ['base', 'colori'],
+      additionalProperties: false,
+    },
+    stile_vicino: unoFra(temi.STILI),
+    ricetta: {
+      type: 'object',
+      properties: {
+        caratteri: {
+          type: 'object',
+          properties: { titolo: unoFra(stili.CARATTERI), voce: unoFra(stili.CARATTERI), testo: unoFra(stili.CARATTERI) },
+          required: ['titolo', 'voce', 'testo'],
+          additionalProperties: false,
+        },
+        titoli: {
+          type: 'object',
+          properties: {
+            maiuscolo: { type: 'boolean' },
+            corsivo: { type: 'boolean' },
+            allineamento: unoFra(stili.VALORI['titoli.allineamento']),
+            dimensione: unoFra(stili.VALORI['titoli.dimensione']),
+            spaziatura: unoFra(stili.VALORI['titoli.spaziatura']),
+          },
+          required: ['maiuscolo', 'corsivo', 'allineamento', 'dimensione', 'spaziatura'],
+          additionalProperties: false,
+        },
+        intestazione: unoFra(stili.VALORI.intestazione),
+        voce: {
+          type: 'object',
+          properties: {
+            forma: unoFra(stili.VALORI['voce.forma']),
+            prezzo: unoFra(stili.VALORI['voce.prezzo']),
+            separatore: unoFra(stili.VALORI['voce.separatore']),
+            immagine: unoFra(stili.VALORI['voce.immagine']),
+          },
+          required: ['forma', 'prezzo', 'separatore', 'immagine'],
+          additionalProperties: false,
+        },
+        cornice: unoFra(stili.VALORI.cornice),
+        angoli: unoFra(stili.VALORI.angoli),
+        sfondo: unoFra(stili.VALORI.sfondo),
+      },
+      required: ['caratteri', 'titoli', 'intestazione', 'voce', 'cornice', 'angoli', 'sfondo'],
+      additionalProperties: false,
+    },
+    da_verificare: { type: 'array', items: { type: 'string' } },
+  },
+  required: ['nome', 'descrizione', 'tavolozza', 'stile_vicino', 'ricetta', 'da_verificare'],
+  additionalProperties: false,
+}
+
 // Le istruzioni sono fisse e stanno nel sistema: i dati dell'installazione
 // arrivano solo come contenuto dell'utente, così il nome di un prodotto
 // non può riscrivere le regole.
@@ -178,9 +256,44 @@ const SISTEMA_FATTURA =
   'In da_verificare elenca i punti dubbi: cifre poco leggibili, totali che non tornano con le righe. ' +
   'I dati verranno rivisti da una persona prima di essere registrati.'
 
+const SISTEMA_TEMA =
+  'Guarda il mockup del menù di un bar (fatto con Canva o uno strumento simile) e descrivilo come il tema di un’app di menù, ' +
+  'scegliendo solo fra i valori ammessi. ' +
+  'I sette colori sono esadecimali #rrggbb letti dal mockup: sfondo, sfondo secondario, card (il riquadro di una voce), ' +
+  'accento (prezzi e titoli), accento secondario (i tasti), testo, testo attenuato; la base è quella più vicina. ' +
+  'Il testo deve leggersi: contrasto WCAG di almeno 4,5 fra testo e sfondo e fra testo e card, almeno 3 fra testo attenuato e sfondo ' +
+  'e fra accento e sfondo; se i colori del mockup non bastano, scuriscili o schiariscili quanto serve e dillo in da_verificare. ' +
+  'Lo stile vicino è quello dell’app che somiglia di più all’impaginazione del mockup. ' +
+  'Nella ricetta scegli i tre caratteri per somiglianza (serif, bastone, corsivo, display), e poi titoli, intestazione, ' +
+  'forma delle voci, posizione del prezzo, separatori, immagini, cornice, angoli e sfondo come li mostra il mockup. ' +
+  'Nome breve (fino a 40 caratteri) e descrizione sobria (fino a 240), in italiano, senza superlativi e senza nomi di marchi. ' +
+  'In da_verificare elenca quello che l’app non può riprodurre (animazioni, immagini, un carattere che non c’è) e ogni scelta incerta. ' +
+  'Il tema è una proposta che il locale rilegge prima di usarla.'
+
+// Il file di una richiesta (una foto o un PDF in base64, dentro i limiti)
+// → il blocco per il modello e i byte veri.
+function bloccoFile(corpo, { cosa = 'Il file' } = {}) {
+  const media = String(corpo.media_type || '')
+  const dati = String(corpo.file || '').replace(/\s/g, '')
+  if (!dati || !/^[A-Za-z0-9+/]+=*$/.test(dati)) throw new RichiestaNonValida(`${cosa} manca o non è in base64.`)
+  const byte = Math.floor((dati.length * 3) / 4)
+  if (media === MEDIA_PDF) {
+    if (byte > MAX_PDF) throw new RichiestaNonValida('Il PDF supera i 20 MB.')
+    return { blocco: { type: 'document', source: { type: 'base64', media_type: MEDIA_PDF, data: dati } }, byte }
+  }
+  if (MEDIA_IMMAGINE.includes(media)) {
+    if (byte > MAX_IMMAGINE) throw new RichiestaNonValida('La foto supera i 5 MB: riducila prima di mandarla.')
+    return { blocco: { type: 'image', source: { type: 'base64', media_type: media, data: dati } }, byte }
+  }
+  throw new RichiestaNonValida('Formato non accettato: serve una foto (JPEG, PNG, WebP, GIF) o un PDF.')
+}
+
+const STRUTTURE_DETTE = { unica: 'tutto in una pagina', 'per-categoria': 'una pagina per categoria', 'per-macro-categoria': 'una pagina per macro categoria' }
+
 // Il messaggio per il modello, dal corpo che manda l'installazione.
 // { tipo: 'descrizione', nome, produttore?, categoria?, note? }
 // { tipo: 'fattura', file: <base64>, media_type }
+// { tipo: 'tema', file: <base64>, media_type, struttura, note? } (dal sito)
 function preparaMessaggio(corpo) {
   const tipo = corpo?.tipo
   if (tipo === 'descrizione') {
@@ -206,20 +319,7 @@ function preparaMessaggio(corpo) {
     }
   }
   if (tipo === 'fattura') {
-    const media = String(corpo.media_type || '')
-    const dati = String(corpo.file || '').replace(/\s/g, '')
-    if (!dati || !/^[A-Za-z0-9+/]+=*$/.test(dati)) throw new RichiestaNonValida('Il file della fattura manca o non è in base64.')
-    const byte = Math.floor((dati.length * 3) / 4)
-    let blocco
-    if (media === MEDIA_PDF) {
-      if (byte > MAX_PDF) throw new RichiestaNonValida('Il PDF supera i 20 MB.')
-      blocco = { type: 'document', source: { type: 'base64', media_type: MEDIA_PDF, data: dati } }
-    } else if (MEDIA_IMMAGINE.includes(media)) {
-      if (byte > MAX_IMMAGINE) throw new RichiestaNonValida('La foto supera i 5 MB: riducila prima di mandarla.')
-      blocco = { type: 'image', source: { type: 'base64', media_type: media, data: dati } }
-    } else {
-      throw new RichiestaNonValida('Formato non accettato: serve una foto (JPEG, PNG, WebP, GIF) o un PDF.')
-    }
+    const { blocco, byte } = bloccoFile(corpo, { cosa: 'Il file della fattura' })
     return {
       tipo,
       max_tokens: 16000,
@@ -234,7 +334,25 @@ function preparaMessaggio(corpo) {
       stimaInputToken: 3000 + Math.ceil(byte / 200),
     }
   }
-  throw new RichiestaNonValida('Richiesta AI sconosciuta: si accettano «descrizione» e «fattura».')
+  if (tipo === 'tema') {
+    const { blocco, byte } = bloccoFile(corpo, { cosa: 'Il mockup' })
+    if (!stili.IMPAGINAZIONI.includes(corpo.struttura)) throw new RichiestaNonValida('Scegli la struttura del menù: una pagina sola, una per categoria o una per macro categoria.')
+    const righe = [`Ricava il tema da questo mockup. Struttura del menù scelta dal locale: ${STRUTTURE_DETTE[corpo.struttura]}.`]
+    if (corpo.note) righe.push(`Note del locale: ${testo(corpo.note, 300)}`)
+    return {
+      tipo,
+      struttura: corpo.struttura,
+      // Un tema è un giudizio su un'immagine: lo sforzo medio, come la
+      // fattura; la risposta è corta (una ricetta), il ragionamento no.
+      max_tokens: 8000,
+      effort: 'medium',
+      system: SISTEMA_TEMA,
+      content: [blocco, { type: 'text', text: righe.join('\n') }],
+      schema: SCHEMA_TEMA,
+      stimaInputToken: 3000 + Math.ceil(byte / 200),
+    }
+  }
+  throw new RichiestaNonValida('Richiesta AI sconosciuta: si accettano «descrizione», «fattura» e «tema».')
 }
 
 // I parametri della chiamata a Claude. Il fallback «default» rifà sul
@@ -405,6 +523,7 @@ function nuovoCassetto({ slug, uid, interna = false, adesso = new Date() }) {
 
 module.exports = {
   MICRO,
+  TIPI_INSTALLAZIONE,
   daEuro,
   inEuro,
   meseDi,

@@ -36,13 +36,15 @@ import {
   programmaScadenze,
   impostaTemi,
   temiDelLocale,
+  elencoTemiSuMisura,
+  gestisciTemiSuMisura,
 } from '../lib/db.js'
 import { venditaPulita } from '../lib/vendita.js'
-import { ESCLUSIVI, nomeStile } from '../lib/temi.js'
+import { ESCLUSIVI, nomeStile, nomeImpaginazione, ORIGINI_DETTE, STATI_DETTI, temaVuoto } from '../lib/temi.js'
 import { statoIstanza, statoDetto, STATI, progettoDi, riduzioneDetta } from '../lib/istanze.js'
 import { PIANI, MODULI, prezzoMensile, euro } from '../lib/piani.js'
 import { prezzoConSconto, scontoDetto, usiDetti } from '../lib/sconti.js'
-import CatalogoTemi from './CatalogoTemi.jsx'
+import CatalogoTemi, { EditorTema } from './CatalogoTemi.jsx'
 import { contattoDi } from '../lib/clienti.js'
 import { statoCredito, euroCent } from '../lib/ai.js'
 import { GRUPPI, TAG, aggiornamentoDetto } from '../lib/rilasci.js'
@@ -1554,9 +1556,22 @@ function Contatti({ elenco, onSegna: segna }) {
       <ul className="contatti">
         {elenco.map((c) => (
           <li key={c.uid} className={c.stato === 'aperta' ? 'aperta' : 'gestita'}>
-            <strong>{c.nome_locale || c.email}</strong> · {PIANI[c.scelta?.piano]?.nome || c.scelta?.piano}
-            {c.scelta?.moduli?.length > 0 && ` + ${c.scelta.moduli.map((id) => MODULI.find((m) => m.id === id)?.nome || id).join(', ')}`}
-            {c.scelta?.terminali > 1 && ` · ${c.scelta.terminali} terminali`} · {euro(prezzoMensile(c.scelta || {}))} / mese
+            <strong>{c.nome_locale || c.email}</strong>
+            {/* Un tema su misura chiesto al fornitore (REQ-FLOTTA-040): si lavora dalla scheda del locale. */}
+            {c.tema_su_misura ? (
+              <>
+                {' '}
+                · tema su misura · {nomeImpaginazione(c.tema_su_misura.struttura)}
+                {c.tema_su_misura.riferimento && ` · riferimento: ${c.tema_su_misura.riferimento}`}
+              </>
+            ) : (
+              <>
+                {' '}
+                · {PIANI[c.scelta?.piano]?.nome || c.scelta?.piano}
+                {c.scelta?.moduli?.length > 0 && ` + ${c.scelta.moduli.map((id) => MODULI.find((m) => m.id === id)?.nome || id).join(', ')}`}
+                {c.scelta?.terminali > 1 && ` · ${c.scelta.terminali} terminali`} · {euro(prezzoMensile(c.scelta || {}))} / mese
+              </>
+            )}
             <div className="muted small">
               <a href={`mailto:${c.email}`}>{c.email}</a>
               {c.telefono && (
@@ -1715,8 +1730,86 @@ function ModuliETemi({ cliente: c, istanza, stato, onErrore, onFatto }) {
         <span data-testid={`temi-${c.slug}`}>{temi.length ? temi.map(nomeStile).join(', ') : 'nessuno'}</span>
         <TemiInLicenza cliente={c} onErrore={onErrore} onFatto={onFatto} />
       </div>
+      <TemiSuMisuraLocale cliente={c} onErrore={onErrore} />
       {istanza?.progetto && stato === STATI.ATTIVA && <InstallatiDallApp cliente={c} />}
     </section>
+  )
+}
+
+// I temi su misura del locale (REQ-FLOTTA-040): quelli dal mockup del
+// titolare e quelli fatti da noi. L'admin ne scrive uno nuovo (l'editor
+// del catalogo, con la struttura del menù e la ricetta), lo pubblica e lo
+// ritira; la licenza del locale lo segue.
+function TemiSuMisuraLocale({ cliente: c, onErrore }) {
+  const [temi, setTemi] = useState([])
+  const [giro, setGiro] = useState(0)
+  const [aperto, setAperto] = useState(null)
+  useEffect(() => {
+    let vivo = true
+    elencoTemiSuMisura(c.uid)
+      .then((t) => vivo && setTemi(t))
+      .catch((err) => vivo && onErrore(err.message))
+    return () => {
+      vivo = false
+    }
+  }, [c.uid, giro, onErrore])
+  const azione = async (nome, dati) => {
+    try {
+      await gestisciTemiSuMisura(nome, { slug: c.slug, ...dati })
+      setGiro((g) => g + 1)
+      return true
+    } catch (err) {
+      onErrore(err.message)
+      return false
+    }
+  }
+  return (
+    <div>
+      <strong>Temi su misura</strong>
+      <span data-testid={`su-misura-${c.slug}`}>
+        {temi.length
+          ? temi
+              .map((t) => `${t.nome} (${ORIGINI_DETTE[t.origine] || t.origine}${t.ricetta?.impaginazione ? `, ${nomeImpaginazione(t.ricetta.impaginazione)}` : `, stile ${nomeStile(t.stile)}`}, ${(STATI_DETTI[t.stato] || t.stato).toLowerCase()})`)
+              .join(' · ')
+          : 'nessuno'}
+      </span>
+      {temi.map((t) => (
+        <span key={t.id} className="gruppo-azioni">
+          {!aperto && (
+            <button type="button" className="btn ghost small" onClick={() => setAperto({ ...t, nuovo: false })}>
+              Modifica «{t.nome}»
+            </button>
+          )}
+          {t.stato === 'pubblicato' ? (
+            <button type="button" className="btn ghost small" onClick={() => azione('ritira', { id: t.id })}>
+              Ritira «{t.nome}»
+            </button>
+          ) : (
+            <button type="button" className="btn ghost small" onClick={() => azione('pubblica', { id: t.id })}>
+              Pubblica «{t.nome}»
+            </button>
+          )}
+        </span>
+      ))}
+      {!aperto && (
+        <button type="button" className="btn ghost small" onClick={() => setAperto({ ...temaVuoto(), nuovo: true })}>
+          Nuovo tema su misura…
+        </button>
+      )}
+      {aperto && (
+        <EditorTema
+          key={aperto.id || 'nuovo'}
+          iniziale={aperto}
+          suMisura
+          onChiudi={() => setAperto(null)}
+          onSalva={async (tema, pubblica) => {
+            const ok = await azione('salva', { tema, nuovo: aperto.nuovo })
+            if (ok && pubblica) await azione('pubblica', { id: tema.id })
+            if (ok) setAperto(null)
+          }}
+        />
+      )}
+    </div>
   )
 }
 

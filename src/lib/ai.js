@@ -47,7 +47,7 @@ export function statoCredito(cassetto, adesso = new Date()) {
   }
 }
 
-const TIPI = { descrizione: 'Descrizione di un prodotto', fattura: 'Lettura di una fattura' }
+const TIPI = { descrizione: 'Descrizione di un prodotto', fattura: 'Lettura di una fattura', tema: 'Tema dal mockup' }
 const ESITI = {
   ok: 'riuscita',
   rifiuto: 'il modello non ha risposto',

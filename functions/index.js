@@ -1083,8 +1083,21 @@ async function regoleAggiornamenti() {
   return aggiornamenti.regolePulite((await db.doc('impostazioni/aggiornamenti').get()).data())
 }
 
+// Col suo uid, che è l'id del documento: serve per le sue sottoraccolte.
 async function clienteDi(slug) {
-  return (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]?.data() || null
+  const d = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]
+  return d ? { uid: d.id, ...d.data() } : null
+}
+
+// I temi su misura del locale (REQ-FLOTTA-040), per la licenza: con gli
+// stili a ricetta pubblicati, che servono a controllarli. Si leggono gli
+// stili solo se il locale ha temi: quasi nessuno ne ha.
+async function temiSuMisuraDi(cliente) {
+  if (!cliente?.uid) return {}
+  const temiSuMisura = (await db.collection(`clienti/${cliente.uid}/temi_su_misura`).get()).docs.map((d) => d.data())
+  if (!temiSuMisura.length) return { temiSuMisura }
+  const docsStili = (await db.collection('stili').get()).docs.map((d) => d.data())
+  return { temiSuMisura, stiliRicetta: stili.catalogoStili(docsStili).map((s) => s.id) }
 }
 
 // Il CHANGELOG di tana-drink a un tag.
@@ -1122,7 +1135,7 @@ async function scriviLicenza(slug, { subito = false } = {}) {
   const ist = (await ref.get()).data()
   if (!ist) return { ok: false, perche: 'Istanza non trovata.' }
   const cliente = await clienteDi(slug)
-  const opzioni = { slug, regiaUrl: REGIA_URL, sceltaUrl: SCELTA_URL, giorniGrazia: await giorniDiGrazia() }
+  const opzioni = { slug, regiaUrl: REGIA_URL, sceltaUrl: SCELTA_URL, giorniGrazia: await giorniDiGrazia(), ...(await temiSuMisuraDi(cliente)) }
   const { modalita, inclusi, motivo } = licenzaProtetta(ist, cliente, opzioni).aggiornamenti
   await ref.set({ regola_aggiornamenti: { modalita, inclusi, motivo } }, { merge: true })
   if (!riceveLicenza(ist)) return { ok: true, scritta: false }
@@ -1161,7 +1174,8 @@ async function verificaLicenza(slug) {
   const ist = (await ref.get()).data()
   const istanza = firestoreDi(ist.progetto)
   const [protetta, bar] = await Promise.all([istanza.doc(LICENZA_PROTETTA).get(), istanza.doc('settings/bar').get()])
-  const calcolata = licenzaProtetta(ist, await clienteDi(slug), { slug, regiaUrl: REGIA_URL, sceltaUrl: SCELTA_URL, giorniGrazia: await giorniDiGrazia(), oraTaglio: taglio.oraDelTaglio(bar.data()) })
+  const cliente = await clienteDi(slug)
+  const calcolata = licenzaProtetta(ist, cliente, { slug, regiaUrl: REGIA_URL, sceltaUrl: SCELTA_URL, giorniGrazia: await giorniDiGrazia(), oraTaglio: taglio.oraDelTaglio(bar.data()), ...(await temiSuMisuraDi(cliente)) })
   // Con una riduzione che aspetta il taglio, quella giusta è la licenza di
   // prima più le aggiunte (REQ-FLOTTA-024).
   const attesa = ist.riduzione_al_taglio && protetta.exists ? taglio.licenzaDaScrivere(protetta.data(), calcolata, { statoAlTaglio: ist.licenza_per === 'pagamento' }).licenza : calcolata
@@ -1501,6 +1515,91 @@ exports.gestisciStili = onCall(OPTS, async (req) => {
   const doc = { ...prima, stato: azione === 'pubblica' ? 'pubblicato' : 'ritirato', [azione === 'pubblica' ? 'pubblicato_il' : 'ritirato_il']: ora, aggiornato_il: ora, aggiornato_da: req.auth.token.email || req.auth.uid }
   await ref.set(doc)
   return { ok: true, stile: doc }
+})
+
+// ── I TEMI SU MISURA DI UN LOCALE (REQ-FLOTTA-040) ─────────────────────
+// L'utente, 06/11/2026: un servizio premium col mockup di Canva e il
+// credito AI, e i temi fatti da noi su richiesta. Stanno in
+// clienti/{uid}/temi_su_misura/{id} (il titolare li legge, l'admin pure;
+// li scrivono solo queste Functions) e arrivano all'app con la licenza
+// (licenza.temi_su_misura), che si riscrive a ogni cambio. Le regole in
+// lib/temi.js; il mockup non si salva da nessuna parte.
+
+// Il titolare carica il mockup: la regia chiede al modello col credito del
+// suo cassetto (come richiestaAI, ma dal sito e col suo account), controlla
+// la proposta come ogni tema e la mette subito fra i suoi temi, pubblicata.
+// Una proposta che non regge (colori illeggibili) non si scrive, e il
+// tentativo resta addebitato: lo si dice.
+exports.temaDaMockup = onCall({ ...OPTS, secrets: [ANTHROPIC_API_KEY], timeoutSeconds: 300, memory: '512MiB' }, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Prima conferma la tua email.')
+  const uid = req.auth.uid
+  const cliente = (await db.doc(`clienti/${uid}`).get()).data()
+  if (!cliente?.slug) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
+  let messaggio
+  try {
+    messaggio = ai.preparaMessaggio({ ...(req.data || {}), tipo: 'tema' })
+  } catch (e) {
+    if (e instanceof ai.RichiestaNonValida) throw new HttpsError('invalid-argument', e.message)
+    throw e
+  }
+  const esito = await interrogaClaude(cliente.slug, messaggio)
+  if (!esito.ok) throw new HttpsError(esito.http === 402 ? 'resource-exhausted' : esito.http === 503 ? 'unavailable' : 'failed-precondition', esito.errore)
+  const { tema, errore } = temi.temaDalMockup(esito.risultato, { struttura: messaggio.struttura })
+  if (errore) {
+    throw new HttpsError('failed-precondition', `La proposta del modello non si può usare (${errore.replace(/\.$/, '')}). Il tentativo è costato ${esito.costo_eur} €: riprova, magari con una nota in più.`)
+  }
+  const ora = new Date().toISOString()
+  const doc = {
+    ...tema,
+    stato: 'pubblicato',
+    creato_il: ora,
+    pubblicato_il: ora,
+    aggiornato_il: ora,
+    aggiornato_da: uid,
+    mockup: { media_type: String(req.data?.media_type || ''), struttura: messaggio.struttura, costo_eur: esito.costo_eur },
+  }
+  await db.doc(`clienti/${uid}/temi_su_misura/${tema.id}`).set(doc)
+  await scriviLicenza(cliente.slug).catch((e) => console.error(`[temi] ${cliente.slug}, la licenza:`, e?.message || e))
+  return { ok: true, tema: doc, costo_eur: esito.costo_eur, credito_eur: esito.credito_eur }
+})
+
+// L'admin scrive, pubblica e ritira un tema su misura dalla scheda del
+// locale (`slug`); il titolare, dalla dashboard, toglie e rimette i suoi
+// (ritira e pubblica), ma non li scrive: il tema lo fa il fornitore, o il
+// modello dal mockup.
+exports.gestisciTemiSuMisura = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  const admin = req.auth.token?.admin === true
+  const azione = req.data?.azione
+  if (!admin && !['pubblica', 'ritira'].includes(azione)) throw new HttpsError('permission-denied', 'Il tema lo scrive il fornitore: dalla dashboard si toglie e si rimette.')
+  const cliente = admin && req.data?.slug ? await clienteDi(String(req.data.slug)) : await db.doc(`clienti/${req.auth.uid}`).get().then((d) => (d.exists ? { uid: d.id, ...d.data() } : null))
+  if (!cliente?.slug) throw new HttpsError('not-found', 'Nessun locale per questo account.')
+  const id = String((azione === 'salva' ? req.data?.tema?.id : req.data?.id) || '').trim().toLowerCase()
+  if (!/^[a-z0-9][a-z0-9-]{1,40}$/.test(id)) throw new HttpsError('invalid-argument', 'Identificativo del tema non valido.')
+  const ref = db.doc(`clienti/${cliente.uid}/temi_su_misura/${id}`)
+  const prima = (await ref.get()).data() || null
+  if (azione === 'salva' && req.data?.nuovo === true && prima) throw new HttpsError('already-exists', `Il tema ${id} esiste già.`)
+  const docsStili = (await db.collection('stili').get()).docs.map((d) => d.data())
+  const stiliRicetta = stili.catalogoStili(docsStili).map((s) => s.id)
+  const esito = temi.azioneSuTemaSuMisura(prima, azione, req.data?.tema, { da: req.auth.token.email || req.auth.uid, stiliRicetta, origine: 'fornitore' })
+  if (esito.errore) throw new HttpsError('failed-precondition', esito.errore)
+  await ref.set(esito.doc)
+  await scriviLicenza(cliente.slug).catch((e) => console.error(`[temi] ${cliente.slug}, la licenza:`, e?.message || e))
+  return { ok: true, tema: esito.doc }
+})
+
+// Il titolare chiede un tema al fornitore: una richiesta di contatto
+// (REQ-FLOTTA-017) in contatti/<uid>_tema, che l'admin trova in «Richieste»
+// e lavora dalla scheda del locale. Una nuova sostituisce la precedente.
+exports.chiediTemaSuMisura = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Prima conferma la tua email.')
+  const cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data()
+  const r = contatti.richiestaTemaSuMisura(cliente && { uid: req.auth.uid, ...cliente }, req.data)
+  if (!r.ok) throw new HttpsError('failed-precondition', r.perche)
+  await db.doc(`contatti/${contatti.idRichiestaTema(req.auth.uid)}`).set(r.documento)
+  return { ok: true }
 })
 
 // ── IL SITO SI PRESENTA ALLA REGIA (REQ-FLOTTA-026) ────────────────────
@@ -1852,52 +1951,70 @@ exports.richiestaAI = onRequest(
       if (e instanceof ai.RichiestaNonValida) return res.status(400).json({ errore: e.message })
       throw e
     }
+    // Il tema dal mockup (REQ-FLOTTA-040) si chiede dal sito, col suo
+    // account: da qui le due richieste dell'app e basta.
+    if (!ai.TIPI_INSTALLAZIONE.includes(messaggio.tipo)) return res.status(400).json({ errore: 'Da un’installazione si chiedono «descrizione» e «fattura».' })
 
-    const cassettoRef = db.doc(`ai/${chi.slug}`)
-    const prima = (await cassettoRef.get()).data()
-    const via = ai.puoChiedere(prima, ai.stimaMassimaMicroeuro(messaggio))
-    if (!via.ok) {
-      return res.status(402).json({ errore: via.perche, codice: via.codice, credito_eur: ai.inEuro(prima?.credito_microeuro) })
+    const esito = await interrogaClaude(chi.slug, messaggio)
+    if (!esito.ok) {
+      const { ok: _no, http, ...corpo } = esito
+      return res.status(http).json(corpo)
     }
-
-    const { Anthropic, client } = claude()
-    let risposta
-    try {
-      risposta = await client.beta.messages.stream(ai.parametriClaude(messaggio)).finalMessage()
-    } catch (e) {
-      // Niente addebito: se la chiamata non è arrivata in fondo non c'è una
-      // usage da scalare. Il tipo dell'errore dice di chi è il problema.
-      const tipo = e instanceof Anthropic.APIError ? e.type || e.status : 'rete'
-      if (tipo === 'billing_error') {
-        // IL NOSTRO credito presso Anthropic è finito: va ricaricato dalla
-        // Console (o la ricarica automatica non è scattata). Riga cercabile
-        // nei log: «[ai] CREDITO ANTHROPIC».
-        console.error('[ai] CREDITO ANTHROPIC esaurito o pagamento rifiutato:', e.message)
-      } else {
-        console.error(`[ai] ${chi.slug} ${messaggio.tipo}: ${tipo}`, e?.message)
-      }
-      const riprova =
-        e instanceof Anthropic.RateLimitError || e instanceof Anthropic.InternalServerError || e instanceof Anthropic.APIConnectionError
-      return res.status(503).json({
-        errore: riprova ? 'Il servizio AI è occupato: riprova tra poco.' : 'Il servizio AI non è disponibile in questo momento.',
-        codice: 'servizio',
-      })
-    }
-
-    const costo = ai.costoMicroeuro(risposta)
-    const letta = ai.leggiRisposta(risposta)
-    const residuo = await db.runTransaction(async (t) => {
-      const snap = await t.get(cassettoRef)
-      const patch = ai.addebito(snap.data(), costo)
-      t.update(cassettoRef, patch)
-      t.set(cassettoRef.collection('consumi').doc(), ai.rigaConsumo({ tipo: messaggio.tipo, risposta, costo, esito: letta.ok ? 'ok' : letta.codice }))
-      return patch.credito_microeuro
-    })
-    const conti = { costo_eur: ai.inEuro(costo), credito_eur: ai.inEuro(residuo) }
-    if (!letta.ok) return res.status(422).json({ errore: letta.perche, codice: letta.codice, ...conti })
-    res.status(200).json({ ok: true, tipo: messaggio.tipo, risultato: letta.risultato, ...conti })
+    res.status(200).json({ ok: true, tipo: messaggio.tipo, risultato: esito.risultato, costo_eur: esito.costo_eur, credito_eur: esito.credito_eur })
   }
 )
+
+// UNA RICHIESTA AL MODELLO SUL CREDITO DI UN'INSTALLAZIONE, in un posto
+// solo, per richiestaAI e per il tema dal mockup (REQ-FLOTTA-040): il
+// controllo del credito, la chiamata, l'addebito e la riga dei consumi.
+// → { ok: true, risultato, costo_eur, credito_eur }, oppure { ok: false,
+// http, errore, codice, ... } con il codice HTTP che richiestaAI risponde
+// (402 credito, 503 servizio, 422 risposta inutilizzabile: addebitata).
+async function interrogaClaude(slug, messaggio) {
+  const cassettoRef = db.doc(`ai/${slug}`)
+  const prima = (await cassettoRef.get()).data()
+  const via = ai.puoChiedere(prima, ai.stimaMassimaMicroeuro(messaggio))
+  if (!via.ok) return { ok: false, http: 402, errore: via.perche, codice: via.codice, credito_eur: ai.inEuro(prima?.credito_microeuro) }
+
+  const { Anthropic, client } = claude()
+  let risposta
+  try {
+    risposta = await client.beta.messages.stream(ai.parametriClaude(messaggio)).finalMessage()
+  } catch (e) {
+    // Niente addebito: se la chiamata non è arrivata in fondo non c'è una
+    // usage da scalare. Il tipo dell'errore dice di chi è il problema.
+    const tipo = e instanceof Anthropic.APIError ? e.type || e.status : 'rete'
+    if (tipo === 'billing_error') {
+      // IL NOSTRO credito presso Anthropic è finito: va ricaricato dalla
+      // Console (o la ricarica automatica non è scattata). Riga cercabile
+      // nei log: «[ai] CREDITO ANTHROPIC».
+      console.error('[ai] CREDITO ANTHROPIC esaurito o pagamento rifiutato:', e.message)
+    } else {
+      console.error(`[ai] ${slug} ${messaggio.tipo}: ${tipo}`, e?.message)
+    }
+    const riprova =
+      e instanceof Anthropic.RateLimitError || e instanceof Anthropic.InternalServerError || e instanceof Anthropic.APIConnectionError
+    return {
+      ok: false,
+      http: 503,
+      errore: riprova ? 'Il servizio AI è occupato: riprova tra poco.' : 'Il servizio AI non è disponibile in questo momento.',
+      codice: 'servizio',
+    }
+  }
+
+  const costo = ai.costoMicroeuro(risposta)
+  const letta = ai.leggiRisposta(risposta)
+  const residuo = await db.runTransaction(async (t) => {
+    const snap = await t.get(cassettoRef)
+    const patch = ai.addebito(snap.data(), costo)
+    t.update(cassettoRef, patch)
+    t.set(cassettoRef.collection('consumi').doc(), ai.rigaConsumo({ tipo: messaggio.tipo, risposta, costo, esito: letta.ok ? 'ok' : letta.codice }))
+    return patch.credito_microeuro
+  })
+  const conti = { costo_eur: ai.inEuro(costo), credito_eur: ai.inEuro(residuo) }
+  if (!letta.ok) return { ok: false, http: 422, errore: letta.perche, codice: letta.codice, ...conti }
+  return { ok: true, risultato: letta.risultato, ...conti }
+}
 
 // Il titolare ricarica il credito AI dalla dashboard: una sessione di
 // Checkout per un pacchetto del listino (piani.json → ai.pacchetti). Il

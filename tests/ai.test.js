@@ -9,6 +9,8 @@ import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
 const ai = require('../functions/lib/ai.js')
+const t = require('../functions/lib/temi.js')
+const s = require('../functions/lib/stili.js')
 const { aggiornamentoDaEvento } = require('../functions/lib/abbonamento.js')
 const listino = require('../functions/piani.json')
 
@@ -130,6 +132,34 @@ describe('le richieste che un’installazione può fare', () => {
     }
     controlla(ai.preparaMessaggio({ tipo: 'descrizione', nome: 'Gin' }).schema, 'descrizione')
     controlla(ai.preparaMessaggio({ tipo: 'fattura', media_type: 'application/pdf', file: 'AAAA' }).schema, 'fattura')
+    controlla(ai.preparaMessaggio({ tipo: 'tema', media_type: 'image/png', file: 'AAAA', struttura: 'unica' }).schema, 'tema')
+  })
+
+  // REQ-FLOTTA-040 (06/11/2026): il tema dal mockup di Canva, col credito AI.
+  it('un tema vuole il mockup (foto o PDF) e la struttura del menù; lo schema chiude ogni scelta sui valori dell’app', () => {
+    const m = ai.preparaMessaggio({ tipo: 'tema', media_type: 'image/png', file: 'AAAA', struttura: 'per-categoria', note: '  prezzi coi puntini  ' })
+    expect(m.tipo).toBe('tema')
+    expect(m.struttura).toBe('per-categoria')
+    expect(m.content[0]).toMatchObject({ type: 'image', source: { media_type: 'image/png', data: 'AAAA' } })
+    expect(m.content[1].text).toContain('una pagina per categoria')
+    expect(m.content[1].text).toContain('Note del locale: prezzi coi puntini')
+    expect(m.system).toMatch(/contrasto/)
+    expect(ai.parametriClaude(m).output_config.effort).toBe('medium')
+    // Gli enum sono quelli della regia: basi, stili dell'app (mai gli esclusivi), caratteri, vocabolario della ricetta.
+    const p = m.schema.properties
+    expect(p.tavolozza.properties.base.enum).toEqual(t.BASI)
+    expect(p.stile_vicino.enum).toEqual(t.STILI)
+    expect(p.stile_vicino.enum).not.toContain('notte')
+    expect(p.ricetta.properties.caratteri.properties.titolo.enum).toEqual(s.CARATTERI)
+    expect(p.ricetta.properties.sfondo.enum).toEqual(s.VALORI.sfondo)
+    expect(p.ricetta.properties.voce.properties.prezzo.enum).toEqual(s.VALORI['voce.prezzo'])
+    // La struttura la sceglie il titolare: nello schema non c'è.
+    expect(p.ricetta.properties).not.toHaveProperty('impaginazione')
+    expect(p.tavolozza.properties.colori.required).toEqual(t.CHIAVI_COLORE)
+    expect(() => ai.preparaMessaggio({ tipo: 'tema', media_type: 'image/png', file: 'AAAA' })).toThrow(/struttura del menù/)
+    expect(() => ai.preparaMessaggio({ tipo: 'tema', media_type: 'text/plain', file: 'AAAA', struttura: 'unica' })).toThrow(/Formato non accettato/)
+    // Da un'installazione si chiedono solo descrizione e fattura.
+    expect(ai.TIPI_INSTALLAZIONE).toEqual(['descrizione', 'fattura'])
   })
 })
 

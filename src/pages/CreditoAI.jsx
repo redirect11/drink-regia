@@ -48,8 +48,8 @@ export default function CreditoAI({ slug, istanzaAttiva, vai = (url) => window.l
     <section className="card" aria-label="Credito AI">
       <h3>Credito AI</h3>
       <p className="muted small">
-        Le funzioni AI dell’app (descrizione dei prodotti, lettura delle fatture) consumano un credito in euro. Quando il credito finisce
-        si fermano solo quelle: il resto dell’app lavora come sempre.
+        Le funzioni AI dell’app (descrizione dei prodotti, lettura delle fatture) e il tema dal tuo mockup consumano un credito in euro.
+        Quando il credito finisce si fermano solo quelle: il resto dell’app lavora come sempre.
       </p>
       {s ? (
         <>

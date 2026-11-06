@@ -129,6 +129,10 @@ const FUNCTIONS = [
   // I temi dei locali (REQ-FLOTTA-039).
   ['impostaTemi', ['tana-drink', ['notte']], 'impostaTemi', { slug: 'tana-drink', temi: ['notte'] }],
   ['temiDelLocale', ['tana-drink'], 'temiDelLocale', { slug: 'tana-drink' }],
+  // I temi su misura (REQ-FLOTTA-040).
+  ['creaTemaDaMockup', [{ file: 'AAAA', media_type: 'image/png', struttura: 'unica', note: '' }], 'temaDaMockup', { file: 'AAAA', media_type: 'image/png', struttura: 'unica', note: '' }],
+  ['gestisciTemiSuMisura', ['ritira', { id: 'su-misura-1' }], 'gestisciTemiSuMisura', { id: 'su-misura-1', azione: 'ritira' }],
+  ['chiediTemaSuMisura', [{ descrizione: 'Verde bosco', struttura: 'per-categoria' }], 'chiediTemaSuMisura', { descrizione: 'Verde bosco', struttura: 'per-categoria' }],
 ]
 
 describe('le chiamate alle Functions', () => {

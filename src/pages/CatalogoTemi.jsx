@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { elencoTemi, gestisciTemi, elencoStili, gestisciStili } from '../lib/db.js'
-import { BASI, STILI, CHIAVI_COLORE, STATI_DETTI, coloriDelTema, temaVuoto, temiDaMostrare, stiliDaMostrare, nomeStile, STILI_RICETTA } from '../lib/temi.js'
+import { BASI, STILI, CHIAVI_COLORE, STATI_DETTI, IMPAGINAZIONI, coloriDelTema, temaVuoto, temiDaMostrare, stiliDaMostrare, nomeStile, STILI_RICETTA } from '../lib/temi.js'
 
 // IL CATALOGO DEI TEMI (REQ-FLOTTA-032, REQ-MENU-023 di tana-drink).
 // L'utente, 02/11/2026: «Serve un posto dove pubblicarne di nuovi», e
@@ -180,8 +180,25 @@ export default function CatalogoTemi({ onErrore }) {
   )
 }
 
-// L'editor: i campi a sinistra, l'anteprima a destra.
-function EditorTema({ iniziale, onChiudi, onSalva }) {
+// La ricetta di un tema su misura (REQ-FLOTTA-040) si scrive come JSON:
+// è il fornitore (o un agente) a farla, con lo stesso vocabolario degli
+// stili del repository. Vuota, il tema usa lo stile scelto sopra.
+const ricettaScritta = (r) => (r ? JSON.stringify(r, null, 2) : '')
+function ricettaLetta(testo, struttura) {
+  const pulito = testo.trim()
+  if (!pulito) return { ricetta: null }
+  try {
+    const r = JSON.parse(pulito)
+    if (!r || typeof r !== 'object' || Array.isArray(r)) return { errore: 'La ricetta è un oggetto JSON.' }
+    return { ricetta: { versione: 1, ...r, impaginazione: struttura } }
+  } catch {
+    return { errore: 'La ricetta non è un JSON leggibile.' }
+  }
+}
+
+// L'editor: i campi a sinistra, l'anteprima a destra. Con `suMisura` è il
+// tema di un locale: in più la struttura del menù e la ricetta (JSON).
+export function EditorTema({ iniziale, onChiudi, onSalva, suMisura = false }) {
   const [tema, setTema] = useState(() => ({
     id: iniziale.id,
     nome: iniziale.nome,
@@ -189,6 +206,9 @@ function EditorTema({ iniziale, onChiudi, onSalva }) {
     tavolozza: { base: iniziale.tavolozza?.base || 'tana-scuro', colori: { ...(iniziale.tavolozza?.colori || {}) } },
     stile: iniziale.stile || 'classico',
   }))
+  const [struttura, setStruttura] = useState(iniziale.ricetta?.impaginazione || IMPAGINAZIONI[0].id)
+  const [ricetta, setRicetta] = useState(() => ricettaScritta(iniziale.ricetta))
+  const [erroreRicetta, setErroreRicetta] = useState(null)
   const [inCorso, setInCorso] = useState(false)
   const effettivi = coloriDelTema(tema.tavolozza)
   const campo = (k) => ({ value: tema[k], onChange: (e) => setTema((t) => ({ ...t, [k]: e.target.value })) })
@@ -200,15 +220,22 @@ function EditorTema({ iniziale, onChiudi, onSalva }) {
       return { ...t, tavolozza: { ...t.tavolozza, colori } }
     })
   const invia = async (pubblica) => {
+    let daSalvare = tema
+    if (suMisura) {
+      const letta = ricettaLetta(ricetta, struttura)
+      setErroreRicetta(letta.errore || null)
+      if (letta.errore) return
+      daSalvare = letta.ricetta ? { ...tema, ricetta: letta.ricetta } : tema
+    }
     setInCorso(true)
-    await onSalva(tema, pubblica)
+    await onSalva(daSalvare, pubblica)
     setInCorso(false)
   }
 
   return (
     <form
       className="editor-tema"
-      aria-label={iniziale.nuovo ? 'Nuovo tema' : `Tema ${iniziale.nome}`}
+      aria-label={iniziale.nuovo ? (suMisura ? 'Nuovo tema su misura' : 'Nuovo tema') : `Tema ${iniziale.nome}`}
       onSubmit={(e) => {
         e.preventDefault()
         invia(false)
@@ -274,8 +301,31 @@ function EditorTema({ iniziale, onChiudi, onSalva }) {
             </div>
           ))}
         </fieldset>
+        {suMisura && (
+          <>
+            <label>
+              Struttura del menù
+              <select value={struttura} onChange={(e) => setStruttura(e.target.value)}>
+                {IMPAGINAZIONI.map((i) => (
+                  <option key={i.id} value={i.id}>
+                    {i.nome}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Ricetta (JSON, facoltativa)
+              <textarea value={ricetta} onChange={(e) => setRicetta(e.target.value)} rows={8} spellCheck={false} placeholder='{ "caratteri": { "titolo": "playfair-display", "voce": "inter", "testo": "inter" }, "voce": { "forma": "riga", "prezzo": "puntini" } }' />
+            </label>
+            <p className="muted small">
+              Lo stesso vocabolario degli stili a ricetta (functions/temi/stili.json); la struttura del menù la mette la scelta qui sopra.
+              Senza ricetta il tema usa lo stile scelto.
+            </p>
+            {erroreRicetta && <p className="errore small">{erroreRicetta}</p>}
+          </>
+        )}
         {!iniziale.nuovo && iniziale.stato === 'pubblicato' && (
-          <p className="muted small">È pubblicato: salvando, il ritocco arriva subito nel catalogo.</p>
+          <p className="muted small">È pubblicato: salvando, il ritocco arriva subito {suMisura ? 'nella licenza del locale' : 'nel catalogo'}.</p>
         )}
         <div className="azioni">
           <button type="submit" className="btn small" disabled={inCorso}>
@@ -297,8 +347,9 @@ function EditorTema({ iniziale, onChiudi, onSalva }) {
 }
 
 // L'anteprima: la tavolozza e un assaggio del menù coi suoi colori. Lo
-// stile vero lo disegna l'app: qui si dice quale.
-function Anteprima({ colori, tema }) {
+// stile vero lo disegna l'app: qui si dice quale. La usa anche la dashboard
+// del titolare, per i suoi temi su misura.
+export function Anteprima({ colori, tema }) {
   return (
     <div className="anteprima-tema" aria-label="Anteprima">
       <div className="tavolozza-tema">
