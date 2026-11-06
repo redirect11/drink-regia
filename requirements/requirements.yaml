@@ -85,9 +85,16 @@ requirements:
       del tempo, le domande righe editoriali. La prima pagina non aspetta
       più di sapere chi ha fatto l'accesso: compare subito coi bottoni di
       chi non è entrato. Le pagine che dipendono dall'utente aspettano.
-      RESTA (DESIGN.md §9): le quattro schermate vere dell'app, la scelta
-      del titolo (A, B o C), il nome del prodotto, la prova sociale, `/en`
-      per chi non esegue JavaScript, la verifica Lighthouse sul telefono.
+      I TESTI (06/11/2026). L'utente: «gli slogan della home sono
+      orribili… qualcosa di piu' decente e accattivante». Riscritti nelle
+      due lingue da un copy di marketing nel registro di DESIGN.md §2, su
+      una linea sola, «il venerdi' sera non aspetta nessuno»: titolo «E'
+      caduto il Wi-Fi. La cassa non se n'e' accorta.», problema, pilastri,
+      funzioni, passi, prezzi, chiusura, meta e pie' di pagina; le tre
+      alternative del titolo e il perche' della scelta in DESIGN.md §5.1.
+      RESTA (DESIGN.md §9): le quattro schermate vere dell'app, il nome
+      del prodotto, la prova sociale, `/en` per chi non esegue JavaScript,
+      la verifica Lighthouse sul telefono.
     status: partial
     generate_issue: true
     labels: [prodotto, flotta, regia]

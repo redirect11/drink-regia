@@ -85,7 +85,7 @@ describe('la prima pagina', () => {
     expect(trovate).toEqual(ordine)
     expect(screen.getByRole('heading', { name: it_.problema.titolo })).toBeInTheDocument()
     for (const p of it_.pilastri.voci) expect(screen.getByRole('heading', { name: p.titolo })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Come si comincia' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Dalla registrazione alla prima comanda' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Domande frequenti' })).toBeInTheDocument()
     // Le domande si aprono una per una.
     expect(screen.getByText('Lo scontrino è fiscale?').closest('details')).not.toBeNull()
@@ -227,7 +227,7 @@ describe('la prima pagina', () => {
     mostra()
     const h1 = screen.getByRole('heading', { level: 1 })
     expect(h1).toHaveTextContent(it_.hero.titolo)
-    expect(h1.querySelector('.titolo-oro')).toHaveTextContent('Nemmeno quando cade il Wi-Fi.')
+    expect(h1.querySelector('.titolo-oro')).toHaveTextContent('La cassa non se n’è accorta.')
   })
 
   it('mette lingua, titolo e alternative della pagina, e li toglie uscendo', () => {

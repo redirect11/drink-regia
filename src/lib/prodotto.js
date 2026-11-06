@@ -12,11 +12,12 @@ export const SLUG_PRODOTTO = 'drink'
 // prodotto. La regia è `drink-regia`, creata a parte.
 export const PREFISSO_PROGETTI = 'drinkpos'
 export const NOME_PRODOTTO = 'Drink'
-export const SLOGAN = 'La cassa del locale, che lavora anche senza rete.'
+// Riscritti il 06/11/2026 con i testi della prima pagina (src/i18n).
+export const SLOGAN = 'La cassa che regge il venerdì sera, anche senza rete.'
 export const DESCRIZIONE =
-  'Comande, conti, scontrino e magazzino in un’app che ogni locale ha tutta per sé: ' +
-  'una sua installazione, i suoi dati, il suo indirizzo. Pensata al banco di un cocktail bar, ' +
-  'con il locale pieno.'
+  'Comande, conti, cassa, menù con QR e magazzino in un’app che ogni locale ha tutta per sé: ' +
+  'la sua installazione, i suoi dati, il suo indirizzo. Lavora anche quando cade la rete. ' +
+  'Nata al banco di un cocktail bar, con il locale pieno.'
 
 // Il dominio sotto cui nascono le istanze: <slug>.<DOMINIO_ISTANZE>. Da
 // confermare col dominio vero del prodotto.

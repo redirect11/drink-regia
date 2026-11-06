@@ -67,7 +67,7 @@ describe('la vendita nella prima pagina', () => {
     stato.vendita = venditaPulita({ moduli: { magazzino: false, staff: false, sumup: false } })
     mostra()
     expect(screen.queryByRole('heading', { name: 'Il magazzino si aggiorna a ogni vendita.' })).toBeNull()
-    expect(screen.getByRole('heading', { name: 'I numeri della serata, chiari.' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'La serata in numeri, prima di chiudere.' })).toBeInTheDocument()
     // Senza personale e SumUp, la riga delle funzioni minori non c'è.
     expect(document.querySelector('.funzioni-minori')).toBeNull()
   })
