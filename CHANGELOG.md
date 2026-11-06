@@ -6,10 +6,11 @@ data.
 
 ## Prossima release (da decidere)
 
-- I testi della prima pagina riscritti, in italiano e in inglese, su una
-  linea sola: «il venerdì sera non aspetta nessuno». Titolo «È caduto il
-  Wi-Fi. La cassa non se n’è accorta.», problema, pilastri, funzioni,
-  passi, prezzi e chiusura; le alternative in DESIGN.md §5.1
+- I testi della prima pagina riscritti, in italiano e in inglese, senza
+  trovate e col prodotto raccontato per intero. Il filo scelto
+  dall'utente fra tre direzioni è la credibilità: «Scritto dietro il
+  banco. In servizio ogni sera.»; problema, pilastri, funzioni, passi,
+  prezzi e chiusura seguono; le altre due direzioni in DESIGN.md §5.1
   (REQ-FLOTTA-002).
 - «Carte», il menù come un mazzo di carte francesi, è un tema esclusivo
   che si assegna dalla scheda del locale, come «Notte» e «Meraviglie».

@@ -13,9 +13,9 @@ import { PIANI } from '../lib/piani.js'
 
 export default {
   meta: {
-    titolo: 'Till and orders for bars and restaurants, even without a connection',
+    titolo: 'Bar and restaurant management, born behind a bar',
     descrizione:
-      'Orders, bills, till, QR menu and stock in one app. It works even without a connection, and every venue has its own installation and its own data.',
+      'Orders, bills and till, QR menu, stock, statistics and staff in one app, written in the cocktail bar that uses it every night. Every venue has its own installation and its own data, and works even without a connection.',
   },
   barra: {
     principale: 'Main',
@@ -31,7 +31,7 @@ export default {
     lingua: 'Language',
   },
   piede: {
-    descrizione: 'Born behind a cocktail bar. One installation per venue, and the data stays with the venue.',
+    descrizione: 'Written behind the bar of a cocktail bar, in service every night. Orders, till, menu, stock and staff, with one installation per venue.',
     prodotto: 'Product',
     account: 'Account',
     informazioni: 'Information',
@@ -54,11 +54,11 @@ export default {
   },
   soloItaliano: 'Sign-up, your account and the legal terms are in Italian for now.',
   hero: {
-    occhiello: 'Till, orders and stock for bars and restaurants',
+    occhiello: 'Management for bars and restaurants, born in a cocktail bar',
     // Riscritti il 06/11/2026 insieme all'italiano (lì il perché).
-    titolo: 'The Wi-Fi went down. The till never noticed.',
+    titolo: 'Written behind the bar. In service every night.',
     sottotitolo:
-      'Orders, bills, till, QR menu and stock in a single app, built for the bar and the floor. Every venue has its own installation and its own data: nobody else sees them, and when the network drops the work carries on.',
+      'Orders, till, QR menu, stock, statistics and staff. The app was born in the cocktail bar that uses it every night, and grew on what service actually requires. Every venue has its own installation and its own data, and works even without a connection.',
     attiva: 'Get started',
     dashboard: 'My dashboard',
     demo: 'Try the live demo',
@@ -72,64 +72,64 @@ export default {
     concordata: 'Setup arranged with us',
   },
   problema: {
-    titolo: 'Friday night waits for no one.',
+    titolo: 'What you see from behind the bar.',
     testo:
-      'It doesn’t wait for the network to come back while the till sits frozen. It doesn’t wait for the order left somewhere between the floor and the bar. And at closing time nobody knows how many bottles actually went out.',
-    chiusa: 'Those are the nights this app was born for, behind a cocktail bar.',
+      'Orders on a pad, bills worked out aloud, a till that only keeps the total. Stock from memory, staff hours on a sheet, the night’s takings pieced together the next day. Each piece works on its own, and the whole picture lives in the head of whoever is behind the bar.',
+    chiusa: 'The app was born behind the bar of a cocktail bar to put that picture on a tablet, and it works there every night.',
   },
   pilastri: {
-    titolo: 'Three things that hold up on a full night',
+    titolo: 'Three decisions made behind the bar',
     voci: [
       {
-        titolo: 'The network drops. Service doesn’t.',
-        testo: 'Orders, bills and payments stay on the tablet and carry on; as soon as the connection is back, the changes go out on their own.',
+        titolo: 'Works even without a connection.',
+        testo: 'Behind the bar a connection is never a given: orders, bills and payments stay on the tablet and service carries on; when the network returns, the changes go out on their own.',
       },
       {
-        titolo: 'One installation per venue. Yours.',
-        testo: 'Your venue has its own database and its own address, kept apart from everyone else’s. No other venue sees your bills, your prices or your numbers.',
+        titolo: 'One installation per venue.',
+        testo: 'A venue’s numbers belong to the venue. Yours has its own installation, with its own data and its own address, separate from everyone else’s: no one else sees your bills, your prices or your takings.',
       },
       {
-        titolo: 'Born behind a bar, not at a desk.',
-        testo: 'It was born and still works behind a real cocktail bar, on full nights: every screen is built for speed, at the bar and on the floor.',
+        titolo: 'Built for service.',
+        testo: 'Every screen was tried out with a full room and a tablet in hand, at the bar and on the floor: few steps, and nothing that slows service down.',
       },
     ],
   },
   funzioni: {
     occhiello: 'Features',
     titolo: 'From the first order to closing the till.',
-    sotto: 'Every feature started as a real need behind the bar. Those that belong to a module say so here; the price is further down.',
+    sotto: 'Every feature is there because it was needed behind the bar. Till, orders and receipts are in the starting plan; the rest are modules, and each feature says here which one it belongs to. Prices are further down.',
     nelPiano: 'Included in {piano}',
     modulo: '{nome} module',
     punti: 'What it includes',
     voci: {
       conti: {
         occhiello: 'Orders and bills',
-        titolo: 'The order reaches the bar before you do.',
-        testo: 'Take it at the table or at the bar: it arrives straight away and, if you choose, prints on its own. The bill already has everything on it and is settled in cash or by card.',
+        titolo: 'From the table to the bar, with nothing to call out.',
+        testo: 'Take it at the table or at the bar: it arrives straight away and, if you choose, prints on its own. The bill already has everything on it and is settled in cash or by card; the courtesy bill prints on the thermal printer.',
         punti: ['Orders printed at the bar', 'Cash and card', 'Extra devices at {terminale} a month'],
       },
       menu: {
         occhiello: 'Digital menu and table ordering',
-        titolo: 'QR on the table, menu on the phone, order at the bar.',
-        testo: 'Guests open the menu with prices, order and follow the status of their order. No app to download, no paper menus to reprint when a price changes.',
+        titolo: 'A QR menu, and orders from the guest’s phone.',
+        testo: 'Guests scan the QR code, see the menu with current prices, order and follow the status of their order. No app to download, and no paper menus to reprint when a price changes.',
         punti: ['Always up to date', 'Orders go straight to the bar', 'No app to download'],
       },
       magazzino: {
         occhiello: 'Stock',
-        titolo: 'Know what’s running low before it runs out.',
-        testo: 'Every order that is prepared deducts the ingredients of its recipe; when a stock level drops below its threshold, the app tells you. Periodic stock counts and supplier invoices close the loop.',
+        titolo: 'Stock is deducted on its own, from the recipes.',
+        testo: 'Every order that is prepared deducts the ingredients of its recipe; when a stock level drops below its reorder threshold, the app flags it. Periodic stock counts and supplier invoices keep the figures aligned.',
         punti: ['Stock levels and reorder thresholds', 'Periodic stock counts', 'Supplier invoices'],
       },
       statistiche: {
         occhiello: 'Statistics',
-        titolo: 'The night in numbers, before you lock up.',
-        testo: 'Takings by night and by period, sales by hour, results by category: see your peak hours and compare with last week, without a spreadsheet.',
+        titolo: 'How much you took, at what time, on what.',
+        testo: 'Takings by night and by period, sales by hour, results by category. Peak hours and the comparison with last week are already worked out, without a spreadsheet.',
         punti: ['Period comparisons', 'Peak hours', 'Results by category'],
       },
     },
     minori: {
-      staff: 'Staff hours and pay, and calls to the staff, all in one place.',
-      sumup: 'The bill goes to the SumUp reader and comes back already paid.',
+      staff: 'Staff hours and pay, and calls to the staff, in the same system.',
+      sumup: 'The bill goes to the SumUp reader and comes back paid.',
     },
   },
   passi: {
@@ -145,7 +145,7 @@ export default {
     ],
   },
   prezzi: {
-    titolo: 'One plan, the modules you need, and the price written out in full.',
+    titolo: 'One monthly fee, and the modules you need.',
     sotto: 'Monthly or yearly subscription. Prices exclude VAT ({iva} Italian VAT), with the total including VAT alongside. One-off activation: {attivazione} ({lordo}).',
     prova: 'The first {giorni} days are a trial: the subscription fee starts when the trial ends.',
     alMese: '/ month',
@@ -265,8 +265,8 @@ export default {
     ],
   },
   chiusura: {
-    titolo: 'Next Friday night is coming either way.',
-    testo: 'Get your venue started, or write to us: we’ll show it to you with your own menu and prices, and you decide afterwards.',
+    titolo: 'See it with your own menu and prices.',
+    testo: 'Get your venue started, or write to us: we’ll show it to you loaded with your own menu and prices, and you decide afterwards.',
     attiva: 'Get started',
     dashboard: 'My dashboard',
     scrivici: 'Contact us',

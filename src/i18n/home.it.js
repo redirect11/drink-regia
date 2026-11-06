@@ -15,9 +15,9 @@ import { MODULI, PIANI } from '../lib/piani.js'
 
 export default {
   meta: {
-    titolo: 'Cassa e comande per bar e ristoranti, anche senza rete',
+    titolo: 'Gestionale per bar e ristoranti, nato dietro un banco',
     descrizione:
-      'Comande, conti, cassa, menù con QR e magazzino in un’app sola. Lavora anche senza rete, e ogni locale ha la sua installazione e i suoi dati.',
+      'Comande, conti e cassa, menù con QR, magazzino, statistiche e personale in un’app sola, scritta nel cocktail bar che la usa ogni sera. Ogni locale ha la sua installazione e i suoi dati, e lavora anche senza rete.',
   },
   barra: {
     principale: 'Principale',
@@ -33,7 +33,7 @@ export default {
     lingua: 'Lingua',
   },
   piede: {
-    descrizione: 'Nata al banco di un cocktail bar. Un’installazione per ogni locale, e i dati restano suoi.',
+    descrizione: 'Scritta dietro il banco di un cocktail bar, in servizio ogni sera. Comande, cassa, menù, magazzino e personale, con un’installazione per ogni locale.',
     prodotto: 'Prodotto',
     account: 'Account',
     informazioni: 'Informazioni',
@@ -60,16 +60,15 @@ export default {
   // italiano; su quella italiana non serve.
   soloItaliano: '',
   hero: {
-    occhiello: 'Cassa, comande e magazzino per bar e ristoranti',
-    // Riscritti il 06/11/2026 (l'utente: «gli slogan sono orribili… qualcosa
-    // di più accattivante»), con una linea sola: il venerdì sera non aspetta
-    // nessuno. Il titolo è la scena che ogni titolare ha vissuto, con la
-    // svolta in oro; «non se n'è accorta» è una figura che il sottotitolo
-    // rende letterale (il lavoro continua, le modifiche partono al ritorno
-    // della rete). Alternative scartate in DESIGN.md §5.1.
-    titolo: 'È caduto il Wi-Fi. La cassa non se n’è accorta.',
+    occhiello: 'Gestionale per bar e ristoranti, nato in un cocktail bar',
+    // Riscritti il 06/11/2026 (l'utente: «gli slogan sono orribili… vanno
+    // ripensati completamente e devono essere meno stupidi»). Niente
+    // trovate e niente feature sola nel titolo: il filo è la credibilità,
+    // scritto da chi sta al banco e in servizio ogni sera, e il prodotto
+    // raccontato per intero. Le direzioni scartate in DESIGN.md §5.1.
+    titolo: 'Scritto dietro il banco. In servizio ogni sera.',
     sottotitolo:
-      'Comande, conti, cassa, menù con QR e magazzino in un’unica app, pensata per il banco e la sala. Ogni locale ha la sua installazione e i suoi dati: nessun altro li vede, e quando la rete cade il lavoro continua.',
+      'Comande, cassa, menù con QR, magazzino, statistiche e personale. L’app è nata nel cocktail bar che la usa ogni sera, ed è cresciuta su quello che serve davvero durante il servizio. Ogni locale ha la sua installazione e i suoi dati, e lavora anche senza rete.',
     attiva: 'Attiva il tuo locale',
     dashboard: 'La mia dashboard',
     demo: 'Prova la demo',
@@ -87,55 +86,58 @@ export default {
     concordata: 'Attivazione concordata con noi',
   },
   problema: {
-    titolo: 'Il venerdì sera non aspetta nessuno.',
+    // Il contesto, non un dramma: il locale gestito a pezzi, visto da chi
+    // sta al banco. Il registratore «tiene solo il totale»: non si promette
+    // di sostituirlo, lo scontrino fiscale resta suo.
+    titolo: 'Quello che si vede dal banco.',
     testo:
-      'Non aspetta che torni la rete, con la cassa ferma. Non aspetta la comanda rimasta tra la sala e il banco. E a fine serata nessuno sa quante bottiglie sono uscite davvero.',
+      'Le comande su un blocco, i conti rifatti a voce, il registratore che tiene solo il totale. Il magazzino a memoria, le ore del personale su un foglio, l’incasso della serata ricostruito il giorno dopo. Ogni pezzo funziona per conto suo, e il quadro intero lo tiene in testa chi sta al banco.',
     // Neutro finché l'utente non decide se nominare il locale dove l'app è
     // nata (DESIGN.md §9.3).
-    chiusa: 'È per serate così che l’app è nata, al banco di un cocktail bar.',
+    chiusa: 'L’app è nata al banco di un cocktail bar per mettere quel quadro su un tablet, e lì lavora ogni sera.',
   },
   pilastri: {
-    titolo: 'Tre cose che reggono a locale pieno',
+    titolo: 'Tre scelte fatte al banco',
     voci: [
       {
         // «Non si ferma mai» prometteva più dei Termini («senza garanzia di
         // continuità assoluta», Legali.jsx §5). Si dice quello che l'app fa
         // davvero (tana-drink, REQ-OFFLINE-001 e 006): le scritture restano
         // sul dispositivo e partono al ritorno della rete.
-        titolo: 'La rete cade. Il servizio no.',
-        testo: 'Comande, conti e incassi restano sul tablet e vanno avanti; appena la connessione torna, le modifiche partono da sole.',
+        titolo: 'Lavora anche senza rete.',
+        testo: 'Al banco la connessione non è una certezza: comande, conti e incassi restano sul tablet e il servizio prosegue; quando la rete torna, le modifiche partono da sole.',
       },
       {
-        titolo: 'Un’installazione per locale. La tua.',
-        testo: 'Il tuo locale ha il suo database e il suo indirizzo, separati da tutti gli altri. Nessun altro locale vede i tuoi conti, i tuoi prezzi, i tuoi numeri.',
+        titolo: 'Un’installazione per locale.',
+        testo: 'I numeri di un locale sono del locale. Il tuo ha la sua installazione, con i suoi dati e il suo indirizzo, separata da tutte le altre: nessun altro vede i tuoi conti, i tuoi prezzi, i tuoi incassi.',
       },
       {
-        titolo: 'Nata al banco, non in un ufficio.',
-        testo: 'È nata e lavora al banco di un cocktail bar vero, con il locale pieno: ogni schermata è fatta per andare in fretta, al banco e in sala.',
+        titolo: 'Fatta per il servizio.',
+        testo: 'Ogni schermata è stata provata con il locale pieno e il tablet in mano, al banco e in sala: pochi passaggi, e niente che rallenti il servizio.',
       },
     ],
   },
   funzioni: {
     occhiello: 'Funzioni',
     titolo: 'Dalla prima comanda alla chiusura di cassa.',
-    sotto: 'Ogni funzione è nata da un bisogno vero al banco. Quelle che stanno in un modulo lo dicono qui; il prezzo lo trovi più sotto.',
+    sotto: 'Ogni funzione è entrata perché serviva al banco. Cassa, comande e scontrino sono nel piano di partenza; il resto sono moduli, e ogni funzione dice qui a quale appartiene. I prezzi sono più sotto.',
     nelPiano: 'Nel piano {piano}',
     modulo: 'Modulo {nome}',
     punti: 'Cosa comprende',
     voci: {
       conti: {
         occhiello: 'Comande e conti',
-        titolo: 'La comanda arriva al banco prima di te.',
+        titolo: 'Dal tavolo al banco, senza passaggi a voce.',
         // La stampa automatica è una scelta del locale (tana-drink,
         // REQ-STAMPA-001); i terminali oltre quelli del piano (3 dal
         // 02/11/2026) si pagano a parte.
-        testo: 'La prendi al tavolo o al banco: arriva subito e, se lo scegli, si stampa da sola. Il conto ha già tutto sopra e si chiude in contanti o con carta.',
+        testo: 'La prendi al tavolo o al banco: arriva subito e, se lo scegli, si stampa da sola. Il conto ha già tutto sopra e si chiude in contanti o con carta; lo scontrino di cortesia esce sulla stampante termica.',
         punti: ['Comanda stampata al banco', 'Contanti e carta', 'Altri terminali a {terminale} al mese'],
       },
       menu: {
         occhiello: 'Menù digitale e ordini dal tavolo',
-        titolo: 'Il QR sul tavolo, il menù nel telefono, l’ordine al banco.',
-        testo: 'Il cliente apre il menù con i prezzi, ordina e segue lo stato del suo ordine. Niente app da scaricare, niente menù di carta da ristampare quando cambi un prezzo.',
+        titolo: 'Il menù con un QR, l’ordine dal telefono del cliente.',
+        testo: 'Il cliente inquadra il QR, vede il menù con i prezzi aggiornati, ordina e segue lo stato del suo ordine. Niente app da scaricare e niente menù di carta da ristampare quando cambi un prezzo.',
         punti: ['Menù sempre aggiornato', 'Ordini che arrivano dritti al banco', 'Nessuna app da scaricare'],
       },
       magazzino: {
@@ -143,20 +145,20 @@ export default {
         // Si scarica quando la comanda è pronta, o alla riscossione se il
         // locale non segue gli stati (tana-drink, REQ-MAG-003); l'avviso è la
         // soglia di riordino del prodotto (REQ-MAG-006).
-        titolo: 'Sai cosa sta finendo prima che finisca.',
-        testo: 'Ogni comanda preparata scarica gli ingredienti della sua ricetta; quando una giacenza scende sotto la soglia, l’app te lo dice. L’inventario periodico e le fatture dei fornitori chiudono il cerchio.',
+        titolo: 'Il magazzino si scarica da solo, dalle ricette.',
+        testo: 'Ogni comanda preparata scarica gli ingredienti della sua ricetta; quando una giacenza scende sotto la soglia di riordino, l’app te lo segnala. L’inventario periodico e le fatture dei fornitori tengono i conti allineati.',
         punti: ['Giacenze e soglie di riordino', 'Inventario periodico', 'Fatture dei fornitori'],
       },
       statistiche: {
         occhiello: 'Statistiche',
-        titolo: 'La serata in numeri, prima di chiudere.',
-        testo: 'Incassi per serata e per periodo, venduto per fascia oraria, bilancio per categorie: vedi le ore di punta e il confronto con la settimana scorsa senza fogli Excel.',
+        titolo: 'Quanto hai incassato, a che ora, con cosa.',
+        testo: 'Incassi per serata e per periodo, venduto per fascia oraria, bilancio per categorie. Le ore di punta e il confronto con la settimana scorsa sono già calcolati, senza fogli Excel.',
         punti: ['Confronto tra periodi', 'Le ore di punta', 'Il bilancio per macro-categorie'],
       },
     },
     minori: {
-      staff: 'Le ore e le paghe del personale, e le chiamate allo staff, in un posto solo.',
-      sumup: 'Il conto passa al lettore SumUp e torna indietro già pagato.',
+      staff: 'Le ore e le paghe del personale, e le chiamate allo staff, nello stesso gestionale.',
+      sumup: 'Il conto passa al lettore SumUp e torna già pagato.',
     },
   },
   passi: {
@@ -174,7 +176,7 @@ export default {
   prezzi: {
     // Descrittivo: c'è un canone fisso, l'attivazione e il Completo a
     // pacchetto, quindi «paghi solo quello che usi» non era esatto.
-    titolo: 'Un piano, i moduli che ti servono, e il prezzo tutto scritto qui.',
+    titolo: 'Un canone al mese, e i moduli che ti servono.',
     // DEC-0005: prezzi IVA esclusa, col totale IVA inclusa accanto.
     sotto: 'Abbonamento mensile o annuale. Prezzi IVA esclusa (IVA al {iva}), con il totale IVA inclusa accanto. Attivazione una tantum: {attivazione} ({lordo}).',
     // La prova (DEC-0005). Si dice solo cosa vale: la durata, e che il
@@ -274,8 +276,8 @@ export default {
     ],
   },
   chiusura: {
-    titolo: 'Il prossimo venerdì sera arriva comunque.',
-    testo: 'Attiva il tuo locale, oppure scrivici: te lo mostriamo con il tuo menù e i tuoi prezzi, e decidi dopo.',
+    titolo: 'Vedila con il tuo menù e i tuoi prezzi.',
+    testo: 'Attiva il tuo locale, oppure scrivici: te la mostriamo caricata con il tuo menù e i tuoi prezzi, e decidi dopo.',
     attiva: 'Attiva il tuo locale',
     dashboard: 'La mia dashboard',
     scrivici: 'Scrivici',
