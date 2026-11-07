@@ -246,7 +246,13 @@ src/pages/Registrati.jsx    registrazione a 4 passi (locale, fatturazione, refer
 src/pages/Accedi.jsx        email e password; recupero password
 src/pages/Dashboard.jsx     il titolare: locale, piano, stato dell'istanza, attivazione, cambio piano
 src/pages/SceltaPiano.jsx   piano, moduli, terminali, totale mensile
-src/pages/Backoffice.jsx    admin, in sezioni sotto /backoffice/*: locali, richieste, rilasci, vendita, nuovo locale
+src/pages/Backoffice.jsx    admin, in sezioni sotto /backoffice/*: locali, commerciale, richieste, rilasci, vendita, temi, nuovo locale
+src/pages/Commerciale.jsx   la dashboard di chi vende (REQ-FLOTTA-041): tessere, grafici per giorno, abbonamenti, movimenti, CSV
+src/lib/commerciale.js      i numeri del commerciale: canone di un cliente, classe, riepilogo del periodo, tabelle, CSV
+functions/lib/movimenti.js  il libro dei movimenti: una riga per incasso (fattura Stripe, ricarica AI, pagamento a mano)
+functions/lib/traffico.js   il traffico del sito, contatori per giorno senza cookie (REQ-FLOTTA-042); la Function `traccia`
+scripts/semina-test.mjs, lib-semina.mjs  i locali di prova sulla regia di test (REQ-DEV-004); .env.e2e
+playwright.config.js, e2e/  i test end-to-end con Playwright: npm run test:e2e
 src/lib/backoffice.js       le sezioni del backoffice, i contatori del sotto-menù, i filtri dei locali
 src/pages/Legali.jsx        Termini e Privacy (struttura con segnaposto TITOLARE)
 src/lib/prodotto.js         nome, slogan, dominio, URL demo, email contatti (segnaposto)
@@ -840,6 +846,32 @@ L'elenco completo con i riferimenti al codice è in
    attivo: un PNG esportato da Canva, «Crea il tema col credito AI»; il
    tema compare nel riquadro e in `licenza/attuale.temi_su_misura` del
    progetto del locale.
+44. **Il commerciale, il traffico, i locali di prova e Playwright
+   (REQ-FLOTTA-041, REQ-FLOTTA-042, REQ-DEV-004)**, ramo
+   `feature/commerciale-e2e`, 07/11/2026. L'utente: «un backoffice per la
+   parte commerciale e una dashboard che mi mostra il guadagno, le
+   attivazioni, il traffico», e «creare un po' di utenti che abbiano varie
+   attivazioni […] e poi fare testing e2e con playwright». Fatti: il libro
+   dei movimenti (`movimenti/`, scritto dal webhook, dai pagamenti
+   registrati a mano, che ora chiedono l'importo, e dal credito AI a mano),
+   il traffico (`traffico/{giorno}`, la Function `traccia`, il sito la
+   chiama da `App.jsx` e da `db.js`), la sezione «Commerciale», la semina
+   del test e i test Playwright. **Da fare a mano, dall'utente**: il
+   segreto `E2E_PASSWORD` nell'environment GitHub `test` (il valore sta in
+   `.env.e2e`, riga `E2E_PASSWORD`, scritto dalla semina) perché
+   `e2e.yml` giri dopo i deploy su develop. **Come si usa**: `npm run
+   semina:test` riscrive le persone sul test (idempotente; `--pulisci` le
+   toglie); `npm run test:e2e` in locale compila il sito con `.env.e2e` e
+   lo serve con vite preview sulla porta 4317 (la 4173 era occupata) coi
+   dati e le Functions di drink-regia-test, quindi prova anche quello che
+   non è ancora pubblicato; con `E2E_URL=https://drink-regia-test.web.app`
+   contro il sito pubblicato. Le persone (`scripts/lib-semina.mjs`) sono
+   istanze «esistenti» senza licenza dalla regia: Sospendi, Chiudi e gli
+   aggiornamenti non si provano su di loro. Dopo il deploy sul test il
+   traffico comincia a contare da solo; i movimenti veri arrivano col
+   primo pagamento. Da sapere: la Function `traccia` è aperta, un
+   contatore gonfiato apposta è il danno peggiore; App Check, se serve,
+   dopo.
 
 ---
 

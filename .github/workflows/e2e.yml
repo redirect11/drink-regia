@@ -1,0 +1,43 @@
+name: Test end-to-end
+
+# I TEST PLAYWRIGHT SUL SITO DI TEST (REQ-DEV-004): dopo ogni deploy riuscito
+# su develop, e a mano quando si vuole. Girano contro drink-regia-test.web.app
+# con le persone seminate da scripts/semina-test.mjs; la loro password sta
+# nel segreto E2E_PASSWORD dell'environment «test» (la stessa di .env.e2e,
+# la mette l'utente). Non pubblicano niente e non scrivono niente.
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ['Deploy to Firebase']
+    types: [completed]
+    branches: [develop]
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: Playwright sul sito di test
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Test end-to-end
+        env:
+          E2E_URL: https://drink-regia-test.web.app
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+        run: npx playwright test
+      - name: Rapporto
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapporto-e2e
+          path: e2e/rapporto/
+          retention-days: 14

@@ -51,6 +51,10 @@ const contatti = require('./lib/contatti.js')
 const { getStorage } = require('firebase-admin/storage')
 const { datiEsistente, documentiEsistente, DatiNonValidi, scriveLicenza, gestioneEsistente, eDemo } = require('./lib/esistente.js')
 const aggiornamenti = require('./lib/aggiornamenti.js')
+const movimenti = require('./lib/movimenti.js')
+const traffico = require('./lib/traffico.js')
+// L'aliquota del listino, per l'IVA dei pagamenti registrati a mano.
+const listino = require('./piani.json')
 
 initializeApp()
 const db = getFirestore()
@@ -551,7 +555,12 @@ async function elaboraEventoStripe(evento) {
   // in più. Prima dell'abbonamento, che la ignora comunque.
   if (evento.type === 'checkout.session.completed') {
     const ricarica = ai.ricaricaDaSessione(evento.data?.object)
-    if (ricarica) return { ok: true, ricarica: await accreditaRicarica(ricarica, { origine: 'stripe' }) }
+    if (ricarica) {
+      const esito = await accreditaRicarica(ricarica, { origine: 'stripe' })
+      // L'incasso nel libro dei movimenti (REQ-FLOTTA-041), una volta sola.
+      if (esito === 'accreditata') await scriviMovimento(movimenti.movimentoDaRicarica(evento.data?.object, ricarica))
+      return { ok: true, ricarica: esito }
+    }
   }
   // Una sessione Fondatori scaduta: il posto prenotato torna libero.
   const daLiberare = prenotazioneDaRilasciare(evento.type, evento.data?.object)
@@ -579,6 +588,13 @@ async function elaboraEventoStripe(evento) {
     else t.update(ref, { ...patch, 'abbonamento.visto_il': FieldValue.serverTimestamp() })
     return true
   })
+  // Una fattura pagata è un incasso: nel libro dei movimenti
+  // (REQ-FLOTTA-041), anche se la patch non si è scritta (un evento in
+  // ritardo è comunque un pagamento avvenuto). L'id è quello della fattura.
+  if (evento.type === 'invoice.paid') {
+    const cli = (await ref.get()).data()
+    await scriviMovimento(movimenti.movimentoDaFattura(evento.data?.object, { uid, slug: cli?.slug }))
+  }
   // Dopo l'abbonamento, che con merge non tocca abbonamento.fondatore. Anche
   // se la patch non si è scritta: il pagamento col coupon c'è stato, e la
   // conferma è idempotente (fondatori.conferma).
@@ -593,6 +609,38 @@ async function elaboraEventoStripe(evento) {
   if (daContare) await contaUsoCodice(daContare.codice, daContare.uid)
   return scritto ? { ok: true } : { ok: true, ignorato: 'fuori ordine o già scritto' }
 }
+
+// IL LIBRO DEI MOVIMENTI (REQ-FLOTTA-041): ogni incasso una riga, con l'id
+// della fattura o della sessione. Un movimento che non si scrive non deve
+// fermare il webhook: Stripe ha già incassato, e la riga si rifà a mano.
+async function scriviMovimento(m) {
+  if (!movimenti.movimentoValido(m)) return false
+  try {
+    await db.doc(`movimenti/${m.id}`).set(m, { merge: true })
+    return true
+  } catch (e) {
+    console.error(`[movimenti] ${m.id} non scritto:`, e?.message || e)
+    return false
+  }
+}
+
+// IL TRAFFICO DEL SITO (REQ-FLOTTA-042): il sito chiama qui a ogni pagina e
+// a ogni passo della vendita; si incrementano contatori per giorno, niente
+// altro (lib/traffico.js). Aperta a tutti perché la chiama anche chi non è
+// entrato: non legge niente, non risponde niente, e un contatore gonfiato
+// apposta è il danno peggiore che può fare.
+const DOMINI_NOSTRI = [PROGETTO_REGIA && `${PROGETTO_REGIA}.web.app`, PROGETTO_REGIA && `${PROGETTO_REGIA}.firebaseapp.com`, REGIA_URL && (() => { try { return new URL(REGIA_URL).hostname } catch { return null } })()].filter(Boolean)
+exports.traccia = onRequest({ ...OPTS, cors: true }, async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).send('')
+  const esito = traffico.incrementiDi(req.body, { nostri: DOMINI_NOSTRI })
+  if (!esito) return res.status(204).send('')
+  try {
+    await db.doc(`traffico/${esito.giorno}`).set({ giorno: esito.giorno, ...traffico.annidati(esito.incrementi, (v) => FieldValue.increment(v)) }, { merge: true })
+  } catch (e) {
+    console.error(`[traffico] ${esito.giorno}:`, e?.message || e)
+  }
+  res.status(204).send('')
+})
 
 // ── SOSPENDERE, RIATTIVARE, CHIUDERE UN'ISTANZA (REQ-FLOTTA-008) ───────
 
@@ -851,15 +899,24 @@ exports.registraPagamento = onCall(OPTS, async (req) => {
   if (doc.data().abbonamento?.origine !== 'manuale') throw new HttpsError('failed-precondition', 'Vale per i piani pagati fuori da Stripe.')
   const data = scadenze.dataPagata(req.data?.pagato_fino_al)
   if (!data) throw new HttpsError('invalid-argument', 'Scrivi la data fino a cui è pagato: AAAA-MM-GG.')
+  // L'importo incassato (REQ-FLOTTA-041), facoltativo: se c'è, va nel libro
+  // dei movimenti. Si controlla prima di scrivere la data, così un importo
+  // sbagliato non lascia il pagamento registrato a metà.
+  const incasso =
+    req.data?.importo != null && String(req.data.importo).trim() !== ''
+      ? movimenti.movimentoManuale({ uid: doc.id, slug: doc.data().slug, importo: req.data.importo, iva: listino.iva, descrizione: `Abbonamento pagato fino al ${data}`, da: req.auth.token.email || req.auth.uid })
+      : null
+  if (incasso?.errore) throw new HttpsError('invalid-argument', incasso.errore)
   await doc.ref.update({
     'abbonamento.pagato_fino_al': data,
     'abbonamento.stato': 'attivo',
     'abbonamento.pagamento_registrato_il': new Date().toISOString(),
     'abbonamento.pagamento_registrato_da': req.auth.token.email || req.auth.uid,
   })
+  if (incasso) await scriviMovimento(incasso)
   const dopo = (await doc.ref.get()).data()
   await accodaEmail(comunica.emailPagamentoRicevuto(dopo), { slug: dopo.slug, motivo: 'pagamento_ricevuto' })
-  return { ok: true, pagato_fino_al: data }
+  return { ok: true, pagato_fino_al: data, movimento: incasso?.id || null }
 })
 
 // Una volta, dopo il primo deploy di REQ-FLOTTA-023: i compiti per le
@@ -2118,15 +2175,16 @@ exports.gestisciCassettoAI = onCall(OPTS, async (req) => {
   if (azione === 'ricarica') {
     if (!Number.isFinite(importo) || importo <= 0 || importo > 1000) throw new HttpsError('invalid-argument', 'Importo tra 0 e 1000 €.')
     const cassetto = (await ref.get()).data()
+    const sessione = `manuale-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     const esito = await accreditaRicarica(
-      {
-        slug,
-        uid: cassetto.uid,
-        sessione: `manuale-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        importo_microeuro: ai.daEuro(importo),
-      },
+      { slug, uid: cassetto.uid, sessione, importo_microeuro: ai.daEuro(importo) },
       { origine: 'manuale', nota: req.data?.nota ? String(req.data.nota).slice(0, 200) : null, da: req.auth.uid }
     )
+    // Un credito pagato fuori da Stripe è un incasso (REQ-FLOTTA-041); un
+    // omaggio, sotto, no.
+    if (esito === 'accreditata' && cassetto.uid) {
+      await scriviMovimento(movimenti.movimentoManuale({ uid: cassetto.uid, slug, importo, iva: listino.iva, tipo: 'ricarica_ai', descrizione: 'Credito AI accreditato fuori da Stripe', riferimento: `ricarica-${sessione}`, da: req.auth.token.email || req.auth.uid }))
+    }
     return { ok: true, esito }
   }
   // Un OMAGGIO (l'utente, 06/11/2026: «regalare crediti a un cassetto AI

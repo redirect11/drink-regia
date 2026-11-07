@@ -392,6 +392,53 @@ requirements:
     labels: [metodo, regia]
     test_cases:
       - tests/issue.test.js
+  - id: REQ-DEV-004
+    title: "I locali di prova sulla regia di test e i test end-to-end con Playwright"
+    area: "scripts/semina-test.mjs, scripts/lib-semina.mjs, scripts/lib-firestore.js (credenzialiCli), playwright.config.js, e2e/*.spec.js, e2e/aiuto.js, .github/workflows/e2e.yml, package.json (build:e2e, test:e2e, semina:test)"
+    description: >
+      L'utente, 07/11/2026: «sulla versione di test dovremmo creare un po'
+      di utenti che abbiano varie attivazioni del prodotto (gratuito,
+      completo, mix di moduli, basic, etc...) e poi fare testing e2e con
+      playwright per i casi d'uso comuni».
+      LE PERSONE (lib-semina.mjs, logica pura): dodici titolari, uno per
+      situazione che il prodotto conosce: Free, Base pagato a mano con
+      quattro terminali, Completo con Stripe (e un cassetto AI con consumi
+      e ricariche), Base coi moduli in più pagato all'anno, Fondatore,
+      sconto al 100%, modulo in prova, moroso sospeso, disdetto chiuso, in
+      attesa di autorizzazione, senza piano, eliminato; più
+      l'amministratore (claim admin), tre richieste di contatto, tre codici
+      sconto, il libro dei movimenti degli ultimi mesi, sessanta giorni di
+      traffico e i posti Fondatori. Le istanze sono registrate come
+      esistenti con licenza_dalla_regia: false: i loro progetti non
+      esistono e la regia non prova a scrivergli; una richiesta di prova
+      non è mai «in coda» (farebbe partire il provisioning). Tutto porta
+      `semina: true`, email su semina.example, uid semina-<slug>.
+      LO SCRIPT (semina-test.mjs) scrive con l'Admin SDK usando la
+      sessione del Firebase CLI (credenzialiCli, come credenziali
+      «application default» in un file temporaneo), solo su un progetto il
+      cui id finisce in -test; è idempotente, con --pulisci toglie solo
+      quello che ha seminato; scrive `.env.e2e` (configurazione web del
+      progetto di test e password delle persone, mai a schermo; git lo
+      ignora).
+      I TEST (Playwright, cartella e2e/): la prima pagina in italiano e in
+      inglese coi prezzi del listino, l'accesso e l'uscita, la registrazione
+      fino ai controlli (senza creare account), le dashboard delle persone
+      (Free, Completo con Stripe, moduli in più, pagamento a mano, moroso,
+      prova, scelta del piano), il backoffice dell'admin (elenco, viste,
+      ricerca, scheda, richieste) e il commerciale (tessere, periodo,
+      tabelle, CSV). In locale girano sul sito compilato con `--mode e2e`
+      (.env.e2e) servito da vite preview, coi dati e le Functions di
+      drink-regia-test: si prova anche quello che non è ancora pubblicato;
+      con E2E_URL contro il sito pubblicato. Il workflow e2e.yml li lancia
+      dopo ogni deploy riuscito su develop e a mano, col segreto
+      E2E_PASSWORD dell'environment test (lo mette l'utente). Nessun test
+      scrive sul test: il test resta com'era.
+    status: implemented
+    generate_issue: true
+    labels: [metodo, regia, test]
+    priority: P2
+    test_cases:
+      - tests/semina.test.js
 
   - id: REQ-FLOTTA-008
     title: "Un'istanza si ferma: Sospendi, Riattiva e Chiudi dal backoffice, e la sospensione automatica di chi non paga"
@@ -1854,3 +1901,93 @@ requirements:
       - tests/TemiSuMisura.test.jsx
       - tests/Backoffice.test.jsx
       - tests/Dashboard.test.jsx
+
+  - id: REQ-FLOTTA-041
+    title: "Il commerciale: il libro dei movimenti e la dashboard di chi vende nel backoffice"
+    area: "functions/lib/movimenti.js, functions/index.js (scriviMovimento, stripeWebhook, registraPagamento, gestisciCassettoAI), firestore.rules (movimenti), src/lib/commerciale.js, src/pages/Commerciale.jsx, src/lib/backoffice.js, src/pages/Backoffice.jsx, src/lib/db.js"
+    description: >
+      L'utente, 07/11/2026: «ho bisogno anche di un backoffice per la parte
+      commerciale e una dashboard che mi mostra il guadagno, le
+      attivazioni, il traffico e altre cose utili. Prendi ispirazione dai
+      vari e-commerce online per capire cosa può tornare utile per me che
+      sono l'admin e vendo questo prodotto».
+      IL LIBRO DEI MOVIMENTI (movimenti/{id}): fino a oggi la regia sapeva
+      lo stato di un abbonamento ma non quanto fosse entrato. Ogni incasso
+      è una riga con id deterministico, scritta dalle Functions: la fattura
+      di Stripe pagata (invoice.paid: imponibile ricavato da quello che è
+      entrato meno la tassa, perché con un coupon il subtotal mente; il
+      periodo coperto), la ricarica del credito AI pagata, il pagamento
+      fuori da Stripe registrato dall'admin («Registra pagamento…» chiede
+      anche l'importo, IVA esclusa, proposto dal canone; vuoto registra
+      solo la data) e il credito AI accreditato a mano. Un omaggio non è un
+      movimento. Una riga che non si scrive non ferma il webhook. Le regole
+      la lasciano leggere solo all'admin.
+      LA SEZIONE «COMMERCIALE» del backoffice (subito dopo «Locali»): il
+      periodo in alto (7, 30, 90, 365 giorni, nell'indirizzo), che vale
+      per tutto; quattro tessere (incasso del periodo col confronto sul
+      periodo prima, canone mensile ricorrente con l'annuo e il canone per
+      cliente, clienti paganti coi nuovi registrati e le app attive, viste
+      del sito); tre grafici a colonne per giorno (incassi, registrazioni,
+      viste), una serie sola, barre sottili, un'etichetta sul massimo, il
+      titolo di ogni barra al passaggio e i numeri in tabella sotto; i
+      clienti per classe (paganti, Free, gratis, senza piano, fermi,
+      disdetti, eliminati) con la conversione dall'inizio; cosa si vende
+      (per piano con locali e canone, per modulo comprato/incluso/in
+      prova, terminali in più, posti Fondatori); il percorso dal visitatore
+      al cliente (viste → registrazioni → scelte → attivazioni chieste), le
+      provenienze e le pagine più viste; il credito AI (venduto, residuo
+      nei cassetti, speso nel mese); scadenze dei prossimi 14 giorni
+      (pagamenti a mano, rinnovi Stripe, prove, sconti) e cosa chiede
+      attenzione (contatti aperti, da autorizzare, fallite, fermi,
+      pagamenti falliti); la tabella degli abbonamenti (classe, piano,
+      moduli, canone, dal, fino, pagato in tutto) e gli ultimi movimenti,
+      tutte e due con «Esporta CSV» (punto e virgola, virgola decimale,
+      BOM, fatto nel browser).
+      LE REGOLE DEI NUMERI (src/lib/commerciale.js, pure): il canone
+      mensile segue la dashboard del titolare (sconti, Fondatori finché
+      vale, annuale come mensile; zero per Free, interne, sconti al 100%,
+      chi non è attivo; «in sospeso» conta); l'incasso è l'imponibile dei
+      movimenti nel periodo; la conversione è paganti su registrati
+      dall'inizio, senza gli eliminati.
+    status: implemented
+    generate_issue: true
+    labels: [regia, commerciale]
+    priority: P1
+    test_cases:
+      - tests/movimenti.test.js
+      - tests/commerciale.test.js
+      - tests/Commerciale.test.jsx
+      - tests/Backoffice.test.jsx
+      - tests/db.test.js
+
+  - id: REQ-FLOTTA-042
+    title: "Il traffico del sito: contatori per giorno dentro la regia, senza cookie"
+    area: "functions/lib/traffico.js, functions/index.js (traccia), firestore.rules (traffico), src/lib/db.js (tracciaPagina, tracciaEvento), src/App.jsx, src/pages/Commerciale.jsx"
+    description: >
+      Per la dashboard del commerciale (REQ-FLOTTA-041) serve «il
+      traffico». Un servizio di analytics vorrebbe il banner dei cookie e
+      manderebbe i visitatori a terzi: qui si contano solo numeri per
+      giorno, in un documento traffico/{giorno} (giorno di Roma): le viste,
+      per pagina (la prima parte del percorso, fra quelle del sito, o
+      «altro»), per lingua, per provenienza (il solo dominio di
+      document.referrer senza www, «diretto» se manca o è il nostro) e i
+      passi del percorso di vendita che il sito segnala da sé
+      (registrazione, free, checkout, contatto, codice, attivazione).
+      Niente identificativi, niente cookie, niente indirizzi IP: non si
+      contano i visitatori, solo le viste, e la dashboard lo dice. Il sito
+      chiama la Function `traccia` (POST, cors aperto, risponde 204, un
+      set con merge di FieldValue.increment) a ogni cambio di pagina
+      (App.jsx) e a ogni passo (db.js), senza aspettare e senza mai
+      fallire (keepalive). Solo col sito collegato a Firebase. Le regole
+      lasciano leggere i contatori all'admin e scrivere a nessun client; la
+      Function è aperta: non legge niente e un contatore gonfiato apposta
+      è il danno peggiore che può fare.
+    status: implemented
+    generate_issue: true
+    labels: [regia, commerciale, privacy]
+    priority: P2
+    test_cases:
+      - tests/traffico.test.js
+      - tests/commerciale.test.js
+      - tests/db.test.js
+      - tests/App.test.jsx

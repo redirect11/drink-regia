@@ -80,12 +80,24 @@ vi.mock('firebase/auth', () => ({
 
 const db = await import('../src/lib/db.js')
 
+// Il traffico (REQ-FLOTTA-042) va alla Function `traccia` con fetch: qui si
+// registra, e non parte mai verso la rete.
+const tracciati = []
+vi.stubGlobal(
+  'fetch',
+  vi.fn(async (url, opzioni) => {
+    tracciati.push({ url, corpo: JSON.parse(opzioni.body), keepalive: opzioni.keepalive })
+    return { ok: true }
+  })
+)
+
 beforeEach(() => {
   fb.configurata = true
   fb.chiamate = []
   fb.risposte = {}
   fb.documenti = {}
   fb.scritti = []
+  tracciati.length = 0
   fb.auth = { currentUser: { uid: 'u1', email: 'admin@example.com', emailVerified: true, reload: async () => {}, getIdToken: async () => 't' } }
 })
 
@@ -118,6 +130,9 @@ const FUNCTIONS = [
   ['gestisciLicenze', ['allinea'], 'gestisciLicenze', { azione: 'allinea' }],
   // Le scadenze a eventi (REQ-FLOTTA-023).
   ['registraPagamento', ['bar', '2026-11-30'], 'registraPagamento', { slug: 'bar', pagato_fino_al: '2026-11-30' }],
+  // Con l'importo incassato (REQ-FLOTTA-041); vuoto, come senza.
+  ['registraPagamento', ['bar', '2026-11-30', '32.7'], 'registraPagamento', { slug: 'bar', pagato_fino_al: '2026-11-30', importo: '32.7' }],
+  ['registraPagamento', ['bar', '2026-11-30', ''], 'registraPagamento', { slug: 'bar', pagato_fino_al: '2026-11-30' }],
   ['programmaScadenze', [], 'programmaScadenze', {}],
   // I codici sconto (REQ-FLOTTA-028); un codice vuoto toglie lo sconto.
   ['gestisciSconti', ['crea', { codice: 'X1Y' }], 'gestisciSconti', { codice: 'X1Y', azione: 'crea' }],
@@ -156,6 +171,53 @@ describe('le chiamate alle Functions', () => {
     fb.risposte.creaRicaricaAI = {}
     await expect(db.avviaPagamento({})).rejects.toThrow(/scrivici/)
     await expect(db.avviaRicaricaAI('ai-10')).rejects.toThrow(/scrivici/)
+  })
+
+  // REQ-FLOTTA-042: i passi della vendita si contano, senza aspettare.
+  it('registrazione, Free, checkout, contatto, codice e attivazione si segnalano alla Function traccia', async () => {
+    fb.risposte.creaCheckout = { url: 'https://checkout.stripe.com/x' }
+    await db.registra({ email: 'bar@example.com', password: 'x', locale: { nome: 'Bar Mario' }, fatturazione: {}, referente: {} })
+    await db.scegliFree()
+    await db.avviaPagamento({ piano: 'base' })
+    await db.chiediContatto({ piano: 'base' })
+    await db.attivaConCodice({ piano: 'base' }, 'X-100')
+    await db.chiediAttivazione()
+    expect(tracciati.map((t) => t.corpo)).toEqual([{ evento: 'registrazione' }, { evento: 'free' }, { evento: 'checkout' }, { evento: 'contatto' }, { evento: 'codice' }, { evento: 'attivazione' }])
+    expect(tracciati[0]).toMatchObject({ url: 'https://europe-west1-drink-regia-test.cloudfunctions.net/traccia', keepalive: true })
+    // Un checkout senza url non è un checkout.
+    fb.risposte.creaCheckout = {}
+    await expect(db.avviaPagamento({})).rejects.toThrow()
+    expect(tracciati).toHaveLength(6)
+  })
+
+  it('una pagina si conta con la lingua e la provenienza; senza Firebase non si conta niente, e un errore di rete non ferma nessuno', async () => {
+    db.tracciaPagina('/en', 'en')
+    expect(tracciati).toEqual([{ url: expect.stringContaining('/traccia'), corpo: { pagina: '/en', lingua: 'en', riferimento: '' }, keepalive: true }])
+    fb.configurata = false
+    db.tracciaPagina('/', 'it')
+    db.tracciaEvento('registrazione')
+    expect(tracciati).toHaveLength(1)
+    fb.configurata = true
+    fetch.mockRejectedValueOnce(new Error('rete'))
+    expect(() => db.tracciaEvento('free')).not.toThrow()
+    fetch.mockImplementationOnce(() => {
+      throw new Error('subito')
+    })
+    expect(() => db.tracciaEvento('free')).not.toThrow()
+  })
+
+  // REQ-FLOTTA-041: il libro dei movimenti, il traffico e i Fondatori, per la dashboard.
+  it('movimenti, traffico e Fondatori si leggono dalle loro collezioni', async () => {
+    fb.documenti['movimenti'] = [['m1', { il: '2026-11-01', importo: 10 }]]
+    fb.documenti['traffico'] = [['2026-11-01', { giorno: '2026-11-01', viste: 3 }]]
+    fb.documenti['fondatori/posti'] = { assegnati: { a: {} } }
+    expect(await db.elencoMovimenti()).toEqual([{ id: 'm1', il: '2026-11-01', importo: 10 }])
+    expect(await db.elencoTraffico()).toEqual([{ giorno: '2026-11-01', viste: 3 }])
+    expect(await db.statoFondatori()).toEqual({ assegnati: { a: {} } })
+    delete fb.documenti['fondatori/posti']
+    expect(await db.statoFondatori()).toBeNull()
+    fb.configurata = false
+    for (const f of ['elencoMovimenti', 'elencoTraffico', 'statoFondatori']) await expect(db[f]()).rejects.toThrow(/VITE_FIREBASE/)
   })
 
   // REQ-FLOTTA-023: gestire l'abbonamento da soli, col portale di Stripe.

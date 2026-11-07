@@ -40,6 +40,22 @@ export async function accessToken() {
   return res.access_token
 }
 
+// La stessa sessione del Firebase CLI, per l'Admin SDK (scripts/semina-test.mjs):
+// l'oggetto che `refreshToken()` di firebase-admin accetta al posto di una
+// chiave di service account. Chi ha fatto il login è Owner del progetto, e
+// l'Admin SDK lavora con i suoi permessi: niente chiavi da custodire.
+export function credenzialiCli() {
+  const percorso = `${homedir()}/.config/configstore/firebase-tools.json`
+  let cfg
+  try {
+    cfg = JSON.parse(readFileSync(percorso, 'utf8'))
+  } catch {
+    throw new Error('Sessione Firebase assente: esegui "npx firebase-tools login".')
+  }
+  if (!cfg?.tokens?.refresh_token) throw new Error('Sessione Firebase senza refresh token: rifai "npx firebase-tools login".')
+  return { type: 'authorized_user', client_id: CLI_CLIENT_ID, client_secret: CLI_CLIENT_SECRET, refresh_token: cfg.tokens.refresh_token }
+}
+
 // Legge un argomento da riga di comando: --nome valore
 export function arg(nome, fallback = null) {
   const i = process.argv.indexOf(`--${nome}`)

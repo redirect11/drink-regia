@@ -7,7 +7,7 @@ import Accesso from './pages/Accesso.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Backoffice from './pages/Backoffice.jsx'
 import { Termini, Privacy } from './pages/Legali.jsx'
-import { osservaUtente, esci } from './lib/db.js'
+import { osservaUtente, esci, tracciaPagina } from './lib/db.js'
 import { NOME_PRODOTTO, EMAIL_CONTATTI, URL_DEMO } from './lib/prodotto.js'
 import { LINGUE, NOMI_LINGUE, leggiPreferenza, linguaDelPercorso, percorsoDellaLingua, salvaPreferenza } from './lib/lingua.js'
 import { testi } from './i18n/index.js'
@@ -65,6 +65,9 @@ export default function App() {
   useEffect(() => osservaUtente(setUtente), [])
   // Cambiando pagina il menù a tendina del telefono si chiude da solo.
   useEffect(() => setMenuAperto(false), [posizione])
+  // Il traffico (REQ-FLOTTA-042): una vista per ogni pagina aperta, contata
+  // per giorno nella regia; solo col sito collegato a Firebase.
+  useEffect(() => tracciaPagina(posizione.pathname, linguaDelPercorso(posizione.pathname)), [posizione.pathname])
 
   const pronto = utente !== undefined
   // La prima pagina non aspetta l'accesso (03/11/2026): è la vetrina, e
