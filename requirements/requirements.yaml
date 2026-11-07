@@ -1719,6 +1719,14 @@ requirements:
       un ritorno dal browser. Ogni cambio va nello storico del cliente con
       chi l'ha fatto (modo «app»). I motivi di puoProvare sono impersonali,
       perché l'app li mostra così come sono.
+      LA BASE DI UN MODULO (tana-drink REQ-LIC-015, decisione dell'utente
+      del 07/11/2026): un modulo del listino può richiederne un altro
+      (`richiede` in piani.json). Oggi gli ordini dal telefono vogliono il
+      menù digitale, perché il cliente ordina da lì. Senza la base (nel
+      piano, comprata o in prova) il modulo non si prova e non si aggiunge,
+      dall'app e dalla dashboard: «Ordini dal telefono del cliente richiede
+      Menù digitale e tavoli.» (baseMancante in prove.js). L'app non mostra
+      i tasti, ma la porta vera è questa.
     status: implemented
     generate_issue: true
     labels: [prodotto, flotta, regia, abbonamento, licenza]

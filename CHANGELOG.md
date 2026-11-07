@@ -6,6 +6,9 @@ data.
 
 ## Prossima release (da decidere)
 
+- Gli ordini dal telefono non si provano e non si aggiungono senza il menù
+  digitale, dall'app del locale e dalla dashboard: il motivo dice quale
+  modulo serve (REQ-FLOTTA-037, da tana-drink REQ-LIC-015).
 - La sezione «Commerciale» del backoffice: la dashboard di chi vende, con
   l'incasso del periodo e il confronto col periodo prima, il canone
   mensile ricorrente, i clienti per classe e la conversione, gli andamenti

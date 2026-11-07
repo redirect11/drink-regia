@@ -15,7 +15,7 @@
 // italiano, impersonali, nel registro del gestionale, senza «tu».
 
 const listino = require('../piani.json')
-const { haGiaIlModulo, proveAttive } = require('./prove.js')
+const { haGiaIlModulo, proveAttive, baseMancante } = require('./prove.js')
 
 const AZIONI = ['prova', 'aggiungi', 'disdici']
 
@@ -107,8 +107,15 @@ const sceltaCon = (cliente, moduli) => ({ piano: cliente.piano, moduli, terminal
 // AGGIUNGI: la scelta nuova (stesso piano, stessi terminali, moduli più
 // questo) e il modo, o { errore }. Un modulo in prova diventa comprato: la
 // prova la toglie poi proveDaTogliere.
-function sceltaPerAggiungere(cliente, istanza, id, vendita) {
-  const errore = localeAttivo(istanza) || moduloInVendita(id, vendita) || (haGiaIlModulo(cliente, id) ? `${nomeDi(id)} è già attivo.` : null)
+// E SENZA LA SUA BASE NON SI AGGIUNGE (tana-drink REQ-LIC-015): l'app non
+// mostra il tasto, ma questa è la porta vera.
+function sceltaPerAggiungere(cliente, istanza, id, vendita, adesso = new Date()) {
+  const base = baseMancante(cliente, id, adesso)
+  const errore =
+    localeAttivo(istanza) ||
+    moduloInVendita(id, vendita) ||
+    (haGiaIlModulo(cliente, id) ? `${nomeDi(id)} è già attivo.` : null) ||
+    (base ? `${nomeDi(id)} richiede ${base}.` : null)
   if (errore) return { errore }
   const come = comeCambia(cliente)
   if (come.errore) return come

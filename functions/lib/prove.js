@@ -29,6 +29,19 @@ function haGiaIlModulo(cliente, id) {
   return p?.include?.includes(id) || (cliente?.moduli || []).includes(id)
 }
 
+// LA BASE DI UN MODULO (tana-drink REQ-LIC-015, decisione dell'utente del
+// 07/11/2026). Un modulo del listino può richiederne un altro (`richiede`
+// in piani.json): gli ordini dal telefono vogliono il menù digitale, perché
+// il cliente ordina da lì e senza non avrebbe una pagina da cui farlo. La
+// base c'è se è nel piano, comprata o in prova. → il nome della prima base
+// che manca, o null.
+function baseMancante(cliente, id, adesso = new Date()) {
+  const m = listino.moduli.find((x) => x.id === id)
+  const inProva = proveAttive(cliente, adesso)
+  const manca = (m?.richiede || []).find((r) => !haGiaIlModulo(cliente, r) && !inProva.includes(r))
+  return manca ? listino.moduli.find((x) => x.id === manca)?.nome || manca : null
+}
+
 // Si può accendere la prova di questo modulo? { ok, perche, giorni, scade_il }
 // `vendita` è quella di free.venditaPulita, con le prove già pulite.
 function puoProvare(cliente, istanza, id, vendita, adesso = new Date()) {
@@ -43,6 +56,8 @@ function puoProvare(cliente, istanza, id, vendita, adesso = new Date()) {
   if ((istanza.licenza_stato || 'attiva') !== 'attiva') return { ok: false, perche: 'Il locale è sospeso o chiuso.' }
   if (haGiaIlModulo(cliente, id)) return { ok: false, perche: `${m.nome} è già attivo nel piano.` }
   if ((cliente?.prove_fatte || []).includes(id)) return { ok: false, perche: `La prova di ${m.nome} è già stata usata: si prova una volta sola.` }
+  const base = baseMancante(cliente, id, adesso)
+  if (base) return { ok: false, perche: `${m.nome} richiede ${base}.` }
 
   return { ok: true, perche: null, giorni, scade_il: new Date(adesso.getTime() + giorni * GIORNO).toISOString() }
 }
@@ -61,4 +76,4 @@ function proveDaTogliere(cliente, adesso = new Date()) {
     .map(([id]) => id)
 }
 
-module.exports = { provePulite, haGiaIlModulo, puoProvare, proveAttive, proveDaTogliere, GIORNI_MAX }
+module.exports = { provePulite, haGiaIlModulo, baseMancante, puoProvare, proveAttive, proveDaTogliere, GIORNI_MAX }
