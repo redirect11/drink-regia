@@ -15,7 +15,7 @@
 // italiano, impersonali, nel registro del gestionale, senza «tu».
 
 const listino = require('../piani.json')
-const { haGiaIlModulo, proveAttive, baseMancante } = require('./prove.js')
+const { haGiaIlModulo, proveAttive, baseMancante, chiLoRichiede } = require('./prove.js')
 
 const AZIONI = ['prova', 'aggiungi', 'disdici']
 
@@ -133,6 +133,10 @@ function sceltaPerDisdire(cliente, istanza, id, adesso = new Date()) {
   if (!(cliente?.moduli || []).includes(id)) {
     return { errore: proveAttive(cliente, adesso).includes(id) ? 'Il modulo è in prova: si spegne da solo alla fine della prova.' : 'Il modulo non è attivo.' }
   }
+  // Una base non si disdice finché qualcuno la richiede (l'utente,
+  // 07/11/2026): via il menù, gli ordini dal telefono resterebbero senza.
+  const dipendenti = chiLoRichiede(cliente, id, adesso)
+  if (dipendenti.length) return { errore: `Prima va tolto ${dipendenti.join(' e ')}, che richiede ${nomeDi(id)}.` }
   const come = comeCambia(cliente)
   if (come.errore) return come
   return { scelta: sceltaCon(cliente, cliente.moduli.filter((m) => m !== id)), modo: come.modo }

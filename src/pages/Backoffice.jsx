@@ -42,7 +42,7 @@ import {
 import { venditaPulita } from '../lib/vendita.js'
 import { ESCLUSIVI, nomeStile, nomeImpaginazione, ORIGINI_DETTE, STATI_DETTI, temaVuoto } from '../lib/temi.js'
 import { statoIstanza, statoDetto, STATI, progettoDi, riduzioneDetta } from '../lib/istanze.js'
-import { PIANI, MODULI, prezzoMensile, euro } from '../lib/piani.js'
+import { PIANI, MODULI, prezzoMensile, euro, baseMancante, senzaOrfani } from '../lib/piani.js'
 import { prezzoConSconto, scontoDetto, usiDetti } from '../lib/sconti.js'
 import CatalogoTemi, { EditorTema } from './CatalogoTemi.jsx'
 import { contattoDi } from '../lib/clienti.js'
@@ -1683,17 +1683,23 @@ function CambiaPiano({ cliente, onFatto, onErrore }) {
       {!p.gratuito && (
         <>
           <div className="vendita-moduli">
-            {MODULI.map((m) => (
-              <label key={m.id} className="opzione">
-                <input
-                  type="checkbox"
-                  checked={inclusi.has(m.id) || moduli.includes(m.id)}
-                  disabled={inclusi.has(m.id)}
-                  onChange={(e) => setModuli((v) => (e.target.checked ? [...new Set([...v, m.id])] : v.filter((id) => id !== m.id)))}
-                />
-                {m.nome}
-              </label>
-            ))}
+            {MODULI.map((m) => {
+              // Anche l'admin non scrive un modulo senza la sua base
+              // (tana-drink REQ-LIC-015): la Function lo rifiuterebbe.
+              const manca = !inclusi.has(m.id) && !moduli.includes(m.id) ? baseMancante({ piano, moduli }, m.id) : null
+              return (
+                <label key={m.id} className="opzione">
+                  <input
+                    type="checkbox"
+                    checked={inclusi.has(m.id) || moduli.includes(m.id)}
+                    disabled={inclusi.has(m.id) || Boolean(manca)}
+                    onChange={(e) => setModuli((v) => senzaOrfani(piano, e.target.checked ? [...new Set([...v, m.id])] : v.filter((id) => id !== m.id)))}
+                  />
+                  {m.nome}
+                  {manca && <span className="muted small"> · richiede {manca}</span>}
+                </label>
+              )
+            })}
           </div>
           <label htmlFor={`cp-term-${cliente.slug}`}>Terminali</label>
           <input id={`cp-term-${cliente.slug}`} type="number" min={1} max={10} value={terminali} onChange={(e) => setTerminali(Math.max(1, Number(e.target.value) || 1))} />

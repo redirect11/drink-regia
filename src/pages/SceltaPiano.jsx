@@ -12,6 +12,8 @@ import {
   prezzoFondatori,
   conIva,
   euro,
+  baseMancante,
+  senzaOrfani,
 } from '../lib/piani.js'
 import { attivaConCodice, avviaPagamento, cambiaScelta, chiediContatto, osservaContatto, osservaVendita, scegliFree, verificaCodiceSconto } from '../lib/db.js'
 import { EMAIL_CONTATTI } from '../lib/prodotto.js'
@@ -163,17 +165,24 @@ export default function SceltaPiano({ cliente, modifica = false, vai = (url) => 
       {!gratuito && (
         <>
           <h4>Moduli in più</h4>
-          {MODULI.filter((m) => moduloVisibile(vendita, m.id, giaSuoi)).map((m) => (
-            <label key={m.id} className="opzione">
-              <input
-                type="checkbox"
-                checked={inclusi.has(m.id) || moduli.includes(m.id)}
-                disabled={inclusi.has(m.id)}
-                onChange={(e) => setModuli((v) => (e.target.checked ? [...new Set([...v, m.id])] : v.filter((id) => id !== m.id)))}
-              />
-              {m.nome} · {inclusi.has(m.id) ? <span className="muted small">incluso</span> : `${piuIva(m.prezzo)} / mese`}
-            </label>
-          ))}
+          {MODULI.filter((m) => moduloVisibile(vendita, m.id, giaSuoi)).map((m) => {
+            // Un modulo senza la sua base non si sceglie (tana-drink
+            // REQ-LIC-015): la casella aspetta che la base sia spuntata, e
+            // togliendo la base se ne va anche lui (senzaOrfani).
+            const manca = !inclusi.has(m.id) && !moduli.includes(m.id) ? baseMancante({ piano, moduli }, m.id) : null
+            return (
+              <label key={m.id} className="opzione">
+                <input
+                  type="checkbox"
+                  checked={inclusi.has(m.id) || moduli.includes(m.id)}
+                  disabled={inclusi.has(m.id) || Boolean(manca)}
+                  onChange={(e) => setModuli((v) => senzaOrfani(piano, e.target.checked ? [...new Set([...v, m.id])] : v.filter((id) => id !== m.id)))}
+                />
+                {m.nome} · {inclusi.has(m.id) ? <span className="muted small">incluso</span> : `${piuIva(m.prezzo)} / mese`}
+                {manca && <span className="muted small"> · richiede {manca}</span>}
+              </label>
+            )
+          })}
           <label htmlFor="terminali">Terminali (oltre {p.terminali || 1} {p.terminali > 1 ? 'inclusi' : 'incluso'}: {piuIva(TERMINALE_IN_PIU)} / mese ciascuno)</label>
           <input id="terminali" type="number" min={1} max={10} value={terminali} onChange={(e) => setTerminali(Math.max(1, Number(e.target.value) || 1))} />
           {ANNUALE?.mensilita > 0 && (

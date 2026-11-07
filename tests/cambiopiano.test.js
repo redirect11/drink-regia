@@ -39,6 +39,14 @@ describe('cambia piano dall’admin', () => {
     expect(c.cliente).toMatchObject({ piano: 'free', moduli: [], terminali: 1, abbonamento: { origine: 'gratuito' } })
   })
 
+  // tana-drink REQ-LIC-015, i buchi della PR #91 (07/11/2026).
+  it('no a un modulo senza la sua base, con Stripe e fuori; con la base nel piano o scelta sì', () => {
+    expect(cambioAdmin(conStripe, { piano: 'base', moduli: ['ordini_cliente'], modo: 'stripe' }).perche).toBe('Ordini dal telefono del cliente richiede Menù digitale e tavoli.')
+    expect(cambioAdmin(aMano, { piano: 'base', moduli: ['ordini_cliente'], modo: 'fuori' }).perche).toMatch(/richiede Menù digitale/)
+    expect(cambioAdmin(aMano, { piano: 'base', moduli: ['menu_tavoli', 'ordini_cliente'], modo: 'fuori' }).ok).toBe(true)
+    expect(cambioAdmin(aMano, { piano: 'completo', moduli: ['ordini_cliente'], modo: 'fuori' }).ok).toBe(true)
+  })
+
   it('no: Stripe senza abbonamento, il Free su Stripe, fuori da Stripe con Stripe che addebita', () => {
     expect(cambioAdmin(aMano, { piano: 'completo', modo: 'stripe' }).perche).toMatch(/non ha un abbonamento Stripe/)
     expect(cambioAdmin(conStripe, { piano: 'free', modo: 'stripe' }).perche).toMatch(/non passa da Stripe/)

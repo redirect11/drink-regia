@@ -92,6 +92,17 @@ describe('aggiungere un modulo', () => {
 
   // tana-drink REQ-LIC-015: l'app non mostra il tasto, ma la porta vera è
   // questa. Gli ordini dal telefono senza il menù digitale non servono.
+  // E la base non si disdice finché qualcuno la richiede (07/11/2026).
+  it('la base non si disdice finché il modulo che la richiede è attivo, comprato o in prova', () => {
+    const conTutti = { ...base, moduli: ['clienti', 'menu_tavoli', 'ordini_cliente'] }
+    expect(m.sceltaPerDisdire(conTutti, istanza, 'menu_tavoli', ADESSO).errore).toBe('Prima va tolto Ordini dal telefono del cliente, che richiede Menù digitale e tavoli.')
+    const inProva = { ...base, moduli: ['clienti', 'menu_tavoli'], prove: { ordini_cliente: { scade_il: '2026-11-10T10:00:00Z' } } }
+    expect(m.sceltaPerDisdire(inProva, istanza, 'menu_tavoli', ADESSO).errore).toMatch(/Prima va tolto/)
+    // Tolti gli ordini, il menù si disdice.
+    expect(m.sceltaPerDisdire({ ...base, moduli: ['clienti', 'menu_tavoli'] }, istanza, 'menu_tavoli', ADESSO).scelta.moduli).toEqual(['clienti'])
+    expect(m.sceltaPerDisdire(conTutti, istanza, 'ordini_cliente', ADESSO).scelta.moduli).toEqual(['clienti', 'menu_tavoli'])
+  })
+
   it('no per un modulo senza la sua base, che il motivo nomina', () => {
     expect(m.sceltaPerAggiungere(base, istanza, 'ordini_cliente', vendita).errore).toBe(
       'Ordini dal telefono del cliente richiede Menù digitale e tavoli.'

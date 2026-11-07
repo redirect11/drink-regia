@@ -22,7 +22,35 @@ import {
   conIva,
   prezzoAnnuale,
   prezzoFondatori,
+  richiedeDi,
+  baseMancante,
+  senzaOrfani,
 } from '../src/lib/piani.js'
+
+// LA BASE DI UN MODULO nel sito (tana-drink REQ-LIC-015, 07/11/2026): la
+// stessa regola di functions/lib/prove.js, perché la scelta del piano non
+// proponga quello che il server rifiuta.
+describe('la base di un modulo, nel sito', () => {
+  it('gli ordini dal telefono richiedono il menù digitale; gli altri niente', () => {
+    expect(richiedeDi('ordini_cliente')).toEqual(['menu_tavoli'])
+    expect(richiedeDi('magazzino')).toEqual([])
+    expect(richiedeDi('boh')).toEqual([])
+  })
+
+  it('la base manca se non è nel piano, né scelta, né in prova', () => {
+    expect(baseMancante({ piano: 'base', moduli: [] }, 'ordini_cliente')).toBe('Menù digitale e tavoli')
+    expect(baseMancante({ piano: 'base', moduli: ['menu_tavoli'] }, 'ordini_cliente')).toBeNull()
+    expect(baseMancante({ piano: 'base', moduli: [], prove: ['menu_tavoli'] }, 'ordini_cliente')).toBeNull()
+    expect(baseMancante({ piano: 'completo', moduli: [] }, 'ordini_cliente')).toBeNull()
+    expect(baseMancante({ piano: 'base', moduli: [] }, 'magazzino')).toBeNull()
+  })
+
+  it('togliendo la base dalla scelta se ne va anche chi la richiede', () => {
+    expect(senzaOrfani('base', ['clienti', 'ordini_cliente'])).toEqual(['clienti'])
+    expect(senzaOrfani('base', ['menu_tavoli', 'ordini_cliente'])).toEqual(['menu_tavoli', 'ordini_cliente'])
+    expect(senzaOrfani('completo', ['ordini_cliente'])).toEqual(['ordini_cliente'])
+  })
+})
 
 describe('il listino di DEC-0005', () => {
   it('Base 32,70 € con tre terminali, Completo 69 € con tre, attivazione 82 €, IVA 22', () => {

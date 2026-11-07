@@ -51,6 +51,26 @@ export function prezzoMensile({ piano = 'base', moduli = [], terminali = 1 } = {
   return alCentesimo(p.prezzo + extra.reduce((s, m) => s + m.prezzo, 0) + terminaliExtra * TERMINALE_IN_PIU)
 }
 
+// LA BASE DI UN MODULO (tana-drink REQ-LIC-015, decisione dell'utente del
+// 07/11/2026): un modulo del listino può richiederne un altro (`richiede`
+// in piani.json: gli ordini dal telefono vogliono il menù digitale). La
+// regola che conta sta nelle Functions (functions/lib/prove.js); qui il
+// sito la usa per non far scegliere quello che il server rifiuterebbe.
+export const richiedeDi = (id) => MODULI.find((m) => m.id === id)?.richiede || []
+
+// In una scelta { piano, moduli, prove? } la base di `id` manca se non è
+// nel piano, né fra i moduli scelti, né (se dati) fra quelli in prova.
+// → il nome della base che manca, o null.
+export function baseMancante({ piano = 'base', moduli = [], prove = [] } = {}, id) {
+  const presenti = new Set([...(PIANI[piano]?.include || []), ...moduli, ...prove])
+  const manca = richiedeDi(id).find((r) => !presenti.has(r))
+  return manca ? MODULI.find((m) => m.id === manca)?.nome || manca : null
+}
+
+// I moduli scelti senza quelli rimasti senza base: togliendo il menù dalla
+// scelta, gli ordini dal telefono se ne vanno con lui.
+export const senzaOrfani = (piano, moduli) => moduli.filter((id) => !baseMancante({ piano, moduli }, id))
+
 // I moduli che un'istanza deve accendere per una scelta: è quello che la
 // licenza scrive (REQ-FLOTTA-007).
 export function moduliDellaScelta({ piano = 'base', moduli = [] } = {}) {

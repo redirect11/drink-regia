@@ -8,7 +8,13 @@ data.
 
 - Gli ordini dal telefono non si provano e non si aggiungono senza il menù
   digitale, dall'app del locale e dalla dashboard: il motivo dice quale
-  modulo serve (REQ-FLOTTA-037, da tana-drink REQ-LIC-015).
+  modulo serve (REQ-FLOTTA-037, da tana-drink REQ-LIC-015). La stessa
+  regola vale ovunque si scelga un piano: nella scelta del piano del
+  titolare la casella degli ordini aspetta il menù e se ne va con lui; il
+  Checkout, il codice al 100%, il cambio di piano del titolare e
+  dell'admin e la richiesta di contatto rifiutano un modulo senza la sua
+  base; il menù non si disdice dall'app finché gli ordini sono attivi; una
+  prova rimasta senza base si spegne con la base.
 - La prima pagina ha un aspetto nuovo, editoriale: fondo avorio, testo
   scuro, un accento verde per le azioni e l'oro come dettaglio; due sole
   sezioni scure (il problema e la chiusura); la prima schermata col testo a
