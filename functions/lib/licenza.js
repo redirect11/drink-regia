@@ -25,12 +25,18 @@ const temiLicenza = (cliente) => temiPuliti(cliente?.temi) || []
 // stili a ricetta pubblicati (`stiliRicetta`) per controllarli.
 
 // Stessi id nel listino e nell'app (REQ-LIC-002 in tana-drink); il
-// magazzino porta con sé i suoi tre moduli di dettaglio.
+// magazzino porta con sé l'inventario, che senza magazzino non ha niente da
+// contare. Le fatture ai clienti e ai fornitori si vendono a parte
+// (decisione dell'utente del 07/11/2026): sono altri mestieri, e lo
+// scadenzario dei fornitori nell'app lavora anche senza magazzino
+// (tana-drink REQ-LIC-015).
 const MAPPA = {
   menu_tavoli: ['menu_tavoli'],
   ordini_cliente: ['ordini_cliente'],
   clienti: ['clienti'],
-  magazzino: ['magazzino', 'conta', 'fatture', 'scadenzario'],
+  magazzino: ['magazzino', 'conta'],
+  fatture: ['fatture'],
+  scadenzario: ['scadenzario'],
   statistiche: ['statistiche'],
   staff: ['staff'],
   sumup: ['sumup'],
@@ -40,11 +46,13 @@ const TUTTI = ['menu_tavoli', 'ordini_cliente', 'clienti', 'magazzino', 'conta',
 // { conta: true, fatture: false, … } per una scelta. Il Free non accende
 // nessun modulo comprato, qualunque cosa porti la scelta (REQ-FLOTTA-015);
 // i moduli in prova si accendono per tutti, Free compreso: quali si possono
-// provare lo decide l'admin (REQ-FLOTTA-016).
+// provare lo decide l'admin (REQ-FLOTTA-016). Quelli compresi nel piano
+// (`include`: il menù digitale nel Base) si accendono senza comprarli.
 function moduliLicenza({ piano = 'base', moduli = [], prove = [] } = {}) {
   const p = listino.piani[piano] ? piano : 'base'
   const comprati = listino.piani[p].gratuito ? [] : moduli || []
-  const accesi = p === 'completo' ? TUTTI : [...new Set([...comprati, ...(prove || [])].flatMap((m) => MAPPA[m] || []))]
+  const daAccendere = [...listino.piani[p].include, ...comprati, ...(prove || [])]
+  const accesi = p === 'completo' ? TUTTI : [...new Set(daAccendere.flatMap((m) => MAPPA[m] || []))]
   return Object.fromEntries(TUTTI.map((m) => [m, accesi.includes(m)]))
 }
 

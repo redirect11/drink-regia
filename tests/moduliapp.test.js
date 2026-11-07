@@ -28,6 +28,16 @@ describe('il listino per l’app', () => {
     expect(moduli.some((x) => x.id === 'sumup')).toBe(false)
     expect(Object.keys(moduli[0]).sort()).toEqual(['id', 'prezzo', 'prova_giorni'])
   })
+
+  // Il menù digitale è compreso in ogni piano a pagamento (07/11/2026): non
+  // si vende all'app, e chiederlo lo dice.
+  it('un modulo compreso in ogni piano a pagamento non è in catalogo e non si compra', () => {
+    expect(m.compresoInOgniPiano('menu_tavoli')).toBe(true)
+    expect(m.compresoInOgniPiano('ordini_cliente')).toBe(false)
+    expect(m.catalogoModuli({}).moduli.some((x) => x.id === 'menu_tavoli')).toBe(false)
+    expect(m.catalogoModuli({}).moduli.map((x) => x.id)).toEqual(expect.arrayContaining(['fatture', 'scadenzario', 'ordini_cliente']))
+    expect(m.moduloInVendita('menu_tavoli', {})).toBe('Menù digitale e tavoli è compreso nei piani a pagamento.')
+  })
 })
 
 describe('la richiesta', () => {
@@ -90,29 +100,21 @@ describe('aggiungere un modulo', () => {
     expect(m.sceltaPerAggiungere(base, istanza, 'magazzino', vendita).modo).toBe('stripe')
   })
 
-  // tana-drink REQ-LIC-015: l'app non mostra il tasto, ma la porta vera è
-  // questa. Gli ordini dal telefono senza il menù digitale non servono.
-  // E la base non si disdice finché qualcuno la richiede (07/11/2026).
-  it('la base non si disdice finché il modulo che la richiede è attivo, comprato o in prova', () => {
-    const conTutti = { ...base, moduli: ['clienti', 'menu_tavoli', 'ordini_cliente'] }
-    expect(m.sceltaPerDisdire(conTutti, istanza, 'menu_tavoli', ADESSO).errore).toBe('Prima va tolto Ordini dal telefono del cliente, che richiede Menù digitale e tavoli.')
-    const inProva = { ...base, moduli: ['clienti', 'menu_tavoli'], prove: { ordini_cliente: { scade_il: '2026-11-10T10:00:00Z' } } }
-    expect(m.sceltaPerDisdire(inProva, istanza, 'menu_tavoli', ADESSO).errore).toMatch(/Prima va tolto/)
-    // Tolti gli ordini, il menù si disdice.
-    expect(m.sceltaPerDisdire({ ...base, moduli: ['clienti', 'menu_tavoli'] }, istanza, 'menu_tavoli', ADESSO).scelta.moduli).toEqual(['clienti'])
-    expect(m.sceltaPerDisdire(conTutti, istanza, 'ordini_cliente', ADESSO).scelta.moduli).toEqual(['clienti', 'menu_tavoli'])
+  // tana-drink REQ-LIC-015: gli ordini dal telefono senza il menù digitale
+  // non servono. Dal 07/11/2026 il menù è compreso nei piani a pagamento:
+  // nel Base gli ordini si aggiungono e basta, e il menù non si disdice da
+  // solo, perché è del piano. La regola della base resta per un listino che
+  // ne abbia bisogno (prove.test.js la prova sul Free, con le prove).
+  it('gli ordini dal telefono si aggiungono al Base, che ha il menù; il menù non si disdice', () => {
+    expect(m.sceltaPerAggiungere(base, istanza, 'ordini_cliente', vendita).scelta.moduli).toEqual(['clienti', 'ordini_cliente'])
+    const conOrdini = { ...base, moduli: ['clienti', 'ordini_cliente'] }
+    expect(m.sceltaPerDisdire(conOrdini, istanza, 'menu_tavoli', ADESSO).errore).toBe('Il modulo è compreso nel piano: si toglie cambiando piano.')
+    expect(m.sceltaPerDisdire(conOrdini, istanza, 'ordini_cliente', ADESSO).scelta.moduli).toEqual(['clienti'])
   })
 
-  it('no per un modulo senza la sua base, che il motivo nomina', () => {
-    expect(m.sceltaPerAggiungere(base, istanza, 'ordini_cliente', vendita).errore).toBe(
-      'Ordini dal telefono del cliente richiede Menù digitale e tavoli.'
-    )
-    const conMenu = { ...base, moduli: ['clienti', 'menu_tavoli'] }
-    expect(m.sceltaPerAggiungere(conMenu, istanza, 'ordini_cliente', vendita).scelta.moduli).toEqual([
-      'clienti',
-      'menu_tavoli',
-      'ordini_cliente',
-    ])
+  it('sul Free il motivo è il piano, non la base che manca', () => {
+    const free = { ...base, piano: 'free', moduli: [], abbonamento: { stato: 'attivo', origine: 'gratuito' } }
+    expect(m.sceltaPerAggiungere(free, istanza, 'ordini_cliente', vendita).errore).toBe('I moduli si aggiungono ai piani a pagamento: il piano si cambia dall’area clienti.')
   })
 
   it('no per un modulo già attivo, fuori vendita o sconosciuto, o un locale fermo', () => {

@@ -11,19 +11,25 @@ const { moduliLicenza, patchLicenzaPiano, licenzaIniziale, sceltaCambiata, licen
 const { readFileSync } = require('node:fs')
 
 describe('moduliLicenza', () => {
-  it('il base senza moduli non accende niente; il magazzino porta conta, fatture e scadenzario; il completo tutto', () => {
+  // Dal 07/11/2026 (decisione dell'utente) il Base porta il menù digitale e
+  // il magazzino porta solo l'inventario: le fatture ai clienti e ai
+  // fornitori si comprano a parte.
+  it('il base accende il menù; il magazzino porta l’inventario; le fatture si comprano a parte; il completo tutto', () => {
     const spenti = Object.fromEntries(TUTTI.map((m) => [m, false]))
-    expect(moduliLicenza({ piano: 'base' })).toEqual(spenti)
+    expect(moduliLicenza({ piano: 'free' })).toEqual(spenti)
+    expect(moduliLicenza({ piano: 'base' })).toEqual({ ...spenti, menu_tavoli: true })
     expect(moduliLicenza({ piano: 'base', moduli: ['magazzino', 'staff'] })).toEqual({
       ...spenti,
+      menu_tavoli: true,
       magazzino: true,
       conta: true,
-      fatture: true,
-      scadenzario: true,
       staff: true,
     })
+    expect(moduliLicenza({ piano: 'base', moduli: ['scadenzario'] })).toEqual({ ...spenti, menu_tavoli: true, scadenzario: true })
+    expect(moduliLicenza({ piano: 'base', moduli: ['fatture'] })).toEqual({ ...spenti, menu_tavoli: true, fatture: true })
     expect(moduliLicenza({ piano: 'completo' })).toEqual(Object.fromEntries(TUTTI.map((m) => [m, true])))
-    expect(moduliLicenza({ piano: 'oro', moduli: ['x'] })).toEqual(spenti)
+    // Un piano sconosciuto vale il Base, e un modulo inventato niente.
+    expect(moduliLicenza({ piano: 'oro', moduli: ['x'] })).toEqual({ ...spenti, menu_tavoli: true })
   })
 })
 

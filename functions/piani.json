@@ -1,17 +1,17 @@
 {
-  "_nota": "Piani e prezzi del prodotto, in un posto solo (REQ-FLOTTA-002, REQ-FLOTTA-007, REQ-FLOTTA-010). Letto dal sito (src/lib/piani.js) e dalle Functions (functions/lib/abbonamento.js, licenza.js). Gli id dei moduli sono gli stessi di src/lib/licenza.js nell'app (REQ-LIC-002 in tana-drink). Importi mensili in euro, IVA esclusa. Base, attivazione, terminali, Fondatori, annuale, prova e assistenza: decisione dell'utente del 02/11/2026 (DEC-0005). Completo e moduli: prezzi non ancora rivisti.",
+  "_nota": "Piani e prezzi del prodotto, in un posto solo (REQ-FLOTTA-002, REQ-FLOTTA-007, REQ-FLOTTA-010). Letto dal sito (src/lib/piani.js) e dalle Functions (functions/lib/abbonamento.js, licenza.js). Gli id dei moduli sono gli stessi di src/lib/licenza.js nell'app (REQ-LIC-002 in tana-drink). Importi mensili in euro, IVA esclusa. Base, attivazione, terminali, Fondatori, annuale, prova e assistenza: decisione dell'utente del 02/11/2026 (DEC-0005). Completo e moduli: prezzi non ancora rivisti. Il 07/11/2026 (decisione dell'utente) il menù digitale entra nei piani a pagamento, gli ordini dal telefono costano 12 € come prima il menù, e le fatture ai clienti e ai fornitori si vendono a parte dal magazzino (i loro due prezzi sono una proposta, da rivedere).",
   "moduli": [
     {
       "id": "menu_tavoli",
       "nome": "Menù digitale e tavoli",
-      "prezzo": 12,
-      "descrizione": "Il menù sul telefono del cliente, con il QR al tavolo e la vista cliente nel gestionale."
+      "prezzo": 0,
+      "descrizione": "Il menù sul telefono del cliente, con il QR al tavolo e la vista cliente nel gestionale. Compreso nei piani Base e Completo."
     },
     {
       "id": "ordini_cliente",
       "nome": "Ordini dal telefono del cliente",
-      "prezzo": 8,
-      "descrizione": "Il cliente ordina dal menù digitale e segue lo stato dell’ordine. Vuole il menù digitale.",
+      "prezzo": 12,
+      "descrizione": "Il cliente ordina dal menù digitale e segue lo stato dell’ordine.",
       "richiede": ["menu_tavoli"]
     },
     {
@@ -24,7 +24,19 @@
       "id": "magazzino",
       "nome": "Magazzino e fornitori",
       "prezzo": 15,
-      "descrizione": "Giacenze, scarico automatico dalle ricette, inventario periodico, ordini e fatture dei fornitori."
+      "descrizione": "Giacenze, scarico automatico dalle ricette, inventario periodico, ordini ai fornitori e altre spese."
+    },
+    {
+      "id": "fatture",
+      "nome": "Fatture ai clienti",
+      "prezzo": 5,
+      "descrizione": "Fattura di cortesia per il cliente che la chiede: dati di fatturazione, numero progressivo, stampa e invio per email."
+    },
+    {
+      "id": "scadenzario",
+      "nome": "Fatture ai fornitori",
+      "prezzo": 6,
+      "descrizione": "Registro delle fatture di acquisto con importi, scadenze e stato dei pagamenti, anche senza il magazzino."
     },
     {
       "id": "statistiche",
@@ -36,7 +48,7 @@
       "id": "staff",
       "nome": "Personale e ore",
       "prezzo": 10,
-      "descrizione": "Ore e paghe del personale, chiamate allo staff."
+      "descrizione": "Ore lavorate, turni e paghe del personale."
     },
     {
       "id": "sumup",
@@ -69,20 +81,22 @@
       "id": "base",
       "nome": "Base",
       "prezzo": 32.7,
-      "descrizione": "Cassa, comande, pagamenti in contanti e carta, scontrino sulla stampante, menù (creazione delle voci), lavoro senza rete. Fino a tre terminali nello stesso locale.",
-      "include": [],
+      "descrizione": "Cassa, comande, pagamenti in contanti e carta, scontrino sulla stampante, menù digitale con il QR al tavolo, lavoro senza rete. Fino a tre terminali nello stesso locale.",
+      "include": ["menu_tavoli"],
       "terminali": 3
     },
     "completo": {
       "id": "completo",
       "nome": "Completo",
       "prezzo": 69,
-      "descrizione": "Tutto: cassa e comande, menù digitale e ordini dal telefono, clienti, magazzino, statistiche e bilancio, personale, SumUp. Fino a tre terminali nello stesso locale.",
+      "descrizione": "Tutto: cassa e comande, menù digitale e ordini dal telefono, clienti, magazzino, fatture ai clienti e ai fornitori, statistiche e bilancio, personale, SumUp. Fino a tre terminali nello stesso locale.",
       "include": [
         "menu_tavoli",
         "ordini_cliente",
         "clienti",
         "magazzino",
+        "fatture",
+        "scadenzario",
         "statistiche",
         "staff",
         "sumup"

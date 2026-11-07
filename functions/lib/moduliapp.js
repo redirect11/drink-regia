@@ -19,6 +19,15 @@ const { haGiaIlModulo, proveAttive, baseMancante, chiLoRichiede } = require('./p
 
 const AZIONI = ['prova', 'aggiungi', 'disdici']
 
+// Un modulo compreso in ogni piano a pagamento (il menù digitale, dal
+// 07/11/2026) non si compra a parte: chi paga ce l'ha già, e sul Free i
+// moduli non si comprano. Si ricava dal listino invece di scriverlo in
+// piani.json, così non può dire una cosa diversa dai piani.
+const compresoInOgniPiano = (id) =>
+  Object.values(listino.piani)
+    .filter((p) => !p.gratuito)
+    .every((p) => p.include.includes(id))
+
 // Il listino per l'app: i moduli in vendita, col prezzo mensile IVA
 // esclusa e i giorni di prova (0: non si prova). Niente nomi né
 // descrizioni: li tiene l'app, sono le parole delle sue schermate.
@@ -26,7 +35,7 @@ const AZIONI = ['prova', 'aggiungi', 'disdici']
 function catalogoModuli(vendita) {
   return {
     moduli: listino.moduli
-      .filter((m) => vendita?.moduli?.[m.id] !== false)
+      .filter((m) => vendita?.moduli?.[m.id] !== false && !compresoInOgniPiano(m.id))
       .map((m) => ({ id: m.id, prezzo: m.prezzo, prova_giorni: vendita?.prove?.[m.id] || 0 })),
   }
 }
@@ -75,6 +84,7 @@ const nomeDi = (id) => listino.moduli.find((m) => m.id === id)?.nome || id
 function moduloInVendita(id, vendita) {
   if (!listino.moduli.some((m) => m.id === id)) return 'Modulo sconosciuto.'
   if (vendita?.moduli?.[id] === false) return `${nomeDi(id)} non è in vendita.`
+  if (compresoInOgniPiano(id)) return `${nomeDi(id)} è compreso nei piani a pagamento.`
   return null
 }
 
@@ -108,17 +118,19 @@ const sceltaCon = (cliente, moduli) => ({ piano: cliente.piano, moduli, terminal
 // questo) e il modo, o { errore }. Un modulo in prova diventa comprato: la
 // prova la toglie poi proveDaTogliere.
 // E SENZA LA SUA BASE NON SI AGGIUNGE (tana-drink REQ-LIC-015): l'app non
-// mostra il tasto, ma questa è la porta vera.
+// mostra il tasto, ma questa è la porta vera. Il piano si guarda prima
+// della base: sul Free la base (il menù digitale, compreso solo nei piani a
+// pagamento) non si può comprare, e il motivo che serve è il piano.
 function sceltaPerAggiungere(cliente, istanza, id, vendita, adesso = new Date()) {
-  const base = baseMancante(cliente, id, adesso)
   const errore =
     localeAttivo(istanza) ||
     moduloInVendita(id, vendita) ||
-    (haGiaIlModulo(cliente, id) ? `${nomeDi(id)} è già attivo.` : null) ||
-    (base ? `${nomeDi(id)} richiede ${base}.` : null)
+    (haGiaIlModulo(cliente, id) ? `${nomeDi(id)} è già attivo.` : null)
   if (errore) return { errore }
   const come = comeCambia(cliente)
   if (come.errore) return come
+  const base = baseMancante(cliente, id, adesso)
+  if (base) return { errore: `${nomeDi(id)} richiede ${base}.` }
   return { scelta: sceltaCon(cliente, [...(cliente.moduli || []), id]), modo: come.modo }
 }
 
@@ -180,4 +192,4 @@ function richiestaDallApp(cliente, { azione, modulo, scelta }, da, aperta, adess
 // titolare chiude la serata con quello che aveva.
 const dalGiorno = (adesso = new Date()) => adesso.toISOString().slice(0, 10)
 
-module.exports = { AZIONI, catalogoModuli, corpoModulo, dominiDi, ritornoValido, moduloInVendita, localeAttivo, comeCambia, sceltaPerAggiungere, sceltaPerDisdire, dalGiorno, idRichiesta, richiestaDallApp }
+module.exports = { AZIONI, compresoInOgniPiano, catalogoModuli, corpoModulo, dominiDi, ritornoValido, moduloInVendita, localeAttivo, comeCambia, sceltaPerAggiungere, sceltaPerDisdire, dalGiorno, idRichiesta, richiestaDallApp }

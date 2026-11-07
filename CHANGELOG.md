@@ -6,6 +6,12 @@ data.
 
 ## Prossima release (da decidere)
 
+- Il listino dei moduli cambia: il menù digitale col QR al tavolo è
+  compreso nei piani Base e Completo; gli ordini dal telefono costano 12 €
+  al mese; le fatture ai clienti (5 €) e le fatture ai fornitori (6 €) si
+  comprano a parte e non sono più dentro «Magazzino e fornitori», che resta
+  a 15 € con l'inventario. Il Completo le comprende tutte. Nella pagina dei
+  prezzi il menù risulta incluso anche nel Base (REQ-FLOTTA-044).
 - La prima schermata dice subito cosa vendiamo: «Il gestionale del tuo
   locale. Dalla comanda alla cassa.», una riga sola sotto, l'occhiello
   «Gestionale per bar e ristoranti»; in inglese lo stesso. E il menù in

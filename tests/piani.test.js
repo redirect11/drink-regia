@@ -37,17 +37,21 @@ describe('la base di un modulo, nel sito', () => {
     expect(richiedeDi('boh')).toEqual([])
   })
 
+  // Dal 07/11/2026 il menù digitale è compreso nel Base e nel Completo: la
+  // base può mancare solo dove il piano non la porta, cioè nel Free.
   it('la base manca se non è nel piano, né scelta, né in prova', () => {
-    expect(baseMancante({ piano: 'base', moduli: [] }, 'ordini_cliente')).toBe('Menù digitale e tavoli')
-    expect(baseMancante({ piano: 'base', moduli: ['menu_tavoli'] }, 'ordini_cliente')).toBeNull()
-    expect(baseMancante({ piano: 'base', moduli: [], prove: ['menu_tavoli'] }, 'ordini_cliente')).toBeNull()
+    expect(baseMancante({ piano: 'free', moduli: [] }, 'ordini_cliente')).toBe('Menù digitale e tavoli')
+    expect(baseMancante({ piano: 'free', moduli: ['menu_tavoli'] }, 'ordini_cliente')).toBeNull()
+    expect(baseMancante({ piano: 'free', moduli: [], prove: ['menu_tavoli'] }, 'ordini_cliente')).toBeNull()
+    expect(baseMancante({ piano: 'base', moduli: [] }, 'ordini_cliente')).toBeNull()
     expect(baseMancante({ piano: 'completo', moduli: [] }, 'ordini_cliente')).toBeNull()
-    expect(baseMancante({ piano: 'base', moduli: [] }, 'magazzino')).toBeNull()
+    expect(baseMancante({ piano: 'free', moduli: [] }, 'magazzino')).toBeNull()
   })
 
   it('togliendo la base dalla scelta se ne va anche chi la richiede', () => {
-    expect(senzaOrfani('base', ['clienti', 'ordini_cliente'])).toEqual(['clienti'])
-    expect(senzaOrfani('base', ['menu_tavoli', 'ordini_cliente'])).toEqual(['menu_tavoli', 'ordini_cliente'])
+    expect(senzaOrfani('free', ['clienti', 'ordini_cliente'])).toEqual(['clienti'])
+    expect(senzaOrfani('free', ['menu_tavoli', 'ordini_cliente'])).toEqual(['menu_tavoli', 'ordini_cliente'])
+    expect(senzaOrfani('base', ['clienti', 'ordini_cliente'])).toEqual(['clienti', 'ordini_cliente'])
     expect(senzaOrfani('completo', ['ordini_cliente'])).toEqual(['ordini_cliente'])
   })
 })
@@ -80,7 +84,21 @@ describe('prezzoMensile', () => {
     expect(prezzoMensile({ piano: 'base', terminali: 3 })).toBe(32.7)
     // 32,7 + 12 in virgola mobile fa 44,699999…: il conto torna al centesimo.
     expect(prezzoMensile({ piano: 'base', terminali: 4 })).toBe(44.7)
-    expect(prezzoMensile({ piano: 'base', moduli: ['menu_tavoli', 'clienti'], terminali: 5 })).toBe(74.7)
+    // Il menù digitale è nel Base: chiederlo non costa; i clienti sì.
+    expect(prezzoMensile({ piano: 'base', moduli: ['menu_tavoli', 'clienti'], terminali: 5 })).toBe(62.7)
+  })
+
+  // Il listino del 07/11/2026 (decisione dell'utente): menù digitale nei
+  // piani a pagamento, ordini dal telefono al suo vecchio prezzo, le due
+  // fatture vendute a parte dal magazzino.
+  it('menù nel Base e nel Completo, ordini a 12 €, fatture ai clienti e ai fornitori a parte', () => {
+    expect(PIANI.base.include).toEqual(['menu_tavoli'])
+    expect(PIANI.completo.include).toEqual(MODULI.map((m) => m.id))
+    expect(PIANI.free.include).toEqual([])
+    const prezzo = (id) => MODULI.find((m) => m.id === id).prezzo
+    expect(prezzo('ordini_cliente')).toBe(12)
+    expect(prezzoMensile({ piano: 'base', moduli: ['magazzino', 'scadenzario'] })).toBe(32.7 + 15 + prezzo('scadenzario'))
+    expect(prezzoMensile({ piano: 'base', moduli: ['fatture'] })).toBe(32.7 + prezzo('fatture'))
   })
 
   it('il completo include tutti i moduli e tre terminali: chiederli di nuovo non costa', () => {
@@ -95,7 +113,8 @@ describe('prezzoMensile', () => {
 
 describe('moduliDellaScelta', () => {
   it('è quello che la licenza dell’istanza accende', () => {
-    expect(moduliDellaScelta({ piano: 'base', moduli: ['staff', 'staff', 'niente'] })).toEqual(['staff'])
+    expect(moduliDellaScelta({ piano: 'base', moduli: ['staff', 'staff', 'niente'] })).toEqual(['menu_tavoli', 'staff'])
+    expect(moduliDellaScelta({ piano: 'free' })).toEqual([])
     expect(moduliDellaScelta({ piano: 'completo' })).toEqual(MODULI.map((m) => m.id))
   })
 })

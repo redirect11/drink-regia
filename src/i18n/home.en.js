@@ -183,7 +183,7 @@ export default {
       },
       base: {
         nome: PIANI.base.nome,
-        descrizione: 'To get started: till, orders, receipts on the printer, menu and offline mode. {terminali}.',
+        descrizione: 'To get started: till, orders, receipts on the printer, digital menu with the QR code on the table, and offline mode. {terminali}.',
       },
       completo: {
         nome: PIANI.completo.nome,
@@ -210,11 +210,11 @@ export default {
   moduli: {
     menu_tavoli: {
       nome: 'Digital menu and tables',
-      descrizione: 'The menu on your guests’ phones, with a QR code on the table and the guest view in the app.',
+      descrizione: 'The menu on your guests’ phones, with a QR code on the table and the guest view in the app. Included in the Base and Complete plans.',
     },
     ordini_cliente: {
       nome: 'Orders from guests’ phones',
-      descrizione: 'Guests order from the digital menu and follow the status of their order. Requires the digital menu.',
+      descrizione: 'Guests order from the digital menu and follow the status of their order.',
     },
     clienti: {
       nome: 'Customer management',
@@ -222,7 +222,15 @@ export default {
     },
     magazzino: {
       nome: 'Stock and suppliers',
-      descrizione: 'Stock levels, automatic deduction from recipes, periodic stock counts, supplier orders and invoices.',
+      descrizione: 'Stock levels, automatic deduction from recipes, periodic stock counts, supplier orders and other expenses.',
+    },
+    fatture: {
+      nome: 'Customer invoices',
+      descrizione: 'A courtesy invoice for the customer who asks for one: billing details, sequential number, printing and sending by email.',
+    },
+    scadenzario: {
+      nome: 'Supplier invoices',
+      descrizione: 'A register of purchase invoices with amounts, due dates and payment status, even without the stock module.',
     },
     statistiche: {
       nome: 'Statistics and results',
@@ -230,7 +238,7 @@ export default {
     },
     staff: {
       nome: 'Staff and hours',
-      descrizione: 'Staff hours and pay, calls to the staff.',
+      descrizione: 'Hours worked, shifts and staff pay.',
     },
     sumup: {
       nome: 'Card payments with SumUp',

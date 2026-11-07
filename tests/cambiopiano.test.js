@@ -40,10 +40,13 @@ describe('cambia piano dall’admin', () => {
   })
 
   // tana-drink REQ-LIC-015, i buchi della PR #91 (07/11/2026).
-  it('no a un modulo senza la sua base, con Stripe e fuori; con la base nel piano o scelta sì', () => {
-    expect(cambioAdmin(conStripe, { piano: 'base', moduli: ['ordini_cliente'], modo: 'stripe' }).perche).toBe('Ordini dal telefono del cliente richiede Menù digitale e tavoli.')
-    expect(cambioAdmin(aMano, { piano: 'base', moduli: ['ordini_cliente'], modo: 'fuori' }).perche).toMatch(/richiede Menù digitale/)
-    expect(cambioAdmin(aMano, { piano: 'base', moduli: ['menu_tavoli', 'ordini_cliente'], modo: 'fuori' }).ok).toBe(true)
+  // Dal 07/11/2026 il menù digitale è compreso nel Base e nel Completo: gli
+  // ordini dal telefono hanno sempre la loro base, e il Free i moduli li
+  // toglie. La regola della base è provata in prove.test.js (problemaBasi).
+  it('gli ordini dal telefono passano col Base e col Completo, che hanno il menù', () => {
+    expect(cambioAdmin(conStripe, { piano: 'base', moduli: ['ordini_cliente'], modo: 'stripe' }).ok).toBe(true)
+    expect(cambioAdmin(aMano, { piano: 'base', moduli: ['ordini_cliente'], modo: 'fuori' }).ok).toBe(true)
+    expect(cambioAdmin(aMano, { piano: 'free', moduli: ['ordini_cliente'], modo: 'fuori' }).scelta.moduli).toEqual([])
     expect(cambioAdmin(aMano, { piano: 'completo', moduli: ['ordini_cliente'], modo: 'fuori' }).ok).toBe(true)
   })
 

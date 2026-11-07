@@ -115,6 +115,13 @@ describe('la prima pagina', () => {
     const tabella = within(screen.getByRole('table'))
     for (const m of MODULI) {
       const riga = tabella.getByRole('row', { name: new RegExp(m.nome) })
+      // Un modulo compreso nel Base (il menù digitale, dal 07/11/2026) non ha
+      // prezzo nemmeno nella colonna del Base: è incluso in tutte e due.
+      if (PIANI.base.include.includes(m.id)) {
+        expect(riga).not.toHaveTextContent('+ IVA')
+        expect(within(riga).getAllByText('Incluso')).toHaveLength(2)
+        continue
+      }
       expect(riga).toHaveTextContent(`${euro(m.prezzo)} + IVA`)
       expect(riga).toHaveTextContent(`${euro(conIva(m.prezzo))} IVA inclusa`)
       if (PIANI.completo.include.includes(m.id)) expect(riga).toHaveTextContent('Incluso')
@@ -185,7 +192,11 @@ describe('la prima pagina', () => {
     mostra()
     const magazzino = MODULI.find((m) => m.id === 'magazzino')
     expect(screen.getByText(`Modulo ${magazzino.nome}`)).toBeInTheDocument()
-    expect(screen.getByText(`Nel piano ${PIANI.base.nome}`)).toBeInTheDocument()
+    // La cassa sta nel Base; il menù digitale pure (dal 07/11/2026), e la
+    // sua funzione lo dice accanto al modulo degli ordini dal telefono.
+    expect(screen.getAllByText(`Nel piano ${PIANI.base.nome}`)).toHaveLength(2)
+    const ordini = MODULI.find((m) => m.id === 'ordini_cliente')
+    expect(screen.getByText(`Modulo ${ordini.nome}`)).toBeInTheDocument()
     // I terminali oltre quelli del piano si pagano, e il prezzo viene dal
     // listino (revisione PR #20: «Più terminali sulla stessa cassa» sotto
     // «Nel piano Base» lasciava credere che fossero inclusi).
