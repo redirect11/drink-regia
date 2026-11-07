@@ -227,26 +227,30 @@ fare adesso.
 
 | | Italiano | English |
 |---|---|---|
-| occhiello | Cassa, comande e magazzino per bar e ristoranti | Till, orders and stock for bars and restaurants |
-| titolo **A** (scelto il 06/11/2026) | È caduto il Wi-Fi. La cassa non se n'è accorta. | The Wi-Fi went down. The till never noticed. |
-| titolo B | Nata al banco di un cocktail bar. Pronta per il tuo. | Born behind a cocktail bar. Ready for yours. |
-| titolo C | Un'app sola per tutto il servizio. Un'installazione solo tua. | One app for the whole service. One installation that's yours alone. |
-| sottotitolo | Comande, conti, cassa, menù con QR e magazzino in un'unica app, pensata per il banco e la sala. Ogni locale ha la sua installazione e i suoi dati: nessun altro li vede, e quando la rete cade il lavoro continua. | Orders, bills, till, QR menu and stock in a single app, built for the bar and the floor. Every venue has its own installation and its own data: nobody else sees them, and when the network drops the work carries on. |
+| occhiello | Gestionale per bar e ristoranti, nato in un cocktail bar | Management for bars and restaurants, born in a cocktail bar |
+| titolo **A** (scelto dall'utente il 06/11/2026, «fatto da chi sta al banco») | Scritto dietro il banco. In servizio ogni sera. | Written behind the bar. In service every night. |
+| titolo B («tutto il locale, in ordine») | Comande, cassa, magazzino. Tutto il locale, in ordine. | Orders, till, stock. The whole venue, in one place. |
+| titolo C («un gestionale che è tuo») | Un'installazione per locale. I dati restano tuoi. | One installation per venue. The data stays yours. |
+| sottotitolo | Comande, cassa, menù con QR, magazzino, statistiche e personale. L'app è nata nel cocktail bar che la usa ogni sera, ed è cresciuta su quello che serve davvero durante il servizio. Ogni locale ha la sua installazione e i suoi dati, e lavora anche senza rete. | Orders, till, QR menu, stock, statistics and staff. The app was born in the cocktail bar that uses it every night, and grew on what service actually requires. Every venue has its own installation and its own data, and works even without a connection. |
 | bottone principale | Attiva il tuo locale | Get started |
 | bottone secondario | Prova la demo | Try the live demo |
 | sotto i bottoni | Da {da} al mese · Abbonamento mensile · Attivazione automatica *oppure* Attivazione concordata con noi | From {da} a month · Monthly subscription · Automatic setup *or* Setup arranged with us |
 
-I testi del 06/11/2026 (l'utente: «gli slogan sono orribili… qualcosa di
-più accattivante») seguono una linea sola, «il venerdì sera non aspetta
-nessuno»: il hero mostra la scena (cade il Wi-Fi, la cassa va avanti), il
-problema la nomina, la chiusura la riporta al lettore. Il titolo A è la
-frase del titolare, con una svolta vera in oro; «non se n'è accorta» è
-una figura che il sottotitolo rende letterale (il lavoro continua, le
-modifiche partono al ritorno della rete); la variante alla lettera è «È
-caduto il Wi-Fi. La cassa va avanti.». B è la prova ma ripete la chiusa
-del problema; C è la struttura, elegante e meno emotiva. I titoli del
-30/10 («La serata non si ferma. Nemmeno quando cade il Wi-Fi.») restano
-nella storia del repository.
+I testi del 06/11/2026. L'utente ha bocciato prima i titoli del 30/10
+(«gli slogan sono orribili») e poi una proposta costruita sulla scena del
+Wi-Fi che cade («bruttissime… fanno riferimento a questa feature in
+particolare che non è l'unico pezzo forte dell'app… devono essere meno
+stupide»). Da lì le tre direzioni della tabella, tutte senza trovate e
+col prodotto raccontato per intero: A, la credibilità (scritto da chi
+sta al banco, in servizio ogni sera: l'unica prova vera che abbiamo); B,
+la completezza (un gestionale intero, non una cassa con una feature); C,
+la proprietà (l'installazione separata, che nessun concorrente in
+abbonamento dice). L'utente ha scelto A, e tutta la pagina segue quel
+filo: il problema è «quello che si vede dal banco», i pilastri sono «tre
+scelte fatte al banco», la chiusura «vedila con il tuo menù e i tuoi
+prezzi». Regola per il futuro: niente scenette, niente figura furba,
+niente feature sola nel titolo; frasi che un ristoratore legge pensando
+«questi sanno di cosa parlano».
 Ogni frase della riga sotto i bottoni è verificabile: «da …» viene da
 `piani.json` (il piano a pagamento meno caro), «mensile» dai termini.
 «Automatica» si scrive solo se i pagamenti online sono accesi o il Free è
@@ -262,9 +266,13 @@ larghezza, testo grande, niente card.
 
 | Italiano | English |
 |---|---|
-| **Il venerdì sera non aspetta nessuno.** | **Friday night waits for no one.** |
-| Non aspetta che torni la rete, con la cassa ferma. Non aspetta la comanda rimasta tra la sala e il banco. E a fine serata nessuno sa quante bottiglie sono uscite davvero. | It doesn't wait for the network to come back while the till sits frozen. It doesn't wait for the order left somewhere between the floor and the bar. And at closing time nobody knows how many bottles actually went out. |
-| È per serate così che l'app è nata, al banco di un cocktail bar. | Those are the nights this app was born for, behind a cocktail bar. |
+| **Quello che si vede dal banco.** | **What you see from behind the bar.** |
+| Le comande su un blocco, i conti rifatti a voce, il registratore che tiene solo il totale. Il magazzino a memoria, le ore del personale su un foglio, l'incasso della serata ricostruito il giorno dopo. Ogni pezzo funziona per conto suo, e il quadro intero lo tiene in testa chi sta al banco. | Orders on a pad, bills worked out aloud, a till that only keeps the total. Stock from memory, staff hours on a sheet, the night's takings pieced together the next day. Each piece works on its own, and the whole picture lives in the head of whoever is behind the bar. |
+| L'app è nata al banco di un cocktail bar per mettere quel quadro su un tablet, e lì lavora ogni sera. | The app was born behind the bar of a cocktail bar to put that picture on a tablet, and it works there every night. |
+
+Dal 06/11/2026 la sezione è un contesto, non un dramma: il locale
+gestito a pezzi, visto da chi sta al banco. Il registratore «tiene solo
+il totale»: non si promette di sostituirlo, lo scontrino fiscale resta suo.
 
 ### 5.3 I tre pilastri
 
@@ -273,9 +281,12 @@ parole e due righe.
 
 | Italiano | English |
 |---|---|
-| **La rete cade. Il servizio no.** Comande, conti e incassi restano sul tablet e vanno avanti; appena la connessione torna, le modifiche partono da sole. | **The network drops. Service doesn't.** Orders, bills and payments stay on the tablet and carry on; as soon as the connection is back, the changes go out on their own. |
-| **Un'installazione per locale. La tua.** Il tuo locale ha il suo database e il suo indirizzo, separati da tutti gli altri. Nessun altro locale vede i tuoi conti, i tuoi prezzi, i tuoi numeri. | **One installation per venue. Yours.** Your venue has its own database and its own address, kept apart from everyone else's. No other venue sees your bills, your prices or your numbers. |
-| **Nata al banco, non in un ufficio.** È nata e lavora al banco di un cocktail bar vero, con il locale pieno: ogni schermata è fatta per andare in fretta, al banco e in sala. | **Born behind a bar, not at a desk.** It was born and still works behind a real cocktail bar, on full nights: every screen is built for speed, at the bar and on the floor. |
+| **Lavora anche senza rete.** Al banco la connessione non è una certezza: comande, conti e incassi restano sul tablet e il servizio prosegue; quando la rete torna, le modifiche partono da sole. | **Works even without a connection.** Behind the bar a connection is never a given: orders, bills and payments stay on the tablet and service carries on; when the network returns, the changes go out on their own. |
+| **Un'installazione per locale.** I numeri di un locale sono del locale. Il tuo ha la sua installazione, con i suoi dati e il suo indirizzo, separata da tutte le altre: nessun altro vede i tuoi conti, i tuoi prezzi, i tuoi incassi. | **One installation per venue.** A venue's numbers belong to the venue. Yours has its own installation, with its own data and its own address, separate from everyone else's: no one else sees your bills, your prices or your takings. |
+| **Fatta per il servizio.** Ogni schermata è stata provata con il locale pieno e il tablet in mano, al banco e in sala: pochi passaggi, e niente che rallenti il servizio. | **Built for service.** Every screen was tried out with a full room and a tablet in hand, at the bar and on the floor: few steps, and nothing that slows service down. |
+
+Il titolo della sezione è «Tre scelte fatte al banco» / «Three decisions
+made behind the bar».
 
 ### 5.4 Le funzioni
 
@@ -287,14 +298,16 @@ La sezione si apre con «Dalla prima comanda alla chiusura di cassa.» /
 «From the first order to closing the till.» (dal 06/11/2026).
 
 **1. Comande e conti**
-- IT — *La comanda arriva al banco prima di te.* La prendi al tavolo o al
-  banco: arriva subito e, se lo scegli, si stampa da sola. Il conto ha
-  già tutto sopra e si chiude in contanti o con carta. · Comanda stampata
-  al banco · Contanti e carta · Altri terminali a {terminale} al mese
-- EN — *The order reaches the bar before you do.* Take it at the table or
-  at the bar: it arrives straight away and, if you choose, prints on its
-  own. The bill already has everything on it and is settled in cash or by
-  card. · Orders printed at the bar · Cash and card · Extra devices at
+- IT — *Dal tavolo al banco, senza passaggi a voce.* La prendi al tavolo o
+  al banco: arriva subito e, se lo scegli, si stampa da sola. Il conto ha
+  già tutto sopra e si chiude in contanti o con carta; lo scontrino di
+  cortesia esce sulla stampante termica. · Comanda stampata al banco ·
+  Contanti e carta · Altri terminali a {terminale} al mese
+- EN — *From the table to the bar, with nothing to call out.* Take it at
+  the table or at the bar: it arrives straight away and, if you choose,
+  prints on its own. The bill already has everything on it and is settled
+  in cash or by card; the courtesy bill prints on the thermal printer. ·
+  Orders printed at the bar · Cash and card · Extra devices at
   {terminale} a month
 
 La stampa automatica è una scelta del locale (tana-drink, REQ-STAMPA-001);
@@ -302,49 +315,51 @@ il Base ha un terminale e gli altri si pagano: «più terminali sulla
 stessa cassa» sotto «Nel piano Base» li faceva sembrare inclusi.
 
 **2. Menù digitale e ordini dal tavolo**
-- IT — *Il QR sul tavolo, il menù nel telefono, l'ordine al banco.* Il
-  cliente apre il menù con i prezzi, ordina e segue lo stato del suo
-  ordine. Niente app da scaricare, niente menù di carta da ristampare
-  quando cambi un prezzo. · Menù sempre aggiornato · Ordini che arrivano
-  dritti al banco · Nessuna app da scaricare
-- EN — *QR on the table, menu on the phone, order at the bar.* Guests open
-  the menu with prices, order and follow the status of their order. No
-  app to download, no paper menus to reprint when a price changes. ·
-  Always up to date · Orders go straight to the bar · No app to download
+- IT — *Il menù con un QR, l'ordine dal telefono del cliente.* Il cliente
+  inquadra il QR, vede il menù con i prezzi aggiornati, ordina e segue lo
+  stato del suo ordine. Niente app da scaricare e niente menù di carta da
+  ristampare quando cambi un prezzo. · Menù sempre aggiornato · Ordini
+  che arrivano dritti al banco · Nessuna app da scaricare
+- EN — *A QR menu, and orders from the guest's phone.* Guests scan the QR
+  code, see the menu with current prices, order and follow the status of
+  their order. No app to download, and no paper menus to reprint when a
+  price changes. · Always up to date · Orders go straight to the bar · No
+  app to download
 
 **3. Magazzino**
-- IT — *Sai cosa sta finendo prima che finisca.* Ogni comanda preparata
-  scarica gli ingredienti della sua ricetta; quando una giacenza scende
-  sotto la soglia, l'app te lo dice. L'inventario periodico e le fatture
-  dei fornitori chiudono il cerchio. · Giacenze e soglie di riordino ·
-  Inventario periodico · Fatture dei fornitori
-- EN — *Know what's running low before it runs out.* Every order that is
-  prepared deducts the ingredients of its recipe; when a stock level drops
-  below its threshold, the app tells you. Periodic stock counts and
-  supplier invoices close the loop. · Stock levels and reorder thresholds
-  · Periodic stock counts · Supplier invoices
+- IT — *Il magazzino si scarica da solo, dalle ricette.* Ogni comanda
+  preparata scarica gli ingredienti della sua ricetta; quando una
+  giacenza scende sotto la soglia di riordino, l'app te lo segnala.
+  L'inventario periodico e le fatture dei fornitori tengono i conti
+  allineati. · Giacenze e soglie di riordino · Inventario periodico ·
+  Fatture dei fornitori
+- EN — *Stock is deducted on its own, from the recipes.* Every order that
+  is prepared deducts the ingredients of its recipe; when a stock level
+  drops below its reorder threshold, the app flags it. Periodic stock
+  counts and supplier invoices keep the figures aligned. · Stock levels
+  and reorder thresholds · Periodic stock counts · Supplier invoices
 
 Lo scarico avviene quando la comanda è pronta, o alla riscossione se il
 locale non segue gli stati (tana-drink, REQ-MAG-003); l'avviso è la soglia
 di riordino del prodotto (REQ-MAG-006).
 
 **4. Statistiche**
-- IT — *La serata in numeri, prima di chiudere.* Incassi per serata e per
-  periodo, venduto per fascia oraria, bilancio per categorie: vedi le ore
-  di punta e il confronto con la settimana scorsa senza fogli Excel. ·
-  Confronto tra periodi · Le ore di punta · Il bilancio per
-  macro-categorie
-- EN — *The night in numbers, before you lock up.* Takings by night and by
-  period, sales by hour, results by category: see your peak hours and
-  compare with last week, without a spreadsheet. · Period comparisons ·
-  Peak hours · Results by category
+- IT — *Quanto hai incassato, a che ora, con cosa.* Incassi per serata e
+  per periodo, venduto per fascia oraria, bilancio per categorie. Le ore
+  di punta e il confronto con la settimana scorsa sono già calcolati,
+  senza fogli Excel. · Confronto tra periodi · Le ore di punta · Il
+  bilancio per macro-categorie
+- EN — *How much you took, at what time, on what.* Takings by night and by
+  period, sales by hour, results by category. Peak hours and the
+  comparison with last week are already worked out, without a
+  spreadsheet. · Period comparisons · Peak hours · Results by category
 
 **5. Personale e pagamenti** (riga più piccola, due colonne)
-- IT — *Le ore e le paghe del personale, e le chiamate allo staff, in un
-  posto solo.* · *Il conto passa al lettore SumUp e torna indietro già
+- IT — *Le ore e le paghe del personale, e le chiamate allo staff, nello
+  stesso gestionale.* · *Il conto passa al lettore SumUp e torna già
   pagato.*
-- EN — *Staff hours and pay, and calls to the staff, all in one place.* ·
-  *The bill goes to the SumUp reader and comes back already paid.*
+- EN — *Staff hours and pay, and calls to the staff, in the same system.*
+  · *The bill goes to the SumUp reader and comes back paid.*
 
 Ogni funzione che sta in un modulo a pagamento porta l'etichetta del
 modulo (es. «Modulo Magazzino» / «Stock module»): niente sorprese al
@@ -477,8 +492,8 @@ o tre frasi, la prima frase risponde subito.
 
 | | Italiano | English |
 |---|---|---|
-| titolo | Il prossimo venerdì sera arriva comunque. | Next Friday night is coming either way. |
-| testo | Attiva il tuo locale, oppure scrivici: te lo mostriamo con il tuo menù e i tuoi prezzi, e decidi dopo. | Get your venue started, or write to us: we'll show it to you with your own menu and prices, and you decide afterwards. |
+| titolo | Vedila con il tuo menù e i tuoi prezzi. | See it with your own menu and prices. |
+| testo | Attiva il tuo locale, oppure scrivici: te la mostriamo caricata con il tuo menù e i tuoi prezzi, e decidi dopo. | Get your venue started, or write to us: we'll show it to you loaded with your own menu and prices, and you decide afterwards. |
 | bottoni | Attiva il tuo locale · Scrivici | Get started · Contact us |
 
 ### 5.9 Il piè di pagina
@@ -568,7 +583,8 @@ Accedi), il selettore di lingua, la versione pubblicata (c'è già).
 
 ## 9. Da decidere con l'utente
 
-1. **Il titolo**: A del §5.1, scelto coi testi del 06/11/2026; B e C
+1. **Il titolo**: A del §5.1, «Scritto dietro il banco. In servizio ogni
+   sera.», scelto dall'utente il 06/11/2026 fra tre direzioni; B e C
    restano lì come alternative.
 2. **Il nome del prodotto**: «Drink» è un segnaposto. La pagina funziona
    anche senza, ma il marchio in alto e il `<title>` lo usano.
