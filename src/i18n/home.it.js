@@ -69,15 +69,13 @@ export default {
     accedi: 'Area riservata',
   },
   hero: {
-    occhiello: 'Gestionale per bar e ristoranti, nato in un cocktail bar',
-    // Riscritti il 06/11/2026 (l'utente: «gli slogan sono orribili… vanno
-    // ripensati completamente e devono essere meno stupidi»). Niente
-    // trovate e niente feature sola nel titolo: il filo è la credibilità,
-    // scritto da chi sta al banco e in servizio ogni sera, e il prodotto
-    // raccontato per intero. Le direzioni scartate in DESIGN.md §5.1.
-    titolo: 'Scritto dietro il banco. In servizio ogni sera.',
-    sottotitolo:
-      'Comande, cassa, menù con QR, magazzino, statistiche e personale. L’app è nata nel cocktail bar che la usa ogni sera, ed è cresciuta su quello che serve davvero durante il servizio. Ogni locale ha la sua installazione e i suoi dati, e lavora anche senza rete.',
+    occhiello: 'Gestionale per bar e ristoranti',
+    // Riscritti il 07/11/2026 (l'utente: «nella parte iniziale non è chiaro
+    // cosa vendiamo. Serve uno slogan facile e poche parole»): la categoria
+    // nel titolo, il percorso del servizio nella seconda frase, una riga
+    // sola sotto. Scelto fra tre proposte; quelli di prima in DESIGN.md §5.1.
+    titolo: 'Il gestionale del tuo locale. Dalla comanda alla cassa.',
+    sottotitolo: 'Comande, cassa, menù con QR, magazzino, personale e statistiche in un’app sola, nata in un cocktail bar.',
     attiva: 'Attiva il tuo locale',
     dashboard: 'La mia dashboard',
     demo: 'Prova la demo',

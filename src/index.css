@@ -134,7 +134,10 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .regia.vetrina .barra nav a:hover, .regia.vetrina .barra nav .link:hover { color: var(--accent); }
 .regia.vetrina .scelta-lingua a[aria-current='true'] { color: var(--accent); }
 .regia.vetrina .menu-tasto { border-color: var(--line); }
-.regia.vetrina .barra nav { background: var(--bg-2); }
+/* Lo sfondo del menù serve solo alla tendina del telefono: sul desktop
+   faceva un riquadro bianco dietro le voci (l'utente, 07/11/2026: «menu in
+   alto orribile»). */
+@media (max-width: 760px) { .regia.vetrina .barra nav { background: var(--bg-2); } }
 .regia.vetrina .piede { background: var(--bg-3); border-top-color: var(--line); }
 .regia.vetrina .piede-colonne a:hover { color: var(--accent); }
 .regia.vetrina code { background: rgba(0, 0, 0, 0.06); }

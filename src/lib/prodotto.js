@@ -12,8 +12,9 @@ export const SLUG_PRODOTTO = 'drink'
 // prodotto. La regia è `drink-regia`, creata a parte.
 export const PREFISSO_PROGETTI = 'drinkpos'
 export const NOME_PRODOTTO = 'Drink'
-// Riscritti il 06/11/2026 con i testi della prima pagina (src/i18n).
-export const SLOGAN = 'Il gestionale scritto dietro il banco, in servizio ogni sera.'
+// Lo slogan scelto dall'utente il 07/11/2026 con i testi della prima
+// pagina (src/i18n): la categoria e il percorso del servizio.
+export const SLOGAN = 'Il gestionale del tuo locale, dalla comanda alla cassa.'
 export const DESCRIZIONE =
   'Comande dal tavolo e dal banco, conti e cassa, menù con QR, magazzino, statistiche, ore e paghe del personale: ' +
   'tutto il gestionale di un bar o di un ristorante in un’app sola, scritta nel cocktail bar che la usa ogni sera. ' +

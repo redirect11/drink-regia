@@ -6,6 +6,11 @@ data.
 
 ## Prossima release (da decidere)
 
+- La prima schermata dice subito cosa vendiamo: «Il gestionale del tuo
+  locale. Dalla comanda alla cassa.», una riga sola sotto, l'occhiello
+  «Gestionale per bar e ristoranti»; in inglese lo stesso. E il menù in
+  alto della vetrina senza il riquadro bianco dietro le voci
+  (REQ-FLOTTA-002).
 - Il sito si apre al pubblico quando lo decide l'amministratore: finché
   l'interruttore «Sito aperto al pubblico» (sezione «Vendita») è spento, in
   produzione al posto della prima pagina e della registrazione c'è una
