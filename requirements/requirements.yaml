@@ -1742,6 +1742,20 @@ requirements:
       dall'app e dalla dashboard: «Ordini dal telefono del cliente richiede
       Menù digitale e tavoli.» (baseMancante in prove.js). L'app non mostra
       i tasti, ma la porta vera è questa.
+      LA BASE IN OGNI PORTA (l'utente, 07/11/2026, dopo la PR #91: «risolvi
+      i tre buchi»): (1) l'area clienti: il Checkout, il codice al 100% e il
+      cambio di piano del titolare, «Cambia piano» dell'admin e la richiesta
+      di contatto rifiutano una scelta con un modulo senza la sua base nel
+      piano o fra i moduli scelti (problemaBasi in prove.js, lo stesso
+      messaggio); nel sito la casella del modulo aspetta la base e,
+      togliendo la base, se ne va con lei (src/lib/piani.js: richiedeDi,
+      baseMancante, senzaOrfani; SceltaPiano, CambiaPiano, ProveModuli);
+      (2) la base non si disdice dall'app finché un modulo che la richiede
+      è comprato o in prova («Prima va tolto Ordini dal telefono del
+      cliente, che richiede Menù digitale e tavoli.», chiLoRichiede);
+      (3) una prova rimasta senza base si spegne con la base
+      (proveDaTogliere): la prova del menù finita porta via anche quella
+      degli ordini.
     status: implemented
     generate_issue: true
     labels: [prodotto, flotta, regia, abbonamento, licenza]

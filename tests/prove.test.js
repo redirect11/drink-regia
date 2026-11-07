@@ -75,6 +75,49 @@ describe('un modulo che ne richiede un altro', () => {
   it('un modulo senza base richiesta non chiede niente', () => {
     expect(p.baseMancante(base, 'magazzino', adesso)).toBeNull()
   })
+
+  // I TRE BUCHI DELLA PR #91 (l'utente, 07/11/2026: «risolvi i tre buchi»):
+  // l'area clienti, la disdetta della base, le prove rimaste senza base.
+  it('in una scelta intera (area clienti, admin, contatto) la base deve stare nel piano o fra i moduli scelti', () => {
+    expect(p.problemaBasi({ piano: 'base', moduli: ['ordini_cliente'] })).toBe('Ordini dal telefono del cliente richiede Menù digitale e tavoli.')
+    expect(p.problemaBasi({ piano: 'base', moduli: ['menu_tavoli', 'ordini_cliente'] })).toBeNull()
+    expect(p.problemaBasi({ piano: 'base', moduli: ['ordini_cliente', 'menu_tavoli'] })).toBeNull()
+    // Nel Completo il menù è incluso.
+    expect(p.problemaBasi({ piano: 'completo', moduli: ['ordini_cliente'] })).toBeNull()
+    expect(p.problemaBasi({ piano: 'base', moduli: ['magazzino'] })).toBeNull()
+    expect(p.problemaBasi(null)).toBeNull()
+  })
+
+  it('chi richiede un modulo: i moduli comprati o in prova che hanno quella base', () => {
+    expect(p.chiLoRichiede({ ...base, moduli: ['menu_tavoli', 'ordini_cliente'] }, 'menu_tavoli', adesso)).toEqual(['Ordini dal telefono del cliente'])
+    const inProva = { ...base, moduli: ['menu_tavoli'], prove: { ordini_cliente: { scade_il: '2026-11-05T10:00:00Z' } } }
+    expect(p.chiLoRichiede(inProva, 'menu_tavoli', adesso)).toEqual(['Ordini dal telefono del cliente'])
+    expect(p.chiLoRichiede({ ...base, moduli: ['menu_tavoli'] }, 'menu_tavoli', adesso)).toEqual([])
+    expect(p.chiLoRichiede(base, 'magazzino', adesso)).toEqual([])
+  })
+
+  it('una prova rimasta senza base si spegne: il menù in prova scaduto porta via anche gli ordini in prova', () => {
+    const due = { ...base, prove: { menu_tavoli: { scade_il: '2026-10-29T10:00:00Z' }, ordini_cliente: { scade_il: '2026-11-05T10:00:00Z' } } }
+    expect(p.proveDaTogliere(due, adesso)).toEqual(['menu_tavoli', 'ordini_cliente'])
+    // Con la base ancora in prova, o comprata, gli ordini restano.
+    const vive = { ...base, prove: { menu_tavoli: { scade_il: '2026-11-05T10:00:00Z' }, ordini_cliente: { scade_il: '2026-11-05T10:00:00Z' } } }
+    expect(p.proveDaTogliere(vive, adesso)).toEqual([])
+    expect(p.proveDaTogliere({ ...base, moduli: ['menu_tavoli'], prove: { ordini_cliente: { scade_il: '2026-11-05T10:00:00Z' } } }, adesso)).toEqual([])
+  })
+})
+
+// Dove la regia chiude la porta dell'area clienti: il Checkout, il codice
+// al 100%, il cambio di piano del titolare (e, nei loro file, l'admin e la
+// richiesta di contatto).
+describe('la base in ogni porta', () => {
+  it('creaCheckout, attivaConCodice e cambiaScelta rifiutano una scelta senza la base', async () => {
+    const { readFileSync } = await import('node:fs')
+    const index = readFileSync('functions/index.js', 'utf8')
+    for (const fn of ['creaCheckout', 'attivaConCodice', 'cambiaScelta']) {
+      const corpo = index.slice(index.indexOf(`exports.${fn} =`))
+      expect(corpo.slice(0, corpo.indexOf('\n})')), fn).toMatch(/prove\.problemaBasi\(/)
+    }
+  })
 })
 
 describe('la prova nella licenza', () => {

@@ -12,6 +12,7 @@ const listino = require('../piani.json')
 const { sceltaPulita } = require('./abbonamento.js')
 const { eGratuito } = require('./free.js')
 const { dataPagata } = require('./scadenze.js')
+const { problemaBasi } = require('./prove.js')
 
 const MODI = ['stripe', 'fuori']
 
@@ -34,6 +35,10 @@ function cambioAdmin(cliente, richiesta, { da = null, adesso = new Date() } = {}
   if (!listino.piani[richiesta?.piano]) return no('Piano sconosciuto.')
   if (!MODI.includes(richiesta?.modo)) return no('Scegli come si paga: con Stripe o fuori da Stripe.')
   const scelta = sceltaAdmin(richiesta)
+  // Un modulo senza la sua base non si scrive nemmeno dall'admin
+  // (tana-drink REQ-LIC-015): la licenza accenderebbe gli ordini senza il menù.
+  const basi = problemaBasi(scelta)
+  if (basi) return no(basi)
   const sub = cliente.abbonamento?.stripe_subscription
   const storico = { il: adesso.toISOString(), da, modo: richiesta.modo, piano: scelta.piano, moduli: scelta.moduli, terminali: scelta.terminali }
   if (richiesta.modo === 'stripe') {

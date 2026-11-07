@@ -11,6 +11,7 @@
 
 const { sceltaPulita } = require('./abbonamento.js')
 const { eGratuito, moduliFuoriVendita } = require('./free.js')
+const { problemaBasi } = require('./prove.js')
 
 const NOTA_MAX = 500
 // Un telefono come lo scrive una persona: cifre, spazi, + e trattini.
@@ -36,6 +37,10 @@ function richiestaContatto(cliente, dati, vendita, adesso = new Date()) {
   if (eGratuito(dati?.piano)) return { ok: false, perche: 'Il piano Free non si paga: attivalo dalla scelta del piano.' }
   const fuori = moduliFuoriVendita(cliente, scelta, vendita)
   if (fuori.length) return { ok: false, perche: `Non più in vendita: ${fuori.join(', ')}.` }
+  // Un modulo senza la sua base non si chiede (tana-drink REQ-LIC-015):
+  // l'admin attiverebbe gli ordini senza il menù.
+  const basi = problemaBasi(scelta)
+  if (basi) return { ok: false, perche: basi }
   const telefono = testo(dati?.telefono, 20)
   if (telefono && !TELEFONO.test(telefono)) return { ok: false, perche: 'Il numero di telefono non sembra valido.' }
   return {

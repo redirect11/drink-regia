@@ -329,6 +329,9 @@ exports.creaCheckout = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
   // (REQ-FLOTTA-015); chi lo ha già lo tiene.
   const fuori = free.moduliFuoriVendita(cliente, scelta, inVendita)
   if (fuori.length) throw new HttpsError('failed-precondition', `Non più in vendita: ${fuori.join(', ')}.`)
+  // Un modulo senza la sua base non si compra (tana-drink REQ-LIC-015).
+  const basi = prove.problemaBasi(scelta)
+  if (basi) throw new HttpsError('failed-precondition', basi)
   const ritorno =String(req.data?.ritorno || '').replace(/\/$/, '')
   if (!/^https?:\/\//.test(ritorno)) throw new HttpsError('invalid-argument', 'Indirizzo di ritorno non valido.')
   const adesso = new Date()
@@ -464,6 +467,8 @@ exports.attivaConCodice = onCall(OPTS, async (req) => {
   const prima = (await ref.get()).data()
   const istanza = prima?.slug ? (await db.doc(`istanze/${prima.slug}`).get()).data() : null
   const scelta = sceltaPulita({ piano: req.data?.piano, moduli: req.data?.moduli, terminali: req.data?.terminali })
+  const basi = prove.problemaBasi(scelta)
+  if (basi) throw new HttpsError('failed-precondition', basi)
   const inVendita = await vendita()
   // In transazione col codice: l'ultimo uso lo prende uno solo.
   const esito = await db.runTransaction(async (t) => {
@@ -1784,6 +1789,9 @@ exports.cambiaScelta = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
   const scelta = { piano: req.data?.piano, moduli: req.data?.moduli, terminali: req.data?.terminali }
   const fuori = free.moduliFuoriVendita(cliente, scelta, await vendita())
   if (fuori.length) throw new HttpsError('failed-precondition', `Non più in vendita: ${fuori.join(', ')}.`)
+  // Un modulo senza la sua base non si aggiunge nemmeno da qui (tana-drink REQ-LIC-015).
+  const basi = prove.problemaBasi(sceltaPulita(scelta))
+  if (basi) throw new HttpsError('failed-precondition', basi)
   const sub = cliente.abbonamento?.stripe_subscription
   const stripe = stripeClient()
   if (sub && stripe) {

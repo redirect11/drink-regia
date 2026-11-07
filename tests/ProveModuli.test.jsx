@@ -51,6 +51,19 @@ describe('le prove nella dashboard', () => {
     expect(screen.getByText(/è in prova fino al 5 gennaio/)).toBeInTheDocument()
   })
 
+  // tana-drink REQ-LIC-015 (07/11/2026): gli ordini dal telefono si
+  // propongono solo con il menù digitale nel piano, comprato o in prova.
+  it('un modulo senza la sua base non si propone; con la base in prova sì', () => {
+    stato.vendita = { prove: { ordini_cliente: 7, menu_tavoli: 7 } }
+    const { rerender } = render(<ProveModuli cliente={cliente} istanza={attiva} />)
+    expect(screen.queryByText('Ordini dal telefono del cliente')).toBeNull()
+    expect(screen.getByText('Menù digitale e tavoli')).toBeInTheDocument()
+    rerender(<ProveModuli cliente={{ ...cliente, prove: { menu_tavoli: { scade_il: '2099-01-05T00:00:00Z' } } }} istanza={attiva} />)
+    expect(screen.getByText('Ordini dal telefono del cliente')).toBeInTheDocument()
+    rerender(<ProveModuli cliente={{ ...cliente, moduli: ['menu_tavoli'] }} istanza={attiva} />)
+    expect(screen.getByText('Ordini dal telefono del cliente')).toBeInTheDocument()
+  })
+
   it('senza prove decise dall’admin, o col locale non attivo, niente sezione', () => {
     stato.vendita = null
     const { container, rerender } = render(<ProveModuli cliente={cliente} istanza={attiva} />)

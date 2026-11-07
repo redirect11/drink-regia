@@ -59,6 +59,13 @@ describe('la richiesta di contatto', () => {
     expect(richiestaContatto(cliente, { piano: 'base', telefono: 'chiamami' }, spenti).perche).toMatch(/telefono/)
   })
 
+  // tana-drink REQ-LIC-015 (07/11/2026): l'admin non deve ricevere una
+  // richiesta che non potrebbe attivare.
+  it('si rifiuta un modulo senza la sua base; con la base scelta passa', () => {
+    expect(richiestaContatto(cliente, { piano: 'base', moduli: ['ordini_cliente'] }, spenti, ADESSO).perche).toBe('Ordini dal telefono del cliente richiede Menù digitale e tavoli.')
+    expect(richiestaContatto(cliente, { piano: 'base', moduli: ['menu_tavoli', 'ordini_cliente'] }, spenti, ADESSO).ok).toBe(true)
+  })
+
   it('la scelta mensile o annuale arriva all’admin con la richiesta (REQ-FLOTTA-031)', () => {
     expect(richiestaContatto(cliente, { piano: 'base', intervallo: 'anno' }, spenti, ADESSO).documento.scelta.intervallo).toBe('anno')
   })

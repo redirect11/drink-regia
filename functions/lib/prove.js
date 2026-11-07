@@ -42,6 +42,32 @@ function baseMancante(cliente, id, adesso = new Date()) {
   return manca ? listino.moduli.find((x) => x.id === manca)?.nome || manca : null
 }
 
+const nomeDi = (id) => listino.moduli.find((x) => x.id === id)?.nome || id
+
+// LA BASE IN UNA SCELTA (l'utente, 07/11/2026, dopo la PR #91: «risolvi i
+// tre buchi»). Dall'area clienti, dall'admin e dalla richiesta di contatto
+// arriva una scelta intera, { piano, moduli }: ogni modulo scelto deve
+// avere la sua base nel piano o fra i moduli scelti. → il primo problema a
+// parole, impersonale come gli altri, o null.
+function problemaBasi(scelta) {
+  const p = listino.piani[scelta?.piano]
+  const presenti = new Set([...(p?.include || []), ...(scelta?.moduli || [])])
+  for (const id of scelta?.moduli || []) {
+    const m = listino.moduli.find((x) => x.id === id)
+    const manca = (m?.richiede || []).find((r) => !presenti.has(r))
+    if (manca) return `${m.nome} richiede ${nomeDi(manca)}.`
+  }
+  return null
+}
+
+// CHI RICHIEDE UN MODULO: i moduli del cliente, comprati o in prova, che
+// hanno `id` come base. Togliere la base lascerebbe quelli senza niente da
+// cui lavorare (gli ordini senza il menù): prima si tolgono loro.
+function chiLoRichiede(cliente, id, adesso = new Date()) {
+  const attivi = new Set([...(cliente?.moduli || []), ...proveAttive(cliente, adesso)])
+  return listino.moduli.filter((m) => attivi.has(m.id) && (m.richiede || []).includes(id)).map((m) => m.nome)
+}
+
 // Si può accendere la prova di questo modulo? { ok, perche, giorni, scade_il }
 // `vendita` è quella di free.venditaPulita, con le prove già pulite.
 function puoProvare(cliente, istanza, id, vendita, adesso = new Date()) {
@@ -69,11 +95,13 @@ function proveAttive(cliente, adesso = new Date()) {
     .map(([id]) => id)
 }
 
-// Le prove da togliere oggi: scadute, o del modulo ormai comprato.
+// Le prove da togliere oggi: scadute, del modulo ormai comprato, o rimaste
+// senza la loro base (la prova del menù finita prima di quella degli
+// ordini: gli ordini non hanno più da dove partire).
 function proveDaTogliere(cliente, adesso = new Date()) {
   return Object.entries(cliente?.prove || {})
-    .filter(([id, p]) => !(Date.parse(p?.scade_il) > adesso.getTime()) || haGiaIlModulo(cliente, id))
+    .filter(([id, p]) => !(Date.parse(p?.scade_il) > adesso.getTime()) || haGiaIlModulo(cliente, id) || baseMancante(cliente, id, adesso))
     .map(([id]) => id)
 }
 
-module.exports = { provePulite, haGiaIlModulo, baseMancante, puoProvare, proveAttive, proveDaTogliere, GIORNI_MAX }
+module.exports = { provePulite, haGiaIlModulo, baseMancante, problemaBasi, chiLoRichiede, puoProvare, proveAttive, proveDaTogliere, GIORNI_MAX }
