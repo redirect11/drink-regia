@@ -78,10 +78,9 @@ export default {
     concordata: 'Setup arranged with us',
   },
   problema: {
-    titolo: 'What you see from behind the bar.',
-    testo:
-      'Orders on a pad, bills worked out aloud, a till that only keeps the total. Stock from memory, staff hours on a sheet, the night’s takings pieced together the next day. Each piece works on its own, and the whole picture lives in the head of whoever is behind the bar.',
-    chiusa: 'The app was born behind the bar of a cocktail bar to put that picture on a tablet, and it works there every night.',
+    titolo: 'The whole venue under control, from one place.',
+    testo: 'Orders, till, stock and staff in a single app, on tablet and phone. Floor and bar work on the same bill, and you see sales and stock levels in real time.',
+    chiusa: 'Born in a cocktail bar. Made for every venue.',
   },
   pilastri: {
     titolo: 'Three decisions made behind the bar',

@@ -325,13 +325,20 @@ larghezza, testo grande, niente card.
 
 | Italiano | English |
 |---|---|
-| **Quello che si vede dal banco.** | **What you see from behind the bar.** |
-| Le comande su un blocco, i conti rifatti a voce, il registratore che tiene solo il totale. Il magazzino a memoria, le ore del personale su un foglio, l'incasso della serata ricostruito il giorno dopo. Ogni pezzo funziona per conto suo, e il quadro intero lo tiene in testa chi sta al banco. | Orders on a pad, bills worked out aloud, a till that only keeps the total. Stock from memory, staff hours on a sheet, the night's takings pieced together the next day. Each piece works on its own, and the whole picture lives in the head of whoever is behind the bar. |
-| L'app è nata al banco di un cocktail bar per mettere quel quadro su un tablet, e lì lavora ogni sera. | The app was born behind the bar of a cocktail bar to put that picture on a tablet, and it works there every night. |
+| **Tutto il locale sotto controllo, da un unico punto.** | **The whole venue under control, from one place.** |
+| Comande, cassa, magazzino e personale in una sola app, su tablet e telefono. Sala e banco lavorano sullo stesso conto, e vendite e giacenze le vedi in tempo reale. | Orders, till, stock and staff in a single app, on tablet and phone. Floor and bar work on the same bill, and you see sales and stock levels in real time. |
+| Nato in un cocktail bar. Pensato per ogni locale. | Born in a cocktail bar. Made for every venue. |
 
-Dal 06/11/2026 la sezione è un contesto, non un dramma: il locale
-gestito a pezzi, visto da chi sta al banco. Il registratore «tiene solo
-il totale»: non si promette di sostituirlo, lo scontrino fiscale resta suo.
+**Dal 07/11/2026** la sezione è un beneficio e due frasi su cosa fa
+l'app, come la fanno i siti dei gestionali (Cassa in Cloud: «Tieni sotto
+controllo tutto il locale da un unico punto»; Lightspeed: «Serve better
+with one fast, flexible platform»; TouchBistro: «Fast, reliable, and easy
+to use»). L'utente ha bocciato la scena dei guai del 06/11 («Le comande su
+un blocco, i conti rifatti a voce…»: «ma che spiegazione orribile») e ha
+scelto questa fra tre righe scritte su quei modelli; le altre due erano
+«Servi meglio, con meno passaggi.» e «Veloce in servizio, chiaro a fine
+serata.». Regola: dopo l'hero si dice cosa fa il prodotto, non cosa va
+male senza.
 
 ### 5.3 I tre pilastri
 

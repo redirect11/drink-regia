@@ -93,15 +93,16 @@ export default {
     concordata: 'Attivazione concordata con noi',
   },
   problema: {
-    // Il contesto, non un dramma: il locale gestito a pezzi, visto da chi
-    // sta al banco. Il registratore «tiene solo il totale»: non si promette
-    // di sostituirlo, lo scontrino fiscale resta suo.
-    titolo: 'Quello che si vede dal banco.',
+    // Riscritta il 07/11/2026 (l'utente: «ma che spiegazione orribile […]
+    // cerca degli slogan su internet»). Come fanno i siti dei gestionali
+    // (Cassa in Cloud, Lightspeed, TouchBistro): un beneficio nel titolo e
+    // due frasi su cosa fa l'app, niente scena dei guai. Scelta fra tre.
+    titolo: 'Tutto il locale sotto controllo, da un unico punto.',
     testo:
-      'Le comande su un blocco, i conti rifatti a voce, il registratore che tiene solo il totale. Il magazzino a memoria, le ore del personale su un foglio, l’incasso della serata ricostruito il giorno dopo. Ogni pezzo funziona per conto suo, e il quadro intero lo tiene in testa chi sta al banco.',
+      'Comande, cassa, magazzino e personale in una sola app, su tablet e telefono. Sala e banco lavorano sullo stesso conto, e vendite e giacenze le vedi in tempo reale.',
     // Neutro finché l'utente non decide se nominare il locale dove l'app è
     // nata (DESIGN.md §9.3).
-    chiusa: 'L’app è nata al banco di un cocktail bar per mettere quel quadro su un tablet, e lì lavora ogni sera.',
+    chiusa: 'Nato in un cocktail bar. Pensato per ogni locale.',
   },
   pilastri: {
     titolo: 'Tre scelte fatte al banco',

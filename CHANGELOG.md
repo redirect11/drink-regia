@@ -8,8 +8,10 @@ data.
 
 - La prima schermata dice subito cosa vendiamo: «Il gestionale del tuo
   locale. Dalla comanda alla cassa.», una riga sola sotto, l'occhiello
-  «Gestionale per bar e ristoranti»; in inglese lo stesso. E il menù in
-  alto della vetrina senza il riquadro bianco dietro le voci
+  «Gestionale per bar e ristoranti»; in inglese lo stesso. La sezione
+  subito sotto non racconta più i guai del locale: «Tutto il locale sotto
+  controllo, da un unico punto», e due frasi su cosa fa l'app. E il menù
+  in alto della vetrina senza il riquadro bianco dietro le voci
   (REQ-FLOTTA-002).
 - Il sito si apre al pubblico quando lo decide l'amministratore: finché
   l'interruttore «Sito aperto al pubblico» (sezione «Vendita») è spento, in
