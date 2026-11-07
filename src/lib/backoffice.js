@@ -13,8 +13,11 @@ export const BASE = '/backoffice'
 // L'ordine è quello di chi amministra: prima i locali, che si guardano
 // ogni giorno, poi quello che aspetta una risposta, poi i rilasci; la
 // vendita e i locali nuovi si toccano di rado.
+// «Commerciale» (REQ-FLOTTA-041) sta subito dopo i locali: è la vista di
+// chi vende, e la si guarda ogni giorno quanto l'elenco.
 export const SEZIONI = [
   { id: 'locali', nome: 'Locali' },
+  { id: 'commerciale', nome: 'Commerciale' },
   { id: 'richieste', nome: 'Richieste' },
   { id: 'rilasci', nome: 'Rilasci' },
   { id: 'vendita', nome: 'Vendita' },

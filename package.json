@@ -10,6 +10,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "build:e2e": "vite build --mode e2e --outDir dist-e2e",
+    "test:e2e": "playwright test",
+    "semina:test": "node scripts/semina-test.mjs --progetto drink-regia-test",
     "lint": "eslint ."
   },
   "dependencies": {
@@ -20,6 +23,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.11.1",
+    "@playwright/test": "^1.65.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",

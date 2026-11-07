@@ -21,6 +21,7 @@ vi.mock('../src/lib/db.js', () => ({
   osservaUtente: (cb) => (cb(null), () => {}),
   esci: vi.fn(),
   osservaVendita: (cb) => (cb(null), () => {}),
+  tracciaPagina: vi.fn(),
 }))
 
 import App from '../src/App.jsx'

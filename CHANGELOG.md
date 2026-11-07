@@ -6,6 +6,23 @@ data.
 
 ## Prossima release (da decidere)
 
+- La sezione «Commerciale» del backoffice: la dashboard di chi vende, con
+  l'incasso del periodo e il confronto col periodo prima, il canone
+  mensile ricorrente, i clienti per classe e la conversione, gli andamenti
+  per giorno (incassi, registrazioni, viste), cosa si vende per piano e
+  per modulo, il percorso dal visitatore al cliente, il credito AI, le
+  scadenze e cosa chiede attenzione, gli abbonamenti e i movimenti in
+  tabella con l'esportazione in CSV. Nasce il libro dei movimenti: ogni
+  incasso (fattura di Stripe, ricarica AI, pagamento registrato dall'admin,
+  che ora chiede anche l'importo) è una riga (REQ-FLOTTA-041).
+- Il traffico del sito si conta nella regia, per giorno e senza cookie:
+  viste per pagina, lingua e provenienza, e i passi della vendita
+  (REQ-FLOTTA-042).
+- I locali di prova sulla regia di test (`npm run semina:test`): dodici
+  titolari in ogni situazione, l'amministratore, contatti, codici sconto,
+  movimenti e traffico; e i test end-to-end con Playwright (`npm run
+  test:e2e`) sui casi d'uso comuni, in locale e dopo ogni deploy sul test
+  (REQ-DEV-004).
 - I testi della prima pagina riscritti, in italiano e in inglese, senza
   trovate e col prodotto raccontato per intero. Il filo scelto
   dall'utente fra tre direzioni è la credibilità: «Scritto dietro il

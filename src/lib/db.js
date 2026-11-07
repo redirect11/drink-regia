@@ -52,11 +52,30 @@ async function creaCliente(u, { locale, fatturazione, referente }) {
   return cliente
 }
 
+// IL TRAFFICO (REQ-FLOTTA-042): una vista di pagina o un passo della vendita
+// alla Function `traccia`, che tiene solo contatori per giorno (niente
+// cookie, niente identificativi: functions/lib/traffico.js). Non si aspetta
+// e non può fallire: un contatore in meno non ferma niente. `keepalive`
+// perché il checkout porta subito via dalla pagina.
+function traccia(dati) {
+  if (!configurata || typeof fetch !== 'function') return
+  try {
+    const url = `https://europe-west1-${app?.options?.projectId}.cloudfunctions.net/traccia`
+    fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dati), keepalive: true }).catch(() => {})
+  } catch {
+    /* mai un errore per il traffico */
+  }
+}
+export const tracciaPagina = (pagina, lingua) => traccia({ pagina, lingua, riferimento: typeof document !== 'undefined' ? document.referrer : '' })
+export const tracciaEvento = (evento) => traccia({ evento })
+
 // La registrazione (REQ-FLOTTA-003): l'account, poi il documento del cliente.
 export async function registra({ email, password, ...dati }) {
   serve()
   const cred = await createUserWithEmailAndPassword(auth, email, password)
-  return creaCliente(cred.user, dati)
+  const cliente = await creaCliente(cred.user, dati)
+  tracciaEvento('registrazione')
+  return cliente
 }
 
 // L'ACCESSO CON GOOGLE (REQ-FLOTTA-038). Firebase tiene un account per
@@ -135,6 +154,7 @@ export async function chiediAttivazione() {
   serve()
   const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'chiediAttivazione')
   const { data } = await fn({})
+  tracciaEvento('attivazione')
   return data
 }
 
@@ -190,6 +210,7 @@ export async function avviaPagamento(scelta) {
   const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'creaCheckout')
   const { data } = await fn({ ...scelta, ritorno: window.location.origin })
   if (!data?.url) throw new Error('Il pagamento non è disponibile al momento: scrivici all’email del prodotto.')
+  tracciaEvento('checkout')
   return data
 }
 
@@ -207,6 +228,7 @@ export async function attivaConCodice(scelta, codice) {
   serve()
   const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'attivaConCodice')
   const { data } = await fn({ ...scelta, codice })
+  tracciaEvento('codice')
   return data
 }
 
@@ -310,12 +332,36 @@ export async function gestisciLicenze(azione) {
 
 // ── le scadenze a eventi (REQ-FLOTTA-023) ──
 // Un pagamento fuori da Stripe: fino a quando è pagato. La sua scadenza ha
-// un compito alla data, che il server programma da sé.
-export async function registraPagamento(slug, pagato_fino_al) {
+// un compito alla data, che il server programma da sé. L'importo incassato
+// (facoltativo, IVA esclusa) va nel libro dei movimenti (REQ-FLOTTA-041).
+export async function registraPagamento(slug, pagato_fino_al, importo = null) {
   serve()
   const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'registraPagamento')
-  const { data } = await fn({ slug, pagato_fino_al })
+  const { data } = await fn(importo != null && importo !== '' ? { slug, pagato_fino_al, importo } : { slug, pagato_fino_al })
   return data
+}
+
+// ── il commerciale (REQ-FLOTTA-041, REQ-FLOTTA-042) ──
+// Il libro dei movimenti, i più recenti prima: lo scrivono le Functions.
+export async function elencoMovimenti(quanti = 1000) {
+  serve()
+  const snap = await getDocs(query(collection(db, 'movimenti'), orderBy('il', 'desc'), limit(quanti)))
+  return snap.docs.map((d) => ({ ...d.data(), id: d.id }))
+}
+
+// Il traffico per giorno, gli ultimi `giorni` documenti (uno per giorno con
+// almeno una vista): la dashboard riempie i giorni vuoti da sé.
+export async function elencoTraffico(giorni = 90) {
+  serve()
+  const snap = await getDocs(query(collection(db, 'traffico'), orderBy('giorno', 'desc'), limit(giorni)))
+  return snap.docs.map((d) => d.data())
+}
+
+// I posti Fondatori assegnati e prenotati (REQ-FLOTTA-031), per la dashboard.
+export async function statoFondatori() {
+  serve()
+  const s = await getDoc(doc(db, 'fondatori', 'posti'))
+  return s.exists() ? s.data() : null
 }
 
 // Una volta, dopo il deploy: i compiti per le scadenze che c'erano già.
@@ -593,6 +639,7 @@ export async function chiediContatto(dati) {
   serve()
   const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'chiediContatto')
   const { data } = await fn(dati)
+  tracciaEvento('contatto')
   return data
 }
 
@@ -626,6 +673,7 @@ export async function scegliFree() {
   serve()
   const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'scegliFree')
   const { data } = await fn({})
+  tracciaEvento('free')
   return data
 }
 

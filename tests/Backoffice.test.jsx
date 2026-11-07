@@ -74,6 +74,10 @@ const db = vi.hoisted(() => ({
   temiDelLocale: vi.fn(async () => ({ stili_installati: [], temi_installati: [], stile_menu: null })),
   elencoTemiSuMisura: vi.fn(async () => []),
   gestisciTemiSuMisura: vi.fn(async () => ({ ok: true })),
+  // Il commerciale (REQ-FLOTTA-041) ha i suoi test in Commerciale.test.jsx.
+  elencoMovimenti: vi.fn(async () => []),
+  elencoTraffico: vi.fn(async () => []),
+  statoFondatori: vi.fn(async () => null),
 }))
 const regia = vi.hoisted(() => ({ impostazioni: {}, vendita: { free: false, moduli: {} }, contatti: [], aggiornamenti: {}, licenze: null }))
 vi.mock('../src/lib/db.js', () => db)
@@ -762,13 +766,15 @@ describe('i pagamenti online e le richieste di contatto', () => {
 describe('le sezioni del backoffice', () => {
   const menu = async () => screen.findByRole('navigation', { name: 'Sezioni del backoffice' })
 
-  it('il sotto-menù ha sei voci, ognuna col suo indirizzo, e /backoffice porta a «Locali»', async () => {
+  it('il sotto-menù ha sette voci, ognuna col suo indirizzo, e /backoffice porta a «Locali»', async () => {
     mostra('/backoffice')
     const nav = await menu()
     const voci = within(nav).getAllByRole('link')
     // Il primo nodo è il nome della voce; dopo, se c'è, il contatore.
+    // «Commerciale» (REQ-FLOTTA-041) sta subito dopo i locali.
     expect(voci.map((v) => [v.firstChild.textContent, v.getAttribute('href')])).toEqual([
       ['Locali', '/backoffice/locali'],
+      ['Commerciale', '/backoffice/commerciale'],
       ['Richieste', '/backoffice/richieste'],
       ['Rilasci', '/backoffice/rilasci'],
       ['Vendita', '/backoffice/vendita'],
@@ -1165,14 +1171,20 @@ describe('le scadenze nel backoffice', () => {
     const user = userEvent.setup()
     db.elencoClienti.mockResolvedValue([manuale({ pagato_fino_al: '2026-11-30' })])
     db.elencoIstanze.mockResolvedValue({ 'bar-bonifico': { stato: 'attiva', progetto: 'drinkpos-bar-bonifico' } })
-    vi.spyOn(window, 'prompt').mockReturnValueOnce(null).mockReturnValueOnce(' 2026-12-31 ')
+    // Due domande: la data, poi l'importo incassato (REQ-FLOTTA-041), che
+    // parte dal canone del cliente (Base: 32,70) e si scrive con la virgola.
+    vi.spyOn(window, 'prompt').mockReturnValueOnce(null).mockReturnValueOnce(' 2026-12-31 ').mockReturnValueOnce(' 65,40 ').mockReturnValueOnce('2027-01-31').mockReturnValueOnce('')
     mostra()
     const scheda = await apri('Bar Bonifico')
     expect(within(scheda).getByTestId('pagato-bar-bonifico')).toHaveTextContent('pagato fino al 30/11/2026')
     await user.click(within(scheda).getByRole('button', { name: 'Registra pagamento…' }))
     expect(db.registraPagamento).not.toHaveBeenCalled()
     await user.click(within(scheda).getByRole('button', { name: 'Registra pagamento…' }))
-    expect(db.registraPagamento).toHaveBeenCalledWith('bar-bonifico', '2026-12-31')
+    expect(db.registraPagamento).toHaveBeenCalledWith('bar-bonifico', '2026-12-31', '65.40')
+    expect(window.prompt).toHaveBeenLastCalledWith(expect.stringMatching(/importo incassato, IVA esclusa/), '32,7')
+    // Importo vuoto: solo la data.
+    await user.click(within(scheda).getByRole('button', { name: 'Registra pagamento…' }))
+    expect(db.registraPagamento).toHaveBeenLastCalledWith('bar-bonifico', '2027-01-31', null)
   })
 
   it('non pagato si vede; senza data «senza scadenza»; con Stripe niente «Registra pagamento»', async () => {

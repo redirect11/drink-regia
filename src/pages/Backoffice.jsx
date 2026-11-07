@@ -50,6 +50,7 @@ import { statoCredito, euroCent } from '../lib/ai.js'
 import { GRUPPI, TAG, aggiornamentoDetto } from '../lib/rilasci.js'
 import { BASE, SEZIONI, VISTE, aggiornamentoFallito, aggiornaLaRegia, contiDelBackoffice, filtraLocali, profiloDaAutorizzare } from '../lib/backoffice.js'
 import Rilasci from './Rilasci.jsx'
+import Commerciale from './Commerciale.jsx'
 import { MODALITA, regolaDetta, propostaDetta } from '../lib/aggiornamenti.js'
 
 // IL BACKOFFICE (REQ-FLOTTA-005): tutti i clienti con piano, stato
@@ -258,11 +259,15 @@ export default function Backoffice() {
   const profiliDaAutorizzare = righe.filter(profiloDaAutorizzare)
   // Le azioni di una scheda, le stesse da «Locali» e da «Rilasci».
   // Un bonifico arrivato (REQ-FLOTTA-023): fino a quando è pagato.
+  // E quanto è entrato (REQ-FLOTTA-041), IVA esclusa, proposto dal canone:
+  // va nel libro dei movimenti; vuoto, si registra solo la data.
   const pagamento = async (c) => {
     const data = window.prompt(`${c.nome_locale}: pagato fino al (AAAA-MM-GG)?`, c.abbonamento?.pagato_fino_al || '')
     if (data == null) return
+    const importo = window.prompt(`${c.nome_locale}: importo incassato, IVA esclusa (vuoto per non registrarlo)?`, String(prezzoConSconto(prezzoMensile(c), c)).replace('.', ','))
+    if (importo == null) return
     try {
-      await registraPagamento(c.slug, data.trim())
+      await registraPagamento(c.slug, data.trim(), importo.trim() ? importo.trim().replace(',', '.') : null)
     } catch (e) {
       setErrore(e.message)
     }
@@ -314,6 +319,8 @@ export default function Backoffice() {
         <Routes>
           <Route index element={<Navigate to={`${BASE}/locali`} replace />} />
           <Route path="locali" element={<SezioneLocali righe={righe} az={az} lanciati={lanciati} />} />
+          {/* La dashboard di chi vende (REQ-FLOTTA-041): legge le righe e i contatti già caricati qui. */}
+          <Route path="commerciale" element={<Commerciale righe={righe} contatti={contatti} onErrore={setErrore} />} />
           <Route
             path="richieste"
             element={
