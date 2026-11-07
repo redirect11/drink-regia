@@ -48,6 +48,35 @@ describe('accendere una prova', () => {
   })
 })
 
+// LA BASE DI UN MODULO (tana-drink REQ-LIC-015, 07/11/2026): gli ordini dal
+// telefono vogliono il menù digitale, perché il cliente ordina da lì. Senza,
+// la prova non si accende: sarebbe un modulo che non fa niente.
+describe('un modulo che ne richiede un altro', () => {
+  const conProve = venditaPulita({ prove: { ordini_cliente: 7, menu_tavoli: 7 } })
+
+  it('senza la sua base non si prova, e il motivo la nomina', () => {
+    expect(p.puoProvare(base, attiva, 'ordini_cliente', conProve, adesso)).toMatchObject({
+      ok: false,
+      perche: 'Ordini dal telefono del cliente richiede Menù digitale e tavoli.',
+    })
+  })
+
+  it('con la base comprata, nel piano o in prova sì', () => {
+    expect(p.puoProvare({ ...base, moduli: ['menu_tavoli'] }, attiva, 'ordini_cliente', conProve, adesso).ok).toBe(true)
+    const inProva = { ...base, prove: { menu_tavoli: { scade_il: '2026-11-05T10:00:00Z' } } }
+    expect(p.puoProvare(inProva, attiva, 'ordini_cliente', conProve, adesso).ok).toBe(true)
+  })
+
+  it('una base in prova scaduta non vale', () => {
+    const scaduta = { ...base, prove: { menu_tavoli: { scade_il: '2026-10-29T10:00:00Z' } } }
+    expect(p.baseMancante(scaduta, 'ordini_cliente', adesso)).toBe('Menù digitale e tavoli')
+  })
+
+  it('un modulo senza base richiesta non chiede niente', () => {
+    expect(p.baseMancante(base, 'magazzino', adesso)).toBeNull()
+  })
+})
+
 describe('la prova nella licenza', () => {
   const inProva = { ...base, prove: { magazzino: { dal: '2026-10-30T10:00:00Z', scade_il: '2026-11-13T10:00:00Z' } } }
 

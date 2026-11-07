@@ -90,6 +90,20 @@ describe('aggiungere un modulo', () => {
     expect(m.sceltaPerAggiungere(base, istanza, 'magazzino', vendita).modo).toBe('stripe')
   })
 
+  // tana-drink REQ-LIC-015: l'app non mostra il tasto, ma la porta vera è
+  // questa. Gli ordini dal telefono senza il menù digitale non servono.
+  it('no per un modulo senza la sua base, che il motivo nomina', () => {
+    expect(m.sceltaPerAggiungere(base, istanza, 'ordini_cliente', vendita).errore).toBe(
+      'Ordini dal telefono del cliente richiede Menù digitale e tavoli.'
+    )
+    const conMenu = { ...base, moduli: ['clienti', 'menu_tavoli'] }
+    expect(m.sceltaPerAggiungere(conMenu, istanza, 'ordini_cliente', vendita).scelta.moduli).toEqual([
+      'clienti',
+      'menu_tavoli',
+      'ordini_cliente',
+    ])
+  })
+
   it('no per un modulo già attivo, fuori vendita o sconosciuto, o un locale fermo', () => {
     expect(m.sceltaPerAggiungere(base, istanza, 'clienti', vendita).errore).toMatch(/già attivo/)
     expect(m.sceltaPerAggiungere({ ...base, piano: 'completo' }, istanza, 'magazzino', vendita).errore).toMatch(/già attivo/)

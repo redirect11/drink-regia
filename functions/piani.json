@@ -11,7 +11,8 @@
       "id": "ordini_cliente",
       "nome": "Ordini dal telefono del cliente",
       "prezzo": 8,
-      "descrizione": "Il cliente ordina dal menù digitale e segue lo stato dell’ordine. Vuole il menù digitale."
+      "descrizione": "Il cliente ordina dal menù digitale e segue lo stato dell’ordine. Vuole il menù digitale.",
+      "richiede": ["menu_tavoli"]
     },
     {
       "id": "clienti",
