@@ -88,111 +88,159 @@ che non si fermano nemmeno quando il Wi-Fi cade, e che sono solo tuoi.*
 
 ## 4. L'aspetto
 
-### Atmosfera
+### La direzione del 07/11/2026
 
-Moderno, scuro, caldo. Il riferimento è un bar di sera ben illuminato,
-non un'app da ufficio. Si mantiene il tema della regia (sfondo quasi
-nero, accento oro), ma con più aria, contrasti più netti, titoli più
-grandi e immagini dell'app vera.
+L'utente, 07/11/2026, dopo lo screenshot della pagina: «ridisegnare la
+homepage di Drink perché sembri il sito curato di un prodotto reale, nato
+e usato in un locale, non un template generico generato dall'AI. Deve
+avere una personalità riconoscibile e comunicare fiducia a chi gestisce
+un bar o un ristorante». La sua direzione, che da qui in poi vale per la
+prima pagina:
 
-**Il restyling del 03/11/2026** (l'utente: «renderla più moderna, elegante
-e accattivante»). Stessi testi e stesso ordine; cambia la messa in scena:
+**Da evitare.** Lo sfondo quasi tutto nero con bagliori, macchie sfocate
+e puntini; l'hero centrato e simmetrico con slogan enorme, descrizione
+breve e due bottoni standard; l'oro come gradiente o effetto luminoso su
+ogni elemento; tante card scure identiche con bordi sottili e piccole
+icone; sezioni tutte centrate, una sotto l'altra, senza ritmo; spazi
+verticali vuoti; decorazioni che non rappresentano il prodotto;
+glassmorphism, gradienti vistosi, animazioni gratuite, emoji, immagini
+stock. Non basta cambiare colori e font: si ripensano gerarchia,
+composizione e ritmo.
 
-- **La prima schermata** è centrata e alta quasi quanto lo schermo. Il
-  fondo sono le luci di un bar di sera, sfocate: gradienti caldi e piccoli
-  dischi morbidi disegnati dal CSS (`.hero-luci`), con una grana appena
-  percettibile. Nessuna immagine da scaricare. In basso una riga d'oro, la
-  luce del bancone.
-- **Il titolo in due tempi**: la scena in bianco, la svolta in oro sfumato
-  («La serata non si ferma. / *Nemmeno quando cade il Wi-Fi.*»). Il testo
-  in `src/i18n` resta una frase intera; la pagina lo taglia alla prima
-  frase. Da tablet in su la svolta va a capo.
-- **Il filo d'oro**: carte, piani e riquadri hanno un bordo sfumato, oro in
-  alto a sinistra e quasi niente al centro (`--bordo-sfumato`). Il piano in
-  evidenza e la chiusura hanno il bordo d'oro pieno (`--oro-pieno`), con un
-  alone.
-- **I bottoni** della vetrina sono pillole: l'oro pieno con un alone per
-  l'azione principale, il vetro scuro per la seconda.
-- **Il ritmo**: il problema è una scena centrata e grande, chiusa fra due
-  fili d'oro. I pilastri sono numerati (01, 02, 03, decorativi). I passi
-  sono una linea del tempo: orizzontale da tablet, verticale sul telefono.
-  Le domande sono righe editoriali, col titolo che resta fermo a sinistra
-  da 900px in su. Il «+» ruota e diventa «×».
-- **Il marchio** nella barra è in Playfair, come i titoli.
-- **Le cifre** di Playfair sono «da testo», di altezze diverse: nei prezzi
-  e nei numeri si usano quelle allineate (`lining-nums`).
+**La direzione creativa.** Un'identità editoriale contemporanea ispirata
+al lavoro dietro il bancone: precisa, calda, competente e concreta. Con
+carattere, senza i cliché del cocktail bar (neon, bicchieri decorativi,
+texture rétro). Se ci sono schermate autentiche dell'app si usano con
+cura; se no, tipografia, griglie e composizioni pulite, non riempitivi.
+Niente schermate o funzioni inventate.
+
+**Com'è fatta ora.** Stessi testi e stesso ordine (§5); cambia la messa in
+scena, tutta in `src/index.css` sotto `.regia.vetrina` e `.landing`:
+
+- **Il fondo è avorio** (`--bg #f6f2ea`), la carta dei pannelli
+  `#fffdf8`, il testo quasi nero caldo `#1f1c18`. Il tema scuro resta al
+  resto del sito (dashboard, backoffice): sulla prima pagina `App.jsx`
+  mette la classe `vetrina` sulla radice, e barra e piè di pagina prendono
+  i colori della vetrina.
+- **Due sole sezioni scure, volute**: il problema e la chiusura, in un
+  bruno caldo (`--scuro #1d1a16`), a tutta larghezza, col testo allineato
+  a sinistra.
+- **Un accento solo**, il verde bottiglia (`--accent #1f5a46`): i bottoni
+  principali (testo bianco), i link, l'etichetta e il bordo del piano in
+  evidenza, le spunte. **L'oro è un dettaglio** (`--oro #9a7424`, scurito
+  perché regga sull'avorio): la seconda frase del titolo, i numeri dei
+  pilastri, delle funzioni e dei passi, i filetti davanti agli occhielli,
+  il bordo dell'offerta Fondatori. Niente gradienti, aloni, ombre
+  luminose, vetro.
+- **La prima schermata** non è centrata: da 900px il testo sta a sinistra
+  su sette colonne e a destra, su quattro, la scheda dei fatti (prezzo,
+  abbonamento, attivazione), che sono informazioni vere al posto di una
+  decorazione. Niente immagini, niente luci.
+- **Le composizioni si alternano**: il problema a due colonne (titolo e
+  testo); i pilastri tre colonne con un filo sopra e il numero in oro,
+  senza card né icone; le funzioni testo e pannello «cosa comprende»
+  alternati, con un filo fra una riga e l'altra; i passi tre colonne
+  numerate; i prezzi due pannelli di carta, il Completo col bordo verde;
+  le domande righe editoriali; la chiusura scura con testo a sinistra e
+  bottoni a destra.
+- **Gli spazi** sono più stretti: sezioni a 56px sul telefono e 80px dal
+  tablet (prima 72 e 120); ogni schermata mostra contenuto.
+- **I bottoni** hanno angoli di 8px, nessuna ombra: pieni nel verde o col
+  contorno scuro; sulle sezioni scure l'azione principale è avorio col
+  testo scuro.
+- **Gli occhielli** sono in minuscolo, con un filetto d'oro davanti: niente
+  maiuscole spaziate.
 
 ### Colori
 
-Si parte dai token di `src/index.css`; se ne aggiungono due.
+I token di `src/index.css`, ridefiniti sotto `.regia.vetrina` per la
+prima pagina soltanto.
 
 | Token | Valore | Ruolo |
 |---|---|---|
-| `--bg` | `#0e0e15` | sfondo della pagina |
-| `--bg-2` | `#171724` | card, sezioni alternate |
-| `--bg-3` | `#1f1f30` | superfici sopra le card |
-| `--text` | `#ececf3` | testo |
-| `--muted` | `#9b9ba8` | testo secondario (mai per informazioni critiche) |
-| `--line` | `rgba(255,255,255,.1)` | bordi |
-| `--accent` | `#e3b23c` | azione principale, evidenze |
-| `--accent-soft` | `rgba(227,178,60,.14)` | aloni, sfondi di evidenza |
-| `--accent-2` (nuovo) | `#f0c96b` | testo oro su sfondo scuro (contrasto ≥ 4,5:1) |
-| `--ok` (nuovo) | `#5fd3a1` | spunte e conferme nella tabella dei piani |
+| `--bg` | `#f6f2ea` | sfondo della pagina (avorio) |
+| `--bg-2` | `#fffdf8` | pannelli di carta (scheda dei fatti, piani, tabella) |
+| `--bg-3` | `#ece5d8` | superfici secondarie (piè di pagina, avviso della lingua) |
+| `--text` | `#1f1c18` | testo |
+| `--muted` | `#5d574e` | testo secondario (6,4:1 sull'avorio; mai per informazioni critiche) |
+| `--line` | `#d9d0c0` | fili e bordi |
+| `--accent` | `#1f5a46` | azioni, link, evidenze (bianco sopra 7,3:1) |
+| `--accent-soft` | `rgba(31,90,70,.1)` | sfondi di evidenza (etichetta, riga del confronto) |
+| `--oro` | `#9a7424` | dettagli: numeri, filetti, la seconda frase del titolo (4,6:1 sull'avorio) |
+| `--scuro` / `--scuro-testo` / `--scuro-muted` | `#1d1a16` / `#f3ede2` / `#c4bbab` | le due sezioni scure |
 
 Contrasto: 4,5:1 per il testo normale, 3:1 per il testo grande (WCAG AA).
-L'oro `--accent` sul bottone ha il testo scuro `#1a1a1a`, mai bianco.
+I valori sopra sono calcolati sui token, non misurati con uno strumento
+sulla pagina.
 
 ### Tipografia
 
-- **Titoli** (`h1`, `h2`): `Playfair Display`, la firma di casa (la usa
-  anche l'app), self-hosted in `public/fonts/` in formato woff2, solo i
-  pesi 600 e 700. Niente font caricati da servizi esterni.
-- **Testo e interfaccia**: `system-ui`, come oggi.
-- **Scala**, fluida fra telefono e desktop (`clamp`): `h1` da 2,5rem a
-  5,25rem, interlinea 1,02, spaziatura −0,02em; `h2` da 2rem a 3rem (il
-  problema fino a 3,75rem); i titoli delle funzioni in Playfair da 1,625rem
-  a 2,125rem; testo 1,0625rem / 1rem, interlinea 1,65; occhielli
-  0,8125rem, maiuscoletto, spaziatura +0,12em, colore `--accent-2`. Nella
-  prima schermata il testo secondario è `#c9c9d4`, più chiaro di `--muted`.
-- Le righe di testo non superano i 65 caratteri (`max-width: 38rem`).
+- **Titoli** (`h1`, `h2`, i titoli delle funzioni, i numeri): `Playfair
+  Display` 700, self-hosted in `public/fonts/` (woff2, solo i caratteri
+  latini). È il secondo carattere, per pochi titoli; niente font da
+  servizi esterni.
+- **Testo e interfaccia**: `system-ui`.
+- **Scala** più contenuta di prima: `h1` da 2,125rem a 3,5rem (interlinea
+  1,08, larghezza massima 18 caratteri); `h2` da 1,75rem a 2,375rem (il
+  problema fino a 2,75rem); i titoli delle funzioni da 1,5rem a 1,875rem;
+  testo 1,0625rem dal tablet, 1rem sul telefono, interlinea 1,6; occhielli
+  0,875rem in minuscolo. Le cifre di Playfair sono «da testo»: nei prezzi
+  e nei numeri si usano quelle allineate (`lining-nums`).
+- Le righe di testo non superano i 65 caratteri (`max-width` fra 34 e
+  42rem).
 
 ### Spazi e griglia
 
-- Scala degli spazi: 4, 8, 12, 16, 24, 32, 48, 64, 72, 96, 120 px.
+- Scala degli spazi: 4, 8, 12, 16, 20, 24, 32, 48, 56, 64, 80 px.
 - Contenuto largo al massimo 1120px, margini laterali 20px sul telefono e
   32px dal tablet in su.
-- Tra una sezione e l'altra: 120px da tablet in su, 72px sul telefono.
-  I pilastri seguono il problema senza un secondo stacco.
-- Griglia a 12 colonne su desktop; le card stanno su 3 colonne da 1024px,
-  2 da 640px, 1 sotto.
+- Tra una sezione e l'altra 56px sul telefono, 80px dal tablet.
+- Da 640px due colonne per pilastri, funzioni minori e piani, e i tre passi
+  in fila; da 900px l'hero, il problema, le funzioni, le domande e la
+  chiusura vanno a due colonne; da 1024px i pilastri a tre.
 
 ### Immagini
 
-- **Si mostra l'app vera**: schermate della demo (`drinkpos-demo`) dentro
-  una cornice da tablet, mai disegni generici di «dashboard». Servono
-  quattro schermate: il conto aperto, la coda delle comande, il menù
-  digitale sul telefono, il magazzino.
-- La prima schermata non ha una foto (03/11/2026): `public/hero.jpg` era un
-  segnaposto disegnato (un bicchiere su tre cerchi) ed è stato tolto. Il
-  fondo sono le luci del CSS (§4, «Atmosfera»). Se arriva una foto vera del
-  banco, va sotto le luci, scurita perché il testo resti sopra 4,5:1.
-- Formato WebP o AVIF, larghezza 1600px al massimo, `loading="lazy"`
-  sotto la prima schermata, `width` e `height` sempre scritti.
+- **Schermate vere dell'app, quando ci saranno** (§9.5): oggi la demo
+  (`drinkpos-demo`) non è pubblicata e nel repository non c'è nessuna
+  schermata, quindi la pagina non ne mostra: il pannello accanto a ogni
+  funzione è la lista di cosa comprende, e le prenderà quando arriveranno.
+  Servono quattro schermate: il conto aperto, la coda delle comande, il
+  menù digitale sul telefono, il magazzino. Formato WebP o AVIF, larghezza
+  1600px al massimo, `loading="lazy"`, `width` e `height` scritti.
+- Niente fotografie di cocktail, niente immagini stock, niente
+  illustrazioni generiche.
 
 ### Movimento
 
 - Le sezioni entrano con una dissolvenza e uno spostamento di 12px, 250ms,
-  una volta sola.
-- Niente parallax, niente caroselli automatici, niente video in
-  riproduzione automatica.
+  una volta sola (`src/lib/comparsa.js`): breve e discreta.
+- Niente parallax, niente caroselli, niente video in riproduzione
+  automatica, niente ombre o trasformazioni al passaggio del mouse.
 - Con `prefers-reduced-motion: reduce` non si muove niente.
 
 ### Accessibilità e prestazioni
 
-- Un solo `h1`; i titoli seguono l'ordine. Bersagli di tocco ≥ 44px.
-- Il menù in alto e la tabella dei piani si usano anche da tastiera.
-- LCP sotto 2,5 s su un telefono medio in 4G; la prima schermata pesa meno
-  di 300 KB tra immagini e font.
+- Un solo `h1`; i titoli seguono l'ordine. Bersagli di tocco ≥ 44px. Il
+  fuoco visibile nel verde.
+- Il menù in alto, le domande e la tabella dei piani si usano anche da
+  tastiera; sul telefono la tabella dei moduli diventa una scheda per riga.
+- Niente informazione affidata al solo colore: la seconda frase del titolo
+  in oro è la stessa frase, l'etichetta del Completo ha il suo testo, le
+  spunte hanno la parola «Incluso».
+- LCP sotto 2,5 s su un telefono medio in 4G; la prima schermata non
+  scarica immagini, solo il font dei titoli (23 KB).
+
+### Com'era prima (03/11/2026, superato)
+
+Il restyling del 03/11/2026 («più moderna, elegante e accattivante») era
+un bar di sera: fondo quasi nero, luci sfocate disegnate dal CSS, titolo
+grande con la svolta in oro sfumato, filo d'oro sulle carte, bottoni a
+pillola con alone, pilastri in card numerate, passi come linea del tempo.
+L'utente lo ha giudicato un template generico («sfondo quasi tutto nero
+con bagliori, macchie sfocate e puntini decorativi… oro usato come
+gradiente… tante card scure identiche») e il 07/11/2026 ha dato la
+direzione sopra.
 
 ## 5. La pagina, sezione per sezione
 
@@ -602,3 +650,10 @@ Accedi), il selettore di lingua, la versione pubblicata (c'è già).
    legge la versione giusta. È un limite accettato per ora; la soluzione è
    generare in build un `en/index.html` con i meta in inglese (Hosting lo
    serve prima della riscrittura su `/index.html`). Da decidere se e quando.
+7. **Gli asset veri che servirebbero** (07/11/2026): quattro schermate
+   dell'app (il conto aperto al banco, la coda delle comande, il menù
+   digitale sul telefono del cliente, il magazzino con le giacenze), prese
+   dalla demo quando sarà ripubblicata o dalla Tana coi dati oscurati; se
+   si vuole, una foto vera del banco con il tablet in mano, senza
+   bicchieri in posa. Finché non ci sono, la pagina resta senza immagini:
+   il pannello accanto a ogni funzione mostra cosa comprende.

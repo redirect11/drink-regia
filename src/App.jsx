@@ -88,7 +88,10 @@ export default function App() {
     </>
   ) : null
   return (
-    <div className="regia">
+    // Sulla prima pagina (DESIGN.md §4, 07/11/2026) barra e piè di pagina
+    // prendono i colori della vetrina, avorio e verde; il resto del sito
+    // resta col tema scuro.
+    <div className={`regia${primaPagina ? ' vetrina' : ''}`}>
       {!PRODUZIONE && (
         <div className="nastro-test" role="note">
           TEST · {VERSIONE} · non è il sito vero

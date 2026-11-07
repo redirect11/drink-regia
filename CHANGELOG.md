@@ -6,6 +6,13 @@ data.
 
 ## Prossima release (da decidere)
 
+- La prima pagina ha un aspetto nuovo, editoriale: fondo avorio, testo
+  scuro, un accento verde per le azioni e l'oro come dettaglio; due sole
+  sezioni scure (il problema e la chiusura); la prima schermata col testo a
+  sinistra e la scheda dei fatti a destra; pilastri, funzioni e passi
+  divisi da fili e numerati, senza card né icone; i prezzi su pannelli di
+  carta. Niente luci sfocate, gradienti o aloni. Stessi testi e stesso
+  ordine (REQ-FLOTTA-002, DESIGN.md §4).
 - I testi della prima pagina riscritti, in italiano e in inglese, senza
   trovate e col prodotto raccontato per intero. Il filo scelto
   dall'utente fra tre direzioni è la credibilità: «Scritto dietro il
