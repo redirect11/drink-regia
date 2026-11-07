@@ -61,11 +61,10 @@ export default {
     accedi: 'Sign in',
   },
   hero: {
-    occhiello: 'Management for bars and restaurants, born in a cocktail bar',
-    // Riscritti il 06/11/2026 insieme all'italiano (lì il perché).
-    titolo: 'Written behind the bar. In service every night.',
-    sottotitolo:
-      'Orders, till, QR menu, stock, statistics and staff. The app was born in the cocktail bar that uses it every night, and grew on what service actually requires. Every venue has its own installation and its own data, and works even without a connection.',
+    occhiello: 'Management for bars and restaurants',
+    // Riscritti il 07/11/2026 insieme all'italiano (lì il perché).
+    titolo: 'Your venue’s management system. From the order to the till.',
+    sottotitolo: 'Orders, till, QR menu, stock, staff and statistics in a single app, born in a cocktail bar.',
     attiva: 'Get started',
     dashboard: 'My dashboard',
     demo: 'Try the live demo',

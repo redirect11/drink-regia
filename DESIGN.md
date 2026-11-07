@@ -275,14 +275,25 @@ fare adesso.
 
 | | Italiano | English |
 |---|---|---|
-| occhiello | Gestionale per bar e ristoranti, nato in un cocktail bar | Management for bars and restaurants, born in a cocktail bar |
-| titolo **A** (scelto dall'utente il 06/11/2026, «fatto da chi sta al banco») | Scritto dietro il banco. In servizio ogni sera. | Written behind the bar. In service every night. |
+| occhiello | Gestionale per bar e ristoranti | Management for bars and restaurants |
+| titolo (scelto dall'utente il 07/11/2026, «uno slogan facile e poche parole») | Il gestionale del tuo locale. Dalla comanda alla cassa. | Your venue's management system. From the order to the till. |
+| sottotitolo, una riga sola | Comande, cassa, menù con QR, magazzino, personale e statistiche in un'app sola, nata in un cocktail bar. | Orders, till, QR menu, stock, staff and statistics in a single app, born in a cocktail bar. |
+| titolo del 06/11 («fatto da chi sta al banco», superato) | Scritto dietro il banco. In servizio ogni sera. | Written behind the bar. In service every night. |
 | titolo B («tutto il locale, in ordine») | Comande, cassa, magazzino. Tutto il locale, in ordine. | Orders, till, stock. The whole venue, in one place. |
 | titolo C («un gestionale che è tuo») | Un'installazione per locale. I dati restano tuoi. | One installation per venue. The data stays yours. |
-| sottotitolo | Comande, cassa, menù con QR, magazzino, statistiche e personale. L'app è nata nel cocktail bar che la usa ogni sera, ed è cresciuta su quello che serve davvero durante il servizio. Ogni locale ha la sua installazione e i suoi dati, e lavora anche senza rete. | Orders, till, QR menu, stock, statistics and staff. The app was born in the cocktail bar that uses it every night, and grew on what service actually requires. Every venue has its own installation and its own data, and works even without a connection. |
 | bottone principale | Attiva il tuo locale | Get started |
 | bottone secondario | Prova la demo | Try the live demo |
 | sotto i bottoni | Da {da} al mese · Abbonamento mensile · Attivazione automatica *oppure* Attivazione concordata con noi | From {da} a month · Monthly subscription · Automatic setup *or* Setup arranged with us |
+
+**Il 07/11/2026**, con la vetrina nuova sotto gli occhi: «nella parte
+iniziale non è chiaro cosa vendiamo. Serve uno slogan facile e poche
+parole». Da lì il titolo di oggi, scelto fra tre righe corte («Cassa,
+comande e menù. In un'app sola.», «Il gestionale del tuo locale. Dalla
+comanda alla cassa.», «Comande, cassa, menù, magazzino. Tutto il locale in
+un'app.»): la categoria nella prima frase, il percorso del servizio nella
+seconda, in oro; l'occhiello senza il cocktail bar, che passa nella riga
+sotto; il sottotitolo è una riga sola. Il resto della pagina resta sul
+filo del 06/11.
 
 I testi del 06/11/2026. L'utente ha bocciato prima i titoli del 30/10
 («gli slogan sono orribili») e poi una proposta costruita sulla scena del
@@ -631,9 +642,9 @@ Accedi), il selettore di lingua, la versione pubblicata (c'è già).
 
 ## 9. Da decidere con l'utente
 
-1. **Il titolo**: A del §5.1, «Scritto dietro il banco. In servizio ogni
-   sera.», scelto dall'utente il 06/11/2026 fra tre direzioni; B e C
-   restano lì come alternative.
+1. **Il titolo**: «Il gestionale del tuo locale. Dalla comanda alla
+   cassa.», scelto dall'utente il 07/11/2026 fra tre righe corte; quello
+   del 06/11 e le alternative B e C restano nel §5.1.
 2. **Il nome del prodotto**: «Drink» è un segnaposto. La pagina funziona
    anche senza, ma il marchio in alto e il `<title>` lo usano.
 3. **La prova sociale**: si può dire che l'app è nata e lavora alla Tana

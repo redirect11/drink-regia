@@ -33,7 +33,7 @@ test.describe('l’accesso', () => {
     await entra(page, 'completo-stripe')
     await page.goto('/backoffice/locali')
     await expect(page).toHaveURL(/\/$/)
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('Scritto dietro il banco.')
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Il gestionale del tuo locale.')
   })
 })
 
