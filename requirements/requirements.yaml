@@ -95,6 +95,21 @@ requirements:
       credibilita', «Scritto dietro il banco. In servizio ogni sera.»:
       problema, pilastri, funzioni, prezzi, chiusura, meta e pie' di
       pagina seguono quel filo; le altre due direzioni in DESIGN.md §5.1.
+      L'ASPETTO DEL 07/11/2026 (l'utente, con una direzione scritta per
+      DESIGN.md: «sembri il sito curato di un prodotto reale, nato e usato
+      in un locale, non un template generico generato dall'AI»; da evitare
+      sfondi neri con bagliori, hero centrato con slogan enorme, oro a
+      gradiente, card scure tutte uguali con le icone, sezioni tutte
+      centrate): un'identita' editoriale, avorio e testo scuro, un accento
+      verde per le azioni e l'oro come dettaglio, due sole sezioni scure
+      (problema e chiusura), l'hero a due colonne col testo e la scheda dei
+      fatti, pilastri e passi numerati divisi da fili, funzioni testo e
+      pannello alternati, prezzi su pannelli di carta, spazi piu' stretti,
+      bottoni senza ombre. Sulla prima pagina App.jsx mette la classe
+      `vetrina` e barra e pie' di pagina prendono i suoi colori; il resto
+      del sito resta scuro. Nessuna schermata dell'app: la demo non e'
+      pubblicata e nel repository non ce ne sono, e la pagina non ne
+      inventa (DESIGN.md §4, §9.7). Stessi testi e stesso ordine.
       RESTA (DESIGN.md §9): le quattro schermate vere dell'app, il nome
       del prodotto, la prova sociale, `/en` per chi non esegue JavaScript,
       la verifica Lighthouse sul telefono.

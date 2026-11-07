@@ -9,6 +9,13 @@ data.
 - Gli ordini dal telefono non si provano e non si aggiungono senza il menù
   digitale, dall'app del locale e dalla dashboard: il motivo dice quale
   modulo serve (REQ-FLOTTA-037, da tana-drink REQ-LIC-015).
+- La prima pagina ha un aspetto nuovo, editoriale: fondo avorio, testo
+  scuro, un accento verde per le azioni e l'oro come dettaglio; due sole
+  sezioni scure (il problema e la chiusura); la prima schermata col testo a
+  sinistra e la scheda dei fatti a destra; pilastri, funzioni e passi
+  divisi da fili e numerati, senza card né icone; i prezzi su pannelli di
+  carta. Niente luci sfocate, gradienti o aloni. Stessi testi e stesso
+  ordine (REQ-FLOTTA-002, DESIGN.md §4).
 - La sezione «Commerciale» del backoffice: la dashboard di chi vende, con
   l'incasso del periodo e il confronto col periodo prima, il canone
   mensile ricorrente, i clienti per classe e la conversione, gli andamenti
