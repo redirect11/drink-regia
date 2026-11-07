@@ -872,6 +872,17 @@ L'elenco completo con i riferimenti al codice è in
    primo pagamento. Da sapere: la Function `traccia` è aperta, un
    contatore gonfiato apposta è il danno peggiore; App Check, se serve,
    dopo.
+45. **Il sito chiuso (REQ-FLOTTA-043)**, ramo `feature/sito-chiuso`,
+   07/11/2026. L'utente: «non abbiamo mai deployato in produzione […]
+   una cosa che rende il sito indisponibile finché non decido di renderlo
+   disponibile […] stile coming soon». L'interruttore «Sito aperto al
+   pubblico» in «Vendita»: finché non è acceso, in produzione la prima
+   pagina e la registrazione sono l'anteprima e le Functions della vendita
+   rifiutano; sul test, finché non si decide, il sito è aperto (spento
+   apposta, è chiuso anche lì: così si vede l'anteprima). **Il giorno
+   dell'apertura**: accendere l'interruttore dal backoffice di produzione,
+   nient'altro; prima, i segreti Stripe e il token GitHub (voce 7), e
+   «Pagamenti online» se si vuole il Checkout.
 
 ---
 

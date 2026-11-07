@@ -39,6 +39,32 @@ describe('la vendita', () => {
     expect(Object.values(v.moduli).every(Boolean)).toBe(true)
   })
 
+  // IL SITO CHIUSO (REQ-FLOTTA-043, l'utente, 07/11/2026): in produzione,
+  // finché l'admin non apre, le Functions della vendita rifiutano.
+  it('«sito aperto» vale true, false o non deciso; non deciso è chiuso solo in produzione', () => {
+    expect(f.venditaPulita(null).sito_aperto).toBeNull()
+    expect(f.venditaPulita({ sito_aperto: 'true' }).sito_aperto).toBeNull()
+    expect(f.venditaPulita({ sito_aperto: true }).sito_aperto).toBe(true)
+    expect(f.venditaPulita({ sito_aperto: false }).sito_aperto).toBe(false)
+    expect(f.sitoChiuso(f.venditaPulita(null), true)).toBe(true)
+    expect(f.sitoChiuso(f.venditaPulita(null), false)).toBe(false)
+    expect(f.sitoChiuso(f.venditaPulita({ sito_aperto: true }), true)).toBe(false)
+    expect(f.sitoChiuso(f.venditaPulita({ sito_aperto: false }), false)).toBe(true)
+    expect(f.SITO_CHIUSO).toMatch(/non è ancora aperto/)
+  })
+
+  it('col sito chiuso ogni porta della vendita si ferma: attivazione, Checkout, codice, cambio, contatto, Free, prova, ricarica AI, moduli dall’app', async () => {
+    const { readFileSync } = await import('node:fs')
+    const index = readFileSync('functions/index.js', 'utf8')
+    expect(index).toMatch(/const SITO_IN_PRODUZIONE = PROGETTO_REGIA === 'drink-regia'/)
+    for (const fn of ['chiediAttivazione', 'creaCheckout', 'attivaConCodice', 'cambiaScelta', 'chiediContatto', 'scegliFree', 'provaModulo', 'creaRicaricaAI']) {
+      const corpo = index.slice(index.indexOf(`exports.${fn} =`))
+      expect(corpo.slice(0, corpo.indexOf('\n})')), fn).toMatch(/await solOSitoAperto\(\)/)
+    }
+    const app = index.slice(index.indexOf('exports.moduloDallApp ='))
+    expect(app.slice(0, app.indexOf('\n})'))).toMatch(/if \(await sitoChiusoOra\(\)\) return no\(409, free\.SITO_CHIUSO\)/)
+  })
+
   it('un modulo spento non si compra di nuovo, ma chi lo ha lo tiene; e quelli inclusi nel piano passano', () => {
     const v = f.venditaPulita({ moduli: { sumup: false } })
     expect(f.moduliFuoriVendita({ moduli: [] }, { piano: 'base', moduli: ['sumup', 'staff'] }, v)).toEqual(['sumup'])

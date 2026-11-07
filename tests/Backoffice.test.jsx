@@ -712,6 +712,24 @@ describe('le prove nel backoffice', () => {
 // REQ-FLOTTA-017: i pagamenti online si accendono dal backoffice; spenti,
 // le richieste di contatto dei titolari stanno qui, con piano e recapito.
 describe('i pagamenti online e le richieste di contatto', () => {
+  // REQ-FLOTTA-043: il sito aperto al pubblico, tre stati detti a parole.
+  it('l’interruttore «Sito aperto al pubblico» scrive la vendita e dice cosa vale ogni stato', async () => {
+    const user = userEvent.setup()
+    regia.vendita = { free: false, moduli: {} }
+    const { unmount } = mostra('/backoffice/vendita')
+    const vendita = await screen.findByRole('region', { name: 'Vendita' })
+    const sito = within(vendita).getByLabelText('Sito aperto al pubblico')
+    expect(sito).not.toBeChecked()
+    expect(within(vendita).getByTestId('sito-aperto')).toHaveTextContent(/Non ancora deciso: in produzione il sito mostra solo l’anteprima/)
+    await user.click(sito)
+    expect(db.impostaVendita).toHaveBeenCalledWith({ sito_aperto: true })
+    unmount()
+    regia.vendita = { free: false, moduli: {}, sito_aperto: false }
+    mostra('/backoffice/vendita')
+    expect(await screen.findByTestId('sito-aperto')).toHaveTextContent(/Chiuso dappertutto/)
+    expect(screen.getByLabelText('Sito aperto al pubblico')).not.toBeChecked()
+  })
+
   it('l’interruttore dei pagamenti online scrive la vendita e dice cosa succede', async () => {
     const user = userEvent.setup()
     regia.vendita = { free: false, moduli: {} }

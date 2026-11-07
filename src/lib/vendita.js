@@ -20,9 +20,21 @@ export function venditaPulita(doc) {
     free: doc?.free === true,
     // Spenti finché l'admin non li accende (REQ-FLOTTA-017).
     pagamenti_online: doc?.pagamenti_online === true,
+    // Il sito aperto al pubblico (REQ-FLOTTA-043): true, false, o null se
+    // l'admin non ha deciso. Cosa vale null lo dice sitoChiuso.
+    sito_aperto: doc?.sito_aperto === true ? true : doc?.sito_aperto === false ? false : null,
     moduli: Object.fromEntries(MODULI.map((m) => [m.id, doc?.moduli?.[m.id] !== false])),
     prove: Object.fromEntries(MODULI.map((m) => [m.id, giorniDiProva(doc?.prove?.[m.id])])),
   }
+}
+
+// IL SITO CHIUSO (REQ-FLOTTA-043, l'utente, 07/11/2026): finché l'admin non
+// apre il sito, in produzione si vede solo la pagina di anteprima; sul
+// test, senza una decisione, il sito è aperto. La stessa regola delle
+// Functions (functions/lib/free.js), che è quella che conta.
+export function sitoChiuso(vendita, produzione) {
+  if (vendita?.sito_aperto === false) return true
+  return vendita?.sito_aperto !== true && produzione === true
 }
 
 export const eGratuito = (id) => PIANI[id]?.gratuito === true

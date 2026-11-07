@@ -6,6 +6,13 @@ data.
 
 ## Prossima release (da decidere)
 
+- Il sito si apre al pubblico quando lo decide l'amministratore: finché
+  l'interruttore «Sito aperto al pubblico» (sezione «Vendita») è spento, in
+  produzione al posto della prima pagina e della registrazione c'è una
+  pagina di anteprima, il menù ha solo «Accedi», e le Functions della
+  vendita (attivazione, Checkout, codici, cambio di piano, contatto, Free,
+  prove, ricarica AI, moduli dall'app) rifiutano. Sul test, finché non si
+  decide, il sito è aperto (REQ-FLOTTA-043).
 - Gli ordini dal telefono non si provano e non si aggiungono senza il menù
   digitale, dall'app del locale e dalla dashboard: il motivo dice quale
   modulo serve (REQ-FLOTTA-037, da tana-drink REQ-LIC-015).

@@ -158,6 +158,7 @@ async function lancia(richiesta) {
 // lasciano più creare richieste ai client.
 exports.chiediAttivazione = onCall(OPTS, async (req) => {
   if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  await solOSitoAperto()
   const uid = req.auth.uid
   const cliente = (await db.doc(`clienti/${uid}`).get()).data()
   if (!cliente?.slug) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
@@ -317,6 +318,7 @@ exports.creaCheckout = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
   if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
   const stripe = stripeClient()
   if (!stripe) throw new HttpsError('failed-precondition', 'Il pagamento online non è ancora attivo: scrivici all’email del prodotto.')
+  await solOSitoAperto()
   const uid = req.auth.uid
   const cliente = (await db.doc(`clienti/${uid}`).get()).data()
   if (!cliente) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
@@ -456,6 +458,7 @@ exports.verificaCodiceSconto = onCall(OPTS, async (req) => {
 exports.attivaConCodice = onCall(OPTS, async (req) => {
   if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
   if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Prima conferma la tua email.')
+  await solOSitoAperto()
   const uid = req.auth.uid
   const ref = db.doc(`clienti/${uid}`)
   const codice = String(req.data?.codice || '').trim().toUpperCase()
@@ -1781,6 +1784,7 @@ exports.cambiaScelta = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
   const uid = req.auth.uid
   const cliente = (await db.doc(`clienti/${uid}`).get()).data()
   if (!cliente) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
+  await solOSitoAperto()
   const scelta = { piano: req.data?.piano, moduli: req.data?.moduli, terminali: req.data?.terminali }
   const fuori = free.moduliFuoriVendita(cliente, scelta, await vendita())
   if (fuori.length) throw new HttpsError('failed-precondition', `Non più in vendita: ${fuori.join(', ')}.`)
@@ -1881,6 +1885,18 @@ async function vendita() {
   return free.venditaPulita((await db.doc('vendita/listino').get()).data())
 }
 
+// IL SITO CHIUSO (REQ-FLOTTA-043): finché l'admin non apre il sito al
+// pubblico, in produzione (drink-regia) le Functions della vendita
+// rifiutano: il sito mostra solo l'anteprima, e questa è la porta vera.
+// Sul test vale solo se l'admin lo spegne apposta (free.sitoChiuso).
+const SITO_IN_PRODUZIONE = PROGETTO_REGIA === 'drink-regia'
+async function sitoChiusoOra() {
+  return free.sitoChiuso(await vendita(), SITO_IN_PRODUZIONE)
+}
+async function solOSitoAperto() {
+  if (await sitoChiusoOra()) throw new HttpsError('failed-precondition', free.SITO_CHIUSO)
+}
+
 // ── PAGAMENTI ONLINE SPENTI: LA RICHIESTA DI CONTATTO (REQ-FLOTTA-017) ─
 // Il titolare sceglie il piano e lascia un recapito; l'admin lo contatta,
 // concorda il pagamento e attiva il piano con «Cambia piano» fuori da
@@ -1889,6 +1905,7 @@ const PAGAMENTI_SPENTI = 'I pagamenti online non sono ancora attivi: chiedi di e
 exports.chiediContatto = onCall(OPTS, async (req) => {
   if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
   if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Prima conferma la tua email.')
+  await solOSitoAperto()
   const cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data()
   const r = contatti.richiestaContatto(cliente && { uid: req.auth.uid, ...cliente }, req.data, await vendita())
   if (!r.ok) throw new HttpsError('failed-precondition', r.perche)
@@ -1902,6 +1919,7 @@ exports.chiediContatto = onCall(OPTS, async (req) => {
 exports.scegliFree = onCall(OPTS, async (req) => {
   if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
   if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Prima conferma la tua email.')
+  await solOSitoAperto()
   const cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data()
   const ist = cliente?.slug ? (await db.doc(`istanze/${cliente.slug}`).get()).data() : null
   const puo = free.puoScegliereFree(cliente, ist, await vendita())
@@ -2138,6 +2156,7 @@ exports.creaRicaricaAI = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async
   if (!cliente?.slug) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
   const p = ai.pacchetto(req.data?.pacchetto)
   if (!p) throw new HttpsError('invalid-argument', 'Pacchetto di ricarica sconosciuto.')
+  await solOSitoAperto()
   // Anche la ricarica passa da Stripe: coi pagamenti spenti la fa l'admin.
   if (!contatti.pagamentiOnline(await vendita())) throw new HttpsError('failed-precondition', PAGAMENTI_SPENTI)
   const ritorno = String(req.data?.ritorno || '').replace(/\/$/, '')
@@ -2514,6 +2533,7 @@ exports.provaModulo = onCall(OPTS, async (req) => {
   const ref = db.doc(`clienti/${req.auth.uid}`)
   const cliente = (await ref.get()).data()
   if (!cliente?.slug) throw new HttpsError('failed-precondition', 'Nessun locale collegato a questo account.')
+  await solOSitoAperto()
   const ist = (await db.doc(`istanze/${cliente.slug}`).get()).data()
   const p = await accendiProva(ref, cliente, ist, String(req.data?.modulo || ''), await vendita())
   if (p.errore) throw new HttpsError('failed-precondition', p.errore)
@@ -2579,6 +2599,7 @@ exports.moduloDallApp = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY], cors:
   if (req.method === 'OPTIONS') return res.status(204).send('')
   const no = (stato, errore) => res.status(stato).json({ ok: false, errore })
   if (req.method !== 'POST') return no(405, 'Solo POST.')
+  if (await sitoChiusoOra()) return no(409, free.SITO_CHIUSO)
   const token = aggiornamenti.bearerDi(req.get('authorization'))
   const progetto = aggiornamenti.progettoDelToken(token)
   if (!progetto) return no(401, 'Serve l’accesso.')

@@ -6,8 +6,10 @@ import Accedi from './pages/Accedi.jsx'
 import Accesso from './pages/Accesso.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Backoffice from './pages/Backoffice.jsx'
+import Anteprima from './pages/Anteprima.jsx'
 import { Termini, Privacy } from './pages/Legali.jsx'
-import { osservaUtente, esci, tracciaPagina } from './lib/db.js'
+import { osservaUtente, esci, tracciaPagina, osservaVendita } from './lib/db.js'
+import { sitoChiuso, venditaPulita } from './lib/vendita.js'
 import { NOME_PRODOTTO, EMAIL_CONTATTI, URL_DEMO } from './lib/prodotto.js'
 import { LINGUE, NOMI_LINGUE, leggiPreferenza, linguaDelPercorso, percorsoDellaLingua, salvaPreferenza } from './lib/lingua.js'
 import { testi } from './i18n/index.js'
@@ -61,6 +63,14 @@ function SceltaLingua({ lingua, etichetta }) {
 export default function App() {
   const [utente, setUtente] = useState(undefined) // undefined = non ancora saputo
   const [menuAperto, setMenuAperto] = useState(false)
+  // IL SITO CHIUSO (REQ-FLOTTA-043): finché l'admin non lo apre, in
+  // produzione al posto della prima pagina e della registrazione c'è
+  // l'anteprima, e il menù ha solo «Accedi». La vendita arriva da Firestore:
+  // in produzione, finché non è arrivata, non si mostra niente, perché la
+  // prima pagina non deve comparire per un attimo a chi non deve vederla.
+  const [vendita, setVendita] = useState(undefined)
+  useEffect(() => osservaVendita((v) => setVendita(venditaPulita(v))), [])
+  const chiuso = sitoChiuso(vendita, PRODUZIONE)
   const posizione = useLocation()
   useEffect(() => osservaUtente(setUtente), [])
   // Cambiando pagina il menù a tendina del telefono si chiude da solo.
@@ -90,6 +100,7 @@ export default function App() {
       <span className="small">{t.piede.inItaliano}</span>
     </>
   ) : null
+  if (PRODUZIONE && vendita === undefined) return null
   return (
     // Sulla prima pagina (DESIGN.md §4, 07/11/2026) barra e piè di pagina
     // prendono i colori della vetrina, avorio e verde; il resto del sito
@@ -118,11 +129,12 @@ export default function App() {
           </button>
         </div>
         <nav id="menu-principale" className={menuAperto ? 'aperto' : ''} aria-label={t.barra.principale}>
-          {VOCI.map((id) => (
-            <a key={id} href={`${casa}#${id}`}>
-              {t.barra[id]}
-            </a>
-          ))}
+          {!chiuso &&
+            VOCI.map((id) => (
+              <a key={id} href={`${casa}#${id}`}>
+                {t.barra[id]}
+              </a>
+            ))}
           {utente && <Link to="/dashboard">{t.barra.dashboard}</Link>}
           {utente?.admin && <Link to="/backoffice">{t.barra.backoffice}</Link>}
           {utente ? (
@@ -134,18 +146,21 @@ export default function App() {
               <Link to="/accedi" {...versoItaliano}>
                 {t.barra.accedi}
               </Link>
-              <Link to="/registrati" className="btn small" {...versoItaliano}>
-                {t.barra.attiva}
-              </Link>
+              {!chiuso && (
+                <Link to="/registrati" className="btn small" {...versoItaliano}>
+                  {t.barra.attiva}
+                </Link>
+              )}
             </>
           )}
         </nav>
       </header>
       <Routes>
         {/* key: le due lingue sono due pagine, ognuna col suo stato (l'avviso della lingua). */}
-        <Route path="/" element={<PrimaPagina key="it" utente={utente} lingua="it" />} />
-        <Route path="/en" element={<PrimaPagina key="en" utente={utente} lingua="en" />} />
-        <Route path="/registrati" element={dopoLAccesso(utente ? <Navigate to="/dashboard" replace /> : <Registrati />)} />
+        {/* Col sito chiuso (REQ-FLOTTA-043) la prima pagina e la registrazione sono l'anteprima. */}
+        <Route path="/" element={chiuso ? <Anteprima key="it" lingua="it" /> : <PrimaPagina key="it" utente={utente} lingua="it" />} />
+        <Route path="/en" element={chiuso ? <Anteprima key="en" lingua="en" /> : <PrimaPagina key="en" utente={utente} lingua="en" />} />
+        <Route path="/registrati" element={chiuso ? <Anteprima lingua="it" /> : dopoLAccesso(utente ? <Navigate to="/dashboard" replace /> : <Registrati />)} />
         <Route path="/accedi" element={dopoLAccesso(utente ? <Navigate to="/dashboard" replace /> : <Accedi />)} />
         {/* Il passaggio dall'app del locale (REQ-FLOTTA-030): sempre qui, anche già entrati. */}
         <Route path="/accesso" element={dopoLAccesso(<Accesso />)} />
@@ -163,6 +178,8 @@ export default function App() {
             <p className="muted small">{t.piede.descrizione}</p>
             {primaPagina && <SceltaLingua lingua={lingua} etichetta={t.barra.lingua} />}
           </div>
+          {/* Col sito chiuso niente link alle sezioni, alla demo e alla registrazione: non ci sono. */}
+          {!chiuso && (
           <div>
             <h2 className="piede-titolo">{t.piede.prodotto}</h2>
             <a href={`${casa}#funzioni`}>{t.piede.funzioni}</a>
@@ -171,16 +188,19 @@ export default function App() {
               {t.piede.demo}
             </a>
           </div>
+          )}
           <div>
             <h2 className="piede-titolo">{t.piede.account}</h2>
             <Link to="/accedi" {...versoItaliano}>
               {t.piede.accedi}
               {inItaliano}
             </Link>
-            <Link to="/registrati" {...versoItaliano}>
-              {t.piede.registrati}
-              {inItaliano}
-            </Link>
+            {!chiuso && (
+              <Link to="/registrati" {...versoItaliano}>
+                {t.piede.registrati}
+                {inItaliano}
+              </Link>
+            )}
           </div>
           <div>
             <h2 className="piede-titolo">{t.piede.informazioni}</h2>

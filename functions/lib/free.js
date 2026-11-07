@@ -32,9 +32,27 @@ function venditaPulita(doc) {
     // I pagamenti con Stripe (REQ-FLOTTA-017): spenti finché l'admin non li
     // accende, perché in produzione si apre quando si è pronti a riceverli.
     pagamenti_online: doc?.pagamenti_online === true,
+    // IL SITO APERTO AL PUBBLICO (REQ-FLOTTA-043): true, false, o null se
+    // l'admin non ha ancora deciso. Cosa vale null lo dice sitoChiuso.
+    sito_aperto: doc?.sito_aperto === true ? true : doc?.sito_aperto === false ? false : null,
     moduli: Object.fromEntries(listino.moduli.map((m) => [m.id, doc?.moduli?.[m.id] !== false])),
     prove: provePulite(doc),
   }
+}
+
+// IL SITO CHIUSO (REQ-FLOTTA-043). L'utente, 07/11/2026: «una cosa per la
+// produzione che rende il sito indisponibile finché non decido di renderlo
+// disponibile […] solo una pagina semplice che parla di una anteprima di
+// prodotto». Finché l'admin non accende «Sito aperto al pubblico» dal
+// backoffice, in produzione il sito mostra solo l'anteprima e le Functions
+// della vendita (registrazione a parte, che è di Firebase Auth) rifiutano:
+// nessuno si registra, prova, compra o attiva. Sul test, senza una
+// decisione, il sito è aperto: così i test e le prove girano; spento
+// apposta, è chiuso anche lì, per vedere l'anteprima.
+const SITO_CHIUSO = 'Il sito non è ancora aperto al pubblico.'
+function sitoChiuso(vendita, produzione) {
+  if (vendita?.sito_aperto === false) return true
+  return vendita?.sito_aperto !== true && produzione === true
 }
 
 // Il titolare può passare al Free? { ok, perche }
@@ -74,4 +92,4 @@ function serveProfiloCompleto(istanza, cliente) {
   return istanza?.stato === 'attiva' && istanza.profilo === 'leggero' && Boolean(cliente?.piano) && !eGratuito(cliente.piano)
 }
 
-module.exports = { eGratuito, profiloDi, limitiDi, venditaPulita, puoScegliereFree, sceltaFree, moduliFuoriVendita, serveProfiloCompleto }
+module.exports = { eGratuito, profiloDi, limitiDi, venditaPulita, sitoChiuso, SITO_CHIUSO, puoScegliereFree, sceltaFree, moduliFuoriVendita, serveProfiloCompleto }
