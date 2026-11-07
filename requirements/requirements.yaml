@@ -2028,3 +2028,42 @@ requirements:
       - tests/commerciale.test.js
       - tests/db.test.js
       - tests/App.test.jsx
+
+  - id: REQ-FLOTTA-043
+    title: "Il sito chiuso: in produzione solo l'anteprima, finché l'amministratore non apre"
+    area: "functions/lib/free.js (sito_aperto, sitoChiuso), functions/index.js (solOSitoAperto), src/lib/vendita.js, src/App.jsx, src/pages/Anteprima.jsx, src/pages/Backoffice.jsx (Vendita), src/i18n/home.it.js, home.en.js"
+    description: >
+      L'utente, 07/11/2026: «non abbiamo mai deployato in produzione.
+      Servirebbe una cosa per la produzione che rende il sito
+      indisponibile finché non decido di renderlo disponibile. Tipo una
+      cosa che disattiva le funzioni di acquisto. Solo una pagina semplice
+      che parla di una anteprima di prodotto, stile coming soon».
+      L'INTERRUTTORE «Sito aperto al pubblico» sta in vendita/listino
+      (`sito_aperto`: true, false, o assente = non deciso), nella sezione
+      «Vendita» del backoffice, coi tre stati detti a parole. La regola
+      (sitoChiuso, uguale nel sito e nelle Functions): spento apposta e'
+      chiuso dappertutto; non deciso e' chiuso solo in produzione
+      (drink-regia), cosi' il test e le prove restano aperti finche'
+      qualcuno non lo spegne per vedere l'anteprima.
+      COL SITO CHIUSO: al posto della prima pagina (/, /en) e della
+      registrazione c'e' l'anteprima (Anteprima.jsx, testi in src/i18n:
+      cosa e' il prodotto, che apre a breve, l'email, un link discreto
+      all'accesso), il menu' ha solo «Accedi», il pie' di pagina niente
+      sezioni ne' registrazione; accesso, dashboard, backoffice, termini e
+      privacy restano. In produzione, finche' la vendita non e' arrivata da
+      Firestore, la pagina non mostra niente: la prima pagina non deve
+      comparire per un attimo a chi non deve vederla. LATO SERVER, la porta
+      vera: chiediAttivazione, creaCheckout, attivaConCodice, cambiaScelta,
+      chiediContatto, scegliFree, provaModulo, creaRicaricaAI rifiutano
+      («Il sito non e' ancora aperto al pubblico.») e moduloDallApp risponde
+      409. La registrazione e' di Firebase Auth e non passa dalle Functions:
+      chi la chiamasse a mano avrebbe un account senza poter fare niente.
+    status: implemented
+    generate_issue: true
+    labels: [regia, produzione]
+    priority: P1
+    test_cases:
+      - tests/free.test.js
+      - tests/App.test.jsx
+      - tests/Backoffice.test.jsx
+      - tests/lingua.test.js

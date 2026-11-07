@@ -53,6 +53,13 @@ export default {
     resta: 'Stay on the Italian page',
   },
   soloItaliano: 'Sign-up, your account and the legal terms are in Italian for now.',
+  anteprima: {
+    occhiello: 'Management for bars and restaurants',
+    titolo: 'The site opens soon.',
+    testo: 'Drink is the management system for bars and restaurants born in a cocktail bar: orders, till, QR menu, stock, staff and statistics in a single app. We are getting the site ready: prices, sign-up and activation will be here.',
+    contatto: 'To hear when it opens, or to see it before, write to',
+    accedi: 'Sign in',
+  },
   hero: {
     occhiello: 'Management for bars and restaurants, born in a cocktail bar',
     // Riscritti il 06/11/2026 insieme all'italiano (lì il perché).

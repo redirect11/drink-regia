@@ -59,6 +59,15 @@ export default {
   // Sulla pagina inglese dice che registrazione e account sono in
   // italiano; su quella italiana non serve.
   soloItaliano: '',
+  // L'anteprima (REQ-FLOTTA-043): la sola pagina che la produzione mostra
+  // finché il sito non è aperto al pubblico. Niente prezzi, niente promesse.
+  anteprima: {
+    occhiello: 'Gestionale per bar e ristoranti',
+    titolo: 'Il sito apre a breve.',
+    testo: 'Drink è il gestionale per bar e ristoranti nato in un cocktail bar: comande, cassa, menù con QR, magazzino, personale e statistiche in un’app sola. Stiamo preparando il sito: prezzi, registrazione e attivazione arrivano qui.',
+    contatto: 'Per sapere quando apre, o per vederlo prima, scrivici a',
+    accedi: 'Area riservata',
+  },
   hero: {
     occhiello: 'Gestionale per bar e ristoranti, nato in un cocktail bar',
     // Riscritti il 06/11/2026 (l'utente: «gli slogan sono orribili… vanno

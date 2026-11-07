@@ -1520,6 +1520,21 @@ function Vendita({ onErrore }) {
   return (
     <section className="card vendita" aria-label="Vendita">
       <h3>Vendita</h3>
+      {/* IL SITO APERTO AL PUBBLICO (REQ-FLOTTA-043, l'utente, 07/11/2026):
+          finché è spento, in produzione si vede solo la pagina di anteprima e
+          le Functions della vendita rifiutano. Tre stati: non deciso (in
+          produzione chiuso, sul test aperto), acceso, spento apposta. */}
+      <label className="opzione interruttore">
+        <input type="checkbox" checked={vendita.sito_aperto === true} onChange={(e) => cambia({ sito_aperto: e.target.checked })} />
+        Sito aperto al pubblico
+      </label>
+      <p className="muted small" data-testid="sito-aperto">
+        {vendita.sito_aperto === true
+          ? 'La prima pagina, la registrazione e gli acquisti sono aperti a tutti.'
+          : vendita.sito_aperto === false
+            ? 'Chiuso dappertutto: al posto della prima pagina c’è l’anteprima, nessuno si registra né compra; chi ha un account entra da /accedi.'
+            : 'Non ancora deciso: in produzione il sito mostra solo l’anteprima e nessuno si registra né compra; sul test è aperto. Accendilo quando vuoi aprire.'}
+      </p>
       <label className="opzione interruttore">
         <input type="checkbox" checked={vendita.pagamenti_online} onChange={(e) => cambia({ pagamenti_online: e.target.checked })} />
         Pagamenti online con Stripe

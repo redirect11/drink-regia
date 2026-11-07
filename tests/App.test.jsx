@@ -6,13 +6,16 @@
 // dashboard ed esci per chi lo è, e sul telefono un tasto che apre il
 // menù. L'utente, 22/10/2026: «una landing page con menu e tutto il resto».
 
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import '@testing-library/jest-dom/vitest'
 
 let utenteOsservato = null
+// La vendita (REQ-FLOTTA-015, REQ-FLOTTA-043): null è quella di partenza,
+// senza decisioni; undefined è «non ancora arrivata».
+let venditaOsservata = null
 vi.mock('../src/lib/db.js', () => ({
   // undefined: Firebase non ha ancora detto chi è (l'accesso in corso).
   osservaUtente: (cb) => {
@@ -34,7 +37,7 @@ vi.mock('../src/lib/db.js', () => ({
   applicaSconto: vi.fn(async () => ({ ok: true })),
   // La prima pagina legge la vendita (REQ-FLOTTA-015): qui quella di partenza.
   osservaVendita: (cb) => {
-    cb(null)
+    if (venditaOsservata !== undefined) cb(venditaOsservata)
     return () => {}
   },
   // Quello che il backoffice legge, per le prove delle sue sotto-rotte
@@ -169,6 +172,75 @@ describe('le sotto-rotte del backoffice', () => {
     mostra('/backoffice')
     const nav = await screen.findByRole('navigation', { name: 'Sezioni del backoffice' })
     expect(await within(nav).findByRole('link', { current: 'page' })).toHaveAttribute('href', '/backoffice/locali')
+  })
+})
+
+// IL SITO CHIUSO (REQ-FLOTTA-043, l'utente, 07/11/2026: «una cosa per la
+// produzione che rende il sito indisponibile finché non decido di renderlo
+// disponibile […] una pagina semplice […] stile coming soon»). Nei test
+// VITE_APP_ENV manca, come sul test: il sito è chiuso solo se l'admin lo
+// spegne apposta (sito_aperto: false); non deciso vale aperto.
+describe('il sito chiuso', () => {
+  afterEach(() => {
+    venditaOsservata = null
+  })
+
+  it('spento dall’admin: al posto della prima pagina c’è l’anteprima, in tutte e due le lingue, senza prezzi', () => {
+    venditaOsservata = { sito_aperto: false }
+    utenteOsservato = null
+    const { unmount } = mostra('/')
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Il sito apre a breve.')
+    expect(screen.queryByText(/€/)).toBeNull()
+    expect(screen.getByRole('link', { name: 'Area riservata' })).toHaveAttribute('href', '/accedi')
+    // L'email c'è nella pagina e nel piè di pagina.
+    for (const l of screen.getAllByRole('link', { name: /info@/ })) expect(l).toHaveAttribute('href', expect.stringMatching(/^mailto:/))
+    // Il menù ha solo «Accedi»: niente sezioni, niente «Attiva il tuo locale».
+    const menu = screen.getByRole('navigation', { name: 'Principale' })
+    expect(within(menu).getByRole('link', { name: 'Accedi' })).toBeInTheDocument()
+    expect(within(menu).queryByRole('link', { name: 'Attiva il tuo locale' })).toBeNull()
+    expect(within(menu).queryByRole('link', { name: 'Prezzi' })).toBeNull()
+    expect(screen.queryByRole('link', { name: /Registra il locale/ })).toBeNull()
+    unmount()
+    mostra('/en')
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('The site opens soon.')
+  })
+
+  it('spento, anche la registrazione è l’anteprima; l’accesso e il backoffice dell’admin restano', async () => {
+    venditaOsservata = { sito_aperto: false }
+    utenteOsservato = null
+    const { unmount } = mostra('/registrati')
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Il sito apre a breve.')
+    unmount()
+    const { unmount: u2 } = mostra('/accedi')
+    expect(screen.getByRole('heading', { name: 'Accedi' })).toBeInTheDocument()
+    u2()
+    utenteOsservato = { uid: 'u1', admin: true }
+    mostra('/backoffice/vendita')
+    expect(await screen.findByRole('navigation', { name: 'Sezioni del backoffice' })).toBeInTheDocument()
+  })
+
+  it('acceso, o non deciso fuori dalla produzione: la prima pagina di sempre', () => {
+    utenteOsservato = null
+    for (const v of [{ sito_aperto: true }, null]) {
+      venditaOsservata = v
+      const { unmount } = mostra('/')
+      expect(screen.getByRole('heading', { level: 1 })).not.toHaveTextContent('Il sito apre a breve.')
+      expect(screen.getAllByRole('link', { name: 'Attiva il tuo locale' }).length).toBeGreaterThan(0)
+      unmount()
+    }
+  })
+
+  it('la regola della produzione: non deciso vale chiuso solo lì (src/lib/vendita.js)', async () => {
+    const { sitoChiuso, venditaPulita } = await import('../src/lib/vendita.js')
+    expect(sitoChiuso(venditaPulita(null), true)).toBe(true)
+    expect(sitoChiuso(venditaPulita(null), false)).toBe(false)
+    expect(sitoChiuso(venditaPulita({ sito_aperto: true }), true)).toBe(false)
+    expect(sitoChiuso(venditaPulita({ sito_aperto: false }), false)).toBe(true)
+    expect(sitoChiuso(undefined, true)).toBe(true)
+    expect(venditaPulita({ sito_aperto: 'sì' }).sito_aperto).toBeNull()
+    // In produzione, finché la vendita non è arrivata, la pagina non mostra niente (App.jsx).
+    const { readFileSync } = await import('node:fs')
+    expect(readFileSync('src/App.jsx', 'utf8')).toMatch(/if \(PRODUZIONE && vendita === undefined\) return null/)
   })
 })
 
