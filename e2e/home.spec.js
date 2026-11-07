@@ -39,6 +39,8 @@ test.describe('la prima pagina', () => {
     await page.goto('/')
     await expect(page.getByRole('link', { name: /Termini/ }).first()).toHaveAttribute('href', '/termini')
     await expect(page.getByRole('link', { name: /Privacy/ }).first()).toHaveAttribute('href', '/privacy')
-    await expect(page.getByTestId('versione')).toContainText(/v\d+\.\d+\.\d+/)
+    // Da un tag la versione è «vX.Y.Z»; da un ramo (il test segue develop, o
+    // un lancio a mano) sono il ramo e il commit (src/lib/versione.js).
+    await expect(page.getByTestId('versione')).toContainText(/Versione (v\d+\.\d+\.\d+|\S+ · [0-9a-f]{7})/)
   })
 })
