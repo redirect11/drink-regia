@@ -29,38 +29,35 @@ import {
 import { osservaComparsa } from '../lib/comparsa.js'
 import { TESTI, testi } from '../i18n/index.js'
 
-// LA PRIMA PAGINA (REQ-FLOTTA-002), rifatta secondo DESIGN.md. L'utente,
-// 29/10/2026: «dovrebbe essere più moderna… con slogan migliori… le info
-// nei box sembrano scritte da un bambino… sia in inglese che in italiano».
-// Un percorso invece di un elenco: la promessa (hero), il problema che il
-// titolare riconosce, i tre pilastri, le funzioni coi loro moduli, i tre
-// passi, i prezzi, le domande, l'ultima azione. I testi stanno in
-// src/i18n (uno per lingua); qui c'è solo la struttura. I numeri vengono
+// LA PRIMA PAGINA (REQ-FLOTTA-002), secondo DESIGN.md. L'utente, 29/10/2026:
+// «dovrebbe essere più moderna… con slogan migliori… sia in inglese che in
+// italiano». Un percorso invece di un elenco: la promessa (hero), il
+// problema che il titolare riconosce, i tre pilastri, le funzioni coi loro
+// moduli, i tre passi, i prezzi, le domande, l'ultima azione. I testi stanno
+// in src/i18n (uno per lingua); qui c'è solo la struttura. I numeri vengono
 // dal listino e dalla vendita decisa dall'admin, mai scritti a mano.
+//
+// L'ASPETTO DEL 07/11/2026 (DESIGN.md §4, la direzione dell'utente: «sembri
+// il sito curato di un prodotto reale, nato e usato in un locale, non un
+// template generico»): fondo avorio, poche sezioni scure volute (il
+// problema, la chiusura), un accento solo (il verde) e l'oro come dettaglio;
+// niente luci sfocate, niente card tutte uguali con l'icona, composizioni
+// che si alternano (testo accanto a un pannello, righe numerate, una
+// tabella). Niente schermate finte: le vere arriveranno quando ci saranno
+// (DESIGN.md §9.5), e intanto lo spazio lo tengono tipografia e griglia.
 
 // Le funzioni e i moduli che le portano: la struttura, uguale nelle due
 // lingue. Una funzione senza moduli sta nel piano Base; una con moduli si
 // vede se almeno uno è in vendita (REQ-FLOTTA-015), e porta l'etichetta di
-// ognuno: niente sorprese al momento del prezzo (DESIGN.md §5.4). Le
-// schermate vere dell'app (DESIGN.md §4, «Immagini») andranno nel
-// riquadro accanto al testo quando l'utente avrà scelto da dove prenderle.
+// ognuno: niente sorprese al momento del prezzo (DESIGN.md §5.4).
 const FUNZIONI = [
-  { id: 'conti', moduli: [], icona: 'M4 4h16v4H4zM4 10h16v10H4zM8 14h8M8 17h5' },
-  { id: 'menu', moduli: ['menu_tavoli', 'ordini_cliente'], icona: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM18 18h3v3h-3' },
-  { id: 'magazzino', moduli: ['magazzino'], icona: 'M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10' },
-  { id: 'statistiche', moduli: ['statistiche'], icona: 'M4 20V10M10 20V4M16 20v-7M22 20H2' },
+  { id: 'conti', moduli: [] },
+  { id: 'menu', moduli: ['menu_tavoli', 'ordini_cliente'] },
+  { id: 'magazzino', moduli: ['magazzino'] },
+  { id: 'statistiche', moduli: ['statistiche'] },
 ]
 // Le due funzioni più piccole, in una riga a due colonne: ognuna è un modulo.
-const MINORI = [
-  { id: 'staff', icona: 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21v-1a6 6 0 0 1 12 0v1M17 11l2 2 4-4' },
-  { id: 'sumup', icona: 'M3 6h18v12H3zM3 10h18M7 15h4' },
-]
-// I tre pilastri (DESIGN.md §3): non si ferma, è tuo, fatto per il servizio.
-const ICONE_PILASTRI = [
-  'M2 9c5-5 15-5 20 0M5 12c4-3 10-3 14 0M8 15c2-2 6-2 8 0M12 19h0',
-  'M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4M12 15v2',
-  'M13 2L4 14h7l-1 8 9-12h-7z',
-]
+const MINORI = [{ id: 'staff' }, { id: 'sumup' }]
 const SPUNTA = 'M5 12l5 5 9-11'
 
 function Icona({ d, className = 'icona' }) {
@@ -70,7 +67,7 @@ function Icona({ d, className = 'icona' }) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.6"
+      strokeWidth="1.8"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
@@ -122,10 +119,10 @@ function AvvisoLingua({ lingua, proposta, chiudi }) {
   )
 }
 
-// Il titolo in due tempi: la scena, poi la svolta in oro («La serata non si
-// ferma. / Nemmeno quando cade il Wi-Fi.»). Si taglia alla prima frase, così
+// Il titolo in due tempi: la prima frase nel colore del testo, la seconda
+// nell'oro (un dettaglio, non un effetto). Si taglia alla prima frase, così
 // i testi in src/i18n restano una frase intera per lingua; un titolo di una
-// frase sola resta tutto bianco.
+// frase sola resta tutto di un colore.
 function dueTempi(testo) {
   const taglio = testo.search(/[.?]\s/)
   if (taglio < 0) return { prima: testo, seconda: '' }
@@ -239,59 +236,66 @@ export default function Home({ utente, lingua = 'it' }) {
     <main className="landing" ref={radice}>
       {proposta && <AvvisoLingua lingua={lingua} proposta={proposta} chiudi={() => setProposta(null)} />}
 
+      {/* LA PRIMA SCHERMATA: a sinistra cosa è e cosa fare, a destra la
+          scheda coi fatti (prezzo, abbonamento, attivazione): informazioni
+          vere al posto di una decorazione. Niente immagini da scaricare. */}
       <section className="hero" aria-labelledby="hero-titolo">
-        {/* L'atmosfera del bar di sera (DESIGN.md §4, 03/11/2026): luci
-            sfocate disegnate dal CSS, al posto del segnaposto hero.jpg.
-            Decorative: fuori dall'albero dell'accessibilità. */}
-        <div className="hero-luci" aria-hidden="true" />
-        <div className="contenitore hero-testo">
-          <p className="occhiello hero-occhiello">{t.hero.occhiello}</p>
-          <h1 id="hero-titolo">
-            {titolo.prima}
-            {titolo.seconda && (
-              <>
-                {' '}
-                <span className="titolo-oro">{titolo.seconda}</span>
-              </>
-            )}
-          </h1>
-          <p className="hero-sotto">{t.hero.sottotitolo}</p>
-          <div className="azioni">
-            {azionePrincipale(t.hero)}
-            <a className="btn ghost grande" href={URL_DEMO} target="_blank" rel="noreferrer">
-              {t.hero.demo} <span className="solo-lettori">{t.hero.nuovaScheda}</span>
-            </a>
+        <div className="contenitore hero-griglia">
+          <div className="hero-testo">
+            <p className="occhiello hero-occhiello">{t.hero.occhiello}</p>
+            <h1 id="hero-titolo">
+              {titolo.prima}
+              {titolo.seconda && (
+                <>
+                  {' '}
+                  <span className="titolo-oro">{titolo.seconda}</span>
+                </>
+              )}
+            </h1>
+            <p className="hero-sotto">{t.hero.sottotitolo}</p>
+            <div className="azioni">
+              {azionePrincipale(t.hero)}
+              <a className="btn ghost grande" href={URL_DEMO} target="_blank" rel="noreferrer">
+                {t.hero.demo} <span className="solo-lettori">{t.hero.nuovaScheda}</span>
+              </a>
+            </div>
+            {t.soloItaliano && <p className="nota-lingua">{t.soloItaliano}</p>}
           </div>
-          <ul className="fatti" aria-label={t.hero.fatti}>
-            {vendita.free && <li>{t.hero.free}</li>}
-            <li>{interpola(t.hero.da, { prezzo: piuIva(daPrezzo) })}</li>
-            <li>{t.hero.mensile}</li>
-            {PROVA_GIORNI > 0 && <li>{interpola(t.hero.prova, { giorni: PROVA_GIORNI })}</li>}
-            <li>{automatica ? t.hero.automatica : t.hero.concordata}</li>
-          </ul>
-          {t.soloItaliano && <p className="nota-lingua">{t.soloItaliano}</p>}
+          <aside className="hero-scheda">
+            <p className="scheda-titolo">{t.hero.fatti}</p>
+            <ul className="fatti" aria-label={t.hero.fatti}>
+              {vendita.free && <li>{t.hero.free}</li>}
+              <li>{interpola(t.hero.da, { prezzo: piuIva(daPrezzo) })}</li>
+              <li>{t.hero.mensile}</li>
+              {PROVA_GIORNI > 0 && <li>{interpola(t.hero.prova, { giorni: PROVA_GIORNI })}</li>}
+              <li>{automatica ? t.hero.automatica : t.hero.concordata}</li>
+            </ul>
+          </aside>
         </div>
       </section>
 
+      {/* IL PROBLEMA: la prima delle due sezioni scure, volute. Il titolo a
+          sinistra, il testo a destra: una pagina di rivista, non una card. */}
       <section id="problema" className="fascia problema" aria-labelledby="problema-titolo" data-comparsa>
-        <div className="contenitore stretto">
+        <div className="contenitore problema-griglia">
           <h2 id="problema-titolo">{t.problema.titolo}</h2>
-          <p className="problema-testo">{t.problema.testo}</p>
-          <p className="problema-chiusa">{t.problema.chiusa}</p>
+          <div>
+            <p className="problema-testo">{t.problema.testo}</p>
+            <p className="problema-chiusa">{t.problema.chiusa}</p>
+          </div>
         </div>
       </section>
 
+      {/* I PILASTRI: tre colonne numerate, divise da un filo. Niente card,
+          niente icone: il numero in oro e il titolo bastano. */}
       <section id="pilastri" className="sezione" aria-labelledby="pilastri-titolo" data-comparsa>
         <div className="contenitore">
-          <h2 id="pilastri-titolo" className="solo-lettori">
+          <h2 id="pilastri-titolo" className="titolo-sezione">
             {t.pilastri.titolo}
           </h2>
-          <ul className="pilastri">
+          <ol className="pilastri">
             {t.pilastri.voci.map((p, i) => (
               <li key={p.titolo} className="pilastro">
-                <span className="pilastro-icona">
-                  <Icona d={ICONE_PILASTRI[i]} />
-                </span>
                 <span className="pilastro-numero" aria-hidden="true">
                   {String(i + 1).padStart(2, '0')}
                 </span>
@@ -299,10 +303,13 @@ export default function Home({ utente, lingua = 'it' }) {
                 <p>{p.testo}</p>
               </li>
             ))}
-          </ul>
+          </ol>
         </div>
       </section>
 
+      {/* LE FUNZIONI: il testo da una parte e, dall'altra, il pannello di
+          cosa comprende; le righe si alternano. Quando ci saranno le
+          schermate vere dell'app, prenderanno il posto del pannello. */}
       <section id="funzioni" className="sezione" aria-labelledby="funzioni-titolo">
         <div className="contenitore">
           <header className="sezione-testa" data-comparsa>
@@ -311,12 +318,17 @@ export default function Home({ utente, lingua = 'it' }) {
             <p className="sezione-sotto">{t.funzioni.sotto}</p>
           </header>
           <div className="funzioni">
-            {funzioni.map((f) => {
+            {funzioni.map((f, i) => {
               const v = t.funzioni.voci[f.id]
               return (
                 <article className="funzione" key={f.id} aria-labelledby={`funzione-${f.id}`} data-comparsa>
                   <div className="funzione-testo">
-                    <p className="occhiello">{v.occhiello}</p>
+                    <p className="occhiello">
+                      <span className="numero-funzione" aria-hidden="true">
+                        {String(i + 1).padStart(2, '0')}
+                      </span>
+                      {v.occhiello}
+                    </p>
                     <h3 id={`funzione-${f.id}`}>{v.titolo}</h3>
                     <p>{v.testo}</p>
                     <ul className="etichette-moduli">
@@ -326,7 +338,7 @@ export default function Home({ utente, lingua = 'it' }) {
                     </ul>
                   </div>
                   <div className="funzione-riquadro">
-                    <Icona d={f.icona} className="icona grande" />
+                    <p className="scheda-titolo">{t.funzioni.punti}</p>
                     <ul className="punti" aria-label={t.funzioni.punti}>
                       {v.punti.map((p) => (
                         <li key={p}>
@@ -344,15 +356,12 @@ export default function Home({ utente, lingua = 'it' }) {
             <ul className="funzioni-minori" data-comparsa>
               {minori.map((f) => (
                 <li key={f.id} className="minore">
-                  <Icona d={f.icona} />
-                  <div>
-                    <p className="minore-testo">{t.funzioni.minori[f.id]}</p>
-                    <ul className="etichette-moduli">
-                      {etichetteModuli([f.id]).map((e) => (
-                        <li key={e}>{e}</li>
-                      ))}
-                    </ul>
-                  </div>
+                  <p className="minore-testo">{t.funzioni.minori[f.id]}</p>
+                  <ul className="etichette-moduli">
+                    {etichetteModuli([f.id]).map((e) => (
+                      <li key={e}>{e}</li>
+                    ))}
+                  </ul>
                 </li>
               ))}
             </ul>
@@ -360,9 +369,12 @@ export default function Home({ utente, lingua = 'it' }) {
         </div>
       </section>
 
+      {/* I TRE PASSI: numerati, in fila, divisi da un filo. */}
       <section id="come-funziona" className="sezione" aria-labelledby="passi-titolo" data-comparsa>
         <div className="contenitore">
-          <h2 id="passi-titolo">{t.passi.titolo}</h2>
+          <h2 id="passi-titolo" className="titolo-sezione">
+            {t.passi.titolo}
+          </h2>
           <ol className="passi-landing">
             {t.passi.voci.map((p, i) => (
               <li key={p.titolo}>
@@ -396,8 +408,10 @@ export default function Home({ utente, lingua = 'it' }) {
                   key={p.id}
                   aria-label={interpola(t.prezzi.piano, { nome })}
                 >
-                  {evidenza && <span className="etichetta">{t.prezzi.tuttoIncluso}</span>}
-                  <h3>{nome}</h3>
+                  <div className="piano-testa">
+                    <h3>{nome}</h3>
+                    {evidenza && <span className="etichetta">{t.prezzi.tuttoIncluso}</span>}
+                  </div>
                   {p.gratuito ? (
                     <p className="prezzo">
                       {euro(0)} <span className="prezzo-mese">{t.prezzi.alMese}</span>
@@ -530,17 +544,18 @@ export default function Home({ utente, lingua = 'it' }) {
         </div>
       </section>
 
-      <section id="contatti" className="sezione" aria-labelledby="chiusura-titolo" data-comparsa>
-        <div className="contenitore">
-          <div className="chiusura">
+      {/* LA CHIUSURA: la seconda sezione scura, a tutta larghezza. */}
+      <section id="contatti" className="chiusura" aria-labelledby="chiusura-titolo" data-comparsa>
+        <div className="contenitore chiusura-griglia">
+          <div>
             <h2 id="chiusura-titolo">{t.chiusura.titolo}</h2>
             <p>{t.chiusura.testo}</p>
-            <div className="azioni">
-              {azionePrincipale(t.chiusura)}
-              <a className="btn ghost grande" href={`mailto:${EMAIL_CONTATTI}`}>
-                {t.chiusura.scrivici}
-              </a>
-            </div>
+          </div>
+          <div className="azioni">
+            {azionePrincipale(t.chiusura)}
+            <a className="btn ghost grande" href={`mailto:${EMAIL_CONTATTI}`}>
+              {t.chiusura.scrivici}
+            </a>
           </div>
         </div>
       </section>

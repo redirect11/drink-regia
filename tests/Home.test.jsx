@@ -213,14 +213,16 @@ describe('la prima pagina', () => {
     expect(testo).not.toContain('!')
   })
 
-  // 03/11/2026 (l'utente: «più moderna, elegante e accattivante»): le luci
-  // del bar al posto del segnaposto hero.jpg, disegnate dal CSS, e il
-  // titolo in due tempi con la svolta in oro.
-  it('la prima schermata non scarica immagini: le luci sono decorative, fuori dai lettori di schermo', () => {
+  // 07/11/2026 (la direzione dell'utente: «non un template generico», niente
+  // sfondi sfocati, bagliori o immagini stock): la prima schermata non
+  // scarica immagini e non ha decorazioni; a destra del testo sta la scheda
+  // coi fatti (prezzo, abbonamento, attivazione), che sono informazioni vere.
+  it('la prima schermata non scarica immagini né ha decorazioni: accanto al testo la scheda dei fatti', () => {
     mostra()
     const hero = document.querySelector('.hero')
     expect(hero.querySelector('img')).toBeNull()
-    expect(hero.querySelector('.hero-luci')).toHaveAttribute('aria-hidden', 'true')
+    expect(hero.querySelector('.hero-luci, [aria-hidden="true"]:empty')).toBeNull()
+    expect(within(hero).getByRole('list', { name: 'In breve' }).closest('.hero-scheda')).not.toBeNull()
   })
 
   it('il titolo resta una frase intera, con la seconda parte in oro', () => {

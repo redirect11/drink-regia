@@ -96,42 +96,78 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .riquadri .card h3:first-child { margin-top: 0; }
 
 /* ── La prima pagina (REQ-FLOTTA-002, DESIGN.md §4) ──────────────────
-   Una vetrina, non il gestionale. Dal 03/11/2026 (l'utente: «più moderna,
-   elegante e accattivante») un bar di sera: luci calde sfocate nella prima
-   schermata, titoli grandi in Playfair con la svolta in oro, superfici
-   scure con un filo d'oro sul bordo, molta aria. Le misure seguono la
-   scala del DESIGN.md (4…120 px); se cambiano qui, si aggiornano là. */
-.landing {
-  /* Il filo del bordo: oro in alto a sinistra, quasi niente al centro. Si
-     disegna con due sfondi (padding-box e border-box) su un bordo
-     trasparente, così segue gli angoli arrotondati. */
-  --bordo-sfumato: linear-gradient(140deg, rgba(240, 201, 107, 0.5), rgba(255, 255, 255, 0.07) 35%, rgba(255, 255, 255, 0.05) 65%, rgba(240, 201, 107, 0.22));
-  --oro-pieno: linear-gradient(135deg, #f7dc93 0%, #e3b23c 48%, #c7922c 100%);
-  --testo-2: #c9c9d4;
-  --ombra-alta: 0 30px 60px -24px rgba(0, 0, 0, 0.7);
-  flex: 1; width: 100%; font-size: 1rem; overflow-x: clip;
+   Una vetrina, non il gestionale. Dal 07/11/2026 (la direzione dell'utente:
+   «sembri il sito curato di un prodotto reale, nato e usato in un locale,
+   non un template generico») un'identità editoriale: fondo avorio, testo
+   scuro, un accento solo (il verde) per le azioni, l'oro come dettaglio
+   (numeri, filetti, la seconda frase del titolo), due sole sezioni scure
+   (il problema e la chiusura). Niente luci sfocate, gradienti, aloni o
+   vetro; niente card tutte uguali: griglie, filetti e righe numerate. Le
+   misure seguono la scala del DESIGN.md (4…96 px); se cambiano qui, si
+   aggiornano là. I token della vetrina valgono per barra e piè di pagina
+   sulla prima pagina soltanto (.regia.vetrina, App.jsx): il resto del sito
+   resta col tema scuro. */
+.regia.vetrina {
+  --bg: #f6f2ea;
+  --bg-2: #fffdf8;
+  --bg-3: #ece5d8;
+  --text: #1f1c18;
+  --muted: #5d574e;
+  --line: #d9d0c0;
+  --accent: #1f5a46;
+  --accent-2: #1f5a46;
+  --accent-soft: rgba(31, 90, 70, 0.1);
+  --ok: #1f5a46;
+  /* L'oro della regia, scurito perché regga sull'avorio (4,6:1). */
+  --oro: #9a7424;
+  /* Le due sezioni scure: un bruno caldo, non il nero. */
+  --scuro: #1d1a16;
+  --scuro-2: #2a2520;
+  --scuro-testo: #f3ede2;
+  --scuro-muted: #c4bbab;
+  background: var(--bg);
+  color: var(--text);
 }
+.regia.vetrina .barra { background: rgba(246, 242, 234, 0.88); border-bottom-color: var(--line); }
+.regia.vetrina .barra nav a.btn { color: #fff; background: var(--accent); border-color: var(--accent); box-shadow: none; }
+.regia.vetrina .barra nav a.btn:hover { color: #fff; background: #184838; }
+.regia.vetrina .barra nav a:hover, .regia.vetrina .barra nav .link:hover { color: var(--accent); }
+.regia.vetrina .scelta-lingua a[aria-current='true'] { color: var(--accent); }
+.regia.vetrina .menu-tasto { border-color: var(--line); }
+.regia.vetrina .barra nav { background: var(--bg-2); }
+.regia.vetrina .piede { background: var(--bg-3); border-top-color: var(--line); }
+.regia.vetrina .piede-colonne a:hover { color: var(--accent); }
+.regia.vetrina code { background: rgba(0, 0, 0, 0.06); }
+.regia.vetrina :focus-visible { outline-color: var(--accent); }
+
+.landing { flex: 1; width: 100%; font-size: 1rem; overflow-x: clip; }
 .contenitore { width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 20px; }
-.contenitore.stretto { max-width: 820px; }
-.landing h1, .landing h2 { font-family: var(--titoli); font-weight: 700; letter-spacing: -0.02em; text-wrap: balance; }
-.landing h2 { font-size: clamp(2rem, 4.2vw, 3rem); line-height: 1.08; margin: 0 0 16px; }
+.landing h1, .landing h2 { font-family: var(--titoli); font-weight: 700; letter-spacing: -0.015em; text-wrap: balance; }
+.landing h2 { font-size: clamp(1.75rem, 3.2vw, 2.375rem); line-height: 1.12; margin: 0 0 16px; }
 .landing h3 { text-wrap: balance; }
-.landing p { line-height: 1.65; }
-.occhiello { color: var(--accent-2); font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; font-size: 0.8125rem; margin: 0 0 14px; }
-.sezione { padding: 72px 0 0; }
-.sezione-testa { max-width: 40rem; margin: 0 auto 48px; text-align: center; }
+.landing p { line-height: 1.6; }
+/* L'occhiello: una riga piccola col filetto d'oro davanti, in minuscolo. */
+.occhiello { display: flex; align-items: center; gap: 10px; color: var(--muted); font-weight: 600; font-size: 0.875rem; margin: 0 0 12px; }
+.occhiello::before { content: ''; width: 20px; height: 2px; background: var(--oro); flex: none; }
+.sezione { padding: 56px 0 0; }
+.sezione-testa { max-width: 42rem; margin: 0 0 32px; }
 .sezione-sotto { color: var(--muted); margin: 0; }
 .sezione-sotto + .sezione-sotto { margin-top: 8px; }
-.nota { font-size: 0.875rem; color: var(--muted); max-width: 46rem; margin: 20px 0 0; }
+.titolo-sezione { max-width: 24ch; }
+.nota { font-size: 0.875rem; color: var(--muted); max-width: 46rem; margin: 16px 0 0; }
+/* Il titoletto di un pannello (la scheda dei fatti, «Cosa comprende»). */
+.scheda-titolo { margin: 0 0 10px; font-size: 0.8125rem; font-weight: 600; color: var(--muted); }
 
-/* I bottoni della vetrina: l'oro pieno con un alone, e il vetro per il
-   secondo. Il testo sull'oro resta scuro (#1a1a1a, DESIGN.md §4). */
-.btn.grande { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 14px 26px; border-radius: 999px; font-weight: 650; }
-.landing .btn:not(.ghost) { background: var(--oro-pieno); border-color: transparent; box-shadow: 0 12px 32px -12px rgba(227, 178, 60, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.35); }
-.landing .btn:not(.ghost):hover { filter: brightness(1.05); box-shadow: 0 16px 40px -12px rgba(227, 178, 60, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.35); }
-.landing .btn.ghost { background: rgba(255, 255, 255, 0.04); border-color: rgba(255, 255, 255, 0.16); backdrop-filter: blur(8px); }
-.landing .btn.ghost:hover { border-color: var(--accent-2); background: rgba(240, 201, 107, 0.08); }
-.landing .btn.block { border-radius: 999px; }
+/* I bottoni della vetrina: il verde pieno col testo bianco per l'azione
+   principale, il contorno per la seconda. Angoli moderati, nessuna ombra. */
+.landing .btn { border-radius: 8px; font-weight: 600; transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease; }
+.landing .btn:hover { transform: none; filter: none; }
+.landing .btn:not(.ghost) { background: var(--accent); border-color: var(--accent); color: #fff; }
+.landing .btn:not(.ghost):hover { background: #184838; border-color: #184838; }
+.landing .btn.ghost { background: transparent; color: var(--text); border-color: var(--text); }
+.landing .btn.ghost:hover { background: rgba(0, 0, 0, 0.05); }
+.btn.grande { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 12px 22px; }
+.landing .btn.block { border-radius: 8px; }
 
 /* L'avviso della lingua: una riga discreta sopra la prima schermata. */
 .avviso-lingua { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; justify-content: center; padding: 4px 20px; background: var(--bg-3); border-bottom: 1px solid var(--line); font-size: 0.9375rem; }
@@ -140,149 +176,109 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .avviso-lingua a, .avviso-lingua .link { display: inline-flex; align-items: center; min-height: 44px; }
 .avviso-lingua .link { background: none; border: none; padding: 0; font: inherit; color: var(--muted); text-decoration: underline; cursor: pointer; }
 
-/* ── La prima schermata. Le luci sono tutte gradienti: nessuna immagine
-   da scaricare, e il testo resta sopra 4,5:1 anche sulla luce più chiara
-   (al massimo un oro al 26% sul fondo). In basso una riga d'oro, la luce
-   del bancone, separa la prima schermata dal resto. ── */
-.hero { position: relative; isolation: isolate; overflow: hidden; padding: 88px 0 72px; text-align: center; }
-.hero-luci {
-  position: absolute; inset: 0; z-index: -1; pointer-events: none;
-  background:
-    radial-gradient(42rem 28rem at 50% -8%, rgba(227, 178, 60, 0.26), transparent 70%),
-    radial-gradient(30rem 22rem at 6% 30%, rgba(214, 120, 52, 0.16), transparent 70%),
-    radial-gradient(30rem 22rem at 96% 42%, rgba(160, 82, 120, 0.14), transparent 70%),
-    radial-gradient(36rem 18rem at 50% 108%, rgba(227, 178, 60, 0.12), transparent 70%);
-}
-/* Le luci sfocate dietro il banco: piccoli dischi morbidi, sparsi. */
-.hero-luci::before {
-  content: ''; position: absolute; inset: 0; opacity: 0.55; filter: blur(1.5px);
-  background:
-    radial-gradient(circle at 12% 22%, rgba(247, 220, 147, 0.5) 0 6px, transparent 22px),
-    radial-gradient(circle at 22% 64%, rgba(247, 220, 147, 0.35) 0 10px, transparent 34px),
-    radial-gradient(circle at 31% 14%, rgba(255, 190, 120, 0.3) 0 4px, transparent 16px),
-    radial-gradient(circle at 70% 18%, rgba(247, 220, 147, 0.4) 0 8px, transparent 28px),
-    radial-gradient(circle at 82% 58%, rgba(255, 170, 120, 0.3) 0 12px, transparent 40px),
-    radial-gradient(circle at 91% 16%, rgba(247, 220, 147, 0.3) 0 5px, transparent 18px),
-    radial-gradient(circle at 6% 82%, rgba(255, 190, 120, 0.25) 0 14px, transparent 44px),
-    radial-gradient(circle at 60% 88%, rgba(247, 220, 147, 0.22) 0 6px, transparent 24px);
-}
-/* La grana, appena percettibile: toglie l'effetto «gradiente da computer». */
-.hero-luci::after {
-  content: ''; position: absolute; inset: 0; opacity: 0.07; mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
-}
-.hero::after { content: ''; position: absolute; left: 10%; right: 10%; bottom: 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(240, 201, 107, 0.7), transparent); box-shadow: 0 0 24px 2px rgba(227, 178, 60, 0.35); }
-.hero-testo { display: flex; flex-direction: column; align-items: center; }
-.hero-occhiello { display: inline-flex; align-items: center; gap: 10px; padding: 8px 16px; border-radius: 999px; margin-bottom: 28px; border: 1px solid rgba(240, 201, 107, 0.3); background: rgba(23, 23, 36, 0.6); backdrop-filter: blur(8px); letter-spacing: 0.08em; font-size: 0.75rem; }
-.hero-occhiello::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft), 0 0 12px var(--accent); flex: none; }
-.hero h1 { font-size: clamp(2.5rem, 7vw, 5.25rem); line-height: 1.02; margin: 0 0 24px; max-width: 20ch; }
-/* La svolta del titolo, in oro sfumato; dove i colori li sceglie il
-   sistema (contrasto elevato) torna testo normale. */
-/* Da tablet in su la svolta va a capo: due righe, due tempi. */
-.titolo-oro { color: var(--accent-2); background: linear-gradient(100deg, #f9e3a6 0%, #f0c96b 40%, #e3b23c 75%, #d39a32 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-@media (forced-colors: active) { .titolo-oro { -webkit-text-fill-color: currentColor; background: none; } }
-.hero-sotto { font-size: 1.0625rem; max-width: 40rem; margin: 0; color: var(--testo-2); }
-.hero .azioni { margin-top: 36px; gap: 12px; justify-content: center; }
-.fatti { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; list-style: none; padding: 0; margin: 40px 0 0; font-size: 0.875rem; color: var(--testo-2); }
-.fatti li { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03); }
-.fatti li::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--accent-2); flex: none; }
+/* ── La prima schermata: due colonne da 900px, il testo a sinistra e la
+   scheda dei fatti a destra; sul telefono una sotto l'altra. Niente
+   immagini, niente luci. ── */
+.hero { padding: 48px 0 56px; border-bottom: 1px solid var(--line); }
+.hero-griglia { display: grid; gap: 32px; align-items: start; }
+.hero h1 { font-size: clamp(2.125rem, 4.6vw, 3.5rem); line-height: 1.08; margin: 0 0 20px; max-width: 18ch; }
+/* La seconda frase del titolo nell'oro: un dettaglio, non un effetto. Dove i
+   colori li sceglie il sistema (contrasto elevato) torna testo normale. */
+.titolo-oro { color: var(--oro); }
+@media (forced-colors: active) { .titolo-oro { color: currentColor; } }
+.hero-sotto { font-size: 1.0625rem; max-width: 36rem; margin: 0; color: var(--muted); }
+.hero .azioni { margin-top: 28px; gap: 12px; }
+/* La scheda dei fatti: un pannello di carta con le righe divise da un filo. */
+.hero-scheda { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; }
+.fatti { list-style: none; padding: 0; margin: 0; }
+.fatti li { display: flex; align-items: baseline; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); font-size: 0.9375rem; }
+.fatti li::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--oro); flex: none; transform: translateY(-2px); }
 .nota-lingua { margin: 16px 0 0; font-size: 0.875rem; color: var(--muted); }
 
-/* ── Il problema: una scena, a tutta larghezza, centrata e grande. ── */
-.fascia { position: relative; padding: 80px 0; text-align: center; background: radial-gradient(60% 100% at 50% 0%, rgba(227, 178, 60, 0.07), transparent 70%), var(--bg); }
-.problema h2 { font-size: clamp(2.25rem, 5.2vw, 3.75rem); margin-bottom: 24px; }
-.problema-testo { font-size: clamp(1.125rem, 2vw, 1.375rem); line-height: 1.6; max-width: 42rem; margin: 0 auto; color: var(--testo-2); }
-/* La chiusa fra due fili d'oro. */
-.problema-chiusa { display: flex; align-items: center; justify-content: center; gap: 16px; color: var(--accent-2); font-weight: 600; margin: 36px auto 0; max-width: 46rem; }
-.problema-chiusa::before, .problema-chiusa::after { content: ''; flex: 1 1 40px; max-width: 96px; height: 1px; background: linear-gradient(90deg, transparent, rgba(240, 201, 107, 0.6)); }
-.problema-chiusa::after { transform: scaleX(-1); }
+/* ── Il problema: la prima sezione scura, voluta. Titolo a sinistra, testo
+   a destra, tutto allineato a sinistra. ── */
+.fascia { background: var(--scuro); color: var(--scuro-testo); padding: 56px 0; }
+.problema-griglia { display: grid; gap: 24px; }
+.problema h2 { font-size: clamp(1.875rem, 3.6vw, 2.75rem); margin: 0; max-width: 16ch; }
+.problema-testo { font-size: clamp(1.0625rem, 1.6vw, 1.25rem); line-height: 1.6; max-width: 40rem; margin: 0; color: var(--scuro-testo); }
+/* La chiusa: una riga col filetto d'oro, dopo il testo. */
+.problema-chiusa { display: flex; align-items: center; gap: 14px; margin: 24px 0 0; max-width: 40rem; color: var(--scuro-muted); font-weight: 600; }
+.problema-chiusa::before { content: ''; width: 28px; height: 2px; background: var(--oro); flex: none; }
 
-/* ── I tre pilastri: carte scure col filo d'oro, numerate. ── */
-/* I pilastri seguono la scena del venerdì: niente secondo stacco. */
-#pilastri { padding-top: 0; }
-.pilastri { list-style: none; padding: 0; margin: 0; display: grid; gap: 20px; }
-.pilastro { position: relative; border-radius: 20px; padding: 32px 28px; border: 1px solid transparent; background: radial-gradient(120% 80% at 0% 0%, rgba(227, 178, 60, 0.08), transparent 60%) padding-box, linear-gradient(var(--bg-2), var(--bg-2)) padding-box, var(--bordo-sfumato) border-box; transition: transform 0.25s ease, box-shadow 0.25s ease; }
-.pilastro:hover { transform: translateY(-4px); box-shadow: var(--ombra-alta); }
-.pilastro-icona { display: inline-grid; place-items: center; width: 52px; height: 52px; border-radius: 14px; background: linear-gradient(145deg, rgba(240, 201, 107, 0.22), rgba(240, 201, 107, 0.06)); border: 1px solid rgba(240, 201, 107, 0.3); color: var(--accent-2); margin-bottom: 20px; }
-.pilastro-icona .icona { color: inherit; }
-.pilastro-numero { position: absolute; top: 24px; right: 28px; font-family: var(--titoli); font-size: 2.5rem; line-height: 1; color: rgba(240, 201, 107, 0.16); }
-.pilastro h3 { font-size: 1.3125rem; margin: 0 0 10px; }
+/* ── I tre pilastri: tre colonne divise da un filo, col numero in oro. ── */
+#pilastri { padding-top: 56px; }
+.pilastri { list-style: none; padding: 0; margin: 0; display: grid; gap: 24px; }
+.pilastro { padding-top: 16px; border-top: 2px solid var(--text); }
+.pilastro-numero { display: block; font-family: var(--titoli); font-variant-numeric: lining-nums; font-size: 1.125rem; color: var(--oro); margin-bottom: 12px; }
+.pilastro h3 { font-size: 1.1875rem; margin: 0 0 8px; }
 .pilastro p { margin: 0; color: var(--muted); }
 
-/* ── Le funzioni: testo e riquadro alternati a destra e a sinistra. Il
-   riquadro aspetta le schermate vere dell'app (DESIGN.md §9): intanto è
-   una lastra scura con l'icona e i punti. ── */
-.icona { width: 28px; height: 28px; color: var(--accent-2); }
-.funzioni { display: grid; gap: 64px; }
-.funzione { display: grid; gap: 28px; align-items: center; }
-.funzione h3 { font-family: var(--titoli); font-size: clamp(1.625rem, 3vw, 2.125rem); line-height: 1.15; letter-spacing: -0.01em; margin: 0 0 14px; }
+/* ── Le funzioni: testo e pannello alternati a destra e a sinistra. Il
+   pannello aspetta le schermate vere dell'app (DESIGN.md §9): intanto è la
+   lista di cosa comprende, su carta. ── */
+.funzioni { display: grid; gap: 48px; }
+.funzione { display: grid; gap: 20px; align-items: center; padding-top: 32px; border-top: 1px solid var(--line); }
+.numero-funzione { font-family: var(--titoli); font-variant-numeric: lining-nums; color: var(--oro); }
+.funzione h3 { font-family: var(--titoli); font-size: clamp(1.5rem, 2.4vw, 1.875rem); line-height: 1.15; letter-spacing: -0.01em; margin: 0 0 12px; }
 .funzione-testo p:not(.occhiello) { color: var(--muted); max-width: 34rem; margin: 0; }
-.etichette-moduli { list-style: none; padding: 0; margin: 20px 0 0; display: flex; flex-wrap: wrap; gap: 8px; }
-.etichette-moduli li { font-size: 0.8125rem; padding: 5px 12px; border-radius: 999px; border: 1px solid rgba(240, 201, 107, 0.35); color: var(--accent-2); background: var(--accent-soft); }
-.funzione-riquadro { position: relative; overflow: hidden; border-radius: 24px; padding: 32px; border: 1px solid transparent; background: radial-gradient(90% 70% at 100% 0%, rgba(227, 178, 60, 0.12), transparent 60%) padding-box, linear-gradient(160deg, var(--bg-3), var(--bg-2) 70%) padding-box, var(--bordo-sfumato) border-box; box-shadow: var(--ombra-alta); }
-.icona.grande { width: 56px; height: 56px; padding: 12px; margin-bottom: 24px; border-radius: 16px; background: linear-gradient(145deg, rgba(240, 201, 107, 0.2), rgba(240, 201, 107, 0.05)); border: 1px solid rgba(240, 201, 107, 0.3); }
-.punti { list-style: none; padding: 0; margin: 0; display: grid; gap: 14px; }
-.punti li { display: flex; gap: 12px; align-items: flex-start; font-size: 1.0625rem; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
-.punti li:last-child { padding-bottom: 0; border-bottom: none; }
-.icona.spunta { width: 20px; height: 20px; color: var(--ok); flex: none; margin-top: 3px; }
-.funzioni-minori { list-style: none; padding: 0; margin: 64px 0 0; display: grid; gap: 20px; }
-.minore { display: flex; gap: 16px; align-items: flex-start; border-radius: 20px; padding: 24px; border: 1px solid transparent; background: linear-gradient(var(--bg-2), var(--bg-2)) padding-box, var(--bordo-sfumato) border-box; }
-.minore .icona { flex: none; }
-.minore-testo { margin: 0; font-weight: 500; }
-.minore .etichette-moduli { margin-top: 12px; }
+.etichette-moduli { list-style: none; padding: 0; margin: 16px 0 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.etichette-moduli li { font-size: 0.8125rem; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--line); color: var(--muted); background: var(--bg-2); }
+.funzione-riquadro { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; }
+.punti { list-style: none; padding: 0; margin: 0; display: grid; }
+.punti li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+.icona.spunta { width: 18px; height: 18px; color: var(--ok); flex: none; margin-top: 4px; }
+.funzioni-minori { list-style: none; padding: 0; margin: 48px 0 0; display: grid; gap: 20px; }
+.minore { padding-top: 16px; border-top: 1px solid var(--line); }
+.minore-testo { margin: 0; }
+.minore .etichette-moduli { margin-top: 10px; }
 
-/* ── I tre passi: una linea del tempo, coi numeri nel cerchio d'oro. ── */
-#passi-titolo { text-align: center; }
-.passi-landing { position: relative; display: grid; gap: 32px; list-style: none; padding: 0; margin: 48px 0 0; }
-.passi-landing li { position: relative; padding-left: 76px; }
-.passi-landing .numero { position: absolute; left: 0; top: 0; width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; font-family: var(--titoli); font-size: 1.375rem; font-weight: 700; color: var(--accent-2); background: var(--bg); border: 1px solid rgba(240, 201, 107, 0.55); box-shadow: 0 0 0 6px var(--bg), 0 0 28px rgba(227, 178, 60, 0.25); }
-.passi-landing h3 { margin: 12px 0 8px; font-size: 1.1875rem; }
+/* ── I tre passi: numerati, con un filo sopra. ── */
+.passi-landing { display: grid; gap: 24px; list-style: none; padding: 0; margin: 32px 0 0; counter-reset: passo; }
+.passi-landing li { padding-top: 16px; border-top: 2px solid var(--text); }
+.passi-landing .numero { display: block; font-family: var(--titoli); font-variant-numeric: lining-nums; font-size: 1.75rem; line-height: 1; color: var(--oro); margin-bottom: 12px; }
+.passi-landing h3 { margin: 0 0 6px; font-size: 1.125rem; }
 .passi-landing p { margin: 0; color: var(--muted); }
-/* Il filo che unisce i passi: verticale sul telefono, orizzontale da tablet. */
-.passi-landing::before { content: ''; position: absolute; left: 26px; top: 26px; bottom: 26px; width: 1px; background: linear-gradient(180deg, rgba(240, 201, 107, 0.6), rgba(240, 201, 107, 0.1)); }
 
-/* ── I prezzi ── */
-.landing .piani { display: grid; gap: 20px; grid-template-columns: 1fr; margin: 0 0 28px; align-items: stretch; }
-.landing .piano { position: relative; display: flex; flex-direction: column; border-radius: 24px; padding: 32px 28px; border: 1px solid transparent; background: linear-gradient(var(--bg-2), var(--bg-2)) padding-box, var(--bordo-sfumato) border-box; }
-.landing .piano.in-evidenza { background: radial-gradient(100% 60% at 50% 0%, rgba(227, 178, 60, 0.16), transparent 70%) padding-box, linear-gradient(var(--bg-2), var(--bg-2)) padding-box, var(--oro-pieno) border-box; box-shadow: 0 30px 70px -30px rgba(227, 178, 60, 0.45); }
-.landing .piano h3 { font-size: 1.375rem; margin: 0 0 12px; }
+/* ── I prezzi: due pannelli di carta affiancati, il Completo col bordo
+   verde; sotto, l'offerta Fondatori, la riga del confronto, la tabella. ── */
+.landing .piani { display: grid; gap: 16px; grid-template-columns: 1fr; margin: 0 0 20px; align-items: stretch; }
+.landing .piano { display: flex; flex-direction: column; background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 24px; }
+.landing .piano.in-evidenza { border: 2px solid var(--accent); }
+.piano-testa { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+.landing .piano h3 { font-size: 1.25rem; margin: 0; }
 /* Le cifre di Playfair sono «da testo», di altezze diverse: nei prezzi e
-   nei numeri dei passi si usano quelle allineate. */
-.landing .prezzo, .passi-landing .numero, .pilastro-numero { font-variant-numeric: lining-nums; }
-.landing .prezzo { font-family: var(--titoli); font-size: 3rem; line-height: 1.1; letter-spacing: -0.02em; margin: 0; }
+   nei numeri si usano quelle allineate. */
+.landing .prezzo { font-family: var(--titoli); font-variant-numeric: lining-nums; font-size: 2.5rem; line-height: 1.1; letter-spacing: -0.02em; margin: 0; }
 .prezzo-mese { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: 1rem; font-weight: 400; letter-spacing: 0; color: var(--muted); }
-.piano-descrizione { color: var(--muted); margin: 16px 0 28px; padding-top: 16px; border-top: 1px solid var(--line); }
-/* Il totale IVA inclusa e l'annuale sotto il prezzo (DEC-0005): testo
-   secondario, ma a grandezza piena perché è un prezzo. --muted su --bg-2
-   tiene il contrasto AA come .prezzo-mese. */
+.piano-descrizione { color: var(--muted); margin: 16px 0 20px; padding-top: 14px; border-top: 1px solid var(--line); }
 .prezzo-lordo { margin: 6px 0 0; color: var(--muted); }
 .prezzo-anno { margin: 8px 0 0; font-size: 0.9375rem; color: var(--muted); }
 .iva-inclusa { display: block; font-size: 0.8125rem; color: var(--muted); }
-/* L'offerta Fondatori: un riquadro sobrio, senza oro né urgenza. */
-.fondatori { padding: 20px 24px; border: 1px solid var(--line); border-radius: 16px; background: var(--bg-2); margin: 0 0 24px; }
-.fondatori h3 { font-size: 1.125rem; margin: 0 0 8px; }
+.landing .piano .btn { margin-top: auto; min-height: 48px; display: flex; align-items: center; justify-content: center; }
+/* L'etichetta del piano in evidenza: una targhetta, nel verde. */
+.etichetta { font-size: 0.75rem; font-weight: 600; color: var(--accent); background: var(--accent-soft); border-radius: 6px; padding: 4px 8px; white-space: nowrap; }
+/* L'offerta Fondatori: un pannello sobrio col filetto d'oro, senza urgenza. */
+.fondatori { padding: 18px 22px; border: 1px solid var(--line); border-left: 3px solid var(--oro); border-radius: 0 12px 12px 0; background: var(--bg-2); margin: 0 0 20px; }
+.fondatori h3 { font-size: 1.0625rem; margin: 0 0 6px; }
 .fondatori p { margin: 0; }
-.fondatori .nota-piccola { margin-top: 8px; font-size: 0.875rem; color: var(--muted); }
-.landing .piano .btn { margin-top: auto; min-height: 52px; display: flex; align-items: center; justify-content: center; }
-/* L'etichetta del piano in evidenza, a cavallo del bordo d'oro. */
-.etichetta { position: absolute; top: -13px; left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #1a1a1a; background: var(--oro-pieno); border-radius: 999px; padding: 5px 14px; box-shadow: 0 6px 18px -6px rgba(227, 178, 60, 0.8); }
-.convenienza { padding: 16px 20px; border-left: 3px solid var(--ok); background: rgba(95, 211, 161, 0.08); border-radius: 0 12px 12px 0; margin: 0 0 56px; }
-.tabella-titolo { font-family: var(--titoli); font-size: 1.5rem; margin: 0 0 16px; }
-.tabella-moduli { border-radius: 20px; padding: 8px 24px; border: 1px solid var(--line); background: var(--bg-2); }
-.tabella-moduli thead th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+.fondatori .nota-piccola { margin-top: 6px; font-size: 0.875rem; color: var(--muted); }
+.convenienza { padding: 12px 18px; border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: 0 8px 8px 0; margin: 0 0 40px; }
+.tabella-titolo { font-family: var(--titoli); font-size: 1.375rem; margin: 0 0 12px; }
+.tabella-moduli { border-radius: 12px; padding: 4px 20px; border: 1px solid var(--line); background: var(--bg-2); }
+.tabella-moduli thead th { font-size: 0.8125rem; color: var(--muted); font-weight: 600; }
 .tabella-moduli tbody th { font-weight: 600; }
 .tabella-moduli tbody tr:last-child th, .tabella-moduli tbody tr:last-child td { border-bottom: none; }
 .numero-colonna { text-align: right; white-space: nowrap; }
 .cosa-fa { color: var(--muted); }
-.incluso { display: inline-flex; gap: 6px; align-items: center; color: var(--ok); }
+.incluso { display: inline-flex; gap: 6px; align-items: center; color: var(--ok); font-weight: 600; }
 .incluso .icona.spunta { margin-top: 0; width: 18px; height: 18px; }
 .non-incluso { color: var(--muted); }
 /* Sul telefono la tabella a quattro colonne non ci sta: ogni riga diventa
    una scheda, e l'intestazione si ripete accanto al valore (data-colonna). */
 @media (max-width: 639px) {
-  .tabella-moduli { padding: 4px 18px; }
+  .tabella-moduli { padding: 4px 16px; }
   .tabella-moduli thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-  .tabella-moduli tr { display: grid; grid-template-columns: 1fr; gap: 6px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+  .tabella-moduli tr { display: grid; grid-template-columns: 1fr; gap: 6px; padding: 14px 0; border-bottom: 1px solid var(--line); }
   .tabella-moduli tbody tr:last-child { border-bottom: none; }
   .tabella-moduli th, .tabella-moduli td { padding: 0; border: none; }
   .tabella-moduli .numero-colonna { display: flex; justify-content: space-between; gap: 12px; text-align: left; white-space: normal; }
@@ -291,21 +287,28 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 
 /* ── Le domande: righe editoriali separate da un filo; il «+» ruota e
    diventa «×» quando la risposta è aperta. ── */
-.domande-griglia { display: grid; gap: 24px; }
+.domande-griglia { display: grid; gap: 20px; }
 .domande { display: grid; border-top: 1px solid var(--line); }
 .domande details { border-bottom: 1px solid var(--line); }
-.domande summary { cursor: pointer; min-height: 44px; padding: 22px 0; font-weight: 600; font-size: 1.0625rem; list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
-.domande summary:hover { color: var(--accent-2); }
+.domande summary { cursor: pointer; min-height: 44px; padding: 18px 0; font-weight: 600; font-size: 1.0625rem; list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.domande summary:hover { color: var(--accent); }
 .domande summary::-webkit-details-marker { display: none; }
-.domande summary::after { content: '+'; flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; border: 1px solid rgba(240, 201, 107, 0.4); color: var(--accent-2); font-weight: 400; font-size: 1.25rem; line-height: 1; transition: transform 0.25s ease, background 0.25s ease; }
-.domande details[open] summary::after { transform: rotate(45deg); background: var(--accent-soft); }
-.domande details p { margin: 0 0 22px; color: var(--muted); max-width: 44rem; }
+.domande summary::after { content: '+'; flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line); color: var(--text); font-weight: 400; font-size: 1.25rem; line-height: 1; transition: transform 0.2s ease; }
+.domande details[open] summary::after { transform: rotate(45deg); }
+.domande details p { margin: 0 0 18px; color: var(--muted); max-width: 44rem; }
 
-/* ── La chiusura: l'ultima azione, sotto una luce d'oro. ── */
-.chiusura { position: relative; overflow: hidden; text-align: center; padding: 56px 24px; margin-bottom: 72px; border-radius: 28px; border: 1px solid transparent; background: radial-gradient(70% 120% at 50% 0%, rgba(227, 178, 60, 0.24), transparent 70%) padding-box, linear-gradient(var(--bg-2), var(--bg-2)) padding-box, var(--oro-pieno) border-box; box-shadow: 0 40px 90px -40px rgba(227, 178, 60, 0.4); }
-.chiusura h2 { margin-top: 0; font-size: clamp(2rem, 4.6vw, 3.25rem); }
-.chiusura p { color: var(--testo-2); max-width: 34rem; margin: 0 auto; }
-.chiusura .azioni { justify-content: center; margin-top: 32px; gap: 12px; }
+/* ── La chiusura: la seconda sezione scura, a tutta larghezza, col testo a
+   sinistra e i bottoni a destra. Sul fondo scuro l'azione principale è
+   avorio col testo scuro, la seconda col contorno chiaro. ── */
+.chiusura { margin-top: 56px; padding: 56px 0; background: var(--scuro); color: var(--scuro-testo); }
+.chiusura-griglia { display: grid; gap: 24px; align-items: center; }
+.chiusura h2 { margin: 0 0 12px; font-size: clamp(1.75rem, 3.2vw, 2.5rem); }
+.chiusura p { color: var(--scuro-muted); max-width: 34rem; margin: 0; }
+.chiusura .azioni { margin: 0; gap: 12px; }
+.chiusura .btn:not(.ghost) { background: var(--bg); border-color: var(--bg); color: var(--scuro); }
+.chiusura .btn:not(.ghost):hover { background: #fff; border-color: #fff; }
+.chiusura .btn.ghost { color: var(--scuro-testo); border-color: var(--scuro-muted); }
+.chiusura .btn.ghost:hover { background: rgba(255, 255, 255, 0.08); }
 
 @media (min-width: 640px) {
   .contenitore { padding: 0 32px; }
@@ -313,29 +316,28 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
   .pilastro:last-child:nth-child(odd) { grid-column: 1 / -1; }
   .funzioni-minori { grid-template-columns: 1fr 1fr; }
   .landing .piani { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .passi-landing { grid-template-columns: repeat(3, 1fr); gap: 24px; }
 }
 @media (min-width: 768px) {
   .landing { font-size: 1.0625rem; }
-  .sezione { padding-top: 120px; }
-  .fascia { padding: 120px 0; }
-  .hero { padding: 128px 0 112px; min-height: min(86vh, 820px); display: flex; align-items: center; }
-  .hero-sotto { font-size: 1.1875rem; }
+  .sezione { padding-top: 80px; }
+  .fascia { padding: 80px 0; }
+  .hero { padding: 72px 0 80px; }
+  .hero-sotto { font-size: 1.125rem; }
   .titolo-oro { display: block; }
-  .passi-landing { grid-template-columns: repeat(3, 1fr); gap: 32px; text-align: center; }
-  .passi-landing li { padding: 76px 8px 0; }
-  .passi-landing .numero { left: 50%; transform: translateX(-50%); }
-  .passi-landing::before { left: 16.66%; right: 16.66%; top: 26px; bottom: auto; width: auto; height: 1px; background: linear-gradient(90deg, rgba(240, 201, 107, 0.15), rgba(240, 201, 107, 0.6), rgba(240, 201, 107, 0.15)); }
-  .chiusura { padding: 88px 48px; margin-bottom: 120px; }
+  .chiusura { margin-top: 80px; padding: 80px 0; }
 }
 @media (min-width: 900px) {
-  .funzione { grid-template-columns: 1fr 1fr; gap: 72px; }
+  .hero-griglia { grid-template-columns: minmax(0, 7fr) minmax(0, 4fr); gap: 64px; align-items: end; }
+  .problema-griglia { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 64px; }
+  .funzione { grid-template-columns: 1fr 1fr; gap: 64px; }
   .funzione:nth-child(even) .funzione-testo { order: 2; }
   .domande-griglia { grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr); gap: 64px; align-items: start; }
   .domande-griglia h2 { position: sticky; top: 104px; }
-  .landing .piano.in-evidenza { transform: translateY(-8px); }
+  .chiusura-griglia { grid-template-columns: minmax(0, 1fr) auto; gap: 48px; }
 }
 @media (min-width: 1024px) {
-  .pilastri { grid-template-columns: repeat(3, 1fr); }
+  .pilastri { grid-template-columns: repeat(3, 1fr); gap: 32px; }
   .pilastro:last-child:nth-child(odd) { grid-column: auto; }
 }
 
