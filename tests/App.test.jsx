@@ -20,6 +20,11 @@ vi.mock('../src/lib/db.js', () => ({
     return () => {}
   },
   esci: vi.fn(),
+  // Il traffico (REQ-FLOTTA-042): ogni pagina si conta; qui non si conta niente.
+  tracciaPagina: vi.fn(),
+  elencoMovimenti: async () => [],
+  elencoTraffico: async () => [],
+  statoFondatori: async () => null,
   // I codici sconto (REQ-FLOTTA-028) hanno i loro test in Backoffice.test.jsx.
   // Il catalogo dei temi (REQ-FLOTTA-032) ha i suoi test in CatalogoTemi.test.jsx.
   elencoTemi: vi.fn(async () => []),

@@ -504,6 +504,44 @@ code { background: rgba(255, 255, 255, 0.06); padding: 1px 5px; border-radius: 5
 .note-versione h6 { margin: 8px 0 4px; font-size: 0.9375rem; }
 .note-versione ul { margin: 4px 0; padding-left: 20px; }
 
+/* ── Il commerciale (REQ-FLOTTA-041, REQ-FLOTTA-042): la dashboard di chi
+   vende. Le tessere coi numeri di testa; i grafici a colonne, una serie
+   sola nell'oro della regia, barre sottili e fondo che separa; le tabelle
+   coi numeri allineati a destra. ── */
+.commerciale { display: grid; gap: 16px; }
+.commerciale .filtri-locali { align-items: end; }
+.periodo-dal { margin: 0 0 10px; }
+.tessere { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); }
+.tessera { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--raggio); padding: 14px 16px; display: grid; gap: 4px; align-content: start; }
+.tessera-etichetta { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.tessera-valore { font-size: 2rem; font-weight: 600; line-height: 1.1; }
+.tessera-delta { font-size: 0.85rem; }
+.tessera-delta.su { color: var(--ok); }
+.tessera-delta.giu { color: #ff8a7a; }
+.commerciale-grafici { grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+.commerciale .riquadri { margin-bottom: 0; }
+.grafico h3 { margin-top: 0; font-size: 1rem; }
+.colonne { display: block; width: 100%; height: auto; }
+.colonne .asse { stroke: var(--line); stroke-width: 1; }
+.colonne .griglia { stroke: rgba(255, 255, 255, 0.06); stroke-width: 1; }
+.colonne .barra { fill: var(--accent); }
+.colonne .colonna:hover .barra { fill: var(--accent-2); }
+.colonne .etichetta-valore { fill: var(--text); font-size: 12px; font-weight: 600; }
+.colonne .etichetta-asse { fill: var(--muted); font-size: 11px; }
+.tabella-grafico summary { cursor: pointer; margin-top: 6px; }
+.tabella-grafico .tabella-scorre { max-height: 14rem; overflow-y: auto; margin-top: 6px; }
+.tabella-commerciale { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin: 6px 0 10px; }
+.tabella-commerciale th, .tabella-commerciale td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.tabella-commerciale thead th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+.tabella-commerciale tbody th { font-weight: 400; }
+.tabella-commerciale .num, .classifica .num, .imbuto .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.imbuto, .classifica { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 8px; }
+.imbuto-traccia { height: 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.06); overflow: hidden; margin-top: 3px; }
+.imbuto-barra { height: 100%; border-radius: 999px; background: var(--accent); }
+.attenzione { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.commerciale .card h3 { margin-top: 0; }
+.commerciale .card h4 { margin: 14px 0 4px; font-size: 0.9rem; }
+
 /* ── La vendita nel backoffice (REQ-FLOTTA-015) ── */
 .card.vendita { margin: 12px 0; }
 .card.vendita h3 { margin-top: 0; }
