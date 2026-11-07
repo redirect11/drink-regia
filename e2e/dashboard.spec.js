@@ -2,7 +2,7 @@
 // seminata vede la sua situazione: il piano, i moduli, l'abbonamento, la
 // prova in corso, la scelta del piano per chi non ce l'ha.
 import { test, expect } from '@playwright/test'
-import { PIANI, MODULI, euro, prezzoMensile, entra, nomeDiCaso, PASSWORD } from './aiuto.js'
+import { PIANI, MODULI, euro, prezzoMensile, entra, nomeDiCaso, menu, PASSWORD } from './aiuto.js'
 
 test.beforeEach(() => {
   test.skip(!PASSWORD, 'manca E2E_PASSWORD')
@@ -38,6 +38,10 @@ test.describe('la dashboard', () => {
     await expect(page.getByTestId('pagato-fino-al')).toContainText('Pagato fino al')
     await expect(page.getByRole('region', { name: 'Piano', exact: true })).toContainText('4 terminali')
     await page.getByRole('button', { name: 'Esci' }).click()
+    // L'uscita è asincrona: finché Firebase non l'ha chiusa, /accedi rimanda
+    // alla dashboard. Si aspetta il menù di chi è fuori (in CI era un
+    // test a volte rosso al primo tentativo, 07/11/2026).
+    await expect(menu(page).getByRole('link', { name: 'Accedi' })).toBeVisible()
     await entra(page, 'moroso')
     await expect(page.getByRole('region', { name: 'Piano', exact: true })).toContainText('Abbonamento non pagato.')
   })
