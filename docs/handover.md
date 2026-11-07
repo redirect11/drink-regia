@@ -273,6 +273,7 @@ functions/piani.json        piani, moduli, terminale in più, attivazione
 scripts/admin-regia.mjs     dà o toglie il claim admin a un account
 scripts/abilita-api.mjs, abilita-accesso-email.mjs, lib-firestore.js  un progetto nuovo, dalla riga di comando (token del Firebase CLI)
 scripts/segreti-environment.mjs  i VITE_FIREBASE_* di un environment GitHub dalla sdkconfig
+scripts/ruoli-deploy.mjs    il SA del deploy di un progetto: API, ruoli, actAs, e con --chiave la chiave in FIREBASE_SERVICE_ACCOUNT dell'environment
 scripts/generate-issues.mjs, lib-requisiti.mjs, bacheca.mjs  le issue dal registro e la bacheca (da tana-drink)
 .github/workflows/          test.yml, firebase-hosting.yml, deploy.yml, generate-issues.yml
 requirements/requirements.yaml  REQ-FLOTTA-002..011 (lato regia), REQ-DEV-001..003
@@ -336,7 +337,7 @@ canale di anteprima col via libera.
 | Auth | email/password attivo |
 | Firestore | `europe-west1`, regole pubblicate |
 | Blaze | attivo |
-| Environment GitHub `production` | segreti `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID`; **manca `FIREBASE_SERVICE_ACCOUNT`** (chiave del SA di deploy: senza, il deploy da tag fallisce) |
+| Environment GitHub `production` | segreti `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID` e, dal 07/11/2026, `FIREBASE_SERVICE_ACCOUNT` (chiave del SA di deploy, messa da `scripts/ruoli-deploy.mjs` col via libera dell'utente; lo stesso script ha dato al SA i ruoli di docs/actions-come-tana-drink.md §3 e acceso Cloud Tasks, Scheduler ed Extensions) |
 | Segreti delle Functions | `PROVISIONING_CALLBACK_SECRET` presente; **mancano `GITHUB_DISPATCH_TOKEN`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`** e, dal ramo `feature/cassetto-ai` (24/10), **`ANTHROPIC_API_KEY`**: senza, il deploy delle Functions si ferma |
 | Cassetto AI (REQ-AI-003) | Functions pubblicate sul test; `ANTHROPIC_API_KEY` è un segnaposto. Dal 06/11/2026 la strada è la **federazione** (§7, «Cassetto AI»): sul test è pronta (account `ai-regia@drink-regia-test`, regola `gcp-drink-regia-test` nell'area di lavoro «drink», i quattro id in `functions/.env.drink-regia-test`), entra col primo deploy sul test e la verifica nella Console della regola si chiude al primo scambio di token. In produzione pronta allo stesso modo (account `ai-regia@drink-regia`, regola `gcp-drink-regia`, stessa area, i valori in `functions/.env.drink-regia`): entra col primo tag su main, e lì va tolto il segnaposto `ANTHROPIC_API_KEY` dai segreti solo quando il log della regola mostra lo scambio riuscito. La ricarica automatica del credito Anthropic va impostata nella Console |
 | `functions/.env` | `GITHUB_REPO=redirect11/drink-regia`, `FLOTTA_REF=main`, `APP_REF=main`: in produzione solo quello che è su `main` di tana-drink, quindi niente attivazioni finché la 1.10 non ci arriva. Il test usa `develop` (`functions/.env.drink-regia-test`) |
@@ -384,7 +385,8 @@ L'elenco completo con i riferimenti al codice è in
    header di sicurezza in
    `firebase.json`; App Check e `maxInstances`; creazione dell'admin
    dell'istanza (è un passo del workflow di tana-drink: da chiedere).
-7. **Infrastruttura**: `FIREBASE_SERVICE_ACCOUNT` nell'environment,
+7. **Infrastruttura**: `FIREBASE_SERVICE_ACCOUNT` nell'environment
+   (**fatto il 07/11/2026** con `scripts/ruoli-deploy.mjs`),
    segreti Stripe e token GitHub, primo deploy delle Functions (col via
    libera), poi la prima attivazione dal sito sulla demo. Capire perché i
    push non avviano la CI. Emulatori in `firebase.json`. Spostare i
