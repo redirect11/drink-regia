@@ -2008,7 +2008,7 @@ exports.registraCliente = onCall(OPTS, async (req) => {
   await solOSitoAperto()
   try {
     const cliente = await registrazione.registraCliente(db, { uid: req.auth.uid, email: req.auth.token?.email, dati: req.data })
-    console.log(`[registrazione] ${cliente.slug} (${cliente.email})`)
+    console.log(`[registrazione] ${cliente.slug} (${req.auth.uid})`)
     return { ok: true, slug: cliente.slug, cliente }
   } catch (e) {
     if (e instanceof registrazione.RegistrazioneRifiutata) throw new HttpsError(e.codice, e.message, e.dettagli || undefined)
