@@ -259,7 +259,7 @@ jobs:
       # deploy. Si riconosce dallo stato: un progetto della regia senza
       # l'API delle Functions. Un progetto senza stato (un locale esistente,
       # come la Tana) non lo ha creato la regia e non si tocca.
-      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         if: env.PROFILO == 'completo'
         with:
           terraform_version: '1.9.8'
