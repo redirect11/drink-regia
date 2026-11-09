@@ -382,9 +382,16 @@ L'elenco completo con i riferimenti al codice è in
 6. **Medie dell'audit**: callback con `run_id` e scadenza; `cambiaScelta`
    nel ramo manuale con approvazione; idempotenza del webhook (**fatta il
    02/11/2026**, punto 33);
-   header di sicurezza in
-   `firebase.json`; App Check e `maxInstances`; creazione dell'admin
-   dell'istanza (è un passo del workflow di tana-drink: da chiedere).
+   header di sicurezza in `firebase.json` (**messi il 09/11/2026**,
+   REQ-DEV-005: `X-Frame-Options`, `nosniff`, `Referrer-Policy`,
+   `Permissions-Policy`, HSTS e una `Content-Security-Policy-Report-Only`;
+   **il passo che manca**: dopo qualche giorno sul test, con la console
+   del browser aperta su accesso con Google, Checkout e ritorno da Stripe,
+   backoffice e temi su misura, se non compare nessuna violazione
+   `Report-Only` togliere il suffisso in `firebase.json` e in
+   `tests/hosting.test.js`, e la CSP diventa vincolante); App Check e
+   `maxInstances`; creazione dell'admin dell'istanza (è un passo del
+   workflow di tana-drink: da chiedere).
 7. **Infrastruttura**: `FIREBASE_SERVICE_ACCOUNT` nell'environment
    (**fatto il 07/11/2026** con `scripts/ruoli-deploy.mjs`),
    segreti Stripe e token GitHub, primo deploy delle Functions (col via

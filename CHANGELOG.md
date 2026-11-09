@@ -6,6 +6,12 @@ data.
 
 ## Prossima release (da decidere)
 
+- Il sito manda con ogni pagina le intestazioni di sicurezza: nessuno lo
+  incornicia in una pagina altrui, i file si leggono per quello che sono,
+  il referrer esce solo come origine, fotocamera, microfono e posizione
+  sono spenti, HSTS per un anno; la Content-Security-Policy parte in
+  osservazione (`Report-Only`) e diventa vincolante dopo qualche giorno sul
+  test senza violazioni (REQ-DEV-005, audit del 09/11/2026, finding 14).
 - Il listino dei moduli cambia: il menù digitale col QR al tavolo è
   compreso nei piani Base e Completo; gli ordini dal telefono costano 12 €
   al mese; le fatture ai clienti (5 €) e le fatture ai fornitori (6 €) si

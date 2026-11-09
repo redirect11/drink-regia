@@ -2111,3 +2111,45 @@ requirements:
       - tests/prove.test.js
       - tests/Home.test.jsx
       - tests/SceltaPiano.test.jsx
+  - id: REQ-DEV-005
+    title: "Le intestazioni di sicurezza del sito su Firebase Hosting, con la CSP prima in osservazione"
+    area: "firebase.json (hosting.headers), tests/hosting.test.js, docs/handover.md §6 punto 6"
+    description: >
+      Audit di sicurezza del 09/11/2026, finding 14: firebase.json aveva solo
+      public, ignore e rewrites, e il sito usciva senza nessuna intestazione
+      di sicurezza (la demo le ha già, infra/demo/intestazioni.json). Il
+      danno: clickjacking sul backoffice, un XSS futuro senza CSP a mano
+      libera, niente HSTS su un dominio proprio.
+      OGNI PAGINA E OGNI FILE (source "**") escono con: X-Frame-Options
+      DENY, X-Content-Type-Options nosniff, Referrer-Policy
+      strict-origin-when-cross-origin, Permissions-Policy camera=(),
+      microphone=(), geolocation=(), Strict-Transport-Security
+      max-age=31536000; includeSubDomains.
+      LA CONTENT-SECURITY-POLICY è Report-Only: il browser segnala in
+      console quello che bloccherebbe senza bloccare niente, perché prima
+      si osserva sul test (accesso con Google in finestra, Checkout e
+      ritorno da Stripe, backoffice, temi su misura). Le direttive nascono
+      da quello che il sito carica davvero: default-src 'self'; script-src
+      'self' più l'impronta sha256 dell'unico script in pagina (il preload
+      del font della prima pagina in index.html: Vite lo lascia com'è,
+      il test la ricalcola dal sorgente con i fine riga normalizzati, perché
+      il deploy parte dalla CI su Linux); style-src 'self' 'unsafe-inline'
+      (React scrive gli stili negli attributi); img-src 'self' data:;
+      font-src 'self' (Playfair Display è ospitato in /fonts); connect-src
+      'self' https://*.googleapis.com (Firestore, identitytoolkit,
+      securetoken) https://*.cloudfunctions.net (le callable e le due
+      fetch di db.js) https://*.firebaseapp.com (il dominio di Auth);
+      frame-src https://*.firebaseapp.com https://accounts.google.com (la
+      finestra di Google e l'iframe di Firebase Auth); object-src 'none';
+      base-uri 'self'; form-action 'self'; frame-ancestors 'none'. Niente
+      firebaseio.com: il Realtime Database non si usa. Stripe è un
+      reindirizzamento, non un caricamento: nessun js.stripe.com.
+      IL PASSO CHE MANCA (docs/handover.md §6, punto 6): dopo qualche
+      giorno sul test senza violazioni in console, togliere il suffisso
+      -Report-Only in firebase.json e nel test, e la CSP diventa vincolante.
+    status: implemented
+    generate_issue: true
+    labels: [regia, sicurezza]
+    priority: P2
+    test_cases:
+      - tests/hosting.test.js
