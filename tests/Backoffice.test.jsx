@@ -178,6 +178,18 @@ describe('il backoffice', () => {
     expect(within(licenza).queryByRole('button', { name: /Aggiorna/ })).toBeNull()
   })
 
+  // Audit del 09/11/2026, finding 28 (REQ-FLOTTA-057): «Apri l'app» solo
+  // se l'indirizzo dell'istanza è un https.
+  it('un url dell’istanza che non è https non diventa «Apri l’app»', async () => {
+    db.elencoIstanze.mockResolvedValue({
+      'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', url: 'javascript:alert(1)' },
+    })
+    mostra()
+    const attivo = await apri('Bar Attivo')
+    expect(within(attivo).getByText('Attiva')).toHaveClass('stato-ok')
+    expect(within(attivo).queryByRole('link', { name: /Apri l’app/ })).toBeNull()
+  })
+
   it('una sospesa lo dice col motivo e si riattiva', async () => {
     const user = userEvent.setup()
     db.elencoIstanze.mockResolvedValue({
@@ -1259,11 +1271,13 @@ describe('i codici sconto nel backoffice', () => {
     expect(await within(riquadro).findByTestId('codice-TANA-100')).toHaveTextContent('TANA-100 · 100% · illimitato · 1 uso · La Tana')
     expect(within(riquadro).getByTestId('codice-VECCHIO')).toHaveTextContent('3 mesi · 0 usi · disattivato')
     const modulo = within(riquadro).getByRole('form', { name: 'Nuovo codice sconto' })
-    await user.type(within(modulo).getByLabelText('Codice'), 'PROVA20')
+    // Il codice proposto si può cambiare (audit del 09/11/2026, finding 15).
+    await user.clear(within(modulo).getByLabelText('Codice'))
+    await user.type(within(modulo).getByLabelText('Codice'), 'prova-20')
     await user.type(within(modulo).getByLabelText('Percentuale'), '20')
     await user.type(within(modulo).getByLabelText(/Durata in mesi/), '3')
     await user.click(within(modulo).getByRole('button', { name: 'Crea il codice' }))
-    expect(db.gestisciSconti).toHaveBeenCalledWith('crea', { codice: 'PROVA20', percentuale: 20, durata_mesi: 3, usi_massimi: null, descrizione: '' })
+    expect(db.gestisciSconti).toHaveBeenCalledWith('crea', { codice: 'PROVA-20', percentuale: 20, durata_mesi: 3, usi_massimi: null, descrizione: '' })
     await user.click(within(within(riquadro).getByTestId('codice-TANA-100')).getByRole('button', { name: 'Disattiva' }))
     expect(db.gestisciSconti).toHaveBeenCalledWith('disattiva', { codice: 'TANA-100' })
     // Un disattivato non ha il tasto.
@@ -1275,10 +1289,56 @@ describe('i codici sconto nel backoffice', () => {
     db.elencoSconti.mockResolvedValue([])
     mostra('/backoffice/vendita')
     const modulo = await screen.findByRole('form', { name: 'Nuovo codice sconto' })
+    await user.clear(within(modulo).getByLabelText('Codice'))
     await user.type(within(modulo).getByLabelText('Codice'), 'TANA-100')
     await user.type(within(modulo).getByLabelText('Percentuale'), '100')
+    await user.type(within(modulo).getByLabelText(/Usi massimi/), '1')
     await user.click(within(modulo).getByRole('button', { name: 'Crea il codice' }))
-    expect(db.gestisciSconti).toHaveBeenCalledWith('crea', { codice: 'TANA-100', percentuale: 100, durata_mesi: null, usi_massimi: null, descrizione: '' })
+    expect(db.gestisciSconti).toHaveBeenCalledWith('crea', { codice: 'TANA-100', percentuale: 100, durata_mesi: null, usi_massimi: 1, descrizione: '' })
+  })
+
+  // Audit del 09/11/2026, finding 15: un codice corto si indovinava, e un
+  // 100% senza limite attivava piani gratis a non finire.
+  it('il modulo propone un codice di cinque lettere e quattro cifre, «Proponi un altro» lo cambia, e si crea così com’è', async () => {
+    const user = userEvent.setup()
+    db.elencoSconti.mockResolvedValue([])
+    mostra('/backoffice/vendita')
+    const modulo = await screen.findByRole('form', { name: 'Nuovo codice sconto' })
+    const campo = within(modulo).getByLabelText('Codice')
+    const proposto = campo.value
+    expect(proposto).toMatch(/^[ABCDEFGHJKLMNPQRSTUVWXYZ]{5}-[0-9]{4}$/)
+    await user.click(within(modulo).getByRole('button', { name: 'Proponi un altro' }))
+    expect(campo.value).toMatch(/^[ABCDEFGHJKLMNPQRSTUVWXYZ]{5}-[0-9]{4}$/)
+    const scelto = campo.value
+    await user.type(within(modulo).getByLabelText('Percentuale'), '20')
+    await user.click(within(modulo).getByRole('button', { name: 'Crea il codice' }))
+    expect(db.gestisciSconti).toHaveBeenCalledWith('crea', { codice: scelto, percentuale: 20, durata_mesi: null, usi_massimi: null, descrizione: '' })
+    // Dopo la creazione un codice nuovo, diverso.
+    expect(campo.value).toMatch(/^[ABCDEFGHJKLMNPQRSTUVWXYZ]{5}-[0-9]{4}$/)
+  })
+
+  it('un codice corto o senza due cifre, e un 100% senza limite, si fermano prima di chiamare', async () => {
+    const user = userEvent.setup()
+    db.elencoSconti.mockResolvedValue([])
+    mostra('/backoffice/vendita')
+    const modulo = await screen.findByRole('form', { name: 'Nuovo codice sconto' })
+    const campo = within(modulo).getByLabelText('Codice')
+    await user.clear(campo)
+    await user.type(campo, 'NATALE-X')
+    await user.type(within(modulo).getByLabelText('Percentuale'), '20')
+    await user.click(within(modulo).getByRole('button', { name: 'Crea il codice' }))
+    expect(await screen.findByText(/Codice non valido: almeno 8 caratteri/)).toBeInTheDocument()
+    expect(db.gestisciSconti).not.toHaveBeenCalled()
+    await user.clear(campo)
+    await user.type(campo, 'NATALE-2026')
+    await user.clear(within(modulo).getByLabelText('Percentuale'))
+    await user.type(within(modulo).getByLabelText('Percentuale'), '100')
+    await user.click(within(modulo).getByRole('button', { name: 'Crea il codice' }))
+    expect(await screen.findByText('Un codice al 100% ha sempre un limite di usi.')).toBeInTheDocument()
+    expect(db.gestisciSconti).not.toHaveBeenCalled()
+    await user.type(within(modulo).getByLabelText(/Usi massimi/), '5')
+    await user.click(within(modulo).getByRole('button', { name: 'Crea il codice' }))
+    expect(db.gestisciSconti).toHaveBeenCalledWith('crea', { codice: 'NATALE-2026', percentuale: 100, durata_mesi: null, usi_massimi: 5, descrizione: '' })
   })
 
   // L'utente, 02/11/2026: «Aggiungiamo limite di utilizzo del codice».
@@ -1298,11 +1358,12 @@ describe('i codici sconto nel backoffice', () => {
     expect(db.gestisciSconti).toHaveBeenCalledWith('limite', { codice: 'DIECI', usi_massimi: null })
     prompt.mockRestore()
     const modulo = within(riquadro).getByRole('form', { name: 'Nuovo codice sconto' })
-    await user.type(within(modulo).getByLabelText('Codice'), 'CENTO')
+    await user.clear(within(modulo).getByLabelText('Codice'))
+    await user.type(within(modulo).getByLabelText('Codice'), 'CENTO-100')
     await user.type(within(modulo).getByLabelText('Percentuale'), '100')
     await user.type(within(modulo).getByLabelText(/Usi massimi/), '5')
     await user.click(within(modulo).getByRole('button', { name: 'Crea il codice' }))
-    expect(db.gestisciSconti).toHaveBeenCalledWith('crea', { codice: 'CENTO', percentuale: 100, durata_mesi: null, usi_massimi: 5, descrizione: '' })
+    expect(db.gestisciSconti).toHaveBeenCalledWith('crea', { codice: 'CENTO-100', percentuale: 100, durata_mesi: null, usi_massimi: 5, descrizione: '' })
   })
 
 

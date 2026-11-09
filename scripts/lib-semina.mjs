@@ -273,7 +273,7 @@ export function trafficoDiProva(adesso, giorniIndietro = 60) {
       viste,
       pagine: { home: viste - registrati - en, en, registrati: Math.round(registrati * 0.6), accedi: Math.round(registrati * 0.25), dashboard: registrati - Math.round(registrati * 0.6) - Math.round(registrati * 0.25) },
       lingue: { it: viste - en, en },
-      provenienze: { diretto: viste - google - instagram, google_com: google, instagram_com: instagram },
+      provenienze: { diretto: viste - google - instagram, google, instagram },
       eventi,
       semina: true,
     })

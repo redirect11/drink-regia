@@ -308,7 +308,7 @@ audit H4).
 
 ```sh
 gcloud auth application-default login   # oppure GOOGLE_APPLICATION_CREDENTIALS
-node scripts/admin-regia.mjs --email <email>
+node scripts/admin-regia.mjs --email <email> --project drink-regia   # --project e' obbligatorio: niente predefinito
 ```
 
 e si esce e rientra: compare «Backoffice». Dal 04/11/2026 si entra anche

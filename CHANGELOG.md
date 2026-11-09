@@ -6,6 +6,33 @@ data.
 
 ## Prossima release (da decidere)
 
+- Dall'audit di sicurezza del 09/11/2026, la parte della vendita e del
+  sito. Il traffico del sito conta le provenienze per famiglia (Google,
+  Instagram, Facebook…, «diretto», «altro») da un elenco chiuso, non più
+  per dominio: il documento del giorno non cresce con quello che arriva,
+  una chiamata da un altro sito non si conta, e la Function `traccia` ha
+  un tetto di due istanze; la dashboard del commerciale mostra i nomi
+  delle famiglie (REQ-FLOTTA-052).
+- I codici sconto: un codice nuovo ha almeno 8 caratteri con almeno 2
+  cifre, il backoffice ne propone uno a caso (cinque lettere e quattro
+  cifre) e un codice al 100% ha sempre un limite di usi; i codici creati
+  prima restano validi. Un titolare che sbaglia dieci codici in un'ora
+  aspetta un'ora («Troppi tentativi, riprova fra un'ora.»)
+  (REQ-FLOTTA-053).
+- Dopo un pagamento con Stripe si torna solo sul sito della regia:
+  l'indirizzo di ritorno del Checkout e della ricarica AI e' accettato
+  solo se e' un'origine della regia (REQ-FLOTTA-054).
+- Col sito chiuso, chi entra con Google senza avere un locale vede
+  l'anteprima anche dalla dashboard, non «Completa la registrazione»; e
+  la richiesta di un tema su misura si ferma come le altre porte della
+  vendita (REQ-FLOTTA-055).
+- Nel CSV del commerciale una cella che comincia con = + - @ o un tab
+  prende un apostrofo davanti: Excel la legge come testo, non come formula
+  (REQ-FLOTTA-056).
+- Le impostazioni della regia le legge solo l'amministratore; lo script
+  `admin-regia.mjs` vuole sempre `--project` (niente produzione per
+  sbaglio); «Apri l'app» e l'indirizzo dell'app nella dashboard sono link
+  solo se l'indirizzo e' un https (REQ-FLOTTA-057).
 - L'identificativo del locale (lo slug, l'indirizzo che l'app avrà) è
   unico: alla registrazione lo controlla e lo scrive la regia, non il
   browser, e se è già di un altro locale il modulo torna al passo del

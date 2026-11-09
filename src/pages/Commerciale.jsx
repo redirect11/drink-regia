@@ -523,7 +523,29 @@ function Classifica({ voci, vuoto }) {
     </ul>
   )
 }
-const NOMI_VOCI = { diretto: 'Diretto (nessun sito di provenienza)', home: 'Prima pagina', en: 'Prima pagina in inglese', altro: 'Altro' }
+// Le provenienze sono famiglie di un elenco chiuso (functions/lib/traffico.js,
+// audit del 09/11/2026, finding 13): qui il loro nome a schermo.
+const NOMI_VOCI = {
+  diretto: 'Diretto (nessun sito di provenienza)',
+  home: 'Prima pagina',
+  en: 'Prima pagina in inglese',
+  altro: 'Altro',
+  google: 'Google',
+  bing: 'Bing',
+  duckduckgo: 'DuckDuckGo',
+  yahoo: 'Yahoo',
+  facebook: 'Facebook',
+  instagram: 'Instagram',
+  tiktok: 'TikTok',
+  linkedin: 'LinkedIn',
+  x: 'X (Twitter)',
+  youtube: 'YouTube',
+  whatsapp: 'WhatsApp',
+  telegram: 'Telegram',
+  chatgpt: 'ChatGPT',
+  reddit: 'Reddit',
+  github: 'GitHub',
+}
 
 // L'ESPORTAZIONE: il CSV si costruisce nel browser e si scarica, senza
 // passare da un server. Nei test si passa `scarica`.

@@ -8,7 +8,8 @@
 
 import { describe, it, expect } from 'vitest'
 import { createRequire } from 'node:module'
-import { scontoAttivo, prezzoConSconto, scontoDetto, usiDetti } from '../src/lib/sconti.js'
+import { readFileSync } from 'node:fs'
+import { scontoAttivo, prezzoConSconto, scontoDetto, usiDetti, CODICE_VALIDO, REGOLA_CODICE, LIMITE_PER_IL_CENTO, generaCodice } from '../src/lib/sconti.js'
 
 
 const require = createRequire(import.meta.url)
@@ -22,15 +23,45 @@ const aMano = { slug: 'tana-drink', piano: 'completo', moduli: [], abbonamento: 
 
 describe('un codice', () => {
   it('pulito: maiuscolo, percentuale da 1 a 100, durata in mesi o illimitata', () => {
-    expect(s.scontoPulito({ codice: ' tana-100 ', percentuale: 100, durata_mesi: '', descrizione: ' La Tana ' })).toEqual(TANA)
-    expect(s.scontoPulito({ codice: 'PROVA20', percentuale: 20, durata_mesi: 3 })).toMatchObject({ codice: 'PROVA20', percentuale: 20, durata_mesi: 3 })
+    expect(s.scontoPulito({ codice: ' tana-100 ', percentuale: 100, durata_mesi: '', usi_massimi: 1, descrizione: ' La Tana ' })).toEqual({ ...TANA, usi_massimi: 1 })
+    expect(s.scontoPulito({ codice: 'PROVA-20', percentuale: 20, durata_mesi: 3 })).toMatchObject({ codice: 'PROVA-20', percentuale: 20, durata_mesi: 3 })
   })
 
   it('niente codici strani, percentuali o durate fuori misura', () => {
     expect(s.scontoPulito({ codice: 'ab', percentuale: 10 }).errore).toMatch(/Codice non valido/)
     expect(s.scontoPulito({ codice: 'X Y Z', percentuale: 10 }).errore).toMatch(/Codice non valido/)
-    for (const percentuale of [0, 101, 12.5, 'tanto']) expect(s.scontoPulito({ codice: 'OK1', percentuale }).errore).toMatch(/Percentuale/)
-    for (const durata_mesi of [0, 121, 1.5]) expect(s.scontoPulito({ codice: 'OK1', percentuale: 10, durata_mesi }).errore).toMatch(/Durata/)
+    for (const percentuale of [0, 101, 12.5, 'tanto']) expect(s.scontoPulito({ codice: 'CODICE-01', percentuale }).errore).toMatch(/Percentuale/)
+    for (const durata_mesi of [0, 121, 1.5]) expect(s.scontoPulito({ codice: 'CODICE-01', percentuale: 10, durata_mesi }).errore).toMatch(/Durata/)
+  })
+
+  // Audit del 09/11/2026, finding 15: un codice si indovinava.
+  it('un codice nuovo ha almeno 8 caratteri e 2 cifre; un 100% ha sempre un limite di usi', () => {
+    for (const codice of ['TANA', 'PROVA20', 'SOLOLETTERE', 'UNACIFRA1', 'TANA 100']) expect(s.scontoPulito({ codice, percentuale: 10 }).errore, codice).toBe(s.REGOLA_CODICE)
+    for (const codice of ['TANA-100', 'PROVA-20', 'A1B2C3D4', '2026-NATALE', 'BARCA-4821']) expect(s.scontoPulito({ codice, percentuale: 10 }).codice, codice).toBe(codice)
+    expect(s.scontoPulito({ codice: 'TANA-100', percentuale: 100 }).errore).toBe(s.LIMITE_PER_IL_CENTO)
+    expect(s.scontoPulito({ codice: 'TANA-100', percentuale: 100, usi_massimi: '' }).errore).toBe(s.LIMITE_PER_IL_CENTO)
+    expect(s.scontoPulito({ codice: 'TANA-100', percentuale: 100, usi_massimi: 3 })).toMatchObject({ percentuale: 100, usi_massimi: 3 })
+    expect(s.scontoPulito({ codice: 'TANA-99X', percentuale: 99 })).toMatchObject({ percentuale: 99, usi_massimi: null })
+    // I codici creati prima (TANA, PROVA20) si cercano ancora: i vincoli
+    // valgono alla creazione.
+    expect(s.CODICE.test('TANA')).toBe(true)
+    expect(s.CODICE.test('PROVA20')).toBe(true)
+    expect(s.CODICE_NUOVO.test('PROVA20')).toBe(false)
+    // Il sito dice le stesse cose, parola per parola, prima di chiamare.
+    expect(CODICE_VALIDO.source).toBe(s.CODICE_NUOVO.source)
+    expect(REGOLA_CODICE).toBe(s.REGOLA_CODICE)
+    expect(LIMITE_PER_IL_CENTO).toBe(s.LIMITE_PER_IL_CENTO)
+  })
+
+  it('il codice proposto dal backoffice: cinque lettere senza O e I, un trattino, quattro cifre, dal generatore casuale', () => {
+    expect(generaCodice((n) => Uint32Array.from({ length: n }, (_, i) => i * 7 + 3))).toBe('DLTAH-8529')
+    for (let n = 0; n < 50; n++) {
+      const c = generaCodice()
+      expect(c).toMatch(/^[ABCDEFGHJKLMNPQRSTUVWXYZ]{5}-[0-9]{4}$/)
+      expect(CODICE_VALIDO.test(c)).toBe(true)
+      expect(s.scontoPulito({ codice: c, percentuale: 10 }).codice).toBe(c)
+    }
+    expect(new Set(Array.from({ length: 20 }, () => generaCodice())).size).toBeGreaterThan(1)
   })
 
   it('la fine di uno sconto a tempo: tanti mesi dal giorno in cui si applica', () => {
@@ -81,13 +112,13 @@ describe('applicato a un cliente', () => {
 
 // L'utente, 02/11/2026: «Aggiungiamo limite di utilizzo del codice».
 describe('il limite di usi', () => {
-  const DIECI = { ...TANA, codice: 'DIECI', percentuale: 20, usi_massimi: 10, usi: 0 }
+  const DIECI = { ...TANA, codice: 'DIECI-10', percentuale: 20, usi_massimi: 10, usi: 0 }
   const fra = (minuti) => new Date(ADESSO.getTime() + minuti * 60000)
 
   it('si scrive alla creazione: un intero da 1 a 100000, o vuoto per nessun limite', () => {
-    expect(s.scontoPulito({ codice: 'DIECI', percentuale: 20, usi_massimi: '10' }).usi_massimi).toBe(10)
-    expect(s.scontoPulito({ codice: 'DIECI', percentuale: 20, usi_massimi: '' }).usi_massimi).toBeNull()
-    for (const v of [0, -1, 2.5, 'tanti', 100001]) expect(s.scontoPulito({ codice: 'DIECI', percentuale: 20, usi_massimi: v }).errore).toMatch(/Usi da 1 a 100000/)
+    expect(s.scontoPulito({ codice: 'DIECI-10', percentuale: 20, usi_massimi: '10' }).usi_massimi).toBe(10)
+    expect(s.scontoPulito({ codice: 'DIECI-10', percentuale: 20, usi_massimi: '' }).usi_massimi).toBeNull()
+    for (const v of [0, -1, 2.5, 'tanti', 100001]) expect(s.scontoPulito({ codice: 'DIECI-10', percentuale: 20, usi_massimi: v }).errore).toMatch(/Usi da 1 a 100000/)
     expect(s.limitePulito(null)).toEqual({ usi_massimi: null })
   })
 
@@ -127,7 +158,7 @@ describe('il limite di usi', () => {
     const pieno = { ...DIECI, usi: 10 }
     expect(s.scontoApplicato(aMano, pieno, ADESSO).errore).toMatch(/esaurito.*alza il limite/)
     expect(s.scontoApplicato(aMano, { ...DIECI, usi: 2 }, ADESSO).uso).toBe(true)
-    const giaSuo = { ...aMano, sconto: { codice: 'DIECI', percentuale: 20 } }
+    const giaSuo = { ...aMano, sconto: { codice: 'DIECI-10', percentuale: 20 } }
     expect(s.scontoApplicato(giaSuo, pieno, ADESSO)).toMatchObject({ uso: false })
     expect(s.scontoApplicato(giaSuo, pieno, ADESSO).errore).toBeUndefined()
   })
@@ -169,3 +200,74 @@ describe('nel sito', () => {
 // (verifica del 02/11/2026) sta in tests/regole/clienti.test.js; che i
 // codici li legga solo l'admin e li scrivano solo le Functions in
 // tests/regole/registri.test.js.
+
+// I TENTATIVI SUI CODICI (audit del 09/11/2026, finding 15): la verifica
+// diceva se un codice esiste, senza limite: un oracolo per indovinarli.
+describe('i tentativi sui codici', () => {
+  const T0 = new Date('2026-11-09T10:00:00.000Z')
+  const dopo = (minuti) => new Date(T0.getTime() + minuti * 60 * 1000)
+
+  it('il primo tentativo apre la finestra; i seguenti contano; passata l’ora si riparte da uno', () => {
+    const t1 = s.tentativoFallito(undefined, T0)
+    expect(t1).toEqual({ conteggio: 1, finestra_da: T0.toISOString() })
+    const t2 = s.tentativoFallito(t1, dopo(10))
+    expect(t2).toEqual({ conteggio: 2, finestra_da: T0.toISOString() })
+    expect(s.tentativoFallito(t2, dopo(60))).toEqual({ conteggio: 1, finestra_da: dopo(60).toISOString() })
+    expect(s.tentativoFallito({ conteggio: 'x', finestra_da: 'non una data' }, T0)).toEqual({ conteggio: 1, finestra_da: T0.toISOString() })
+  })
+
+  it('dieci in un’ora sono troppi; all’undicesimo si aspetta; passata l’ora no', () => {
+    let t
+    for (let n = 0; n < 9; n++) {
+      t = s.tentativoFallito(t, dopo(n))
+      expect(s.troppiTentativi(t, dopo(n))).toBe(false)
+    }
+    t = s.tentativoFallito(t, dopo(9))
+    expect(t.conteggio).toBe(10)
+    expect(s.troppiTentativi(t, dopo(9))).toBe(true)
+    expect(s.troppiTentativi(t, dopo(59))).toBe(true)
+    expect(s.troppiTentativi(t, dopo(60))).toBe(false)
+    expect(s.troppiTentativi(undefined, T0)).toBe(false)
+    expect(s.troppiTentativi(null, T0)).toBe(false)
+    expect(s.TENTATIVI_MAX).toBe(10)
+    expect(s.FINESTRA_TENTATIVI_MS).toBe(3600000)
+    expect(s.TROPPI_TENTATIVI).toBe('Troppi tentativi, riprova fra un’ora.')
+  })
+
+  // Le Functions: il controllo prima di cercare, il conteggio a ogni
+  // fallimento, l'azzeramento al successo. Sul testo, come il resto.
+  it('verificaCodiceSconto e attivaConCodice: rifiutano con resource-exhausted, contano i fallimenti, azzerano al successo', () => {
+    const index = readFileSync('functions/index.js', 'utf8')
+    const fn = (nome) => {
+      const da = index.indexOf(`exports.${nome} =`)
+      return index.slice(da, index.indexOf('\n})', da))
+    }
+    expect(index).toMatch(/function soloSeNonTroppiTentativi\(cliente, adesso\) \{\s*if \(sconti\.troppiTentativi\(cliente\?\.tentativi_codice, adesso\)\) throw new HttpsError\('resource-exhausted', sconti\.TROPPI_TENTATIVI\)/)
+    const verifica = fn('verificaCodiceSconto')
+    expect(verifica).toContain('soloSeNonTroppiTentativi(cliente, adesso)')
+    expect(verifica.indexOf('soloSeNonTroppiTentativi')).toBeLessThan(verifica.indexOf('scontoPerAcquisto'))
+    expect(verifica).toMatch(/if \(errore\) \{\s*await segnaTentativoCodice\(uid, adesso\)\s*throw new HttpsError\('failed-precondition', errore\)/)
+    expect(verifica).toContain('if (cliente.tentativi_codice) await db.doc(`clienti/${uid}`).update(tentativiAzzerati(cliente))')
+    const attiva = fn('attivaConCodice')
+    expect(attiva).toContain('soloSeNonTroppiTentativi(prima, adesso)')
+    expect(attiva.indexOf('soloSeNonTroppiTentativi')).toBeLessThan(attiva.indexOf('sconti.CODICE.test(codice)'))
+    expect(attiva).toMatch(/if \(!sconti\.CODICE\.test\(codice\)\) \{\s*await segnaTentativoCodice\(uid, adesso\)/)
+    expect(attiva).toMatch(/if \(e\.errore\) \{\s*if \(cliente\) t\.update\(ref, \{ tentativi_codice: sconti\.tentativoFallito\(cliente\.tentativi_codice, adesso\) \}\)/)
+    expect(attiva).toContain('t.update(ref, { ...e.patch, ...tentativiAzzerati(cliente) })')
+    // Il contatore si toglie, non si azzera a zero: FieldValue.delete.
+    expect(index).toContain('const tentativiAzzerati = (cliente) => (cliente?.tentativi_codice ? { tentativi_codice: FieldValue.delete() } : {})')
+    // Senza cliente non si crea un documento per contare.
+    expect(index).toMatch(/if \(cliente\) t\.update\(ref, \{ tentativi_codice: sconti\.tentativoFallito\(cliente\.tentativi_codice, adesso\) \}\)\s*\}\)\s*\}/)
+  })
+
+  // Il titolare non crea più il documento (REQ-FLOTTA-045) e in update
+  // cambia solo i blocchi anagrafici: il contatore non è fra quelli. La
+  // prova sul comportamento sta sull'emulatore (tests/regole/clienti.test.js).
+  it('il contatore lo scrivono solo le Functions: il titolare non lo crea e non lo cambia', () => {
+    const regole = readFileSync('firestore.rules', 'utf8')
+    const blocco = regole.slice(regole.indexOf('match /clienti/{uid}'), regole.indexOf('match /istanze/{slug}')).replace(/\/\/.*$/gm, '')
+    expect(blocco.replace(/\s+/g, ' ')).toContain('allow create: if false;')
+    expect(blocco).toContain("affectedKeys().hasOnly(['locale', 'fatturazione', 'referente', 'consensi'])")
+    expect(blocco).not.toContain('tentativi_codice')
+  })
+})

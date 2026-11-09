@@ -21,12 +21,24 @@
 // Con Stripe, per ora, si applica solo uno sconto parziale: un 100% vorrebbe
 // dire smettere di far pagare una subscription, e quello va fatto in Stripe.
 
+// La forma di un codice che si cerca: lettere maiuscole, cifre e trattini,
+// da 3 a 24. È la forma dei codici creati fino al 09/11/2026 e resta quella
+// della ricerca, perché quei codici (TANA-100, i codici di prova sul test)
+// valgono ancora: i vincoli nuovi valgono alla creazione.
 const CODICE = /^[A-Z0-9][A-Z0-9-]{2,23}$/
+// La forma di un codice NUOVO (audit del 09/11/2026, finding 15): almeno 8
+// caratteri e almeno 2 cifre. Prima bastavano 3 caratteri, e un codice
+// come «TANA» si indovinava; con 8 caratteri e due cifre, e il limite di
+// tentativi (sotto), provare a caso non porta da nessuna parte.
+const CODICE_NUOVO = /^(?=(?:[A-Z-]*[0-9]){2})[A-Z0-9][A-Z0-9-]{7,23}$/
+// Gli stessi testi li mostra il backoffice prima di chiamare (src/lib/sconti.js).
+const REGOLA_CODICE = 'Codice non valido: almeno 8 caratteri fra lettere maiuscole, cifre e trattini, con almeno 2 cifre.'
+const LIMITE_PER_IL_CENTO = 'Un codice al 100% ha sempre un limite di usi.'
 
 // Un codice pulito, o { errore }.
 function scontoPulito(dati) {
   const codice = String(dati?.codice || '').trim().toUpperCase()
-  if (!CODICE.test(codice)) return { errore: 'Codice non valido: lettere, cifre e trattini, da 3 a 24.' }
+  if (!CODICE_NUOVO.test(codice)) return { errore: REGOLA_CODICE }
   const percentuale = Number(dati?.percentuale)
   if (!Number.isInteger(percentuale) || percentuale < 1 || percentuale > 100) return { errore: 'Percentuale da 1 a 100.' }
   const mesi = dati?.durata_mesi
@@ -34,7 +46,37 @@ function scontoPulito(dati) {
   if (durata_mesi !== null && (!Number.isInteger(durata_mesi) || durata_mesi < 1 || durata_mesi > 120)) return { errore: 'Durata da 1 a 120 mesi, o vuota per illimitata.' }
   const limite = limitePulito(dati?.usi_massimi)
   if (limite.errore) return limite
+  // Un 100% attiva un piano che non si paga (attivaConCodice): senza un
+  // limite, un codice fatto girare attiverebbe piani gratis a non finire.
+  if (percentuale === 100 && limite.usi_massimi == null) return { errore: LIMITE_PER_IL_CENTO }
   return { codice, percentuale, durata_mesi, usi_massimi: limite.usi_massimi, descrizione: String(dati?.descrizione || '').trim().slice(0, 120), attivo: true }
+}
+
+// ── I TENTATIVI SUI CODICI (audit del 09/11/2026, finding 15) ──────────
+//
+// La verifica di un codice dice se esiste: con tentativi senza limite è un
+// oracolo per indovinarli. Ogni verifica o attivazione fallita di un
+// titolare si conta in clienti/{uid}.tentativi_codice = { conteggio,
+// finestra_da }; a 10 in un'ora la Function rifiuta con resource-exhausted
+// finché l'ora non passa; un codice buono azzera il contatore. Il campo lo
+// scrivono solo le Functions: nelle regole il titolare cambia solo i suoi
+// dati anagrafici.
+const TENTATIVI_MAX = 10
+const FINESTRA_TENTATIVI_MS = 60 * 60 * 1000
+const TROPPI_TENTATIVI = 'Troppi tentativi, riprova fra un’ora.'
+
+// La finestra dei tentativi è ancora aperta?
+const finestraAperta = (t, adesso) => t?.finestra_da != null && adesso.getTime() - Date.parse(t.finestra_da) < FINESTRA_TENTATIVI_MS
+
+function troppiTentativi(t, adesso = new Date()) {
+  return finestraAperta(t, adesso) && (Number(t.conteggio) || 0) >= TENTATIVI_MAX
+}
+
+// Il contatore dopo un tentativo fallito: cresce nella finestra aperta,
+// riparte da uno se la finestra è passata.
+function tentativoFallito(t, adesso = new Date()) {
+  if (finestraAperta(t, adesso)) return { conteggio: (Number(t.conteggio) || 0) + 1, finestra_da: t.finestra_da }
+  return { conteggio: 1, finestra_da: adesso.toISOString() }
 }
 
 // ── IL LIMITE DI USI ────────────────────────────────────────────────────
@@ -152,8 +194,16 @@ function scontoTolto(cliente, adesso = new Date()) {
 
 module.exports = {
   CODICE,
+  CODICE_NUOVO,
+  REGOLA_CODICE,
+  LIMITE_PER_IL_CENTO,
   ESAURITO,
   USI_MASSIMI,
+  TENTATIVI_MAX,
+  FINESTRA_TENTATIVI_MS,
+  TROPPI_TENTATIVI,
+  troppiTentativi,
+  tentativoFallito,
   scontoPulito,
   limitePulito,
   usoNuovo,

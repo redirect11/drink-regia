@@ -35,3 +35,24 @@ export function scontoDetto(cliente, adesso = new Date()) {
   const quanto = `${s.codice}, ${s.percentuale}%`
   return s.fino ? `${quanto} fino al ${new Date(s.fino).toLocaleDateString('it-IT')}` : `${quanto}, illimitato`
 }
+
+// ── UN CODICE NUOVO (audit del 09/11/2026, finding 15) ─────────────────
+// Almeno 8 caratteri fra lettere maiuscole, cifre e trattini, con almeno 2
+// cifre: la regola che conta è quella delle Functions
+// (functions/lib/sconti.js, CODICE_NUOVO), qui la stessa per dirlo prima di
+// chiamare. I testi sono gli stessi, parola per parola (tests/sconti.test.js).
+export const CODICE_VALIDO = /^(?=(?:[A-Z-]*[0-9]){2})[A-Z0-9][A-Z0-9-]{7,23}$/
+export const REGOLA_CODICE = 'Codice non valido: almeno 8 caratteri fra lettere maiuscole, cifre e trattini, con almeno 2 cifre.'
+export const LIMITE_PER_IL_CENTO = 'Un codice al 100% ha sempre un limite di usi.'
+
+// Il codice che il backoffice propone: cinque lettere, un trattino, quattro
+// cifre (BARCA-4821), dal generatore casuale del browser. Senza O e I, che
+// si confondono con 0 e 1 quando si dettano al telefono. L'admin lo può
+// cambiare, ma la regola vale anche per il suo.
+const LETTERE = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+export function generaCodice(casuali = (n) => crypto.getRandomValues(new Uint32Array(n))) {
+  const r = casuali(9)
+  const lettere = [...r.slice(0, 5)].map((x) => LETTERE[x % LETTERE.length]).join('')
+  const cifre = [...r.slice(5, 9)].map((x) => String(x % 10)).join('')
+  return `${lettere}-${cifre}`
+}

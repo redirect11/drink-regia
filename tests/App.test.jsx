@@ -240,7 +240,11 @@ describe('il sito chiuso', () => {
     expect(venditaPulita({ sito_aperto: 'sì' }).sito_aperto).toBeNull()
     // In produzione, finché la vendita non è arrivata, la pagina non mostra niente (App.jsx).
     const { readFileSync } = await import('node:fs')
-    expect(readFileSync('src/App.jsx', 'utf8')).toMatch(/if \(PRODUZIONE && vendita === undefined\) return null/)
+    const app = readFileSync('src/App.jsx', 'utf8')
+    expect(app).toMatch(/if \(PRODUZIONE && vendita === undefined\) return null/)
+    // La dashboard sa del sito chiuso: senza locale mostra l'anteprima, non
+    // la registrazione (audit del 09/11/2026, finding 26, REQ-FLOTTA-055).
+    expect(app).toContain('<Dashboard utente={utente} chiuso={chiuso} />')
   })
 })
 

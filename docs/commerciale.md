@@ -22,7 +22,7 @@ di un abbonamento:
 | Sessioni | Viste del sito (senza cookie non si contano i visitatori) |
 | Prodotti più venduti | Per piano e per modulo (comprato a parte, incluso, in prova) |
 | Imbuto di conversione | Viste → registrazioni → scelte del piano → attivazioni chieste |
-| Provenienze | Il dominio di chi ci ha mandato, e le pagine più viste |
+| Provenienze | La famiglia del sito che ci ha mandato (Google, Instagram…), e le pagine più viste |
 | Da gestire | Contatti aperti, attivazioni da autorizzare, fallite, locali fermi, pagamenti falliti, scadenze a 14 giorni |
 | Esportazione | CSV degli abbonamenti e dei movimenti |
 
@@ -52,13 +52,32 @@ a mano).
 ## Il traffico (`traffico/{giorno}`)
 
 Contatori per giorno di Roma: `viste`, `pagine.<nome>`, `lingue.<it|en>`,
-`provenienze.<dominio>`, `eventi.<passo>`. La Function `traccia` (POST,
+`provenienze.<famiglia>`, `eventi.<passo>`. La Function `traccia` (POST,
 cors aperto, 204) incrementa; il sito la chiama a ogni cambio di pagina
 (`App.jsx`) e a ogni passo (`db.js`: registrazione, free, checkout,
 contatto, codice, attivazione). Niente cookie, niente identificativi,
 niente IP: non serve un banner, e non si sa quanti visitatori sono. La
 Function non legge niente: un contatore gonfiato apposta è il danno
 peggiore che può fare. Se un giorno servisse, App Check.
+
+**Ogni chiave viene da un elenco chiuso** (audit del 09/11/2026, finding
+13, REQ-FLOTTA-052). Prima la provenienza era il dominio di chi ci aveva
+mandato: un ciclo di POST con un dominio diverso a ogni chiamata gonfiava
+il documento del giorno fino al limite di 1 MiB, e da lì ogni scrittura
+del giorno falliva. Ora pagine, lingue ed eventi sono gli elenchi di
+sempre, e la provenienza è una **famiglia** fra quelle di
+`FAMIGLIE` in `functions/lib/traffico.js` (google, bing, duckduckgo,
+yahoo, facebook, instagram, tiktok, linkedin, x, youtube, whatsapp,
+telegram, chatgpt, reddit, github), più `diretto` (nessun sito di
+provenienza, o una pagina nostra) e `altro` (tutto il resto). Una
+famiglia nuova si aggiunge lì, e la dashboard le dà il nome in
+`NOMI_VOCI`. Il riferimento (`document.referrer`) continua ad arrivare nel
+corpo della chiamata, perché lo conosce solo il browser: l'header
+`Referer` della chiamata è la pagina nostra che la fa, non il sito da cui
+si è arrivati. Del corpo si tiene solo la famiglia. Una chiamata che il
+browser dichiara venire da un altro sito (header `Origin` non nostro) non
+si conta, e la Function ha `maxInstances: 2`: un ciclo di chiamate costa
+al massimo due istanze.
 
 ## I numeri (`src/lib/commerciale.js`)
 

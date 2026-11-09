@@ -6,7 +6,7 @@
 // traffico». Qui i numeri; la pagina in Commerciale.test.jsx.
 
 import { describe, it, expect } from 'vitest'
-import { canoneMensile, classifica, riepilogo, tabellaAbbonamenti, csv, COLONNE_ABBONAMENTI, COLONNE_MOVIMENTI, giorniDelPeriodo, giornoDi, variazione, periodoDi, CLASSI } from '../src/lib/commerciale.js'
+import { canoneMensile, classifica, riepilogo, tabellaAbbonamenti, csv, cella, COLONNE_ABBONAMENTI, COLONNE_MOVIMENTI, giorniDelPeriodo, giornoDi, variazione, periodoDi, CLASSI } from '../src/lib/commerciale.js'
 import { PIANI, MODULI, prezzoMensile } from '../src/lib/piani.js'
 
 const ADESSO = new Date('2026-11-07T12:00:00.000Z')
@@ -72,8 +72,8 @@ describe('il riepilogo del periodo', () => {
     { id: 'm4', il: giorniFa(200), tipo: 'manuale', uid: 'u-pagante-due', slug: 'pagante-due', importo: 10, iva: 2.2, totale: 12.2 },
   ]
   const traffico = [
-    { giorno: giornoDi(giorniFa(1)), viste: 40, pagine: { home: 30, registrati: 10 }, provenienze: { diretto: 25, google_com: 15 }, lingue: { it: 35, en: 5 }, eventi: { registrazione: 2, checkout: 1 } },
-    { giorno: giornoDi(giorniFa(10)), viste: 20, pagine: { home: 20 }, provenienze: { instagram_com: 20 }, lingue: { it: 20 }, eventi: { attivazione: 1 } },
+    { giorno: giornoDi(giorniFa(1)), viste: 40, pagine: { home: 30, registrati: 10 }, provenienze: { diretto: 25, google: 15 }, lingue: { it: 35, en: 5 }, eventi: { registrazione: 2, checkout: 1 } },
+    { giorno: giornoDi(giorniFa(10)), viste: 20, pagine: { home: 20 }, provenienze: { instagram: 20 }, lingue: { it: 20 }, eventi: { attivazione: 1 } },
     { giorno: giornoDi(giorniFa(40)), viste: 100, pagine: { home: 100 }, provenienze: { diretto: 100 }, lingue: { it: 100 }, eventi: {} },
   ]
   const contatti = [{ stato: 'aperta' }, { stato: 'gestita' }]
@@ -182,6 +182,29 @@ describe('gli abbonamenti in tabella e il CSV', () => {
     expect(righeCsv[1]).toMatch(/^bar-uno;bar-uno;bar-uno@x\.it;Paganti;Base;"Magazzino e fornitori";1;42,93;stripe;attivo;\d{4}-\d{2}-\d{2};\d{4}-\d{2}-\d{2};PROVA-10;sì;50;\d{4}-\d{2}-\d{2}$/)
     const m = csv(movimenti, COLONNE_MOVIMENTI).split('\r\n')
     expect(m[1]).toMatch(/^\d{4}-\d{2}-\d{2};abbonamento;bar-uno;50;11;61;stripe;in_1;"Piano; ""Base"""$/)
+  })
+
+  // Audit del 09/11/2026, finding 27 (REQ-FLOTTA-056): Excel esegue una
+  // cella che comincia con = + - @ o un tab; i nomi li scrivono i clienti.
+  it('una cella che comincia come una formula prende un apostrofo davanti; i numeri e il resto no', () => {
+    expect(cella('=HYPERLINK("https://evil.example";"Bar")')).toBe(`"'=HYPERLINK(""https://evil.example"";""Bar"")"`)
+    expect(cella('+39 333 1234567')).toBe("'+39 333 1234567")
+    expect(cella('-SUM(A1)')).toBe("'-SUM(A1)")
+    expect(cella('@SUM(A1)')).toBe("'@SUM(A1)")
+    expect(cella('\t=1+1')).toBe("'\t=1+1")
+    expect(cella('\r=1+1')).toBe("'\r=1+1")
+    expect(cella(['=A1', 'Magazzino'])).toBe(`"'=A1, Magazzino"`)
+    // Un numero vero resta un numero, anche negativo; una data e un testo
+    // normale restano com'erano.
+    expect(cella(-5.5)).toBe('-5,5')
+    expect(cella(0)).toBe('0')
+    expect(cella('2026-11-09')).toBe('2026-11-09')
+    expect(cella('Bar Mario')).toBe('Bar Mario')
+    expect(cella('')).toBe('')
+    expect(cella(null)).toBe('')
+    // In una riga vera: un locale col nome a formula.
+    const riga = csv([{ nome: "=cmd|' /C calc'!A0", slug: 'bar-x', email: 'x@y.it', classe: 'pagante', moduli: [], canone: 10 }], COLONNE_ABBONAMENTI).split('\r\n')[1]
+    expect(riga.startsWith("'=cmd|' /C calc'!A0;bar-x;x@y.it;")).toBe(true)
   })
 })
 

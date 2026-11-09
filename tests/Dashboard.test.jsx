@@ -30,6 +30,10 @@ const db = vi.hoisted(() => ({
 }))
 vi.mock('../src/lib/db.js', () => ({
   ...db,
+  // Senza locale la dashboard mostra Registrati (REQ-FLOTTA-038), che ha i
+  // suoi test in AccessoGoogle.test.jsx: qui basta che si monti.
+  esci: vi.fn(),
+  completaRegistrazione: vi.fn(),
   avviaPagamento: vi.fn(),
   cambiaScelta: vi.fn(async () => ({ ok: true })),
   // Il credito AI (REQ-AI-003) ha i suoi test in CreditoAI.test.jsx: qui
@@ -82,6 +86,34 @@ beforeEach(() => {
 })
 
 describe('la dashboard', () => {
+  // Audit del 09/11/2026, finding 26 (REQ-FLOTTA-055): col sito chiuso un
+  // account senza locale (entrato con Google) non completa la registrazione
+  // dalla dashboard: vede l'anteprima, come da /registrati.
+  it('senza locale: completa la registrazione; col sito chiuso, l’anteprima', () => {
+    stato.cliente = null
+    const { unmount } = mostra()
+    expect(screen.getByRole('heading', { name: 'Completa la registrazione' })).toBeInTheDocument()
+    expect(screen.queryByText('Il sito apre a breve.')).toBeNull()
+    unmount()
+    render(
+      <MemoryRouter future={FUTURO}>
+        <Dashboard utente={{ uid: 'u1', email: 'mario@example.it' }} chiuso />
+      </MemoryRouter>
+    )
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Il sito apre a breve.')
+    expect(screen.queryByRole('heading', { name: /Completa la registrazione/ })).toBeNull()
+  })
+
+  it('con un locale, col sito chiuso, la dashboard resta la sua', () => {
+    render(
+      <MemoryRouter future={FUTURO}>
+        <Dashboard utente={{ uid: 'u1', email: 'mario@example.it' }} chiuso />
+      </MemoryRouter>
+    )
+    expect(screen.getByText('Bar Mario')).toBeInTheDocument()
+    expect(screen.queryByText('Il sito apre a breve.')).toBeNull()
+  })
+
   // REQ-FLOTTA-030: dalla regia alla propria app senza password.
   it('con l’app attiva c’è «Apri la tua app»; se non si apre lo dice', async () => {
     const user = userEvent.setup()
@@ -231,6 +263,16 @@ describe('la dashboard', () => {
     expect(screen.getByRole('link', { name: 'https://bar-mario.drink.app' })).toBeInTheDocument()
     expect(screen.getByText(/Versione v1.10.0/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Attiva l’istanza/ })).toBeNull()
+  })
+
+  // Audit del 09/11/2026, finding 28 (REQ-FLOTTA-057): un url che non è
+  // https non diventa un link; si mostra l'indirizzo che l'istanza avrà.
+  it('attiva con un url che non è https: il link è l’indirizzo del suo slug', () => {
+    stato.istanza = { stato: 'attiva', url: 'javascript:alert(1)' }
+    mostra()
+    const link = screen.getByRole('link', { name: /^https:\/\/bar-mario\./ })
+    expect(link).toHaveAttribute('href', expect.stringMatching(/^https:\/\/bar-mario\./))
+    expect(screen.queryByText(/javascript:/)).toBeNull()
   })
 
   it('in coda: niente tasto, si aspetta', () => {

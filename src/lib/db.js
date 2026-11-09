@@ -62,7 +62,11 @@ export const slugGiaInUso = (err) => String(err?.code || '').includes('already-e
 // alla Function `traccia`, che tiene solo contatori per giorno (niente
 // cookie, niente identificativi: functions/lib/traffico.js). Non si aspetta
 // e non può fallire: un contatore in meno non ferma niente. `keepalive`
-// perché il checkout porta subito via dalla pagina.
+// perché il checkout porta subito via dalla pagina. Il riferimento
+// (document.referrer) va nel corpo perché lo conosce solo il browser:
+// l'header Referer della chiamata sarebbe la pagina nostra che la fa. La
+// Function non lo scrive mai com'è: lo riduce a una famiglia di un elenco
+// chiuso (audit del 09/11/2026, finding 13).
 function traccia(dati) {
   if (!configurata || typeof fetch !== 'function') return
   try {

@@ -135,7 +135,7 @@ describe('clienti/{uid}: le modifiche del titolare (H1)', () => {
     )
   })
 
-  it.each(['piano', 'moduli', 'temi', 'terminali', 'prove', 'sconto', 'abbonamento', 'email', 'slug', 'uid', 'interna', 'esistente', 'nome_locale'])(
+  it.each(['piano', 'moduli', 'temi', 'terminali', 'prove', 'sconto', 'abbonamento', 'email', 'slug', 'uid', 'interna', 'esistente', 'nome_locale', 'tentativi_codice'])(
     'non tocca «%s»: lo scrivono solo l’admin e le Functions',
     async (campo) => {
       await assertFails(updateDoc(doc(CHI.clienteA(env), `clienti/${UID.a}`), { [campo]: 'completo' }))

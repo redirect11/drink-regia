@@ -27,7 +27,7 @@ const rilasci = require('./lib/rilasci.js')
 const { sceltaCambiata, licenzaProtetta, stessaLicenza, perIlDatabase, scadenzaCoerente } = require('./lib/licenza.js')
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
 const { FieldValue, Timestamp } = require('firebase-admin/firestore')
-const { chiaveStripeVera, righeSubscription, prodottiDi, parametriAliquotaIva, eAliquotaIva, CHIAVE_IDEMPOTENZA_IVA, metadatiDi, aggiornamentoDaEvento, sceltaPulita, sessioneCheckout, intervalloDi, prenotazioneDaRilasciare, fondatoreDaConfermare, DURATA_SESSIONE_MS, fineDelPeriodo, STATI_STRIPE } = require('./lib/abbonamento.js')
+const { chiaveStripeVera, ritornoAmmesso, righeSubscription, prodottiDi, parametriAliquotaIva, eAliquotaIva, CHIAVE_IDEMPOTENZA_IVA, metadatiDi, aggiornamentoDaEvento, sceltaPulita, sessioneCheckout, intervalloDi, prenotazioneDaRilasciare, fondatoreDaConfermare, DURATA_SESSIONE_MS, fineDelPeriodo, STATI_STRIPE } = require('./lib/abbonamento.js')
 const fondatori = require('./lib/fondatori.js')
 const acquisto = require('./lib/acquisto.js')
 const { onTaskDispatched } = require('firebase-functions/v2/tasks')
@@ -113,6 +113,19 @@ const ARCHIVIO_BUCKET = process.env.ARCHIVIO_BUCKET || null
 // l'indirizzo di questa Function nel progetto della regia.
 const PROGETTO_REGIA = process.env.GCLOUD_PROJECT || (() => { try { return JSON.parse(process.env.FIREBASE_CONFIG || '{}').projectId } catch { return null } })()
 const SCELTA_URL = PROGETTO_REGIA ? `https://europe-west1-${PROGETTO_REGIA}.cloudfunctions.net/sceltaDallApp` : null
+// I domini del sito della regia: i due di Hosting del progetto e quello di
+// REGIA_URL. Servono al traffico (una vista da una pagina nostra non è una
+// provenienza, e una chiamata da un altro sito non si conta) e agli
+// indirizzi di ritorno del Checkout (audit del 09/11/2026, finding 25).
+const DOMINI_NOSTRI = [PROGETTO_REGIA && `${PROGETTO_REGIA}.web.app`, PROGETTO_REGIA && `${PROGETTO_REGIA}.firebaseapp.com`, REGIA_URL && (() => { try { return new URL(REGIA_URL).hostname } catch { return null } })()].filter(Boolean)
+// L'origine a cui Stripe rimanda dopo il Checkout: solo una nostra
+// (abbonamento.ritornoAmmesso), altrimenti invalid-argument. Fuori dalla
+// produzione passa anche localhost, per provare in locale.
+function ritornoPulito(ritorno) {
+  const origine = ritornoAmmesso(ritorno, DOMINI_NOSTRI, { produzione: PROGETTO_REGIA === 'drink-regia' })
+  if (!origine) throw new HttpsError('invalid-argument', 'Indirizzo di ritorno non valido: il pagamento riparte solo dal sito della regia.')
+  return origine
+}
 
 async function dispatchGitHub(workflow, corpo) {
   return fetch(`https://api.github.com/repos/${REPO}/actions/workflows/${workflow}/dispatches`, {
@@ -365,8 +378,7 @@ exports.creaCheckout = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
   // Un modulo senza la sua base non si compra (tana-drink REQ-LIC-015).
   const basi = prove.problemaBasi(scelta)
   if (basi) throw new HttpsError('failed-precondition', basi)
-  const ritorno =String(req.data?.ritorno || '').replace(/\/$/, '')
-  if (!/^https?:\/\//.test(ritorno)) throw new HttpsError('invalid-argument', 'Indirizzo di ritorno non valido.')
+  const ritorno = ritornoPulito(req.data?.ritorno)
   const adesso = new Date()
   // IL CODICE SCONTO (REQ-FLOTTA-028): quello scritto ora dal titolare, o
   // quello che l'admin gli ha già dato. Un codice al 100% non passa da qui
@@ -463,23 +475,52 @@ async function contaUsoCodice(codice, uid) {
   })
 }
 
+// I TENTATIVI SUI CODICI (audit del 09/11/2026, finding 15): la verifica
+// dice se un codice esiste, e senza un limite è un oracolo per indovinarli.
+// Ogni tentativo fallito del titolare si conta sul suo cliente
+// (clienti/{uid}.tentativi_codice, lib/sconti.js); al decimo in un'ora si
+// rifiuta finché l'ora non passa, e un codice buono azzera il contatore.
+// La scrittura passa dal trigger licenzaSegueIlPiano, che non trova
+// cambiamenti e si ferma: un costo per tentativo fallito, non per verifica.
+function soloSeNonTroppiTentativi(cliente, adesso) {
+  if (sconti.troppiTentativi(cliente?.tentativi_codice, adesso)) throw new HttpsError('resource-exhausted', sconti.TROPPI_TENTATIVI)
+}
+async function segnaTentativoCodice(uid, adesso) {
+  const ref = db.doc(`clienti/${uid}`)
+  await db.runTransaction(async (t) => {
+    const cliente = (await t.get(ref)).data()
+    // Senza cliente non c'è dove contare, e non si crea un documento.
+    if (cliente) t.update(ref, { tentativi_codice: sconti.tentativoFallito(cliente.tentativi_codice, adesso) })
+  })
+}
+// Il contatore via quando il codice è buono: solo se c'era, per non
+// scrivere (e svegliare il trigger) a ogni verifica riuscita.
+const tentativiAzzerati = (cliente) => (cliente?.tentativi_codice ? { tentativi_codice: FieldValue.delete() } : {})
+
 // IL TITOLARE PROVA UN CODICE nella scelta del piano, prima di pagare: è
-// valido? quanto vale? vince sul prezzo Fondatori? Non scrive niente. Serve
-// l'accesso con l'email confermata: un codice non si indovina da fuori.
+// valido? quanto vale? vince sul prezzo Fondatori? Non scrive niente, se
+// non il contatore dei tentativi. Serve l'accesso con l'email confermata:
+// un codice non si indovina da fuori.
 exports.verificaCodiceSconto = onCall(OPTS, async (req) => {
   if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
   if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Prima conferma la tua email.')
-  const cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data()
+  const uid = req.auth.uid
+  const cliente = (await db.doc(`clienti/${uid}`).get()).data()
   if (!cliente) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
   if (!String(req.data?.codice || '').trim()) throw new HttpsError('invalid-argument', 'Scrivi il codice.')
   const adesso = new Date()
-  const { sconto, errore } = await scontoPerAcquisto(cliente, req.data.codice, adesso, req.auth.uid)
-  if (errore) throw new HttpsError('failed-precondition', errore)
+  soloSeNonTroppiTentativi(cliente, adesso)
+  const { sconto, errore } = await scontoPerAcquisto(cliente, req.data.codice, adesso, uid)
+  if (errore) {
+    await segnaTentativoCodice(uid, adesso)
+    throw new HttpsError('failed-precondition', errore)
+  }
   const scelta = sceltaPulita({ piano: req.data?.piano, moduli: req.data?.moduli, terminali: req.data?.terminali, intervallo: req.data?.intervallo })
   if (sconto.percentuale < 100) {
     const c = acquisto.couponSconto(sconto, { intervallo: scelta.intervallo, adesso })
     if (c.errore) throw new HttpsError('failed-precondition', c.errore)
   }
+  if (cliente.tentativi_codice) await db.doc(`clienti/${uid}`).update(tentativiAzzerati(cliente))
   const puoFondatore = fondatori.coperto(scelta.piano) && !cliente.abbonamento?.fondatore && fondatori.postiLiberi((await POSTI_FONDATORI().get()).data(), adesso) > 0
   const vale = sconto.percentuale === 100 ? 'codice' : acquisto.scontoCheVale({ scelta, sconto, fondatore: puoFondatore, adesso })
   return { codice: sconto.codice, percentuale: sconto.percentuale, durata_mesi: sconto.durata_mesi, gratis: sconto.percentuale === 100, vale }
@@ -495,22 +536,31 @@ exports.attivaConCodice = onCall(OPTS, async (req) => {
   await solOSitoAperto()
   const uid = req.auth.uid
   const ref = db.doc(`clienti/${uid}`)
-  const codice = String(req.data?.codice || '').trim().toUpperCase()
-  if (!sconti.CODICE.test(codice)) throw new HttpsError('failed-precondition', 'Codice sconosciuto o disattivato.')
-  const refCodice = db.doc(`sconti/${codice}`)
+  const adesso = new Date()
   const prima = (await ref.get()).data()
+  soloSeNonTroppiTentativi(prima, adesso)
+  const codice = String(req.data?.codice || '').trim().toUpperCase()
+  if (!sconti.CODICE.test(codice)) {
+    await segnaTentativoCodice(uid, adesso)
+    throw new HttpsError('failed-precondition', 'Codice sconosciuto o disattivato.')
+  }
+  const refCodice = db.doc(`sconti/${codice}`)
   const istanza = prima?.slug ? (await db.doc(`istanze/${prima.slug}`).get()).data() : null
   const scelta = sceltaPulita({ piano: req.data?.piano, moduli: req.data?.moduli, terminali: req.data?.terminali })
   const basi = prove.problemaBasi(scelta)
   if (basi) throw new HttpsError('failed-precondition', basi)
   const inVendita = await vendita()
-  // In transazione col codice: l'ultimo uso lo prende uno solo.
+  // In transazione col codice: l'ultimo uso lo prende uno solo. Un
+  // tentativo fallito si conta nella stessa transazione.
   const esito = await db.runTransaction(async (t) => {
     const [cliente, doc] = (await Promise.all([t.get(ref), t.get(refCodice)])).map((s) => s.data())
     const fuori = cliente ? free.moduliFuoriVendita(cliente, scelta, inVendita) : []
     const e = acquisto.attivazioneConCodice({ cliente, uid, istanza, codice: doc, scelta, fuori })
-    if (e.errore) return e
-    t.update(ref, e.patch)
+    if (e.errore) {
+      if (cliente) t.update(ref, { tentativi_codice: sconti.tentativoFallito(cliente.tentativi_codice, adesso) })
+      return e
+    }
+    t.update(ref, { ...e.patch, ...tentativiAzzerati(cliente) })
     if (e.uso) t.update(refCodice, sconti.usoConfermato(doc, uid))
     return e
   })
@@ -668,9 +718,16 @@ async function scriviMovimento(m) {
 // altro (lib/traffico.js). Aperta a tutti perché la chiama anche chi non è
 // entrato: non legge niente, non risponde niente, e un contatore gonfiato
 // apposta è il danno peggiore che può fare.
-const DOMINI_NOSTRI = [PROGETTO_REGIA && `${PROGETTO_REGIA}.web.app`, PROGETTO_REGIA && `${PROGETTO_REGIA}.firebaseapp.com`, REGIA_URL && (() => { try { return new URL(REGIA_URL).hostname } catch { return null } })()].filter(Boolean)
-exports.traccia = onRequest({ ...OPTS, cors: true }, async (req, res) => {
+// AUDIT DEL 09/11/2026, FINDING 13: il documento del giorno non cresce più
+// con quello che arriva (ogni chiave viene da un elenco chiuso,
+// lib/traffico.js), una chiamata che il browser dichiara venire da un
+// altro sito (header Origin) non si conta, e la Function ha un tetto di
+// istanze: un ciclo di POST costa al massimo due istanze, non una flotta.
+// Il riferimento resta nel corpo: l'header Referer di questa chiamata è la
+// pagina nostra che la fa, e document.referrer lo conosce solo il browser.
+exports.traccia = onRequest({ ...OPTS, cors: true, maxInstances: 2, concurrency: 80 }, async (req, res) => {
   if (req.method !== 'POST') return res.status(405).send('')
+  if (!traffico.origineAmmessa(req.get('origin'), DOMINI_NOSTRI)) return res.status(204).send('')
   const esito = traffico.incrementiDi(req.body, { nostri: DOMINI_NOSTRI })
   if (!esito) return res.status(204).send('')
   try {
@@ -1733,6 +1790,9 @@ exports.gestisciTemiSuMisura = onCall(OPTS, async (req) => {
 exports.chiediTemaSuMisura = onCall(OPTS, async (req) => {
   if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
   if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Prima conferma la tua email.')
+  // Una richiesta al fornitore è una porta della vendita come le altre
+  // (REQ-FLOTTA-043; audit del 09/11/2026, finding 26).
+  await solOSitoAperto()
   const cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data()
   const r = contatti.richiestaTemaSuMisura(cliente && { uid: req.auth.uid, ...cliente }, req.data)
   if (!r.ok) throw new HttpsError('failed-precondition', r.perche)
@@ -2246,8 +2306,7 @@ exports.creaRicaricaAI = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async
   await solOSitoAperto()
   // Anche la ricarica passa da Stripe: coi pagamenti spenti la fa l'admin.
   if (!contatti.pagamentiOnline(await vendita())) throw new HttpsError('failed-precondition', PAGAMENTI_SPENTI)
-  const ritorno = String(req.data?.ritorno || '').replace(/\/$/, '')
-  if (!/^https?:\/\//.test(ritorno)) throw new HttpsError('invalid-argument', 'Indirizzo di ritorno non valido.')
+  const ritorno = ritornoPulito(req.data?.ritorno)
   const stripe = stripeClient()
   if (!stripe) throw new HttpsError('failed-precondition', 'Il pagamento online non è ancora attivo: scrivici all’email del prodotto.')
   const metadata = ai.metadatiRicarica({ uid, slug: cliente.slug, p })

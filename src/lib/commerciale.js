@@ -343,11 +343,20 @@ export function tabellaAbbonamenti(righe = [], movimenti = [], adesso = new Date
 // ── l'esportazione in CSV ──
 // Punto e virgola e virgola decimale: è quello che Excel in italiano apre
 // senza chiedere niente.
-const cella = (v) => {
+// UNA CELLA CHE COMINCIA COME UNA FORMULA (audit del 09/11/2026, finding
+// 27): nome del locale, email e codice sconto li scrivono i clienti, e
+// l'admin apre il CSV in Excel, che una cella che comincia con = + - @ (o
+// con un tab o un ritorno a capo) la esegue come formula: un nome
+// «=HYPERLINK(...)» diventa un link, un «@SUM» una chiamata. Un apostrofo
+// davanti la fa restare testo, com'è l'uso in Excel; i numeri veri passano
+// prima e non lo prendono. Vale anche dentro le virgolette: Excel la
+// formula la valuta lo stesso.
+const neutra = (s) => (/^[=+\-@\t\r]/.test(s) ? `'${s}` : s)
+export const cella = (v) => {
   if (v == null) return ''
   if (typeof v === 'number') return String(v).replace('.', ',')
-  if (Array.isArray(v)) return `"${v.join(', ').replace(/"/g, '""')}"`
-  const s = String(v)
+  if (Array.isArray(v)) return `"${neutra(v.join(', ')).replace(/"/g, '""')}"`
+  const s = neutra(String(v))
   return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 export function csv(righe, colonne) {

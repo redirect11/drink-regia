@@ -2625,3 +2625,205 @@ requirements:
       - tests/regole/vendita.test.js
       - tests/regole/registri.test.js
       - tests/regole/impostazioni.test.js
+
+  - id: REQ-FLOTTA-052
+    title: "Il traffico del sito non cresce con quello che arriva: provenienze da un elenco chiuso, origine verificata, tetto di istanze"
+    area: "functions/lib/traffico.js (FAMIGLIE, PROVENIENZE, provenienzaDi, origineAmmessa), functions/index.js (traccia, DOMINI_NOSTRI), src/pages/Commerciale.jsx (NOMI_VOCI), scripts/lib-semina.mjs, docs/commerciale.md"
+    description: >
+      Audit di sicurezza del 09/11/2026, finding 13: la Function `traccia`
+      scriveva in traffico/{giorno} una chiave `provenienze.<dominio>` per
+      ogni dominio di document.referrer ricevuto nel corpo, ridotto a
+      [a-z0-9_] ma non limitato. Un ciclo di POST con un dominio diverso a
+      ogni chiamata portava il documento del giorno a 1 MiB in poche
+      migliaia di richieste, e da lì ogni scrittura del giorno falliva (la
+      dashboard perdeva il giorno), con costo di scritture e invocazioni.
+      ORA ogni chiave del documento viene da un elenco chiuso: pagine,
+      lingue ed eventi come prima, e la provenienza è una FAMIGLIA fra
+      quelle di FAMIGLIE (google, bing, duckduckgo, yahoo, facebook,
+      instagram, tiktok, linkedin, x, youtube, whatsapp, telegram, chatgpt,
+      reddit, github), più «diretto» (nessun sito di provenienza, o una
+      pagina nostra) e «altro» (tutto il resto). Un dominio vale col nome
+      esatto o come sottodominio (l.facebook.com, www.google.it); «google.»
+      copre tutti i Google nazionali. Mille domini diversi finiscono in un
+      solo contatore. La dashboard del commerciale dà alle famiglie il loro
+      nome (NOMI_VOCI), e la semina di prova usa gli stessi nomi.
+      L'ORIGINE DELLA CHIAMATA: il browser mette l'header Origin a ogni
+      chiamata fra siti diversi e il sito chiamante non lo può cambiare; se
+      c'è e non è uno dei domini della regia (DOMINI_NOSTRI: i due di
+      Hosting del progetto e REGIA_URL) la chiamata risponde 204 e non
+      conta. Così una pagina di un altro sito non gonfia i contatori dai
+      browser dei suoi visitatori. Senza header (un programma) si conta: la
+      difesa contro i programmi è l'elenco chiuso, che tiene piccolo il
+      documento qualunque cosa mandino.
+      LA FUNCTION ha maxInstances: 2 e concurrency: 80: un ciclo di
+      chiamate costa al massimo due istanze.
+      SCELTA DIVERSA DALL'AUDIT: il riferimento (document.referrer) resta
+      nel corpo della chiamata, non si legge dall'header Referer. L'header
+      Referer di una chiamata fetch e' la pagina che la fa, cioe' una pagina
+      della regia, mai il sito da cui il visitatore e' arrivato: letto da
+      li', ogni vista sarebbe «diretto» e «Da dove arrivano» non direbbe
+      piu' niente. Quello che conta per il finding e' che del corpo non
+      entri nel documento nessun valore scritto dal chiamante, e cosi' e':
+      se ne tiene solo la famiglia.
+      DOMINI_NOSTRI e' definita accanto a PROGETTO_REGIA, perche' la
+      riusano anche gli indirizzi di ritorno del Checkout (REQ-FLOTTA-054).
+    status: implemented
+    generate_issue: true
+    labels: [regia, sicurezza]
+    priority: P2
+    test_cases:
+      - tests/traffico.test.js
+      - tests/commerciale.test.js
+      - tests/Commerciale.test.jsx
+      - tests/semina.test.js
+      - tests/db.test.js
+  - id: REQ-FLOTTA-053
+    title: "I codici sconto non si indovinano: forma minima, limite di usi per il 100%, dieci tentativi all'ora"
+    area: "functions/lib/sconti.js (CODICE_NUOVO, scontoPulito, troppiTentativi, tentativoFallito), functions/index.js (verificaCodiceSconto, attivaConCodice, soloSeNonTroppiTentativi, segnaTentativoCodice), src/lib/sconti.js (CODICE_VALIDO, generaCodice), src/pages/Backoffice.jsx (CodiciSconto)"
+    description: >
+      Audit di sicurezza del 09/11/2026, finding 15: un codice sconto poteva
+      avere 3 caratteri (TANA), verificaCodiceSconto diceva a un titolare se
+      un codice esiste senza limite di tentativi (un oracolo per
+      indovinarli), e un codice al 100% senza usi_massimi attivava piani
+      che non si pagano a non finire.
+      LA FORMA DI UN CODICE NUOVO (CODICE_NUOVO): almeno 8 caratteri fra
+      lettere maiuscole, cifre e trattini, con almeno 2 cifre; il
+      backoffice propone un codice generato con crypto.getRandomValues
+      (cinque lettere senza O e I, un trattino, quattro cifre:
+      BARCA-4821), con «Proponi un altro»; l'admin lo puo' cambiare, e la
+      stessa regola vale anche per il suo, detta dal sito prima di chiamare
+      e imposta dal server (il testo e' lo stesso parola per parola, un test
+      lo confronta). Il modulo lo dice a schermo.
+      IL 100% HA SEMPRE UN LIMITE: scontoPulito rifiuta percentuale 100
+      senza usi_massimi (>= 1), e il backoffice lo dice prima di chiamare.
+      I CODICI GIA' CREATI: i vincoli nuovi valgono alla creazione. La
+      ricerca (CODICE, da 3 a 24) accetta ancora i codici di prima: TANA-100
+      della Tana e i codici della semina di test restano validi, e un 100%
+      illimitato gia' esistente resta com'e' (si disattiva dal backoffice se
+      non si vuole piu').
+      I TENTATIVI: ogni verifica o attivazione fallita di un titolare
+      (codice sconosciuto, disattivato, esaurito, o che non attiva) si conta
+      in clienti/{uid}.tentativi_codice = { conteggio, finestra_da },
+      incrementato in transazione; al decimo in un'ora le due callable
+      rifiutano con resource-exhausted «Troppi tentativi, riprova fra
+      un'ora.» finche' l'ora non passa; un codice buono toglie il campo
+      (FieldValue.delete). Senza cliente non si crea un documento per
+      contare. Il campo lo scrivono solo le Functions: le regole di
+      clienti/{uid} elencano gia' cosa il titolare puo' creare e cambiare, e
+      tentativi_codice non c'e'; un test lo controlla. La scrittura sveglia
+      il trigger licenzaSegueIlPiano, che non trova cambiamenti e si ferma:
+      un costo per tentativo fallito, non per verifica riuscita.
+    status: implemented
+    generate_issue: true
+    labels: [regia, sicurezza]
+    priority: P2
+    test_cases:
+      - tests/sconti.test.js
+      - tests/Backoffice.test.jsx
+  - id: REQ-FLOTTA-054
+    title: "L'indirizzo di ritorno del Checkout e' solo un'origine della regia"
+    area: "functions/lib/abbonamento.js (ritornoAmmesso), functions/index.js (ritornoPulito, creaCheckout, creaRicaricaAI, DOMINI_NOSTRI)"
+    description: >
+      Audit di sicurezza del 09/11/2026, finding 25 (era L1 del 22/10):
+      creaCheckout e creaRicaricaAI accettavano come `ritorno` qualunque
+      indirizzo che cominciasse con http(s), e Stripe a pagamento finito
+      rimandava a `<ritorno>/dashboard`. Un Checkout vero poteva finire su
+      un dominio altrui, con la fiducia di chi ha appena pagato (open
+      redirect).
+      ORA ritornoAmmesso accetta solo un indirizzo https la cui origine
+      (new URL(ritorno).origin) sta fra i domini della regia, DOMINI_NOSTRI
+      (i due di Hosting del progetto e REGIA_URL, definiti accanto a
+      PROGETTO_REGIA), e ne tiene solo l'origine: niente percorso, niente
+      query. Fuori dalla produzione passa anche localhost/127.0.0.1 in
+      http, perche' `npm run dev` contro il progetto di test prova il
+      Checkout da li'. Il resto e' invalid-argument («Indirizzo di ritorno
+      non valido: il pagamento riparte solo dal sito della regia.»). Il
+      sito manda gia' window.location.origin (src/lib/db.js), quindi per
+      chi usa il sito non cambia niente.
+    status: implemented
+    generate_issue: true
+    labels: [regia, sicurezza]
+    priority: P3
+    test_cases:
+      - tests/sicurezza.test.js
+  - id: REQ-FLOTTA-055
+    title: "Sito chiuso: anche la registrazione dalla dashboard e la richiesta di un tema su misura"
+    area: "src/pages/Dashboard.jsx (chiuso), src/App.jsx (Dashboard chiuso={chiuso}), functions/index.js (chiediTemaSuMisura)"
+    description: >
+      Audit di sicurezza del 09/11/2026, finding 26: col sito chiuso
+      (REQ-FLOTTA-043) la prima pagina e /registrati erano l'anteprima e
+      nove callable della vendita rifiutavano, ma restavano due punti
+      scoperti. Un account senza locale (entrato con Google la prima volta)
+      trovava in /dashboard «Completa la registrazione» e scriveva
+      clienti/{uid} come se il sito fosse aperto; e chiediTemaSuMisura non
+      controllava il sito.
+      ORA App.jsx passa `chiuso` alla dashboard, e la dashboard, senza
+      cliente e col sito chiuso, mostra l'anteprima invece della
+      registrazione; chi ha gia' un locale vede la sua dashboard come
+      prima, e l'admin il suo avviso. chiediTemaSuMisura chiama
+      solOSitoAperto() dopo i controlli sull'accesso, come le altre porte
+      della vendita (il test di free.test.js la conta fra queste).
+      La callable di registrazione del finding 4 (un altro lavoro) chiude
+      il buco anche lato server: qui si chiude la porta del sito.
+    status: implemented
+    generate_issue: true
+    labels: [regia, sicurezza]
+    priority: P3
+    test_cases:
+      - tests/Dashboard.test.jsx
+      - tests/App.test.jsx
+      - tests/free.test.js
+  - id: REQ-FLOTTA-056
+    title: "Il CSV del commerciale non porta formule: una cella che comincia come una formula prende un apostrofo"
+    area: "src/lib/commerciale.js (cella, neutra)"
+    description: >
+      Audit di sicurezza del 09/11/2026, finding 27: `cella()` del CSV
+      quotava ; " e a capo ma non neutralizzava una cella che comincia con
+      = + - @ o con un tab o un ritorno a capo. Il nome del locale, l'email
+      e il codice sconto li scrivono i clienti, e l'admin apre il CSV in
+      Excel, che quelle celle le esegue come formule (CSV injection): un
+      nome «=HYPERLINK(...)» diventa un link, un «=cmd|...» una chiamata.
+      ORA una cella di testo (o un elenco) che comincia con uno di quei
+      caratteri prende un apostrofo davanti, com'e' l'uso in Excel per dire
+      «testo»; vale anche dentro le virgolette, perche' Excel la formula la
+      valuta lo stesso. I numeri veri (anche negativi) passano prima e non
+      lo prendono; date e testi normali restano com'erano.
+    status: implemented
+    generate_issue: true
+    labels: [regia, sicurezza]
+    priority: P3
+    test_cases:
+      - tests/commerciale.test.js
+  - id: REQ-FLOTTA-057
+    title: "Le cose piccole dell'audit: impostazioni solo all'admin, admin-regia senza progetto predefinito, link alle istanze solo in https"
+    area: "firestore.rules (impostazioni), scripts/admin-regia.mjs, src/lib/istanze.js (hrefSicuro), src/pages/Dashboard.jsx, src/pages/Backoffice.jsx, docs/handover.md, README.md"
+    description: >
+      Audit di sicurezza del 09/11/2026, finding 28, la parte della regia.
+      LE IMPOSTAZIONI: impostazioni/{doc} (impostazioni/regia col deploy
+      automatico, impostazioni/aggiornamenti con le regole degli
+      aggiornamenti) era leggibile da ogni autenticato, e sono informazioni
+      interne. Nel sito le leggono solo osservaImpostazioniRegia e
+      osservaRegoleAggiornamenti di src/lib/db.js, chiamate solo da
+      Backoffice.jsx (la dashboard del titolare non le legge: un test lo
+      verifica scorrendo src/pages); le Functions le rileggono da se' con
+      l'Admin SDK. Quindi `allow read: if admin()`.
+      LO SCRIPT DELL'ADMIN: scripts/admin-regia.mjs aveva `--project` con
+      il predefinito `drink-regia`: un lancio distratto con l'email
+      sbagliata dava il claim admin in produzione. Ora `--project` e'
+      obbligatorio, come in semina-test.mjs, e senza lo script spiega e
+      esce. Aggiornati handover e README.
+      I LINK ALLE ISTANZE: `istanza.url` lo scrive il provisioning ma passa
+      per Firestore e per l'esito del workflow; nella dashboard del
+      titolare e nel backoffice finiva in un href senza controllo del
+      protocollo. hrefSicuro(url) in src/lib/istanze.js accetta solo un
+      https (altrimenti null): nel backoffice senza https non c'e' «Apri
+      l'app»; nella dashboard si mostra l'indirizzo che l'istanza avra' per
+      il suo slug (urlDi), che e' nostro.
+    status: implemented
+    generate_issue: true
+    labels: [regia, sicurezza]
+    priority: P3
+    test_cases:
+      - tests/sicurezza.test.js
+      - tests/Dashboard.test.jsx
+      - tests/Backoffice.test.jsx

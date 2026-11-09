@@ -38,16 +38,13 @@ describe('impostazioni/{doc}: la lettura', () => {
     await assertFails(getDoc(doc(CHI.anonimo(env), 'impostazioni/regia')))
   })
 
-  // OGGI LE LEGGE OGNI AUTENTICATO: un titolare qualunque vede se il deploy
+  // SOLO L'ADMIN (REQ-FLOTTA-057, audit del 09/11/2026, finding 28): prima
+  // le leggeva ogni autenticato, e un titolare qualunque vedeva se il deploy
   // automatico è acceso e i giorni di grazia dei pagamenti a mano. La
-  // dashboard del titolare non le usa; le legge solo il backoffice. Questa
-  // prova documenta com'è.
-  // CAMBIERÀ (audit del 09/11/2026): `allow read: if admin()`. Allora i
-  // due assertSucceeds qui sotto diventano assertFails, e la prova sopra
-  // sull'admin resta.
-  it('un titolare oggi le legge (documentato: cambierà, saranno solo dell’admin)', async () => {
-    await assertSucceeds(getDoc(doc(CHI.clienteA(env), 'impostazioni/regia')))
-    await assertSucceeds(getDoc(doc(CHI.clienteB(env), 'impostazioni/aggiornamenti')))
+  // dashboard del titolare non le usa; le legge solo il backoffice.
+  it('un titolare non le legge: sono informazioni interne della regia', async () => {
+    await assertFails(getDoc(doc(CHI.clienteA(env), 'impostazioni/regia')))
+    await assertFails(getDoc(doc(CHI.clienteB(env), 'impostazioni/aggiornamenti')))
   })
 })
 
