@@ -205,7 +205,8 @@ describe('nelle Functions', () => {
   })
 
   it('i controlli nell’ordine del contratto: installazione, titolare, ritorno, modulo in vendita', () => {
-    const ordine = ['progettoDelToken(token)', "stato === 'eliminata'", 'verifyIdToken(token)', 'aggiornamenti.eTitolare(chi)', 'moduliApp.ritornoValido(', 'moduliApp.moduloInVendita(']
+    // E, trovato il cliente, che l'admin sia proprio lui (REQ-FLOTTA-050).
+    const ordine = ['progettoDelToken(token)', "stato === 'eliminata'", 'verifyIdToken(token)', 'aggiornamenti.eTitolare(chi)', 'moduliApp.ritornoValido(', 'moduliApp.moduloInVendita(', 'passa.stessoTitolare(chi,']
     const posti = ordine.map((x) => porta.indexOf(x))
     expect(posti.every((p) => p > 0)).toBe(true)
     expect([...posti].sort((a, b) => a - b)).toEqual(posti)

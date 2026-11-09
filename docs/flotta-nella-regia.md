@@ -66,7 +66,10 @@ tana-drink non riceve più lanci e non manda più esiti. Restano:
   `firebase deploy --only firestore,storage,functions,hosting`;
 - **gli id dei moduli** e **la licenza in `settings/bar`** (handover §7);
 - **il ruolo del titolare**: il claim `role: 'admin'` dell'app
-  (`src/lib/ruoli.js` di tana-drink, docs/flotta.md «Il titolare»);
+  (`src/lib/ruoli.js` di tana-drink, docs/flotta.md «Il titolare»). Per
+  quello che tocca l'abbonamento o la versione (moduli dall'app, scelta
+  degli aggiornamenti) la regia vuole in più che sia l'account del
+  cliente: stesso uid (M7) o email verificata uguale (REQ-FLOTTA-050);
 - **la Tana**, che si pubblica dal suo repository e riferisce la sua
   versione alla regia (handover §7, «Rilasci a ondate»).
 

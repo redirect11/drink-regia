@@ -13,6 +13,11 @@ data.
   ogni run di GitHub passa una volta sola, entro dieci minuti. Col segreto
   del callback non configurato o troppo corto la regia risponde 503
   (REQ-FLOTTA-049).
+- Dall'app del locale i moduli (prova, aggiunta, disdetta) e la scelta
+  degli aggiornamenti li fa solo il titolare: l'account del cliente della
+  regia (stesso uid, o email verificata uguale), non un altro admin del
+  locale, che riceve «Solo il titolare del locale può …» (audit del
+  09/11/2026, finding 17; REQ-FLOTTA-050).
 - Il listino dei moduli cambia: il menù digitale col QR al tavolo è
   compreso nei piani Base e Completo; gli ordini dal telefono costano 12 €
   al mese; le fatture ai clienti (5 €) e le fatture ai fornitori (6 €) si

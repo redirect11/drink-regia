@@ -2160,3 +2160,38 @@ requirements:
       - tests/provisioning.test.js
       - tests/eliminazione.test.js
       - tests/flotta.test.js
+  - id: REQ-FLOTTA-050
+    title: "Per la regia il titolare è l'account del cliente, non un admin qualunque del locale"
+    area: "functions/lib/passaggio.js (stessoTitolare), functions/index.js (moduloDallApp, sceltaDallApp), docs/handover.md §7, docs/flotta-nella-regia.md"
+    description: >
+      Audit del 09/11/2026, finding 17. `eTitolare` (aggiornamenti.js) è il
+      solo claim `role: 'admin'` dell'app, e in tana-drink un admin crea
+      altri admin: un dipendente con quel ruolo poteva aggiungere o disdire
+      moduli sulla subscription Stripe del titolare, con conguaglio
+      immediato, consumare la prova di un modulo (una sola per modulo) o
+      scegliere la versione dell'app. Il commento di moduloDallApp
+      dichiarava la scelta opposta («gli admin dell'app possono essere più
+      d'uno»), ma il conto lo paga il titolare.
+      LA REGOLA (stessoTitolare, in passaggio.js accanto a titolareDallApp
+      che già la applica al passaggio verso la regia): ruolo admin E
+      l'account del cliente della regia, cioè lo stesso uid (M7: l'account
+      nel locale nasce con l'uid di clienti/{uid}) oppure, per un locale
+      esistente dove l'uid è un altro, l'email verificata uguale a
+      cliente.email. Senza il vincolo sull'età del token: non è un
+      passaggio di sessione.
+      DOVE: moduloDallApp per tutte e tre le azioni (prova, aggiungi,
+      disdici: anche la prova tocca l'abbonamento e si consuma), dopo i
+      controlli del contratto e trovato il cliente, 403 «Solo il titolare
+      del locale può gestire i moduli.»; sceltaDallApp, perché la versione
+      dell'app la decide chi ha l'abbonamento, come dalla dashboard dove
+      sceglie il suo account nella regia, 403 «Solo il titolare del locale
+      può scegliere gli aggiornamenti.». Il contratto §7 dell'handover e
+      flotta-nella-regia.md lo dicono; lato tana-drink non cambia niente,
+      solo che un admin che non è il titolare vede quel 403.
+    status: implemented
+    generate_issue: true
+    labels: [regia, flotta, sicurezza]
+    priority: P1
+    test_cases:
+      - tests/passaggio.test.js
+      - tests/moduliapp.test.js

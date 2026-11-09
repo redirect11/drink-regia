@@ -132,3 +132,44 @@ describe('nella regia', () => {
     expect(tf).toContain('firebase-adminsdk-fbsvc@${google_project.istanza.project_id}.iam.gserviceaccount.com')
   })
 })
+
+// ── IL TITOLARE PER LA REGIA (audit del 09/11/2026, finding 17) ────────
+// (REQ-FLOTTA-050) In tana-drink un admin crea altri admin: per toccare
+// l'abbonamento (moduli dall'app) o la versione (scelta degli
+// aggiornamenti) serve l'account del cliente, non un admin qualunque.
+describe('stessoTitolare', () => {
+  const titolare = { uid: 'regia-1', email: 'mario@example.it', email_verified: true, role: 'admin' }
+
+  it('lo stesso uid della regia (M7) basta, anche senza email verificata', () => {
+    expect(p.stessoTitolare(titolare, cliente)).toBe(true)
+    expect(p.stessoTitolare({ uid: 'regia-1', role: 'admin' }, cliente)).toBe(true)
+    expect(p.stessoTitolare({ uid: 'regia-1', role: 'admin', email: 'altro@example.it', email_verified: true }, cliente)).toBe(true)
+  })
+
+  it('un locale esistente ha un altro uid: vale l’email verificata uguale, maiuscole a parte', () => {
+    expect(p.stessoTitolare({ uid: 'tana-7', role: 'admin', email: ' MARIO@example.it ', email_verified: true }, cliente)).toBe(true)
+    expect(p.stessoTitolare({ uid: 'tana-7', role: 'admin', email: 'mario@example.it', email_verified: false }, cliente)).toBe(false)
+    expect(p.stessoTitolare({ uid: 'tana-7', role: 'admin', email: 'mario@example.it' }, cliente)).toBe(false)
+    // Un cliente senza email in archivio non si abbina a nessuno per email.
+    expect(p.stessoTitolare({ uid: 'tana-7', role: 'admin', email: '', email_verified: true }, { uid: 'regia-1', email: '' })).toBe(false)
+  })
+
+  it('un altro admin del locale no; un bartender con l’uid giusto nemmeno', () => {
+    expect(p.stessoTitolare({ uid: 'dip-2', role: 'admin', email: 'dipendente@example.it', email_verified: true }, cliente)).toBe(false)
+    expect(p.stessoTitolare({ uid: 'regia-1', role: 'bartender', email: 'mario@example.it', email_verified: true }, cliente)).toBe(false)
+    expect(p.stessoTitolare(null, cliente)).toBe(false)
+    expect(p.stessoTitolare(titolare, null)).toBe(false)
+  })
+
+  it('nelle Functions sta davanti ai moduli dall’app e alla scelta degli aggiornamenti, con un messaggio chiaro', () => {
+    const codice = readFileSync('functions/index.js', 'utf8')
+    const tra = (da, a) => codice.slice(codice.indexOf(da), codice.indexOf(a, codice.indexOf(da)))
+    const moduli = tra('exports.moduloDallApp', '\n})')
+    expect(moduli).toContain("if (!passa.stessoTitolare(chi, { uid: docCliente.id, ...cliente })) return no(403, 'Solo il titolare del locale può gestire i moduli.')")
+    // Prima di ogni azione: anche la prova, che si consuma una volta sola.
+    expect(moduli.indexOf('passa.stessoTitolare(')).toBeLessThan(moduli.indexOf("corpo.azione === 'prova'"))
+    const scelta = tra('exports.sceltaDallApp', '\n})')
+    expect(scelta).toContain("if (!passa.stessoTitolare(chi, cliente)) return res.status(403).json({ errore: 'Solo il titolare del locale può scegliere gli aggiornamenti.' })")
+    expect(scelta.indexOf('passa.stessoTitolare(')).toBeLessThan(scelta.indexOf('applicaScelta('))
+  })
+})

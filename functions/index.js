@@ -1415,8 +1415,8 @@ exports.sceltaAggiornamento = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN]
 // La scelta dall'app: il titolare tocca «Aggiorna» o «Salta» e l'app chiama
 // qui col suo token d'accesso (Authorization: Bearer <ID token>, corpo
 // { tag, scelta }). La regia riconosce il locale dal progetto del token, lo
-// verifica con quel progetto, controlla che sia il titolare e applica la
-// scelta subito. Niente chiavi nel browser e niente giri a tempo; va bene
+// verifica con quel progetto, controlla che sia il titolare (admin e lo
+// stesso account del cliente, REQ-FLOTTA-050) e applica la scelta subito. Niente chiavi nel browser e niente giri a tempo; va bene
 // anche per il Free, che non ha Functions. Il token è nell'intestazione e
 // non ci sono cookie, quindi la chiamata si apre a qualunque origine.
 exports.sceltaDallApp = onRequest({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN], cors: false }, async (req, res) => {
@@ -1438,6 +1438,11 @@ exports.sceltaDallApp = onRequest({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN], c
     return res.status(401).json({ errore: 'Accesso non valido: entra di nuovo.' })
   }
   if (!aggiornamenti.eTitolare(chi)) return res.status(403).json({ errore: 'La sceglie il titolare.' })
+  // E non un altro admin del locale (audit del 09/11/2026, finding 17):
+  // la versione dell'app la decide chi ha l'abbonamento, come dalla
+  // dashboard, dove sceglie il suo account nella regia.
+  const cliente = await clienteDi(trovata.id)
+  if (!passa.stessoTitolare(chi, cliente)) return res.status(403).json({ errore: 'Solo il titolare del locale può scegliere gli aggiornamenti.' })
   const corpo = aggiornamenti.corpoScelta(req.body)
   if (!corpo) return res.status(400).json({ errore: 'Scelta non valida.' })
   const scelta = aggiornamenti.sceltaValida({ ...corpo, il: new Date().toISOString() }, ist.proposta_aggiornamento)
@@ -2613,7 +2618,9 @@ exports.catalogoModuli = onRequest({ ...OPTS, cors: false }, async (req, res) =>
 // ritorno }. I controlli in quest'ordine: l'installazione (401 senza token
 // valido, 404 sconosciuta o eliminata), il titolare (il ruolo `admin`
 // dell'app, 403), il ritorno sui domini dell'installazione (400), il
-// modulo nel listino e in vendita (409; per disdire basta che esista).
+// modulo nel listino e in vendita (409; per disdire basta che esista), e
+// che l'admin sia proprio il cliente della regia (stesso uid o email
+// verificata uguale, 403: audit del 09/11/2026, finding 17).
 // Risposte: 200 { ok: true } (aggiunto), { ok: true, scade_il } (prova),
 // { ok: true, dal } (disdetto), { ok: true, in_attesa: true } (richiesta
 // all'assistenza); { ok: false, errore } col motivo, che l'app mostra al
@@ -2657,6 +2664,10 @@ exports.moduloDallApp = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY], cors:
   const docCliente = (await db.collection('clienti').where('slug', '==', trovata.id).limit(1).get()).docs[0]
   if (!docCliente) return no(404, 'Nessun abbonamento registrato per questo locale.')
   const cliente = docCliente.data()
+  // Il titolare, non un altro admin del locale (audit del 09/11/2026,
+  // finding 17): prova, aggiunta e disdetta toccano l'abbonamento del
+  // cliente, e la prova si consuma una volta sola per modulo.
+  if (!passa.stessoTitolare(chi, { uid: docCliente.id, ...cliente })) return no(403, 'Solo il titolare del locale può gestire i moduli.')
   if (corpo.azione === 'prova') {
     const p = await accendiProva(docCliente.ref, cliente, ist, corpo.modulo, inVendita)
     if (p.errore) return no(409, p.errore)
@@ -2681,8 +2692,9 @@ exports.moduloDallApp = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY], cors:
     console.error(`[moduli dall'app] ${trovata.id}, ${corpo.azione} ${corpo.modulo}:`, e?.message || e)
     return no(502, 'Il cambio non è passato: riprovare fra poco.')
   }
-  // Chi, quando e da dove, come i cambi dell'admin: in un locale gli
-  // admin dell'app possono essere più d'uno.
+  // Chi, quando e da dove, come i cambi dell'admin. Dal 09/11/2026 «chi» è
+  // sempre il titolare (stessoTitolare, sopra): resta scritto perché lo
+  // storico dice da quale account e da quale lato è arrivato il cambio.
   const storico = { il: adesso.toISOString(), da: chi.email || chi.uid, modo: 'app', azione: corpo.azione, modulo: corpo.modulo, ...d.scelta }
   await docCliente.ref.update({ storico_piano: FieldValue.arrayUnion(storico) }).catch((e) => console.error(`[moduli dall'app] ${trovata.id}, storico:`, e?.message || e))
   console.log(`[moduli dall'app] ${trovata.id}: ${corpo.azione} ${corpo.modulo} (${chi.email || chi.uid})`)
