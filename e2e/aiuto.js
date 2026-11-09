@@ -28,6 +28,11 @@ export function prezzoMensile({ piano = 'base', moduli = [], terminali = 1 } = {
 }
 
 export const PASSWORD = process.env.E2E_PASSWORD
+// Il collaudo (REQ-DEV-009): le prove che scrivono sulla regia di test
+// (e2e/collaudo-*.spec.js) girano solo quando lo si chiede, cioè quando un
+// tag ha appena pubblicato sul test. Senza, si saltano e il giro resta in
+// sola lettura.
+export const COLLAUDO = process.env.E2E_COLLAUDO === 'true'
 export const emailDiCaso = (caso) => (caso === 'admin' ? process.env.E2E_ADMIN || emailDi(ADMIN.slug) : emailDi(persona(caso).slug))
 export const nomeDiCaso = (caso) => persona(caso).nome
 

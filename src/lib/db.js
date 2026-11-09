@@ -84,13 +84,25 @@ export const tracciaEvento = (evento) => traccia({ evento })
 // tentativo, con lo stesso account entrato, non si ricrea (darebbe
 // «email già in uso») e si scrive solo il cliente, come per chi entra con
 // Google e completa dopo.
+// FRA L'ACCOUNT E IL CLIENTE la registrazione non è finita, ma Firebase ha
+// già fatto entrare l'utente: App.jsx, vedendolo, mandava alla dashboard e
+// smontava la pagina, e se la Function rifiutava lo slug il messaggio e i
+// dati inseriti sparivano (trovato dal primo collaudo automatico,
+// 09/11/2026, REQ-DEV-009). Finché è in corso, App lascia la pagina dov'è.
+let inCorso = false
+export const registrazioneInCorso = () => inCorso
 export async function registra({ email, password, ...dati }) {
   serve()
-  const stessa = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase()
-  const utente = auth.currentUser && stessa(auth.currentUser.email, email) ? auth.currentUser : (await createUserWithEmailAndPassword(auth, email, password)).user
-  const cliente = await creaCliente(utente, dati)
-  tracciaEvento('registrazione')
-  return cliente
+  inCorso = true
+  try {
+    const stessa = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase()
+    const utente = auth.currentUser && stessa(auth.currentUser.email, email) ? auth.currentUser : (await createUserWithEmailAndPassword(auth, email, password)).user
+    const cliente = await creaCliente(utente, dati)
+    tracciaEvento('registrazione')
+    return cliente
+  } finally {
+    inCorso = false
+  }
 }
 
 // L'ACCESSO CON GOOGLE (REQ-FLOTTA-038). Firebase tiene un account per
@@ -281,6 +293,14 @@ export async function impostaStatoIstanza(slug, stato, motivo = null) {
   serve()
   const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'impostaStatoIstanza')
   await fn({ slug, stato, motivo })
+}
+
+// L'admin elimina un cliente registrato che non ha un'istanza, o la cui
+// istanza è già stata eliminata (REQ-FLOTTA-059): via account e documenti.
+export async function eliminaCliente(slug) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'eliminaCliente')
+  await fn({ slug })
 }
 
 // Il titolare cambia piano, moduli o terminali (REQ-FLOTTA-010).

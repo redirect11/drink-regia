@@ -24,10 +24,11 @@ npm run build
 ```
 
 **Due progetti Firebase**, come tana-drink: `drink-regia-test` per
-provare e `drink-regia` per la produzione. Un push su `develop` va sul
-test; in produzione va solo un tag su `main`, e un tag fuori da `main`
-non pubblica niente. Il lancio a mano di «Deploy to Firebase» su un ramo
-va sul test (`docs/handover.md` §3,
+provare e `drink-regia` per la produzione. A pubblicare è il tag: un tag
+fuori da `main` (`vX.Y.Z-beta` su `develop`) va sul test e poi passa il
+collaudo automatico; in produzione va solo un tag su `main`, e solo se
+quel collaudo è riuscito. Un push non pubblica mai. Il lancio a mano di
+«Deploy to Firebase» su un ramo va sul test, senza collaudo (`docs/handover.md` §3,
 `docs/actions-come-tana-drink.md`). I segreti stanno nelle GitHub
 Environments `test` e `production`, stessi nomi e valori del loro
 progetto: i quattro `VITE_FIREBASE_*` (`scripts/segreti-environment.mjs`

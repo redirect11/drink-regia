@@ -13,10 +13,13 @@ lavoro sono le stesse di quel repository.
   condivisi con tana-drink. È il punto di partenza di ogni sessione.
 - **Tutto in italiano**: interfaccia, commenti, commit, PR.
 - **GitFlow**: si lavora su `release/x.y.z` da `develop`; mai commit diretti
-  su `develop` o `main`, merge solo via pull request. Un push su `develop` va sul sito di test
-  (`drink-regia-test`); in produzione (`drink-regia`) va solo un tag su
-  `main`. Un tag fuori da `main` non pubblica niente. Il lancio a mano di
-  «Deploy to Firebase» su un ramo va sul test.
+  su `develop` o `main`, merge solo via pull request. **A pubblicare è il
+  tag** (dal 09/11/2026): un tag fuori da `main` (`vX.Y.Z-beta` su
+  `develop`) va sul sito di test (`drink-regia-test`) e poi passa il
+  collaudo automatico; in produzione (`drink-regia`) va solo un tag su
+  `main`, e solo se un collaudo è riuscito sul test per quel codice. Un
+  push non pubblica mai. Il lancio a mano di «Deploy to Firebase» su un
+  ramo va sul test, senza collaudo.
 - **Prima di una PR**: `npm run lint`, `npm test`, `npm run build` puliti.
 - **I test sono la specifica** (`tests/`), e il registro
   `requirements/requirements.yaml` è la mappa: ogni file di test è citato da

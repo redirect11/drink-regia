@@ -458,18 +458,26 @@ describe.each(WORKFLOW)('%s: il codice di tana-drink gira solo nel job senza la 
     }
   })
 
-  it('la configurazione web passa da prepara a compila come output, e porta solo chiavi pubbliche', () => {
-    expect(w.jobs.prepara.outputs.config_web).toBe('${{ steps.web.outputs.config_web }}')
+  // 09/11/2026: come output del job GitHub la scartava («Skip output since
+  // it may contain secret»: la riga di JSON somiglia a un valore mascherato)
+  // e compila restava senza, tre aggiornamenti falliti di fila. In un
+  // artifact passa, e non è un segreto: sono le chiavi pubbliche del client.
+  it('la configurazione web passa da prepara a compila in un artifact, non come output, e porta solo chiavi pubbliche', () => {
+    expect(w.jobs.prepara.outputs?.config_web).toBeUndefined()
     const web = w.jobs.prepara.steps.find((s) => s.id === 'web')
-    expect(web.run).toContain('config_web=$(')
-    expect(web.run).toContain('>> "$GITHUB_OUTPUT"')
-    // Nel passo che la produce non c'è nessun secret: un output non può
-    // portare via quello che il job non ha letto lì.
+    expect(web.run).toContain('config-web.json')
+    expect(web.run).not.toContain('config_web=$(')
+    // Nel passo che la produce non c'è nessun secret.
     expect(testo(web)).not.toContain('secrets.')
+    const su = w.jobs.prepara.steps.find((s) => s.uses?.startsWith('actions/upload-artifact'))
+    expect(su.with).toMatchObject({ name: 'config-web', path: '${{ runner.temp }}/config-web.json', 'retention-days': 1, 'if-no-files-found': 'error' })
+    const giu = w.jobs.compila.steps.find((s) => s.uses?.startsWith('actions/download-artifact'))
+    expect(giu.with).toEqual({ name: 'config-web', path: '${{ runner.temp }}/config-web' })
     const env = w.jobs.compila.steps.find((s) => s.name?.startsWith('Il .env della build'))
-    expect(env.env.CONFIG_WEB).toBe('${{ needs.prepara.outputs.config_web }}')
-    expect(env.run).toContain('JSON.parse(process.env.CONFIG_WEB || "{}")')
-    expect(env.run).toContain('"$GITHUB_WORKSPACE/app/.env"')
+    expect(env.env).toBeUndefined()
+    expect(env.run).toContain('JSON.parse(require("fs").readFileSync(process.argv[2], "utf8"))')
+    expect(env.run).toContain('"$GITHUB_WORKSPACE/app/.env" "$RUNNER_TEMP/config-web/config-web.json"')
+    expect(testo(w.jobs.compila)).not.toContain('needs.prepara.outputs.config_web')
   })
 
   it('l’app compilata viaggia in un artifact: compila la carica, pubblica la scarica e la scompatta in app/', () => {

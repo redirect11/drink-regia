@@ -33,6 +33,8 @@ vi.mock('firebase/functions', () => ({
   getFunctions: () => ({}),
   httpsCallable: (_f, nome) => async (dati) => {
     fb.chiamate.push({ nome, dati })
+    // Una risposta che è un Error è un rifiuto della Function.
+    if (fb.risposte[nome] instanceof Error) throw fb.risposte[nome]
     return { data: fb.risposte[nome] ?? { ok: true } }
   },
 }))
@@ -137,6 +139,8 @@ const FUNCTIONS = [
   ['registraPagamento', ['bar', '2026-11-30', '32.7'], 'registraPagamento', { slug: 'bar', pagato_fino_al: '2026-11-30', importo: '32.7' }],
   ['registraPagamento', ['bar', '2026-11-30', ''], 'registraPagamento', { slug: 'bar', pagato_fino_al: '2026-11-30' }],
   ['programmaScadenze', [], 'programmaScadenze', {}],
+  // L'admin elimina un cliente senza istanza (REQ-FLOTTA-059).
+  ['eliminaCliente', ['collaudo-x'], 'eliminaCliente', { slug: 'collaudo-x' }],
   // I codici sconto (REQ-FLOTTA-028); un codice vuoto toglie lo sconto.
   ['gestisciSconti', ['crea', { codice: 'X1Y' }], 'gestisciSconti', { codice: 'X1Y', azione: 'crea' }],
   ['applicaSconto', ['bar', 'TANA-100'], 'applicaSconto', { slug: 'bar', codice: 'TANA-100' }],
@@ -263,6 +267,21 @@ describe('l’accesso', () => {
       { nome: 'verifica', dati: 'nuovo' },
     ])
     expect(fb.scritti).toEqual([])
+  })
+
+  // Trovato dal primo collaudo automatico (09/11/2026, REQ-DEV-009): fra
+  // l'account creato e il cliente scritto App.jsx mandava alla dashboard,
+  // e il rifiuto dello slug spariva con la pagina. Finché registra lavora,
+  // la registrazione «è in corso»; finita bene o male, non lo è più.
+  it('registrazioneInCorso è vero mentre registra lavora, e torna falso anche se la Function rifiuta', async () => {
+    expect(db.registrazioneInCorso()).toBe(false)
+    const p = db.registra({ email: 'bar@example.com', password: 'x', locale: { nome: 'Bar Mario' } })
+    expect(db.registrazioneInCorso()).toBe(true)
+    await p
+    expect(db.registrazioneInCorso()).toBe(false)
+    fb.risposte.registraCliente = Object.assign(new Error('in uso'), { code: 'functions/already-exists', details: { campo: 'slug' } })
+    await expect(db.registra({ email: 'bar@example.com', password: 'x', locale: { nome: 'Bar Mario' } })).rejects.toThrow()
+    expect(db.registrazioneInCorso()).toBe(false)
   })
 
   it('lo slug scelto a mano arriva alla Function solo se c’è, e un rifiuto per slug in uso si riconosce', async () => {
