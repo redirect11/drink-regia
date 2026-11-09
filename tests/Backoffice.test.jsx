@@ -84,7 +84,6 @@ vi.mock('../src/lib/db.js', () => db)
 
 import Backoffice from '../src/pages/Backoffice.jsx'
 
-const FUTURO = { v7_startTransition: true, v7_relativeSplatPath: true }
 // Dove si è arrivati, per i test delle rotte.
 function Dove() {
   const { pathname, search } = useLocation()
@@ -106,7 +105,7 @@ const nomiLocali = async () => (await righeLocali()).map((r) => r.querySelector(
 
 const mostra = (percorso = '/backoffice/locali') =>
   render(
-    <MemoryRouter initialEntries={[percorso]} future={FUTURO}>
+    <MemoryRouter initialEntries={[percorso]}>
       <Routes>
         <Route path="/backoffice/*" element={<Backoffice />} />
       </Routes>

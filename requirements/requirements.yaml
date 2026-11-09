@@ -2626,6 +2626,59 @@ requirements:
       - tests/regole/registri.test.js
       - tests/regole/impostazioni.test.js
 
+  - id: REQ-DEV-008
+    title: "Le dipendenze con falle note aggiornate insieme: vite 7, vitest 4, happy-dom 21, react-router 7"
+    area: "package.json, package-lock.json, functions/package-lock.json, vitest.config.mjs (setupFiles), tests/finestra.js, tests/HomeLingua.test.jsx, src/main.jsx, tests/*.test.jsx (MemoryRouter senza future)"
+    description: >
+      Audit di sicurezza del 09/11/2026, finding 24, e le correzioni di
+      sicurezza che Dependabot ha aperto la sera stessa (#106 happy-dom 21,
+      #107 e #108 vitest/vite, #114 vitest 5) e che non si potevano unire:
+      vitest 4 e 5 vogliono vite 6 o successivi e il sito stava su vite 5,
+      quindi npm non risolveva nemmeno l'albero (ERESOLVE). La migrazione
+      si fa in un colpo solo, nel ramo dedicato che il commento di
+      .github/dependabot.yml prevede per i major.
+      LE VERSIONI: vite 7 (le falle di vite si chiudono dalla 6.4.4),
+      vitest 4.1.12 con @vitest/coverage-v8 allo stesso numero (la 4.1.12
+      chiude il path traversal e la code injection di @vitest/mocker),
+      happy-dom 21.0.4 (SSRF e import alias), react-router-dom 7.18 (open
+      redirect via backslash in Link e useNavigate). Le dipendenze
+      transitive si allineano con npm audit fix; il resto degli avvisi è
+      a monte e non ha una versione che lo chiuda senza un major: i due di
+      @grpc/grpc-js dentro firebase 12 (il browser non lo usa), quelli
+      dentro firebase-tools (strumento di sviluppo) e gli 8 moderati di
+      firebase-admin 13 nelle Functions, da chiudere con firebase-admin 14
+      (REQ-DEV-006).
+      COSA CAMBIA NEI TEST: happy-dom 21 non definisce più window.alert,
+      confirm e prompt, che le pagine del backoffice usano e i test spiano;
+      tests/finestra.js, nei setupFiles, li mette sulla finestra finta con
+      la risposta di chi chiude il dialogo. Lo storage di happy-dom 21 è un
+      proxy: vi.spyOn(localStorage, ...) non si ripristina più e sul
+      prototipo non intercetta; i due test della lingua col browser che
+      non lascia salvare sostituiscono globalThis.localStorage con un
+      archivio che rifiuta, per la durata del test. I flag future di
+      react-router 6 (v7_startTransition, v7_relativeSplatPath) spariscono
+      da BrowserRouter e dai MemoryRouter dei test: in react-router 7 sono
+      il comportamento normale. Il sorgente del sito non cambia.
+      IL TEST (tests/dipendenze.test.js) tiene ferme le soglie minime in
+      package.json e nel lockfile, pretende coverage-v8 e vitest allo
+      stesso minor e la finestra finta nei setupFiles. npm 10.7 fallisce
+      l'installazione con «Cannot read properties of null (reading
+      edgesOut)»: si usa npx npm@11, il lockfile resta alla versione 3.
+      LA COPERTURA: il v8 di vitest 4 conta le funzioni in modo diverso e
+      src/lib scendeva a 96,6% di funzioni, sotto la soglia del 97%
+      (REQ-DEV-002). La soglia non si abbassa: tests/db.test.js prova
+      osservaTemiSuMisura ed elencoTemiSuMisura, che non avevano un test, e
+      src/lib torna a 98,3%.
+    status: implemented
+    generate_issue: true
+    labels: [metodo, sicurezza]
+    priority: P2
+    test_cases:
+      - tests/dipendenze.test.js
+      - tests/HomeLingua.test.jsx
+      - tests/db.test.js
+
+
   - id: REQ-FLOTTA-052
     title: "Il traffico del sito non cresce con quello che arriva: provenienze da un elenco chiuso, origine verificata, tetto di istanze"
     area: "functions/lib/traffico.js (FAMIGLIE, PROVENIENZE, provenienzaDi, origineAmmessa), functions/index.js (traccia, DOMINI_NOSTRI), src/pages/Commerciale.jsx (NOMI_VOCI), scripts/lib-semina.mjs, docs/commerciale.md"

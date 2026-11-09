@@ -31,10 +31,9 @@ import Registrati, { messaggio } from '../src/pages/Registrati.jsx'
 import Dashboard from '../src/pages/Dashboard.jsx'
 import { finestraChiusa } from '../src/pages/EntraConGoogle.jsx'
 
-const FUTURO = { v7_startTransition: true, v7_relativeSplatPath: true }
 const mostra = (pagina, da = '/accedi') =>
   render(
-    <MemoryRouter future={FUTURO} initialEntries={[da]}>
+    <MemoryRouter initialEntries={[da]}>
       <Routes>
         <Route path={da} element={pagina} />
         <Route path="/dashboard" element={<div>DASHBOARD</div>} />

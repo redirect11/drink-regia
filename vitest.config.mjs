@@ -13,6 +13,9 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     env: { TZ: 'Europe/Rome' },
+    // I dialoghi del browser (alert, confirm, prompt) che happy-dom 21 non
+    // definisce più: tests/finestra.js li mette sulla finestra finta.
+    setupFiles: ['tests/finestra.js'],
     include: ['tests/**/*.test.js', 'tests/**/*.test.jsx'],
     // Fuori i test delle REGOLE Firestore (REQ-DEV-007): vogliono l'emulatore
     // acceso e hanno una configurazione loro (vitest.regole.config.mjs, `npm

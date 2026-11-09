@@ -15,10 +15,9 @@ vi.mock('../src/lib/db.js', () => db)
 
 import Accesso, { leggiCodice } from '../src/pages/Accesso.jsx'
 
-const FUTURO = { v7_startTransition: true, v7_relativeSplatPath: true }
 const mostra = () =>
   render(
-    <MemoryRouter initialEntries={['/accesso']} future={FUTURO}>
+    <MemoryRouter initialEntries={['/accesso']}>
       <Routes>
         <Route path="/accesso" element={<Accesso />} />
         <Route path="/dashboard" element={<p>la dashboard</p>} />

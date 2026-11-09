@@ -31,15 +31,36 @@ import { PIANI, MODULI, FONDATORI, ATTIVAZIONE, conIva } from '../src/lib/piani.
 import { importo } from '../src/lib/lingua.js'
 import { salvaPreferenza } from '../src/lib/lingua.js'
 
-const FUTURO = { v7_startTransition: true, v7_relativeSplatPath: true }
 const mostra = (percorso = '/') =>
   render(
-    <MemoryRouter initialEntries={[percorso]} future={FUTURO}>
+    <MemoryRouter initialEntries={[percorso]}>
       <App />
     </MemoryRouter>
   )
 const browser = (lingue) => Object.defineProperty(navigator, 'languages', { value: lingue, configurable: true })
 const titolo = () => screen.getByRole('heading', { level: 1 })
+
+// Un localStorage che si rifiuta. Con happy-dom 21 (09/11/2026) lo storage
+// è un proxy: vi.spyOn sull'oggetto non si ripristina più e sul prototipo
+// non intercetta. Allora, per la durata del test, al posto di
+// globalThis.localStorage (quello che src/lib/lingua.js legge) sta un
+// archivio che delega al vero tranne nei metodi che devono fallire;
+// afterEach rimette il descrittore originale.
+let ripristinaArchivio = null
+const archivioCheRifiuta = (metodi) => {
+  const descrittore = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
+  const vero = globalThis.localStorage
+  const finto = {
+    getItem: (k) => vero.getItem(k),
+    setItem: (k, v) => vero.setItem(k, v),
+    removeItem: (k) => vero.removeItem(k),
+    clear: () => vero.clear(),
+    ...metodi,
+  }
+  Object.defineProperty(globalThis, 'localStorage', { value: finto, configurable: true, writable: true })
+  ripristinaArchivio = () => Object.defineProperty(globalThis, 'localStorage', descrittore)
+  return vero
+}
 
 beforeEach(() => {
   // Una scrittura riuscita cancella la scelta tenuta in memoria da un test
@@ -50,6 +71,8 @@ beforeEach(() => {
 })
 afterEach(() => {
   delete navigator.languages
+  ripristinaArchivio?.()
+  ripristinaArchivio = null
   vi.restoreAllMocks()
 })
 
@@ -166,8 +189,10 @@ describe('la preferenza ricordata', () => {
   })
 
   it('se il browser non lascia ricordare, la pagina si apre lo stesso in italiano', () => {
-    vi.spyOn(localStorage, 'getItem').mockImplementation(() => {
-      throw new Error('SecurityError')
+    archivioCheRifiuta({
+      getItem: () => {
+        throw new Error('SecurityError')
+      },
     })
     mostra('/')
     expect(titolo()).toHaveTextContent(it_.hero.titolo)
@@ -181,15 +206,17 @@ describe('il browser che non lascia salvare la scelta', () => {
   it('scegliere IT resta su IT anche se la scrittura fallisce', async () => {
     const user = userEvent.setup()
     localStorage.setItem('regia.lingua', 'en')
-    vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
-      throw new Error('QuotaExceededError')
+    const vero = archivioCheRifiuta({
+      setItem: () => {
+        throw new Error('QuotaExceededError')
+      },
     })
     mostra('/')
     expect(titolo()).toHaveTextContent(en.hero.titolo)
     const [barra] = screen.getAllByRole('group', { name: 'Language' })
     await user.click(within(barra).getByRole('link', { name: /IT/ }))
     expect(titolo()).toHaveTextContent(it_.hero.titolo)
-    expect(localStorage.getItem('regia.lingua')).toBeNull()
+    expect(vero.getItem('regia.lingua')).toBeNull()
   })
 })
 

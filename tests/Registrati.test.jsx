@@ -24,10 +24,9 @@ vi.mock('../src/lib/db.js', () => db)
 
 import Registrati from '../src/pages/Registrati.jsx'
 
-const FUTURO = { v7_startTransition: true, v7_relativeSplatPath: true }
 const mostra = (pagina = <Registrati />) =>
   render(
-    <MemoryRouter future={FUTURO} initialEntries={['/registrati']}>
+    <MemoryRouter initialEntries={['/registrati']}>
       <Routes>
         <Route path="/registrati" element={pagina} />
         <Route path="/dashboard" element={<div>DASHBOARD</div>} />
