@@ -95,6 +95,34 @@ function titolareDallApp(token, cliente, adesso = new Date()) {
   return { ok: true, perche: null }
 }
 
+// ── IL TITOLARE PER LA REGIA (audit del 09/11/2026, finding 17) ────────
+// (REQ-FLOTTA-050) In tana-drink un admin crea altri admin: il ruolo da
+// solo dice «amministra il locale», non «è il cliente della regia». Un
+// dipendente admin poteva aggiungere o disdire moduli sulla subscription
+// del titolare, con conguaglio immediato, o scegliere la versione dell'app.
+// Per quello che tocca l'abbonamento o la versione serve anche che
+// l'account sia quello del cliente: lo stesso uid della regia (M7:
+// l'account nel locale nasce con l'uid di clienti/{uid}) oppure, per un
+// locale esistente dove l'uid è un altro, l'email verificata uguale a
+// quella del cliente. Niente vincolo sull'età del token, qui: non è un
+// passaggio di sessione.
+function stessoTitolare(token, cliente) {
+  if (!token || !cliente || token.role !== 'admin') return false
+  if (token.uid && cliente.uid && token.uid === cliente.uid) return true
+  return token.email_verified === true && emailUguali(token.email, cliente.email)
+}
+
+// ── CHI È, NEI LOG (audit del 09/11/2026, finding 29; REQ-FLOTTA-051) ──
+// I log delle Functions portavano l'email di chi agiva dall'app o dal
+// backoffice: un dato personale che resta nei log di Cloud per settimane,
+// quando basta poter risalire alla persona se serve. Si scrive l'uid; se
+// il token non ne ha uno, le prime otto cifre dell'impronta dell'email.
+function improntaUtente(token) {
+  if (token?.uid) return String(token.uid)
+  const email = String(token?.email || '').trim().toLowerCase()
+  return email ? `email:${impronta(email).slice(0, 8)}` : 'sconosciuto'
+}
+
 // ── I DATI DEL TITOLARE NELL'APP (stesso requisito) ──────────────────
 // L'utente: «Quando deployiamo poi passiamo tali info all'istanza», e quali:
 // nome, indirizzo, telefono e intestazione fiscale. Nei campi di
@@ -140,6 +168,8 @@ module.exports = {
   passaggioValido,
   titolareNelLocale,
   titolareDallApp,
+  stessoTitolare,
+  improntaUtente,
   datiDelLocale,
   soloIVuoti,
 }

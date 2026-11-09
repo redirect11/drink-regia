@@ -78,34 +78,15 @@ describe('nuovoCliente', () => {
 })
 
 // AUDIT H1 (22/10/2026, chiusa il 02/11/2026): il titolare non scrive sul
-// suo documento i campi che diventano licenza. Le regole si provano qui sul
-// testo, come nel resto del repository: il repository non ha ancora
-// l'emulatore fra le dipendenze.
+// suo documento i campi che diventano licenza. Le regole si provano
+// sull'emulatore, con le regole vere (tests/regole/clienti.test.js,
+// REQ-DEV-007); qui resta solo la forma del documento di un locale
+// esistente, che quelle prove danno per scontata.
 describe('le regole di clienti/{uid} (H1)', () => {
-  const regole = readFileSync('firestore.rules', 'utf8')
-  const blocco = regole.slice(regole.indexOf('match /clienti/{uid}'), regole.indexOf('match /istanze/{slug}')).replace(/\/\/.*$/gm, '')
-  const update = blocco.slice(blocco.indexOf('allow update'), blocco.indexOf('allow delete'))
-
-  it('il titolare cambia solo i suoi dati anagrafici: piano, moduli, terminali, prove, sconto, abbonamento solo admin e Functions', () => {
-    expect(update).toContain("affectedKeys().hasOnly(['locale', 'fatturazione', 'referente', 'consensi'])")
-    for (const campo of ['piano', 'moduli', 'temi', 'terminali', 'prove', 'sconto', 'abbonamento', 'email', 'slug', 'uid', 'interna', 'esistente']) {
-      expect(update).not.toMatch(new RegExp(`hasOnly\\(\\[[^\\]]*'${campo}'`))
-    }
-  })
-
-  it('dentro i blocchi permessi: la partita IVA resta valida e i consensi non si cancellano', () => {
-    expect(update).toContain("((nuovo('fatturazione', 'partita_iva') is string && nuovo('fatturazione', 'partita_iva').matches('^[0-9]{11}$')) || comEra('fatturazione', 'partita_iva'))")
-    expect(update).toContain("(nuovo('consensi', 'termini_il') is string || comEra('consensi', 'termini_il'))")
-    expect(update).toContain("(nuovo('consensi', 'privacy_il') is string || comEra('consensi', 'privacy_il'))")
-  })
-
   // Valido, o com'era: un locale esistente (la Tana) nasce con
-  // fatturazione {} e consensi a null, e non deve restare bloccato.
-  it('«com’era» confronta il documento nuovo con quello di prima, campo per campo', () => {
-    const funzioni = blocco.slice(blocco.indexOf('function nuovo'), blocco.indexOf('allow update'))
-    expect(funzioni).toContain('return request.resource.data.get(blocco, {}).get(campo, null);')
-    expect(funzioni).toContain('return resource.data.get(blocco, {}).get(campo, null);')
-    expect(funzioni).toContain('return nuovo(blocco, campo) == vecchio(blocco, campo);')
+  // fatturazione {} e consensi a null, e non deve restare bloccato. È il
+  // caso che tests/regole/clienti.test.js prova sull'emulatore.
+  it('un locale esistente nasce con fatturazione {} e consensi a null', () => {
     const esistente = documentiEsistente(datiEsistente({ nome_locale: 'La Tana', slug: 'tana-drink', email: 't@example.it', progetto: 'tana-drink', url: 'https://tana-drink.web.app' }), { uid: 'u' }).cliente
     expect(esistente.fatturazione).toEqual({})
     expect(esistente.consensi).toMatchObject({ termini_il: null, privacy_il: null })

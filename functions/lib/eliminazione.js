@@ -16,6 +16,8 @@ const GIORNI_ATTESA = 30
 const GIORNI_ARCHIVIO = 180
 // La demo si mostra nella prima pagina: non si elimina da qui.
 const PROTETTI = [require('./esistente.js').PROGETTO_DEMO]
+// run_id e inviato_il dell'esito si leggono come per l'attivazione.
+const { runIdValido, istanteValido } = require('./provisioning.js')
 const GIORNO = 24 * 60 * 60 * 1000
 
 // Si può chiedere l'eliminazione di quest'istanza? { ok, perche }
@@ -98,21 +100,47 @@ function daEliminareOggi(istanze, adesso = new Date()) {
     .map(([slug]) => slug)
 }
 
+// Un percorso nel bucket degli archivi: solo caratteri semplici, niente
+// `..`, niente barra iniziale, e dentro la cartella di quel locale
+// (`istanze/<slug>/…`, com'è scritto nel workflow). Il bucket NON arriva
+// dal corpo (audit del 09/11/2026, finding 12): è della regia, lo dice la
+// sua configurazione (ARCHIVIO_BUCKET), e scaricaArchivio lo prende da lì.
+// Prima, chi aveva il segreto del callback faceva scaricare al titolare uno
+// zip da un bucket a sua scelta.
+const PERCORSO = /^[A-Za-z0-9._/-]{1,200}$/
+function percorsoValido(p, slug) {
+  const s = String(p ?? '')
+  if (!PERCORSO.test(s) || s.startsWith('/') || s.split('/').includes('..')) return null
+  return s.startsWith(`istanze/${slug}/`) ? s : null
+}
+
 // L'esito che elimina-istanza.yml manda:
-// { slug, operazione: 'eliminazione', stato: eliminata|errore, archivio?, errore? }.
+// { slug, operazione: 'eliminazione', stato: eliminata|errore, archivio?, errore?, run_id, inviato_il }.
+// run_id e inviato_il si leggono come in provisioning.js e li controlla
+// vincoliEsito (stesso anti-replay dell'attivazione).
 function esitoEliminazione(body) {
   if (!body || typeof body !== 'object' || body.operazione !== 'eliminazione') return null
   if (!SLUG.test(body.slug || '')) return null
   if (!['eliminata', 'errore'].includes(body.stato)) return null
   const a = body.archivio || {}
+  const percorso = percorsoValido(a.percorso, body.slug)
+  const zip = percorsoValido(a.zip, body.slug)
+  // Lo zip sta dentro il percorso dell'archivio: così li scrive il workflow.
   const archivio =
-    a.bucket && a.percorso && a.zip
-      ? { bucket: String(a.bucket), percorso: String(a.percorso), zip: String(a.zip), byte: Number(a.byte) || null, conteggi: a.conteggi && typeof a.conteggi === 'object' ? a.conteggi : null }
+    percorso && zip && zip.startsWith(`${percorso}/`)
+      ? { percorso, zip, byte: Number(a.byte) || null, conteggi: a.conteggi && typeof a.conteggi === 'object' ? a.conteggi : null }
       : null
   // Eliminata senza un archivio non si accetta: vorrebbe dire che il
   // progetto è sparito senza backup, e quello non deve succedere mai.
   if (body.stato === 'eliminata' && !archivio) return null
-  return { slug: body.slug, stato: body.stato, archivio, errore: body.stato === 'errore' ? String(body.errore || 'Eliminazione fallita') : null }
+  return {
+    slug: body.slug,
+    stato: body.stato,
+    archivio,
+    errore: body.stato === 'errore' ? String(body.errore || 'Eliminazione fallita') : null,
+    run_id: runIdValido(body.run_id),
+    inviato_il: istanteValido(body.inviato_il),
+  }
 }
 
 // Cosa scrivere sull'istanza quando arriva l'esito. Se fallisce, il locale

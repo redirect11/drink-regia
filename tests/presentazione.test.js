@@ -31,16 +31,19 @@ describe('il corpo della presentazione', () => {
 })
 
 describe('quello che la regia si segna', () => {
-  it('la prima volta di una versione, e l’ultima', () => {
+  it('la prima volta di una versione, e l’ultima; mai chi ha aperto l’app', () => {
     const prima = p.registroPresentazione(null, { versione: 'v1.10.4', uid: 'u1', adesso: ADESSO })
-    expect(prima).toEqual({ presentazione: { versione: 'v1.10.4', il: ADESSO.toISOString(), prima_il: ADESSO.toISOString(), da: 'u1' } })
+    // Audit del 09/11/2026, finding 29 (REQ-FLOTTA-051): l'uid di un
+    // dipendente del locale non si salva nella regia, anche se passato.
+    expect(prima).toEqual({ presentazione: { versione: 'v1.10.4', il: ADESSO.toISOString(), prima_il: ADESSO.toISOString() } })
     const dopo = new Date('2026-11-03T08:00:00.000Z')
-    expect(p.registroPresentazione(prima, { versione: 'v1.10.4', uid: 'u2', adesso: dopo }).presentazione).toEqual({
+    expect(p.registroPresentazione(prima, { versione: 'v1.10.4', adesso: dopo }).presentazione).toEqual({
       versione: 'v1.10.4',
       il: dopo.toISOString(),
       prima_il: ADESSO.toISOString(),
-      da: 'u2',
     })
+    const codice = readFileSync('functions/index.js', 'utf8')
+    expect(codice).toContain('presenta.registroPresentazione(ist, { versione: corpo.versione })')
     // Una versione nuova riparte da capo.
     expect(p.registroPresentazione(prima, { versione: 'v1.11.0', adesso: dopo }).presentazione.prima_il).toBe(dopo.toISOString())
   })
