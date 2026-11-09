@@ -202,10 +202,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.ambiente == 'test' && 'flotta-test' || 'flotta' }}
     outputs:
-      # La configurazione web del progetto (VITE_FIREBASE_*) e l'indirizzo
-      # del sito. Niente di segreto: la chiave API di Firebase è pubblica
-      # per disegno e sta già nel pacchetto che il browser scarica.
-      config_web: ${{ steps.web.outputs.config_web }}
+      # L'indirizzo del sito. La configurazione web (VITE_FIREBASE_*) va al
+      # job compila in un artifact: come output GitHub la scartava.
       url: ${{ steps.web.outputs.url }}
     steps:
       - name: La configurazione dell'environment
@@ -292,14 +290,24 @@ jobs:
           TF_VAR_profilo: ${{ inputs.profilo }}
         run: terraform apply -input=false -auto-approve
 
-      # Quello che la build deve sapere del progetto nuovo, in una riga
-      # ciascuno: GitHub lo porta al job `compila` come output.
+      # Quello che la build deve sapere del progetto nuovo, in una riga di
+      # JSON, in un artifact per il job `compila`: come output GitHub la
+      # scartava («may contain secret», 09/11/2026). Niente di segreto: la
+      # chiave API di Firebase è pubblica per disegno e sta già nel
+      # pacchetto che il browser scarica.
       - name: La configurazione web del progetto nuovo
         id: web
         working-directory: infra/istanza
         run: |
-          echo "config_web=$(terraform output -json config_web | node -e 'process.stdout.write(JSON.stringify(JSON.parse(require("fs").readFileSync(0, "utf8"))))')" >> "$GITHUB_OUTPUT"
+          terraform output -json config_web | node -e 'process.stdout.write(JSON.stringify(JSON.parse(require("fs").readFileSync(0, "utf8"))))' > "$RUNNER_TEMP/config-web.json"
           echo "url=$(terraform output -raw url)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: config-web
+          path: ${{ runner.temp }}/config-web.json
+          retention-days: 1
+          if-no-files-found: error
 
       - name: Pulizia credenziali
         if: always()
@@ -329,15 +337,22 @@ jobs:
             app/package-lock.json
             app/functions/package-lock.json
 
+      # La configurazione web arriva dal job prepara in un artifact: come
+      # output GitHub la scartava («Skip output since it may contain
+      # secret»: la riga di JSON somiglia a un valore mascherato, e il job
+      # compila restava senza; 09/11/2026, tre aggiornamenti falliti).
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: config-web
+          path: ${{ runner.temp }}/config-web
+
       - name: Il .env della build dal progetto nuovo
-        env:
-          CONFIG_WEB: ${{ needs.prepara.outputs.config_web }}
         run: |
           node -e '
-            const c = JSON.parse(process.env.CONFIG_WEB || "{}");
+            const c = JSON.parse(require("fs").readFileSync(process.argv[2], "utf8"));
             if (!c.VITE_FIREBASE_PROJECT_ID || !c.VITE_FIREBASE_API_KEY) { console.error("::error::La configurazione web del progetto non è arrivata dal job prepara."); process.exit(1); }
             require("fs").writeFileSync(process.argv[1], Object.entries(c).map(([k, v]) => `${k}=${v}`).join("\n") + "\n");
-          ' "$GITHUB_WORKSPACE/app/.env"
+          ' "$GITHUB_WORKSPACE/app/.env" "$RUNNER_TEMP/config-web/config-web.json"
 
       - name: Dipendenze dell'app
         run: |

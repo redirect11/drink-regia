@@ -131,23 +131,38 @@ e ci si lavora. `package.json` è a `0.1.0`: la prima pubblicazione sarà
 il tag `v0.1.0-beta` su `develop` (sul test) e poi `v0.1.0` su `main`
 (produzione); subito dopo il ramo di lavoro passa a `0.2.0-beta`.
 
-### Il test segue develop, la produzione il tag su main
+### A pubblicare è il tag: il test col collaudo, la produzione se il collaudo è riuscito
 
-Decisione dell'utente del 30/10/2026: un push su `develop` va sul test, in
-produzione va solo un tag su `main`. Prima pubblicava solo il tag, anche
-sul test.
+Decisione dell'utente del 09/11/2026: «i rilasci solo su tag». Dal 30/10
+un push su `develop` pubblicava sul test da solo: il test cambiava sotto
+le mani di chi ci stava provando, e un rilascio non era un gesto. Ora,
+come in tana-drink, pubblica solo il tag; e il tag sul test porta con sé
+il **collaudo** (REQ-DEV-009), le prove che scrivono e che il giro
+Playwright in sola lettura evita apposta: la registrazione vera di un
+titolare (poi eliminato dall'admin), la licenza del locale di prova
+sospesa e riattivata, «Aggiorna subito» fino alla fine del workflow. La
+produzione non lo ripete: il job «Collaudo riuscito sul test» cerca, fra
+i run passati, un collaudo verde su un commit che il tag di produzione
+contiene, e senza si ferma.
 
 Tre workflow, gli stessi di tana-drink (`docs/actions-come-tana-drink.md`
 è il disegno, `tests/ci.test.js` li legge e li controlla):
 
 | Cosa si fa | Cosa succede |
 |---|---|
-| push su un ramo qualsiasi (tranne `release/**`) | `test.yml`: lint, test, build. |
-| push su `develop` (cioè un merge di una PR) | in più va sul **test** (`drink-regia-test`), subito |
-| pull request verso `develop` o `main` | lint, test, build **e coverage** (`npm run test:coverage`, soglie in `vitest.config.mjs`: un cricchetto, si alzano e non si abbassano) |
-| lancio a mano di «Deploy to Firebase» su un ramo | va sul **test** (`drink-regia-test`), subito |
-| tag su un commit **non** in `main` | **nessun deploy**: il job «Dove va» si ferma e lo dice |
-| tag su un commit **di `main`** | va in **produzione** (`drink-regia`). L'approvazione a mano non c'è (GitHub Free, §6) |
+| push su un ramo qualsiasi (tranne `release/**`), `develop` compreso | `test.yml`: lint, test, build. **Nessun deploy.** |
+| pull request verso `develop` o `main` | lint, test, build **e coverage** (`npm run test:coverage`, soglie in `vitest.config.mjs`: un cricchetto, si alzano e non si abbassano) e le regole sull'emulatore |
+| lancio a mano di «Deploy to Firebase» su un ramo | va sul **test** (`drink-regia-test`), poi le prove in sola lettura. Senza collaudo: serve a provare un ramo |
+| tag su un commit **non** in `main` (`vX.Y.Z-beta` su `develop`) | va sul **test**, poi il **collaudo** (`e2e.yml` con `collaudo: true`, job «Collaudo sul test») |
+| tag su un commit **di `main`** | va in **produzione** (`drink-regia`) solo se esiste un collaudo riuscito sul test per un commit antenato; altrimenti «Collaudo riuscito sul test» si ferma e dice cosa fare. L'approvazione a mano non c'è (GitHub Free, §6) |
+
+Il collaudo scrive sulla regia di test e lancia la flotta su `prova-bar`
+(otto-dieci minuti): per questo gira solo sui tag. Vuole il segreto
+`E2E_PASSWORD` dell'environment `test` e i locali seminati
+(`npm run semina:test`); il cliente che registra si cancella da solo, con
+«Elimina cliente…» del backoffice (REQ-FLOTTA-059), anche quelli rimasti
+da un giro fallito. Si lancia anche a mano: Actions → «Test end-to-end» →
+Run workflow, con la spunta del collaudo.
 
 Il ramo non conta: conta **dove sta il commit taggato** (job «Dove va» di
 `firebase-hosting.yml`, con `git merge-base --is-ancestor`). Il deploy
@@ -174,16 +189,17 @@ gh run list -R redirect11/drink-regia -L 1
 ```sh
 # 1. sul ramo di lavoro: package.json alla versione senza -beta, CHANGELOG datato
 # 2. PR release/x.y.z -> develop (test verdi, cancello di qualità sotto)
-# 3. tag -beta su develop: va sul test da solo
+# 3. tag -beta su develop: va sul test, poi parte il collaudo (REQ-DEV-009)
 git fetch origin && git checkout develop && git pull
 git tag vX.Y.Z-beta && git push origin vX.Y.Z-beta
-# 4. si prova su https://drink-regia-test.web.app
+# 4. si aspetta «Collaudo sul test» verde (Actions, Deploy to Firebase) e si
+#    prova a mano quello che il collaudo non copre, su https://drink-regia-test.web.app
 # 5. PR develop -> main (sempre dal ramo di release, mai da altro), col via libera
-# 6. tag su main, che pubblica in produzione:
+# 6. tag su main: «Collaudo riuscito sul test» ritrova il collaudo del passo 3
+#    e pubblica in produzione; senza, si ferma e lo dice
 git checkout main && git pull
 git tag vX.Y.Z && git push origin vX.Y.Z
-# 7. su GitHub: Actions -> approvare il deploy nell'environment production
-# 8. SUBITO DOPO, sul nuovo ramo di lavoro: package.json alla prossima con -beta
+# 7. SUBITO DOPO, sul nuovo ramo di lavoro: package.json alla prossima con -beta
 ```
 
 Mai tag su rami di release o hotfix. Per provare un ramo di lavoro sul

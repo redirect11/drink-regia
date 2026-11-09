@@ -54,6 +54,7 @@ const aggiornamenti = require('./lib/aggiornamenti.js')
 const movimenti = require('./lib/movimenti.js')
 const traffico = require('./lib/traffico.js')
 const registrazione = require('./lib/registrazione.js')
+const eliminazioneCliente = require('./lib/eliminazione-cliente.js')
 // L'aliquota del listino, per l'IVA dei pagamenti registrati a mano.
 const listino = require('./piani.json')
 
@@ -781,6 +782,36 @@ exports.impostaStatoIstanza = onCall(OPTS, async (req) => {
   // Una sospensione sua è una pausa, e non fa partire niente.
   if (stato === 'chiusa') await conservaDati(slug, motivo ? String(motivo).slice(0, 200) : 'chiuso dall’amministratore')
   if (stato === 'attiva') await annullaConservazione(slug, req.auth.token.email || req.auth.uid)
+  return { ok: true }
+})
+
+// L'ADMIN ELIMINA UN CLIENTE SENZA ISTANZA (REQ-FLOTTA-059): chi si è
+// registrato e non ha mai attivato, o la cui istanza è già stata eliminata
+// col suo progetto. Via i suoi documenti nella regia e l'account di Auth;
+// un'istanza viva o un'attivazione in corso lo impediscono
+// (lib/eliminazione-cliente.js). Serve al diritto alla cancellazione e al
+// collaudo dei rilasci, che si registra sul test e poi deve sparire.
+exports.eliminaCliente = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const slug = String(req.data?.slug || '')
+  if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(slug)) throw new HttpsError('invalid-argument', 'Slug non valido.')
+  const cliente = await clienteDi(slug)
+  if (!cliente) throw new HttpsError('not-found', 'Nessun cliente con questo identificativo.')
+  const [istanza, richiesta] = await Promise.all([db.doc(`istanze/${slug}`).get(), db.doc(`richieste/${slug}`).get()])
+  const perche = eliminazioneCliente.percheNonEliminabile({ istanza: istanza.data() || null, richiesta: richiesta.data() || null })
+  if (perche) throw new HttpsError('failed-precondition', perche)
+  const temi = await db.collection(`clienti/${cliente.uid}/temi_su_misura`).get()
+  const batch = db.batch()
+  for (const percorso of eliminazioneCliente.documentiDaCancellare(cliente.uid, slug)) batch.delete(db.doc(percorso))
+  for (const d of temi.docs) batch.delete(d.ref)
+  await batch.commit()
+  // L'account: se non c'è più, va bene così.
+  await getAuth()
+    .deleteUser(cliente.uid)
+    .catch((e) => {
+      if (e?.code !== 'auth/user-not-found') throw e
+    })
+  console.log(`[cliente] eliminato ${slug} (${cliente.uid}) dall’admin ${req.auth.uid}`)
   return { ok: true }
 })
 

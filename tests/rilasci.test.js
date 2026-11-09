@@ -9,11 +9,34 @@
 import { describe, it, expect } from 'vitest'
 import { createRequire } from 'node:module'
 
+import { aggiornamentoDetto, runNellErrore } from '../src/lib/rilasci.js'
+
 const require = createRequire(import.meta.url)
 const r = require('../functions/lib/rilasci.js')
 const { esitoValido, eAggiornamento, documentoAggiornamento } = require('../functions/lib/provisioning.js')
 
 const ADESSO = new Date('2026-10-27T10:00:00Z')
+
+// La riga della scheda del backoffice (l'utente, 09/11/2026: «vorrei almeno
+// un loading, qualcosa che mi faccia capire che sta succedendo qualcosa con
+// un minimo di gestione degli errori»).
+describe('l’aggiornamento di un locale, detto in una riga', () => {
+  it('in corso dice da quanto; riuscito dice a cosa è arrivato; fallito dice perché', () => {
+    expect(aggiornamentoDetto(null)).toBeNull()
+    expect(aggiornamentoDetto({ stato: 'in corso', ref: 'develop' })).toBe('aggiornamento a develop in corso')
+    expect(aggiornamentoDetto({ stato: 'in corso', ref: 'develop', chiesto_il: '2026-10-27T09:57:30Z' }, ADESSO)).toBe('aggiornamento a develop in corso da 2 min')
+    expect(aggiornamentoDetto({ stato: 'in corso', ref: 'develop', chiesto_il: '2026-10-27T09:59:40Z' }, ADESSO)).toBe('aggiornamento a develop in corso da meno di un minuto')
+    expect(aggiornamentoDetto({ stato: 'riuscito', ref: 'v1.11.0', versione: 'v1.11.0' })).toBe('aggiornato a v1.11.0')
+    expect(aggiornamentoDetto({ stato: 'riuscito', ref: 'v1.10.0', ritorno: true })).toBe('riportato a v1.10.0')
+    expect(aggiornamentoDetto({ stato: 'fallito', ref: 'develop', errore: 'GitHub 422' })).toBe('aggiornamento a develop fallito: GitHub 422')
+  })
+
+  it('il run di GitHub nell’errore diventa un link; senza run, niente link', () => {
+    expect(runNellErrore('Aggiornamento failure: GitHub Actions run 42666395985')).toBe('https://github.com/redirect11/drink-regia/actions/runs/42666395985')
+    expect(runNellErrore('GitHub 422: il workflow non è partito')).toBeNull()
+    expect(runNellErrore(null)).toBeNull()
+  })
+})
 
 const flotta = () => ({
   'demo-prova': { stato: 'attiva', gruppo_rilascio: 'prova', versione: 'v1.10.0' },

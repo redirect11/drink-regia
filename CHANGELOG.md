@@ -6,6 +6,33 @@ data.
 
 ## Prossima release (da decidere)
 
+- I rilasci solo su tag (decisione dell'utente del 09/11/2026): un tag
+  fuori da `main` pubblica sul test e poi passa il collaudo automatico,
+  che si registra davvero, sospende e riattiva la licenza del locale di
+  prova e lo aggiorna fino in fondo; un tag su `main` va in produzione
+  solo se quel collaudo è riuscito. Un push su `develop` non pubblica più
+  (REQ-DEV-009).
+- «Aggiorna subito» nel backoffice ora si vede lavorare: il bottone dice
+  «Avvio…», poi la scheda mostra un segno che gira con «aggiornamento a …
+  in corso da N min» e il link al workflow, e si ricarica da sola ogni
+  venti secondi finché non finisce; un aggiornamento fallito porta al run
+  di GitHub con «vedi il run»; uno riuscito dice a quale versione è
+  arrivato (REQ-FLOTTA-009).
+- Corretto: chi si registrava con il nome di un locale già preso non
+  vedeva il messaggio sullo slug e si ritrovava su «Completa la
+  registrazione» coi campi vuoti, perché il sito lo mandava alla
+  dashboard appena creato l'account. Ora la pagina resta, con la casella
+  dell'identificativo e il messaggio. Trovato dal primo collaudo
+  automatico (REQ-FLOTTA-045).
+- Corretto: dopo la build senza credenziali (#100) «Aggiorna subito» e
+  l'attivazione di un locale si fermavano al job di compilazione, perché
+  GitHub scartava la configurazione web passata come output del job
+  («may contain secret»). Ora viaggia in un artifact. Trovato dal primo
+  collaudo automatico (REQ-FLOTTA-047).
+- Nel backoffice l'admin elimina un cliente che non ha un'istanza, o la
+  cui istanza è già stata eliminata: via l'account e i suoi dati nella
+  regia, dopo conferma. Serve al diritto alla cancellazione e al collaudo
+  (REQ-FLOTTA-059).
 - Le dipendenze con falle note aggiornate in un colpo solo (finding 24
   dell'audit del 09/11/2026): vite 7, vitest 4, happy-dom 21 e
   react-router 7, che chiude un open redirect nei collegamenti. Per chi

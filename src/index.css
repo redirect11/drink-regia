@@ -458,6 +458,12 @@ input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--
    la scheda: nella riga dei tasti li schiacciava di lato. */
 .locale-azioni .gestione-esistente { flex: 1 1 100%; order: 99; margin: 4px 0 0; max-width: 640px; }
 .gruppo-azioni.pericolo .btn:hover { border-color: var(--errore); color: #ff8a7a; }
+/* L'aggiornamento in corso nella scheda: un segno che gira accanto al testo,
+   così si vede che la pagina sta aspettando il workflow e non è ferma. */
+.avanzamento { display: inline-flex; align-items: center; gap: 6px; margin: 2px 0 0; color: var(--muted); }
+.spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--line); border-top-color: currentColor; border-radius: 50%; animation: gira 0.9s linear infinite; }
+@keyframes gira { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
 .gruppo-nome { margin-right: 2px; }
 
 /* ── Chiudere e cancellare un locale (REQ-FLOTTA-014): bordo e tasto

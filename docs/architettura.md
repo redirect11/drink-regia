@@ -205,7 +205,7 @@ Terraform se nello stato manca l'API delle Functions.
 | Workflow | Quando | Cosa fa |
 |---|---|---|
 | `test.yml` | ogni push (tranne `release/**`) e ogni PR verso `develop` o `main` | lint, test, build; sulle PR anche la coverage con le soglie |
-| `firebase-hosting.yml` + `deploy.yml` | push su `develop` → **test**; tag su `main` → **produzione**; tag fuori da `main` → fermo; lancio a mano su un ramo → test | lint e test, poi `deploy.yml` con l'environment e la guardia sul progetto (se la configurazione non è del progetto di destinazione si ferma) |
+| `firebase-hosting.yml` + `deploy.yml` + `e2e.yml` | tag fuori da `main` → **test**, poi il **collaudo** (le prove che scrivono); tag su `main` → **produzione**, solo se un collaudo è riuscito sul test per quel codice; lancio a mano su un ramo → test, senza collaudo; un push non pubblica (dal 09/11/2026, REQ-DEV-009) | lint e test, poi `deploy.yml` con l'environment e la guardia sul progetto (se la configurazione non è del progetto di destinazione si ferma); dopo il test `e2e.yml`; prima della produzione «Collaudo riuscito sul test» cerca il collaudo verde nei run passati |
 | `provisiona-istanza.yml` | lo lancia la regia (o una persona) | attiva un'istanza (§4) |
 | `aggiorna-istanza.yml` | lo lancia la regia | porta una versione dell'app a un'istanza |
 | `elimina-istanza.yml` | lo lancia la regia | backup verificato, poi eliminazione |

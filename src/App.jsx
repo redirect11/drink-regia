@@ -8,7 +8,7 @@ import Dashboard from './pages/Dashboard.jsx'
 import Backoffice from './pages/Backoffice.jsx'
 import Anteprima from './pages/Anteprima.jsx'
 import { Termini, Privacy } from './pages/Legali.jsx'
-import { osservaUtente, esci, tracciaPagina, osservaVendita } from './lib/db.js'
+import { osservaUtente, esci, tracciaPagina, osservaVendita, registrazioneInCorso } from './lib/db.js'
 import { sitoChiuso, venditaPulita } from './lib/vendita.js'
 import { NOME_PRODOTTO, EMAIL_CONTATTI, URL_DEMO } from './lib/prodotto.js'
 import { LINGUE, NOMI_LINGUE, leggiPreferenza, linguaDelPercorso, percorsoDellaLingua, salvaPreferenza } from './lib/lingua.js'
@@ -160,7 +160,9 @@ export default function App() {
         {/* Col sito chiuso (REQ-FLOTTA-043) la prima pagina e la registrazione sono l'anteprima. */}
         <Route path="/" element={chiuso ? <Anteprima key="it" lingua="it" /> : <PrimaPagina key="it" utente={utente} lingua="it" />} />
         <Route path="/en" element={chiuso ? <Anteprima key="en" lingua="en" /> : <PrimaPagina key="en" utente={utente} lingua="en" />} />
-        <Route path="/registrati" element={chiuso ? <Anteprima lingua="it" /> : dopoLAccesso(utente ? <Navigate to="/dashboard" replace /> : <Registrati />)} />
+        {/* Chi è entrato va alla dashboard, ma non mentre la registrazione crea l'account e scrive il
+            cliente: se la Function rifiuta lo slug la pagina deve restare, coi dati e col messaggio. */}
+        <Route path="/registrati" element={chiuso ? <Anteprima lingua="it" /> : dopoLAccesso(utente && !registrazioneInCorso() ? <Navigate to="/dashboard" replace /> : <Registrati />)} />
         <Route path="/accedi" element={dopoLAccesso(utente ? <Navigate to="/dashboard" replace /> : <Accedi />)} />
         {/* Il passaggio dall'app del locale (REQ-FLOTTA-030): sempre qui, anche già entrati. */}
         <Route path="/accesso" element={dopoLAccesso(<Accesso />)} />

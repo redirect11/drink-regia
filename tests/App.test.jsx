@@ -16,7 +16,10 @@ let utenteOsservato = null
 // La vendita (REQ-FLOTTA-015, REQ-FLOTTA-043): null è quella di partenza,
 // senza decisioni; undefined è «non ancora arrivata».
 let venditaOsservata = null
+// La registrazione in corso (REQ-FLOTTA-045): fra l'account e il cliente.
+let registrazioneInCorso = false
 vi.mock('../src/lib/db.js', () => ({
+  registrazioneInCorso: () => registrazioneInCorso,
   // undefined: Firebase non ha ancora detto chi è (l'accesso in corso).
   osservaUtente: (cb) => {
     if (utenteOsservato !== undefined) cb(utenteOsservato)
@@ -216,6 +219,22 @@ describe('il sito chiuso', () => {
     utenteOsservato = { uid: 'u1', admin: true }
     mostra('/backoffice/vendita')
     expect(await screen.findByRole('navigation', { name: 'Sezioni del backoffice' })).toBeInTheDocument()
+  })
+
+  // Trovato dal primo collaudo automatico (09/11/2026): Firebase fa entrare
+  // l'utente appena creato l'account, prima che la Function scriva il
+  // cliente; se App lo mandava alla dashboard, il rifiuto dello slug
+  // spariva con la pagina.
+  it('chi è entrato mentre la registrazione è ancora in corso resta sulla pagina di registrazione', () => {
+    venditaOsservata = null
+    utenteOsservato = { uid: 'nuovo', email: 'nuovo@example.it' }
+    registrazioneInCorso = true
+    try {
+      mostra('/registrati')
+      expect(screen.getByRole('heading', { name: 'Registra il tuo locale' })).toBeInTheDocument()
+    } finally {
+      registrazioneInCorso = false
+    }
   })
 
   it('acceso, o non deciso fuori dalla produzione: la prima pagina di sempre', () => {

@@ -380,6 +380,9 @@ requirements:
       STATO AL 22/10/2026: codice e test fatti; il progetto
       drink-regia-test, i service account del deploy, l'environment `test`
       e i segreti si fanno col permesso dell'utente (docs/handover.md §5).
+      DAL 09/11/2026 (REQ-DEV-009): un push su develop non pubblica più
+      nulla; a pubblicare è il tag, e il tag fuori da main va sul test e
+      poi passa il collaudo. Il resto resta.
     status: implemented
     generate_issue: true
     labels: [metodo, regia]
@@ -511,6 +514,20 @@ requirements:
       tag vX.Y.Z) il cui commit sta su main di tana-drink, e si fermano
       prima di creare qualcosa se l'app non sa compilare per un cliente.
       Un ramo (develop) passa solo sulla regia di test.
+      SI VEDE CHE SUCCEDE (l'utente, 09/11/2026, dopo il primo collaudo
+      automatico: «quando si preme aggiorna istanza sembra che non parta
+      … vorrei almeno un loading … con un minimo di gestione degli
+      errori»): mentre la Function lancia il workflow il bottone dice
+      «Avvio…» e non si ripreme; poi la scheda legge
+      istanza.aggiornamento e, in corso, mostra un segno che gira con
+      «aggiornamento a <ref> in corso da N min» e il link ai run del
+      workflow su GitHub, col bottone spento («Aggiornamento in corso…»);
+      finché c'è un aggiornamento in corso la pagina si ricarica da sola
+      ogni venti secondi (il workflow dura otto-dieci minuti); fallito, il
+      perché in rosso con «vedi il run» verso il run di GitHub citato
+      nell'errore, più Riprova e Torna alla versione di prima; riuscito,
+      «aggiornato a <versione>» (src/lib/rilasci.js: aggiornamentoDetto,
+      runNellErrore).
     status: implemented
     generate_issue: true
     labels: [prodotto, flotta, regia]
@@ -2165,6 +2182,18 @@ requirements:
       Le regole restano provate sul testo (finding 16: l'emulatore non è
       ancora fra le dipendenze); la transazione si prova con un Firestore
       finto.
+      CORREZIONE DEL 09/11/2026, sera (dal primo collaudo automatico,
+      REQ-DEV-009): sul sito vero il rifiuto dello slug non si vedeva mai.
+      createUserWithEmailAndPassword fa entrare l'utente prima che la
+      Function risponda; App.jsx, vedendo un utente su /registrati,
+      mandava alla dashboard e smontava la pagina: il secondo titolare si
+      ritrovava su «Completa la registrazione» coi campi vuoti e senza
+      messaggio. Ora db.js dice quando la registrazione è in corso
+      (registrazioneInCorso, vero fra l'account e il cliente, falso dopo
+      anche in errore) e App lascia la pagina dov'è finché non finisce; la
+      pagina torna al locale con la casella dell'identificativo e il
+      messaggio, come i test unitari già pretendevano (tests/db.test.js,
+      tests/App.test.jsx).
     status: implemented
     generate_issue: true
     labels: [flotta, regia, sicurezza]
@@ -2383,7 +2412,16 @@ requirements:
       è su main di tana-drink, demo isolata.
       DA FARE DOPO LA PR: le righe `uses:` nuove (checkout nei job nuovi,
       upload-artifact, download-artifact) vanno fissate allo SHA come le
-      altre (audit, punto 23).
+      altre (audit, punto 23). Fatto lo stesso giorno (Dependabot, #109).
+      CORREZIONE DEL 09/11/2026, sera: la configurazione web passava da
+      prepara a compila come output del job, e GitHub la scartava («Skip
+      output 'config_web' since it may contain secret»: la riga di JSON
+      somiglia a un valore mascherato); il job compila si fermava con «La
+      configurazione web del progetto non è arrivata» e tre aggiornamenti
+      di prova-bar sono falliti di fila, il terzo lanciato dal primo
+      collaudo automatico (REQ-DEV-009). Ora viaggia in un artifact
+      `config-web` (un file JSON, un giorno di vita), in tutti e due i
+      workflow; la demo non lo produce né lo scarica.
     status: implemented
     generate_issue: true
     labels: [sicurezza, flotta, regia]
@@ -2880,3 +2918,104 @@ requirements:
       - tests/sicurezza.test.js
       - tests/Dashboard.test.jsx
       - tests/Backoffice.test.jsx
+
+  - id: REQ-DEV-009
+    title: "I rilasci solo su tag: il test col collaudo automatico, la produzione se il collaudo è riuscito"
+    area: ".github/workflows/firebase-hosting.yml (Dove va, Prove sul sito di test, Collaudo riuscito sul test), .github/workflows/e2e.yml (riusabile, input collaudo), e2e/collaudo-registrazione.spec.js, e2e/collaudo-licenza.spec.js, e2e/aiuto.js (COLLAUDO), tests/ci.test.js, docs/handover.md §3, docs/actions-come-tana-drink.md, CLAUDE.md"
+    description: >
+      L'utente, 09/11/2026, dopo le verifiche a mano chieste alla fine
+      dell'audit (una registrazione vera e una licenza dal backoffice):
+      «automatizza solo su tag per rilascio. Nel senso che facciamo questo
+      test solo prima di rilasciare su test. Se su test funziona non lo
+      facciamo in produzione. Dobbiamo fare i rilasci solo su tag».
+      PRIMA: un push su develop pubblicava sul test (REQ-DEV-002, 30/10);
+      il giro Playwright (REQ-DEV-004) girava dopo ogni deploy, in sola
+      lettura per scelta: la registrazione si fermava al passo del locale e
+      il backoffice non premeva niente. Quello che davvero cambia con un
+      rilascio (la Function registraCliente con l'account delle Functions,
+      la licenza scritta nel Firestore del locale, la catena
+      dell'aggiornamento con dispatch, Terraform e callback) si provava a
+      mano.
+      ORA, firebase-hosting.yml: parte solo da un tag o a mano. «Dove va»
+      dà due uscite: ambiente (test | production) e collaudo. Un tag su un
+      commit di main è produzione; un tag fuori da main (vX.Y.Z-beta su
+      develop) è test con collaudo acceso; un lancio a mano su un ramo è
+      test senza collaudo, per provare un ramo. Dopo il deploy sul test il
+      job «Prove sul sito di test» chiama e2e.yml con collaudo = true solo
+      per il tag. La produzione aspetta «Collaudo riuscito sul test»: con
+      il token del workflow (permesso actions: read) cerca fra i run
+      riusciti di firebase-hosting.yml uno il cui commit è antenato del
+      tag di produzione (git merge-base --is-ancestor) e il cui job si
+      chiama «Collaudo sul test» ed è verde; senza, si ferma con un
+      errore che dice di taggare una -beta su develop. Il collaudo non si
+      ripete in produzione: la produzione eredita quello del test.
+      e2e.yml è riusabile (workflow_call) e si lancia anche a mano
+      (workflow_dispatch), con l'interruttore collaudo (default false); il
+      nome del job dice cosa ha provato («Collaudo sul test» | «Prove in
+      sola lettura»), ed è quello che la garanzia cerca; gira
+      nell'environment test con E2E_PASSWORD e passa E2E_COLLAUDO ai test.
+      IL COLLAUDO (e2e/collaudo-*.spec.js, saltati senza E2E_COLLAUDO=true,
+      in serie): la registrazione (e2e/collaudo-registrazione.spec.js):
+      l'admin toglie prima i clienti «collaudo-*» rimasti da un giro
+      fallito; un titolare nuovo si registra in quattro passi con un'email
+      su collaudo.invalid (RFC 2606: la verifica parte e non arriva a
+      nessuno) e arriva alla dashboard con l'avviso di verifica e la scelta
+      del piano, senza mai attivare l'istanza (creerebbe un progetto
+      Google, quota contata); un secondo titolare con lo stesso nome del
+      locale è fermato sullo slug (REQ-FLOTTA-045), ne sceglie un altro e
+      passa; l'admin vede i due clienti e li elimina con «Elimina cliente…»
+      (REQ-FLOTTA-059), e il titolare eliminato non entra più. La licenza e
+      l'aggiornamento (e2e/collaudo-licenza.spec.js, sul locale
+      E2E_LOCALE_COLLAUDO, default prova-bar, app su
+      drinkpos-<locale>.web.app): «Sospendi» col motivo «collaudo
+      automatico», l'app del locale mostra «Installazione sospesa» col
+      motivo (è la licenza scritta dalla regia nel Firestore del locale con
+      l'account runtime-regia, finding 3 dell'audit), «Riattiva» la toglie;
+      poi «Aggiorna subito»: la scheda dice «partito», e si ricarica ogni
+      trenta secondi finché «aggiornamento a … in corso» sparisce (fino a
+      venti minuti); «fallito» ferma il test. Il collaudo scrive sulla
+      regia di test e consuma un run della flotta: per questo solo sui tag.
+      COSA NON COPRE, e resta a mano quando serve: l'attivazione di un
+      locale nuovo (progetto Google), i pagamenti Stripe (sandbox), il
+      cassetto AI.
+    status: implemented
+    generate_issue: true
+    labels: [metodo, regia]
+    priority: P1
+    test_cases:
+      - tests/ci.test.js
+
+  - id: REQ-FLOTTA-059
+    title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"
+    area: "functions/lib/eliminazione-cliente.js, functions/index.js (eliminaCliente), src/lib/db.js (eliminaCliente), src/pages/Backoffice.jsx (Elimina cliente…)"
+    description: >
+      Nato col collaudo dei rilasci (REQ-DEV-009), che si registra davvero
+      sul test e poi deve sparire: il backoffice sapeva chiudere ed
+      eliminare un'istanza col suo progetto (REQ-FLOTTA-014), non un
+      cliente che non ha mai attivato. Serve anche fuori dal collaudo: chi
+      si registra e ci ripensa ha diritto alla cancellazione (GDPR, art.
+      17), e un cliente la cui istanza è già stata eliminata restava in
+      elenco per sempre.
+      LA REGOLA (lib/eliminazione-cliente.js, pura): si può eliminare un
+      cliente senza istanza, o con l'istanza in stato «eliminata»; non si
+      può se l'istanza ha un progetto vivo (prima si chiude e si elimina
+      quella, dalla sua scheda: il progetto Google e il backup passano di
+      lì) né con un'attivazione in coda o in corso. Si cancellano
+      clienti/{uid} con la sottocollezione temi_su_misura, richieste/{slug},
+      contatti/{uid} e contatti/{uid}_tema, istanze/{slug} (quella
+      eliminata), e l'account di Auth (se non c'è più, va bene così).
+      LA FUNCTION eliminaCliente (solo admin, slug nel formato dei progetti)
+      legge cliente, istanza e richiesta, applica la regola, cancella in un
+      batch e logga slug e uid (mai l'email). IL BACKOFFICE mostra «Elimina
+      cliente…» nel gruppo «Cliente», a parte dalle azioni di tutti i
+      giorni, solo per chi non ha un'istanza o ce l'ha eliminata e non ha
+      un'attivazione in corso; chiede conferma con nome ed email e non si
+      torna indietro.
+    status: implemented
+    generate_issue: true
+    labels: [regia, backoffice, privacy]
+    priority: P2
+    test_cases:
+      - tests/eliminazione-cliente.test.js
+      - tests/Backoffice.test.jsx
+      - tests/db.test.js

@@ -20,6 +20,7 @@ import {
   elencoRilasci,
   gestisciRilascio,
   gestisciEliminazione,
+  eliminaCliente,
   osservaVendita,
   impostaVendita,
   elencoContatti,
@@ -47,7 +48,7 @@ import { prezzoConSconto, scontoDetto, usiDetti, CODICE_VALIDO, REGOLA_CODICE, L
 import CatalogoTemi, { EditorTema } from './CatalogoTemi.jsx'
 import { contattoDi } from '../lib/clienti.js'
 import { statoCredito, euroCent } from '../lib/ai.js'
-import { GRUPPI, TAG, aggiornamentoDetto } from '../lib/rilasci.js'
+import { GRUPPI, TAG, aggiornamentoDetto, runNellErrore } from '../lib/rilasci.js'
 import { BASE, SEZIONI, VISTE, aggiornamentoFallito, aggiornaLaRegia, contiDelBackoffice, filtraLocali, profiloDaAutorizzare } from '../lib/backoffice.js'
 import Rilasci from './Rilasci.jsx'
 import Commerciale from './Commerciale.jsx'
@@ -79,6 +80,8 @@ export default function Backoffice() {
   const [contatti, setContatti] = useState([])
   // Lo slug -> il ref che «Aggiorna subito» ha lanciato, per dirlo sulla scheda.
   const [lanciati, setLanciati] = useState({})
+  // Gli slug per cui la Function sta ancora lanciando il workflow.
+  const [inAvvio, setInAvvio] = useState({})
   const vai = useNavigate()
   const { pathname } = useLocation()
 
@@ -115,6 +118,15 @@ export default function Backoffice() {
   useEffect(() => {
     carica()
   }, [])
+  // Finché un aggiornamento è in corso la pagina si ricarica da sola ogni
+  // venti secondi: il workflow dura otto-dieci minuti e la scheda deve
+  // muoversi, senza che l'admin ricarichi a mano (09/11/2026).
+  const aggiornamentiInCorso = (righe || []).some((r) => r.istanza?.aggiornamento?.stato === 'in corso')
+  useEffect(() => {
+    if (!aggiornamentiInCorso) return undefined
+    const giro = setInterval(carica, 20000)
+    return () => clearInterval(giro)
+  }, [aggiornamentiInCorso])
   useEffect(() => {
     caricaContatti()
   }, [caricaContatti])
@@ -133,6 +145,19 @@ export default function Backoffice() {
     if (stato !== 'attiva' && motivo == null) return
     try {
       await impostaStatoIstanza(c.slug, stato, motivo)
+    } catch (e) {
+      setErrore(e.message)
+    }
+    carica()
+  }
+
+  // Un cliente senza istanza, o con l'istanza già eliminata, sparisce con
+  // l'account (REQ-FLOTTA-059): diritto alla cancellazione, e i clienti di
+  // collaudo dei rilasci. Non si torna indietro: si conferma.
+  const eliminaClienteDaAdmin = async (c) => {
+    if (!window.confirm(`Eliminare il cliente ${c.nome_locale} (${c.email})? Via l’account e i suoi dati nella regia. Non si torna indietro.`)) return
+    try {
+      await eliminaCliente(c.slug)
     } catch (e) {
       setErrore(e.message)
     }
@@ -158,13 +183,24 @@ export default function Backoffice() {
   // aggiornaIstanza sceglie da sé la versione (APP_REF della regia: develop
   // di tana-drink sulla regia di test, main in produzione) e la restituisce:
   // la scheda la dice senza che il sito debba saperla in anticipo.
+  // Mentre la Function lancia il workflow (qualche secondo) il bottone lo
+  // dice e non si ripreme; poi la scheda mostra l'aggiornamento in corso
+  // dal documento dell'istanza (l'utente, 09/11/2026: «vorrei almeno un
+  // loading, qualcosa che mi faccia capire che sta succedendo qualcosa»).
   const aggiorna = async (c) => {
     setErrore(null)
+    setInAvvio((v) => ({ ...v, [c.slug]: true }))
     try {
       const esito = await aggiornaIstanza(c.slug)
       setLanciati((v) => ({ ...v, [c.slug]: esito?.ref || '' }))
     } catch (e) {
       setErrore(e.message)
+    } finally {
+      setInAvvio((v) => {
+        const resto = { ...v }
+        delete resto[c.slug]
+        return resto
+      })
     }
     carica()
   }
@@ -284,7 +320,7 @@ export default function Backoffice() {
     }
     carica()
   }
-  const az = { carica, cambiaStato, annullaEliminazione, aggiorna, azioneRilascio, riprova, indietro, azioneAI, ricaricaAI, regalaAI, tettoAI, chiaveAI, registraPagamento: pagamento, sconto, onErrore: setErrore }
+  const az = { carica, cambiaStato, annullaEliminazione, eliminaCliente: eliminaClienteDaAdmin, aggiorna, azioneRilascio, riprova, indietro, azioneAI, ricaricaAI, regalaAI, tettoAI, chiaveAI, registraPagamento: pagamento, sconto, onErrore: setErrore }
   // Dopo «Crea il locale» o «Registra il locale» si va a vederlo in elenco.
   const creato = () => {
     carica()
@@ -318,7 +354,7 @@ export default function Backoffice() {
       <div className="bo-sezione">
         <Routes>
           <Route index element={<Navigate to={`${BASE}/locali`} replace />} />
-          <Route path="locali" element={<SezioneLocali righe={righe} az={az} lanciati={lanciati} />} />
+          <Route path="locali" element={<SezioneLocali righe={righe} az={az} lanciati={lanciati} inAvvio={inAvvio} />} />
           {/* La dashboard di chi vende (REQ-FLOTTA-041): legge le righe e i contatti già caricati qui. */}
           <Route path="commerciale" element={<Commerciale righe={righe} contatti={contatti} onErrore={setErrore} />} />
           <Route
@@ -402,7 +438,7 @@ function SottoMenu({ conti }) {
 // Ricerca e vista stanno nell'indirizzo (?cerca=…&vista=…), così un elenco
 // filtrato si condivide; si scrivono con replace, per non riempire la
 // cronologia a ogni tasto.
-function SezioneLocali({ righe, az, lanciati }) {
+function SezioneLocali({ righe, az, lanciati, inAvvio = {} }) {
   const [parametri, setParametri] = useSearchParams()
   // Lo slug del locale col modulo «Cambia piano» aperto (REQ-FLOTTA-016).
   const [cambia, setCambia] = useState(null)
@@ -517,6 +553,7 @@ function SezioneLocali({ righe, az, lanciati }) {
                             riga={r}
                             az={az}
                             lanciato={lanciati[c.slug]}
+                            inAvvio={Boolean(inAvvio[c.slug])}
                             cambiaAperto={cambia === c.slug}
                             onCambia={() => setCambia(cambia === c.slug ? null : c.slug)}
                             eliminaAperto={elimina === c.slug}
@@ -557,7 +594,7 @@ function AzioniAggiornamento({ cliente: c, istanza, az }) {
 
 // UN LOCALE PER SCHEDA (29/10/2026): nome e stato breve colorato in alto,
 // i dati in una griglia, le azioni a gruppi in fondo.
-function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaAperto, onElimina, onFatto }) {
+function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCambia, eliminaAperto, onElimina, onFatto }) {
   const { cliente: c, istanza, stato, cassetto } = riga
   const credito = statoCredito(cassetto)
   // Un locale registrato come esistente (la Tana) non passa per la
@@ -639,8 +676,30 @@ function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaApert
             {istanza?.versione || istanza?.presentazione?.versione || <span className="muted">—</span>}
             {!istanza?.versione && istanza?.presentazione?.versione && <div className="muted small">detta dall’app</div>}
             {istanza?.ref && istanza.ref !== 'main' && <div className="muted small">da {istanza.ref}</div>}
-            {aggiornamentoDetto(istanza?.aggiornamento) && (
-              <div className={istanza.aggiornamento.stato === 'fallito' ? 'errore small' : 'muted small'}>{aggiornamentoDetto(istanza.aggiornamento)}</div>
+            {/* L'aggiornamento: in corso con un segno che gira e da quanto (la
+                pagina si ricarica da sola), fallito col perché e il link al run
+                di GitHub, riuscito con la versione a cui è arrivato. */}
+            {istanza?.aggiornamento?.stato === 'in corso' && (
+              <p className="avanzamento small" role="status">
+                <span className="spinner" aria-hidden="true" />
+                {aggiornamentoDetto(istanza.aggiornamento)} ·{' '}
+                <a href="https://github.com/redirect11/drink-regia/actions/workflows/aggiorna-istanza.yml" target="_blank" rel="noreferrer">
+                  segui su GitHub ↗
+                </a>
+              </p>
+            )}
+            {istanza?.aggiornamento?.stato !== 'in corso' && aggiornamentoDetto(istanza?.aggiornamento) && (
+              <div className={istanza.aggiornamento.stato === 'fallito' ? 'errore small' : 'muted small'}>
+                {aggiornamentoDetto(istanza.aggiornamento)}
+                {istanza.aggiornamento.stato === 'fallito' && runNellErrore(istanza.aggiornamento.errore) && (
+                  <>
+                    {' · '}
+                    <a href={runNellErrore(istanza.aggiornamento.errore)} target="_blank" rel="noreferrer">
+                      vedi il run ↗
+                    </a>
+                  </>
+                )}
+              </div>
             )}
             {propostaDetta(istanza?.proposta_aggiornamento) && <div className="muted small">{propostaDetta(istanza.proposta_aggiornamento)}</div>}
           </dd>
@@ -755,8 +814,14 @@ function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaApert
             // il testo accanto lo dice sempre, non solo al passaggio del mouse,
             // e il lettore di schermo lo legge col bottone (aria-describedby).
             <>
-              <button type="button" className="btn ghost small" aria-describedby={`aggiorna-${c.slug}`} onClick={() => az.aggiorna(c)}>
-                Aggiorna subito
+              <button
+                type="button"
+                className="btn ghost small"
+                aria-describedby={`aggiorna-${c.slug}`}
+                disabled={inAvvio || istanza?.aggiornamento?.stato === 'in corso'}
+                onClick={() => az.aggiorna(c)}
+              >
+                {inAvvio ? 'Avvio…' : istanza?.aggiornamento?.stato === 'in corso' ? 'Aggiornamento in corso…' : 'Aggiorna subito'}
               </button>
               <span id={`aggiorna-${c.slug}`} className="muted small spiega-azione">
                 solo questo locale, all’ultima versione dell’app, per una correzione urgente. A tutti i locali la porta un rilascio, a ondate (
@@ -818,6 +883,17 @@ function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaApert
           </div>
         )}
 
+        {(!istanza?.progetto || stato === STATI.ELIMINATA) && ![STATI.IN_CODA, STATI.IN_CORSO].includes(stato) && (
+          // Un cliente senza istanza (mai attivata, o già eliminata col suo
+          // progetto) si elimina da qui, con l'account (REQ-FLOTTA-059).
+          // Con un'attivazione in coda o in corso si aspetta.
+          <div className="gruppo-azioni pericolo" aria-label="Cliente">
+            <button type="button" className="btn ghost small" onClick={() => az.eliminaCliente(c)}>
+              Elimina cliente…
+            </button>
+          </div>
+        )}
+
         {daFlotta && stato === STATI.ATTIVA && (
           // Sospendere e chiudere stanno a parte, lontano dalle
           // azioni di tutti i giorni (tana-drink, DESIGN.md,
@@ -852,11 +928,12 @@ function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaApert
           </div>
         )}
       </footer>
-      {lanciato !== undefined && (
-        // L'esito della chiamata: il workflow è partito, non è finito.
-        // Quando finisce, la versione nuova compare in «Versione».
+      {lanciato !== undefined && istanza?.aggiornamento?.stato !== 'in corso' && (
+        // L'esito della chiamata: il workflow è partito, non è finito. Appena
+        // il documento dell'istanza lo dice, al suo posto c'è l'avanzamento
+        // in «Versione», che si aggiorna da solo.
         <p className="small" role="status">
-          Aggiornamento {lanciato ? `a ${lanciato} ` : ''}partito: quando il workflow finisce, la versione nuova compare qui.
+          Aggiornamento {lanciato ? `a ${lanciato} ` : ''}partito: la scheda si aggiorna da sola quando il workflow finisce.
         </p>
       )}
       {cambiaAperto && <CambiaPiano cliente={c} onFatto={onFatto} onErrore={az.onErrore} />}

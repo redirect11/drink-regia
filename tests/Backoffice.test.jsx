@@ -26,6 +26,7 @@ const db = vi.hoisted(() => ({
   cambiaPianoAdmin: vi.fn(async () => ({ ok: true })),
   rilanciaAttivazione: vi.fn(async () => {}),
   impostaStatoIstanza: vi.fn(async () => {}),
+  eliminaCliente: vi.fn(async () => {}),
   aggiornaIstanza: vi.fn(async () => {}),
   osservaImpostazioniRegia: vi.fn((cb) => {
     cb(regia.impostazioni)
@@ -160,6 +161,62 @@ describe('il backoffice', () => {
     const attivo = await apri('Bar Attivo')
     await user.click(within(attivo).getByRole('button', { name: 'Sospendi' }))
     expect(db.impostaStatoIstanza).toHaveBeenCalledWith('bar-attivo', 'sospesa', 'pagamento non ricevuto')
+  })
+
+  // L'utente, 09/11/2026: «quando si preme aggiorna istanza sembra che non
+  // parta … vorrei almeno un loading … con un minimo di gestione degli errori».
+  it('un aggiornamento in corso si vede: segno che gira, da quanto, bottone spento; uno fallito porta al run di GitHub', async () => {
+    db.elencoIstanze.mockResolvedValue({
+      'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', versione: 'v1.10.0', aggiornamento: { stato: 'in corso', ref: 'develop', chiesto_il: new Date(Date.now() - 3 * 60000).toISOString() } },
+      'bar-rotto': { stato: 'attiva', progetto: 'drinkpos-bar-rotto', versione: 'v1.10.0', aggiornamento: { stato: 'fallito', ref: 'develop', errore: 'Aggiornamento failure: GitHub Actions run 42666395985' } },
+    })
+    mostra()
+    const attivo = await apri('Bar Attivo')
+    const avanzamento = within(attivo).getByRole('status')
+    expect(avanzamento).toHaveTextContent('aggiornamento a develop in corso da 3 min')
+    expect(avanzamento.querySelector('.spinner')).not.toBeNull()
+    expect(within(avanzamento).getByRole('link', { name: /segui su GitHub/ })).toHaveAttribute('href', expect.stringContaining('/actions/workflows/aggiorna-istanza.yml'))
+    expect(within(attivo).getByRole('button', { name: 'Aggiornamento in corso…' })).toBeDisabled()
+    const rotto = await apri('Bar Rotto')
+    expect(rotto).toHaveTextContent('aggiornamento a develop fallito: Aggiornamento failure')
+    expect(within(rotto).getByRole('link', { name: /vedi il run/ })).toHaveAttribute('href', 'https://github.com/redirect11/drink-regia/actions/runs/42666395985')
+    expect(within(rotto).getByRole('button', { name: 'Riprova' })).toBeInTheDocument()
+  })
+
+  it('finché un aggiornamento è in corso la pagina si ricarica da sola ogni venti secondi', async () => {
+    db.elencoIstanze.mockResolvedValue({
+      'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', aggiornamento: { stato: 'in corso', ref: 'develop' } },
+    })
+    // I timer finti vanno accesi prima che la pagina crei il suo intervallo;
+    // shouldAdvanceTime lascia scorrere il tempo vero che Testing Library
+    // aspetta.
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      mostra()
+      await apri('Bar Attivo')
+      const prima = db.elencoIstanze.mock.calls.length
+      await vi.advanceTimersByTimeAsync(20000)
+      expect(db.elencoIstanze.mock.calls.length).toBe(prima + 1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  // REQ-FLOTTA-059: un cliente senza istanza si elimina con l'account, dopo
+  // conferma; chi ha un'istanza viva no (prima si chiude e si elimina quella).
+  it('un cliente senza istanza si elimina con «Elimina cliente…», confermando; chi ha un’istanza no', async () => {
+    const user = userEvent.setup()
+    const conferma = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true)
+    mostra()
+    const nuovo = await apri('Bar Nuovo')
+    const bottone = within(within(nuovo).getByLabelText('Cliente')).getByRole('button', { name: 'Elimina cliente…' })
+    await user.click(bottone)
+    expect(db.eliminaCliente).not.toHaveBeenCalled()
+    await user.click(bottone)
+    expect(conferma).toHaveBeenLastCalledWith(expect.stringMatching(/Eliminare il cliente Bar Nuovo \(c@x\.it\)/))
+    expect(db.eliminaCliente).toHaveBeenCalledWith('bar-nuovo')
+    const attivo = await apri('Bar Attivo')
+    expect(within(attivo).queryByLabelText('Cliente')).toBeNull()
   })
 
   // Un locale per scheda (29/10/2026): lo stato in due parole e colorato,
@@ -1004,7 +1061,7 @@ describe('il bottone Aggiorna dice cosa fa', () => {
     const attivo = await apri('Bar Attivo')
     await user.click(within(attivo).getByRole('button', { name: 'Aggiorna subito' }))
     expect(db.aggiornaIstanza).toHaveBeenCalledWith('bar-attivo')
-    expect(await within(attivo).findByRole('status')).toHaveTextContent('Aggiornamento a develop partito: quando il workflow finisce, la versione nuova compare qui.')
+    expect(await within(attivo).findByRole('status')).toHaveTextContent('Aggiornamento a develop partito: la scheda si aggiorna da sola quando il workflow finisce.')
   })
 
   it('senza ref nella risposta l’esito lo tace', async () => {

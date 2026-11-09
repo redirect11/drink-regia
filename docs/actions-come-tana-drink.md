@@ -36,9 +36,9 @@ Regole che valgono per tutto il lavoro qui sotto:
 |---|---|
 | push su un ramo qualsiasi (tranne `release/**`) | lint, test, build. Nessun deploy. |
 | pull request verso `develop` o `main` | lint, test, build **e coverage** |
-| lancio a mano di «Deploy to Firebase» su un ramo | va sul **test**, subito |
-| tag su un commit **non** in `main` | va sul **test**, subito |
-| tag su un commit **di `main`** | va in **produzione**, dopo l'approvazione di una persona |
+| lancio a mano di «Deploy to Firebase» su un ramo | va sul **test**, subito, senza collaudo |
+| tag su un commit **non** in `main` | va sul **test**, poi il **collaudo** (dal 09/11/2026, REQ-DEV-009) |
+| tag su un commit **di `main`** | va in **produzione**, se un collaudo è riuscito sul test per quel codice |
 
 Il ramo non conta: conta **dove sta il commit taggato**. Lo decide il job
 «Dove va» con `git merge-base --is-ancestor`. I segreti stanno nelle

@@ -1,11 +1,14 @@
 'use strict'
 
-// LE ACTIONS DELLA REGIA (REQ-DEV-002): un push non pubblica mai; un tag
-// su un commit di main va in produzione con approvazione, tutto il resto
-// va sul test. La regola vive nel job «Dove va» di firebase-hosting.yml e
-// nella guardia di deploy.yml; un workflow non ha altri test, e un ritocco
-// di buona volontà potrebbe mandare un ramo di lavoro in produzione senza
-// che nessuno se ne accorga prima del deploy.
+// LE ACTIONS DELLA REGIA (REQ-DEV-002, REQ-DEV-009): un push non pubblica
+// mai; a pubblicare è il tag. Un tag fuori da main va sul test e poi passa
+// il collaudo (le prove che scrivono: registrazione, licenza, aggiornamento
+// di un locale di prova); un tag su main va in produzione solo se un
+// collaudo è riuscito sul test per un commit che main contiene. La regola
+// vive nei job «Dove va» e «Collaudo riuscito sul test» di
+// firebase-hosting.yml e nella guardia di deploy.yml; un workflow non ha
+// altri test, e un ritocco di buona volontà potrebbe mandare un ramo di
+// lavoro in produzione senza che nessuno se ne accorga prima del deploy.
 
 import { describe, it, expect } from 'vitest'
 import { readFileSync, existsSync, readdirSync } from 'node:fs'
@@ -18,6 +21,7 @@ const eventi = (w) => w.on ?? w[true]
 const hosting = load(leggi('firebase-hosting.yml'))
 const deploy = load(leggi('deploy.yml'))
 const test = load(leggi('test.yml'))
+const e2e = load(leggi('e2e.yml'))
 
 describe('test.yml: i test a ogni push, mai un deploy', () => {
   it('gira su tutti i rami tranne release/**, e sulle PR verso develop e main', () => {
@@ -51,25 +55,26 @@ describe('test.yml: i test a ogni push, mai un deploy', () => {
   })
 })
 
-// Decisione dell'utente del 30/10/2026: il test segue develop, in
-// produzione va solo il tag su main.
-describe('firebase-hosting.yml: develop va sul test, il tag su main in produzione', () => {
-  it('parte da un push su develop, da un tag o da workflow_dispatch', () => {
+// Decisione dell'utente del 09/11/2026: «i rilasci solo su tag». Un push non
+// pubblica più nemmeno sul test (dal 30/10 lo faceva develop).
+describe('firebase-hosting.yml: a pubblicare è il tag; il test poi passa il collaudo, la produzione lo pretende', () => {
+  it('parte solo da un tag o da workflow_dispatch: nessun push di ramo pubblica', () => {
     const on = eventi(hosting)
     expect(Object.keys(on).sort()).toEqual(['push', 'workflow_dispatch'])
-    expect(on.push).toEqual({ branches: ['develop'], tags: ['**'] })
+    expect(on.push).toEqual({ tags: ['**'] })
   })
 
-  it('«Dove va»: solo un tag su main è produzione; un tag fuori da main si ferma; un ramo va sul test', () => {
+  it('«Dove va»: un tag su main è produzione; un tag fuori da main è test con collaudo; un lancio a mano è test senza collaudo', () => {
     const scelta = hosting.jobs.destinazione.steps.find((s) => s.id === 'scelta').run
+    expect(hosting.jobs.destinazione.outputs).toMatchObject({ ambiente: expect.stringContaining('scelta.outputs.ambiente'), collaudo: expect.stringContaining('scelta.outputs.collaudo') })
     expect(scelta).toMatch(/if \[ "\$GITHUB_REF_TYPE" = "tag" \]; then[\s\S]*is-ancestor "\$GITHUB_SHA" origin\/main[\s\S]*ambiente=production/)
     const ultimoElse = scelta.lastIndexOf('else')
-    // Il tag fuori da main non pubblica da nessuna parte.
+    // Il tag fuori da main: test, e il collaudo acceso.
     const tagFuori = scelta.slice(scelta.indexOf('ambiente=production'), ultimoElse)
-    expect(tagFuori).toMatch(/exit 1/)
-    expect(tagFuori).not.toMatch(/ambiente=test/)
-    // Un ramo (develop, o un lancio a mano) va sul test, mai in produzione.
-    expect(scelta.slice(ultimoElse)).toMatch(/echo "ambiente=test"/)
+    expect(tagFuori).toMatch(/ambiente=test[\s\S]*collaudo=true/)
+    expect(tagFuori).not.toMatch(/exit 1/)
+    // Un ramo lanciato a mano: test, senza collaudo, mai produzione.
+    expect(scelta.slice(ultimoElse)).toMatch(/ambiente=test[\s\S]*collaudo=false/)
     expect(scelta.slice(ultimoElse)).not.toMatch(/production/)
   })
 
@@ -77,12 +82,62 @@ describe('firebase-hosting.yml: develop va sul test, il tag su main in produzion
     const { prova, produzione } = hosting.jobs
     expect(prova.if).toBe("needs.destinazione.outputs.ambiente == 'test'")
     expect(prova.with).toMatchObject({ ambiente: 'test', progetto: 'drink-regia-test' })
+    expect(prova.needs).toBe('destinazione')
     expect(produzione.if).toBe("needs.destinazione.outputs.ambiente == 'production'")
     expect(produzione.with).toMatchObject({ ambiente: 'production', progetto: 'drink-regia' })
-    for (const j of [prova, produzione]) {
-      expect(j.uses).toBe('./.github/workflows/deploy.yml')
-      expect(j.needs).toBe('destinazione')
+    for (const j of [prova, produzione]) expect(j.uses).toBe('./.github/workflows/deploy.yml')
+  })
+
+  // REQ-DEV-009: dopo il deploy sul test le prove Playwright, col collaudo
+  // acceso quando ha pubblicato un tag.
+  it('dopo il deploy sul test chiama e2e.yml, col collaudo acceso solo per un tag', () => {
+    const { collaudo } = hosting.jobs
+    expect(collaudo.needs).toEqual(['destinazione', 'prova'])
+    expect(collaudo.if).toBe("needs.destinazione.outputs.ambiente == 'test'")
+    expect(collaudo.uses).toBe('./.github/workflows/e2e.yml')
+    expect(collaudo.with.collaudo).toBe("${{ needs.destinazione.outputs.collaudo == 'true' }}")
+  })
+
+  // La produzione non rifà il collaudo: pretende che sia riuscito sul test,
+  // per un commit che il tag di produzione contiene.
+  it('la produzione aspetta la garanzia: un run riuscito con «Collaudo sul test» verde su un commit antenato', () => {
+    const { garanzia, produzione } = hosting.jobs
+    expect(garanzia.if).toBe("needs.destinazione.outputs.ambiente == 'production'")
+    expect(garanzia.env.GH_TOKEN).toBe('${{ github.token }}')
+    expect(eventi(hosting) && hosting.permissions.actions).toBe('read')
+    const cerca = garanzia.steps.find((s) => s.name === 'Cerca il collaudo').run
+    expect(cerca).toMatch(/actions\/workflows\/firebase-hosting\.yml\/runs\?event=push&status=success/)
+    expect(cerca).toMatch(/merge-base --is-ancestor "\$sha" "\$GITHUB_SHA"/)
+    expect(cerca).toMatch(/test\("Collaudo sul test"\)/)
+    expect(cerca).toMatch(/\[ -z "\$trovato" \][\s\S]*::error::[\s\S]*exit 1/)
+    expect(produzione.needs).toEqual(['destinazione', 'garanzia'])
+  })
+})
+
+describe('e2e.yml: le prove Playwright, riusabili, col collaudo a richiesta', () => {
+  it('si chiama da un workflow o a mano, con l’interruttore del collaudo spento di default', () => {
+    const on = eventi(e2e)
+    expect(Object.keys(on).sort()).toEqual(['workflow_call', 'workflow_dispatch'])
+    for (const evento of ['workflow_call', 'workflow_dispatch']) {
+      expect(on[evento].inputs.collaudo).toMatchObject({ type: 'boolean', default: false })
     }
+  })
+
+  it('gira nell’environment test contro il sito di test, e passa il collaudo ai test come E2E_COLLAUDO; il nome del job lo dice', () => {
+    const job = e2e.jobs.e2e
+    expect(job.environment).toBe('test')
+    expect(job.name).toBe("${{ inputs.collaudo && 'Collaudo sul test' || 'Prove in sola lettura' }}")
+    const passo = job.steps.find((s) => s.run === 'npx playwright test')
+    expect(passo.env).toMatchObject({ E2E_URL: 'https://drink-regia-test.web.app', E2E_PASSWORD: '${{ secrets.E2E_PASSWORD }}', E2E_COLLAUDO: "${{ inputs.collaudo && 'true' || 'false' }}" })
+  })
+
+  // I test che scrivono stanno in file a parte e si accendono solo col collaudo.
+  it('i test del collaudo (registrazione, licenza) esistono e si saltano senza E2E_COLLAUDO', () => {
+    for (const f of ['collaudo-registrazione.spec.js', 'collaudo-licenza.spec.js']) {
+      const testo = readFileSync(join(process.cwd(), 'e2e', f), 'utf8')
+      expect(testo).toMatch(/test\.skip\(!COLLAUDO/)
+    }
+    expect(readFileSync(join(process.cwd(), 'e2e/aiuto.js'), 'utf8')).toMatch(/export const COLLAUDO = process\.env\.E2E_COLLAUDO === 'true'/)
   })
 })
 
