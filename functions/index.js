@@ -98,6 +98,11 @@ const REGIA_URL = process.env.REGIA_URL || null
 // l'indirizzo di questa Function nel progetto della regia.
 const PROGETTO_REGIA = process.env.GCLOUD_PROJECT || (() => { try { return JSON.parse(process.env.FIREBASE_CONFIG || '{}').projectId } catch { return null } })()
 const SCELTA_URL = PROGETTO_REGIA ? `https://europe-west1-${PROGETTO_REGIA}.cloudfunctions.net/sceltaDallApp` : null
+// I domini del sito della regia: i due di Hosting del progetto e quello di
+// REGIA_URL. Servono al traffico (una vista da una pagina nostra non è una
+// provenienza, e una chiamata da un altro sito non si conta) e agli
+// indirizzi di ritorno del Checkout (audit del 09/11/2026, finding 25).
+const DOMINI_NOSTRI = [PROGETTO_REGIA && `${PROGETTO_REGIA}.web.app`, PROGETTO_REGIA && `${PROGETTO_REGIA}.firebaseapp.com`, REGIA_URL && (() => { try { return new URL(REGIA_URL).hostname } catch { return null } })()].filter(Boolean)
 
 async function dispatchGitHub(workflow, corpo) {
   return fetch(`https://api.github.com/repos/${REPO}/actions/workflows/${workflow}/dispatches`, {
@@ -637,9 +642,16 @@ async function scriviMovimento(m) {
 // altro (lib/traffico.js). Aperta a tutti perché la chiama anche chi non è
 // entrato: non legge niente, non risponde niente, e un contatore gonfiato
 // apposta è il danno peggiore che può fare.
-const DOMINI_NOSTRI = [PROGETTO_REGIA && `${PROGETTO_REGIA}.web.app`, PROGETTO_REGIA && `${PROGETTO_REGIA}.firebaseapp.com`, REGIA_URL && (() => { try { return new URL(REGIA_URL).hostname } catch { return null } })()].filter(Boolean)
-exports.traccia = onRequest({ ...OPTS, cors: true }, async (req, res) => {
+// AUDIT DEL 09/11/2026, FINDING 13: il documento del giorno non cresce più
+// con quello che arriva (ogni chiave viene da un elenco chiuso,
+// lib/traffico.js), una chiamata che il browser dichiara venire da un
+// altro sito (header Origin) non si conta, e la Function ha un tetto di
+// istanze: un ciclo di POST costa al massimo due istanze, non una flotta.
+// Il riferimento resta nel corpo: l'header Referer di questa chiamata è la
+// pagina nostra che la fa, e document.referrer lo conosce solo il browser.
+exports.traccia = onRequest({ ...OPTS, cors: true, maxInstances: 2, concurrency: 80 }, async (req, res) => {
   if (req.method !== 'POST') return res.status(405).send('')
+  if (!traffico.origineAmmessa(req.get('origin'), DOMINI_NOSTRI)) return res.status(204).send('')
   const esito = traffico.incrementiDi(req.body, { nostri: DOMINI_NOSTRI })
   if (!esito) return res.status(204).send('')
   try {

@@ -6,6 +6,13 @@ data.
 
 ## Prossima release (da decidere)
 
+- Dall'audit di sicurezza del 09/11/2026, la parte della vendita e del
+  sito. Il traffico del sito conta le provenienze per famiglia (Google,
+  Instagram, Facebook…, «diretto», «altro») da un elenco chiuso, non più
+  per dominio: il documento del giorno non cresce con quello che arriva,
+  una chiamata da un altro sito non si conta, e la Function `traccia` ha
+  un tetto di due istanze; la dashboard del commerciale mostra i nomi
+  delle famiglie (REQ-FLOTTA-052).
 - Il listino dei moduli cambia: il menù digitale col QR al tavolo è
   compreso nei piani Base e Completo; gli ordini dal telefono costano 12 €
   al mese; le fatture ai clienti (5 €) e le fatture ai fornitori (6 €) si

@@ -59,7 +59,7 @@ beforeEach(() => {
     { id: 'm2', il: giorniFa(50), tipo: 'manuale', uid: 'a', slug: 'bar-attivo', importo: 40, iva: 8.8, totale: 48.8, origine: 'manuale' },
   ])
   db.elencoTraffico.mockResolvedValue([
-    { giorno: giorno(1), viste: 120, pagine: { home: 100, registrati: 20 }, provenienze: { diretto: 80, google_com: 40 }, lingue: { it: 110, en: 10 }, eventi: { registrazione: 3, checkout: 1, attivazione: 1 } },
+    { giorno: giorno(1), viste: 120, pagine: { home: 100, registrati: 20 }, provenienze: { diretto: 80, google: 40 }, lingue: { it: 110, en: 10 }, eventi: { registrazione: 3, checkout: 1, attivazione: 1 } },
     { giorno: giorno(45), viste: 60, pagine: { home: 60 }, provenienze: { diretto: 60 }, lingue: { it: 60 }, eventi: {} },
   ])
   db.statoFondatori.mockResolvedValue({ assegnati: { a: { numero: 1 } } })
@@ -113,7 +113,7 @@ describe('le tessere e il periodo', () => {
     expect(within(imbuto).getByText('Attivazioni chieste').parentElement).toHaveTextContent('1 · 100%')
     const provenienze = screen.getByRole('region', { name: 'Da dove arrivano' })
     expect(provenienze).toHaveTextContent('Diretto (nessun sito di provenienza)80')
-    expect(provenienze).toHaveTextContent('google.com40')
+    expect(provenienze).toHaveTextContent('Google40')
     expect(provenienze).toHaveTextContent('Lingua: 110 in italiano, 10 in inglese.')
     const attenzione = screen.getByRole('region', { name: 'Scadenze e attenzione' })
     expect(attenzione).toHaveTextContent('1 richiesta di contatto aperta')

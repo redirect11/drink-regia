@@ -72,8 +72,8 @@ describe('il riepilogo del periodo', () => {
     { id: 'm4', il: giorniFa(200), tipo: 'manuale', uid: 'u-pagante-due', slug: 'pagante-due', importo: 10, iva: 2.2, totale: 12.2 },
   ]
   const traffico = [
-    { giorno: giornoDi(giorniFa(1)), viste: 40, pagine: { home: 30, registrati: 10 }, provenienze: { diretto: 25, google_com: 15 }, lingue: { it: 35, en: 5 }, eventi: { registrazione: 2, checkout: 1 } },
-    { giorno: giornoDi(giorniFa(10)), viste: 20, pagine: { home: 20 }, provenienze: { instagram_com: 20 }, lingue: { it: 20 }, eventi: { attivazione: 1 } },
+    { giorno: giornoDi(giorniFa(1)), viste: 40, pagine: { home: 30, registrati: 10 }, provenienze: { diretto: 25, google: 15 }, lingue: { it: 35, en: 5 }, eventi: { registrazione: 2, checkout: 1 } },
+    { giorno: giornoDi(giorniFa(10)), viste: 20, pagine: { home: 20 }, provenienze: { instagram: 20 }, lingue: { it: 20 }, eventi: { attivazione: 1 } },
     { giorno: giornoDi(giorniFa(40)), viste: 100, pagine: { home: 100 }, provenienze: { diretto: 100 }, lingue: { it: 100 }, eventi: {} },
   ]
   const contatti = [{ stato: 'aperta' }, { stato: 'gestita' }]

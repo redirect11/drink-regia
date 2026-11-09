@@ -2111,3 +2111,54 @@ requirements:
       - tests/prove.test.js
       - tests/Home.test.jsx
       - tests/SceltaPiano.test.jsx
+  - id: REQ-FLOTTA-052
+    title: "Il traffico del sito non cresce con quello che arriva: provenienze da un elenco chiuso, origine verificata, tetto di istanze"
+    area: "functions/lib/traffico.js (FAMIGLIE, PROVENIENZE, provenienzaDi, origineAmmessa), functions/index.js (traccia, DOMINI_NOSTRI), src/pages/Commerciale.jsx (NOMI_VOCI), scripts/lib-semina.mjs, docs/commerciale.md"
+    description: >
+      Audit di sicurezza del 09/11/2026, finding 13: la Function `traccia`
+      scriveva in traffico/{giorno} una chiave `provenienze.<dominio>` per
+      ogni dominio di document.referrer ricevuto nel corpo, ridotto a
+      [a-z0-9_] ma non limitato. Un ciclo di POST con un dominio diverso a
+      ogni chiamata portava il documento del giorno a 1 MiB in poche
+      migliaia di richieste, e da lì ogni scrittura del giorno falliva (la
+      dashboard perdeva il giorno), con costo di scritture e invocazioni.
+      ORA ogni chiave del documento viene da un elenco chiuso: pagine,
+      lingue ed eventi come prima, e la provenienza è una FAMIGLIA fra
+      quelle di FAMIGLIE (google, bing, duckduckgo, yahoo, facebook,
+      instagram, tiktok, linkedin, x, youtube, whatsapp, telegram, chatgpt,
+      reddit, github), più «diretto» (nessun sito di provenienza, o una
+      pagina nostra) e «altro» (tutto il resto). Un dominio vale col nome
+      esatto o come sottodominio (l.facebook.com, www.google.it); «google.»
+      copre tutti i Google nazionali. Mille domini diversi finiscono in un
+      solo contatore. La dashboard del commerciale dà alle famiglie il loro
+      nome (NOMI_VOCI), e la semina di prova usa gli stessi nomi.
+      L'ORIGINE DELLA CHIAMATA: il browser mette l'header Origin a ogni
+      chiamata fra siti diversi e il sito chiamante non lo può cambiare; se
+      c'è e non è uno dei domini della regia (DOMINI_NOSTRI: i due di
+      Hosting del progetto e REGIA_URL) la chiamata risponde 204 e non
+      conta. Così una pagina di un altro sito non gonfia i contatori dai
+      browser dei suoi visitatori. Senza header (un programma) si conta: la
+      difesa contro i programmi è l'elenco chiuso, che tiene piccolo il
+      documento qualunque cosa mandino.
+      LA FUNCTION ha maxInstances: 2 e concurrency: 80: un ciclo di
+      chiamate costa al massimo due istanze.
+      SCELTA DIVERSA DALL'AUDIT: il riferimento (document.referrer) resta
+      nel corpo della chiamata, non si legge dall'header Referer. L'header
+      Referer di una chiamata fetch e' la pagina che la fa, cioe' una pagina
+      della regia, mai il sito da cui il visitatore e' arrivato: letto da
+      li', ogni vista sarebbe «diretto» e «Da dove arrivano» non direbbe
+      piu' niente. Quello che conta per il finding e' che del corpo non
+      entri nel documento nessun valore scritto dal chiamante, e cosi' e':
+      se ne tiene solo la famiglia.
+      DOMINI_NOSTRI e' definita accanto a PROGETTO_REGIA, perche' la
+      riusano anche gli indirizzi di ritorno del Checkout (REQ-FLOTTA-054).
+    status: implemented
+    generate_issue: true
+    labels: [regia, sicurezza]
+    priority: P2
+    test_cases:
+      - tests/traffico.test.js
+      - tests/commerciale.test.js
+      - tests/Commerciale.test.jsx
+      - tests/semina.test.js
+      - tests/db.test.js
