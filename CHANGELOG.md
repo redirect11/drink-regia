@@ -12,6 +12,12 @@ data.
   sono spenti, HSTS per un anno; la Content-Security-Policy parte in
   osservazione (`Report-Only`) e diventa vincolante dopo qualche giorno sul
   test senza violazioni (REQ-DEV-005, audit del 09/11/2026, finding 14).
+- La catena di pubblicazione è ferma a commit precisi: ogni action dei
+  workflow è pinnata a uno SHA con la versione nel commento, Dependabot
+  propone ogni settimana gli aggiornamenti di sito, Functions e action
+  verso develop, e il workflow di test fa `npm audit` sulle dipendenze di
+  produzione; l'SDK di Anthropic nelle Functions passa alla 1.6
+  (REQ-DEV-006, finding 23 e 24).
 - Il listino dei moduli cambia: il menù digitale col QR al tavolo è
   compreso nei piani Base e Completo; gli ordini dal telefono costano 12 €
   al mese; le fatture ai clienti (5 €) e le fatture ai fornitori (6 €) si
