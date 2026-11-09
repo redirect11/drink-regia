@@ -18,6 +18,10 @@ data.
   regia (stesso uid, o email verificata uguale), non un altro admin del
   locale, che riceve «Solo il titolare del locale può …» (audit del
   09/11/2026, finding 17; REQ-FLOTTA-050).
+- I log delle Functions non scrivono più l'email di chi agisce (l'uid, o
+  un'impronta), e la regia non si segna più quale utente del locale ha
+  aperto per primo una versione nuova dell'app (audit del 09/11/2026,
+  finding 29; REQ-FLOTTA-051).
 - Il listino dei moduli cambia: il menù digitale col QR al tavolo è
   compreso nei piani Base e Completo; gli ordini dal telefono costano 12 €
   al mese; le fatture ai clienti (5 €) e le fatture ai fornitori (6 €) si

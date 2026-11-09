@@ -112,6 +112,17 @@ function stessoTitolare(token, cliente) {
   return token.email_verified === true && emailUguali(token.email, cliente.email)
 }
 
+// ── CHI È, NEI LOG (audit del 09/11/2026, finding 29; REQ-FLOTTA-051) ──
+// I log delle Functions portavano l'email di chi agiva dall'app o dal
+// backoffice: un dato personale che resta nei log di Cloud per settimane,
+// quando basta poter risalire alla persona se serve. Si scrive l'uid; se
+// il token non ne ha uno, le prime otto cifre dell'impronta dell'email.
+function improntaUtente(token) {
+  if (token?.uid) return String(token.uid)
+  const email = String(token?.email || '').trim().toLowerCase()
+  return email ? `email:${impronta(email).slice(0, 8)}` : 'sconosciuto'
+}
+
 // ── I DATI DEL TITOLARE NELL'APP (stesso requisito) ──────────────────
 // L'utente: «Quando deployiamo poi passiamo tali info all'istanza», e quali:
 // nome, indirizzo, telefono e intestazione fiscale. Nei campi di
@@ -158,6 +169,7 @@ module.exports = {
   titolareNelLocale,
   titolareDallApp,
   stessoTitolare,
+  improntaUtente,
   datiDelLocale,
   soloIVuoti,
 }

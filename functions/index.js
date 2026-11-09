@@ -1739,9 +1739,10 @@ exports.presentazione = onRequest({ ...OPTS, cors: false }, async (req, res) => 
   if (!progetto) return res.status(401).json({ errore: 'Serve l’accesso.' })
   const trovata = (await db.collection('istanze').where('progetto', '==', progetto).limit(1).get()).docs[0]
   if (!trovata || trovata.data().stato === 'eliminata') return res.status(404).json({ errore: 'Installazione non registrata nella regia.' })
-  let chi
+  // Il token si verifica, ma di chi lo porta non si tiene niente
+  // (REQ-FLOTTA-051): basta che sia qualcuno del locale.
   try {
-    chi = await getAuth(appDi(progetto)).verifyIdToken(token)
+    await getAuth(appDi(progetto)).verifyIdToken(token)
   } catch {
     return res.status(401).json({ errore: 'Accesso non valido: entra di nuovo.' })
   }
@@ -1749,7 +1750,9 @@ exports.presentazione = onRequest({ ...OPTS, cors: false }, async (req, res) => 
   if (!corpo) return res.status(400).json({ errore: 'Versione non valida.' })
   const slug = trovata.id
   const ist = trovata.data()
-  if (presenta.daRegistrare(ist, corpo.versione)) await trovata.ref.update(presenta.registroPresentazione(ist, { versione: corpo.versione, uid: chi.uid }))
+  // Chi apre l'app è un dipendente qualunque del locale: il suo uid non
+  // serve alla regia e non si salva (REQ-FLOTTA-051).
+  if (presenta.daRegistrare(ist, corpo.versione)) await trovata.ref.update(presenta.registroPresentazione(ist, { versione: corpo.versione }))
   const riceve = riceveLicenza(ist)
   const esiste = riceve ? (await firestoreDi(progetto).doc(LICENZA_PROTETTA).get()).exists : false
   const cosa = presenta.cosaFareConLaLicenza(ist, { esiste, riceve })
@@ -2411,7 +2414,8 @@ exports.impostaTemi = onCall(OPTS, async (req) => {
   const doc = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]
   if (!doc) throw new HttpsError('not-found', 'Cliente sconosciuto.')
   await doc.ref.update({ temi: temiNuovi })
-  console.log(`[temi] ${slug}: ${temiNuovi.join(', ') || 'nessuno'} (${req.auth.token.email || req.auth.uid})`)
+  // Nei log l'uid, non l'email (REQ-FLOTTA-051).
+  console.log(`[temi] ${slug}: ${temiNuovi.join(', ') || 'nessuno'} (${req.auth.uid})`)
   return { ok: true, temi: temiNuovi }
 })
 
@@ -2681,7 +2685,7 @@ exports.moduloDallApp = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY], cors:
     const r = moduliApp.richiestaDallApp({ uid: docCliente.id, ...cliente }, { ...corpo, scelta: d.scelta }, chi.email || chi.uid, (await refRichiesta.get()).data(), adesso)
     if (r.errore) return no(409, r.errore)
     await refRichiesta.set(r.documento)
-    console.log(`[moduli dall'app] ${trovata.id}: ${corpo.azione} ${corpo.modulo} chiesto all'assistenza (${chi.email || chi.uid})`)
+    console.log(`[moduli dall'app] ${trovata.id}: ${corpo.azione} ${corpo.modulo} chiesto all'assistenza (${passa.improntaUtente(chi)})`)
     return res.status(200).json({ ok: true, in_attesa: true })
   }
   const stripe = stripeClient()
@@ -2697,7 +2701,7 @@ exports.moduloDallApp = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY], cors:
   // storico dice da quale account e da quale lato è arrivato il cambio.
   const storico = { il: adesso.toISOString(), da: chi.email || chi.uid, modo: 'app', azione: corpo.azione, modulo: corpo.modulo, ...d.scelta }
   await docCliente.ref.update({ storico_piano: FieldValue.arrayUnion(storico) }).catch((e) => console.error(`[moduli dall'app] ${trovata.id}, storico:`, e?.message || e))
-  console.log(`[moduli dall'app] ${trovata.id}: ${corpo.azione} ${corpo.modulo} (${chi.email || chi.uid})`)
+  console.log(`[moduli dall'app] ${trovata.id}: ${corpo.azione} ${corpo.modulo} (${passa.improntaUtente(chi)})`)
   return res.status(200).json(corpo.azione === 'aggiungi' ? { ok: true } : { ok: true, dal: moduliApp.dalGiorno(adesso) })
 })
 

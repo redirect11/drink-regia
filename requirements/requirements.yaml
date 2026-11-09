@@ -2195,3 +2195,30 @@ requirements:
     test_cases:
       - tests/passaggio.test.js
       - tests/moduliapp.test.js
+  - id: REQ-FLOTTA-051
+    title: "Niente email nei log delle Functions, e la regia non salva chi apre l'app del locale"
+    area: "functions/lib/passaggio.js (improntaUtente), functions/index.js (impostaTemi, moduloDallApp, presentazione), functions/lib/presentazione.js (registroPresentazione)"
+    description: >
+      Audit del 09/11/2026, finding 29, ultimo punto. Tre console.log
+      scrivevano l'email di chi agiva (l'admin in impostaTemi, il titolare
+      in moduloDallApp): un dato personale che resta nei log di Cloud per
+      settimane, quando basta poter risalire alla persona. E
+      `istanze/{slug}.presentazione.da` salvava nella regia l'uid del
+      dipendente del locale che per primo apriva la versione nuova
+      dell'app: un dato del locale, che alla regia non serve (la regia non
+      contiene mai i dati operativi dei locali, CLAUDE.md).
+      ORA: improntaUtente(token) in passaggio.js dà l'uid, o se manca le
+      prime otto cifre dello SHA-256 dell'email, o «sconosciuto»; i tre log
+      lo usano (impostaTemi scrive req.auth.uid). registroPresentazione
+      non ha più `da`: resta versione, il, prima_il. Un test cerca nei
+      console.* di index.js ogni `.email` di chi agisce e vuole zero righe.
+      Restano, perché sono dati della regia sul suo cliente: `da` nello
+      storico_piano (email del titolare, l'unico che da REQ-FLOTTA-050 può
+      arrivare lì) e il richiedente della richiesta di contatto.
+    status: implemented
+    generate_issue: true
+    labels: [regia, privacy]
+    priority: P2
+    test_cases:
+      - tests/passaggio.test.js
+      - tests/presentazione.test.js

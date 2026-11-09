@@ -47,7 +47,10 @@ function daRegistrare(prima, versione, adesso = new Date()) {
 
 // Quello che si segna sull'istanza. `prima_il`: la prima volta che questa
 // versione si è presentata, cioè quando è arrivata davvero al locale.
-function registroPresentazione(prima, { versione, uid = null, adesso = new Date() } = {}) {
+// Niente «chi»: a presentarsi è un dipendente qualunque del locale, e il
+// suo uid è un dato del locale che alla regia non serve (audit del
+// 09/11/2026, finding 29; REQ-FLOTTA-051). Prima c'era `da: uid`.
+function registroPresentazione(prima, { versione, adesso = new Date() } = {}) {
   const p = prima?.presentazione
   const stessa = p?.versione === versione
   return {
@@ -55,7 +58,6 @@ function registroPresentazione(prima, { versione, uid = null, adesso = new Date(
       versione,
       il: adesso.toISOString(),
       prima_il: stessa ? p.prima_il || p.il || adesso.toISOString() : adesso.toISOString(),
-      da: uid,
     },
   }
 }

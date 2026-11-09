@@ -173,3 +173,25 @@ describe('stessoTitolare', () => {
     expect(scelta.indexOf('passa.stessoTitolare(')).toBeLessThan(scelta.indexOf('applicaScelta('))
   })
 })
+
+// ── CHI È, NEI LOG (audit del 09/11/2026, finding 29) ──────────────────
+// (REQ-FLOTTA-051) Nei log delle Functions l'uid, o un'impronta
+// dell'email: mai l'indirizzo.
+describe('improntaUtente', () => {
+  it('l’uid se c’è, altrimenti otto cifre dell’impronta dell’email, mai l’email', () => {
+    expect(p.improntaUtente({ uid: 'regia-1', email: 'mario@example.it' })).toBe('regia-1')
+    const solaEmail = p.improntaUtente({ email: 'Mario@Example.it ' })
+    expect(solaEmail).toMatch(/^email:[0-9a-f]{8}$/)
+    expect(solaEmail).toBe(p.improntaUtente({ email: 'mario@example.it' }))
+    expect(solaEmail).not.toContain('mario')
+    expect(p.improntaUtente(null)).toBe('sconosciuto')
+    expect(p.improntaUtente({})).toBe('sconosciuto')
+  })
+
+  it('nessun console.* delle Functions scrive un’email di chi agisce', () => {
+    const righe = readFileSync('functions/index.js', 'utf8').split('\n')
+    const conEmail = righe.filter((r) => /console\.(log|info|warn|error)\(/.test(r) && /\b(chi|token|utente|req\.auth\.token|cliente)\.email\b/.test(r))
+    expect(conEmail).toEqual([])
+    expect(righe.some((r) => r.includes('passa.improntaUtente(chi)'))).toBe(true)
+  })
+})
