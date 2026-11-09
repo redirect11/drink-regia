@@ -111,14 +111,20 @@ describe('le regole di clienti/{uid} (H1)', () => {
     expect(esistente.consensi).toMatchObject({ termini_il: null, privacy_il: null })
   })
 
-  it('il sito non aggiorna mai clienti/{uid} dal browser: crea il documento alla registrazione, il resto passa dalle Functions', () => {
+  // REQ-FLOTTA-045 (audit del 09/11/2026, finding 4): nemmeno la creazione.
+  // Il documento lo scrive la Function registraCliente, che controlla che
+  // lo slug sia libero; le regole non hanno più nessuna create.
+  it('il sito non scrive mai clienti/{uid} dal browser: registrazione compresa, tutto passa dalle Functions', () => {
     const file = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((d) => (d.isDirectory() ? file(join(dir, d.name)) : [join(dir, d.name)]))
     const scritture = file('src')
       .filter((f) => /\.(js|jsx)$/.test(f))
       // Il percorso con «/» anche su Windows, dove join() mette «\».
-      .flatMap((f) => readFileSync(f, 'utf8').split('\n').filter((r) => /(setDoc|updateDoc|deleteDoc)\(doc\(db, 'clienti'/.test(r)).map((r) => `${f.split(sep).join('/')}: ${r.trim()}`))
-    // Una sola creazione (creaCliente), per la registrazione con la password
-    // e per chi entra con Google e completa i dati (REQ-FLOTTA-038).
-    expect(scritture).toEqual(["src/lib/db.js: await setDoc(doc(db, 'clienti', u.uid), cliente)"])
+      .flatMap((f) => readFileSync(f, 'utf8').split('\n').filter((r) => /(setDoc|updateDoc|deleteDoc|addDoc)\(doc\(db, 'clienti'/.test(r)).map((r) => `${f.split(sep).join('/')}: ${r.trim()}`))
+    expect(scritture).toEqual([])
+    // L'istruzione intera, fino al suo «;»: fra la create e la update ci
+    // sono i commenti e le funzioni d'appoggio della update.
+    const daCreate = blocco.slice(blocco.indexOf('allow create'))
+    expect(daCreate.slice(0, daCreate.indexOf(';') + 1).replace(/\s+/g, ' ')).toBe('allow create: if false;')
+    expect(blocco).not.toContain('request.resource.data.slug.matches')
   })
 })

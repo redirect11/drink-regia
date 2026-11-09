@@ -53,6 +53,7 @@ const { datiEsistente, documentiEsistente, DatiNonValidi, scriveLicenza, gestion
 const aggiornamenti = require('./lib/aggiornamenti.js')
 const movimenti = require('./lib/movimenti.js')
 const traffico = require('./lib/traffico.js')
+const registrazione = require('./lib/registrazione.js')
 // L'aliquota del listino, per l'IVA dei pagamenti registrati a mano.
 const listino = require('./piani.json')
 
@@ -825,7 +826,7 @@ exports.scadenza = onTaskDispatched(
     if (scadenze.daRiprogrammare(quando, adesso)) return programma(tipo, chiave, quando)
     // Un promemoria di un pagamento a mano (REQ-FLOTTA-027).
     if (tipo === 'promemoria') {
-      const doc = (await db.collection('clienti').where('slug', '==', chiave).limit(1).get()).docs[0]
+      const doc = await docClientePerSlug(chiave)
       const cliente = doc?.data()
       const qualeTipo = cliente && comunica.promemoriaDelCompito(cliente, new Date(quando).toISOString())
       if (!qualeTipo) return
@@ -837,7 +838,7 @@ exports.scadenza = onTaskDispatched(
       return
     }
     if (tipo === 'pagamento' || tipo === 'prova') {
-      const doc = (await db.collection('clienti').where('slug', '==', chiave).limit(1).get()).docs[0]
+      const doc = await docClientePerSlug(chiave)
       if (!doc) return
       if (tipo === 'pagamento') {
         const cliente = doc.data()
@@ -902,7 +903,7 @@ exports.scadenza = onTaskDispatched(
 // locale era fermo per il pagamento, torna a lavorare (il cambio di stato).
 exports.registraPagamento = onCall(OPTS, async (req) => {
   if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
-  const doc = (await db.collection('clienti').where('slug', '==', String(req.data?.slug || '')).limit(1).get()).docs[0]
+  const doc = await docClientePerSlug(req.data?.slug)
   if (!doc) throw new HttpsError('not-found', 'Cliente sconosciuto.')
   if (doc.data().abbonamento?.origine !== 'manuale') throw new HttpsError('failed-precondition', 'Vale per i piani pagati fuori da Stripe.')
   const data = scadenze.dataPagata(req.data?.pagato_fino_al)
@@ -982,7 +983,7 @@ async function lanciaAggiornamento(slug, ref, { rilascio = null, ritorno = false
   // progetto, con la sua cartella in clienti/ e le sue chiavi della build.
   if (!rilasci.daFlotta(ist)) return 'Questa installazione si aggiorna dal suo repository, non dalla flotta.'
   const esistente = ist.origine === 'esistente'
-  const cliente = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]?.data()
+  const cliente = (await docClientePerSlug(slug))?.data()
   // Il titolare diventa admin a ogni deploy (REQ-FLOTTA-029); un locale
   // esistente (la Tana) ha i suoi admin, e la regia non ne aggiunge.
   const datiIstanza = { slug, nome_locale: cliente?.nome_locale, email: esistente ? '' : cliente?.email || '', uid: esistente ? '' : cliente?.uid || '', ...(esistente ? { progetto: ist.progetto, cliente: ist.cliente, build: ist.build } : {}) }
@@ -1161,9 +1162,23 @@ async function regoleAggiornamenti() {
   return aggiornamenti.regolePulite((await db.doc('impostazioni/aggiornamenti').get()).data())
 }
 
+// IL CLIENTE DI UNO SLUG (audit 09/11/2026, finding 4): ogni ricerca per
+// slug passa da qui, che chiede due documenti e si ferma se li trova tutti
+// e due, invece di lavorare «sul primo» come faceva `limit(1)`. Torna il
+// documento (ref, id, data()) o null; lo slug ambiguo è un errore che la
+// callable riporta com'è, e un trigger scrive nel log.
+async function docClientePerSlug(slug) {
+  try {
+    return await registrazione.clientePerSlug(db, slug)
+  } catch (e) {
+    if (e instanceof registrazione.SlugAmbiguo) throw new HttpsError('failed-precondition', e.message)
+    throw e
+  }
+}
+
 // Col suo uid, che è l'id del documento: serve per le sue sottoraccolte.
 async function clienteDi(slug) {
-  const d = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]
+  const d = await docClientePerSlug(slug)
   return d ? { uid: d.id, ...d.data() } : null
 }
 
@@ -1936,6 +1951,28 @@ exports.scegliFree = onCall(OPTS, async (req) => {
   return { ok: true }
 })
 
+// ── LA REGISTRAZIONE DEL TITOLARE (REQ-FLOTTA-045) ────────────────────
+// Audit del 09/11/2026, finding 4: il documento clienti/{uid} non lo scrive
+// più il browser (le regole non hanno più la `create`), lo scrive questa
+// Function in transazione, dopo aver visto che lo slug è libero. L'uid e
+// l'email sono quelli dell'account, mai quelli mandati; i dati del locale,
+// della fatturazione e del referente arrivano come li raccoglie il sito, e
+// lo slug solo se il titolare ne ha scelto uno diverso perché il suo era
+// preso (`already-exists`, con `details.campo === 'slug'`). Col sito
+// chiuso non si registra nessuno: chiude anche il finding 26.
+exports.registraCliente = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  await solOSitoAperto()
+  try {
+    const cliente = await registrazione.registraCliente(db, { uid: req.auth.uid, email: req.auth.token?.email, dati: req.data })
+    console.log(`[registrazione] ${cliente.slug} (${cliente.email})`)
+    return { ok: true, slug: cliente.slug, cliente }
+  } catch (e) {
+    if (e instanceof registrazione.RegistrazioneRifiutata) throw new HttpsError(e.codice, e.message, e.dettagli || undefined)
+    throw e
+  }
+})
+
 // ── L'ADMIN CREA UN LOCALE DA SÉ (REQ-FLOTTA-011) ─────────────────────
 // Account del titolare (senza password: la imposta lui con «Password
 // dimenticata» sul sito), documento del cliente con piano a mano, e se
@@ -1948,8 +1985,7 @@ exports.creaCliente = onCall(OPTS, async (req) => {
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').replace(/-{2,}/g, '-').slice(0, 30).replace(/-+$/g, '')
   if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(slug)) throw new HttpsError('invalid-argument', 'Nome del locale troppo corto o non valido.')
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(email || ''))) throw new HttpsError('invalid-argument', 'Email non valida.')
-  const esiste = await db.collection('clienti').where('slug', '==', slug).limit(1).get()
-  if (!esiste.empty) throw new HttpsError('already-exists', `Esiste già un locale con identificativo ${slug}.`)
+  if (await docClientePerSlug(slug)) throw new HttpsError('already-exists', `Esiste già un locale con identificativo ${slug}.`)
   const auth = getAuth()
   let utente
   try {
@@ -2319,7 +2355,7 @@ exports.gestisciSconti = onCall(OPTS, async (req) => {
 // Applica un codice a un cliente, o lo toglie (codice vuoto).
 exports.applicaSconto = onCall(OPTS, async (req) => {
   if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
-  const doc = (await db.collection('clienti').where('slug', '==', String(req.data?.slug || '')).limit(1).get()).docs[0]
+  const doc = await docClientePerSlug(req.data?.slug)
   if (!doc) throw new HttpsError('not-found', 'Cliente sconosciuto.')
   const codice = String(req.data?.codice || '').trim().toUpperCase()
   if (!codice) {
@@ -2352,11 +2388,8 @@ exports.registraLocaleEsistente = onCall(OPTS, async (req) => {
     if (e instanceof DatiNonValidi) throw new HttpsError('invalid-argument', e.message)
     throw e
   }
-  const [stessoSlug, istanza] = await Promise.all([
-    db.collection('clienti').where('slug', '==', d.slug).limit(1).get(),
-    db.doc(`istanze/${d.slug}`).get(),
-  ])
-  if (!stessoSlug.empty || istanza.exists) throw new HttpsError('already-exists', `Esiste già un locale con identificativo ${d.slug}.`)
+  const [stessoSlug, istanza] = await Promise.all([docClientePerSlug(d.slug), db.doc(`istanze/${d.slug}`).get()])
+  if (stessoSlug || istanza.exists) throw new HttpsError('already-exists', `Esiste già un locale con identificativo ${d.slug}.`)
   const auth = getAuth()
   const utente = await auth.getUserByEmail(d.email).catch(() => auth.createUser({ email: d.email, emailVerified: true }))
   if ((await db.doc(`clienti/${utente.uid}`).get()).exists) {
@@ -2382,7 +2415,7 @@ exports.impostaTemi = onCall(OPTS, async (req) => {
   const slug = String(req.data?.slug || '')
   const temiNuovi = temi.temiPuliti(req.data?.temi)
   if (!temiNuovi) throw new HttpsError('invalid-argument', 'I temi in licenza sono id di stili: minuscole, cifre e trattini.')
-  const doc = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]
+  const doc = await docClientePerSlug(slug)
   if (!doc) throw new HttpsError('not-found', 'Cliente sconosciuto.')
   await doc.ref.update({ temi: temiNuovi })
   console.log(`[temi] ${slug}: ${temiNuovi.join(', ') || 'nessuno'} (${req.auth.token.email || req.auth.uid})`)
@@ -2452,7 +2485,7 @@ exports.gestisciEliminazione = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN
   if (admin) {
     slug = String(req.data?.slug || '')
     if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(slug)) throw new HttpsError('invalid-argument', 'Slug non valido.')
-    cliente = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]?.data() || null
+    cliente = (await docClientePerSlug(slug))?.data() || null
   } else {
     cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data() || null
     slug = cliente?.slug
@@ -2630,7 +2663,15 @@ exports.moduloDallApp = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY], cors:
     const fuori = moduliApp.moduloInVendita(corpo.modulo, inVendita)
     if (fuori) return no(409, fuori)
   }
-  const docCliente = (await db.collection('clienti').where('slug', '==', trovata.id).limit(1).get()).docs[0]
+  // Due clienti con lo stesso slug: nessun cambio, piuttosto che la
+  // subscription di un altro locale (audit 09/11/2026, finding 4).
+  let docCliente
+  try {
+    docCliente = await docClientePerSlug(trovata.id)
+  } catch (e) {
+    if (e instanceof HttpsError) return no(409, e.message)
+    throw e
+  }
   if (!docCliente) return no(404, 'Nessun abbonamento registrato per questo locale.')
   const cliente = docCliente.data()
   if (corpo.azione === 'prova') {
@@ -2672,7 +2713,7 @@ exports.moduloDallApp = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY], cors:
 exports.cambiaPianoAdmin = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (req) => {
   if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
   const slug = String(req.data?.slug || '')
-  const doc = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]
+  const doc = await docClientePerSlug(slug)
   if (!doc) throw new HttpsError('not-found', 'Cliente sconosciuto.')
   const cliente = doc.data()
   const c = cambioAdmin(cliente, req.data, { da: req.auth.token.email || req.auth.uid })

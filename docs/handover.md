@@ -380,7 +380,9 @@ L'elenco completo con i riferimenti al codice è in
    giorni, sospesa, chiusa, attivata. Mittente e dominio verificati per
    le email di Auth.
 6. **Medie dell'audit**: callback con `run_id` e scadenza; `cambiaScelta`
-   nel ramo manuale con approvazione; idempotenza del webhook (**fatta il
+   nel ramo manuale con approvazione; lo slug unico lato server e le ricerche per slug che si
+   fermano davanti a un doppione (**fatto il 09/11/2026**, REQ-FLOTTA-045,
+   finding 4 dell'audit del 09/11); idempotenza del webhook (**fatta il
    02/11/2026**, punto 33);
    header di sicurezza in
    `firebase.json`; App Check e `maxInstances`; creazione dell'admin

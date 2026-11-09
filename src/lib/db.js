@@ -16,7 +16,6 @@ import {
 import { doc, setDoc, getDoc, onSnapshot, collection, getDocs, orderBy, query, updateDoc, limit, addDoc } from 'firebase/firestore'
 import { getFunctions, httpsCallable } from 'firebase/functions'
 import { auth, db, configurata, app } from './firebase.js'
-import { nuovoCliente } from './clienti.js'
 import { STATI } from './istanze.js'
 import { venditaPulita } from './vendita.js'
 
@@ -40,17 +39,24 @@ export function osservaUtente(cb) {
 
 export const osservaAccesso = (cb) => (configurata ? onAuthStateChanged(auth, cb) : (cb(null), () => {}))
 
-// Il documento del cliente per un account di Firebase, con tutti i blocchi,
-// e l'email di verifica se l'email non lo è ancora (Google la dà
-// verificata). Se l'email non parte la registrazione resta valida: si
-// rimanda dalla dashboard. È l'unico punto del sito che scrive
-// clienti/{uid} (tests/clienti.test.js).
-async function creaCliente(u, { locale, fatturazione, referente }) {
-  const cliente = nuovoCliente({ uid: u.uid, email: u.email, locale, fatturazione, referente })
-  await setDoc(doc(db, 'clienti', u.uid), cliente)
+// Il documento del cliente per un account di Firebase lo scrive la Function
+// `registraCliente` (audit del 09/11/2026, finding 4): è lei che controlla
+// che lo slug non sia di nessun altro, in transazione, e il browser non
+// può più creare clienti/{uid}. Si mandano i dati come li raccoglie il
+// modulo, e lo `slug` solo se il titolare ne ha scelto uno perché il suo
+// era preso; uid ed email li prende dall'account. Poi l'email di verifica
+// se l'email non lo è ancora (Google la dà verificata). Se l'email non
+// parte la registrazione resta valida: si rimanda dalla dashboard.
+async function creaCliente(u, { locale, fatturazione, referente, slug = null }) {
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'registraCliente')
+  const { data } = await fn({ locale, fatturazione, referente, ...(slug ? { slug } : {}) })
   if (!u.emailVerified) await sendEmailVerification(u).catch(() => {})
-  return cliente
+  return data.cliente
 }
+
+// Lo slug che la Function ha rifiutato perché già in uso: il modulo chiede
+// di sceglierne un altro. Gli altri errori restano come sono.
+export const slugGiaInUso = (err) => String(err?.code || '').includes('already-exists') && err?.details?.campo === 'slug'
 
 // IL TRAFFICO (REQ-FLOTTA-042): una vista di pagina o un passo della vendita
 // alla Function `traccia`, che tiene solo contatori per giorno (niente
@@ -70,10 +76,15 @@ export const tracciaPagina = (pagina, lingua) => traccia({ pagina, lingua, rifer
 export const tracciaEvento = (evento) => traccia({ evento })
 
 // La registrazione (REQ-FLOTTA-003): l'account, poi il documento del cliente.
+// Se la Function rifiuta (lo slug è preso) l'account c'è già: al secondo
+// tentativo, con lo stesso account entrato, non si ricrea (darebbe
+// «email già in uso») e si scrive solo il cliente, come per chi entra con
+// Google e completa dopo.
 export async function registra({ email, password, ...dati }) {
   serve()
-  const cred = await createUserWithEmailAndPassword(auth, email, password)
-  const cliente = await creaCliente(cred.user, dati)
+  const stessa = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase()
+  const utente = auth.currentUser && stessa(auth.currentUser.email, email) ? auth.currentUser : (await createUserWithEmailAndPassword(auth, email, password)).user
+  const cliente = await creaCliente(utente, dati)
   tracciaEvento('registrazione')
   return cliente
 }

@@ -6,6 +6,13 @@ data.
 
 ## Prossima release (da decidere)
 
+- L'identificativo del locale (lo slug, l'indirizzo che l'app avrà) è
+  unico: alla registrazione lo controlla e lo scrive la regia, non il
+  browser, e se è già di un altro locale il modulo torna al passo del
+  locale con una casella per sceglierne un altro. Ogni ricerca di un
+  cliente per identificativo si ferma con un errore esplicito se ne trova
+  due, invece di prendere il primo (audit di sicurezza del 09/11/2026,
+  REQ-FLOTTA-045).
 - Il listino dei moduli cambia: il menù digitale col QR al tavolo è
   compreso nei piani Base e Completo; gli ordini dal telefono costano 12 €
   al mese; le fatture ai clienti (5 €) e le fatture ai fornitori (6 €) si

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { registra, completaRegistrazione, esci } from '../lib/db.js'
+import { registra, completaRegistrazione, esci, slugGiaInUso } from '../lib/db.js'
 import EntraConGoogle from './EntraConGoogle.jsx'
 import { slugDi, problemaSlug } from '../lib/clienti.js'
 import { urlDi } from '../lib/istanze.js'
@@ -15,8 +15,15 @@ import { TIPI_LOCALE, problemiAccount, problemiLocale, problemiFatturazione, pro
 // CON GOOGLE (REQ-FLOTTA-038) l'account c'è già: la dashboard mostra questa
 // stessa pagina con `completa` (l'utente entrato), senza il passo
 // dell'account, e alla fine scrive solo il documento del cliente.
+//
+// LO SLUG È UNICO (REQ-FLOTTA-045, audit del 09/11/2026): lo scrive la
+// Function, che rifiuta se un altro locale ce l'ha già. Allora si torna al
+// passo del locale con la casella dell'identificativo, prima nascosta, da
+// cui il titolare ne sceglie un altro; chi non ha questo problema non la
+// vede mai e tiene lo slug derivato dal nome, come sempre.
 
 const PASSI = ['Account', 'Il locale', 'Fatturazione', 'Referente']
+const SLUG_IN_USO = 'Questo identificativo è già in uso: scegline un altro.'
 
 export default function Registrati({ completa = null }) {
   const navigate = useNavigate()
@@ -29,13 +36,19 @@ export default function Registrati({ completa = null }) {
   const [errori, setErrori] = useState({})
   const [errore, setErrore] = useState(null)
   const [inCorso, setInCorso] = useState(false)
+  // L'identificativo scelto a mano ('' = quello dal nome) e se la casella si vede.
+  const [slugScelto, setSlugScelto] = useState('')
+  const [scegliSlug, setScegliSlug] = useState(false)
 
-  const slug = slugDi(locale.nome)
-  const problemaNome = locale.nome ? problemaSlug(slug) : null
+  const slug = slugScelto || slugDi(locale.nome)
+  const problemaNome = locale.nome || slugScelto ? problemaSlug(slug) : null
+  // Il problema sta accanto alla casella da cui nasce: l'identificativo se
+  // è stato scritto a mano, il nome altrimenti.
+  const casellaSlug = slugScelto ? 'slug' : 'nome'
 
   const controlli = [
     () => problemiAccount(account),
-    () => ({ ...problemiLocale(locale), ...(problemaNome ? { nome: problemaNome } : {}) }),
+    () => ({ ...problemiLocale(locale), ...(problemaNome ? { [casellaSlug]: problemaNome } : {}) }),
     () => problemiFatturazione(fatturazione),
     () => problemiReferente(referente),
   ]
@@ -54,14 +67,22 @@ export default function Registrati({ completa = null }) {
     setErrore(null)
     setInCorso(true)
     try {
+      const dati = { locale, fatturazione, referente, ...(slugScelto ? { slug: slugScelto } : {}) }
       // Completata, la dashboard vede il cliente da sé (osservaCliente).
-      if (completa) await completaRegistrazione({ locale, fatturazione, referente })
+      if (completa) await completaRegistrazione(dati)
       else {
-        await registra({ email: account.email, password: account.password, locale, fatturazione, referente })
+        await registra({ email: account.email, password: account.password, ...dati })
         navigate('/dashboard', { replace: true })
       }
     } catch (err) {
-      setErrore(messaggio(err))
+      if (slugGiaInUso(err)) {
+        // Si torna al locale, con la casella dell'identificativo aperta e
+        // già piena di quello rifiutato: si cambia e si va avanti.
+        setScegliSlug(true)
+        setSlugScelto(slug)
+        setErrori({ slug: SLUG_IN_USO })
+        setPasso(1)
+      } else setErrore(messaggio(err))
     } finally {
       setInCorso(false)
     }
@@ -102,7 +123,24 @@ export default function Registrati({ completa = null }) {
           <fieldset>
             <legend>Il locale</legend>
             {campo('nome', 'Nome del locale', locale.nome, (v) => setLocale({ ...locale, nome: v }))}
-            {locale.nome && !errori.nome && <p className="muted small">L’indirizzo dell’app sarà {urlDi(slug)}</p>}
+            {scegliSlug &&
+              campo(
+                'slug',
+                'Identificativo dell’app (minuscole, cifre e trattini)',
+                slugScelto,
+                (v) => {
+                  setSlugScelto(v.toLowerCase().trim())
+                  // Appena si scrive, l'avviso «già in uso» ha fatto il suo:
+                  // l'indirizzo nuovo si vede sotto mentre si sceglie.
+                  setErrori((e) => {
+                    const resto = { ...e }
+                    delete resto.slug
+                    return resto
+                  })
+                },
+                { autoComplete: 'off', spellCheck: false }
+              )}
+            {locale.nome && !errori.nome && !errori.slug && <p className="muted small">L’indirizzo dell’app sarà {urlDi(slug)}</p>}
             <div className="campo">
               <label htmlFor="tipo">Tipo di locale</label>
               <select id="tipo" value={locale.tipo} onChange={(e) => setLocale({ ...locale, tipo: e.target.value })} aria-invalid={Boolean(errori.tipo)}>
