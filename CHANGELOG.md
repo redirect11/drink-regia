@@ -6,6 +6,22 @@ data.
 
 ## Prossima release (da decidere)
 
+- L'attivazione e l'aggiornamento di un locale sono quattro job in fila
+  invece di uno: il codice di tana-drink (`npm ci`, la build) gira in un
+  job senza environment e senza nessun segreto, e i job con la chiave di
+  provisioning non scaricano l'app e non ne eseguono niente. La
+  configurazione web del progetto passa da un job all'altro come output,
+  l'app compilata come artifact; la build è dello SHA controllato, non del
+  ramo riletto. Se un job prima fallisce, l'esito di errore arriva lo
+  stesso alla regia (REQ-FLOTTA-047, audit del 09/11/2026, punto 6).
+- Prima di eliminare un locale il workflow verifica che il progetto porti
+  l'etichetta `ambiente` della regia che lancia e che il suo stato
+  Terraform esista; prima di aggiornarlo, l'etichetta. Un progetto che non
+  è di quella regia non si tocca, nemmeno per il backup: la regia di test
+  non può più eliminare o ripubblicare un locale di produzione. Un locale
+  esistente (la Tana, la demo) riceve l'etichetta una volta a mano. Lo SHA
+  di tana-drink pubblicato è pronto per l'esito (REQ-FLOTTA-048, audit
+  del 09/11/2026, punti 7 e 29).
 - Il listino dei moduli cambia: il menù digitale col QR al tavolo è
   compreso nei piani Base e Completo; gli ordini dal telefono costano 12 €
   al mese; le fatture ai clienti (5 €) e le fatture ai fornitori (6 €) si

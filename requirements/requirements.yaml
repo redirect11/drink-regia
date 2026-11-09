@@ -2111,3 +2111,116 @@ requirements:
       - tests/prove.test.js
       - tests/Home.test.jsx
       - tests/SceltaPiano.test.jsx
+  - id: REQ-FLOTTA-047
+    title: "La build dell'app senza credenziali: il codice di tana-drink gira in un job che non ha la chiave"
+    area: ".github/workflows/provisiona-istanza.yml, .github/workflows/aggiorna-istanza.yml (job controlla, prepara, compila, pubblica), infra/istanza/main.tf (output config_web), infra/README.md, docs/flotta-nella-regia.md, docs/architettura.md"
+    description: >
+      Audit di sicurezza del 09/11/2026, punto 6. Fino a quel giorno i due
+      workflow della flotta erano un job solo: la chiave del service account
+      di provisioning (proprietario di tutti i locali) finiva in
+      GOOGLE_APPLICATION_CREDENTIALS e poi giravano `npm ci` dell'app e
+      delle sue Functions (coi postinstall delle dipendenze),
+      `genera-cliente.mjs` e `npm run build` (Vite coi plugin del
+      repository): una dipendenza compromessa nel lockfile di tana-drink,
+      o un commit malevolo su un ramo preso dal test, avrebbe letto la
+      chiave e l'avrebbe portata via. La guardia «solo quello che sta su
+      main» non protegge da una dipendenza.
+      QUATTRO JOB IN FILA, uguali nei due workflow. `controlla`, senza
+      environment e senza secret: gli input (gli stessi controlli di prima,
+      per primi), «è un rilascio?», il checkout di tana-drink al ref chiesto
+      (git non esegue codice) e «la versione va bene per questa regia?»;
+      esporta come output lo SHA controllato (`git rev-parse HEAD`) e il
+      ramo. Fermarsi qui non costa niente: nessun progetto è ancora nato.
+      `prepara`, con l'environment e la chiave ma SENZA l'app: nel
+      provisioning il Terraform (init, import, apply) e poi `terraform
+      output` della configurazione web e dell'indirizzo del sito;
+      nell'aggiornamento il controllo dell'etichetta del progetto
+      (REQ-FLOTTA-048), il Terraform di un Free che compra e la
+      configurazione web da `apps:sdkconfig`. Li passa come output del job,
+      una riga di JSON: sono le VITE_FIREBASE_* del client, pubbliche per
+      disegno (stanno nel pacchetto che il browser scarica); un test
+      controlla che l'output `config_web` del Terraform porti solo chiavi
+      VITE_FIREBASE_*. `compila`, SENZA environment e senza secret: il
+      checkout di tana-drink allo SHA che `controlla` ha approvato (non al
+      ref di nuovo: un ramo che si muove fra un job e l'altro non cambia
+      quello che si pubblica), il .env della build dall'output di
+      `prepara`, `npm ci` dell'app e delle sue Functions, la cartella del
+      cliente, la build (con GIT_BRANCH e GIT_COMMIT dall'output), il .env
+      delle Functions, e il pacchetto `app.tgz` (tutto app/ meno i
+      node_modules della radice e la storia git: dist/, regole, indici,
+      firebase.json, functions/ coi suoi node_modules che firebase-tools
+      carica per scoprire le Functions, il .env della build che il passo
+      del titolare legge) caricato con actions/upload-artifact, un giorno
+      di conservazione. `pubblica`, con l'environment e la chiave: scarica e
+      scompatta il pacchetto, installa le dipendenze della regia
+      (functions/), e poi come prima: licenza, Storage, segreti, deploy
+      (con i tre tentativi), titolare, versione, esito, pulizia. I job con
+      la chiave non scaricano l'app e non ne eseguono niente; un test lo
+      controlla per nome di passo e per testo del job (`npm ci --prefix
+      app`, `npm run build`, `node scripts/genera-cliente.mjs`,
+      `with.repository`). Resta, inevitabile, che `firebase deploy`
+      esegue il codice delle Functions dell'app per scoprirle: è il deploy
+      stesso, non la build.
+      L'ESITO ARRIVA SEMPRE: `pubblica` parte anche se un job prima è
+      fallito (`if: !cancelled()`); il suo primo passo fallisce se
+      `compila` non è riuscito, così i passi dopo si saltano, `job.status`
+      è failure e «Esito alla regia» (always) manda `errore` come prima. Il
+      passo del callback non cambia (lo tocca un'altra PR dello stesso
+      giorno: run_id e inviato_il).
+      COSA RESTA COM'ERA: input solo via `env:` validati nel primo passo,
+      `${{ inputs.* }}` mai dentro `run:` (ora nemmeno `needs.*`),
+      `concurrency` per slug a livello di workflow, credenziali pulite
+      `if: always()` in ogni job che le scrive, produzione solo da ciò che
+      è su main di tana-drink, demo isolata.
+      DA FARE DOPO LA PR: le righe `uses:` nuove (checkout nei job nuovi,
+      upload-artifact, download-artifact) vanno fissate allo SHA come le
+      altre (audit, punto 23).
+    status: implemented
+    generate_issue: true
+    labels: [sicurezza, flotta, regia]
+    priority: P1
+    test_cases:
+      - tests/flotta.test.js
+  - id: REQ-FLOTTA-048
+    title: "Il progetto è di questa regia: etichetta ambiente e stato Terraform prima di eliminare o aggiornare; lo SHA pubblicato pronto per l'esito"
+    area: ".github/workflows/elimina-istanza.yml (Il progetto è di questa regia?), .github/workflows/aggiorna-istanza.yml (job prepara: Il progetto è di questa regia?), .github/workflows/provisiona-istanza.yml (output commit, COMMIT_APP), infra/README.md"
+    description: >
+      Audit di sicurezza del 09/11/2026, punto 7 e primo punto del 29. Le
+      due regie (produzione e test) usano la stessa chiave di provisioning:
+      `elimina-istanza.yml` controllava slug e nome dell'ambiente e poi
+      faceva `gcloud projects delete` e cancellava lo stato, senza leggere
+      a chi appartenesse il progetto. Con `ambiente: test` si eliminava un
+      locale di produzione. E in `aggiorna-istanza.yml` l'input `progetto`
+      può nominare un progetto qualunque tranne le due regie.
+      L'ELIMINAZIONE: subito dopo le credenziali e le dipendenze, prima del
+      backup (che leggerebbe dati non nostri) e a maggior ragione prima di
+      eliminare, il passo «Il progetto è di questa regia?» chiede due cose,
+      tutte e due necessarie: `gcloud projects describe` dell'etichetta
+      `ambiente` (quella che il Terraform mette sul progetto,
+      infra/istanza/main.tf) uguale all'ambiente del lancio, e lo stato
+      Terraform presente in gs://TFSTATE_BUCKET/istanze/<slug>/. Se una
+      manca: `::error::` chiaro e `exit 1`, prima di qualunque azione.
+      L'AGGIORNAMENTO: lo stesso controllo dell'etichetta nel job `prepara`,
+      subito dopo le credenziali (gcloud autenticato con la stessa chiave),
+      prima del Terraform e del deploy. Un locale esistente (la Tana, la
+      demo: REQ-FLOTTA-018, REQ-FLOTTA-019) non ha l'etichetta: gliela dà
+      una volta, a mano, chi lo affida a quella regia (`gcloud projects
+      update <progetto> --update-labels ambiente=produzione`); il messaggio
+      d'errore lo dice. Finché non ce l'ha, nessuna regia lo tocca: è il
+      punto. DA FARE PRIMA DEL PROSSIMO AGGIORNAMENTO di drinkpos-demo e
+      di tana-drink dalla regia di produzione: l'etichetta.
+      LO SHA PUBBLICATO: `APP_REF=main` compila «quello che c'è su main
+      adesso» e l'esito non registrava quale commit. Ora `controlla`
+      esporta `commit` (`git rev-parse HEAD` del checkout controllato),
+      `compila` compila esattamente quello, e `pubblica` lo ha in
+      COMMIT_APP. Il campo `commit` nel JSON del callback NON è ancora
+      aggiunto: il passo lo sta cambiando un'altra PR dello stesso giorno
+      (run_id, inviato_il); un TODO(REQ-FLOTTA-048) accanto al passo dice
+      cosa aggiungere, lo fa chi integra le due PR. Lato Functions
+      (`esitoProvisioning`, `istanze/<slug>.commit`) niente è cambiato.
+    status: implemented
+    generate_issue: true
+    labels: [sicurezza, flotta, regia]
+    priority: P1
+    test_cases:
+      - tests/flotta.test.js

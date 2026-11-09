@@ -4,20 +4,28 @@ name: Aggiorna istanza
 # L'app è tana-drink: ogni correzione o funzione nuova nasce lì ed esce con
 # un tag; la regia la porta ai locali, un'ondata alla volta, con questo
 # workflow. Lo lanciano la regia (backoffice: «Aggiorna», i rilasci a
-# ondate, «Torna a») o una persona dalla pagina Actions:
-#   1. prende la configurazione web del progetto dell'istanza;
-#   2. scarica l'app al `ref` chiesto in app/, rigenera la cartella
-#      clienti/<slug>/ (le impostazioni del locale, che vincono sulla build,
-#      stanno nel suo database) e compila CLIENTE=<slug>;
-#   3. pubblica regole, indici, Functions e hosting;
-#   4. riferisce alla regia la versione pubblicata.
-# Il Terraform gira solo per un locale Free che passa al profilo completo:
-# il suo progetto riceve le API e gli agenti delle Functions (REQ-FLOTTA-015).
-# Per tutti gli altri il progetto esiste già com'è.
+# ondate, «Torna a») o una persona dalla pagina Actions. Quattro job:
+#   1. `controlla`: gli input e la versione dell'app al `ref` chiesto.
+#      Senza credenziali.
+#   2. `prepara`: con la chiave, senza l'app. Controlla che il progetto sia
+#      di questa regia (l'etichetta `ambiente`, REQ-FLOTTA-048), completa
+#      col Terraform un locale Free che compra (REQ-FLOTTA-015), e prende
+#      la configurazione web del progetto, che passa come output.
+#   3. `compila`: scarica l'app allo SHA controllato in app/, rigenera la
+#      cartella clienti/<slug>/ (le impostazioni del locale, che vincono
+#      sulla build, stanno nel suo database), compila CLIENTE=<slug> e
+#      carica il pacchetto. Senza credenziali e senza environment.
+#   4. `pubblica`: regole, indici, Functions e hosting, il titolare, e
+#      l'esito alla regia con la versione pubblicata. Con la chiave.
+#
+# PERCHÉ QUATTRO JOB (REQ-FLOTTA-047, audit del 09/11/2026, punto 6): il
+# codice di tana-drink (npm ci coi postinstall, Vite coi plugin) gira solo
+# nel job senza chiave. Il perché per esteso sta in provisiona-istanza.yml.
 #
 # Sta nella regia dal 29/10/2026, come provisiona-istanza.yml: environment
 # «flotta» o «flotta-test» secondo `ambiente`, input solo come variabili
-# d'ambiente e controllati per primi (audit del 22/10/2026, C1).
+# d'ambiente e controllati per primi (audit del 22/10/2026, C1). Lo stesso
+# vale per gli output dei job.
 on:
   workflow_dispatch:
     inputs:
@@ -105,10 +113,16 @@ env:
   SEGRETI_APP: SUMUP_API_KEY
 
 jobs:
-  aggiorna:
-    name: Aggiorna ${{ inputs.slug }} a ${{ inputs.ref }} (${{ inputs.ambiente }})
+  # 1. I CONTROLLI, senza credenziali. L'app si scarica soltanto (git non
+  #    esegue il suo codice) per sapere se la versione va bene.
+  controlla:
+    name: Controlla ${{ inputs.slug }} a ${{ inputs.ref }} (${{ inputs.ambiente }})
     runs-on: ubuntu-latest
-    environment: ${{ inputs.ambiente == 'test' && 'flotta-test' || 'flotta' }}
+    outputs:
+      # Lo SHA controllato: `compila` compila quello, `pubblica` lo
+      # riferisce alla regia (REQ-FLOTTA-048).
+      commit: ${{ steps.app.outputs.commit }}
+      ramo: ${{ steps.app.outputs.ramo }}
     steps:
       - name: Input validi
         run: |
@@ -157,9 +171,6 @@ jobs:
             exit 1
           fi
 
-      # La regia: lo script dei segreti dell'app.
-      - uses: actions/checkout@v4
-
       # L'app dei locali, alla versione chiesta. tana-drink è pubblico.
       # Con tutta la storia: serve a sapere se la versione sta su main.
       - uses: actions/checkout@v4
@@ -176,6 +187,7 @@ jobs:
       # cliente, cosa che la 1.9.x non sa: meglio fermarsi qui che dopo
       # aver creato il progetto.
       - name: La versione dell'app va bene per questa regia?
+        id: app
         working-directory: app
         run: |
           if [ ! -f scripts/genera-cliente.mjs ]; then
@@ -196,16 +208,24 @@ jobs:
           if git merge-base --is-ancestor HEAD origin/main; then RAMO=main
           elif git merge-base --is-ancestor HEAD origin/develop; then RAMO=develop
           else RAMO="$REF_APP"; fi
-          echo "GIT_BRANCH=$RAMO" >> "$GITHUB_ENV"
+          echo "ramo=$RAMO" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: |
-            functions/package-lock.json
-            app/package-lock.json
-            app/functions/package-lock.json
+  # 2. IL PROGETTO, con la chiave e senza l'app: su questo runner gira solo
+  #    il codice della regia, gcloud, Terraform e firebase-tools.
+  prepara:
+    name: Prepara il progetto di ${{ inputs.slug }}
+    needs: controlla
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.ambiente == 'test' && 'flotta-test' || 'flotta' }}
+    outputs:
+      # La configurazione web del progetto (VITE_FIREBASE_*). Niente di
+      # segreto: la chiave API di Firebase è pubblica per disegno e sta già
+      # nel pacchetto che il browser scarica. Vuota per la demo.
+      config_web: ${{ steps.web.outputs.config_web }}
+    steps:
+      # La regia: il Terraform.
+      - uses: actions/checkout@v4
 
       - name: Credenziali di provisioning
         env:
@@ -215,6 +235,23 @@ jobs:
           echo "$SA_JSON" > "$RUNNER_TEMP/sa.json"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
           echo "PROVISIONING_SA_EMAIL=$(node -e "console.log(JSON.parse(process.argv[1]).client_email)" "$SA_JSON")" >> "$GITHUB_ENV"
+          gcloud auth activate-service-account --key-file="$RUNNER_TEMP/sa.json" --quiet
+
+      # IL PROGETTO È DI QUESTA REGIA? (REQ-FLOTTA-048, audit del 09/11/2026,
+      # punto 7). L'input `progetto` può nominare un progetto qualunque, e le
+      # due regie usano la stessa chiave: senza questo controllo la regia di
+      # test poteva ripubblicare un locale di produzione. Il progetto porta
+      # l'etichetta `ambiente` che gli ha messo il Terraform
+      # (infra/istanza/main.tf); un locale esistente (la Tana, la demo) la
+      # riceve una volta a mano, da chi lo affida a questa regia
+      # (infra/README.md). Senza l'etichetta giusta non si tocca niente.
+      - name: Il progetto è di questa regia?
+        run: |
+          ETICHETTA=$(gcloud projects describe "$PROGETTO" --format='value(labels.ambiente)')
+          if [ "$ETICHETTA" != "$AMBIENTE" ]; then
+            echo "::error::$PROGETTO ha l'etichetta ambiente «${ETICHETTA:-nessuna}», non «$AMBIENTE»: non è un locale di questa regia, non lo tocco. Se lo è, gliela dà un amministratore: gcloud projects update $PROGETTO --update-labels ambiente=$AMBIENTE"
+            exit 1
+          fi
 
       # DA LEGGERO A COMPLETO (REQ-FLOTTA-015). Un locale Free nasce senza le
       # API delle Functions: quando compra, l'apply col profilo completo le
@@ -255,29 +292,59 @@ jobs:
           fi
           terraform apply -input=false -auto-approve
 
-      - name: Dipendenze
-        run: |
-          npm ci --prefix functions
-          npm ci --prefix app
-          npm ci --prefix app/functions
-
-      # Una versione nuova dell'app può dichiarare un segreto in più: si crea
-      # col segnaposto prima del deploy (scripts/segreti-istanza.mjs).
-      # Un locale Free che compra passa qui al profilo completo: il suo
-      # Storage nasce adesso (REQ-FLOTTA-015). Se c'è già non fa niente.
-      - name: Lo Storage del locale
-        if: env.PROFILO == 'completo'
-        run: node scripts/storage-istanza.mjs --project "$PROGETTO"
-
-      - name: I segreti dell'app
-        if: env.PROFILO == 'completo'
-        run: node scripts/segreti-istanza.mjs --project "$PROGETTO" --segreti "$SEGRETI_APP"
-
       # LA WEB APP DEL SITO, non «una» web app: con più app web nel progetto
       # `apps:sdkconfig` senza id si ferma (drinkpos-prova-free, 30/10/2026:
       # una app creata a mano accanto a quella di Terraform). Il sito sa la
       # sua (Terraform la collega con app_id); se non la dice, si va senza id.
       #
+      # LA DEMO NON PORTA LA CONFIGURAZIONE VERA (REQ-FLOTTA-019, revisione
+      # di sicurezza del 02/11/2026, M2): la sua la scrive `compila`, finta.
+      # Il risultato va al job `compila` come output, una riga di JSON.
+      - name: La configurazione web dell'istanza
+        id: web
+        if: env.DEMO != 'true'
+        run: |
+          APP_ID=$(npx firebase-tools hosting:sites:get "$PROGETTO" --project "$PROGETTO" --json | node -e 'try { console.log(JSON.parse(require("fs").readFileSync(0, "utf8")).result?.appId || "") } catch { console.log("") }')
+          echo "Web app del sito: ${APP_ID:-non indicata}"
+          npx firebase-tools apps:sdkconfig web $APP_ID --project "$PROGETTO" --json > "$RUNNER_TEMP/sdk.json" || { cat "$RUNNER_TEMP/sdk.json"; exit 1; }
+          echo "config_web=$(node -e '
+            const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+            const c = j.result?.sdkConfig || j.result || j;
+            if (!c.projectId) { console.error("Config non trovata."); process.exit(1); }
+            const righe = [["VITE_FIREBASE_API_KEY", c.apiKey], ["VITE_FIREBASE_AUTH_DOMAIN", c.authDomain], ["VITE_FIREBASE_PROJECT_ID", c.projectId], ["VITE_FIREBASE_STORAGE_BUCKET", c.storageBucket || ""], ["VITE_FIREBASE_MESSAGING_SENDER_ID", c.messagingSenderId || ""], ["VITE_FIREBASE_APP_ID", c.appId], ["VITE_FIREBASE_MEASUREMENT_ID", c.measurementId || ""]];
+            // Le chiavi pubbliche che il progetto non sa dire (REQ-FLOTTA-018),
+            // già controllate in «Input validi»: vincono su quelle di sopra.
+            const build = process.env.BUILD_PUBBLICA ? JSON.parse(process.env.BUILD_PUBBLICA) : {};
+            process.stdout.write(JSON.stringify({ ...Object.fromEntries(righe), ...build }));
+          ' "$RUNNER_TEMP/sdk.json")" >> "$GITHUB_OUTPUT"
+
+      - name: Pulizia credenziali
+        if: always()
+        run: rm -f "$RUNNER_TEMP/sa.json" "$RUNNER_TEMP/sdk.json"
+
+  # 3. LA BUILD, senza credenziali e senza environment: è l'unico job in cui
+  #    gira codice di tana-drink, e qui non c'è niente da portare via.
+  compila:
+    name: Compila l'app per ${{ inputs.slug }}
+    needs: [controlla, prepara]
+    runs-on: ubuntu-latest
+    steps:
+      # Lo stesso commit che `controlla` ha approvato, non il ref di nuovo.
+      - uses: actions/checkout@v4
+        with:
+          repository: redirect11/tana-drink
+          ref: ${{ needs.controlla.outputs.commit }}
+          path: app
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            app/package-lock.json
+            app/functions/package-lock.json
+
       # LA DEMO NON PORTA LA CONFIGURAZIONE VERA (REQ-FLOTTA-019, revisione
       # di sicurezza del 02/11/2026, M2): un progetto finto (gli id «demo-»
       # non sono mai progetti veri) e una chiave finta. Se un giorno l'app
@@ -288,24 +355,21 @@ jobs:
         run: |
           for riga in VITE_FIREBASE_API_KEY=demo VITE_FIREBASE_AUTH_DOMAIN=demo-drinkpos.firebaseapp.com VITE_FIREBASE_PROJECT_ID=demo-drinkpos VITE_FIREBASE_STORAGE_BUCKET= VITE_FIREBASE_MESSAGING_SENDER_ID= VITE_FIREBASE_APP_ID=1:0:web:demo VITE_FIREBASE_MEASUREMENT_ID=; do echo "$riga"; done > "$GITHUB_WORKSPACE/app/.env"
 
-      - name: La configurazione web dell'istanza
+      - name: Il .env della build dal progetto
         if: env.DEMO != 'true'
-        working-directory: app
+        env:
+          CONFIG_WEB: ${{ needs.prepara.outputs.config_web }}
         run: |
-          APP_ID=$(npx firebase-tools hosting:sites:get "$PROGETTO" --project "$PROGETTO" --json | node -e 'try { console.log(JSON.parse(require("fs").readFileSync(0, "utf8")).result?.appId || "") } catch { console.log("") }')
-          echo "Web app del sito: ${APP_ID:-non indicata}"
-          npx firebase-tools apps:sdkconfig web $APP_ID --project "$PROGETTO" --json > "$RUNNER_TEMP/sdk.json" || { cat "$RUNNER_TEMP/sdk.json"; exit 1; }
           node -e '
-            const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
-            const c = j.result?.sdkConfig || j.result || j;
-            if (!c.projectId) { console.error("Config non trovata."); process.exit(1); }
-            const righe = [["VITE_FIREBASE_API_KEY", c.apiKey], ["VITE_FIREBASE_AUTH_DOMAIN", c.authDomain], ["VITE_FIREBASE_PROJECT_ID", c.projectId], ["VITE_FIREBASE_STORAGE_BUCKET", c.storageBucket || ""], ["VITE_FIREBASE_MESSAGING_SENDER_ID", c.messagingSenderId || ""], ["VITE_FIREBASE_APP_ID", c.appId], ["VITE_FIREBASE_MEASUREMENT_ID", c.measurementId || ""]];
-            // Le chiavi pubbliche che il progetto non dice (REQ-FLOTTA-018),
-            // già controllate in «Input validi»: vincono su quelle di sopra.
-            const build = process.env.BUILD_PUBBLICA ? JSON.parse(process.env.BUILD_PUBBLICA) : {};
-            const tutte = Object.entries({ ...Object.fromEntries(righe), ...build });
-            require("fs").writeFileSync(process.argv[2], tutte.map(([k, v]) => `${k}=${v}`).join("\n") + "\n");
-          ' "$RUNNER_TEMP/sdk.json" "$GITHUB_WORKSPACE/app/.env"
+            const c = JSON.parse(process.env.CONFIG_WEB || "{}");
+            if (!c.VITE_FIREBASE_PROJECT_ID || !c.VITE_FIREBASE_API_KEY) { console.error("::error::La configurazione web del progetto non è arrivata dal job prepara."); process.exit(1); }
+            require("fs").writeFileSync(process.argv[1], Object.entries(c).map(([k, v]) => `${k}=${v}`).join("\n") + "\n");
+          ' "$GITHUB_WORKSPACE/app/.env"
+
+      - name: Dipendenze dell'app
+        run: |
+          npm ci --prefix app
+          npm ci --prefix app/functions
 
       # La cartella c'è già per un cliente curato a mano (clienti/tana,
       # clienti/demo): allora non si chiama genera-cliente.mjs, che controlla
@@ -342,6 +406,10 @@ jobs:
           # visitatori non mandano a nessuno il loro indirizzo.
           # (Al rovescio: in un'espressione di GitHub «cond && '' || x» dà sempre x.)
           VITE_REGIA_PROGETTO: ${{ inputs.progetto != 'drinkpos-demo' && (inputs.ambiente == 'test' && 'drink-regia-test' || 'drink-regia') || '' }}
+          # Ramo e commit che l'app mostra accanto alla versione (vite.config.js
+          # di tana-drink): col checkout di uno SHA git non li sa da sé.
+          GIT_BRANCH: ${{ needs.controlla.outputs.ramo }}
+          GIT_COMMIT: ${{ needs.controlla.outputs.commit }}
         run: npm run build
 
       # IL PACCHETTO GIUSTO (B5). Quello di un locale non deve contenere la
@@ -367,6 +435,82 @@ jobs:
         run: |
           if [ -f "app/functions/.env.$PROGETTO" ]; then echo "app/functions/.env.$PROGETTO c'è già: non lo tocco."; exit 0; fi
           printf 'VENUE_NAME=%s\n' "$NOME" > "app/functions/.env.$PROGETTO"
+
+      # Tutto quello che il deploy chiede: dist/, regole, indici, firebase.json,
+      # functions/ con i suoi node_modules (firebase-tools li carica per
+      # scoprire le Functions) e il .env della build (il passo del titolare
+      # legge la chiave API da lì). Fuori i node_modules della radice, che
+      # servivano solo a compilare, e la storia git.
+      - name: Il pacchetto per il deploy
+        run: tar -czf app.tgz --exclude=app/node_modules --exclude=app/.git app
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app
+          path: app.tgz
+          retention-days: 1
+          if-no-files-found: error
+
+  # 4. IL DEPLOY, con la chiave. L'app arriva già compilata.
+  pubblica:
+    name: Pubblica ${{ inputs.slug }} a ${{ inputs.ref }} (${{ inputs.ambiente }})
+    # Anche se un job prima è fallito: l'esito deve arrivare alla regia
+    # (il primo passo fa fallire il job, e poi parla solo «Esito alla regia»).
+    if: ${{ !cancelled() }}
+    needs: [controlla, prepara, compila]
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.ambiente == 'test' && 'flotta-test' || 'flotta' }}
+    env:
+      # Lo SHA di tana-drink che si pubblica (REQ-FLOTTA-048).
+      COMMIT_APP: ${{ needs.controlla.outputs.commit }}
+    steps:
+      - name: I job precedenti sono riusciti?
+        if: needs.compila.result != 'success'
+        env:
+          ESITI: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "::error::Un job precedente non è riuscito ($ESITI): niente deploy, l'esito va alla regia."
+          exit 1
+
+      # La regia: gli script dello Storage, dei segreti e del titolare, le
+      # regole della demo, con le dipendenze in functions/.
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: app
+
+      - name: L'app compilata
+        run: tar -xzf app.tgz && rm app.tgz
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Dipendenze della regia
+        run: npm ci --prefix functions
+
+      - name: Credenziali di provisioning
+        env:
+          SA_JSON: ${{ secrets.PROVISIONING_SA_JSON }}
+        run: |
+          if [ -z "$SA_JSON" ]; then echo "::error::Manca il segreto PROVISIONING_SA_JSON (infra/README.md)."; exit 1; fi
+          echo "$SA_JSON" > "$RUNNER_TEMP/sa.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
+
+      # Una versione nuova dell'app può dichiarare un segreto in più: si crea
+      # col segnaposto prima del deploy (scripts/segreti-istanza.mjs).
+      # Un locale Free che compra passa qui al profilo completo: il suo
+      # Storage nasce adesso (REQ-FLOTTA-015). Se c'è già non fa niente.
+      - name: Lo Storage del locale
+        if: env.PROFILO == 'completo'
+        run: node scripts/storage-istanza.mjs --project "$PROGETTO"
+
+      - name: I segreti dell'app
+        if: env.PROFILO == 'completo'
+        run: node scripts/segreti-istanza.mjs --project "$PROGETTO" --segreti "$SEGRETI_APP"
 
       # LA DEMO (REQ-FLOTTA-019): il database chiuso a tutti, al posto delle
       # regole dell'app. Nella build della demo i dati sono di prova e quello
@@ -432,6 +576,10 @@ jobs:
       - name: Versione pubblicata
         run: echo "VERSIONE=v$(node -p "require('./app/package.json').version")" >> "$GITHUB_ENV"
 
+      # TODO(REQ-FLOTTA-048): aggiungere al JSON il campo `commit` con
+      # process.env.COMMIT_APP (lo SHA di tana-drink pubblicato, dal job
+      # `controlla`), quando questa PR e quella che aggiunge run_id e
+      # inviato_il al callback saranno integrate: lo fa chi integra.
       - name: Esito alla regia
         if: always()
         env:
@@ -452,4 +600,4 @@ jobs:
 
       - name: Pulizia credenziali
         if: always()
-        run: rm -f "$RUNNER_TEMP/sa.json" "$RUNNER_TEMP/sdk.json" "$GITHUB_WORKSPACE/app/.env"
+        run: rm -f "$RUNNER_TEMP/sa.json" "$GITHUB_WORKSPACE/app/.env"
