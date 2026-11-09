@@ -182,6 +182,16 @@ requirements:
       campo controllato dev'essere valido o restare com'era: chi li ha
       validi non li guasta, chi non li ha li può solo mettere giusti.
       Provata sull'emulatore, in tests/regole/clienti.test.js.
+      IL BOTTONE CHE CAMBIAVA TIPO (trovato dal primo collaudo automatico,
+      09/11/2026, REQ-DEV-009): «Avanti» e «Crea l’account» erano lo
+      stesso <button> riusato da React, che gli cambiava il type da
+      «button» a «submit» dentro il click su «Avanti»; il browser decide
+      cosa fa un click dopo i gestori, e inviava il modulo appena arrivati
+      al referente. Al primo giro i controlli lo fermavano, mostrando però
+      gli errori dei campi ancora vuoti; al secondo, dopo lo slug
+      rifiutato, il referente era già compilato e l'account nasceva senza
+      premere niente. Ora sono due elementi (key diverse), e il test
+      unitario lo pretende (tests/Registrati.test.jsx).
       Da rivedere con un consulente prima di vendere: i testi di termini e
       privacy (src/pages/Legali.jsx) sono una struttura, non un
       parere legale.
@@ -2989,10 +2999,22 @@ requirements:
       automatico», l'app del locale mostra «Installazione sospesa» col
       motivo (è la licenza scritta dalla regia nel Firestore del locale con
       l'account runtime-regia, finding 3 dell'audit), «Riattiva» la toglie;
-      poi «Aggiorna subito»: la scheda dice «partito», e si ricarica ogni
-      trenta secondi finché «aggiornamento a … in corso» sparisce (fino a
-      venti minuti); «fallito» ferma il test. Il collaudo scrive sulla
-      regia di test e consuma un run della flotta: per questo solo sui tag.
+      poi «Aggiorna subito»: la scheda dice «partito» (o già «in corso»,
+      se si è ricaricata), e si ricarica ogni trenta secondi finché
+      «aggiornamento a … in corso» sparisce (fino a venti minuti);
+      «fallito» ferma il test. Il collaudo scrive sulla regia di test e
+      consuma un run della flotta: per questo solo sui tag, e senza
+      ripetizioni (retries: 0): in un gruppo seriale un fallimento rifà il
+      file intero, e il secondo giro lanciava un secondo aggiornamento vero
+      del locale e trovava i clienti del primo.
+      IL PRIMO COLLAUDO INTERO (tag v0.3.0-beta.2, run 42686747514,
+      09/11/2026): deploy e prove in sola lettura verdi, «Aggiorna
+      istanza» su prova-bar riuscito (con la configurazione web passata
+      come artifact), ma il collaudo rosso per tre cose, tutte sistemate:
+      un bug vero della registrazione (il secondo «Avanti» inviava il
+      modulo da sé, REQ-FLOTTA-003); il test della licenza che voleva
+      «partito» quando la scheda diceva già «in corso»; la pulizia che
+      contava i clienti per nome, e due si chiamavano uguale.
       COSA NON COPRE, e resta a mano quando serve: l'attivazione di un
       locale nuovo (progetto Google), i pagamenti Stripe (sandbox), il
       cassetto AI.
