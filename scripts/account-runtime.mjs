@@ -79,10 +79,23 @@ async function chiama(url, opzioni = {}) {
 }
 
 // Un membro in più in una policy letta e riscritta con la sua API.
+// Subito dopo la creazione, IAM può rispondere per qualche secondo «does
+// not exist» a chi mette l'account in una policy (è successo al primo
+// lancio sul test, 09/11/2026): si riprova, con pazienza, prima di
+// arrendersi.
 async function dai(etichetta, membro, ruoli, { leggi, scrivi }) {
   const policy = await chiama(leggi, { method: 'POST', body: '{}' })
   const { policy: nuova, nuovi } = conIRuoli(policy, membro, ruoli)
-  if (nuovi) await chiama(scrivi, { method: 'POST', body: JSON.stringify({ policy: nuova }) })
+  for (let tentativo = 1; nuovi; tentativo++) {
+    try {
+      await chiama(scrivi, { method: 'POST', body: JSON.stringify({ policy: nuova }) })
+      break
+    } catch (e) {
+      if (tentativo >= 6 || !/does not exist/.test(e.message)) throw e
+      console.log(`${etichetta}: l’account non è ancora visibile a IAM, riprovo fra 5 secondi (${tentativo}/6)`)
+      await new Promise((r) => setTimeout(r, 5000))
+    }
+  }
   console.log(`${etichetta}: ${nuovi ? `${nuovi} dati` : 'già a posto'} (${ruoli.join(', ')})`)
 }
 
