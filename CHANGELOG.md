@@ -22,6 +22,10 @@ data.
 - Dopo un pagamento con Stripe si torna solo sul sito della regia:
   l'indirizzo di ritorno del Checkout e della ricarica AI e' accettato
   solo se e' un'origine della regia (REQ-FLOTTA-054).
+- Col sito chiuso, chi entra con Google senza avere un locale vede
+  l'anteprima anche dalla dashboard, non «Completa la registrazione»; e
+  la richiesta di un tema su misura si ferma come le altre porte della
+  vendita (REQ-FLOTTA-055).
 - Il listino dei moduli cambia: il menù digitale col QR al tavolo è
   compreso nei piani Base e Completo; gli ordini dal telefono costano 12 €
   al mese; le fatture ai clienti (5 €) e le fatture ai fornitori (6 €) si

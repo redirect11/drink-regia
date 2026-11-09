@@ -2231,3 +2231,30 @@ requirements:
     priority: P3
     test_cases:
       - tests/sicurezza.test.js
+  - id: REQ-FLOTTA-055
+    title: "Sito chiuso: anche la registrazione dalla dashboard e la richiesta di un tema su misura"
+    area: "src/pages/Dashboard.jsx (chiuso), src/App.jsx (Dashboard chiuso={chiuso}), functions/index.js (chiediTemaSuMisura)"
+    description: >
+      Audit di sicurezza del 09/11/2026, finding 26: col sito chiuso
+      (REQ-FLOTTA-043) la prima pagina e /registrati erano l'anteprima e
+      nove callable della vendita rifiutavano, ma restavano due punti
+      scoperti. Un account senza locale (entrato con Google la prima volta)
+      trovava in /dashboard «Completa la registrazione» e scriveva
+      clienti/{uid} come se il sito fosse aperto; e chiediTemaSuMisura non
+      controllava il sito.
+      ORA App.jsx passa `chiuso` alla dashboard, e la dashboard, senza
+      cliente e col sito chiuso, mostra l'anteprima invece della
+      registrazione; chi ha gia' un locale vede la sua dashboard come
+      prima, e l'admin il suo avviso. chiediTemaSuMisura chiama
+      solOSitoAperto() dopo i controlli sull'accesso, come le altre porte
+      della vendita (il test di free.test.js la conta fra queste).
+      La callable di registrazione del finding 4 (un altro lavoro) chiude
+      il buco anche lato server: qui si chiude la porta del sito.
+    status: implemented
+    generate_issue: true
+    labels: [regia, sicurezza]
+    priority: P3
+    test_cases:
+      - tests/Dashboard.test.jsx
+      - tests/App.test.jsx
+      - tests/free.test.js

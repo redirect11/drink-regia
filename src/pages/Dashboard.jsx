@@ -11,6 +11,7 @@ import ChiudiLocale from './ChiudiLocale.jsx'
 import ProveModuli from './ProveModuli.jsx'
 import AggiornamentiLocale from './AggiornamentiLocale.jsx'
 import Registrati from './Registrati.jsx'
+import Anteprima from './Anteprima.jsx'
 
 // LA DASHBOARD DEL TITOLARE (REQ-FLOTTA-004): il suo locale, il piano, lo
 // stato dell'istanza e, quando è attiva, l'indirizzo dell'app.
@@ -19,7 +20,8 @@ import Registrati from './Registrati.jsx'
 // anche affiancati, due o tre colonne di box»): una griglia che fa due o
 // tre colonne secondo lo schermo, una sul telefono. La scelta del piano e
 // la chiusura del locale restano larghe quanto la pagina.
-export default function Dashboard({ utente }) {
+// `chiuso`: il sito non è aperto al pubblico (REQ-FLOTTA-043, App.jsx).
+export default function Dashboard({ utente, chiuso = false }) {
   const [cliente, setCliente] = useState(undefined)
   const [istanza, setIstanza] = useState(null)
   const [richiesta, setRichiesta] = useState(null)
@@ -41,7 +43,10 @@ export default function Dashboard({ utente }) {
   // Un account senza locale (entrato con Google la prima volta, o una
   // registrazione interrotta) completa qui i dati (REQ-FLOTTA-038).
   // L'amministratore della regia non ha un locale.
-  if (!cliente && !utente.admin) return <Registrati completa={utente} />
+  // Col sito chiuso (REQ-FLOTTA-043) no: la registrazione è l'anteprima
+  // anche da qui, altrimenti chi entrava con Google si registrava lo stesso
+  // (audit del 09/11/2026, finding 26). Chi ha già un locale lo vede.
+  if (!cliente && !utente.admin) return chiuso ? <Anteprima lingua="it" /> : <Registrati completa={utente} />
   if (!cliente) return <main className="pagina stretta">Nessun locale registrato per questo account.</main>
 
   const stato = statoIstanza(istanza, richiesta)

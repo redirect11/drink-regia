@@ -1740,6 +1740,9 @@ exports.gestisciTemiSuMisura = onCall(OPTS, async (req) => {
 exports.chiediTemaSuMisura = onCall(OPTS, async (req) => {
   if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
   if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Prima conferma la tua email.')
+  // Una richiesta al fornitore è una porta della vendita come le altre
+  // (REQ-FLOTTA-043; audit del 09/11/2026, finding 26).
+  await solOSitoAperto()
   const cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data()
   const r = contatti.richiestaTemaSuMisura(cliente && { uid: req.auth.uid, ...cliente }, req.data)
   if (!r.ok) throw new HttpsError('failed-precondition', r.perche)

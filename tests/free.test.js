@@ -53,11 +53,12 @@ describe('la vendita', () => {
     expect(f.SITO_CHIUSO).toMatch(/non è ancora aperto/)
   })
 
-  it('col sito chiuso ogni porta della vendita si ferma: attivazione, Checkout, codice, cambio, contatto, Free, prova, ricarica AI, moduli dall’app', async () => {
+  it('col sito chiuso ogni porta della vendita si ferma: attivazione, Checkout, codice, cambio, contatto, Free, prova, ricarica AI, tema su misura, moduli dall’app', async () => {
     const { readFileSync } = await import('node:fs')
     const index = readFileSync('functions/index.js', 'utf8')
     expect(index).toMatch(/const SITO_IN_PRODUZIONE = PROGETTO_REGIA === 'drink-regia'/)
-    for (const fn of ['chiediAttivazione', 'creaCheckout', 'attivaConCodice', 'cambiaScelta', 'chiediContatto', 'scegliFree', 'provaModulo', 'creaRicaricaAI']) {
+    // chiediTemaSuMisura dall'audit del 09/11/2026, finding 26 (REQ-FLOTTA-055).
+    for (const fn of ['chiediAttivazione', 'creaCheckout', 'attivaConCodice', 'cambiaScelta', 'chiediContatto', 'scegliFree', 'provaModulo', 'creaRicaricaAI', 'chiediTemaSuMisura']) {
       const corpo = index.slice(index.indexOf(`exports.${fn} =`))
       expect(corpo.slice(0, corpo.indexOf('\n})')), fn).toMatch(/await solOSitoAperto\(\)/)
     }
