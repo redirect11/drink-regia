@@ -6,6 +6,13 @@ data.
 
 ## Prossima release (da decidere)
 
+- L'esito che i workflow della flotta mandano alla regia non è più preso
+  per buono (audit del 09/11/2026, finding 12): il progetto deve essere
+  quello dell'istanza, l'indirizzo dell'app deve stare sui suoi domini, il
+  bucket degli archivi è quello della regia e non viaggia più nel corpo, e
+  ogni run di GitHub passa una volta sola, entro dieci minuti. Col segreto
+  del callback non configurato o troppo corto la regia risponde 503
+  (REQ-FLOTTA-049).
 - Il listino dei moduli cambia: il menù digitale col QR al tavolo è
   compreso nei piani Base e Completo; gli ordini dal telefono costano 12 €
   al mese; le fatture ai clienti (5 €) e le fatture ai fornitori (6 €) si

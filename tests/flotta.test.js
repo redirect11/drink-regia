@@ -130,6 +130,15 @@ describe.each(WORKFLOW)('%s', (_, w, corpo) => {
     expect(esito.env.CALLBACK_URL).toBe('${{ vars.REGIA_CALLBACK_URL }}')
     expect(esito.run).toContain(w === provisiona ? 'operazione: "attivazione"' : 'operazione: "aggiornamento"')
   })
+
+  // Audit del 09/11/2026, finding 12: la regia accetta un run una volta sola
+  // e solo se è fresco; il workflow dice quale run è e quando ha mandato.
+  it('l’esito porta il run e l’istante dell’invio, contro i replay', () => {
+    const esito = passo(w, 'Esito alla regia')
+    expect(esito.env.RUN_ID).toBe('${{ github.run_id }}')
+    expect(esito.run).toContain('run_id: Number(process.env.RUN_ID)')
+    expect(esito.run).toContain('inviato_il: new Date().toISOString()')
+  })
 })
 
 // Portati da tana-drink (tests/unit/provisionaIstanza.test.js del ramo
@@ -571,5 +580,17 @@ describe('elimina-istanza.yml', () => {
     expect(esito.if).toBe('always()')
     expect(esito.run).toContain('operazione: "eliminazione"')
     expect(esito.run).toContain('stato === "eliminata" ?')
+  })
+
+  // Audit del 09/11/2026, finding 12: il bucket è della regia e non viaggia
+  // nel corpo; il run e l'istante dell'invio sì, contro i replay.
+  it('l’esito non dichiara il bucket, e porta run e istante dell’invio', () => {
+    const esito = passo(elimina, 'Esito alla regia')
+    expect(esito.env).not.toHaveProperty('ARCHIVIO_BUCKET')
+    expect(esito.run).not.toContain('bucket')
+    expect(esito.run).toContain('{ percorso, zip: `${percorso}/archivio.zip`')
+    expect(esito.env.RUN_ID).toBe('${{ github.run_id }}')
+    expect(esito.run).toContain('run_id: Number(process.env.RUN_ID)')
+    expect(esito.run).toContain('inviato_il: new Date().toISOString()')
   })
 })

@@ -2111,3 +2111,52 @@ requirements:
       - tests/prove.test.js
       - tests/Home.test.jsx
       - tests/SceltaPiano.test.jsx
+  - id: REQ-FLOTTA-049
+    title: "Il callback esitoProvisioning non si fida del corpo: progetto e url dell'istanza, bucket della regia, un run una volta sola, segreto usabile"
+    area: "functions/lib/provisioning.js (vincoliEsito, progettoAtteso, urlAmmesso, segretoUsabile, bearerValido, PREFISSO_PROGETTI), functions/lib/eliminazione.js (esitoEliminazione, percorsoValido), functions/index.js (esitoProvisioning, scaricaArchivio, ARCHIVIO_BUCKET), functions/.env.drink-regia, functions/.env.drink-regia-test, .github/workflows/provisiona-istanza.yml, aggiorna-istanza.yml, elimina-istanza.yml (Esito alla regia)"
+    description: >
+      Audit del 09/11/2026, finding 12 (e M1 del 22/10, finding 29 per il
+      segreto). Il corpo del callback era fidato per intero: chi aveva il
+      segreto (environment GitHub, Secret Manager, il repo pubblico di
+      tana-drink finché resta lì) poteva ri-puntare istanze/<slug>.progetto
+      su un progetto suo e dirottare le licenze, mettere in `url` un
+      `javascript:` che finiva negli href di dashboard e backoffice, far
+      scaricare al titolare uno zip da un bucket a sua scelta, e rimandare
+      lo stesso esito quante volte voleva.
+      I VINCOLI (vincoliEsito, davanti a ogni scrittura): `progetto`, se
+      c'è, è quello già scritto sull'istanza (un locale esistente ha il suo,
+      REQ-FLOTTA-018) o `drinkpos-<slug>` (PREFISSO_PROGETTI, lo stesso di
+      src/lib/prodotto.js e del Terraform, con un test che li allinea);
+      `url`, se c'è, è https senza credenziali né porta su un dominio
+      dell'installazione (`<progetto>.web.app`, `.firebaseapp.com`, i
+      `domini` registrati, l'url già scritto: dominiDi di moduliapp.js);
+      altrimenti 400 col motivo.
+      L'ARCHIVIO: `archivio.bucket` non si legge più dal corpo; la regia usa
+      il suo, ARCHIVIO_BUCKET in functions/.env.<progetto> (lo stesso di
+      vars.ARCHIVIO_BUCKET dell'environment), e scaricaArchivio firma il link
+      lì; senza la variabile risponde failed-precondition. `percorso` e `zip`
+      sono solo [A-Za-z0-9._/-], senza `..` né barra iniziale, dentro
+      `istanze/<slug>/`, e lo zip dentro il percorso.
+      ANTI-REPLAY: i tre workflow mandano `run_id` (github.run_id, numero) e
+      `inviato_il` (ISO). La Function rifiuta un esito più vecchio di 10
+      minuti o nel futuro di più di 1 minuto, e la stessa coppia
+      run_id+operazione già vista per quello slug: il segno sta in
+      istanze/{slug}.ultimo_esito = { run_id, operazione, inviato_il }. Le
+      istanze nate prima non ce l'hanno: il primo esito nuovo lo scrive.
+      Un locale ESISTENTE riferisce la versione dal suo repository (la Tana,
+      handover §7 «Rilasci a ondate») e oggi non manda i due campi: per lui
+      restano facoltativi finché tana-drink non li aggiunge (chiesto nel
+      contratto), e se li manda si controllano.
+      IL SEGRETO: bearerValido rifiuta un segreto sotto 32 caratteri e il
+      segnaposto «non-configurato»; la Function risponde 503 (come Stripe
+      col segnaposto), non 401. Il confronto resta a tempo costante.
+      NON FATTO (dall'audit): la verifica del run con GET
+      /repos/{repo}/actions/runs/{id} e un segreto diverso per regia.
+    status: implemented
+    generate_issue: true
+    labels: [regia, flotta, sicurezza]
+    priority: P1
+    test_cases:
+      - tests/provisioning.test.js
+      - tests/eliminazione.test.js
+      - tests/flotta.test.js

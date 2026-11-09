@@ -446,7 +446,8 @@ jobs:
             const [url, secret, slug, stato, progetto, versione, errore] = process.argv.slice(1);
             fetch(url, { method: "POST", headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
               body: JSON.stringify({ slug, stato, progetto, versione: versione || null, errore: errore || null,
-                ambiente: "produzione", operazione: "aggiornamento", profilo: process.env.PROFILO || null, ref: process.env.REF_APP || null }) })
+                ambiente: "produzione", operazione: "aggiornamento", profilo: process.env.PROFILO || null, ref: process.env.REF_APP || null,
+                run_id: Number(process.env.RUN_ID), inviato_il: new Date().toISOString() }) })
               .then((r) => { console.log("regia:", r.status); if (r.status >= 300) process.exit(1); })
           ' "$CALLBACK_URL" "$CALLBACK_SECRET" "$SLUG" "$STATO" "$PROGETTO" "${VERSIONE:-}" "$ERR"
 

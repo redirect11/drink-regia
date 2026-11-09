@@ -22,7 +22,7 @@ const { defineSecret } = require('firebase-functions/params')
 const eventiStripe = require('./lib/eventistripe.js')
 const { initializeApp } = require('firebase-admin/app')
 const { getFirestore } = require('firebase-admin/firestore')
-const { preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, eAggiornamento, documentoIstanza, documentoAggiornamento, bearerValido } = require('./lib/provisioning.js')
+const { preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, eAggiornamento, documentoIstanza, documentoAggiornamento, vincoliEsito, bearerValido, segretoUsabile } = require('./lib/provisioning.js')
 const rilasci = require('./lib/rilasci.js')
 const { sceltaCambiata, licenzaProtetta, stessaLicenza, perIlDatabase, scadenzaCoerente } = require('./lib/licenza.js')
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
@@ -94,6 +94,11 @@ const APP_REPO = process.env.APP_REPO || 'redirect11/tana-drink'
 // L'indirizzo di questa regia, che la licenza dà all'app per il «vedi i
 // piani» (functions/.env.<progetto>).
 const REGIA_URL = process.env.REGIA_URL || null
+// Il bucket degli archivi di eliminazione di QUESTA regia (REQ-FLOTTA-014,
+// infra/README.md): lo stesso che il workflow ha in vars.ARCHIVIO_BUCKET.
+// Dal 09/11/2026 il callback non lo dichiara più: un bucket nel corpo
+// faceva scaricare al titolare uno zip da dove voleva chi aveva il segreto.
+const ARCHIVIO_BUCKET = process.env.ARCHIVIO_BUCKET || null
 // Dove l'app manda la scelta del titolare (sceltaDallApp, REQ-FLOTTA-020):
 // l'indirizzo di questa Function nel progetto della regia.
 const PROGETTO_REGIA = process.env.GCLOUD_PROJECT || (() => { try { return JSON.parse(process.env.FIREBASE_CONFIG || '{}').projectId } catch { return null } })()
@@ -197,9 +202,17 @@ exports.rilanciaProvisioning = onDocumentUpdated(
   }
 )
 
-// L'esito dal workflow: POST con bearer, corpo { slug, stato, url, progetto, versione, ref, ambiente, operazione, errore }.
+// L'esito dal workflow: POST con bearer, corpo { slug, stato, url, progetto, versione, ref, ambiente, operazione, errore, run_id, inviato_il }.
+// Il corpo non è fidato (audit del 09/11/2026, finding 12): progetto e url
+// devono essere quelli dell'istanza, e ogni run passa una volta sola
+// (vincoliEsito, lib/provisioning.js). Il segno dell'ultimo run accettato
+// sta in istanze/{slug}.ultimo_esito; le istanze nate prima non ce l'hanno,
+// e va bene: il primo esito nuovo lo scrive.
 exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK_SECRET], cors: false }, async (req, res) => {
   if (req.method !== 'POST') return res.status(405).send('')
+  // Col segnaposto «non-configurato», o con un segreto corto, il callback è
+  // chiuso: 503 come Stripe senza chiave, non 401.
+  if (!segretoUsabile(PROVISIONING_CALLBACK_SECRET.value())) return res.status(503).json({ errore: 'callback non configurato' })
   if (!bearerValido(req.get('authorization'), PROVISIONING_CALLBACK_SECRET.value())) return res.status(401).send('')
   // L'esito di un'eliminazione (REQ-FLOTTA-014) ha campi e stati suoi.
   if (req.body?.operazione === 'eliminazione') {
@@ -207,17 +220,25 @@ exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK
     if (!fine) return res.status(400).json({ errore: 'esito non valido' })
     const ref = db.doc(`istanze/${fine.slug}`)
     const prima = (await ref.get()).data() || null
-    await ref.set(elim.documentoEliminazione(fine, prima), { merge: true })
+    const vincoli = vincoliEsito(fine, prima, { operazione: 'eliminazione' })
+    if (!vincoli.ok) return res.status(400).json({ errore: vincoli.perche })
+    await ref.set({ ...elim.documentoEliminazione(fine, prima), ultimo_esito: vincoli.ultimo_esito }, { merge: true })
     return res.status(200).json({ ok: true, operazione: 'eliminazione' })
   }
   const esito = esitoValido(req.body)
   if (!esito) return res.status(400).json({ errore: 'esito non valido' })
   const ref = db.doc(`istanze/${esito.slug}`)
   const prima = (await ref.get()).data() || null
+  const aggiornamento = eAggiornamento(esito, prima)
+  const vincoli = vincoliEsito(esito, prima, { operazione: aggiornamento ? 'aggiornamento' : 'attivazione' })
+  if (!vincoli.ok) return res.status(400).json({ errore: vincoli.perche })
+  // Un locale esistente senza run_id (la Tana, oggi) non lascia il segno:
+  // non si cancella quello di un run precedente.
+  const segno = vincoli.ultimo_esito ? { ultimo_esito: vincoli.ultimo_esito } : {}
   // Un aggiornamento non tocca lo stato dell'istanza né la richiesta di
   // attivazione (REQ-FLOTTA-012); fa andare avanti, o fermare, il rilascio.
-  if (eAggiornamento(esito, prima)) {
-    await ref.set(documentoAggiornamento(esito, prima), { merge: true })
+  if (aggiornamento) {
+    await ref.set({ ...documentoAggiornamento(esito, prima), ...segno }, { merge: true })
     // Arrivato a quella versione o oltre (un «Aggiorna subito», un rilascio
     // obbligatorio): la proposta al titolare non serve più (REQ-FLOTTA-020).
     if (esito.stato === 'attiva' && aggiornamenti.propostaSuperata(prima?.proposta_aggiornamento, esito.versione)) {
@@ -234,7 +255,7 @@ exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK
     }
     return res.status(200).json({ ok: true, operazione: 'aggiornamento' })
   }
-  await ref.set(documentoIstanza(esito, prima), { merge: true })
+  await ref.set({ ...documentoIstanza(esito, prima), ...segno }, { merge: true })
   await db.doc(`richieste/${esito.slug}`).set({ stato: esito.stato, aggiornata_il: new Date().toISOString() }, { merge: true })
   // Un locale che nasce adesso prende le regole degli aggiornamenti di
   // adesso, senza preavviso: le accetta registrandosi (REQ-FLOTTA-020).
@@ -2519,8 +2540,11 @@ exports.scaricaArchivio = onCall(OPTS, async (req) => {
   if (!cliente?.slug || cliente.uid && cliente.uid !== req.auth.uid) throw new HttpsError('permission-denied', 'Nessun locale collegato a questo account.')
   const ist = (await db.doc(`istanze/${cliente.slug}`).get()).data()
   if (!elim.archivioScaricabile(ist)) throw new HttpsError('not-found', 'Non c’è un archivio da scaricare, o è scaduto.')
-  const { bucket, zip } = ist.eliminazione.archivio
-  const [url] = await getStorage().bucket(bucket).file(zip).getSignedUrl({
+  // Il bucket è quello della regia, mai quello scritto sull'istanza (audit
+  // del 09/11/2026, finding 12): il callback non lo manda più.
+  if (!ARCHIVIO_BUCKET) throw new HttpsError('failed-precondition', 'L’archivio non è raggiungibile al momento: scrivici.')
+  const { zip } = ist.eliminazione.archivio
+  const [url] = await getStorage().bucket(ARCHIVIO_BUCKET).file(zip).getSignedUrl({
     version: 'v4',
     action: 'read',
     expires: Date.now() + 15 * 60 * 1000,

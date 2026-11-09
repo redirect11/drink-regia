@@ -7,9 +7,15 @@
 
 const { sceltaPulita } = require('./abbonamento.js')
 const { eGratuito, profiloDi } = require('./free.js')
+const { dominiDi } = require('./moduliapp.js')
 
 const SLUG = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/
 const STATI = ['in coda', 'in corso', 'attiva', 'errore']
+// Il prefisso dei progetti Firebase dei locali (`drinkpos-<slug>`): lo
+// stesso di src/lib/prodotto.js e di infra/istanza/main.tf, e un test li
+// tiene allineati. Qui serve a non fidarsi del `progetto` che il callback
+// dichiara (audit del 09/11/2026, finding 12).
+const PREFISSO_PROGETTI = 'drinkpos'
 // Gli stati con cui un'attivazione è già in viaggio o finita: non si
 // chiede due volte. Dopo un «errore» sì, si riprova.
 const IN_VIAGGIO = ['da approvare', 'in coda', 'in corso', 'attiva']
@@ -141,7 +147,14 @@ function daLanciare(prima, dopo) {
   return prima.stato !== 'in coda' || (dopo.rilanciata_il && dopo.rilanciata_il !== prima.rilanciata_il)
 }
 
-// L'esito che il workflow manda: { slug, stato, url?, progetto?, versione?, ref?, ambiente?, operazione?, errore? }.
+// Il run di GitHub Actions che manda l'esito (un intero positivo) e quando
+// l'ha mandato (ISO): servono contro i replay, sotto in vincoliEsito.
+const runIdValido = (v) => (Number.isInteger(Number(v)) && Number(v) > 0 && String(v) === String(Number(v)) ? Number(v) : null)
+const istanteValido = (v) => (typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? new Date(Date.parse(v)).toISOString() : null)
+
+// L'esito che il workflow manda: { slug, stato, url?, progetto?, versione?, ref?, ambiente?, operazione?, errore?, run_id?, inviato_il? }.
+// Qui si legge soltanto; i vincoli che dipendono dall'istanza (progetto,
+// url, replay) li mette vincoliEsito, con il documento di prima davanti.
 function esitoValido(body) {
   if (!body || typeof body !== 'object') return null
   if (!SLUG.test(body.slug || '')) return null
@@ -149,6 +162,8 @@ function esitoValido(body) {
   return {
     slug: body.slug,
     stato: body.stato,
+    run_id: runIdValido(body.run_id),
+    inviato_il: istanteValido(body.inviato_il),
     url: body.url ? String(body.url) : null,
     progetto: body.progetto ? String(body.progetto) : null,
     versione: body.versione ? String(body.versione) : null,
@@ -225,10 +240,80 @@ function documentoIstanza(esito, prima = null, adesso = new Date()) {
   }
 }
 
-// Il bearer del callback: un confronto a tempo costante basta, il segreto
-// è lungo e casuale.
+// ── I VINCOLI SULL'ESITO (audit del 09/11/2026, finding 12; M1 del 22/10) ──
+// Il corpo del callback era fidato per intero: chi ha il segreto poteva
+// ri-puntare `istanze/<slug>.progetto` su un progetto suo (e da lì le
+// licenze), mettere in `url` un `javascript:` che finiva in un href, e
+// rimandare lo stesso esito quante volte voleva. Da qui l'esito deve
+// essere coerente con l'istanza che c'è già, e ogni run si accetta una
+// volta sola.
+
+// Il progetto che l'esito può dichiarare: quello già scritto sull'istanza
+// (un locale esistente ha il suo, REQ-FLOTTA-018; uno della flotta ha
+// `drinkpos-<slug>` dalla prima attivazione), altrimenti `drinkpos-<slug>`.
+function progettoAtteso(slug, prima) {
+  return prima?.progetto || `${PREFISSO_PROGETTI}-${slug}`
+}
+
+// L'indirizzo dell'app: https, senza credenziali né porta, su un dominio
+// dell'installazione (l'Hosting del progetto, i domini registrati, quello
+// già scritto).
+function urlAmmesso(url, progetto, prima) {
+  let u
+  try {
+    u = new URL(url)
+  } catch {
+    return false
+  }
+  if (u.protocol !== 'https:' || u.username || u.password || u.port) return false
+  return dominiDi({ ...(prima || {}), progetto }).has(u.hostname.toLowerCase())
+}
+
+// Quanto può essere vecchio un esito, e quanto avanti può stare l'orologio
+// del runner rispetto al nostro.
+const ESITO_VECCHIO_MS = 10 * 60 * 1000
+const ESITO_FUTURO_MS = 60 * 1000
+
+// L'esito è coerente con l'istanza, e non è una copia? { ok, perche,
+// ultimo_esito }: `ultimo_esito` è il segno da scrivere su istanze/{slug}
+// perché la stessa coppia run_id+operazione non passi due volte.
+// `operazione` è quella dell'esito o, se il workflow non la dice, quella
+// che eAggiornamento decide: la passa chi chiama.
+// Un locale ESISTENTE riferisce la sua versione dal suo repository
+// (handover §7, «Rilasci a ondate»), che oggi non manda run_id né
+// inviato_il: per lui i due campi sono facoltativi finché non li manda, e
+// se li manda si controllano. Un suo esito tocca solo la versione.
+function vincoliEsito(esito, prima, { operazione, adesso = new Date() } = {}) {
+  const no = (perche) => ({ ok: false, perche, ultimo_esito: null })
+  if (!esito) return no('esito non valido')
+  const atteso = progettoAtteso(esito.slug, prima)
+  if (esito.progetto && esito.progetto !== atteso) return no(`progetto «${esito.progetto}» non è quello dell’istanza`)
+  if (esito.url && !urlAmmesso(esito.url, atteso, prima)) return no('url fuori dai domini dell’installazione')
+  const esistente = prima?.origine === 'esistente'
+  if (esito.run_id == null || !esito.inviato_il) {
+    if (esistente && esito.run_id == null && !esito.inviato_il) return { ok: true, perche: null, ultimo_esito: null }
+    return no('mancano run_id o inviato_il')
+  }
+  const eta = adesso.getTime() - Date.parse(esito.inviato_il)
+  if (eta > ESITO_VECCHIO_MS) return no('esito troppo vecchio')
+  if (eta < -ESITO_FUTURO_MS) return no('esito dal futuro')
+  const u = prima?.ultimo_esito
+  if (u && Number(u.run_id) === esito.run_id && u.operazione === operazione) return no('esito già ricevuto')
+  return { ok: true, perche: null, ultimo_esito: { run_id: esito.run_id, operazione: operazione || null, inviato_il: esito.inviato_il } }
+}
+
+// Il segreto del callback si può usare? In produzione nasce col segnaposto
+// «non-configurato», come quelli di Stripe: con quello, o con un valore
+// corto, il callback sarebbe indovinabile. Si risponde 503, non 401: non
+// è il chiamante a sbagliare, è la regia a non essere pronta.
+const SEGRETO_MIN = 32
+const SEGNAPOSTO = 'non-configurato'
+const segretoUsabile = (segreto) => typeof segreto === 'string' && segreto.length >= SEGRETO_MIN && segreto !== SEGNAPOSTO
+
+// Il bearer del callback: un confronto a tempo costante, e solo con un
+// segreto usabile.
 function bearerValido(header, segreto) {
-  if (!segreto || !header) return false
+  if (!segretoUsabile(segreto) || !header) return false
   const atteso = `Bearer ${segreto}`
   if (header.length !== atteso.length) return false
   let diff = 0
@@ -236,4 +321,4 @@ function bearerValido(header, segreto) {
   return diff === 0
 }
 
-module.exports = { preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, eAggiornamento, documentoIstanza, documentoAggiornamento, bearerValido, STATI }
+module.exports = { preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, eAggiornamento, documentoIstanza, documentoAggiornamento, vincoliEsito, progettoAtteso, urlAmmesso, runIdValido, istanteValido, bearerValido, segretoUsabile, STATI, PREFISSO_PROGETTI, ESITO_VECCHIO_MS, ESITO_FUTURO_MS, SEGRETO_MIN }

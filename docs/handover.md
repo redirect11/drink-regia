@@ -943,6 +943,13 @@ moduli, la licenza nell'istanza e la Tana.
   `PROVISIONING_CALLBACK_SECRET`, corpo con `slug`, `stato`, `progetto`,
   `url`, `errore`, `versione`, `ref`, `ambiente`, `operazione` (sotto,
   «Rilasci a ondate»). È l'unico esito che arriva ancora da tana-drink.
+  Dal 09/11/2026 (REQ-FLOTTA-049, audit finding 12) la regia non si fida
+  del corpo: `progetto` deve essere quello scritto sull'istanza, `url`
+  deve stare sui domini dell'installazione, e i nostri workflow mandano
+  anche `run_id` (`github.run_id`, numero) e `inviato_il` (ISO), che la
+  regia accetta una volta sola ed entro dieci minuti. **Da chiedere a
+  tana-drink**: che il workflow della Tana mandi gli stessi due campi;
+  finché non lo fa, per un locale esistente restano facoltativi.
 - **Licenza nell'istanza** (BUG-125 di tana-drink, dal 31/10/2026):
   `licenza/attuale` = `{ piano, moduli: {id: bool}, terminali, temi,
   temi_su_misura, limiti, prove, stato: attiva|sospesa|chiusa, motivo, dal,

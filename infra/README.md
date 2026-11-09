@@ -30,6 +30,11 @@ regia di test (`drink-regia-test`) su `flotta-test`. Lo sceglie l'input
 | `ORG_ID` | variabile, facoltativa | l'organizzazione Google Cloud | la stessa |
 | `ARCHIVIO_BUCKET` | variabile | `drink-regia-archivio` (nel progetto `drink-regia`) | `drink-regia-test-archivio` (nel progetto `drink-regia-test`) |
 
+`ARCHIVIO_BUCKET` sta anche in `functions/.env.<progetto>` della regia, con
+lo stesso valore: dal 09/11/2026 (REQ-FLOTTA-049) il callback di
+eliminazione non lo dichiara più, e il link che il titolare scarica lo
+firma la regia sul suo bucket.
+
 `REGIA_SA_EMAIL` è l'account con cui girano le Functions di quella regia:
 il Terraform gli dà `roles/datastore.user` sul locale, così la regia può
 scrivere la licenza (sospendere, riattivare, chiudere). Non ha un valore
