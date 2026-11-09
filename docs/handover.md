@@ -153,7 +153,7 @@ Tre workflow, gli stessi di tana-drink (`docs/actions-come-tana-drink.md`
 | push su un ramo qualsiasi (tranne `release/**`), `develop` compreso | `test.yml`: lint, test, build. **Nessun deploy.** |
 | pull request verso `develop` o `main` | lint, test, build **e coverage** (`npm run test:coverage`, soglie in `vitest.config.mjs`: un cricchetto, si alzano e non si abbassano) e le regole sull'emulatore |
 | lancio a mano di «Deploy to Firebase» su un ramo | va sul **test** (`drink-regia-test`), poi le prove in sola lettura. Senza collaudo: serve a provare un ramo |
-| tag su un commit **non** in `main` (`vX.Y.Z-beta` su `develop`) | va sul **test**, poi il **collaudo** (`e2e.yml` con `collaudo: true`, job «Collaudo sul test») |
+| tag su un commit **non** in `main` (`vX.Y.Z-beta` su `develop`) | va sul **test**, poi il **collaudo** (`e2e.yml` con `collaudo: true`: il passo «Collaudo sul test» del job Playwright) |
 | tag su un commit **di `main`** | va in **produzione** (`drink-regia`) solo se esiste un collaudo riuscito sul test per un commit antenato; altrimenti «Collaudo riuscito sul test» si ferma e dice cosa fare. L'approvazione a mano non c'è (GitHub Free, §6) |
 
 Il collaudo scrive sulla regia di test e lancia la flotta su `prova-bar`
