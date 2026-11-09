@@ -5,6 +5,9 @@ name: Elimina istanza
 # eliminazioniProgrammate 30 giorni dopo la chiusura) quando l'admin l'ha
 # chiesta per un locale già chiuso, scrivendo il nome dell'app. In ordine,
 # e ogni passo solo se il precedente è riuscito:
+#   0. IL PROGETTO È DI QUESTA REGIA (REQ-FLOTTA-048): l'etichetta
+#      `ambiente` del progetto è la sua e lo stato Terraform c'è;
+#      altrimenti si ferma prima di leggere o toccare qualunque cosa;
 #   1. BACKUP: il backup leggibile (dati.json, utenti.json, file/,
 #      manifesto.json, in un archivio.zip) e l'export nativo di Firestore;
 #   2. ARCHIVIO: tutto nel bucket degli archivi (ARCHIVIO_BUCKET), che lo
@@ -67,22 +70,45 @@ jobs:
           done
           echo "PERCORSO=istanze/$SLUG/$(date -u +%Y-%m-%dT%H-%M-%SZ)" >> "$GITHUB_ENV"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: functions/package-lock.json
 
-      - uses: google-github-actions/auth@v2
+      - uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
         with:
           credentials_json: ${{ secrets.PROVISIONING_SA_JSON }}
 
-      - uses: google-github-actions/setup-gcloud@v2
+      - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2.2.1
 
       - name: Dipendenze
         run: npm ci --prefix functions
+
+      # IL PROGETTO È DI QUESTA REGIA? (REQ-FLOTTA-048, audit del 09/11/2026,
+      # punto 7). Le due regie usano la stessa chiave: senza questo controllo
+      # un lancio con `ambiente: test` cancellava un locale di produzione.
+      # Un locale della regia si riconosce da due cose, tutte e due
+      # necessarie: l'etichetta `ambiente` che il Terraform mette sul
+      # progetto (infra/istanza/main.tf) è quella di questa regia, e il suo
+      # stato Terraform sta nel prefisso dello slug. Se una manca, non si
+      # tocca niente: nemmeno il backup, che leggerebbe dati non nostri.
+      - name: Il progetto è di questa regia?
+        env:
+          TFSTATE_BUCKET: ${{ vars.TFSTATE_BUCKET }}
+        run: |
+          ETICHETTA=$(gcloud projects describe "$PROGETTO" --format='value(labels.ambiente)')
+          if [ "$ETICHETTA" != "$AMBIENTE" ]; then
+            echo "::error::$PROGETTO ha l'etichetta ambiente «${ETICHETTA:-nessuna}», non «$AMBIENTE»: non è un locale di questa regia, non lo tocco."
+            exit 1
+          fi
+          if [ -z "$(gcloud storage ls "gs://$TFSTATE_BUCKET/istanze/$SLUG/" 2>/dev/null)" ]; then
+            echo "::error::Nessuno stato Terraform in gs://$TFSTATE_BUCKET/istanze/$SLUG/: il progetto non l'ha creato la regia, non lo tocco."
+            exit 1
+          fi
+          echo "$PROGETTO è un locale di questa regia ($AMBIENTE), con il suo stato Terraform."
 
       # 1. BACKUP. Prima il leggibile, poi l'export nativo: lo script salta
       # il prefisso dell'export, che finisce nello stesso bucket.

@@ -8,6 +8,9 @@
 // quelli che il workflow dichiara (GitHub rifiuta un lancio con un input in
 // più); ogni regia lancia sul suo environment; gli input non entrano mai
 // in un comando (audit del 22/10/2026, C1); l'app arriva da tana-drink.
+// Dal 09/11/2026 (REQ-FLOTTA-047, audit punto 6) attivazione e
+// aggiornamento sono quattro job: controlla → prepara → compila → pubblica,
+// e il codice di tana-drink gira solo in `compila`, che non ha la chiave.
 
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
@@ -27,9 +30,14 @@ const aggiorna = load(leggi('.github/workflows/aggiorna-istanza.yml'))
 const elimina = load(leggi('.github/workflows/elimina-istanza.yml'))
 const { dispatchEliminazione } = require('../functions/lib/eliminazione.js')
 const { CHIAVI_BUILD } = require('../functions/lib/esistente.js')
-const job = (w) => Object.values(w.jobs)[0]
-const passi = (w) => job(w).steps
+const jobs = (w) => Object.values(w.jobs)
+// I passi di tutti i job, nell'ordine in cui girano (i job sono scritti
+// nell'ordine della catena `needs`): un passo che nel file viene prima
+// gira prima anche nel workflow.
+const passi = (w) => jobs(w).flatMap((j) => j.steps)
 const passo = (w, nome) => passi(w).find((s) => s.name === nome)
+const jobDelPasso = (w, nome) => jobs(w).find((j) => j.steps.some((s) => s.name === nome))
+const AMBIENTE_DELLA_REGIA = "${{ inputs.ambiente == 'test' && 'flotta-test' || 'flotta' }}"
 
 const richiesta = { slug: 'bar-mario', nome_locale: 'Bar Mario', piano: 'base', moduli: ['staff'], uid: 'u1' }
 const WORKFLOW = [
@@ -54,26 +62,35 @@ describe.each(WORKFLOW)('%s', (_, w, corpo) => {
     expect(Object.keys(eventi(w).workflow_dispatch.inputs).sort()).toEqual(Object.keys(corpo.inputs).sort())
   })
 
-  it('ogni regia sul suo environment: test su flotta-test, il resto su flotta', () => {
+  it('ogni regia sul suo environment: test su flotta-test, il resto su flotta; i job con la chiave e solo quelli', () => {
     expect(eventi(w).workflow_dispatch.inputs.ambiente).toMatchObject({ type: 'choice', options: ['produzione', 'test'], default: 'produzione' })
-    expect(job(w).environment).toBe("${{ inputs.ambiente == 'test' && 'flotta-test' || 'flotta' }}")
+    expect(w.jobs.prepara.environment).toBe(AMBIENTE_DELLA_REGIA)
+    expect(w.jobs.pubblica.environment).toBe(AMBIENTE_DELLA_REGIA)
+    expect(w.jobs.controlla.environment).toBeUndefined()
+    expect(w.jobs.compila.environment).toBeUndefined()
   })
 
-  it('gli input non entrano mai in un comando: passano dalle variabili d’ambiente', () => {
+  it('gli input e gli output dei job non entrano mai in un comando: passano dalle variabili d’ambiente', () => {
     for (const s of passi(w)) {
-      expect(s.run || '', s.name).not.toMatch(/\$\{\{\s*(inputs|github\.event\.inputs)\./)
+      expect(s.run || '', s.name).not.toMatch(/\$\{\{\s*(inputs|github\.event\.inputs|needs)\./)
     }
   })
 
-  it('il primo passo controlla gli input, con lo stesso slug delle Functions', () => {
+  it('il primo passo del primo job controlla gli input, con lo stesso slug delle Functions', () => {
+    expect(Object.keys(w.jobs)[0]).toBe('controlla')
     expect(passi(w)[0].name).toBe('Input validi')
     expect(passi(w)[0].run).toContain('^[a-z][a-z0-9-]{4,28}[a-z0-9]$')
     expect(passi(w)[0].run).toContain('^[A-Za-z0-9._/-]{1,100}$')
   })
 
-  it('l’app è tana-drink alla versione chiesta, in app/', () => {
-    const app = passi(w).find((s) => s.uses?.startsWith('actions/checkout') && s.with?.repository)
-    expect(app.with).toEqual({ repository: 'redirect11/tana-drink', ref: '${{ inputs.ref }}', path: 'app', 'fetch-depth': 0 })
+  it('l’app è tana-drink alla versione chiesta, in app/: controllata al ref, compilata allo SHA controllato', () => {
+    const checkout = (j) => j.steps.find((s) => s.uses?.startsWith('actions/checkout') && s.with?.repository)
+    expect(checkout(w.jobs.controlla).with).toEqual({ repository: 'redirect11/tana-drink', ref: '${{ inputs.ref }}', path: 'app', 'fetch-depth': 0 })
+    expect(checkout(w.jobs.compila).with).toEqual({ repository: 'redirect11/tana-drink', ref: '${{ needs.controlla.outputs.commit }}', path: 'app', 'fetch-depth': 0 })
+    // Lo SHA è quello del checkout controllato, letto da git.
+    expect(w.jobs.controlla.outputs.commit).toBe('${{ steps.app.outputs.commit }}')
+    expect(passo(w, "La versione dell'app va bene per questa regia?").id).toBe('app')
+    expect(passo(w, "La versione dell'app va bene per questa regia?").run).toContain('echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"')
     expect(passo(w, 'Deploy regole, indici, Functions e hosting')['working-directory']).toBe('app')
   })
 
@@ -115,9 +132,9 @@ describe.each(WORKFLOW)('%s', (_, w, corpo) => {
     expect(w.env.SEGRETI_APP).toBe('SUMUP_API_KEY')
     const nomi = passi(w).map((s) => s.name)
     expect(passo(w, "I segreti dell'app").run).toBe('node scripts/segreti-istanza.mjs --project "$PROGETTO" --segreti "$SEGRETI_APP"')
-    expect(nomi.indexOf("I segreti dell'app")).toBeGreaterThan(nomi.indexOf('Dipendenze'))
+    expect(nomi.indexOf("I segreti dell'app")).toBeGreaterThan(nomi.indexOf('Dipendenze della regia'))
     expect(nomi.indexOf("I segreti dell'app")).toBeLessThan(nomi.indexOf('Deploy regole, indici, Functions e hosting'))
-    expect(passo(w, 'Dipendenze').run).toContain('npm ci --prefix functions')
+    expect(passo(w, 'Dipendenze della regia').run).toBe('npm ci --prefix functions')
   })
 
   it('attivazione e aggiornamento dello stesso locale non si sovrappongono', () => {
@@ -160,15 +177,14 @@ describe.each(WORKFLOW)('%s: l’app di produzione di quel locale', (_, w) => {
   it('i passi vanno in ordine, fino alla pulizia delle credenziali per ultima', () => {
     const ordine = [
       // La licenza prima dell'app (tana-drink, 01/11/2026): con l'app nuova
-      // un locale senza licenza/attuale si ferma.
-      ...(w === provisiona ? ['Terraform apply', "Licenza e nome del locale nell'istanza"] : []),
-      'La cartella del cliente',
-      'Build',
+      // un locale senza licenza/attuale si ferma. Il Terraform prima della
+      // build: la build legge la configurazione web che il Terraform dà.
+      ...(w === provisiona ? ['Terraform apply', 'La cartella del cliente', 'Build', "Licenza e nome del locale nell'istanza"] : ['La cartella del cliente', 'Build']),
       'Deploy regole, indici, Functions e hosting',
       'Versione pubblicata',
       'Esito alla regia',
       'Pulizia credenziali',
-    ].map((n) => nomi().indexOf(n))
+    ].map((n) => nomi().lastIndexOf(n))
     expect(ordine.every((i) => i >= 0)).toBe(true)
     expect([...ordine].sort((a, b) => a - b)).toEqual(ordine)
     expect(nomi().at(-1)).toBe('Pulizia credenziali')
@@ -180,10 +196,15 @@ describe.each(WORKFLOW)('%s: l’app di produzione di quel locale', (_, w) => {
     expect(run).toContain('"${VERSIONE:-}"')
   })
 
-  it('le credenziali si cancellano sempre, anche se qualcosa è andato storto', () => {
-    const pulizia = passo(w, 'Pulizia credenziali')
-    expect(pulizia.if).toBe('always()')
-    expect(pulizia.run).toMatch(/^rm -f "\$RUNNER_TEMP\/sa\.json"/)
+  it('le credenziali si cancellano sempre, in ogni job che le scrive, anche se qualcosa è andato storto', () => {
+    const conLaChiave = jobs(w).filter((j) => JSON.stringify(j).includes('secrets.PROVISIONING_SA_JSON'))
+    expect(conLaChiave.map((j) => j.name)).toEqual([w.jobs.prepara.name, w.jobs.pubblica.name])
+    for (const j of conLaChiave) {
+      const pulizia = j.steps.at(-1)
+      expect(pulizia.name).toBe('Pulizia credenziali')
+      expect(pulizia.if).toBe('always()')
+      expect(pulizia.run).toMatch(/^rm -f "\$RUNNER_TEMP\/sa\.json"/)
+    }
   })
 
   // «In produzione solo il tag su main» (l'utente, 30/10/2026).
@@ -203,14 +224,18 @@ describe.each(WORKFLOW)('%s: l’app di produzione di quel locale', (_, w) => {
     const controllo = passi(w)[i]
     expect(controllo['working-directory']).toBe('app')
     expect(controllo.run).toMatch(/if \[ "\$AMBIENTE" = "produzione" \]; then[\s\S]*git merge-base --is-ancestor HEAD origin\/main[\s\S]*exit 1/)
-    // Prima di credenziali e Terraform: fermarsi qui non costa niente.
+    // Prima di credenziali e Terraform, in un job senza environment:
+    // fermarsi qui non costa niente, e nessun progetto è ancora nato.
     expect(i).toBeLessThan(nomi().indexOf('Credenziali di provisioning'))
+    expect(jobDelPasso(w, "La versione dell'app va bene per questa regia?")).toBe(w.jobs.controlla)
   })
 
-  it('il ramo dell’app arriva alla build, come nel deploy della Tana', () => {
+  it('il ramo e il commit dell’app arrivano alla build, come nel deploy della Tana', () => {
     const run = passo(w, "La versione dell'app va bene per questa regia?").run
     expect(run).toMatch(/if git merge-base --is-ancestor HEAD origin\/main; then RAMO=main\n\s*elif git merge-base --is-ancestor HEAD origin\/develop; then RAMO=develop\n\s*else RAMO="\$REF_APP"; fi/)
-    expect(run).toContain('echo "GIT_BRANCH=$RAMO" >> "$GITHUB_ENV"')
+    expect(run).toContain('echo "ramo=$RAMO" >> "$GITHUB_OUTPUT"')
+    expect(w.jobs.controlla.outputs.ramo).toBe('${{ steps.app.outputs.ramo }}')
+    expect(passo(w, 'Build').env).toMatchObject({ GIT_BRANCH: '${{ needs.controlla.outputs.ramo }}', GIT_COMMIT: '${{ needs.controlla.outputs.commit }}' })
   })
 
   it('un’app che non sa compilare per un cliente (la 1.9.x) si ferma, su tutte e due le regie', () => {
@@ -390,6 +415,115 @@ describe('provisiona-istanza.yml: il Terraform con i valori dell’environment',
   })
 })
 
+// LA BUILD DELL'APP SENZA CREDENZIALI (REQ-FLOTTA-047, audit del
+// 09/11/2026, punto 6). Fino al 09/11 `npm ci` e `npm run build` di
+// tana-drink giravano con la chiave del provisioning in ambiente: una
+// dipendenza compromessa nel lockfile dell'app (un postinstall, un plugin
+// di Vite) l'avrebbe letta. Ora il codice dell'app gira solo nel job
+// `compila`, senza environment e senza secret; i job con la chiave non
+// scaricano l'app e non ne installano niente. La configurazione web che la
+// build chiede viaggia come output del job `prepara`: è pubblica per
+// disegno, finisce nel pacchetto che il browser scarica.
+describe.each(WORKFLOW)('%s: il codice di tana-drink gira solo nel job senza la chiave', (_, w) => {
+  const testo = (j) => JSON.stringify(j)
+  // `controlla` guarda solo se genera-cliente.mjs esiste: non lo esegue.
+  const eseguonoLApp = (j) => /npm ci --prefix app|npm run build|node scripts\/genera-cliente\.mjs/.test(testo(j))
+  const hannoLaChiave = (j) => testo(j).includes('secrets.')
+
+  it('quattro job in fila: controlla → prepara → compila → pubblica', () => {
+    expect(Object.keys(w.jobs)).toEqual(['controlla', 'prepara', 'compila', 'pubblica'])
+    expect(w.jobs.controlla.needs).toBeUndefined()
+    expect(w.jobs.prepara.needs).toBe('controlla')
+    expect(w.jobs.compila.needs).toEqual(['controlla', 'prepara'])
+    expect(w.jobs.pubblica.needs).toEqual(['controlla', 'prepara', 'compila'])
+    // La concorrenza per slug resta del workflow intero, non di un job.
+    expect(w.concurrency.group).toBe('istanza-${{ inputs.slug }}')
+  })
+
+  it('il job che installa e compila l’app non ha environment e non legge nessun secret', () => {
+    const [compila] = jobs(w).filter(eseguonoLApp)
+    expect(compila).toBe(w.jobs.compila)
+    expect(compila.environment).toBeUndefined()
+    expect(hannoLaChiave(compila)).toBe(false)
+    expect(testo(compila)).not.toMatch(/GOOGLE_APPLICATION_CREDENTIALS|sa\.json/)
+    expect(passo(w, "Dipendenze dell'app").run).toBe('npm ci --prefix app\nnpm ci --prefix app/functions\n')
+  })
+
+  it('i job con la chiave non scaricano l’app, non installano e non compilano niente di tana-drink', () => {
+    const conLaChiave = jobs(w).filter((j) => testo(j).includes('secrets.PROVISIONING_SA_JSON'))
+    expect(conLaChiave).toEqual([w.jobs.prepara, w.jobs.pubblica])
+    for (const j of conLaChiave) {
+      expect(eseguonoLApp(j), j.name).toBe(false)
+      expect(j.steps.some((s) => s.with?.repository), j.name).toBe(false)
+    }
+  })
+
+  it('la configurazione web passa da prepara a compila come output, e porta solo chiavi pubbliche', () => {
+    expect(w.jobs.prepara.outputs.config_web).toBe('${{ steps.web.outputs.config_web }}')
+    const web = w.jobs.prepara.steps.find((s) => s.id === 'web')
+    expect(web.run).toContain('config_web=$(')
+    expect(web.run).toContain('>> "$GITHUB_OUTPUT"')
+    // Nel passo che la produce non c'è nessun secret: un output non può
+    // portare via quello che il job non ha letto lì.
+    expect(testo(web)).not.toContain('secrets.')
+    const env = w.jobs.compila.steps.find((s) => s.name?.startsWith('Il .env della build'))
+    expect(env.env.CONFIG_WEB).toBe('${{ needs.prepara.outputs.config_web }}')
+    expect(env.run).toContain('JSON.parse(process.env.CONFIG_WEB || "{}")')
+    expect(env.run).toContain('"$GITHUB_WORKSPACE/app/.env"')
+  })
+
+  it('l’app compilata viaggia in un artifact: compila la carica, pubblica la scarica e la scompatta in app/', () => {
+    expect(passo(w, 'Il pacchetto per il deploy').run).toBe('tar -czf app.tgz --exclude=app/node_modules --exclude=app/.git app')
+    const su = w.jobs.compila.steps.find((s) => s.uses?.startsWith('actions/upload-artifact'))
+    expect(su.with).toMatchObject({ name: 'app', path: 'app.tgz', 'retention-days': 1 })
+    const giu = w.jobs.pubblica.steps.find((s) => s.uses?.startsWith('actions/download-artifact'))
+    expect(giu.with).toEqual({ name: 'app' })
+    expect(passo(w, "L'app compilata").run).toBe('tar -xzf app.tgz && rm app.tgz')
+    const nomi = w.jobs.pubblica.steps.map((s) => s.name || s.uses)
+    expect(nomi.indexOf("L'app compilata")).toBeLessThan(nomi.indexOf('Credenziali di provisioning'))
+  })
+
+  // Un job saltato non manda niente: la regia resterebbe «in corso».
+  it('se un job prima fallisce, pubblica parte lo stesso, fallisce subito e manda l’esito di errore', () => {
+    expect(w.jobs.pubblica.if).toBe('${{ !cancelled() }}')
+    const primo = w.jobs.pubblica.steps[0]
+    expect(primo.name).toBe('I job precedenti sono riusciti?')
+    expect(primo.if).toBe("needs.compila.result != 'success'")
+    expect(primo.run).toMatch(/exit 1\s*$/)
+    expect(passo(w, 'Esito alla regia').if).toBe('always()')
+    expect(passo(w, 'Esito alla regia').env.ESITO_JOB).toBe('${{ job.status }}')
+  })
+
+  // REQ-FLOTTA-048, primo punto del 29 dell'audit: l'esito deve dire lo
+  // SHA pubblicato, non solo «main». Il campo entra nel JSON del callback
+  // quando le due PR del 09/11 saranno integrate (TODO nel workflow).
+  it('lo SHA di tana-drink pubblicato arriva al job dell’esito, pronto per il callback', () => {
+    expect(w.jobs.pubblica.env.COMMIT_APP).toBe('${{ needs.controlla.outputs.commit }}')
+    const testoWorkflow = leggi(`.github/workflows/${_}`)
+    expect(testoWorkflow).toMatch(/TODO\(REQ-FLOTTA-048\)[\s\S]{0,400}- name: Esito alla regia/)
+  })
+})
+
+// IL PROGETTO È DI QUESTA REGIA (REQ-FLOTTA-048): l'input `progetto`
+// dell'aggiornamento può nominare un progetto qualunque, e la chiave è la
+// stessa per le due regie. L'etichetta `ambiente` del progetto decide.
+describe('aggiorna-istanza.yml: il progetto deve avere l’etichetta ambiente di questa regia', () => {
+  it('si controlla con le credenziali, prima del Terraform e di tutto il resto', () => {
+    const controllo = passo(aggiorna, 'Il progetto è di questa regia?')
+    expect(jobDelPasso(aggiorna, 'Il progetto è di questa regia?')).toBe(aggiorna.jobs.prepara)
+    expect(controllo.run).toContain(`ETICHETTA=$(gcloud projects describe "$PROGETTO" --format='value(labels.ambiente)')`)
+    expect(controllo.run).toMatch(/if \[ "\$ETICHETTA" != "\$AMBIENTE" \]; then\n\s*echo "::error::[^\n]*"\n\s*exit 1\n\s*fi/)
+    // Il rimedio per un locale esistente sta nel messaggio.
+    expect(controllo.run).toContain('gcloud projects update $PROGETTO --update-labels ambiente=$AMBIENTE')
+    const nomi = passi(aggiorna).map((s) => s.name || s.uses)
+    expect(nomi.indexOf('Il progetto è di questa regia?')).toBe(nomi.indexOf('Credenziali di provisioning') + 1)
+    expect(nomi.indexOf('Il progetto è di questa regia?')).toBeLessThan(nomi.indexOf('Il profilo completo nel progetto'))
+    expect(nomi.indexOf('Il progetto è di questa regia?')).toBeLessThan(nomi.indexOf('Deploy regole, indici, Functions e hosting'))
+    // gcloud parla con la stessa chiave del provisioning.
+    expect(passo(aggiorna, 'Credenziali di provisioning').run).toContain('gcloud auth activate-service-account --key-file="$RUNNER_TEMP/sa.json"')
+  })
+})
+
 describe('infra/istanza/main.tf', () => {
   const tf = leggi('infra/istanza/main.tf')
   const variabile = (nome) => tf.match(new RegExp(`variable "${nome}" \\{[\\s\\S]*?\\n\\}`))[0]
@@ -402,6 +536,16 @@ describe('infra/istanza/main.tf', () => {
   it('l’ambiente è produzione o test, ed è un’etichetta del progetto', () => {
     expect(variabile('ambiente')).toContain('contains(["produzione", "test"], var.ambiente)')
     expect(tf).toContain('ambiente = var.ambiente')
+  })
+
+  // La configurazione web attraversa i job come output (REQ-FLOTTA-047):
+  // deve restare quello che è, le chiavi pubbliche del client.
+  it('l’output config_web porta solo i VITE_FIREBASE_* del client, niente altro', () => {
+    const output = tf.match(/output "config_web" \{[\s\S]*?\n\}/)[0]
+    const chiavi = [...output.matchAll(/^\s{4}([A-Z_]+)\s+=/gm)].map((m) => m[1])
+    expect(chiavi.length).toBeGreaterThan(0)
+    for (const k of chiavi) expect(k).toMatch(/^VITE_FIREBASE_/)
+    expect(output).not.toMatch(/private_key|secret|token/i)
   })
 
   it('gli agenti di Eventarc e Pub/Sub nascono col progetto completo, con i loro ruoli', () => {
@@ -468,7 +612,7 @@ describe('infra/istanza/main.tf', () => {
     expect(tf).toContain('VITE_FIREBASE_STORAGE_BUCKET      = "${local.progetto}.firebasestorage.app"')
     const nomi = passi(provisiona).map((s) => s.name)
     expect(passo(provisiona, 'Lo Storage del locale').run).toBe('node scripts/storage-istanza.mjs --project "$PROGETTO"')
-    expect(nomi.indexOf('Lo Storage del locale')).toBeGreaterThan(nomi.indexOf('Dipendenze'))
+    expect(nomi.indexOf('Lo Storage del locale')).toBeGreaterThan(nomi.indexOf('Dipendenze della regia'))
     expect(nomi.indexOf('Lo Storage del locale')).toBeLessThan(nomi.indexOf('Deploy regole, indici, Functions e hosting'))
   })
 })
@@ -547,8 +691,26 @@ describe('elimina-istanza.yml', () => {
   it('parte solo a comando, con gli input che la regia manda, sull’environment della sua regia', () => {
     expect(Object.keys(eventi(elimina))).toEqual(['workflow_dispatch'])
     expect(Object.keys(eventi(elimina).workflow_dispatch.inputs).sort()).toEqual(Object.keys(dispatchEliminazione('prova-bar').inputs).sort())
-    expect(job(elimina).environment).toBe("${{ inputs.ambiente == 'test' && 'flotta-test' || 'flotta' }}")
+    expect(jobs(elimina)).toHaveLength(1)
+    expect(jobs(elimina)[0].environment).toBe(AMBIENTE_DELLA_REGIA)
     expect(elimina.concurrency.group).toBe('istanza-${{ inputs.slug }}')
+  })
+
+  // REQ-FLOTTA-048 (audit del 09/11/2026, punto 7): le due regie usano la
+  // stessa chiave, e `ambiente: test` cancellava un locale di produzione.
+  it('prima di tutto il progetto deve essere di questa regia: etichetta ambiente e stato Terraform, altrimenti stop', () => {
+    const controllo = passo(elimina, 'Il progetto è di questa regia?').run
+    expect(controllo).toContain(`ETICHETTA=$(gcloud projects describe "$PROGETTO" --format='value(labels.ambiente)')`)
+    expect(controllo).toMatch(/if \[ "\$ETICHETTA" != "\$AMBIENTE" \]; then\n\s*echo "::error::[^\n]*"\n\s*exit 1\n\s*fi/)
+    expect(controllo).toMatch(/if \[ -z "\$\(gcloud storage ls "gs:\/\/\$TFSTATE_BUCKET\/istanze\/\$SLUG\/" 2>\/dev\/null\)" \]; then\n\s*echo "::error::[^\n]*"\n\s*exit 1\n\s*fi/)
+    expect(passo(elimina, 'Il progetto è di questa regia?').env.TFSTATE_BUCKET).toBe('${{ vars.TFSTATE_BUCKET }}')
+    // Prima del backup (leggerebbe dati non nostri) e, a maggior ragione,
+    // prima di eliminare il progetto e lo stato.
+    prima('Il progetto è di questa regia?', 'Il backup leggibile')
+    prima('Il progetto è di questa regia?', 'Elimina il progetto')
+    prima('Il progetto è di questa regia?', 'Lo stato di Terraform')
+    const testo = leggi('.github/workflows/elimina-istanza.yml')
+    expect(testo.indexOf(`--format='value(labels.ambiente)'`)).toBeLessThan(testo.indexOf('gcloud projects delete'))
   })
 
   it('gli input non entrano nei comandi, e la demo non si elimina', () => {

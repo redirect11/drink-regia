@@ -53,6 +53,18 @@ Gli input dei workflow arrivano da fuori: entrano nei passi solo come
 variabili d'ambiente e si controllano per primi (audit del 22/10/2026,
 C1, che nei workflow di tana-drink era ancora aperta).
 
+I passi 3 e 6 non stanno nello stesso job (dal 09/11/2026, REQ-FLOTTA-047,
+audit punto 6): il codice di tana-drink (`npm ci`, `genera-cliente`, la
+build di Vite) gira nel job `compila`, che non ha environment né secret;
+la chiave di provisioning sta solo nei job `prepara` (Terraform,
+configurazione web) e `pubblica` (deploy, licenza, esito), che non
+scaricano l'app. In mezzo passano un output di job (la configurazione web
+del client, pubblica per disegno) e un artifact (l'app compilata). La
+tabella dei job sta in [infra/README.md](../infra/README.md). E prima di
+eliminare o aggiornare, il progetto deve portare l'etichetta `ambiente`
+della regia che lancia (REQ-FLOTTA-048): la stessa chiave serve le due
+regie, l'etichetta dice di chi è il locale.
+
 ## Cosa resta del contratto con tana-drink
 
 tana-drink non riceve più lanci e non manda più esiti. Restano:
