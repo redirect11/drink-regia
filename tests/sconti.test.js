@@ -195,22 +195,11 @@ describe('nel sito', () => {
   })
 })
 
-describe('le regole', () => {
-  const regole = readFileSync('firestore.rules', 'utf8')
-
-  // Verifica del 02/11/2026: la regola vietava un elenco e lasciava passare
-  // moduli, terminali e prove, che la regia trasforma in licenza.
-  it('il titolare cambia solo i suoi dati anagrafici, mai moduli, terminali, prove o sconto', () => {
-    expect(regole).toContain("affectedKeys().hasOnly(['locale', 'fatturazione', 'referente', 'consensi'])")
-    expect(regole).not.toContain("affectedKeys().hasAny(['piano', 'abbonamento', 'uid', 'slug', 'interna', 'esistente'])")
-  })
-
-  it('i codici li legge solo l’admin, e li scrivono solo le Functions', () => {
-    const blocco = regole.slice(regole.indexOf('match /sconti/{codice}'), regole.indexOf('match /impostazioni/{doc}'))
-    expect(blocco).toContain('allow read: if admin();')
-    expect(blocco).toContain('allow write: if false;')
-  })
-})
+// LE REGOLE si provano sull'emulatore (REQ-DEV-007): che il titolare cambi
+// solo i suoi dati anagrafici e mai moduli, terminali, prove o sconto
+// (verifica del 02/11/2026) sta in tests/regole/clienti.test.js; che i
+// codici li legga solo l'admin e li scrivano solo le Functions in
+// tests/regole/registri.test.js.
 
 // I TENTATIVI SUI CODICI (audit del 09/11/2026, finding 15): la verifica
 // diceva se un codice esiste, senza limite: un oracolo per indovinarli.
@@ -271,10 +260,13 @@ describe('i tentativi sui codici', () => {
     expect(index).toMatch(/if \(cliente\) t\.update\(ref, \{ tentativi_codice: sconti\.tentativoFallito\(cliente\.tentativi_codice, adesso\) \}\)\s*\}\)\s*\}/)
   })
 
+  // Il titolare non crea più il documento (REQ-FLOTTA-045) e in update
+  // cambia solo i blocchi anagrafici: il contatore non è fra quelli. La
+  // prova sul comportamento sta sull'emulatore (tests/regole/clienti.test.js).
   it('il contatore lo scrivono solo le Functions: il titolare non lo crea e non lo cambia', () => {
     const regole = readFileSync('firestore.rules', 'utf8')
     const blocco = regole.slice(regole.indexOf('match /clienti/{uid}'), regole.indexOf('match /istanze/{slug}')).replace(/\/\/.*$/gm, '')
-    expect(blocco).toContain("hasOnly(['uid', 'versione_schema', 'email', 'nome_locale', 'slug', 'locale', 'fatturazione', 'referente', 'consensi', 'creato_il'])")
+    expect(blocco.replace(/\s+/g, ' ')).toContain('allow create: if false;')
     expect(blocco).toContain("affectedKeys().hasOnly(['locale', 'fatturazione', 'referente', 'consensi'])")
     expect(blocco).not.toContain('tentativi_codice')
   })

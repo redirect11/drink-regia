@@ -59,4 +59,59 @@ function cambioAdmin(cliente, richiesta, { da = null, adesso = new Date() } = {}
   return { ok: true, perche: null, scelta, cliente: { ...scelta, abbonamento }, storico }
 }
 
-module.exports = { cambioAdmin, sceltaAdmin, MODI }
+// ── IL CAMBIO DEL TITOLARE SU UN ABBONAMENTO A MANO (REQ-FLOTTA-046) ───
+//
+// Audit del 09/11/2026, finding 5 (era la M2 del 22/10): con l'abbonamento
+// gestito a mano (bonifico, piano scritto dall'admin, codice al 100% poi
+// pagato) `cambiaScelta` scriveva subito piano, moduli e terminali, e la
+// licenza seguiva: un titolare si accendeva il Completo con tutti i moduli
+// e venti terminali senza pagare niente. Ora dalla dashboard si scrive
+// subito solo una RIDUZIONE: piano uguale o più economico, nessuna
+// funzione in più fra quelle che la licenza accende (i moduli compresi nel
+// piano più quelli comprati), terminali non di più. Tutto il resto diventa
+// una richiesta di contatto, come i moduli chiesti dall'app su un piano a
+// mano (moduliapp.js): l'admin la vede fra le richieste, concorda il
+// pagamento e accende con «Cambia piano» fuori da Stripe. Stesso documento
+// contatti/<uid> della richiesta della dashboard coi pagamenti spenti: una
+// aperta per cliente, una nuova prende il posto di quella.
+
+const prezzoPiano = (id) => Number(listino.piani[id]?.prezzo) || 0
+// Le funzioni che la licenza accende per un piano con quei moduli.
+const funzioniAccese = (piano, moduli) => new Set([...(listino.piani[piano]?.include || []), ...(moduli || [])])
+
+// La scelta nuova toglie soltanto? Quello che costa (piano, terminali) non
+// cresce e nessuna funzione si accende che prima era spenta. La scelta
+// identica è una riduzione vuota: si scrive e non cambia niente.
+function eRiduzione(cliente, scelta) {
+  if (prezzoPiano(scelta.piano) > prezzoPiano(cliente?.piano)) return false
+  if ((Number(scelta.terminali) || 1) > (Number(cliente?.terminali) || 1)) return false
+  const prima = funzioniAccese(cliente?.piano, cliente?.moduli)
+  return [...funzioniAccese(scelta.piano, scelta.moduli)].every((f) => prima.has(f))
+}
+
+// → { via: 'manuale', patch } da scrivere subito su clienti/{uid}, oppure
+// { via: 'richiesta', documento } da scrivere in contatti/{uid}. La scelta
+// è pulita come la puliva metadatiDi (sceltaPulita: il Free diventa Base,
+// come prima); l'intervallo non c'è, perché fuori da Stripe non si fattura.
+function decisioneManuale(cliente, richiesta, { adesso = new Date() } = {}) {
+  const { intervallo: _ignorato, ...scelta } = sceltaPulita(richiesta)
+  if (eRiduzione(cliente, scelta)) return { via: 'manuale', patch: scelta }
+  return {
+    via: 'richiesta',
+    documento: {
+      uid: cliente?.uid || null,
+      email: cliente?.email || null,
+      nome_locale: cliente?.nome_locale || null,
+      slug: cliente?.slug || null,
+      scelta,
+      telefono: null,
+      nota: 'Dalla dashboard: cambio di piano su un abbonamento gestito a mano, da concordare prima di accenderlo.',
+      codice: null,
+      dalla_dashboard: { piano: cliente?.piano || null, moduli: cliente?.moduli || [], terminali: Number(cliente?.terminali) || 1 },
+      stato: 'aperta',
+      chiesta_il: adesso.toISOString(),
+    },
+  }
+}
+
+module.exports = { cambioAdmin, sceltaAdmin, MODI, eRiduzione, decisioneManuale }

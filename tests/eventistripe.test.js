@@ -115,9 +115,10 @@ describe('gli aggiornamenti in ordine', () => {
   })
 })
 
-describe('il webhook e le regole', () => {
+// Le regole di eventi_stripe/{id} (solo l'admin legge, nessun client
+// scrive) si provano sull'emulatore: tests/regole/registri.test.js.
+describe('il webhook', () => {
   const index = readFileSync('functions/index.js', 'utf8')
-  const regole = readFileSync('firestore.rules', 'utf8')
 
   it('il webhook passa dal registro, in transazione, prima di ogni effetto', () => {
     const webhook = index.slice(index.indexOf('exports.stripeWebhook'), index.indexOf('async function elaboraEventoStripe'))
@@ -130,10 +131,5 @@ describe('il webhook e le regole', () => {
   it('il cliente si aggiorna in transazione, in ordine', () => {
     const elabora = index.slice(index.indexOf('async function elaboraEventoStripe'))
     expect(elabora.slice(0, elabora.indexOf('\n}\n'))).toMatch(/runTransaction[\s\S]*eventiStripe\.inOrdine/)
-  })
-
-  it('il registro lo scrive solo il webhook', () => {
-    const blocco = regole.slice(regole.indexOf('match /eventi_stripe/{id}'))
-    expect(blocco.slice(0, blocco.indexOf('}', blocco.indexOf('{id}') + 4))).toContain('allow write: if false;')
   })
 })

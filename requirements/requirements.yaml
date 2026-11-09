@@ -159,15 +159,16 @@ requirements:
       piano, moduli, terminali, prove, sconto, abbonamento, email e slug li
       scrivono solo l'admin e le Functions. Il sito non aggiorna mai
       clienti/{uid} dal browser: nessuna funzione dipendeva da quelle
-      scritture. Le regole sono provate sul testo; il 02/11/2026 anche
-      sull'emulatore di Firestore (25 casi, fuori dal repository, che non
-      ha ancora l'emulatore fra le dipendenze).
+      scritture. Le regole erano provate sul testo, e il 02/11/2026
+      sull'emulatore fuori dal repository; dal 09/11/2026 i casi stanno
+      in tests/regole/clienti.test.js e girano sull'emulatore con `npm run
+      test:regole` e nella CI (REQ-DEV-007).
       VALIDO, O COM'ERA (02/11/2026): un locale registrato come esistente
       (la Tana) nasce con fatturazione {} e consensi a null, e la regola
       che pretendeva i valori pieni gli chiudeva ogni modifica. Ora ogni
       campo controllato dev'essere valido o restare com'era: chi li ha
       validi non li guasta, chi non li ha li può solo mettere giusti.
-      Provata sull'emulatore (11 casi, fuori dal repository).
+      Provata sull'emulatore, in tests/regole/clienti.test.js.
       Da rivedere con un consulente prima di vendere: i testi di termini e
       privacy (src/pages/Legali.jsx) sono una struttura, non un
       parere legale.
@@ -176,6 +177,7 @@ requirements:
     labels: [prodotto, flotta, regia]
     test_cases:
       - tests/clienti.test.js
+      - tests/regole/clienti.test.js
       - tests/validazione.test.js
       - tests/Registrati.test.jsx
   - id: REQ-FLOTTA-004
@@ -248,6 +250,7 @@ requirements:
     test_cases:
       - tests/Backoffice.test.jsx
       - tests/App.test.jsx
+      - tests/regole/istanze.test.js
   - id: REQ-FLOTTA-007
     title: "L'abbonamento: Stripe Checkout nella regia, webhook che aggiorna il cliente, licenza che segue il piano"
     area: "functions/piani.json, src/lib/piani.js, src/pages/SceltaPiano.jsx, src/pages/Dashboard.jsx, src/lib/db.js (avviaPagamento), functions/index.js (creaCheckout, stripeWebhook), functions/lib/abbonamento.js"
@@ -591,6 +594,7 @@ requirements:
       - tests/provisioning.test.js
       - tests/Backoffice.test.jsx
       - tests/acquisto.test.js
+      - tests/regole/impostazioni.test.js
 
   - id: REQ-FLOTTA-012
     title: "I rilasci arrivano ai locali a ondate: prova, interne, pilota, tutti; un aggiornamento fallito ferma il rilascio, non il locale"
@@ -697,6 +701,7 @@ requirements:
       - tests/CreditoAI.test.jsx
       - tests/Backoffice.test.jsx
       - tests/abbonamento.test.js
+      - tests/regole/ai.test.js
 
   - id: REQ-FLOTTA-013
     title: "La flotta sta nella regia: Terraform, workflow e licenza dei locali, con un environment per ogni regia"
@@ -823,6 +828,7 @@ requirements:
       - tests/licenza.test.js
       - tests/provisioning.test.js
       - tests/flotta.test.js
+      - tests/regole/vendita.test.js
 
   - id: REQ-FLOTTA-016
     title: "Le prove dei moduli scelte dall'admin, e «Cambia piano» dell'admin con Stripe o fuori da Stripe"
@@ -884,6 +890,7 @@ requirements:
       - tests/SceltaPiano.test.jsx
       - tests/CreditoAI.test.jsx
       - tests/Backoffice.test.jsx
+      - tests/regole/vendita.test.js
   - id: REQ-FLOTTA-018
     title: "La Tana si aggiorna dalla regia come gli altri locali, sul suo progetto, e resta pubblicabile da tana-drink"
     area: "functions/lib/esistente.js (gestioneEsistente), functions/lib/rilasci.js (daFlotta), functions/lib/provisioning.js (dispatchAggiornamento), functions/index.js (lanciaAggiornamento, impostaAggiornamentiEsistente), .github/workflows/aggiorna-istanza.yml, src/lib/db.js"
@@ -2057,8 +2064,10 @@ requirements:
       vera: chiediAttivazione, creaCheckout, attivaConCodice, cambiaScelta,
       chiediContatto, scegliFree, provaModulo, creaRicaricaAI rifiutano
       («Il sito non e' ancora aperto al pubblico.») e moduloDallApp risponde
-      409. La registrazione e' di Firebase Auth e non passa dalle Functions:
-      chi la chiamasse a mano avrebbe un account senza poter fare niente.
+      409. L'account e' di Firebase Auth e nasce comunque; dal 09/11/2026
+      il documento del cliente lo scrive la Function registraCliente
+      (REQ-FLOTTA-045), che col sito chiuso rifiuta: chi si registrasse a
+      mano avrebbe un account senza locale e senza poter fare niente.
     status: implemented
     generate_issue: true
     labels: [regia, produzione]
@@ -2111,6 +2120,512 @@ requirements:
       - tests/prove.test.js
       - tests/Home.test.jsx
       - tests/SceltaPiano.test.jsx
+  - id: REQ-FLOTTA-045
+    title: "Lo slug del cliente è unico: la registrazione la scrive la Function registraCliente, e ogni ricerca per slug si ferma davanti a un doppione"
+    area: "functions/lib/registrazione.js (nuovoCliente, documentoRegistrazione, registraCliente, clientePerSlug), functions/index.js (registraCliente, docClientePerSlug e tutte le ricerche per slug), firestore.rules (clienti/{uid}: create if false), src/lib/db.js (creaCliente, registra, completaRegistrazione, slugGiaInUso), src/pages/Registrati.jsx (la casella dell'identificativo)"
+    description: >
+      Audit di sicurezza del 09/11/2026, finding 4 (alta). Il documento
+      clienti/{uid} lo scriveva il browser alla registrazione, e la regola
+      `create` controllava la forma dello slug ma non che fosse libero: una
+      regola non può interrogare la collezione. Due locali con lo stesso
+      nome (o un malintenzionato col nome di un concorrente non ancora
+      attivo) finivano sullo stesso slug, e le Functions cercavano il
+      cliente con `where('slug', '==').limit(1)`: con due clienti «il
+      primo», in silenzio. La licenza, i dati del locale copiati nell'app
+      (P.IVA, telefono), la subscription di Stripe di un modulo comprato
+      dall'app potevano andare al cliente sbagliato.
+      LA REGISTRAZIONE passa dalla callable `registraCliente`: uid ed email
+      sono quelli dell'account, i dati del locale, della fatturazione e
+      del referente arrivano come li raccoglie il modulo, e il documento si
+      costruisce sul server con gli stessi campi di prima (un test lo
+      confronta con nuovoCliente del sito, campo per campo), con i
+      controlli che facevano le regole (slug valido, partita IVA di 11
+      cifre) più i consensi dati davvero. Si scrive in TRANSAZIONE, dopo
+      aver letto che nessun cliente e nessuna istanza hanno quello slug e
+      che l'account non ha già un locale. Slug preso: `already-exists`,
+      «Questo identificativo è già in uso: scegline un altro.», con
+      `details.campo = 'slug'`; il sito torna al passo del locale e apre la
+      casella dell'identificativo, prima nascosta, già piena di quello
+      rifiutato; chi non ha il problema non la vede e tiene lo slug dal
+      nome, come sempre. Col sito chiuso (REQ-FLOTTA-043) non si registra
+      nessuno: chiude anche il finding 26. Dopo un rifiuto l'account c'è:
+      al secondo tentativo con lo stesso account entrato non si ricrea.
+      LE REGOLE: `allow create: if false` su clienti/{uid}; il sito non
+      scrive mai clienti/{uid} dal browser, nemmeno alla registrazione.
+      LE RICERCHE PER SLUG: l'helper `clientePerSlug` chiede due documenti
+      (`limit(2)`) e con due si ferma con «Identificativo ambiguo: più di un
+      cliente con lo slug …» (`failed-precondition`; 409 per l'app dei
+      locali in moduloDallApp). Lo usano tutte le ricerche di index.js:
+      clienteDi (licenza, dati del locale, aggiornamenti), le scadenze, le
+      callable admin (registraPagamento, applicaSconto, impostaTemi,
+      gestisciEliminazione, cambiaPianoAdmin, creaCliente,
+      registraLocaleEsistente), lanciaAggiornamento, moduloDallApp.
+      LA SEMINA (REQ-DEV-004) scrive con l'Admin SDK: gli slug delle
+      persone sono diversi fra loro, e un test lo tiene così.
+      Le regole restano provate sul testo (finding 16: l'emulatore non è
+      ancora fra le dipendenze); la transazione si prova con un Firestore
+      finto.
+    status: implemented
+    generate_issue: true
+    labels: [flotta, regia, sicurezza]
+    priority: P1
+    test_cases:
+      - tests/registrazione.test.js
+      - tests/clienti.test.js
+      - tests/db.test.js
+      - tests/Registrati.test.jsx
+      - tests/semina.test.js
+  - id: REQ-FLOTTA-046
+    title: "Il cambio di piano del titolare su un abbonamento a mano: subito solo la riduzione, l'aumento è una richiesta all'assistenza"
+    area: "functions/lib/cambiopiano.js (eRiduzione, decisioneManuale), functions/index.js (cambiaScelta, ramo manuale), src/pages/SceltaPiano.jsx (il messaggio con via 'richiesta')"
+    description: >
+      Audit di sicurezza del 09/11/2026, finding 5 (alta; era la M2 del
+      22/10/2026). Con `abbonamento.origine === 'manuale'` (bonifico, piano
+      scritto dall'admin con «Cambia piano» fuori da Stripe, codice al 100%
+      poi pagato) `cambiaScelta` scriveva subito piano, moduli e terminali
+      sul cliente, e `licenzaSegueIlPiano` riscriveva la licenza
+      dell'istanza: qualunque titolare con un piano a mano chiamava la
+      callable con il Completo, tutti i moduli e venti terminali e si
+      trovava tutto acceso senza pagare. `moduloDallApp` nello stesso caso
+      faceva già la cosa giusta (una richiesta in contatti/).
+      ORA: se la scelta è una RIDUZIONE (piano uguale o più economico,
+      nessuna funzione in più fra quelle che la licenza accende, cioè i
+      moduli compresi nel piano più quelli comprati, terminali non di più)
+      si scrive subito come prima e la Function risponde `via: 'manuale'`.
+      Altrimenti si scrive una richiesta di contatto in contatti/<uid>
+      (stesso documento della dashboard coi pagamenti spenti,
+      REQ-FLOTTA-017: una aperta per cliente, la nuova prende il posto di
+      quella), con la scelta chiesta e quello che il cliente ha oggi
+      (`dalla_dashboard`), e la Function risponde `{ ok: true, via:
+      'richiesta' }`: il piano non si tocca e la licenza non cambia. L'admin
+      la vede fra le richieste, concorda il pagamento e accende con «Cambia
+      piano» fuori da Stripe (REQ-FLOTTA-016). La dashboard, con `via ===
+      'richiesta'`, dice «Richiesta inviata: ti ricontattiamo per
+      attivarla.» invece di «Piano aggiornato».
+    status: implemented
+    generate_issue: true
+    labels: [flotta, regia, sicurezza]
+    priority: P1
+    test_cases:
+      - tests/cambiopiano.test.js
+      - tests/SceltaPiano.test.jsx
+  - id: REQ-FLOTTA-049
+    title: "Il callback esitoProvisioning non si fida del corpo: progetto e url dell'istanza, bucket della regia, un run una volta sola, segreto usabile"
+    area: "functions/lib/provisioning.js (vincoliEsito, progettoAtteso, urlAmmesso, segretoUsabile, bearerValido, PREFISSO_PROGETTI), functions/lib/eliminazione.js (esitoEliminazione, percorsoValido), functions/index.js (esitoProvisioning, scaricaArchivio, ARCHIVIO_BUCKET), functions/.env.drink-regia, functions/.env.drink-regia-test, .github/workflows/provisiona-istanza.yml, aggiorna-istanza.yml, elimina-istanza.yml (Esito alla regia)"
+    description: >
+      Audit del 09/11/2026, finding 12 (e M1 del 22/10, finding 29 per il
+      segreto). Il corpo del callback era fidato per intero: chi aveva il
+      segreto (environment GitHub, Secret Manager, il repo pubblico di
+      tana-drink finché resta lì) poteva ri-puntare istanze/<slug>.progetto
+      su un progetto suo e dirottare le licenze, mettere in `url` un
+      `javascript:` che finiva negli href di dashboard e backoffice, far
+      scaricare al titolare uno zip da un bucket a sua scelta, e rimandare
+      lo stesso esito quante volte voleva.
+      I VINCOLI (vincoliEsito, davanti a ogni scrittura): `progetto`, se
+      c'è, è quello già scritto sull'istanza (un locale esistente ha il suo,
+      REQ-FLOTTA-018) o `drinkpos-<slug>` (PREFISSO_PROGETTI, lo stesso di
+      src/lib/prodotto.js e del Terraform, con un test che li allinea);
+      `url`, se c'è, è https senza credenziali né porta su un dominio
+      dell'installazione (`<progetto>.web.app`, `.firebaseapp.com`, i
+      `domini` registrati, l'url già scritto: dominiDi di moduliapp.js);
+      altrimenti 400 col motivo.
+      L'ARCHIVIO: `archivio.bucket` non si legge più dal corpo; la regia usa
+      il suo, ARCHIVIO_BUCKET in functions/.env.<progetto> (lo stesso di
+      vars.ARCHIVIO_BUCKET dell'environment), e scaricaArchivio firma il link
+      lì; senza la variabile risponde failed-precondition. `percorso` e `zip`
+      sono solo [A-Za-z0-9._/-], senza `..` né barra iniziale, dentro
+      `istanze/<slug>/`, e lo zip dentro il percorso.
+      ANTI-REPLAY: i tre workflow mandano `run_id` (github.run_id, numero) e
+      `inviato_il` (ISO). La Function rifiuta un esito più vecchio di 10
+      minuti o nel futuro di più di 1 minuto, e la stessa coppia
+      run_id+operazione già vista per quello slug: il segno sta in
+      istanze/{slug}.ultimo_esito = { run_id, operazione, inviato_il }. Le
+      istanze nate prima non ce l'hanno: il primo esito nuovo lo scrive.
+      Un locale ESISTENTE riferisce la versione dal suo repository (la Tana,
+      handover §7 «Rilasci a ondate») e oggi non manda i due campi: per lui
+      restano facoltativi finché tana-drink non li aggiunge (chiesto nel
+      contratto), e se li manda si controllano.
+      IL SEGRETO: bearerValido rifiuta un segreto sotto 32 caratteri e il
+      segnaposto «non-configurato»; la Function risponde 503 (come Stripe
+      col segnaposto), non 401. Il confronto resta a tempo costante.
+      NON FATTO (dall'audit): la verifica del run con GET
+      /repos/{repo}/actions/runs/{id} e un segreto diverso per regia.
+    status: implemented
+    generate_issue: true
+    labels: [regia, flotta, sicurezza]
+    priority: P1
+    test_cases:
+      - tests/provisioning.test.js
+      - tests/eliminazione.test.js
+      - tests/flotta.test.js
+  - id: REQ-FLOTTA-050
+    title: "Per la regia il titolare è l'account del cliente, non un admin qualunque del locale"
+    area: "functions/lib/passaggio.js (stessoTitolare), functions/index.js (moduloDallApp, sceltaDallApp), docs/handover.md §7, docs/flotta-nella-regia.md"
+    description: >
+      Audit del 09/11/2026, finding 17. `eTitolare` (aggiornamenti.js) è il
+      solo claim `role: 'admin'` dell'app, e in tana-drink un admin crea
+      altri admin: un dipendente con quel ruolo poteva aggiungere o disdire
+      moduli sulla subscription Stripe del titolare, con conguaglio
+      immediato, consumare la prova di un modulo (una sola per modulo) o
+      scegliere la versione dell'app. Il commento di moduloDallApp
+      dichiarava la scelta opposta («gli admin dell'app possono essere più
+      d'uno»), ma il conto lo paga il titolare.
+      LA REGOLA (stessoTitolare, in passaggio.js accanto a titolareDallApp
+      che già la applica al passaggio verso la regia): ruolo admin E
+      l'account del cliente della regia, cioè lo stesso uid (M7: l'account
+      nel locale nasce con l'uid di clienti/{uid}) oppure, per un locale
+      esistente dove l'uid è un altro, l'email verificata uguale a
+      cliente.email. Senza il vincolo sull'età del token: non è un
+      passaggio di sessione.
+      DOVE: moduloDallApp per tutte e tre le azioni (prova, aggiungi,
+      disdici: anche la prova tocca l'abbonamento e si consuma), dopo i
+      controlli del contratto e trovato il cliente, 403 «Solo il titolare
+      del locale può gestire i moduli.»; sceltaDallApp, perché la versione
+      dell'app la decide chi ha l'abbonamento, come dalla dashboard dove
+      sceglie il suo account nella regia, 403 «Solo il titolare del locale
+      può scegliere gli aggiornamenti.». Il contratto §7 dell'handover e
+      flotta-nella-regia.md lo dicono; lato tana-drink non cambia niente,
+      solo che un admin che non è il titolare vede quel 403.
+    status: implemented
+    generate_issue: true
+    labels: [regia, flotta, sicurezza]
+    priority: P1
+    test_cases:
+      - tests/passaggio.test.js
+      - tests/moduliapp.test.js
+  - id: REQ-FLOTTA-051
+    title: "Niente email nei log delle Functions, e la regia non salva chi apre l'app del locale"
+    area: "functions/lib/passaggio.js (improntaUtente), functions/index.js (impostaTemi, moduloDallApp, presentazione), functions/lib/presentazione.js (registroPresentazione)"
+    description: >
+      Audit del 09/11/2026, finding 29, ultimo punto. Tre console.log
+      scrivevano l'email di chi agiva (l'admin in impostaTemi, il titolare
+      in moduloDallApp): un dato personale che resta nei log di Cloud per
+      settimane, quando basta poter risalire alla persona. E
+      `istanze/{slug}.presentazione.da` salvava nella regia l'uid del
+      dipendente del locale che per primo apriva la versione nuova
+      dell'app: un dato del locale, che alla regia non serve (la regia non
+      contiene mai i dati operativi dei locali, CLAUDE.md).
+      ORA: improntaUtente(token) in passaggio.js dà l'uid, o se manca le
+      prime otto cifre dello SHA-256 dell'email, o «sconosciuto»; i tre log
+      lo usano (impostaTemi scrive req.auth.uid). registroPresentazione
+      non ha più `da`: resta versione, il, prima_il. Un test cerca nei
+      console.* di index.js ogni `.email` di chi agisce e vuole zero righe.
+      Restano, perché sono dati della regia sul suo cliente: `da` nello
+      storico_piano (email del titolare, l'unico che da REQ-FLOTTA-050 può
+      arrivare lì) e il richiedente della richiesta di contatto.
+    status: implemented
+    generate_issue: true
+    labels: [regia, privacy]
+    priority: P2
+    test_cases:
+      - tests/passaggio.test.js
+      - tests/presentazione.test.js
+  - id: REQ-FLOTTA-047
+    title: "La build dell'app senza credenziali: il codice di tana-drink gira in un job che non ha la chiave"
+    area: ".github/workflows/provisiona-istanza.yml, .github/workflows/aggiorna-istanza.yml (job controlla, prepara, compila, pubblica), infra/istanza/main.tf (output config_web), infra/README.md, docs/flotta-nella-regia.md, docs/architettura.md"
+    description: >
+      Audit di sicurezza del 09/11/2026, punto 6. Fino a quel giorno i due
+      workflow della flotta erano un job solo: la chiave del service account
+      di provisioning (proprietario di tutti i locali) finiva in
+      GOOGLE_APPLICATION_CREDENTIALS e poi giravano `npm ci` dell'app e
+      delle sue Functions (coi postinstall delle dipendenze),
+      `genera-cliente.mjs` e `npm run build` (Vite coi plugin del
+      repository): una dipendenza compromessa nel lockfile di tana-drink,
+      o un commit malevolo su un ramo preso dal test, avrebbe letto la
+      chiave e l'avrebbe portata via. La guardia «solo quello che sta su
+      main» non protegge da una dipendenza.
+      QUATTRO JOB IN FILA, uguali nei due workflow. `controlla`, senza
+      environment e senza secret: gli input (gli stessi controlli di prima,
+      per primi), «è un rilascio?», il checkout di tana-drink al ref chiesto
+      (git non esegue codice) e «la versione va bene per questa regia?»;
+      esporta come output lo SHA controllato (`git rev-parse HEAD`) e il
+      ramo. Fermarsi qui non costa niente: nessun progetto è ancora nato.
+      `prepara`, con l'environment e la chiave ma SENZA l'app: nel
+      provisioning il Terraform (init, import, apply) e poi `terraform
+      output` della configurazione web e dell'indirizzo del sito;
+      nell'aggiornamento il controllo dell'etichetta del progetto
+      (REQ-FLOTTA-048), il Terraform di un Free che compra e la
+      configurazione web da `apps:sdkconfig`. Li passa come output del job,
+      una riga di JSON: sono le VITE_FIREBASE_* del client, pubbliche per
+      disegno (stanno nel pacchetto che il browser scarica); un test
+      controlla che l'output `config_web` del Terraform porti solo chiavi
+      VITE_FIREBASE_*. `compila`, SENZA environment e senza secret: il
+      checkout di tana-drink allo SHA che `controlla` ha approvato (non al
+      ref di nuovo: un ramo che si muove fra un job e l'altro non cambia
+      quello che si pubblica), il .env della build dall'output di
+      `prepara`, `npm ci` dell'app e delle sue Functions, la cartella del
+      cliente, la build (con GIT_BRANCH e GIT_COMMIT dall'output), il .env
+      delle Functions, e il pacchetto `app.tgz` (tutto app/ meno i
+      node_modules della radice e la storia git: dist/, regole, indici,
+      firebase.json, functions/ coi suoi node_modules che firebase-tools
+      carica per scoprire le Functions, il .env della build che il passo
+      del titolare legge) caricato con actions/upload-artifact, un giorno
+      di conservazione. `pubblica`, con l'environment e la chiave: scarica e
+      scompatta il pacchetto, installa le dipendenze della regia
+      (functions/), e poi come prima: licenza, Storage, segreti, deploy
+      (con i tre tentativi), titolare, versione, esito, pulizia. I job con
+      la chiave non scaricano l'app e non ne eseguono niente; un test lo
+      controlla per nome di passo e per testo del job (`npm ci --prefix
+      app`, `npm run build`, `node scripts/genera-cliente.mjs`,
+      `with.repository`). Resta, inevitabile, che `firebase deploy`
+      esegue il codice delle Functions dell'app per scoprirle: è il deploy
+      stesso, non la build.
+      L'ESITO ARRIVA SEMPRE: `pubblica` parte anche se un job prima è
+      fallito (`if: !cancelled()`); il suo primo passo fallisce se
+      `compila` non è riuscito, così i passi dopo si saltano, `job.status`
+      è failure e «Esito alla regia» (always) manda `errore` come prima. Il
+      passo del callback non cambia (lo tocca un'altra PR dello stesso
+      giorno: run_id e inviato_il).
+      COSA RESTA COM'ERA: input solo via `env:` validati nel primo passo,
+      `${{ inputs.* }}` mai dentro `run:` (ora nemmeno `needs.*`),
+      `concurrency` per slug a livello di workflow, credenziali pulite
+      `if: always()` in ogni job che le scrive, produzione solo da ciò che
+      è su main di tana-drink, demo isolata.
+      DA FARE DOPO LA PR: le righe `uses:` nuove (checkout nei job nuovi,
+      upload-artifact, download-artifact) vanno fissate allo SHA come le
+      altre (audit, punto 23).
+    status: implemented
+    generate_issue: true
+    labels: [sicurezza, flotta, regia]
+    priority: P1
+    test_cases:
+      - tests/flotta.test.js
+  - id: REQ-FLOTTA-048
+    title: "Il progetto è di questa regia: etichetta ambiente e stato Terraform prima di eliminare o aggiornare; lo SHA pubblicato pronto per l'esito"
+    area: ".github/workflows/elimina-istanza.yml (Il progetto è di questa regia?), .github/workflows/aggiorna-istanza.yml (job prepara: Il progetto è di questa regia?), .github/workflows/provisiona-istanza.yml (output commit, COMMIT_APP), infra/README.md"
+    description: >
+      Audit di sicurezza del 09/11/2026, punto 7 e primo punto del 29. Le
+      due regie (produzione e test) usano la stessa chiave di provisioning:
+      `elimina-istanza.yml` controllava slug e nome dell'ambiente e poi
+      faceva `gcloud projects delete` e cancellava lo stato, senza leggere
+      a chi appartenesse il progetto. Con `ambiente: test` si eliminava un
+      locale di produzione. E in `aggiorna-istanza.yml` l'input `progetto`
+      può nominare un progetto qualunque tranne le due regie.
+      L'ELIMINAZIONE: subito dopo le credenziali e le dipendenze, prima del
+      backup (che leggerebbe dati non nostri) e a maggior ragione prima di
+      eliminare, il passo «Il progetto è di questa regia?» chiede due cose,
+      tutte e due necessarie: `gcloud projects describe` dell'etichetta
+      `ambiente` (quella che il Terraform mette sul progetto,
+      infra/istanza/main.tf) uguale all'ambiente del lancio, e lo stato
+      Terraform presente in gs://TFSTATE_BUCKET/istanze/<slug>/. Se una
+      manca: `::error::` chiaro e `exit 1`, prima di qualunque azione.
+      L'AGGIORNAMENTO: lo stesso controllo dell'etichetta nel job `prepara`,
+      subito dopo le credenziali (gcloud autenticato con la stessa chiave),
+      prima del Terraform e del deploy. Un locale esistente (la Tana, la
+      demo: REQ-FLOTTA-018, REQ-FLOTTA-019) non ha l'etichetta: gliela dà
+      una volta, a mano, chi lo affida a quella regia (`gcloud projects
+      update <progetto> --update-labels ambiente=produzione`); il messaggio
+      d'errore lo dice. Finché non ce l'ha, nessuna regia lo tocca: è il
+      punto. DA FARE PRIMA DEL PROSSIMO AGGIORNAMENTO di drinkpos-demo e
+      di tana-drink dalla regia di produzione: l'etichetta.
+      LO SHA PUBBLICATO: `APP_REF=main` compila «quello che c'è su main
+      adesso» e l'esito non registrava quale commit. Ora `controlla`
+      esporta `commit` (`git rev-parse HEAD` del checkout controllato),
+      `compila` compila esattamente quello, e `pubblica` lo ha in
+      COMMIT_APP. Il campo `commit` nel JSON del callback NON è ancora
+      aggiunto: il passo lo sta cambiando un'altra PR dello stesso giorno
+      (run_id, inviato_il); un TODO(REQ-FLOTTA-048) accanto al passo dice
+      cosa aggiungere, lo fa chi integra le due PR. Lato Functions
+      (`esitoProvisioning`, `istanze/<slug>.commit`) niente è cambiato.
+    status: implemented
+    generate_issue: true
+    labels: [sicurezza, flotta, regia]
+    priority: P1
+    test_cases:
+      - tests/flotta.test.js
+  - id: REQ-DEV-005
+    title: "Le intestazioni di sicurezza del sito su Firebase Hosting, con la CSP prima in osservazione"
+    area: "firebase.json (hosting.headers), tests/hosting.test.js, docs/handover.md §6 punto 6"
+    description: >
+      Audit di sicurezza del 09/11/2026, finding 14: firebase.json aveva solo
+      public, ignore e rewrites, e il sito usciva senza nessuna intestazione
+      di sicurezza (la demo le ha già, infra/demo/intestazioni.json). Il
+      danno: clickjacking sul backoffice, un XSS futuro senza CSP a mano
+      libera, niente HSTS su un dominio proprio.
+      OGNI PAGINA E OGNI FILE (source "**") escono con: X-Frame-Options
+      DENY, X-Content-Type-Options nosniff, Referrer-Policy
+      strict-origin-when-cross-origin, Permissions-Policy camera=(),
+      microphone=(), geolocation=(), Strict-Transport-Security
+      max-age=31536000; includeSubDomains.
+      LA CONTENT-SECURITY-POLICY è Report-Only: il browser segnala in
+      console quello che bloccherebbe senza bloccare niente, perché prima
+      si osserva sul test (accesso con Google in finestra, Checkout e
+      ritorno da Stripe, backoffice, temi su misura). Le direttive nascono
+      da quello che il sito carica davvero: default-src 'self'; script-src
+      'self' più l'impronta sha256 dell'unico script in pagina (il preload
+      del font della prima pagina in index.html: Vite lo lascia com'è,
+      il test la ricalcola dal sorgente con i fine riga normalizzati, perché
+      il deploy parte dalla CI su Linux); style-src 'self' 'unsafe-inline'
+      (React scrive gli stili negli attributi); img-src 'self' data:;
+      font-src 'self' (Playfair Display è ospitato in /fonts); connect-src
+      'self' https://*.googleapis.com (Firestore, identitytoolkit,
+      securetoken) https://*.cloudfunctions.net (le callable e le due
+      fetch di db.js) https://*.firebaseapp.com (il dominio di Auth);
+      frame-src https://*.firebaseapp.com https://accounts.google.com (la
+      finestra di Google e l'iframe di Firebase Auth); object-src 'none';
+      base-uri 'self'; form-action 'self'; frame-ancestors 'none'. Niente
+      firebaseio.com: il Realtime Database non si usa. Stripe è un
+      reindirizzamento, non un caricamento: nessun js.stripe.com.
+      IL PASSO CHE MANCA (docs/handover.md §6, punto 6): dopo qualche
+      giorno sul test senza violazioni in console, togliere il suffisso
+      -Report-Only in firebase.json e nel test, e la CSP diventa vincolante.
+    status: implemented
+    generate_issue: true
+    labels: [regia, sicurezza]
+    priority: P2
+    test_cases:
+      - tests/hosting.test.js
+  - id: REQ-DEV-006
+    title: "La catena CI ferma a commit precisi: action pinnate, Dependabot, npm audit nel workflow di test"
+    area: ".github/workflows/*.yml (ogni uses:), .github/dependabot.yml, .github/workflows/test.yml (audit), tests/ci.test.js, functions/package-lock.json"
+    description: >
+      Audit di sicurezza del 09/11/2026, finding 23 e 24. Le action dei
+      workflow erano a tag mobile (actions/checkout@v4 e simili): chi
+      controlla quel tag controlla il runner, e sul runner passano le
+      chiavi di deploy e della flotta. Dependabot era spento. Le
+      dipendenze avevano 17 avvisi in radice (3 critici, 6 alti, tutti in
+      devDependencies) e 8 moderati nelle Functions (transitivi di
+      firebase-admin 13).
+      LE ACTION sono ferme a uno SHA di commit con la versione nel commento
+      (uses: actions/checkout@<sha> # v4.4.0), all'ultima patch del major
+      in uso al 09/11/2026: actions/checkout v4.4.0, actions/setup-node
+      v4.4.0, actions/upload-artifact v4.6.2, hashicorp/setup-terraform
+      v3.1.2, google-github-actions/auth v2.1.13, setup-gcloud v2.2.1. Il
+      test lo controlla su ogni workflow: ogni uses: ha 40 caratteri
+      esadecimali e il commento della versione; i workflow riusabili del
+      repository (./.github/workflows/deploy.yml) si chiamano per percorso.
+      DEPENDABOT (.github/dependabot.yml) guarda npm in radice e in
+      functions/ e le action, una volta a settimana, verso develop, al
+      massimo cinque PR per cartella, con i prefissi dei commit del
+      repository (chore(deps), chore(ci)); patch e minor raggruppati in una
+      PR, i major di npm ignorati: vite 8, vitest 5, happy-dom 21,
+      firebase-admin 14 si fanno a mano in un ramo dedicato.
+      NPM AUDIT nel workflow di test, sulle sole dipendenze di produzione
+      (--omit=dev --audit-level=high), in radice e in functions/. Nelle
+      Functions è vincolante (al 09/11/2026 passa: restano 8 moderati
+      transitivi di firebase-admin 13, da chiudere con firebase-admin 14).
+      In radice ha continue-on-error finché firebase (12, e anche 13)
+      porta @grpc/grpc-js 1.9 con due avvisi alti che nessuna versione
+      dell'SDK web risolve e che il browser non usa (Firestore in
+      WebChannel); quando passa pulito, si toglie.
+      LE DIPENDENZE: npm audit fix senza --force non cambia niente, né in
+      radice né nelle Functions (le dirette erano già all'ultima versione
+      non-major, react-router-dom 6.30.6 compresa, il cui avviso moderato
+      si chiude solo con la 7). L'unico aggiornamento minore disponibile,
+      @anthropic-ai/sdk 1.3.0 -> 1.6.0 nelle Functions, è fatto.
+    status: implemented
+    generate_issue: true
+    labels: [metodo, sicurezza]
+    priority: P2
+    test_cases:
+      - tests/ci.test.js
+
+  - id: REQ-FLOTTA-058
+    title: "Le Functions della regia girano con un account dedicato, senza Editor"
+    area: "scripts/account-runtime.mjs, functions/index.js (OPTS), functions/.env.drink-regia-test, functions/.env.drink-regia, infra/README.md, docs/architettura.md"
+    description: >
+      Audit di sicurezza del 09/11/2026, finding 3 (H4 del 22/10): le
+      Functions della regia giravano con l'account predefinito di Compute
+      Engine, che è Editor sul progetto della regia e che il Terraform dei
+      locali autorizza a leggere e scrivere il loro Firestore e a firmare
+      accessi come l'SDK di Firebase. Qualunque bug in qualunque Function,
+      anche una aperta a tutti come `traccia`, ereditava quei poteri.
+      Ora `scripts/account-runtime.mjs`, lanciato da una persona, crea
+      `runtime-regia@<regia>` con i soli ruoli che il codice usa
+      (Firestore, utenti, log, i due ruoli dei trigger, la coda delle
+      scadenze, firmare e agire come sé stesso) e lascia che il deploy
+      agisca come lui; con --locale dà a quell'account, su un locale, gli
+      stessi tre ruoli del Terraform, così il passaggio non lascia un
+      intervallo in cui la licenza non si scrive. Le opzioni comuni delle
+      Functions leggono `RUNTIME_SERVICE_ACCOUNT` dal file d'ambiente del
+      progetto: senza, resta l'account predefinito. Si accende prima sul
+      test (script, `REGIA_SA_EMAIL` in flotta-test, riga nel file, deploy,
+      «Aggiorna istanza» sui locali di prova perché il Terraform converga),
+      poi in produzione con gli stessi passi. Lo script non toglie niente:
+      levare Editor all'account predefinito è una decisione di una persona.
+      Resta da fare (audit, finding 3.3): separare l'account che tocca i
+      locali da quello delle sole Functions di vendita.
+    status: implemented
+    generate_issue: true
+    labels: [regia, sicurezza, flotta]
+    test_cases:
+      - tests/runtime.test.js
+  - id: REQ-DEV-007
+    title: "Le regole Firestore della regia provate sull'emulatore, in locale e in CI"
+    area: "tests/regole/ (ambiente.js e un file per gruppo di collezioni), tests/regole.copertura.test.js, firebase.collaudo.json, vitest.regole.config.mjs, vitest.config.mjs (exclude), package.json (test:regole, test:regole:vitest, @firebase/rules-unit-testing, firebase-tools), .github/workflows/test.yml (job regole), tests/ci.test.js"
+    description: >
+      Audit di sicurezza del 09/11/2026, finding 16: le regole della regia
+      (firestore.rules) si provavano solo sul testo, con `toContain` sparsi
+      in sette file di test; i casi sull'emulatore erano «fuori dal
+      repository». Le regole sono l'unica barriera fra i documenti della
+      regia e chi apre la console del browser con apiKey e projectId, che
+      sono pubblici: un errore passava il cancello. tana-drink lo fa già
+      bene dal 07/11/2026 (REQ-DEV-017 di quel repository): stesso impianto,
+      adattato.
+      L'IMPIANTO: `@firebase/rules-unit-testing` e `firebase-tools` (fissato)
+      fra le dipendenze di sviluppo; `firebase.collaudo.json` col solo
+      emulatore Firestore sulla porta 8082 (la 8080 è quella di default,
+      spesso occupata; la 8081 è di tana-drink sulla stessa macchina) e
+      senza singleProjectMode, perché ogni file di prova usa un progetto suo;
+      `vitest.regole.config.mjs` con i soli tests/regole/ in fila indiana;
+      `npm run test:regole` accende l'emulatore con `emulators:exec` sul
+      progetto `demo-drink-regia` (il prefisso demo- è quello che gli
+      emulatori riconoscono come finto: nessun contatto con un progetto
+      vero), lancia vitest e spegne; `npm test` esclude tests/regole/, così i
+      test unitari restano veloci e verdi senza emulatore.
+      LA MATRICE (collezione × attore × operazione, con quattro attori: il
+      titolare A, il titolare B, l'admin col claim `admin: true`, chi non ha
+      fatto l'accesso): clienti/{uid} (lettura solo propria; la
+      registrazione con il documento vero di nuovoCliente, la forma dello
+      slug, la partita IVA di 11 cifre, i consensi datati, l'uid e l'email
+      dell'account, nessun campo oltre quelli della registrazione; le
+      modifiche del titolare solo sui blocchi anagrafici, H1, con la partita
+      IVA e i consensi «validi o com'erano» anche per un locale esistente
+      nato con fatturazione {} e consensi a null; delete solo admin);
+      clienti/{uid}/temi_su_misura; istanze e richieste (lettura del proprio
+      uid, l'elenco filtrato sul proprio uid passa e quello intero no;
+      richieste mai create dai client, nemmeno dall'admin: C2); rilasci;
+      ai/{slug} con consumi, ricariche e riservato (il segreto non lo legge
+      nessuno); vendita/listino (pubblico in lettura, scritto dall'admin) e
+      il suo storico (l'admin aggiunge, nessuno corregge); contatti (il
+      titolare legge la sua, l'admin segna gestita e non tocca altro, nessuno
+      crea dal browser); eventi_stripe, fondatori, controlli, temi, stili,
+      sconti, movimenti, traffico (solo l'admin legge, nessuno scrive);
+      passaggi (nessuno legge né scrive); impostazioni. Ogni test dice chi
+      fa cosa e cosa succede, e ogni prova è doppia: l'uso legittimo passa.
+      I CASI CHE CAMBIERANNO, documentati nei test come stanno oggi: due
+      titolari con lo stesso slug, la seconda registrazione PASSA (finding 4;
+      quando la create di clienti/{uid} uscirà dal browser diventerà un
+      rifiuto); impostazioni/* oggi le legge ogni autenticato (diventeranno
+      dell'admin). Chi cambia le regole adegua quelle righe.
+      LA COPERTURA (tests/regole.copertura.test.js, dentro `npm test`): ogni
+      file di tests/regole/ dichiara in testa le match che prova
+      («REGOLE PROVATE»); un parser legge le match di firestore.rules, anche
+      annidate, e pretende che ognuna sia dichiarata da un file che nomina
+      davvero quella collezione, e che nessuna dichiarazione sia rimasta
+      senza regola. Una collezione nuova senza test fa rosso a ogni push.
+      LA CI: in test.yml un job `regole` a parte, sulle pull request e a
+      mano, con actions/setup-java (Temurin 21, come in locale) fissato allo
+      SHA, la cache del jar dell'emulatore (~/.cache/firebase/emulators,
+      chiave sul lockfile) e `npm run test:regole`; lint, test e build non
+      lo aspettano.
+      I test testuali sostituiti: quelli che leggevano firestore.rules con
+      toContain in clienti, eventistripe, movimenti, passaggio, sconti,
+      stili e temi, dove il caso è ora provato sull'emulatore; resta il
+      controllo di documentiEsistente su fatturazione {} e consensi null.
+    status: implemented
+    generate_issue: true
+    labels: [regia, sicurezza, dev]
+    test_cases:
+      - tests/regole.copertura.test.js
+      - tests/ci.test.js
+      - tests/regole/clienti.test.js
+      - tests/regole/istanze.test.js
+      - tests/regole/ai.test.js
+      - tests/regole/vendita.test.js
+      - tests/regole/registri.test.js
+      - tests/regole/impostazioni.test.js
+
   - id: REQ-FLOTTA-052
     title: "Il traffico del sito non cresce con quello che arriva: provenienze da un elenco chiuso, origine verificata, tetto di istanze"
     area: "functions/lib/traffico.js (FAMIGLIE, PROVENIENZE, provenienzaDi, origineAmmessa), functions/index.js (traccia, DOMINI_NOSTRI), src/pages/Commerciale.jsx (NOMI_VOCI), scripts/lib-semina.mjs, docs/commerciale.md"

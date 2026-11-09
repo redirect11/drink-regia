@@ -136,8 +136,10 @@ export default function SceltaPiano({ cliente, modifica = false, vai = (url) => 
         return
       }
       if (modifica) {
-        await cambiaScelta(scelta)
-        setFatto('Piano aggiornato: le funzioni nuove si accendono nell’app entro un minuto.')
+        // Su un abbonamento a mano un aumento non si accende da solo
+        // (REQ-FLOTTA-046): la Function registra la richiesta e lo dice.
+        const esito = await cambiaScelta(scelta)
+        setFatto(esito?.via === 'richiesta' ? 'Richiesta inviata: ti ricontattiamo per attivarla.' : 'Piano aggiornato: le funzioni nuove si accendono nell’app entro un minuto.')
         setInCorso(false)
         return
       }

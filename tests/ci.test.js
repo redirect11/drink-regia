@@ -33,6 +33,19 @@ describe('test.yml: i test a ogni push, mai un deploy', () => {
     expect(JSON.stringify(test.jobs)).not.toMatch(/firebase-tools deploy|deploy\.yml/)
   })
 
+  // Le regole Firestore sull'emulatore (REQ-DEV-007): un job a parte, con
+  // Java, sulle pull request e a mano; lint, test e build non lo aspettano.
+  it('prova le regole Firestore sull’emulatore, in un job a parte con Java 21, sulle pull request', () => {
+    const regole = test.jobs.regole
+    expect(regole.if).toBe("github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'")
+    const java = regole.steps.find((s) => /actions\/setup-java@/.test(s.uses || ''))
+    expect(java.with).toMatchObject({ distribution: 'temurin', 'java-version': 21 })
+    expect(regole.steps.map((s) => s.run)).toEqual(expect.arrayContaining(['npm ci', 'npm run test:regole']))
+    // L'emulatore si tiene in cache fra una PR e l'altra.
+    const cache = regole.steps.find((s) => /actions\/cache@/.test(s.uses || ''))
+    expect(cache.with.path).toBe('~/.cache/firebase/emulators')
+  })
+
   it('il vecchio ci.yml, che pubblicava da sé, non c’è più', () => {
     expect(existsSync(join(process.cwd(), '.github/workflows/ci.yml'))).toBe(false)
   })
@@ -94,6 +107,49 @@ describe('deploy.yml: l’environment scritto a chiare lettere e la guardia sul 
     expect(pubblica).not.toMatch(/drink-regia/)
     const build = passi.find((s) => s.name === 'Build')
     expect(build.env.VITE_APP_ENV).toMatch(/production.*'test'/)
+  })
+})
+
+// LA CATENA (REQ-DEV-006, audit del 09/11/2026, finding 23): un'action a
+// tag mobile (`@v4`) corre dietro a chi controlla quel tag; con le chiavi
+// di deploy e della flotta in gioco, una compromissione a monte le porta
+// via. Ogni action è ferma a un commit, con la versione nel commento per
+// chi legge; Dependabot sposta lo SHA e il commento insieme.
+describe('ogni action è ferma a un commit, non a un tag', () => {
+  const cartella = join(process.cwd(), '.github/workflows')
+  const workflow = readdirSync(cartella).filter((f) => f.endsWith('.yml'))
+
+  it.each(workflow)('%s: ogni `uses:` ha uno SHA di 40 caratteri e la versione nel commento', (nome) => {
+    const righe = leggi(nome)
+      .split('\n')
+      .filter((r) => /^\s*(- )?uses:/.test(r))
+      // I workflow riusabili del repository stesso si chiamano per percorso.
+      .filter((r) => !/uses:\s*\.\//.test(r))
+    expect(righe.length).toBeGreaterThan(0)
+    for (const r of righe) {
+      expect(r.trim()).toMatch(/^(- )?uses: [\w.-]+\/[\w.-]+@[0-9a-f]{40} # v\d+(\.\d+)*$/)
+    }
+  })
+
+  it('Dependabot tiene d’occhio npm (sito e Functions) e le action, verso develop', () => {
+    const dependabot = load(readFileSync(join(process.cwd(), '.github/dependabot.yml'), 'utf8'))
+    const ecosistemi = dependabot.updates.map((u) => `${u['package-ecosystem']}:${u.directory}`).sort()
+    expect(ecosistemi).toEqual(['github-actions:/', 'npm:/', 'npm:/functions'])
+    for (const u of dependabot.updates) {
+      expect(u['target-branch']).toBe('develop')
+      expect(u.schedule.interval).toBe('weekly')
+      expect(u['open-pull-requests-limit']).toBe(5)
+      expect(u['commit-message'].prefix).toMatch(/^chore\((deps|ci)\)$/)
+    }
+  })
+
+  // Le dipendenze di runtime con una falla alta o critica fermano la CI;
+  // quelle di sviluppo (vite, vitest, happy-dom) non arrivano sul sito e
+  // si aggiornano nel loro ramo.
+  it('test.yml fa `npm audit` sulle dipendenze di produzione, in radice e nelle Functions', () => {
+    const audit = test.jobs.test.steps.filter((s) => /npm audit --omit=dev --audit-level=high/.test(s.run || ''))
+    expect(audit).toHaveLength(2)
+    expect(audit.some((s) => s['working-directory'] === 'functions')).toBe(true)
   })
 })
 

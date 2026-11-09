@@ -22,7 +22,7 @@ const { defineSecret } = require('firebase-functions/params')
 const eventiStripe = require('./lib/eventistripe.js')
 const { initializeApp } = require('firebase-admin/app')
 const { getFirestore } = require('firebase-admin/firestore')
-const { preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, eAggiornamento, documentoIstanza, documentoAggiornamento, bearerValido } = require('./lib/provisioning.js')
+const { preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, eAggiornamento, documentoIstanza, documentoAggiornamento, vincoliEsito, bearerValido, segretoUsabile } = require('./lib/provisioning.js')
 const rilasci = require('./lib/rilasci.js')
 const { sceltaCambiata, licenzaProtetta, stessaLicenza, perIlDatabase, scadenzaCoerente } = require('./lib/licenza.js')
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
@@ -53,12 +53,22 @@ const { datiEsistente, documentiEsistente, DatiNonValidi, scriveLicenza, gestion
 const aggiornamenti = require('./lib/aggiornamenti.js')
 const movimenti = require('./lib/movimenti.js')
 const traffico = require('./lib/traffico.js')
+const registrazione = require('./lib/registrazione.js')
 // L'aliquota del listino, per l'IVA dei pagamenti registrati a mano.
 const listino = require('./piani.json')
 
 initializeApp()
 const db = getFirestore()
-const OPTS = { region: 'europe-west1' }
+// L'account con cui girano le Functions (audit del 09/11/2026, finding 3):
+// quello dedicato creato da scripts/account-runtime.mjs, con i soli ruoli
+// che il codice usa e niente Editor. Senza RUNTIME_SERVICE_ACCOUNT in
+// functions/.env.<progetto> resta l'account predefinito di Compute Engine,
+// che è Editor sulla regia: va bene solo finché l'account dedicato non è
+// stato creato e autorizzato sui locali (REGIA_SA_EMAIL nella flotta).
+const OPTS = {
+  region: 'europe-west1',
+  ...(process.env.RUNTIME_SERVICE_ACCOUNT ? { serviceAccount: process.env.RUNTIME_SERVICE_ACCOUNT } : {}),
+}
 const GITHUB_DISPATCH_TOKEN = defineSecret('GITHUB_DISPATCH_TOKEN')
 const PROVISIONING_CALLBACK_SECRET = defineSecret('PROVISIONING_CALLBACK_SECRET')
 // Stripe (REQ-FLOTTA-007): chiave segreta e segreto del webhook, prima
@@ -94,6 +104,11 @@ const APP_REPO = process.env.APP_REPO || 'redirect11/tana-drink'
 // L'indirizzo di questa regia, che la licenza dà all'app per il «vedi i
 // piani» (functions/.env.<progetto>).
 const REGIA_URL = process.env.REGIA_URL || null
+// Il bucket degli archivi di eliminazione di QUESTA regia (REQ-FLOTTA-014,
+// infra/README.md): lo stesso che il workflow ha in vars.ARCHIVIO_BUCKET.
+// Dal 09/11/2026 il callback non lo dichiara più: un bucket nel corpo
+// faceva scaricare al titolare uno zip da dove voleva chi aveva il segreto.
+const ARCHIVIO_BUCKET = process.env.ARCHIVIO_BUCKET || null
 // Dove l'app manda la scelta del titolare (sceltaDallApp, REQ-FLOTTA-020):
 // l'indirizzo di questa Function nel progetto della regia.
 const PROGETTO_REGIA = process.env.GCLOUD_PROJECT || (() => { try { return JSON.parse(process.env.FIREBASE_CONFIG || '{}').projectId } catch { return null } })()
@@ -210,9 +225,17 @@ exports.rilanciaProvisioning = onDocumentUpdated(
   }
 )
 
-// L'esito dal workflow: POST con bearer, corpo { slug, stato, url, progetto, versione, ref, ambiente, operazione, errore }.
+// L'esito dal workflow: POST con bearer, corpo { slug, stato, url, progetto, versione, ref, ambiente, operazione, errore, run_id, inviato_il }.
+// Il corpo non è fidato (audit del 09/11/2026, finding 12): progetto e url
+// devono essere quelli dell'istanza, e ogni run passa una volta sola
+// (vincoliEsito, lib/provisioning.js). Il segno dell'ultimo run accettato
+// sta in istanze/{slug}.ultimo_esito; le istanze nate prima non ce l'hanno,
+// e va bene: il primo esito nuovo lo scrive.
 exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK_SECRET], cors: false }, async (req, res) => {
   if (req.method !== 'POST') return res.status(405).send('')
+  // Col segnaposto «non-configurato», o con un segreto corto, il callback è
+  // chiuso: 503 come Stripe senza chiave, non 401.
+  if (!segretoUsabile(PROVISIONING_CALLBACK_SECRET.value())) return res.status(503).json({ errore: 'callback non configurato' })
   if (!bearerValido(req.get('authorization'), PROVISIONING_CALLBACK_SECRET.value())) return res.status(401).send('')
   // L'esito di un'eliminazione (REQ-FLOTTA-014) ha campi e stati suoi.
   if (req.body?.operazione === 'eliminazione') {
@@ -220,17 +243,25 @@ exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK
     if (!fine) return res.status(400).json({ errore: 'esito non valido' })
     const ref = db.doc(`istanze/${fine.slug}`)
     const prima = (await ref.get()).data() || null
-    await ref.set(elim.documentoEliminazione(fine, prima), { merge: true })
+    const vincoli = vincoliEsito(fine, prima, { operazione: 'eliminazione' })
+    if (!vincoli.ok) return res.status(400).json({ errore: vincoli.perche })
+    await ref.set({ ...elim.documentoEliminazione(fine, prima), ultimo_esito: vincoli.ultimo_esito }, { merge: true })
     return res.status(200).json({ ok: true, operazione: 'eliminazione' })
   }
   const esito = esitoValido(req.body)
   if (!esito) return res.status(400).json({ errore: 'esito non valido' })
   const ref = db.doc(`istanze/${esito.slug}`)
   const prima = (await ref.get()).data() || null
+  const aggiornamento = eAggiornamento(esito, prima)
+  const vincoli = vincoliEsito(esito, prima, { operazione: aggiornamento ? 'aggiornamento' : 'attivazione' })
+  if (!vincoli.ok) return res.status(400).json({ errore: vincoli.perche })
+  // Un locale esistente senza run_id (la Tana, oggi) non lascia il segno:
+  // non si cancella quello di un run precedente.
+  const segno = vincoli.ultimo_esito ? { ultimo_esito: vincoli.ultimo_esito } : {}
   // Un aggiornamento non tocca lo stato dell'istanza né la richiesta di
   // attivazione (REQ-FLOTTA-012); fa andare avanti, o fermare, il rilascio.
-  if (eAggiornamento(esito, prima)) {
-    await ref.set(documentoAggiornamento(esito, prima), { merge: true })
+  if (aggiornamento) {
+    await ref.set({ ...documentoAggiornamento(esito, prima), ...segno }, { merge: true })
     // Arrivato a quella versione o oltre (un «Aggiorna subito», un rilascio
     // obbligatorio): la proposta al titolare non serve più (REQ-FLOTTA-020).
     if (esito.stato === 'attiva' && aggiornamenti.propostaSuperata(prima?.proposta_aggiornamento, esito.versione)) {
@@ -247,7 +278,7 @@ exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK
     }
     return res.status(200).json({ ok: true, operazione: 'aggiornamento' })
   }
-  await ref.set(documentoIstanza(esito, prima), { merge: true })
+  await ref.set({ ...documentoIstanza(esito, prima), ...segno }, { merge: true })
   await db.doc(`richieste/${esito.slug}`).set({ stato: esito.stato, aggiornata_il: new Date().toISOString() }, { merge: true })
   // Un locale che nasce adesso prende le regole degli aggiornamenti di
   // adesso, senza preavviso: le accetta registrandosi (REQ-FLOTTA-020).
@@ -882,7 +913,7 @@ exports.scadenza = onTaskDispatched(
     if (scadenze.daRiprogrammare(quando, adesso)) return programma(tipo, chiave, quando)
     // Un promemoria di un pagamento a mano (REQ-FLOTTA-027).
     if (tipo === 'promemoria') {
-      const doc = (await db.collection('clienti').where('slug', '==', chiave).limit(1).get()).docs[0]
+      const doc = await docClientePerSlug(chiave)
       const cliente = doc?.data()
       const qualeTipo = cliente && comunica.promemoriaDelCompito(cliente, new Date(quando).toISOString())
       if (!qualeTipo) return
@@ -894,7 +925,7 @@ exports.scadenza = onTaskDispatched(
       return
     }
     if (tipo === 'pagamento' || tipo === 'prova') {
-      const doc = (await db.collection('clienti').where('slug', '==', chiave).limit(1).get()).docs[0]
+      const doc = await docClientePerSlug(chiave)
       if (!doc) return
       if (tipo === 'pagamento') {
         const cliente = doc.data()
@@ -959,7 +990,7 @@ exports.scadenza = onTaskDispatched(
 // locale era fermo per il pagamento, torna a lavorare (il cambio di stato).
 exports.registraPagamento = onCall(OPTS, async (req) => {
   if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
-  const doc = (await db.collection('clienti').where('slug', '==', String(req.data?.slug || '')).limit(1).get()).docs[0]
+  const doc = await docClientePerSlug(req.data?.slug)
   if (!doc) throw new HttpsError('not-found', 'Cliente sconosciuto.')
   if (doc.data().abbonamento?.origine !== 'manuale') throw new HttpsError('failed-precondition', 'Vale per i piani pagati fuori da Stripe.')
   const data = scadenze.dataPagata(req.data?.pagato_fino_al)
@@ -1039,7 +1070,7 @@ async function lanciaAggiornamento(slug, ref, { rilascio = null, ritorno = false
   // progetto, con la sua cartella in clienti/ e le sue chiavi della build.
   if (!rilasci.daFlotta(ist)) return 'Questa installazione si aggiorna dal suo repository, non dalla flotta.'
   const esistente = ist.origine === 'esistente'
-  const cliente = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]?.data()
+  const cliente = (await docClientePerSlug(slug))?.data()
   // Il titolare diventa admin a ogni deploy (REQ-FLOTTA-029); un locale
   // esistente (la Tana) ha i suoi admin, e la regia non ne aggiunge.
   const datiIstanza = { slug, nome_locale: cliente?.nome_locale, email: esistente ? '' : cliente?.email || '', uid: esistente ? '' : cliente?.uid || '', ...(esistente ? { progetto: ist.progetto, cliente: ist.cliente, build: ist.build } : {}) }
@@ -1218,9 +1249,23 @@ async function regoleAggiornamenti() {
   return aggiornamenti.regolePulite((await db.doc('impostazioni/aggiornamenti').get()).data())
 }
 
+// IL CLIENTE DI UNO SLUG (audit 09/11/2026, finding 4): ogni ricerca per
+// slug passa da qui, che chiede due documenti e si ferma se li trova tutti
+// e due, invece di lavorare «sul primo» come faceva `limit(1)`. Torna il
+// documento (ref, id, data()) o null; lo slug ambiguo è un errore che la
+// callable riporta com'è, e un trigger scrive nel log.
+async function docClientePerSlug(slug) {
+  try {
+    return await registrazione.clientePerSlug(db, slug)
+  } catch (e) {
+    if (e instanceof registrazione.SlugAmbiguo) throw new HttpsError('failed-precondition', e.message)
+    throw e
+  }
+}
+
 // Col suo uid, che è l'id del documento: serve per le sue sottoraccolte.
 async function clienteDi(slug) {
-  const d = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]
+  const d = await docClientePerSlug(slug)
   return d ? { uid: d.id, ...d.data() } : null
 }
 
@@ -1451,8 +1496,8 @@ exports.sceltaAggiornamento = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN]
 // La scelta dall'app: il titolare tocca «Aggiorna» o «Salta» e l'app chiama
 // qui col suo token d'accesso (Authorization: Bearer <ID token>, corpo
 // { tag, scelta }). La regia riconosce il locale dal progetto del token, lo
-// verifica con quel progetto, controlla che sia il titolare e applica la
-// scelta subito. Niente chiavi nel browser e niente giri a tempo; va bene
+// verifica con quel progetto, controlla che sia il titolare (admin e lo
+// stesso account del cliente, REQ-FLOTTA-050) e applica la scelta subito. Niente chiavi nel browser e niente giri a tempo; va bene
 // anche per il Free, che non ha Functions. Il token è nell'intestazione e
 // non ci sono cookie, quindi la chiamata si apre a qualunque origine.
 exports.sceltaDallApp = onRequest({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN], cors: false }, async (req, res) => {
@@ -1474,6 +1519,11 @@ exports.sceltaDallApp = onRequest({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN], c
     return res.status(401).json({ errore: 'Accesso non valido: entra di nuovo.' })
   }
   if (!aggiornamenti.eTitolare(chi)) return res.status(403).json({ errore: 'La sceglie il titolare.' })
+  // E non un altro admin del locale (audit del 09/11/2026, finding 17):
+  // la versione dell'app la decide chi ha l'abbonamento, come dalla
+  // dashboard, dove sceglie il suo account nella regia.
+  const cliente = await clienteDi(trovata.id)
+  if (!passa.stessoTitolare(chi, cliente)) return res.status(403).json({ errore: 'Solo il titolare del locale può scegliere gli aggiornamenti.' })
   const corpo = aggiornamenti.corpoScelta(req.body)
   if (!corpo) return res.status(400).json({ errore: 'Scelta non valida.' })
   const scelta = aggiornamenti.sceltaValida({ ...corpo, il: new Date().toISOString() }, ist.proposta_aggiornamento)
@@ -1773,9 +1823,10 @@ exports.presentazione = onRequest({ ...OPTS, cors: false }, async (req, res) => 
   if (!progetto) return res.status(401).json({ errore: 'Serve l’accesso.' })
   const trovata = (await db.collection('istanze').where('progetto', '==', progetto).limit(1).get()).docs[0]
   if (!trovata || trovata.data().stato === 'eliminata') return res.status(404).json({ errore: 'Installazione non registrata nella regia.' })
-  let chi
+  // Il token si verifica, ma di chi lo porta non si tiene niente
+  // (REQ-FLOTTA-051): basta che sia qualcuno del locale.
   try {
-    chi = await getAuth(appDi(progetto)).verifyIdToken(token)
+    await getAuth(appDi(progetto)).verifyIdToken(token)
   } catch {
     return res.status(401).json({ errore: 'Accesso non valido: entra di nuovo.' })
   }
@@ -1783,7 +1834,9 @@ exports.presentazione = onRequest({ ...OPTS, cors: false }, async (req, res) => 
   if (!corpo) return res.status(400).json({ errore: 'Versione non valida.' })
   const slug = trovata.id
   const ist = trovata.data()
-  if (presenta.daRegistrare(ist, corpo.versione)) await trovata.ref.update(presenta.registroPresentazione(ist, { versione: corpo.versione, uid: chi.uid }))
+  // Chi apre l'app è un dipendente qualunque del locale: il suo uid non
+  // serve alla regia e non si salva (REQ-FLOTTA-051).
+  if (presenta.daRegistrare(ist, corpo.versione)) await trovata.ref.update(presenta.registroPresentazione(ist, { versione: corpo.versione }))
   const riceve = riceveLicenza(ist)
   const esiste = riceve ? (await firestoreDi(progetto).doc(LICENZA_PROTETTA).get()).exists : false
   const cosa = presenta.cosaFareConLaLicenza(ist, { esiste, riceve })
@@ -1866,12 +1919,17 @@ exports.cambiaScelta = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
   // il ramo qui sotto scrive il piano senza pagamento, ed era la strada per
   // avere il Base gratis. Resta per i clienti creati a mano dall'admin.
   if (cliente.abbonamento?.origine === 'gratuito') throw new HttpsError('failed-precondition', 'Per passare a un piano a pagamento scegli il piano e vai al pagamento.')
+  // Un piano a mano (REQ-FLOTTA-046, audit 09/11/2026, finding 5): si scrive
+  // subito solo una riduzione; un aumento è una richiesta all'assistenza,
+  // e la licenza non cambia finché l'admin non accende. Il sito legge `via`.
   if (cliente.abbonamento?.origine === 'manuale') {
-    const pulita = metadatiDi(uid, scelta)
-    await db.doc(`clienti/${uid}`).set(
-      { piano: pulita.piano, moduli: pulita.moduli ? pulita.moduli.split(',') : [], terminali: Number(pulita.terminali) || 1 },
-      { merge: true }
-    )
+    const d = decisioneManuale({ uid, ...cliente }, scelta)
+    if (d.via === 'richiesta') {
+      await db.doc(`contatti/${uid}`).set(d.documento)
+      console.log(`[cambio piano] ${cliente.slug}: aumento su un piano a mano, chiesto all'assistenza`)
+      return { ok: true, via: 'richiesta' }
+    }
+    await db.doc(`clienti/${uid}`).set(d.patch, { merge: true })
     return { ok: true, via: 'manuale' }
   }
   throw new HttpsError('failed-precondition', 'Prima serve un abbonamento: scegli un piano e paga.')
@@ -1996,6 +2054,28 @@ exports.scegliFree = onCall(OPTS, async (req) => {
   return { ok: true }
 })
 
+// ── LA REGISTRAZIONE DEL TITOLARE (REQ-FLOTTA-045) ────────────────────
+// Audit del 09/11/2026, finding 4: il documento clienti/{uid} non lo scrive
+// più il browser (le regole non hanno più la `create`), lo scrive questa
+// Function in transazione, dopo aver visto che lo slug è libero. L'uid e
+// l'email sono quelli dell'account, mai quelli mandati; i dati del locale,
+// della fatturazione e del referente arrivano come li raccoglie il sito, e
+// lo slug solo se il titolare ne ha scelto uno diverso perché il suo era
+// preso (`already-exists`, con `details.campo === 'slug'`). Col sito
+// chiuso non si registra nessuno: chiude anche il finding 26.
+exports.registraCliente = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  await solOSitoAperto()
+  try {
+    const cliente = await registrazione.registraCliente(db, { uid: req.auth.uid, email: req.auth.token?.email, dati: req.data })
+    console.log(`[registrazione] ${cliente.slug} (${req.auth.uid})`)
+    return { ok: true, slug: cliente.slug, cliente }
+  } catch (e) {
+    if (e instanceof registrazione.RegistrazioneRifiutata) throw new HttpsError(e.codice, e.message, e.dettagli || undefined)
+    throw e
+  }
+})
+
 // ── L'ADMIN CREA UN LOCALE DA SÉ (REQ-FLOTTA-011) ─────────────────────
 // Account del titolare (senza password: la imposta lui con «Password
 // dimenticata» sul sito), documento del cliente con piano a mano, e se
@@ -2008,8 +2088,7 @@ exports.creaCliente = onCall(OPTS, async (req) => {
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').replace(/-{2,}/g, '-').slice(0, 30).replace(/-+$/g, '')
   if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(slug)) throw new HttpsError('invalid-argument', 'Nome del locale troppo corto o non valido.')
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(email || ''))) throw new HttpsError('invalid-argument', 'Email non valida.')
-  const esiste = await db.collection('clienti').where('slug', '==', slug).limit(1).get()
-  if (!esiste.empty) throw new HttpsError('already-exists', `Esiste già un locale con identificativo ${slug}.`)
+  if (await docClientePerSlug(slug)) throw new HttpsError('already-exists', `Esiste già un locale con identificativo ${slug}.`)
   const auth = getAuth()
   let utente
   try {
@@ -2378,7 +2457,7 @@ exports.gestisciSconti = onCall(OPTS, async (req) => {
 // Applica un codice a un cliente, o lo toglie (codice vuoto).
 exports.applicaSconto = onCall(OPTS, async (req) => {
   if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
-  const doc = (await db.collection('clienti').where('slug', '==', String(req.data?.slug || '')).limit(1).get()).docs[0]
+  const doc = await docClientePerSlug(req.data?.slug)
   if (!doc) throw new HttpsError('not-found', 'Cliente sconosciuto.')
   const codice = String(req.data?.codice || '').trim().toUpperCase()
   if (!codice) {
@@ -2411,11 +2490,8 @@ exports.registraLocaleEsistente = onCall(OPTS, async (req) => {
     if (e instanceof DatiNonValidi) throw new HttpsError('invalid-argument', e.message)
     throw e
   }
-  const [stessoSlug, istanza] = await Promise.all([
-    db.collection('clienti').where('slug', '==', d.slug).limit(1).get(),
-    db.doc(`istanze/${d.slug}`).get(),
-  ])
-  if (!stessoSlug.empty || istanza.exists) throw new HttpsError('already-exists', `Esiste già un locale con identificativo ${d.slug}.`)
+  const [stessoSlug, istanza] = await Promise.all([docClientePerSlug(d.slug), db.doc(`istanze/${d.slug}`).get()])
+  if (stessoSlug || istanza.exists) throw new HttpsError('already-exists', `Esiste già un locale con identificativo ${d.slug}.`)
   const auth = getAuth()
   const utente = await auth.getUserByEmail(d.email).catch(() => auth.createUser({ email: d.email, emailVerified: true }))
   if ((await db.doc(`clienti/${utente.uid}`).get()).exists) {
@@ -2441,10 +2517,11 @@ exports.impostaTemi = onCall(OPTS, async (req) => {
   const slug = String(req.data?.slug || '')
   const temiNuovi = temi.temiPuliti(req.data?.temi)
   if (!temiNuovi) throw new HttpsError('invalid-argument', 'I temi in licenza sono id di stili: minuscole, cifre e trattini.')
-  const doc = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]
+  const doc = await docClientePerSlug(slug)
   if (!doc) throw new HttpsError('not-found', 'Cliente sconosciuto.')
   await doc.ref.update({ temi: temiNuovi })
-  console.log(`[temi] ${slug}: ${temiNuovi.join(', ') || 'nessuno'} (${req.auth.token.email || req.auth.uid})`)
+  // Nei log l'uid, non l'email (REQ-FLOTTA-051).
+  console.log(`[temi] ${slug}: ${temiNuovi.join(', ') || 'nessuno'} (${req.auth.uid})`)
   return { ok: true, temi: temiNuovi }
 })
 
@@ -2511,7 +2588,7 @@ exports.gestisciEliminazione = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN
   if (admin) {
     slug = String(req.data?.slug || '')
     if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(slug)) throw new HttpsError('invalid-argument', 'Slug non valido.')
-    cliente = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]?.data() || null
+    cliente = (await docClientePerSlug(slug))?.data() || null
   } else {
     cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data() || null
     slug = cliente?.slug
@@ -2578,8 +2655,11 @@ exports.scaricaArchivio = onCall(OPTS, async (req) => {
   if (!cliente?.slug || cliente.uid && cliente.uid !== req.auth.uid) throw new HttpsError('permission-denied', 'Nessun locale collegato a questo account.')
   const ist = (await db.doc(`istanze/${cliente.slug}`).get()).data()
   if (!elim.archivioScaricabile(ist)) throw new HttpsError('not-found', 'Non c’è un archivio da scaricare, o è scaduto.')
-  const { bucket, zip } = ist.eliminazione.archivio
-  const [url] = await getStorage().bucket(bucket).file(zip).getSignedUrl({
+  // Il bucket è quello della regia, mai quello scritto sull'istanza (audit
+  // del 09/11/2026, finding 12): il callback non lo manda più.
+  if (!ARCHIVIO_BUCKET) throw new HttpsError('failed-precondition', 'L’archivio non è raggiungibile al momento: scrivici.')
+  const { zip } = ist.eliminazione.archivio
+  const [url] = await getStorage().bucket(ARCHIVIO_BUCKET).file(zip).getSignedUrl({
     version: 'v4',
     action: 'read',
     expires: Date.now() + 15 * 60 * 1000,
@@ -2590,7 +2670,7 @@ exports.scaricaArchivio = onCall(OPTS, async (req) => {
 
 // ── LE PROVE DEI MODULI E «CAMBIA PIANO» DELL'ADMIN (REQ-FLOTTA-016) ───
 const prove = require('./lib/prove.js')
-const { cambioAdmin } = require('./lib/cambiopiano.js')
+const { cambioAdmin, decisioneManuale } = require('./lib/cambiopiano.js')
 
 // Il titolare accende la prova di un modulo: quali si provano e per quanti
 // giorni lo decide l'admin (vendita/listino). Una volta sola per modulo.
@@ -2648,7 +2728,9 @@ exports.catalogoModuli = onRequest({ ...OPTS, cors: false }, async (req, res) =>
 // ritorno }. I controlli in quest'ordine: l'installazione (401 senza token
 // valido, 404 sconosciuta o eliminata), il titolare (il ruolo `admin`
 // dell'app, 403), il ritorno sui domini dell'installazione (400), il
-// modulo nel listino e in vendita (409; per disdire basta che esista).
+// modulo nel listino e in vendita (409; per disdire basta che esista), e
+// che l'admin sia proprio il cliente della regia (stesso uid o email
+// verificata uguale, 403: audit del 09/11/2026, finding 17).
 // Risposte: 200 { ok: true } (aggiunto), { ok: true, scade_il } (prova),
 // { ok: true, dal } (disdetto), { ok: true, in_attesa: true } (richiesta
 // all'assistenza); { ok: false, errore } col motivo, che l'app mostra al
@@ -2689,9 +2771,21 @@ exports.moduloDallApp = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY], cors:
     const fuori = moduliApp.moduloInVendita(corpo.modulo, inVendita)
     if (fuori) return no(409, fuori)
   }
-  const docCliente = (await db.collection('clienti').where('slug', '==', trovata.id).limit(1).get()).docs[0]
+  // Due clienti con lo stesso slug: nessun cambio, piuttosto che la
+  // subscription di un altro locale (audit 09/11/2026, finding 4).
+  let docCliente
+  try {
+    docCliente = await docClientePerSlug(trovata.id)
+  } catch (e) {
+    if (e instanceof HttpsError) return no(409, e.message)
+    throw e
+  }
   if (!docCliente) return no(404, 'Nessun abbonamento registrato per questo locale.')
   const cliente = docCliente.data()
+  // Il titolare, non un altro admin del locale (audit del 09/11/2026,
+  // finding 17): prova, aggiunta e disdetta toccano l'abbonamento del
+  // cliente, e la prova si consuma una volta sola per modulo.
+  if (!passa.stessoTitolare(chi, { uid: docCliente.id, ...cliente })) return no(403, 'Solo il titolare del locale può gestire i moduli.')
   if (corpo.azione === 'prova') {
     const p = await accendiProva(docCliente.ref, cliente, ist, corpo.modulo, inVendita)
     if (p.errore) return no(409, p.errore)
@@ -2705,7 +2799,7 @@ exports.moduloDallApp = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY], cors:
     const r = moduliApp.richiestaDallApp({ uid: docCliente.id, ...cliente }, { ...corpo, scelta: d.scelta }, chi.email || chi.uid, (await refRichiesta.get()).data(), adesso)
     if (r.errore) return no(409, r.errore)
     await refRichiesta.set(r.documento)
-    console.log(`[moduli dall'app] ${trovata.id}: ${corpo.azione} ${corpo.modulo} chiesto all'assistenza (${chi.email || chi.uid})`)
+    console.log(`[moduli dall'app] ${trovata.id}: ${corpo.azione} ${corpo.modulo} chiesto all'assistenza (${passa.improntaUtente(chi)})`)
     return res.status(200).json({ ok: true, in_attesa: true })
   }
   const stripe = stripeClient()
@@ -2716,11 +2810,12 @@ exports.moduloDallApp = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY], cors:
     console.error(`[moduli dall'app] ${trovata.id}, ${corpo.azione} ${corpo.modulo}:`, e?.message || e)
     return no(502, 'Il cambio non è passato: riprovare fra poco.')
   }
-  // Chi, quando e da dove, come i cambi dell'admin: in un locale gli
-  // admin dell'app possono essere più d'uno.
+  // Chi, quando e da dove, come i cambi dell'admin. Dal 09/11/2026 «chi» è
+  // sempre il titolare (stessoTitolare, sopra): resta scritto perché lo
+  // storico dice da quale account e da quale lato è arrivato il cambio.
   const storico = { il: adesso.toISOString(), da: chi.email || chi.uid, modo: 'app', azione: corpo.azione, modulo: corpo.modulo, ...d.scelta }
   await docCliente.ref.update({ storico_piano: FieldValue.arrayUnion(storico) }).catch((e) => console.error(`[moduli dall'app] ${trovata.id}, storico:`, e?.message || e))
-  console.log(`[moduli dall'app] ${trovata.id}: ${corpo.azione} ${corpo.modulo} (${chi.email || chi.uid})`)
+  console.log(`[moduli dall'app] ${trovata.id}: ${corpo.azione} ${corpo.modulo} (${passa.improntaUtente(chi)})`)
   return res.status(200).json(corpo.azione === 'aggiungi' ? { ok: true } : { ok: true, dal: moduliApp.dalGiorno(adesso) })
 })
 
@@ -2731,7 +2826,7 @@ exports.moduloDallApp = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY], cors:
 exports.cambiaPianoAdmin = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (req) => {
   if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
   const slug = String(req.data?.slug || '')
-  const doc = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]
+  const doc = await docClientePerSlug(slug)
   if (!doc) throw new HttpsError('not-found', 'Cliente sconosciuto.')
   const cliente = doc.data()
   const c = cambioAdmin(cliente, req.data, { da: req.auth.token.email || req.auth.uid })

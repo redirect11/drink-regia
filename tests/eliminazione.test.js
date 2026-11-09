@@ -6,6 +6,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { createRequire } from 'node:module'
+import { readFileSync } from 'node:fs'
 
 const require = createRequire(import.meta.url)
 const e = require('../functions/lib/eliminazione.js')
@@ -106,10 +107,32 @@ describe('la richiesta del titolare', () => {
 })
 
 describe('l’esito del workflow', () => {
-  const archivio = { bucket: 'drink-regia-archivio', percorso: 'istanze/prova-bar/2026-10-29', zip: 'istanze/prova-bar/2026-10-29/archivio.zip', byte: 1024, conteggi: { documenti: 40, file: 3, utenti: 2 } }
+  const archivio = { percorso: 'istanze/prova-bar/2026-10-29T10-00-00Z', zip: 'istanze/prova-bar/2026-10-29T10-00-00Z/archivio.zip', byte: 1024, conteggi: { documenti: 40, file: 3, utenti: 2 } }
+  const run = { run_id: 77, inviato_il: '2026-10-29T10:00:00.000Z' }
 
-  it('eliminata con l’archivio', () => {
-    expect(e.esitoEliminazione({ slug: 'prova-bar', operazione: 'eliminazione', stato: 'eliminata', archivio })).toEqual({ slug: 'prova-bar', stato: 'eliminata', archivio, errore: null })
+  it('eliminata con l’archivio, e il run che l’ha mandata', () => {
+    expect(e.esitoEliminazione({ slug: 'prova-bar', operazione: 'eliminazione', stato: 'eliminata', archivio, ...run })).toEqual({ slug: 'prova-bar', stato: 'eliminata', archivio, errore: null, ...run })
+    // Senza run_id l'esito si legge lo stesso: a rifiutarlo è vincoliEsito.
+    expect(e.esitoEliminazione({ slug: 'prova-bar', operazione: 'eliminazione', stato: 'errore' })).toMatchObject({ run_id: null, inviato_il: null })
+  })
+
+  // Audit del 09/11/2026, finding 12: il bucket lo sa la regia, e il
+  // percorso resta nella cartella di quel locale.
+  it('il bucket nel corpo si ignora; il percorso è semplice e dentro istanze/<slug>/', () => {
+    const letto = e.esitoEliminazione({ slug: 'prova-bar', operazione: 'eliminazione', stato: 'eliminata', archivio: { ...archivio, bucket: 'bucket-di-un-altro' } })
+    expect(letto.archivio).toEqual(archivio)
+    expect(letto.archivio).not.toHaveProperty('bucket')
+    for (const a of [
+      { ...archivio, percorso: 'istanze/altro-bar/2026-10-29', zip: 'istanze/altro-bar/2026-10-29/archivio.zip' },
+      { ...archivio, percorso: 'istanze/prova-bar/../altro-bar', zip: 'istanze/prova-bar/../altro-bar/archivio.zip' },
+      { ...archivio, zip: 'istanze/prova-bar/altrove/archivio.zip' },
+      { ...archivio, percorso: '/istanze/prova-bar/x', zip: '/istanze/prova-bar/x/archivio.zip' },
+      { ...archivio, percorso: 'istanze/prova-bar/x y', zip: 'istanze/prova-bar/x y/archivio.zip' },
+      { ...archivio, zip: 'istanze/prova-bar/2026-10-29T10-00-00Z/archivio.zip?x=1' },
+      { ...archivio, percorso: '' },
+    ]) {
+      expect(e.esitoEliminazione({ slug: 'prova-bar', operazione: 'eliminazione', stato: 'eliminata', archivio: a }), JSON.stringify(a)).toBeNull()
+    }
   })
 
   it('eliminata SENZA archivio non si accetta: il progetto non sparisce senza backup', () => {
@@ -138,5 +161,16 @@ describe('l’esito del workflow', () => {
     expect(e.archivioScaricabile(ist, adesso)).toBe(true)
     expect(e.archivioScaricabile(ist, new Date('2027-05-01T00:00:00Z'))).toBe(false)
     expect(e.archivioScaricabile({ eliminazione: { stato: 'fallita' } }, adesso)).toBe(false)
+  })
+
+  it('il link firmato è sul bucket della regia (ARCHIVIO_BUCKET), mai su uno scritto sull’istanza', () => {
+    const codice = readFileSync('functions/index.js', 'utf8')
+    const fn = codice.slice(codice.indexOf('exports.scaricaArchivio'), codice.indexOf('\n})', codice.indexOf('exports.scaricaArchivio')))
+    expect(fn).toContain('getStorage().bucket(ARCHIVIO_BUCKET)')
+    expect(fn).not.toMatch(/archivio\.bucket|\{ bucket/)
+    expect(codice).toContain("const ARCHIVIO_BUCKET = process.env.ARCHIVIO_BUCKET || null")
+    // Ogni regia ha il suo, nel file di configurazione del progetto.
+    expect(readFileSync('functions/.env.drink-regia', 'utf8')).toMatch(/^ARCHIVIO_BUCKET=drink-regia-archivio$/m)
+    expect(readFileSync('functions/.env.drink-regia-test', 'utf8')).toMatch(/^ARCHIVIO_BUCKET=drink-regia-test-archivio$/m)
   })
 })

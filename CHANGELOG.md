@@ -33,6 +33,79 @@ data.
   `admin-regia.mjs` vuole sempre `--project` (niente produzione per
   sbaglio); «Apri l'app» e l'indirizzo dell'app nella dashboard sono link
   solo se l'indirizzo e' un https (REQ-FLOTTA-057).
+- L'identificativo del locale (lo slug, l'indirizzo che l'app avrà) è
+  unico: alla registrazione lo controlla e lo scrive la regia, non il
+  browser, e se è già di un altro locale il modulo torna al passo del
+  locale con una casella per sceglierne un altro. Ogni ricerca di un
+  cliente per identificativo si ferma con un errore esplicito se ne trova
+  due, invece di prendere il primo (audit di sicurezza del 09/11/2026,
+  REQ-FLOTTA-045).
+- Chi ha un abbonamento gestito a mano (bonifico, piano scritto
+  dall'amministratore) e dalla dashboard chiede un piano più grande, un
+  modulo o un terminale in più non lo ottiene da solo: la richiesta va
+  all'assistenza («Richiesta inviata: ti ricontattiamo per attivarla») e
+  l'amministratore la evade con «Cambia piano» a pagamento concordato. Le
+  riduzioni si applicano subito come prima (audit del 09/11/2026,
+  REQ-FLOTTA-046).
+- L'esito che i workflow della flotta mandano alla regia non è più preso
+  per buono (audit del 09/11/2026, finding 12): il progetto deve essere
+  quello dell'istanza, l'indirizzo dell'app deve stare sui suoi domini, il
+  bucket degli archivi è quello della regia e non viaggia più nel corpo, e
+  ogni run di GitHub passa una volta sola, entro dieci minuti. Col segreto
+  del callback non configurato o troppo corto la regia risponde 503
+  (REQ-FLOTTA-049).
+- Dall'app del locale i moduli (prova, aggiunta, disdetta) e la scelta
+  degli aggiornamenti li fa solo il titolare: l'account del cliente della
+  regia (stesso uid, o email verificata uguale), non un altro admin del
+  locale, che riceve «Solo il titolare del locale può …» (audit del
+  09/11/2026, finding 17; REQ-FLOTTA-050).
+- I log delle Functions non scrivono più l'email di chi agisce (l'uid, o
+  un'impronta), e la regia non si segna più quale utente del locale ha
+  aperto per primo una versione nuova dell'app (audit del 09/11/2026,
+  finding 29; REQ-FLOTTA-051).
+- L'attivazione e l'aggiornamento di un locale sono quattro job in fila
+  invece di uno: il codice di tana-drink (`npm ci`, la build) gira in un
+  job senza environment e senza nessun segreto, e i job con la chiave di
+  provisioning non scaricano l'app e non ne eseguono niente. La
+  configurazione web del progetto passa da un job all'altro come output,
+  l'app compilata come artifact; la build è dello SHA controllato, non del
+  ramo riletto. Se un job prima fallisce, l'esito di errore arriva lo
+  stesso alla regia (REQ-FLOTTA-047, audit del 09/11/2026, punto 6).
+- Prima di eliminare un locale il workflow verifica che il progetto porti
+  l'etichetta `ambiente` della regia che lancia e che il suo stato
+  Terraform esista; prima di aggiornarlo, l'etichetta. Un progetto che non
+  è di quella regia non si tocca, nemmeno per il backup: la regia di test
+  non può più eliminare o ripubblicare un locale di produzione. Un locale
+  esistente (la Tana, la demo) riceve l'etichetta una volta a mano. Lo SHA
+  di tana-drink pubblicato è pronto per l'esito (REQ-FLOTTA-048, audit
+  del 09/11/2026, punti 7 e 29).
+- Il sito manda con ogni pagina le intestazioni di sicurezza: nessuno lo
+  incornicia in una pagina altrui, i file si leggono per quello che sono,
+  il referrer esce solo come origine, fotocamera, microfono e posizione
+  sono spenti, HSTS per un anno; la Content-Security-Policy parte in
+  osservazione (`Report-Only`) e diventa vincolante dopo qualche giorno sul
+  test senza violazioni (REQ-DEV-005, audit del 09/11/2026, finding 14).
+- La catena di pubblicazione è ferma a commit precisi: ogni action dei
+  workflow è pinnata a uno SHA con la versione nel commento, Dependabot
+  propone ogni settimana gli aggiornamenti di sito, Functions e action
+  verso develop, e il workflow di test fa `npm audit` sulle dipendenze di
+  produzione; l'SDK di Anthropic nelle Functions passa alla 1.6
+  (REQ-DEV-006, finding 23 e 24).
+- Le Functions della regia possono girare con un account di servizio
+  dedicato, con i soli ruoli che il codice usa e senza Editor, al posto
+  dell'account predefinito di Compute Engine: lo crea
+  `scripts/account-runtime.mjs`, lo accende `RUNTIME_SERVICE_ACCOUNT` nel
+  file d'ambiente del progetto, e `REGIA_SA_EMAIL` nella flotta porta il
+  Terraform dei locali a autorizzare lui. Prima sul test, poi in
+  produzione (audit del 09/11/2026, finding 3; REQ-FLOTTA-058).
+- Le regole Firestore della regia si provano sull'emulatore, con le regole
+  vere e quattro attori (due titolari, l'admin, chi non ha fatto l'accesso),
+  collezione per collezione: `npm run test:regole` in locale, un job a parte
+  nella CI delle pull request con Java 21. Un test dentro `npm test` pretende
+  che ogni `match` delle regole abbia la sua prova. Due casi sono
+  documentati come stanno oggi e cambieranno: due titolari con lo stesso
+  slug (finding 4 dell'audit) e le impostazioni leggibili da ogni
+  autenticato (REQ-DEV-007).
 - Il listino dei moduli cambia: il menù digitale col QR al tavolo è
   compreso nei piani Base e Completo; gli ordini dal telefono costano 12 €
   al mese; le fatture ai clienti (5 €) e le fatture ai fornitori (6 €) si

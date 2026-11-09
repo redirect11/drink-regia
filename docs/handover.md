@@ -278,6 +278,7 @@ scripts/generate-issues.mjs, lib-requisiti.mjs, bacheca.mjs  le issue dal regist
 .github/workflows/          test.yml, firebase-hosting.yml, deploy.yml, generate-issues.yml
 requirements/requirements.yaml  REQ-FLOTTA-002..011 (lato regia), REQ-DEV-001..003
 tests/                      vitest, happy-dom; 17 file
+tests/regole/, firebase.collaudo.json, vitest.regole.config.mjs  le regole Firestore sull'emulatore (`npm run test:regole`, REQ-DEV-007)
 ```
 
 **Firestore** (`drink-regia`): `clienti/{uid}` (titolare: locale,
@@ -380,18 +381,36 @@ L'elenco completo con i riferimenti al codice è in
    giorni, sospesa, chiusa, attivata. Mittente e dominio verificati per
    le email di Auth.
 6. **Medie dell'audit**: callback con `run_id` e scadenza; `cambiaScelta`
-   nel ramo manuale con approvazione; idempotenza del webhook (**fatta il
+   nel ramo manuale con approvazione (**fatta il 09/11/2026**,
+   REQ-FLOTTA-046: la riduzione subito, l'aumento è una richiesta in
+   `contatti/`); lo slug unico lato server e le ricerche per slug che si
+   fermano davanti a un doppione (**fatto il 09/11/2026**, REQ-FLOTTA-045,
+   finding 4 dell'audit del 09/11); idempotenza del webhook (**fatta il
    02/11/2026**, punto 33);
-   header di sicurezza in
-   `firebase.json`; App Check e `maxInstances`; creazione dell'admin
-   dell'istanza (è un passo del workflow di tana-drink: da chiedere).
+   header di sicurezza in `firebase.json` (**messi il 09/11/2026**,
+   REQ-DEV-005: `X-Frame-Options`, `nosniff`, `Referrer-Policy`,
+   `Permissions-Policy`, HSTS e una `Content-Security-Policy-Report-Only`;
+   **il passo che manca**: dopo qualche giorno sul test, con la console
+   del browser aperta su accesso con Google, Checkout e ritorno da Stripe,
+   backoffice e temi su misura, se non compare nessuna violazione
+   `Report-Only` togliere il suffisso in `firebase.json` e in
+   `tests/hosting.test.js`, e la CSP diventa vincolante); App Check e
+   `maxInstances`; creazione dell'admin dell'istanza (è un passo del
+   workflow di tana-drink: da chiedere). La catena CI è pinnata e
+   Dependabot acceso dal 09/11/2026 (REQ-DEV-006): le action a SHA, `npm
+   audit` sulle dipendenze di produzione nel workflow di test; restano i
+   major (`vite` 8, `vitest` 5, `happy-dom` 21, `firebase-admin` 14,
+   `firebase-functions` 7, `stripe` 23) da fare in un ramo dedicato.
 7. **Infrastruttura**: `FIREBASE_SERVICE_ACCOUNT` nell'environment
    (**fatto il 07/11/2026** con `scripts/ruoli-deploy.mjs`),
    segreti Stripe e token GitHub, primo deploy delle Functions (col via
    libera), poi la prima attivazione dal sito sulla demo. Capire perché i
-   push non avviano la CI. Emulatori in `firebase.json`. Spostare i
-   workflow della flotta fuori dal repository pubblico (decisione
-   dell'utente: riguarda tana-drink).
+   push non avviano la CI. L'emulatore Firestore per le regole c'è dal
+   09/11/2026 (`firebase.collaudo.json`, `npm run test:regole`,
+   REQ-DEV-007); resta da decidere se mettere in `firebase.json` anche
+   Auth e Functions per lo sviluppo in locale. Spostare i workflow della
+   flotta fuori dal repository pubblico (decisione dell'utente: riguarda
+   tana-drink).
 8. **Landing page**: verifica visiva desktop e telefono (non fatta il
    22/10), poi pubblicazione col via libera.
 9. **Le Actions come tana-drink, con il progetto di test
@@ -943,6 +962,13 @@ moduli, la licenza nell'istanza e la Tana.
   `PROVISIONING_CALLBACK_SECRET`, corpo con `slug`, `stato`, `progetto`,
   `url`, `errore`, `versione`, `ref`, `ambiente`, `operazione` (sotto,
   «Rilasci a ondate»). È l'unico esito che arriva ancora da tana-drink.
+  Dal 09/11/2026 (REQ-FLOTTA-049, audit finding 12) la regia non si fida
+  del corpo: `progetto` deve essere quello scritto sull'istanza, `url`
+  deve stare sui domini dell'installazione, e i nostri workflow mandano
+  anche `run_id` (`github.run_id`, numero) e `inviato_il` (ISO), che la
+  regia accetta una volta sola ed entro dieci minuti. **Da chiedere a
+  tana-drink**: che il workflow della Tana mandi gli stessi due campi;
+  finché non lo fa, per un locale esistente restano facoltativi.
 - **Licenza nell'istanza** (BUG-125 di tana-drink, dal 31/10/2026):
   `licenza/attuale` = `{ piano, moduli: {id: bool}, terminali, temi,
   temi_su_misura, limiti, prove, stato: attiva|sospesa|chiusa, motivo, dal,
@@ -1041,7 +1067,11 @@ moduli, la licenza nell'istanza e la Tana.
   piano gestito a mano (la richiesta va all'assistenza: l'admin la evade
   dal backoffice e l'app vede il cambio dalla licenza); errori `{ ok:
   false, errore }` con 400, 401, 403, 404, 409, 502, 503, e `errore`
-  impersonale da mostrare così com'è. Oggi la regia non risponde mai
+  impersonale da mostrare così com'è. Dal 09/11/2026 (REQ-FLOTTA-050,
+  audit finding 17) il `403` arriva anche a un admin del locale che non è
+  il cliente della regia (stesso uid, M7, o email verificata uguale): i
+  moduli li tocca solo il titolare, «Solo il titolare del locale può
+  gestire i moduli.» Oggi la regia non risponde mai
   `checkout_url`: un modulo si compra online solo su un abbonamento Stripe
   già attivo. Disdire online risponde `dal` = oggi, col conguaglio come
   «Cambia piano», non la fine del periodo pagato.
@@ -1072,7 +1102,10 @@ moduli, la licenza nell'istanza e la Tana.
   titolare>`, il token che Firebase dà all'app nel progetto del locale, e
   il corpo `{ "tag": "vX.Y.Z", "scelta": "aggiorna" | "salta" }`. La regia
   (`sceltaDallApp`) riconosce il locale dal progetto del token, lo
-  verifica, vuole il ruolo `admin` (il titolare) e applica subito.
+  verifica, vuole il titolare e applica subito. Dal 09/11/2026
+  (REQ-FLOTTA-050, audit finding 17) titolare vuol dire ruolo `admin` **e**
+  l'account del cliente della regia: lo stesso uid (M7) o l'email
+  verificata uguale; un altro admin del locale riceve `403`.
   Risposte: `200 { ok, scelta }`; `400` corpo sbagliato; `401` token
   mancante o non valido; `403` non è il titolare; `404` locale
   sconosciuto; `409` la proposta non è più quella, o la stessa scelta è

@@ -12,7 +12,14 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import '@testing-library/jest-dom/vitest'
 
-const db = vi.hoisted(() => ({ registra: vi.fn(), completaRegistrazione: vi.fn(async () => ({})), entraConGoogle: vi.fn(), esci: vi.fn(async () => {}) }))
+const db = vi.hoisted(() => ({
+  registra: vi.fn(),
+  completaRegistrazione: vi.fn(async () => ({})),
+  entraConGoogle: vi.fn(),
+  esci: vi.fn(async () => {}),
+  // Quella vera di db.js: riconosce il rifiuto della Function per lo slug.
+  slugGiaInUso: (err) => String(err?.code || '').includes('already-exists') && err?.details?.campo === 'slug',
+}))
 vi.mock('../src/lib/db.js', () => db)
 
 import Registrati from '../src/pages/Registrati.jsx'
@@ -112,6 +119,64 @@ describe('registrarsi', () => {
       })
     )
     expect(await screen.findByText('DASHBOARD')).toBeInTheDocument()
+  })
+
+  // REQ-FLOTTA-045 (audit del 09/11/2026, finding 4): lo slug lo controlla
+  // la Function; se è di un altro locale si torna al passo del locale con
+  // la casella dell'identificativo, che prima non c'era, e si riprova con
+  // quello scelto. Chi non ha il problema non vede mai la casella.
+  it('se l’identificativo è già in uso si torna al locale, si sceglie un altro identificativo e si riprova con quello', async () => {
+    const user = userEvent.setup()
+    db.registra.mockRejectedValueOnce({ code: 'functions/already-exists', message: 'Questo identificativo è già in uso: scegline un altro.', details: { campo: 'slug', slug: 'bar-mario' } })
+    db.registra.mockResolvedValueOnce({ slug: 'bar-mario-nola' })
+    mostra()
+    await passoAccount(user)
+    expect(screen.queryByLabelText(/Identificativo dell’app/)).toBeNull()
+    await passoLocale(user)
+    await passoFatturazione(user)
+    await user.type(screen.getByLabelText('Nome'), 'Mario')
+    await user.type(screen.getByLabelText('Cognome'), 'Rossi')
+    await user.click(screen.getByLabelText(/accetto i/))
+    await user.click(screen.getByLabelText(/informativa sulla privacy/))
+    await user.click(screen.getByRole('button', { name: /Crea l’account/ }))
+    expect(db.registra).toHaveBeenCalledTimes(1)
+    expect(db.registra.mock.calls[0][0]).not.toHaveProperty('slug')
+    // Al passo del locale, con la casella piena dello slug rifiutato e l'errore accanto.
+    expect(await screen.findByText('Questo identificativo è già in uso: scegline un altro.')).toBeInTheDocument()
+    expect(screen.getByRole('list', { name: 'Passi della registrazione' }).querySelector('[aria-current="step"]')).toHaveTextContent('Il locale')
+    const casella = screen.getByLabelText(/Identificativo dell’app/)
+    expect(casella).toHaveValue('bar-mario')
+    expect(casella).toHaveAttribute('aria-invalid', 'true')
+    await user.clear(casella)
+    await user.type(casella, 'Bar-Mario-Nola')
+    expect(screen.getByText(/bar-mario-nola\./)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Avanti' }))
+    await user.click(screen.getByRole('button', { name: 'Avanti' }))
+    await user.click(screen.getByRole('button', { name: /Crea l’account/ }))
+    expect(db.registra).toHaveBeenCalledTimes(2)
+    expect(db.registra.mock.calls[1][0]).toMatchObject({ email: 'mario@example.it', slug: 'bar-mario-nola', locale: expect.objectContaining({ nome: 'Bar Mario' }) })
+    expect(await screen.findByText('DASHBOARD')).toBeInTheDocument()
+  })
+
+  it('un identificativo scelto male lo dice accanto alla sua casella, e non si va avanti', async () => {
+    const user = userEvent.setup()
+    db.registra.mockRejectedValueOnce({ code: 'functions/already-exists', details: { campo: 'slug' } })
+    mostra()
+    await passoAccount(user)
+    await passoLocale(user)
+    await passoFatturazione(user)
+    await user.type(screen.getByLabelText('Nome'), 'Mario')
+    await user.type(screen.getByLabelText('Cognome'), 'Rossi')
+    await user.click(screen.getByLabelText(/accetto i/))
+    await user.click(screen.getByLabelText(/informativa sulla privacy/))
+    await user.click(screen.getByRole('button', { name: /Crea l’account/ }))
+    const casella = await screen.findByLabelText(/Identificativo dell’app/)
+    await user.clear(casella)
+    await user.type(casella, 'demo')
+    await user.click(screen.getByRole('button', { name: 'Avanti' }))
+    expect(screen.getByText(/Troppo corto|riservato/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/Identificativo dell’app/)).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByLabelText('Nome del locale')).not.toHaveAttribute('aria-invalid', 'true')
   })
 
   it('un errore di Firebase si legge in italiano', async () => {

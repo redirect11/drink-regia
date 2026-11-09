@@ -106,6 +106,19 @@ describe('la scelta del piano', () => {
     expect(await screen.findByText(/Piano aggiornato/)).toBeInTheDocument()
   })
 
+  // REQ-FLOTTA-046 (audit del 09/11/2026, finding 5): su un abbonamento a
+  // mano un aumento non si accende da solo; la Function risponde
+  // `via: 'richiesta'` e la pagina non dice «aggiornato».
+  it('in modifica, se la Function registra una richiesta, la pagina dice che si viene ricontattati', async () => {
+    const user = userEvent.setup()
+    db.cambiaScelta.mockResolvedValueOnce({ ok: true, via: 'richiesta' })
+    render(<SceltaPiano cliente={{ uid: 'u1', piano: 'base', moduli: [], abbonamento: { origine: 'manuale' } }} modifica vai={vi.fn()} />)
+    await user.click(screen.getByLabelText(/Completo/))
+    await user.click(screen.getByRole('button', { name: 'Aggiorna il piano' }))
+    expect(await screen.findByText('Richiesta inviata: ti ricontattiamo per attivarla.')).toBeInTheDocument()
+    expect(screen.queryByText(/Piano aggiornato/)).toBeNull()
+  })
+
   // DEC-0005: mensile o annuale. La scelta porta `intervallo`, che le
   // Functions validano; la pagina mostra l'anno a 10 mensilità.
   it('l’annuale: il prezzo dell’anno a 10 mensilità, e `intervallo: anno` nella scelta', async () => {
