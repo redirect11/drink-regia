@@ -11,6 +11,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import '@testing-library/jest-dom/vitest'
+import it_ from '../src/i18n/home.it.js'
 
 let utenteOsservato = null
 // La vendita (REQ-FLOTTA-015, REQ-FLOTTA-043): null è quella di partenza,
@@ -94,6 +95,10 @@ describe('la barra', () => {
     }
     expect(within(menu).getByRole('link', { name: 'Accedi' })).toHaveAttribute('href', '/accedi')
     expect(within(menu).getByRole('link', { name: 'Attiva il tuo locale' })).toHaveAttribute('href', '/registrati')
+    // Il marchio (09/11/2026): «Lime SmartOrders» col logo decorativo, verso la prima pagina.
+    const marchio = screen.getByRole('link', { name: 'Lime SmartOrders' })
+    expect(marchio).toHaveAttribute('href', '/')
+    expect(marchio.querySelector('svg.marchio-logo')).toHaveAttribute('aria-hidden', 'true')
     expect(within(menu).queryByRole('link', { name: 'Dashboard' })).toBeNull()
   })
 
@@ -137,6 +142,11 @@ describe('il piè di pagina', () => {
     utenteOsservato = null
     mostra()
     const piede = screen.getByRole('contentinfo')
+    // Il marchio (09/11/2026): il logo decorativo, «Lime» e la qualifica
+    // «SmartOrders»; sotto, il sottotitolo nella lingua della pagina.
+    expect(within(piede).getByText('SmartOrders')).toBeInTheDocument()
+    expect(piede.querySelector('.piede-marchio svg.marchio-logo')).toHaveAttribute('aria-hidden', 'true')
+    expect(within(piede).getByText(it_.piede.sottotitolo)).toBeInTheDocument()
     expect(within(piede).getByRole('link', { name: 'Termini di servizio' })).toHaveAttribute('href', '/termini')
     expect(within(piede).getByRole('link', { name: 'Privacy' })).toHaveAttribute('href', '/privacy')
     expect(within(piede).getByRole('link', { name: 'Prezzi' })).toHaveAttribute('href', '/#prezzi')

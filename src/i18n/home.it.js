@@ -33,6 +33,8 @@ export default {
     lingua: 'Lingua',
   },
   piede: {
+    // Il sottotitolo del marchio (decisione dell'utente del 09/11/2026: «Lime – SmartOrders e poi il sottotitolo lo metti»).
+    sottotitolo: 'Comande, cassa e gestione del locale, in un’app sola.',
     descrizione: 'Scritta dietro il banco di un cocktail bar, in servizio ogni sera. Comande, cassa, menù, magazzino e personale, con un’installazione per ogni locale.',
     prodotto: 'Prodotto',
     account: 'Account',
@@ -64,7 +66,7 @@ export default {
   anteprima: {
     occhiello: 'Gestionale per bar e ristoranti',
     titolo: 'Il sito apre a breve.',
-    testo: 'Drink è il gestionale per bar e ristoranti nato in un cocktail bar: comande, cassa, menù con QR, magazzino, personale e statistiche in un’app sola. Stiamo preparando il sito: prezzi, registrazione e attivazione arrivano qui.',
+    testo: 'Lime è il gestionale per bar e ristoranti nato in un cocktail bar: comande, cassa, menù con QR, magazzino, personale e statistiche in un’app sola. Stiamo preparando il sito: prezzi, registrazione e attivazione arrivano qui.',
     contatto: 'Per sapere quando apre, o per vederlo prima, scrivici a',
     accedi: 'Area riservata',
   },

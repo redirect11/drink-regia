@@ -31,6 +31,8 @@ export default {
     lingua: 'Language',
   },
   piede: {
+    // The brand subtitle (user decision of 09/11/2026).
+    sottotitolo: 'Orders, till and venue management, in one app.',
     descrizione: 'Written behind the bar of a cocktail bar, in service every night. Orders, till, menu, stock and staff, with one installation per venue.',
     prodotto: 'Product',
     account: 'Account',
@@ -56,7 +58,7 @@ export default {
   anteprima: {
     occhiello: 'Management for bars and restaurants',
     titolo: 'The site opens soon.',
-    testo: 'Drink is the management system for bars and restaurants born in a cocktail bar: orders, till, QR menu, stock, staff and statistics in a single app. We are getting the site ready: prices, sign-up and activation will be here.',
+    testo: 'Lime is the management system for bars and restaurants born in a cocktail bar: orders, till, QR menu, stock, staff and statistics in a single app. We are getting the site ready: prices, sign-up and activation will be here.',
     contatto: 'To hear when it opens, or to see it before, write to',
     accedi: 'Sign in',
   },

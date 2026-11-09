@@ -6,6 +6,11 @@ data.
 
 ## Prossima release (da decidere)
 
+- Il prodotto ha il suo nome: **Lime – SmartOrders**, deciso dall'utente
+  il 09/11/2026 al posto del segnaposto «Drink». Il logo è una fetta di
+  lime che sembra un grafico a torta, nella barra, nel piè di pagina e
+  come icona del sito; sotto il marchio il sottotitolo «Comande, cassa e
+  gestione del locale, in un’app sola.» (REQ-FLOTTA-002).
 - I rilasci solo su tag (decisione dell'utente del 09/11/2026): un tag
   fuori da `main` pubblica sul test e poi passa il collaudo automatico,
   che si registra davvero, sospende e riattiva la licenza del locale di
