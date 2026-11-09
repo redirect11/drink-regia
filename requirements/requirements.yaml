@@ -2258,3 +2258,24 @@ requirements:
       - tests/Dashboard.test.jsx
       - tests/App.test.jsx
       - tests/free.test.js
+  - id: REQ-FLOTTA-056
+    title: "Il CSV del commerciale non porta formule: una cella che comincia come una formula prende un apostrofo"
+    area: "src/lib/commerciale.js (cella, neutra)"
+    description: >
+      Audit di sicurezza del 09/11/2026, finding 27: `cella()` del CSV
+      quotava ; " e a capo ma non neutralizzava una cella che comincia con
+      = + - @ o con un tab o un ritorno a capo. Il nome del locale, l'email
+      e il codice sconto li scrivono i clienti, e l'admin apre il CSV in
+      Excel, che quelle celle le esegue come formule (CSV injection): un
+      nome «=HYPERLINK(...)» diventa un link, un «=cmd|...» una chiamata.
+      ORA una cella di testo (o un elenco) che comincia con uno di quei
+      caratteri prende un apostrofo davanti, com'e' l'uso in Excel per dire
+      «testo»; vale anche dentro le virgolette, perche' Excel la formula la
+      valuta lo stesso. I numeri veri (anche negativi) passano prima e non
+      lo prendono; date e testi normali restano com'erano.
+    status: implemented
+    generate_issue: true
+    labels: [regia, sicurezza]
+    priority: P3
+    test_cases:
+      - tests/commerciale.test.js

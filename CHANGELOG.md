@@ -26,6 +26,9 @@ data.
   l'anteprima anche dalla dashboard, non «Completa la registrazione»; e
   la richiesta di un tema su misura si ferma come le altre porte della
   vendita (REQ-FLOTTA-055).
+- Nel CSV del commerciale una cella che comincia con = + - @ o un tab
+  prende un apostrofo davanti: Excel la legge come testo, non come formula
+  (REQ-FLOTTA-056).
 - Il listino dei moduli cambia: il menù digitale col QR al tavolo è
   compreso nei piani Base e Completo; gli ordini dal telefono costano 12 €
   al mese; le fatture ai clienti (5 €) e le fatture ai fornitori (6 €) si
