@@ -2945,15 +2945,20 @@ requirements:
       per il tag. La produzione aspetta «Collaudo riuscito sul test»: con
       il token del workflow (permesso actions: read) cerca fra i run
       riusciti di firebase-hosting.yml uno il cui commit è antenato del
-      tag di produzione (git merge-base --is-ancestor) e il cui job si
-      chiama «Collaudo sul test» ed è verde; senza, si ferma con un
-      errore che dice di taggare una -beta su develop. Il collaudo non si
-      ripete in produzione: la produzione eredita quello del test.
+      tag di produzione (git merge-base --is-ancestor) e in cui il passo
+      «Collaudo sul test» è verde; senza, si ferma con un errore che dice
+      di taggare una -beta su develop. Il collaudo non si ripete in
+      produzione: la produzione eredita quello del test.
       e2e.yml è riusabile (workflow_call) e si lancia anche a mano
-      (workflow_dispatch), con l'interruttore collaudo (default false); il
-      nome del job dice cosa ha provato («Collaudo sul test» | «Prove in
-      sola lettura»), ed è quello che la garanzia cerca; gira
-      nell'environment test con E2E_PASSWORD e passa E2E_COLLAUDO ai test.
+      (workflow_dispatch), con l'interruttore collaudo (default false). Il
+      job («Playwright sul sito di test») ha un nome fisso: al primo tag
+      (v0.3.0-beta.1, run 42670530702) il nome calcolato da `inputs` ha
+      fatto abortire il job senza nemmeno crearlo e senza un messaggio, e
+      lo stesso è successo al lancio a mano. I due passi dicono cosa si è
+      provato: «Prove in sola lettura» (playwright test --grep-invert
+      collaudo) sempre, «Collaudo sul test» (i due file collaudo-*, con
+      E2E_COLLAUDO=true) solo con l'input; la garanzia cerca quel passo
+      fra i passi dei job. Gira nell'environment test con E2E_PASSWORD.
       IL COLLAUDO (e2e/collaudo-*.spec.js, saltati senza E2E_COLLAUDO=true,
       in serie): la registrazione (e2e/collaudo-registrazione.spec.js):
       l'admin toglie prima i clienti «collaudo-*» rimasti da un giro

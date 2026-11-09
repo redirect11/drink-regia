@@ -108,7 +108,9 @@ describe('firebase-hosting.yml: a pubblicare è il tag; il test poi passa il col
     const cerca = garanzia.steps.find((s) => s.name === 'Cerca il collaudo').run
     expect(cerca).toMatch(/actions\/workflows\/firebase-hosting\.yml\/runs\?event=push&status=success/)
     expect(cerca).toMatch(/merge-base --is-ancestor "\$sha" "\$GITHUB_SHA"/)
-    expect(cerca).toMatch(/test\("Collaudo sul test"\)/)
+    // Il collaudo è un passo del job di e2e.yml, non un job: il nome di un
+    // job non può dipendere da `inputs`.
+    expect(cerca).toMatch(/\.jobs\[\]\.steps\[\]\? \| select\(\.name == "Collaudo sul test"\)/)
     expect(cerca).toMatch(/\[ -z "\$trovato" \][\s\S]*::error::[\s\S]*exit 1/)
     expect(produzione.needs).toEqual(['destinazione', 'garanzia'])
   })
@@ -123,12 +125,22 @@ describe('e2e.yml: le prove Playwright, riusabili, col collaudo a richiesta', ()
     }
   })
 
-  it('gira nell’environment test contro il sito di test, e passa il collaudo ai test come E2E_COLLAUDO; il nome del job lo dice', () => {
+  // Il nome del job è fisso (un'espressione con `inputs` nel nome fa
+  // abortire il job senza messaggio: primo tag, 09/11/2026); il collaudo è
+  // un passo a parte, acceso dall'input, ed è quel passo che la garanzia
+  // della produzione cerca per nome.
+  it('gira nell’environment test contro il sito di test: le prove in sola lettura sempre, il passo «Collaudo sul test» solo con l’input', () => {
     const job = e2e.jobs.e2e
     expect(job.environment).toBe('test')
-    expect(job.name).toBe("${{ inputs.collaudo && 'Collaudo sul test' || 'Prove in sola lettura' }}")
-    const passo = job.steps.find((s) => s.run === 'npx playwright test')
-    expect(passo.env).toMatchObject({ E2E_URL: 'https://drink-regia-test.web.app', E2E_PASSWORD: '${{ secrets.E2E_PASSWORD }}', E2E_COLLAUDO: "${{ inputs.collaudo && 'true' || 'false' }}" })
+    expect(job.name).toBe('Playwright sul sito di test')
+    expect(job.env).toEqual({ E2E_URL: 'https://drink-regia-test.web.app', E2E_PASSWORD: '${{ secrets.E2E_PASSWORD }}' })
+    const prove = job.steps.find((s) => s.name === 'Prove in sola lettura')
+    expect(prove.run).toBe('npx playwright test --grep-invert collaudo')
+    expect(prove.if).toBeUndefined()
+    const collaudo = job.steps.find((s) => s.name === 'Collaudo sul test')
+    expect(collaudo.if).toBe('inputs.collaudo')
+    expect(collaudo.env).toEqual({ E2E_COLLAUDO: 'true' })
+    expect(collaudo.run).toBe('npx playwright test e2e/collaudo-registrazione.spec.js e2e/collaudo-licenza.spec.js')
   })
 
   // I test che scrivono stanno in file a parte e si accendono solo col collaudo.

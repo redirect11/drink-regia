@@ -103,8 +103,9 @@ jobs:
   # LA GARANZIA: in produzione va solo codice che ha passato il collaudo sul
   # test. Si cerca, fra i run riusciti di questo workflow, uno il cui commit
   # sta nella storia di questo (il tag -beta su develop, poi fuso in main) e
-  # il cui job «Collaudo sul test» è verde. Senza, il deploy non parte e lo
-  # dice: si tagga una -beta su develop e si aspetta il collaudo.
+  # in cui il passo «Collaudo sul test» (e2e.yml) è verde. Senza, il deploy
+  # non parte e lo dice: si tagga una -beta su develop e si aspetta il
+  # collaudo.
   garanzia:
     name: Collaudo riuscito sul test
     needs: destinazione
@@ -123,7 +124,7 @@ jobs:
             id="${riga%%:*}"; sha="${riga##*:}"
             [ "$sha" = "$GITHUB_SHA" ] && continue
             git merge-base --is-ancestor "$sha" "$GITHUB_SHA" 2>/dev/null || continue
-            esito=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?per_page=100" --jq '[.jobs[] | select(.name | test("Collaudo sul test")) | .conclusion] | first // "nessuno"')
+            esito=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?per_page=100" --jq '[.jobs[].steps[]? | select(.name == "Collaudo sul test") | .conclusion] | first // "nessuno"')
             if [ "$esito" = "success" ]; then trovato="$sha (run $id)"; break; fi
           done
           if [ -z "$trovato" ]; then
