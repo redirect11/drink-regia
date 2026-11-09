@@ -59,22 +59,22 @@ describe('la scelta del piano', () => {
 
   // tana-drink REQ-LIC-015 (07/11/2026): la casella degli ordini aspetta il
   // menù, e togliendo il menù se ne vanno anche gli ordini.
-  it('gli ordini dal telefono si scelgono solo col menù digitale, e se ne vanno con lui', async () => {
+  // Dal 07/11/2026 il menù digitale è compreso nel Base: la sua casella è
+  // spuntata e ferma («incluso»), e gli ordini dal telefono si scelgono
+  // subito, al loro prezzo.
+  it('nel Base il menù digitale è incluso, e gli ordini dal telefono si scelgono subito', async () => {
     const user = userEvent.setup()
     render(<SceltaPiano cliente={{ uid: 'u1' }} />)
     const menu = MODULI.find((m) => m.id === 'menu_tavoli')
     const ordini = MODULI.find((m) => m.id === 'ordini_cliente')
-    const casellaOrdini = () => screen.getByLabelText(new RegExp(`^${ordini.nome}`))
-    expect(casellaOrdini()).toBeDisabled()
-    expect(screen.getByText(`· richiede ${menu.nome}`)).toBeInTheDocument()
-    await user.click(screen.getByLabelText(new RegExp(`^${menu.nome}`)))
-    expect(casellaOrdini()).toBeEnabled()
-    await user.click(casellaOrdini())
-    expect(screen.getByTestId('prezzo-scelta')).toHaveTextContent(`${euro(PIANI.base.prezzo + menu.prezzo + ordini.prezzo)} + IVA`)
-    await user.click(screen.getByLabelText(new RegExp(`^${menu.nome}`)))
-    expect(casellaOrdini()).not.toBeChecked()
-    expect(casellaOrdini()).toBeDisabled()
-    expect(screen.getByTestId('prezzo-scelta')).toHaveTextContent(`${euro(PIANI.base.prezzo)} + IVA`)
+    const casellaMenu = screen.getByLabelText(new RegExp(`^${menu.nome}`))
+    expect(casellaMenu).toBeChecked()
+    expect(casellaMenu).toBeDisabled()
+    const casellaOrdini = screen.getByLabelText(new RegExp(`^${ordini.nome}`))
+    expect(casellaOrdini).toBeEnabled()
+    expect(screen.queryByText(`· richiede ${menu.nome}`)).toBeNull()
+    await user.click(casellaOrdini)
+    expect(screen.getByTestId('prezzo-scelta')).toHaveTextContent(`${euro(PIANI.base.prezzo + ordini.prezzo)} + IVA`)
   })
 
   it('nel completo i moduli sono inclusi e non si pagano due volte', async () => {

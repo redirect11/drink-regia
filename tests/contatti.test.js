@@ -61,9 +61,13 @@ describe('la richiesta di contatto', () => {
 
   // tana-drink REQ-LIC-015 (07/11/2026): l'admin non deve ricevere una
   // richiesta che non potrebbe attivare.
-  it('si rifiuta un modulo senza la sua base; con la base scelta passa', () => {
-    expect(richiestaContatto(cliente, { piano: 'base', moduli: ['ordini_cliente'] }, spenti, ADESSO).perche).toBe('Ordini dal telefono del cliente richiede Menù digitale e tavoli.')
-    expect(richiestaContatto(cliente, { piano: 'base', moduli: ['menu_tavoli', 'ordini_cliente'] }, spenti, ADESSO).ok).toBe(true)
+  // Il menù digitale è compreso nel Base dal 07/11/2026: la richiesta con
+  // gli ordini dal telefono passa, e il menù non finisce fra i moduli da
+  // pagare. La regola della base è provata in prove.test.js.
+  it('gli ordini dal telefono passano col Base, che ha il menù, e il menù non si paga a parte', () => {
+    const r = richiestaContatto(cliente, { piano: 'base', moduli: ['menu_tavoli', 'ordini_cliente'] }, spenti, ADESSO)
+    expect(r.ok).toBe(true)
+    expect(r.documento.scelta.moduli).toEqual(['ordini_cliente'])
   })
 
   it('la scelta mensile o annuale arriva all’admin con la richiesta (REQ-FLOTTA-031)', () => {

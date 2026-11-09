@@ -177,12 +177,15 @@ export default function Home({ utente, lingua = 'it' }) {
   const funzioni = FUNZIONI.filter((f) => !f.moduli.length || f.moduli.some((id) => moduloVisibile(vendita, id)))
   const minori = MINORI.filter((f) => moduloVisibile(vendita, f.id))
   const { base, completo } = PIANI
+  const inclusiNelBase = new Set(base.include)
   const inclusiNelCompleto = new Set(completo.include)
   // Quanto conviene il Completo: il Base con tutti i moduli in vendita che il
   // Completo include, contro il prezzo del Completo. Calcolato dal listino
-  // (DESIGN.md §5.6), e detto solo se è vero.
+  // (DESIGN.md §5.6), e detto solo se è vero. Quelli già nel Base (il menù
+  // digitale) non si pagano due volte.
   const totaleSulBase =
-    base.prezzo + moduliVisibili.filter((m) => inclusiNelCompleto.has(m.id)).reduce((s, m) => s + m.prezzo, 0)
+    base.prezzo +
+    moduliVisibili.filter((m) => inclusiNelCompleto.has(m.id) && !inclusiNelBase.has(m.id)).reduce((s, m) => s + m.prezzo, 0)
   const nomeBase = nomePiano(t, base)
   const nomeCompleto = nomePiano(t, completo)
   // L'offerta Fondatori (DEC-0005), per i piani che il listino elenca e
@@ -212,12 +215,15 @@ export default function Home({ utente, lingua = 'it' }) {
   const colonnaBase = interpola(t.prezzi.tabella.sulBase, { base: nomeBase })
   const colonnaCompleto = interpola(t.prezzi.tabella.nelCompleto, { completo: nomeCompleto })
 
-  const etichetteModuli = (ids) =>
-    ids.length
-      ? MODULI.filter((m) => ids.includes(m.id) && moduloVisibile(vendita, m.id)).map((m) =>
-          interpola(t.funzioni.modulo, { nome: nomeModulo(t, m) })
-        )
-      : [interpola(t.funzioni.nelPiano, { piano: nomeBase })]
+  // Un modulo compreso nel Base (il menù digitale) si dice «Nel piano
+  // Base», come le funzioni senza moduli: non è una cosa da comprare.
+  const nelBase = interpola(t.funzioni.nelPiano, { piano: nomeBase })
+  const etichetteModuli = (ids) => {
+    const etichette = MODULI.filter((m) => ids.includes(m.id) && moduloVisibile(vendita, m.id)).map((m) =>
+      inclusiNelBase.has(m.id) ? nelBase : interpola(t.funzioni.modulo, { nome: nomeModulo(t, m) })
+    )
+    return etichette.length ? [...new Set(etichette)] : [nelBase]
+  }
 
   // Un'azione principale per schermata (DESIGN.md §2): chi è già dentro va
   // alla sua dashboard, gli altri all'attivazione.
@@ -489,8 +495,17 @@ export default function Home({ utente, lingua = 'it' }) {
                     <td className="cosa-fa">{descrizioneModulo(t, m)}</td>
                     {/* data-colonna: sul telefono la tabella va in colonna, e l'intestazione si ripete accanto al valore. */}
                     <td className="numero-colonna" data-colonna={colonnaBase}>
-                      {piuIva(m.prezzo)} {t.prezzi.alMese}
-                      <span className="iva-inclusa">{ivaInclusa(m.prezzo)}</span>
+                      {inclusiNelBase.has(m.id) ? (
+                        <span className="incluso">
+                          <Icona d={SPUNTA} className="icona spunta" />
+                          {t.prezzi.tabella.incluso}
+                        </span>
+                      ) : (
+                        <>
+                          {piuIva(m.prezzo)} {t.prezzi.alMese}
+                          <span className="iva-inclusa">{ivaInclusa(m.prezzo)}</span>
+                        </>
+                      )}
                     </td>
                     <td className="numero-colonna" data-colonna={colonnaCompleto}>
                       {inclusiNelCompleto.has(m.id) ? (

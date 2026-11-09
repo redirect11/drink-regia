@@ -52,57 +52,61 @@ describe('accendere una prova', () => {
 // telefono vogliono il menù digitale, perché il cliente ordina da lì. Senza,
 // la prova non si accende: sarebbe un modulo che non fa niente.
 describe('un modulo che ne richiede un altro', () => {
+  // Dal 07/11/2026 il menù digitale è compreso nel Base e nel Completo:
+  // la base può mancare solo nel Free, dove i moduli arrivano con le prove.
+  const free = { ...base, piano: 'free', moduli: [] }
   const conProve = venditaPulita({ prove: { ordini_cliente: 7, menu_tavoli: 7 } })
 
   it('senza la sua base non si prova, e il motivo la nomina', () => {
-    expect(p.puoProvare(base, attiva, 'ordini_cliente', conProve, adesso)).toMatchObject({
+    expect(p.puoProvare(free, attiva, 'ordini_cliente', conProve, adesso)).toMatchObject({
       ok: false,
       perche: 'Ordini dal telefono del cliente richiede Menù digitale e tavoli.',
     })
   })
 
   it('con la base comprata, nel piano o in prova sì', () => {
-    expect(p.puoProvare({ ...base, moduli: ['menu_tavoli'] }, attiva, 'ordini_cliente', conProve, adesso).ok).toBe(true)
-    const inProva = { ...base, prove: { menu_tavoli: { scade_il: '2026-11-05T10:00:00Z' } } }
+    expect(p.puoProvare({ ...free, moduli: ['menu_tavoli'] }, attiva, 'ordini_cliente', conProve, adesso).ok).toBe(true)
+    const inProva = { ...free, prove: { menu_tavoli: { scade_il: '2026-11-05T10:00:00Z' } } }
     expect(p.puoProvare(inProva, attiva, 'ordini_cliente', conProve, adesso).ok).toBe(true)
   })
 
   it('una base in prova scaduta non vale', () => {
-    const scaduta = { ...base, prove: { menu_tavoli: { scade_il: '2026-10-29T10:00:00Z' } } }
+    const scaduta = { ...free, prove: { menu_tavoli: { scade_il: '2026-10-29T10:00:00Z' } } }
     expect(p.baseMancante(scaduta, 'ordini_cliente', adesso)).toBe('Menù digitale e tavoli')
   })
 
   it('un modulo senza base richiesta non chiede niente', () => {
-    expect(p.baseMancante(base, 'magazzino', adesso)).toBeNull()
+    expect(p.baseMancante(free, 'magazzino', adesso)).toBeNull()
   })
 
   // I TRE BUCHI DELLA PR #91 (l'utente, 07/11/2026: «risolvi i tre buchi»):
   // l'area clienti, la disdetta della base, le prove rimaste senza base.
   it('in una scelta intera (area clienti, admin, contatto) la base deve stare nel piano o fra i moduli scelti', () => {
-    expect(p.problemaBasi({ piano: 'base', moduli: ['ordini_cliente'] })).toBe('Ordini dal telefono del cliente richiede Menù digitale e tavoli.')
-    expect(p.problemaBasi({ piano: 'base', moduli: ['menu_tavoli', 'ordini_cliente'] })).toBeNull()
-    expect(p.problemaBasi({ piano: 'base', moduli: ['ordini_cliente', 'menu_tavoli'] })).toBeNull()
-    // Nel Completo il menù è incluso.
+    expect(p.problemaBasi({ piano: 'free', moduli: ['ordini_cliente'] })).toBe('Ordini dal telefono del cliente richiede Menù digitale e tavoli.')
+    expect(p.problemaBasi({ piano: 'free', moduli: ['menu_tavoli', 'ordini_cliente'] })).toBeNull()
+    expect(p.problemaBasi({ piano: 'free', moduli: ['ordini_cliente', 'menu_tavoli'] })).toBeNull()
+    // Nel Base e nel Completo il menù è compreso.
+    expect(p.problemaBasi({ piano: 'base', moduli: ['ordini_cliente'] })).toBeNull()
     expect(p.problemaBasi({ piano: 'completo', moduli: ['ordini_cliente'] })).toBeNull()
     expect(p.problemaBasi({ piano: 'base', moduli: ['magazzino'] })).toBeNull()
     expect(p.problemaBasi(null)).toBeNull()
   })
 
   it('chi richiede un modulo: i moduli comprati o in prova che hanno quella base', () => {
-    expect(p.chiLoRichiede({ ...base, moduli: ['menu_tavoli', 'ordini_cliente'] }, 'menu_tavoli', adesso)).toEqual(['Ordini dal telefono del cliente'])
-    const inProva = { ...base, moduli: ['menu_tavoli'], prove: { ordini_cliente: { scade_il: '2026-11-05T10:00:00Z' } } }
+    expect(p.chiLoRichiede({ ...free, moduli: ['menu_tavoli', 'ordini_cliente'] }, 'menu_tavoli', adesso)).toEqual(['Ordini dal telefono del cliente'])
+    const inProva = { ...free, moduli: ['menu_tavoli'], prove: { ordini_cliente: { scade_il: '2026-11-05T10:00:00Z' } } }
     expect(p.chiLoRichiede(inProva, 'menu_tavoli', adesso)).toEqual(['Ordini dal telefono del cliente'])
-    expect(p.chiLoRichiede({ ...base, moduli: ['menu_tavoli'] }, 'menu_tavoli', adesso)).toEqual([])
-    expect(p.chiLoRichiede(base, 'magazzino', adesso)).toEqual([])
+    expect(p.chiLoRichiede({ ...free, moduli: ['menu_tavoli'] }, 'menu_tavoli', adesso)).toEqual([])
+    expect(p.chiLoRichiede(free, 'magazzino', adesso)).toEqual([])
   })
 
   it('una prova rimasta senza base si spegne: il menù in prova scaduto porta via anche gli ordini in prova', () => {
-    const due = { ...base, prove: { menu_tavoli: { scade_il: '2026-10-29T10:00:00Z' }, ordini_cliente: { scade_il: '2026-11-05T10:00:00Z' } } }
+    const due = { ...free, prove: { menu_tavoli: { scade_il: '2026-10-29T10:00:00Z' }, ordini_cliente: { scade_il: '2026-11-05T10:00:00Z' } } }
     expect(p.proveDaTogliere(due, adesso)).toEqual(['menu_tavoli', 'ordini_cliente'])
     // Con la base ancora in prova, o comprata, gli ordini restano.
-    const vive = { ...base, prove: { menu_tavoli: { scade_il: '2026-11-05T10:00:00Z' }, ordini_cliente: { scade_il: '2026-11-05T10:00:00Z' } } }
+    const vive = { ...free, prove: { menu_tavoli: { scade_il: '2026-11-05T10:00:00Z' }, ordini_cliente: { scade_il: '2026-11-05T10:00:00Z' } } }
     expect(p.proveDaTogliere(vive, adesso)).toEqual([])
-    expect(p.proveDaTogliere({ ...base, moduli: ['menu_tavoli'], prove: { ordini_cliente: { scade_il: '2026-11-05T10:00:00Z' } } }, adesso)).toEqual([])
+    expect(p.proveDaTogliere({ ...free, moduli: ['menu_tavoli'], prove: { ordini_cliente: { scade_il: '2026-11-05T10:00:00Z' } } }, adesso)).toEqual([])
   })
 })
 
@@ -123,9 +127,10 @@ describe('la base in ogni porta', () => {
 describe('la prova nella licenza', () => {
   const inProva = { ...base, prove: { magazzino: { dal: '2026-10-30T10:00:00Z', scade_il: '2026-11-13T10:00:00Z' } } }
 
+  // Il magazzino porta l'inventario; le fatture si comprano a parte (07/11/2026).
   it('il modulo in prova si accende, coi suoi moduli di dettaglio, e la licenza dice fino a quando', () => {
     const patch = patchLicenzaPiano(inProva, adesso)
-    expect(patch['licenza.moduli']).toMatchObject({ staff: true, magazzino: true, conta: true, fatture: true, scadenzario: true, statistiche: false })
+    expect(patch['licenza.moduli']).toMatchObject({ staff: true, magazzino: true, conta: true, fatture: false, scadenzario: false, statistiche: false })
     expect(patch['licenza.prove']).toEqual({ magazzino: '2026-11-13T10:00:00Z' })
   })
 

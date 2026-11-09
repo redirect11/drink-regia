@@ -1085,7 +1085,8 @@ requirements:
       barrati; la prova; le note sul tetto dell'assistenza e sulle
       stampanti a preventivo scritto. Il confronto Base/Completo resta vero
       (108,70 € contro 69 €, anche coi Fondatori) e non nomina piu' i
-      terminali, uguali nei due piani.
+      terminali, uguali nei due piani. (Col listino dei moduli del
+      07/11/2026, REQ-FLOTTA-044, il confronto è 111,70 € contro 69 €.)
       L'INGLESE: «€32.70 + VAT», col punto dei decimali come le virgole
       delle migliaia (importo() in lingua.js): un formato per lingua, mai
       mescolato.
@@ -2067,3 +2068,46 @@ requirements:
       - tests/App.test.jsx
       - tests/Backoffice.test.jsx
       - tests/lingua.test.js
+  - id: REQ-FLOTTA-044
+    title: "Il listino dei moduli del 07/11/2026: menù digitale nei piani a pagamento, fatture vendute a parte"
+    area: "functions/piani.json, functions/lib/licenza.js (MAPPA, moduliLicenza), functions/lib/moduliapp.js (compresoInOgniPiano, catalogoModuli, moduloInVendita, sceltaPerAggiungere), src/pages/Home.jsx (tabella dei moduli, etichette delle funzioni), src/i18n/home.it.js, home.en.js"
+    description: >
+      Le decisioni dell'utente del 07/11/2026, dopo la matrice dei moduli di
+      tana-drink (REQ-DEV-017, REQ-LIC-015): «il menù dovrebbe essere
+      incluso mentre gli ordini dal telefono saranno a parte come modulo
+      acquistabile»; «l'ordine da telefono costa 12 come il vecchio menù che
+      ora diventa incluso»; «Menù solo per base e completo»; «Fatture ai
+      clienti modulo a parte. Fatture ai fornitori anche»; le fatture ai
+      fornitori «si pagano sempre a parte», non dentro il magazzino.
+      IL LISTINO: `menu_tavoli` sta in `include` del Base e del Completo (non
+      del Free) e non si vende a parte: compresoInOgniPiano lo ricava dai
+      piani, il catalogo per l'app non lo porta e moduloInVendita lo
+      rifiuta («… è compreso nei piani a pagamento.»). `ordini_cliente`
+      costa 12 € e richiede ancora il menù, che manca solo nel Free (dove i
+      moduli arrivano con le prove). `fatture` (ai clienti) e `scadenzario`
+      (ai fornitori) sono moduli: 5 € e 6 € al mese, PREZZI PROPOSTI
+      (l'utente: «i prezzi dei due nuovi per ora fai tu»), da rivedere. Il
+      magazzino resta a 15 € e porta solo l'inventario (`conta`). Il
+      Completo li include tutti. Le personalizzazioni del menù (stili e
+      temi) restano come sono: «vediamo poi».
+      LA LICENZA: moduliLicenza accende anche i moduli compresi nel piano
+      (`include`), così il Base porta il menù senza comprarlo.
+      L'AGGIUNTA DALL'APP guarda il piano prima della base: sul Free il
+      motivo è che i moduli si aggiungono ai piani a pagamento, non la base
+      che lì non si potrebbe comprare.
+      LA PAGINA DEI PREZZI: il menù è «Incluso» anche nella colonna del Base,
+      il confronto col Completo non lo conta due volte, e la funzione del
+      menù dice «Nel piano Base» accanto al modulo degli ordini.
+      DA DECIDERE: chi avesse già comprato il menù come modulo, o le fatture
+      dentro il magazzino, ha un abbonamento scritto col listino di prima
+      (nessun locale in produzione al 07/11/2026: il sito non è aperto).
+    status: implemented
+    generate_issue: false
+    labels: [regia, prezzi]
+    test_cases:
+      - tests/piani.test.js
+      - tests/licenza.test.js
+      - tests/moduliapp.test.js
+      - tests/prove.test.js
+      - tests/Home.test.jsx
+      - tests/SceltaPiano.test.jsx

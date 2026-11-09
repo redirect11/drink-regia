@@ -221,7 +221,7 @@ export default {
       },
       base: {
         nome: PIANI.base.nome,
-        descrizione: 'Per partire: cassa, comande, scontrino sulla stampante, menù e lavoro senza rete. {terminali}.',
+        descrizione: 'Per partire: cassa, comande, scontrino sulla stampante, menù digitale con il QR al tavolo e lavoro senza rete. {terminali}.',
       },
       completo: {
         nome: PIANI.completo.nome,
