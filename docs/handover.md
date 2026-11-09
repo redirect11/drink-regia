@@ -9,7 +9,10 @@ italiano; relaziona le richieste di Flavio, il titolare del primo locale
 (La Tana del Coniglio, Nola).
 
 Leggi nell'ordine: questo file, [CLAUDE.md](../CLAUDE.md), [README.md](../README.md),
-[audit-sicurezza-privacy.md](audit-sicurezza-privacy.md), e in tana-drink
+[audit-sicurezza-2026-11-09.md](audit-sicurezza-2026-11-09.md) (l'audit più
+recente, regia e app insieme; quello del 22/10,
+[audit-sicurezza-privacy.md](audit-sicurezza-privacy.md), resta per la
+parte GDPR), e in tana-drink
 `docs/flotta.md` e `docs/architettura-prodotto.md` (solo per capire il
 quadro: lì non si lavora da questa sessione).
 
@@ -354,7 +357,10 @@ https://drinkpos-demo.web.app, Auth email attiva), istanze future
 ## 6. I lavori aperti, in ordine
 
 L'elenco completo con i riferimenti al codice è in
-`docs/audit-sicurezza-privacy.md`, parte 3. Qui l'ordine operativo.
+`docs/audit-sicurezza-2026-11-09.md` (priorità operativa, blocchi A-E);
+la parte GDPR resta in `docs/audit-sicurezza-privacy.md`, parte 3. Qui
+l'ordine operativo scritto prima di quell'audit: le voci restano valide,
+ma l'ordine aggiornato è quello del 09/11.
 
 1. **Le quattro falle gravi dell'audit, prima di qualunque attivazione
    vera.** Lato regia: C2 (la richiesta di attivazione la crea una
