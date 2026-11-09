@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config'
+import { defineConfig, configDefaults } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import { readFileSync } from 'node:fs'
 
@@ -14,6 +14,11 @@ export default defineConfig({
     globals: true,
     env: { TZ: 'Europe/Rome' },
     include: ['tests/**/*.test.js', 'tests/**/*.test.jsx'],
+    // Fuori i test delle REGOLE Firestore (REQ-DEV-007): vogliono l'emulatore
+    // acceso e hanno una configurazione loro (vitest.regole.config.mjs, `npm
+    // run test:regole`). Qui dentro renderebbero rossa la CI senza che ci
+    // sia niente di rotto, e rallenterebbero i test unitari.
+    exclude: [...configDefaults.exclude, 'tests/regole/**'],
     // I test delle pagine compilano i moduli lettera per lettera: con tutta
     // la suite e la copertura, su una macchina carica, i 5 secondi di partenza
     // non bastavano, e scadeva ogni volta un test diverso (02/11/2026).
