@@ -6,6 +6,13 @@ data.
 
 ## Prossima release (da decidere)
 
+- Le Functions della regia possono girare con un account di servizio
+  dedicato, con i soli ruoli che il codice usa e senza Editor, al posto
+  dell'account predefinito di Compute Engine: lo crea
+  `scripts/account-runtime.mjs`, lo accende `RUNTIME_SERVICE_ACCOUNT` nel
+  file d'ambiente del progetto, e `REGIA_SA_EMAIL` nella flotta porta il
+  Terraform dei locali a autorizzare lui. Prima sul test, poi in
+  produzione (audit del 09/11/2026, finding 3; REQ-FLOTTA-058).
 - Il listino dei moduli cambia: il menù digitale col QR al tavolo è
   compreso nei piani Base e Completo; gli ordini dal telefono costano 12 €
   al mese; le fatture ai clienti (5 €) e le fatture ai fornitori (6 €) si
