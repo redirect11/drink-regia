@@ -119,12 +119,8 @@ describe('nel sito e nella regia', () => {
     expect(gestione).toContain("req.auth?.token?.admin !== true")
   })
 
-  it('i temi nel database li legge l’admin e li scrivono solo le Functions', () => {
-    const regole = readFileSync('firestore.rules', 'utf8')
-    const blocco = regole.slice(regole.indexOf('match /temi/{id}'), regole.indexOf('match /sconti/{codice}'))
-    expect(blocco).toContain('allow read: if admin();')
-    expect(blocco).toContain('allow write: if false;')
-  })
+  // Che i temi nel database li legga l'admin e li scrivano solo le
+  // Functions si prova sull'emulatore: tests/regole/registri.test.js.
 })
 
 // I TEMI IN LICENZA DEI LOCALI (REQ-FLOTTA-039, richiesta da tana-drink del
@@ -326,11 +322,9 @@ describe('i temi su misura', () => {
     // Da un'installazione (richiestaAI) il tema non si chiede.
     const porta = codice.slice(codice.indexOf('exports.richiestaAI'), codice.indexOf('async function interrogaClaude'))
     expect(porta).toContain('if (!ai.TIPI_INSTALLAZIONE.includes(messaggio.tipo)) return res.status(400)')
-    // La licenza legge i temi su misura dalla sottoraccolta del cliente.
+    // La licenza legge i temi su misura dalla sottoraccolta del cliente; che
+    // la sottoraccolta la legga il titolare e la scrivano solo le Functions
+    // si prova sull'emulatore (tests/regole/clienti.test.js).
     expect(codice).toContain('db.collection(`clienti/${cliente.uid}/temi_su_misura`).get()')
-    const regole = readFileSync('firestore.rules', 'utf8')
-    const blocco = regole.slice(regole.indexOf('match /clienti/{uid}/temi_su_misura/{id}'), regole.indexOf('match /sconti/{codice}'))
-    expect(blocco).toContain('allow read: if mio(uid) || admin();')
-    expect(blocco).toContain('allow write: if false;')
   })
 })

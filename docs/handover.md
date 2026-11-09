@@ -278,6 +278,7 @@ scripts/generate-issues.mjs, lib-requisiti.mjs, bacheca.mjs  le issue dal regist
 .github/workflows/          test.yml, firebase-hosting.yml, deploy.yml, generate-issues.yml
 requirements/requirements.yaml  REQ-FLOTTA-002..011 (lato regia), REQ-DEV-001..003
 tests/                      vitest, happy-dom; 17 file
+tests/regole/, firebase.collaudo.json, vitest.regole.config.mjs  le regole Firestore sull'emulatore (`npm run test:regole`, REQ-DEV-007)
 ```
 
 **Firestore** (`drink-regia`): `clienti/{uid}` (titolare: locale,
@@ -382,16 +383,30 @@ L'elenco completo con i riferimenti al codice è in
 6. **Medie dell'audit**: callback con `run_id` e scadenza; `cambiaScelta`
    nel ramo manuale con approvazione; idempotenza del webhook (**fatta il
    02/11/2026**, punto 33);
-   header di sicurezza in
-   `firebase.json`; App Check e `maxInstances`; creazione dell'admin
-   dell'istanza (è un passo del workflow di tana-drink: da chiedere).
+   header di sicurezza in `firebase.json` (**messi il 09/11/2026**,
+   REQ-DEV-005: `X-Frame-Options`, `nosniff`, `Referrer-Policy`,
+   `Permissions-Policy`, HSTS e una `Content-Security-Policy-Report-Only`;
+   **il passo che manca**: dopo qualche giorno sul test, con la console
+   del browser aperta su accesso con Google, Checkout e ritorno da Stripe,
+   backoffice e temi su misura, se non compare nessuna violazione
+   `Report-Only` togliere il suffisso in `firebase.json` e in
+   `tests/hosting.test.js`, e la CSP diventa vincolante); App Check e
+   `maxInstances`; creazione dell'admin dell'istanza (è un passo del
+   workflow di tana-drink: da chiedere). La catena CI è pinnata e
+   Dependabot acceso dal 09/11/2026 (REQ-DEV-006): le action a SHA, `npm
+   audit` sulle dipendenze di produzione nel workflow di test; restano i
+   major (`vite` 8, `vitest` 5, `happy-dom` 21, `firebase-admin` 14,
+   `firebase-functions` 7, `stripe` 23) da fare in un ramo dedicato.
 7. **Infrastruttura**: `FIREBASE_SERVICE_ACCOUNT` nell'environment
    (**fatto il 07/11/2026** con `scripts/ruoli-deploy.mjs`),
    segreti Stripe e token GitHub, primo deploy delle Functions (col via
    libera), poi la prima attivazione dal sito sulla demo. Capire perché i
-   push non avviano la CI. Emulatori in `firebase.json`. Spostare i
-   workflow della flotta fuori dal repository pubblico (decisione
-   dell'utente: riguarda tana-drink).
+   push non avviano la CI. L'emulatore Firestore per le regole c'è dal
+   09/11/2026 (`firebase.collaudo.json`, `npm run test:regole`,
+   REQ-DEV-007); resta da decidere se mettere in `firebase.json` anche
+   Auth e Functions per lo sviluppo in locale. Spostare i workflow della
+   flotta fuori dal repository pubblico (decisione dell'utente: riguarda
+   tana-drink).
 8. **Landing page**: verifica visiva desktop e telefono (non fatta il
    22/10), poi pubblicazione col via libera.
 9. **Le Actions come tana-drink, con il progetto di test

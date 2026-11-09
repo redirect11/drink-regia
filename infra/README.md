@@ -68,14 +68,20 @@ regia di test (`drink-regia-test`) su `flotta-test`. Lo sceglie l'input
 | `TFSTATE_BUCKET` | variabile | `drink-regia-tfstate` | `drink-regia-tfstate` |
 | `REGIA_CALLBACK_URL` | variabile | `https://europe-west1-drink-regia.cloudfunctions.net/esitoProvisioning` | `https://europe-west1-drink-regia-test.cloudfunctions.net/esitoProvisioning` |
 | `REGIA_URL` | variabile | `https://drink-regia.web.app` | `https://drink-regia-test.web.app` |
-| `REGIA_SA_EMAIL` | variabile | `600871952552-compute@developer.gserviceaccount.com` | `246268671867-compute@developer.gserviceaccount.com` |
+| `REGIA_SA_EMAIL` | variabile | `runtime-regia@drink-regia.iam.gserviceaccount.com` (finché non c'è: `600871952552-compute@developer.gserviceaccount.com`) | `runtime-regia@drink-regia-test.iam.gserviceaccount.com` (finché non c'è: `246268671867-compute@developer.gserviceaccount.com`) |
 | `ORG_ID` | variabile, facoltativa | l'organizzazione Google Cloud | la stessa |
 | `ARCHIVIO_BUCKET` | variabile | `drink-regia-archivio` (nel progetto `drink-regia`) | `drink-regia-test-archivio` (nel progetto `drink-regia-test`) |
 
 `REGIA_SA_EMAIL` è l'account con cui girano le Functions di quella regia:
 il Terraform gli dà `roles/datastore.user` sul locale, così la regia può
 scrivere la licenza (sospendere, riattivare, chiudere). Non ha un valore
-predefinito, apposta.
+predefinito, apposta. Dall'audit del 09/11/2026 (finding 3) è l'account
+dedicato `runtime-regia@<regia>`, creato da `scripts/account-runtime.mjs`
+con i soli ruoli che il codice usa e senza Editor; l'account predefinito
+di Compute Engine resta solo finché quello dedicato non è acceso
+(`RUNTIME_SERVICE_ACCOUNT` in `functions/.env.<progetto>`). Cambiare la
+variabile e rilanciare «Aggiorna istanza» su ogni locale fa convergere il
+Terraform: il nuovo account entra, il vecchio esce.
 
 Il segreto `GITHUB_DISPATCH_TOKEN` delle Functions di ciascuna regia è un
 token fine-grained con **Actions: Read and write** su `redirect11/drink-regia`

@@ -156,7 +156,7 @@ jobs:
 
       # L'app dei locali, alla versione chiesta. tana-drink è pubblico.
       # Con tutta la storia: serve a sapere se la versione sta su main.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           repository: redirect11/tana-drink
           ref: ${{ inputs.ref }}
@@ -220,7 +220,7 @@ jobs:
           done
 
       # La regia: il Terraform.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Credenziali di provisioning
         env:
@@ -231,7 +231,7 @@ jobs:
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
           echo "PROVISIONING_SA_EMAIL=$(node -e "console.log(JSON.parse(process.argv[1]).client_email)" "$SA_JSON")" >> "$GITHUB_ENV"
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
         with:
           terraform_version: '1.9.8'
           terraform_wrapper: false
@@ -314,14 +314,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # Lo stesso commit che `controlla` ha approvato, non il ref di nuovo.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           repository: redirect11/tana-drink
           ref: ${{ needs.controlla.outputs.commit }}
           path: app
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
@@ -376,7 +376,7 @@ jobs:
       - name: Il pacchetto per il deploy
         run: tar -czf app.tgz --exclude=app/node_modules --exclude=app/.git app
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: app
           path: app.tgz
@@ -408,16 +408,16 @@ jobs:
 
       # La regia: gli script della licenza, dello Storage, dei segreti e
       # del titolare, con le loro dipendenze in functions/.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: app
 
       - name: L'app compilata
         run: tar -xzf app.tgz && rm app.tgz
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm

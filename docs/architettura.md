@@ -67,7 +67,7 @@ Gli account di servizio:
 | Account | Cosa fa | Dove sta la chiave |
 |---|---|---|
 | `provisioning@drink-regia` | crea e pubblica le istanze: Terraform, deploy, licenza, backup | segreto `PROVISIONING_SA_JSON` negli environment `flotta` e `flotta-test` |
-| runtime delle Functions della regia (`<numero>-compute@…`) | scrive la licenza nelle istanze (sospensione, piano, prove) | nessuna chiave: è il runtime di Google |
+| runtime delle Functions della regia (`runtime-regia@<regia>`, creato da `scripts/account-runtime.mjs`; finché non è acceso, `<numero>-compute@…`) | scrive la licenza nelle istanze (sospensione, piano, prove); solo i ruoli che il codice usa, niente Editor | nessuna chiave: è il runtime di Google |
 | `deploy@<istanza>` | creato in ogni istanza, per un deploy fatto da lì | nessuna chiave in giro |
 | l'account di deploy della Tana | pubblica la Tana | segreti di tana-drink |
 

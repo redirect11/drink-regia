@@ -106,10 +106,11 @@ describe('un pagamento registrato dall’admin', () => {
 
 // Dove le Functions scrivono il libro: il webhook (fattura pagata, ricarica
 // pagata), il pagamento registrato dall'admin, il credito accreditato a
-// mano. Un omaggio no. E le regole lo lasciano leggere solo all'admin.
-describe('le scritture e le regole', () => {
+// mano. Un omaggio no. Che le regole lo lascino leggere solo all'admin, e
+// scrivere a nessun client, si prova sull'emulatore
+// (tests/regole/registri.test.js, anche per traffico/).
+describe('le scritture', () => {
   const index = readFileSync('functions/index.js', 'utf8')
-  const regole = readFileSync('firestore.rules', 'utf8')
 
   it('il webhook registra la fattura pagata e la ricarica accreditata; l’admin il bonifico e il credito a mano', () => {
     expect(index).toMatch(/evento\.type === 'invoice\.paid'[\s\S]*movimentoDaFattura\(evento\.data\?\.object, \{ uid, slug: cli\?\.slug \}\)/)
@@ -119,10 +120,5 @@ describe('le scritture e le regole', () => {
     // L'omaggio non passa da scriviMovimento.
     const omaggio = index.slice(index.indexOf("azione === 'omaggio'"), index.indexOf("azione === 'tetto'"))
     expect(omaggio).not.toMatch(/scriviMovimento/)
-  })
-
-  it('movimenti/ e traffico/ li legge solo l’admin e non li scrive nessun client', () => {
-    expect(regole).toMatch(/match \/movimenti\/\{id\} \{\s*allow read: if admin\(\);\s*allow write: if false;/)
-    expect(regole).toMatch(/match \/traffico\/\{giorno\} \{\s*allow read: if admin\(\);\s*allow write: if false;/)
   })
 })

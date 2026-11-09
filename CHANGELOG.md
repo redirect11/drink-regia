@@ -22,6 +22,33 @@ data.
   esistente (la Tana, la demo) riceve l'etichetta una volta a mano. Lo SHA
   di tana-drink pubblicato è pronto per l'esito (REQ-FLOTTA-048, audit
   del 09/11/2026, punti 7 e 29).
+- Il sito manda con ogni pagina le intestazioni di sicurezza: nessuno lo
+  incornicia in una pagina altrui, i file si leggono per quello che sono,
+  il referrer esce solo come origine, fotocamera, microfono e posizione
+  sono spenti, HSTS per un anno; la Content-Security-Policy parte in
+  osservazione (`Report-Only`) e diventa vincolante dopo qualche giorno sul
+  test senza violazioni (REQ-DEV-005, audit del 09/11/2026, finding 14).
+- La catena di pubblicazione è ferma a commit precisi: ogni action dei
+  workflow è pinnata a uno SHA con la versione nel commento, Dependabot
+  propone ogni settimana gli aggiornamenti di sito, Functions e action
+  verso develop, e il workflow di test fa `npm audit` sulle dipendenze di
+  produzione; l'SDK di Anthropic nelle Functions passa alla 1.6
+  (REQ-DEV-006, finding 23 e 24).
+- Le Functions della regia possono girare con un account di servizio
+  dedicato, con i soli ruoli che il codice usa e senza Editor, al posto
+  dell'account predefinito di Compute Engine: lo crea
+  `scripts/account-runtime.mjs`, lo accende `RUNTIME_SERVICE_ACCOUNT` nel
+  file d'ambiente del progetto, e `REGIA_SA_EMAIL` nella flotta porta il
+  Terraform dei locali a autorizzare lui. Prima sul test, poi in
+  produzione (audit del 09/11/2026, finding 3; REQ-FLOTTA-058).
+- Le regole Firestore della regia si provano sull'emulatore, con le regole
+  vere e quattro attori (due titolari, l'admin, chi non ha fatto l'accesso),
+  collezione per collezione: `npm run test:regole` in locale, un job a parte
+  nella CI delle pull request con Java 21. Un test dentro `npm test` pretende
+  che ogni `match` delle regole abbia la sua prova. Due casi sono
+  documentati come stanno oggi e cambieranno: due titolari con lo stesso
+  slug (finding 4 dell'audit) e le impostazioni leggibili da ogni
+  autenticato (REQ-DEV-007).
 - Il listino dei moduli cambia: il menù digitale col QR al tavolo è
   compreso nei piani Base e Completo; gli ordini dal telefono costano 12 €
   al mese; le fatture ai clienti (5 €) e le fatture ai fornitori (6 €) si

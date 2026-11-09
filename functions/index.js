@@ -58,7 +58,16 @@ const listino = require('./piani.json')
 
 initializeApp()
 const db = getFirestore()
-const OPTS = { region: 'europe-west1' }
+// L'account con cui girano le Functions (audit del 09/11/2026, finding 3):
+// quello dedicato creato da scripts/account-runtime.mjs, con i soli ruoli
+// che il codice usa e niente Editor. Senza RUNTIME_SERVICE_ACCOUNT in
+// functions/.env.<progetto> resta l'account predefinito di Compute Engine,
+// che è Editor sulla regia: va bene solo finché l'account dedicato non è
+// stato creato e autorizzato sui locali (REGIA_SA_EMAIL nella flotta).
+const OPTS = {
+  region: 'europe-west1',
+  ...(process.env.RUNTIME_SERVICE_ACCOUNT ? { serviceAccount: process.env.RUNTIME_SERVICE_ACCOUNT } : {}),
+}
 const GITHUB_DISPATCH_TOKEN = defineSecret('GITHUB_DISPATCH_TOKEN')
 const PROVISIONING_CALLBACK_SECRET = defineSecret('PROVISIONING_CALLBACK_SECRET')
 // Stripe (REQ-FLOTTA-007): chiave segreta e segreto del webhook, prima
