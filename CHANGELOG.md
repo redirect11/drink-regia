@@ -6,6 +6,13 @@ data.
 
 ## Prossima release (da decidere)
 
+- Le Functions della regia possono girare con un account di servizio
+  dedicato, con i soli ruoli che il codice usa e senza Editor, al posto
+  dell'account predefinito di Compute Engine: lo crea
+  `scripts/account-runtime.mjs`, lo accende `RUNTIME_SERVICE_ACCOUNT` nel
+  file d'ambiente del progetto, e `REGIA_SA_EMAIL` nella flotta porta il
+  Terraform dei locali a autorizzare lui. Prima sul test, poi in
+  produzione (audit del 09/11/2026, finding 3; REQ-FLOTTA-058).
 - Le regole Firestore della regia si provano sull'emulatore, con le regole
   vere e quattro attori (due titolari, l'admin, chi non ha fatto l'accesso),
   collezione per collezione: `npm run test:regole` in locale, un job a parte

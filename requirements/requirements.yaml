@@ -2118,6 +2118,37 @@ requirements:
       - tests/prove.test.js
       - tests/Home.test.jsx
       - tests/SceltaPiano.test.jsx
+
+  - id: REQ-FLOTTA-058
+    title: "Le Functions della regia girano con un account dedicato, senza Editor"
+    area: "scripts/account-runtime.mjs, functions/index.js (OPTS), functions/.env.drink-regia-test, functions/.env.drink-regia, infra/README.md, docs/architettura.md"
+    description: >
+      Audit di sicurezza del 09/11/2026, finding 3 (H4 del 22/10): le
+      Functions della regia giravano con l'account predefinito di Compute
+      Engine, che è Editor sul progetto della regia e che il Terraform dei
+      locali autorizza a leggere e scrivere il loro Firestore e a firmare
+      accessi come l'SDK di Firebase. Qualunque bug in qualunque Function,
+      anche una aperta a tutti come `traccia`, ereditava quei poteri.
+      Ora `scripts/account-runtime.mjs`, lanciato da una persona, crea
+      `runtime-regia@<regia>` con i soli ruoli che il codice usa
+      (Firestore, utenti, log, i due ruoli dei trigger, la coda delle
+      scadenze, firmare e agire come sé stesso) e lascia che il deploy
+      agisca come lui; con --locale dà a quell'account, su un locale, gli
+      stessi tre ruoli del Terraform, così il passaggio non lascia un
+      intervallo in cui la licenza non si scrive. Le opzioni comuni delle
+      Functions leggono `RUNTIME_SERVICE_ACCOUNT` dal file d'ambiente del
+      progetto: senza, resta l'account predefinito. Si accende prima sul
+      test (script, `REGIA_SA_EMAIL` in flotta-test, riga nel file, deploy,
+      «Aggiorna istanza» sui locali di prova perché il Terraform converga),
+      poi in produzione con gli stessi passi. Lo script non toglie niente:
+      levare Editor all'account predefinito è una decisione di una persona.
+      Resta da fare (audit, finding 3.3): separare l'account che tocca i
+      locali da quello delle sole Functions di vendita.
+    status: implemented
+    generate_issue: true
+    labels: [regia, sicurezza, flotta]
+    test_cases:
+      - tests/runtime.test.js
   - id: REQ-DEV-007
     title: "Le regole Firestore della regia provate sull'emulatore, in locale e in CI"
     area: "tests/regole/ (ambiente.js e un file per gruppo di collezioni), tests/regole.copertura.test.js, firebase.collaudo.json, vitest.regole.config.mjs, vitest.config.mjs (exclude), package.json (test:regole, test:regole:vitest, @firebase/rules-unit-testing, firebase-tools), .github/workflows/test.yml (job regole), tests/ci.test.js"
