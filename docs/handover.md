@@ -389,9 +389,20 @@ ma l'ordine aggiornato è quello del 09/11.
 6. **Medie dell'audit**: callback con `run_id` e scadenza; `cambiaScelta`
    nel ramo manuale con approvazione; idempotenza del webhook (**fatta il
    02/11/2026**, punto 33);
-   header di sicurezza in
-   `firebase.json`; App Check e `maxInstances`; creazione dell'admin
-   dell'istanza (è un passo del workflow di tana-drink: da chiedere).
+   header di sicurezza in `firebase.json` (**messi il 09/11/2026**,
+   REQ-DEV-005: `X-Frame-Options`, `nosniff`, `Referrer-Policy`,
+   `Permissions-Policy`, HSTS e una `Content-Security-Policy-Report-Only`;
+   **il passo che manca**: dopo qualche giorno sul test, con la console
+   del browser aperta su accesso con Google, Checkout e ritorno da Stripe,
+   backoffice e temi su misura, se non compare nessuna violazione
+   `Report-Only` togliere il suffisso in `firebase.json` e in
+   `tests/hosting.test.js`, e la CSP diventa vincolante); App Check e
+   `maxInstances`; creazione dell'admin dell'istanza (è un passo del
+   workflow di tana-drink: da chiedere). La catena CI è pinnata e
+   Dependabot acceso dal 09/11/2026 (REQ-DEV-006): le action a SHA, `npm
+   audit` sulle dipendenze di produzione nel workflow di test; restano i
+   major (`vite` 8, `vitest` 5, `happy-dom` 21, `firebase-admin` 14,
+   `firebase-functions` 7, `stripe` 23) da fare in un ramo dedicato.
 7. **Infrastruttura**: `FIREBASE_SERVICE_ACCOUNT` nell'environment
    (**fatto il 07/11/2026** con `scripts/ruoli-deploy.mjs`),
    segreti Stripe e token GitHub, primo deploy delle Functions (col via

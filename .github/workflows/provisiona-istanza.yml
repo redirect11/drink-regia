@@ -142,11 +142,11 @@ jobs:
           done
 
       # La regia: il Terraform, lo script della licenza e la sua mappa.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       # L'app dei locali, alla versione chiesta. tana-drink è pubblico.
       # Con tutta la storia: serve a sapere se la versione sta su main.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           repository: redirect11/tana-drink
           ref: ${{ inputs.ref }}
@@ -182,7 +182,7 @@ jobs:
           else RAMO="$REF_APP"; fi
           echo "GIT_BRANCH=$RAMO" >> "$GITHUB_ENV"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
@@ -200,7 +200,7 @@ jobs:
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
           echo "PROVISIONING_SA_EMAIL=$(node -e "console.log(JSON.parse(process.argv[1]).client_email)" "$SA_JSON")" >> "$GITHUB_ENV"
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
         with:
           terraform_version: '1.9.8'
           terraform_wrapper: false

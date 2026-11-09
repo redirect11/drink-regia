@@ -6,6 +6,18 @@ data.
 
 ## Prossima release (da decidere)
 
+- Il sito manda con ogni pagina le intestazioni di sicurezza: nessuno lo
+  incornicia in una pagina altrui, i file si leggono per quello che sono,
+  il referrer esce solo come origine, fotocamera, microfono e posizione
+  sono spenti, HSTS per un anno; la Content-Security-Policy parte in
+  osservazione (`Report-Only`) e diventa vincolante dopo qualche giorno sul
+  test senza violazioni (REQ-DEV-005, audit del 09/11/2026, finding 14).
+- La catena di pubblicazione è ferma a commit precisi: ogni action dei
+  workflow è pinnata a uno SHA con la versione nel commento, Dependabot
+  propone ogni settimana gli aggiornamenti di sito, Functions e action
+  verso develop, e il workflow di test fa `npm audit` sulle dipendenze di
+  produzione; l'SDK di Anthropic nelle Functions passa alla 1.6
+  (REQ-DEV-006, finding 23 e 24).
 - Le Functions della regia possono girare con un account di servizio
   dedicato, con i soli ruoli che il codice usa e senza Editor, al posto
   dell'account predefinito di Compute Engine: lo crea

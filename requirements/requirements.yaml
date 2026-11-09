@@ -2118,6 +2118,92 @@ requirements:
       - tests/prove.test.js
       - tests/Home.test.jsx
       - tests/SceltaPiano.test.jsx
+  - id: REQ-DEV-005
+    title: "Le intestazioni di sicurezza del sito su Firebase Hosting, con la CSP prima in osservazione"
+    area: "firebase.json (hosting.headers), tests/hosting.test.js, docs/handover.md §6 punto 6"
+    description: >
+      Audit di sicurezza del 09/11/2026, finding 14: firebase.json aveva solo
+      public, ignore e rewrites, e il sito usciva senza nessuna intestazione
+      di sicurezza (la demo le ha già, infra/demo/intestazioni.json). Il
+      danno: clickjacking sul backoffice, un XSS futuro senza CSP a mano
+      libera, niente HSTS su un dominio proprio.
+      OGNI PAGINA E OGNI FILE (source "**") escono con: X-Frame-Options
+      DENY, X-Content-Type-Options nosniff, Referrer-Policy
+      strict-origin-when-cross-origin, Permissions-Policy camera=(),
+      microphone=(), geolocation=(), Strict-Transport-Security
+      max-age=31536000; includeSubDomains.
+      LA CONTENT-SECURITY-POLICY è Report-Only: il browser segnala in
+      console quello che bloccherebbe senza bloccare niente, perché prima
+      si osserva sul test (accesso con Google in finestra, Checkout e
+      ritorno da Stripe, backoffice, temi su misura). Le direttive nascono
+      da quello che il sito carica davvero: default-src 'self'; script-src
+      'self' più l'impronta sha256 dell'unico script in pagina (il preload
+      del font della prima pagina in index.html: Vite lo lascia com'è,
+      il test la ricalcola dal sorgente con i fine riga normalizzati, perché
+      il deploy parte dalla CI su Linux); style-src 'self' 'unsafe-inline'
+      (React scrive gli stili negli attributi); img-src 'self' data:;
+      font-src 'self' (Playfair Display è ospitato in /fonts); connect-src
+      'self' https://*.googleapis.com (Firestore, identitytoolkit,
+      securetoken) https://*.cloudfunctions.net (le callable e le due
+      fetch di db.js) https://*.firebaseapp.com (il dominio di Auth);
+      frame-src https://*.firebaseapp.com https://accounts.google.com (la
+      finestra di Google e l'iframe di Firebase Auth); object-src 'none';
+      base-uri 'self'; form-action 'self'; frame-ancestors 'none'. Niente
+      firebaseio.com: il Realtime Database non si usa. Stripe è un
+      reindirizzamento, non un caricamento: nessun js.stripe.com.
+      IL PASSO CHE MANCA (docs/handover.md §6, punto 6): dopo qualche
+      giorno sul test senza violazioni in console, togliere il suffisso
+      -Report-Only in firebase.json e nel test, e la CSP diventa vincolante.
+    status: implemented
+    generate_issue: true
+    labels: [regia, sicurezza]
+    priority: P2
+    test_cases:
+      - tests/hosting.test.js
+  - id: REQ-DEV-006
+    title: "La catena CI ferma a commit precisi: action pinnate, Dependabot, npm audit nel workflow di test"
+    area: ".github/workflows/*.yml (ogni uses:), .github/dependabot.yml, .github/workflows/test.yml (audit), tests/ci.test.js, functions/package-lock.json"
+    description: >
+      Audit di sicurezza del 09/11/2026, finding 23 e 24. Le action dei
+      workflow erano a tag mobile (actions/checkout@v4 e simili): chi
+      controlla quel tag controlla il runner, e sul runner passano le
+      chiavi di deploy e della flotta. Dependabot era spento. Le
+      dipendenze avevano 17 avvisi in radice (3 critici, 6 alti, tutti in
+      devDependencies) e 8 moderati nelle Functions (transitivi di
+      firebase-admin 13).
+      LE ACTION sono ferme a uno SHA di commit con la versione nel commento
+      (uses: actions/checkout@<sha> # v4.4.0), all'ultima patch del major
+      in uso al 09/11/2026: actions/checkout v4.4.0, actions/setup-node
+      v4.4.0, actions/upload-artifact v4.6.2, hashicorp/setup-terraform
+      v3.1.2, google-github-actions/auth v2.1.13, setup-gcloud v2.2.1. Il
+      test lo controlla su ogni workflow: ogni uses: ha 40 caratteri
+      esadecimali e il commento della versione; i workflow riusabili del
+      repository (./.github/workflows/deploy.yml) si chiamano per percorso.
+      DEPENDABOT (.github/dependabot.yml) guarda npm in radice e in
+      functions/ e le action, una volta a settimana, verso develop, al
+      massimo cinque PR per cartella, con i prefissi dei commit del
+      repository (chore(deps), chore(ci)); patch e minor raggruppati in una
+      PR, i major di npm ignorati: vite 8, vitest 5, happy-dom 21,
+      firebase-admin 14 si fanno a mano in un ramo dedicato.
+      NPM AUDIT nel workflow di test, sulle sole dipendenze di produzione
+      (--omit=dev --audit-level=high), in radice e in functions/. Nelle
+      Functions è vincolante (al 09/11/2026 passa: restano 8 moderati
+      transitivi di firebase-admin 13, da chiudere con firebase-admin 14).
+      In radice ha continue-on-error finché firebase (12, e anche 13)
+      porta @grpc/grpc-js 1.9 con due avvisi alti che nessuna versione
+      dell'SDK web risolve e che il browser non usa (Firestore in
+      WebChannel); quando passa pulito, si toglie.
+      LE DIPENDENZE: npm audit fix senza --force non cambia niente, né in
+      radice né nelle Functions (le dirette erano già all'ultima versione
+      non-major, react-router-dom 6.30.6 compresa, il cui avviso moderato
+      si chiude solo con la 7). L'unico aggiornamento minore disponibile,
+      @anthropic-ai/sdk 1.3.0 -> 1.6.0 nelle Functions, è fatto.
+    status: implemented
+    generate_issue: true
+    labels: [metodo, sicurezza]
+    priority: P2
+    test_cases:
+      - tests/ci.test.js
 
   - id: REQ-FLOTTA-058
     title: "Le Functions della regia girano con un account dedicato, senza Editor"
