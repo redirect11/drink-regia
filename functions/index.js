@@ -437,23 +437,52 @@ async function contaUsoCodice(codice, uid) {
   })
 }
 
+// I TENTATIVI SUI CODICI (audit del 09/11/2026, finding 15): la verifica
+// dice se un codice esiste, e senza un limite è un oracolo per indovinarli.
+// Ogni tentativo fallito del titolare si conta sul suo cliente
+// (clienti/{uid}.tentativi_codice, lib/sconti.js); al decimo in un'ora si
+// rifiuta finché l'ora non passa, e un codice buono azzera il contatore.
+// La scrittura passa dal trigger licenzaSegueIlPiano, che non trova
+// cambiamenti e si ferma: un costo per tentativo fallito, non per verifica.
+function soloSeNonTroppiTentativi(cliente, adesso) {
+  if (sconti.troppiTentativi(cliente?.tentativi_codice, adesso)) throw new HttpsError('resource-exhausted', sconti.TROPPI_TENTATIVI)
+}
+async function segnaTentativoCodice(uid, adesso) {
+  const ref = db.doc(`clienti/${uid}`)
+  await db.runTransaction(async (t) => {
+    const cliente = (await t.get(ref)).data()
+    // Senza cliente non c'è dove contare, e non si crea un documento.
+    if (cliente) t.update(ref, { tentativi_codice: sconti.tentativoFallito(cliente.tentativi_codice, adesso) })
+  })
+}
+// Il contatore via quando il codice è buono: solo se c'era, per non
+// scrivere (e svegliare il trigger) a ogni verifica riuscita.
+const tentativiAzzerati = (cliente) => (cliente?.tentativi_codice ? { tentativi_codice: FieldValue.delete() } : {})
+
 // IL TITOLARE PROVA UN CODICE nella scelta del piano, prima di pagare: è
-// valido? quanto vale? vince sul prezzo Fondatori? Non scrive niente. Serve
-// l'accesso con l'email confermata: un codice non si indovina da fuori.
+// valido? quanto vale? vince sul prezzo Fondatori? Non scrive niente, se
+// non il contatore dei tentativi. Serve l'accesso con l'email confermata:
+// un codice non si indovina da fuori.
 exports.verificaCodiceSconto = onCall(OPTS, async (req) => {
   if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
   if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Prima conferma la tua email.')
-  const cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data()
+  const uid = req.auth.uid
+  const cliente = (await db.doc(`clienti/${uid}`).get()).data()
   if (!cliente) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
   if (!String(req.data?.codice || '').trim()) throw new HttpsError('invalid-argument', 'Scrivi il codice.')
   const adesso = new Date()
-  const { sconto, errore } = await scontoPerAcquisto(cliente, req.data.codice, adesso, req.auth.uid)
-  if (errore) throw new HttpsError('failed-precondition', errore)
+  soloSeNonTroppiTentativi(cliente, adesso)
+  const { sconto, errore } = await scontoPerAcquisto(cliente, req.data.codice, adesso, uid)
+  if (errore) {
+    await segnaTentativoCodice(uid, adesso)
+    throw new HttpsError('failed-precondition', errore)
+  }
   const scelta = sceltaPulita({ piano: req.data?.piano, moduli: req.data?.moduli, terminali: req.data?.terminali, intervallo: req.data?.intervallo })
   if (sconto.percentuale < 100) {
     const c = acquisto.couponSconto(sconto, { intervallo: scelta.intervallo, adesso })
     if (c.errore) throw new HttpsError('failed-precondition', c.errore)
   }
+  if (cliente.tentativi_codice) await db.doc(`clienti/${uid}`).update(tentativiAzzerati(cliente))
   const puoFondatore = fondatori.coperto(scelta.piano) && !cliente.abbonamento?.fondatore && fondatori.postiLiberi((await POSTI_FONDATORI().get()).data(), adesso) > 0
   const vale = sconto.percentuale === 100 ? 'codice' : acquisto.scontoCheVale({ scelta, sconto, fondatore: puoFondatore, adesso })
   return { codice: sconto.codice, percentuale: sconto.percentuale, durata_mesi: sconto.durata_mesi, gratis: sconto.percentuale === 100, vale }
@@ -469,22 +498,31 @@ exports.attivaConCodice = onCall(OPTS, async (req) => {
   await solOSitoAperto()
   const uid = req.auth.uid
   const ref = db.doc(`clienti/${uid}`)
-  const codice = String(req.data?.codice || '').trim().toUpperCase()
-  if (!sconti.CODICE.test(codice)) throw new HttpsError('failed-precondition', 'Codice sconosciuto o disattivato.')
-  const refCodice = db.doc(`sconti/${codice}`)
+  const adesso = new Date()
   const prima = (await ref.get()).data()
+  soloSeNonTroppiTentativi(prima, adesso)
+  const codice = String(req.data?.codice || '').trim().toUpperCase()
+  if (!sconti.CODICE.test(codice)) {
+    await segnaTentativoCodice(uid, adesso)
+    throw new HttpsError('failed-precondition', 'Codice sconosciuto o disattivato.')
+  }
+  const refCodice = db.doc(`sconti/${codice}`)
   const istanza = prima?.slug ? (await db.doc(`istanze/${prima.slug}`).get()).data() : null
   const scelta = sceltaPulita({ piano: req.data?.piano, moduli: req.data?.moduli, terminali: req.data?.terminali })
   const basi = prove.problemaBasi(scelta)
   if (basi) throw new HttpsError('failed-precondition', basi)
   const inVendita = await vendita()
-  // In transazione col codice: l'ultimo uso lo prende uno solo.
+  // In transazione col codice: l'ultimo uso lo prende uno solo. Un
+  // tentativo fallito si conta nella stessa transazione.
   const esito = await db.runTransaction(async (t) => {
     const [cliente, doc] = (await Promise.all([t.get(ref), t.get(refCodice)])).map((s) => s.data())
     const fuori = cliente ? free.moduliFuoriVendita(cliente, scelta, inVendita) : []
     const e = acquisto.attivazioneConCodice({ cliente, uid, istanza, codice: doc, scelta, fuori })
-    if (e.errore) return e
-    t.update(ref, e.patch)
+    if (e.errore) {
+      if (cliente) t.update(ref, { tentativi_codice: sconti.tentativoFallito(cliente.tentativi_codice, adesso) })
+      return e
+    }
+    t.update(ref, { ...e.patch, ...tentativiAzzerati(cliente) })
     if (e.uso) t.update(refCodice, sconti.usoConfermato(doc, uid))
     return e
   })

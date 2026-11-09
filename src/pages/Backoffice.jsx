@@ -43,7 +43,7 @@ import { venditaPulita } from '../lib/vendita.js'
 import { ESCLUSIVI, nomeStile, nomeImpaginazione, ORIGINI_DETTE, STATI_DETTI, temaVuoto } from '../lib/temi.js'
 import { statoIstanza, statoDetto, STATI, progettoDi, riduzioneDetta } from '../lib/istanze.js'
 import { PIANI, MODULI, prezzoMensile, euro, baseMancante, senzaOrfani } from '../lib/piani.js'
-import { prezzoConSconto, scontoDetto, usiDetti } from '../lib/sconti.js'
+import { prezzoConSconto, scontoDetto, usiDetti, CODICE_VALIDO, REGOLA_CODICE, LIMITE_PER_IL_CENTO, generaCodice } from '../lib/sconti.js'
 import CatalogoTemi, { EditorTema } from './CatalogoTemi.jsx'
 import { contattoDi } from '../lib/clienti.js'
 import { statoCredito, euroCent } from '../lib/ai.js'
@@ -1414,12 +1414,17 @@ function licenzaBreve(istanza) {
 // già continua a usarli. Ogni cambio resta nello storico.
 // I CODICI SCONTO (REQ-FLOTTA-028): crearli, dar loro un limite di usi e
 // disattivarli. Si applicano dalla scheda del locale, con «Sconto…».
+// Il modulo parte con un codice proposto a caso (audit del 09/11/2026,
+// finding 15): un codice corto o parlante si indovina, uno di cinque
+// lettere e quattro cifre no. L'admin lo può cambiare, con la stessa regola
+// del server; e un 100% ha sempre un limite di usi.
 const CODICE_VUOTO = { codice: '', percentuale: '', durata_mesi: '', usi_massimi: '', descrizione: '' }
+const codiceProposto = () => ({ ...CODICE_VUOTO, codice: generaCodice() })
 const numeroONulla = (v) => (v === '' ? null : Number(v))
 
 function CodiciSconto({ onErrore }) {
   const [elenco, setElenco] = useState([])
-  const [nuovo, setNuovo] = useState(CODICE_VUOTO)
+  const [nuovo, setNuovo] = useState(codiceProposto)
   // Ogni cambio rilegge l'elenco: `giro` cresce, l'effetto riparte.
   const [giro, setGiro] = useState(0)
   const carica = () => setGiro((g) => g + 1)
@@ -1430,9 +1435,13 @@ function CodiciSconto({ onErrore }) {
   }, [giro, onErrore])
   const crea = async (e) => {
     e.preventDefault()
+    const codice = nuovo.codice.trim().toUpperCase()
+    // Le stesse regole del server, dette prima di chiamare.
+    if (!CODICE_VALIDO.test(codice)) return onErrore(REGOLA_CODICE)
+    if (Number(nuovo.percentuale) === 100 && nuovo.usi_massimi === '') return onErrore(LIMITE_PER_IL_CENTO)
     try {
-      await gestisciSconti('crea', { ...nuovo, percentuale: Number(nuovo.percentuale), durata_mesi: numeroONulla(nuovo.durata_mesi), usi_massimi: numeroONulla(nuovo.usi_massimi) })
-      setNuovo(CODICE_VUOTO)
+      await gestisciSconti('crea', { ...nuovo, codice, percentuale: Number(nuovo.percentuale), durata_mesi: numeroONulla(nuovo.durata_mesi), usi_massimi: numeroONulla(nuovo.usi_massimi) })
+      setNuovo(codiceProposto())
       carica()
     } catch (err) {
       onErrore(err.message)
@@ -1459,7 +1468,11 @@ function CodiciSconto({ onErrore }) {
       </p>
       <p className="muted small">
         Il limite conta i locali che prendono lo sconto: al pagamento, con un codice al 100% o applicato da qui. Raggiunto il
-        limite il codice non vale più per nessuno nuovo; si può alzare quando serve.
+        limite il codice non vale più per nessuno nuovo; si può alzare quando serve. Un codice al 100% ha sempre un limite.
+      </p>
+      <p className="muted small">
+        Un codice ha almeno 8 caratteri fra lettere maiuscole, cifre e trattini, con almeno 2 cifre: quello proposto va bene
+        così; chi lo cambia tiene la regola. Un titolare che sbaglia dieci codici in un’ora aspetta un’ora.
       </p>
       {elenco.length === 0 && <p className="muted small">Nessun codice.</p>}
       {elenco.map((s) => (
@@ -1484,8 +1497,11 @@ function CodiciSconto({ onErrore }) {
       <form onSubmit={crea} aria-label="Nuovo codice sconto">
         <label>
           Codice
-          <input {...campo('codice')} required />
+          <input {...campo('codice')} required minLength={8} maxLength={24} autoCapitalize="characters" />
         </label>
+        <button type="button" className="btn ghost small" onClick={() => setNuovo((n) => ({ ...n, codice: generaCodice() }))}>
+          Proponi un altro
+        </button>
         <label>
           Percentuale
           <input type="number" min="1" max="100" {...campo('percentuale')} required />

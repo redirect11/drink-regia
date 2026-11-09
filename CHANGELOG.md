@@ -13,6 +13,12 @@ data.
   una chiamata da un altro sito non si conta, e la Function `traccia` ha
   un tetto di due istanze; la dashboard del commerciale mostra i nomi
   delle famiglie (REQ-FLOTTA-052).
+- I codici sconto: un codice nuovo ha almeno 8 caratteri con almeno 2
+  cifre, il backoffice ne propone uno a caso (cinque lettere e quattro
+  cifre) e un codice al 100% ha sempre un limite di usi; i codici creati
+  prima restano validi. Un titolare che sbaglia dieci codici in un'ora
+  aspetta un'ora («Troppi tentativi, riprova fra un'ora.»)
+  (REQ-FLOTTA-053).
 - Il listino dei moduli cambia: il menù digitale col QR al tavolo è
   compreso nei piani Base e Completo; gli ordini dal telefono costano 12 €
   al mese; le fatture ai clienti (5 €) e le fatture ai fornitori (6 €) si

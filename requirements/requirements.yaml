@@ -2162,3 +2162,46 @@ requirements:
       - tests/Commerciale.test.jsx
       - tests/semina.test.js
       - tests/db.test.js
+  - id: REQ-FLOTTA-053
+    title: "I codici sconto non si indovinano: forma minima, limite di usi per il 100%, dieci tentativi all'ora"
+    area: "functions/lib/sconti.js (CODICE_NUOVO, scontoPulito, troppiTentativi, tentativoFallito), functions/index.js (verificaCodiceSconto, attivaConCodice, soloSeNonTroppiTentativi, segnaTentativoCodice), src/lib/sconti.js (CODICE_VALIDO, generaCodice), src/pages/Backoffice.jsx (CodiciSconto)"
+    description: >
+      Audit di sicurezza del 09/11/2026, finding 15: un codice sconto poteva
+      avere 3 caratteri (TANA), verificaCodiceSconto diceva a un titolare se
+      un codice esiste senza limite di tentativi (un oracolo per
+      indovinarli), e un codice al 100% senza usi_massimi attivava piani
+      che non si pagano a non finire.
+      LA FORMA DI UN CODICE NUOVO (CODICE_NUOVO): almeno 8 caratteri fra
+      lettere maiuscole, cifre e trattini, con almeno 2 cifre; il
+      backoffice propone un codice generato con crypto.getRandomValues
+      (cinque lettere senza O e I, un trattino, quattro cifre:
+      BARCA-4821), con «Proponi un altro»; l'admin lo puo' cambiare, e la
+      stessa regola vale anche per il suo, detta dal sito prima di chiamare
+      e imposta dal server (il testo e' lo stesso parola per parola, un test
+      lo confronta). Il modulo lo dice a schermo.
+      IL 100% HA SEMPRE UN LIMITE: scontoPulito rifiuta percentuale 100
+      senza usi_massimi (>= 1), e il backoffice lo dice prima di chiamare.
+      I CODICI GIA' CREATI: i vincoli nuovi valgono alla creazione. La
+      ricerca (CODICE, da 3 a 24) accetta ancora i codici di prima: TANA-100
+      della Tana e i codici della semina di test restano validi, e un 100%
+      illimitato gia' esistente resta com'e' (si disattiva dal backoffice se
+      non si vuole piu').
+      I TENTATIVI: ogni verifica o attivazione fallita di un titolare
+      (codice sconosciuto, disattivato, esaurito, o che non attiva) si conta
+      in clienti/{uid}.tentativi_codice = { conteggio, finestra_da },
+      incrementato in transazione; al decimo in un'ora le due callable
+      rifiutano con resource-exhausted «Troppi tentativi, riprova fra
+      un'ora.» finche' l'ora non passa; un codice buono toglie il campo
+      (FieldValue.delete). Senza cliente non si crea un documento per
+      contare. Il campo lo scrivono solo le Functions: le regole di
+      clienti/{uid} elencano gia' cosa il titolare puo' creare e cambiare, e
+      tentativi_codice non c'e'; un test lo controlla. La scrittura sveglia
+      il trigger licenzaSegueIlPiano, che non trova cambiamenti e si ferma:
+      un costo per tentativo fallito, non per verifica riuscita.
+    status: implemented
+    generate_issue: true
+    labels: [regia, sicurezza]
+    priority: P2
+    test_cases:
+      - tests/sconti.test.js
+      - tests/Backoffice.test.jsx
