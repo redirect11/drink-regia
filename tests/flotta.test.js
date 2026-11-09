@@ -495,12 +495,11 @@ describe.each(WORKFLOW)('%s: il codice di tana-drink gira solo nel job senza la 
   })
 
   // REQ-FLOTTA-048, primo punto del 29 dell'audit: l'esito deve dire lo
-  // SHA pubblicato, non solo «main». Il campo entra nel JSON del callback
-  // quando le due PR del 09/11 saranno integrate (TODO nel workflow).
-  it('lo SHA di tana-drink pubblicato arriva al job dell’esito, pronto per il callback', () => {
+  // SHA pubblicato, non solo «main»: dal job `controlla` al job dell'esito,
+  // e da lì nel JSON del callback, che la regia salva in istanze/{slug}.
+  it('lo SHA di tana-drink pubblicato arriva al job dell’esito e nel callback', () => {
     expect(w.jobs.pubblica.env.COMMIT_APP).toBe('${{ needs.controlla.outputs.commit }}')
-    const testoWorkflow = leggi(`.github/workflows/${_}`)
-    expect(testoWorkflow).toMatch(/TODO\(REQ-FLOTTA-048\)[\s\S]{0,400}- name: Esito alla regia/)
+    expect(passo(w, 'Esito alla regia').run).toContain('commit: process.env.COMMIT_APP || null')
   })
 })
 

@@ -8,7 +8,7 @@ import { createRequire } from 'node:module'
 import { readFileSync } from 'node:fs'
 
 const require = createRequire(import.meta.url)
-const { preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, documentoIstanza, vincoliEsito, urlAmmesso, bearerValido, segretoUsabile, PREFISSO_PROGETTI, ESITO_VECCHIO_MS, ESITO_FUTURO_MS, SEGRETO_MIN } = require('../functions/lib/provisioning.js')
+const { preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, documentoIstanza, documentoAggiornamento, vincoliEsito, urlAmmesso, bearerValido, segretoUsabile, PREFISSO_PROGETTI, ESITO_VECCHIO_MS, ESITO_FUTURO_MS, SEGRETO_MIN } = require('../functions/lib/provisioning.js')
 
 const richiesta = { uid: 'u1', slug: 'bar-mario', nome_locale: 'Bar Mario', piano: 'base', moduli: ['staff', 'magazzino'], stato: 'in coda' }
 const cliente = { uid: 'u1', slug: 'bar-mario', nome_locale: 'Bar Mario', piano: 'base', moduli: ['staff'], terminali: 1, abbonamento: { stato: 'attivo' } }
@@ -173,7 +173,8 @@ describe('esitoValido e documentoIstanza', () => {
   it('accetta solo slug e stati noti, e riempie il documento senza perdere quello che c’era', () => {
     expect(esitoValido({ slug: 'bar-mario', stato: 'boh' })).toBeNull()
     expect(esitoValido(null)).toBeNull()
-    const esito = esitoValido({ slug: 'bar-mario', stato: 'attiva', url: 'https://bar-mario.drink.app', versione: 'v1.10.0', ambiente: 'produzione', ref: 'main' })
+    const SHA = 'a'.repeat(40)
+    const esito = esitoValido({ slug: 'bar-mario', stato: 'attiva', url: 'https://bar-mario.drink.app', versione: 'v1.10.0', ambiente: 'produzione', ref: 'main', commit: SHA })
     const doc = documentoIstanza(esito, { uid: 'u1', progetto: 'drinkpos-bar-mario' }, new Date('2026-10-22T10:00:00Z'))
     expect(doc).toEqual({
       uid: 'u1',
@@ -184,12 +185,26 @@ describe('esitoValido e documentoIstanza', () => {
       versione: 'v1.10.0',
       ambiente: 'produzione',
       ref: 'main',
+      commit: SHA,
       profilo: null,
       errore: null,
       aggiornata_il: '2026-10-22T10:00:00.000Z',
     })
     // Il profilo con cui il workflow l'ha pubblicata resta sull'istanza.
     expect(documentoIstanza(esitoValido({ slug: 'bar-mario', stato: 'attiva', profilo: 'leggero' }), null).profilo).toBe('leggero')
+  })
+
+  // REQ-FLOTTA-048: «main» è un riferimento mobile, lo SHA dice cosa gira.
+  it('lo SHA pubblicato si salva solo se è uno SHA intero, e un esito senza SHA non cancella quello di prima', () => {
+    const SHA = 'b'.repeat(40)
+    expect(esitoValido({ slug: 'bar-mario', stato: 'attiva', commit: SHA }).commit).toBe(SHA)
+    expect(esitoValido({ slug: 'bar-mario', stato: 'attiva', commit: 'main' }).commit).toBeNull()
+    expect(esitoValido({ slug: 'bar-mario', stato: 'attiva', commit: 'b'.repeat(7) }).commit).toBeNull()
+    expect(documentoIstanza(esitoValido({ slug: 'bar-mario', stato: 'attiva' }), { commit: SHA }).commit).toBe(SHA)
+    // In un aggiornamento lo SHA nuovo entra solo se è riuscito.
+    const prima = { stato: 'attiva', commit: SHA }
+    expect(documentoAggiornamento(esitoValido({ slug: 'bar-mario', stato: 'attiva', commit: 'c'.repeat(40) }), prima).commit).toBe('c'.repeat(40))
+    expect(documentoAggiornamento(esitoValido({ slug: 'bar-mario', stato: 'errore', commit: 'c'.repeat(40) }), prima).commit).toBe(SHA)
   })
 
   it('un errore porta il suo messaggio, o uno di riserva', () => {

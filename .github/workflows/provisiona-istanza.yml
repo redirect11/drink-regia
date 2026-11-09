@@ -489,11 +489,9 @@ jobs:
         run: echo "VERSIONE=v$(node -p "require('./app/package.json').version")" >> "$GITHUB_ENV"
 
       # L'ESITO ALLA REGIA, sempre: anche un fallimento si deve vedere nella
-      # dashboard del titolare, non solo qui.
-      # TODO(REQ-FLOTTA-048): aggiungere al JSON il campo `commit` con
-      # process.env.COMMIT_APP (lo SHA di tana-drink pubblicato, dal job
-      # `controlla`), quando questa PR e quella che aggiunge run_id e
-      # inviato_il al callback saranno integrate: lo fa chi integra.
+      # dashboard del titolare, non solo qui. Porta anche `commit`, lo SHA di
+      # tana-drink pubblicato (dal job `controlla`): «main» è un riferimento
+      # mobile, lo SHA dice cosa gira davvero (REQ-FLOTTA-048).
       - name: Esito alla regia
         if: always()
         env:
@@ -509,6 +507,7 @@ jobs:
             fetch(url, { method: "POST", headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
               body: JSON.stringify({ slug, stato, url: u || null, progetto, versione: versione || null, errore: errore || null,
                 ambiente: "produzione", operazione: "attivazione", profilo: process.env.PROFILO || null, ref: process.env.REF_APP || null,
+                commit: process.env.COMMIT_APP || null,
                 run_id: Number(process.env.RUN_ID), inviato_il: new Date().toISOString() }) })
               .then((r) => { console.log("regia:", r.status); if (r.status >= 300) process.exit(1); })
           ' "$CALLBACK_URL" "$CALLBACK_SECRET" "$SLUG" "$STATO" "${URL_ISTANZA:-}" "$PROGETTO" "${VERSIONE:-}" "$ERR"

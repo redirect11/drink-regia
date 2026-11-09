@@ -171,6 +171,9 @@ function esitoValido(body) {
     // dice, con il ramo o tag da cui l'ha compilata.
     ambiente: body.ambiente ? String(body.ambiente) : null,
     ref: body.ref ? String(body.ref) : null,
+    // Lo SHA di tana-drink pubblicato (REQ-FLOTTA-048): «main» e i tag sono
+    // riferimenti mobili, lo SHA dice cosa gira davvero. Solo un SHA intero.
+    commit: typeof body.commit === 'string' && /^[0-9a-f]{40}$/.test(body.commit) ? body.commit : null,
     // Attivazione o aggiornamento (REQ-FLOTTA-012): il workflow può dirlo;
     // se non lo dice decide eAggiornamento, dallo stato dell'istanza.
     operazione: ['attivazione', 'aggiornamento'].includes(body.operazione) ? body.operazione : null,
@@ -209,6 +212,7 @@ function documentoAggiornamento(esito, prima = null, adesso = new Date()) {
     slug: esito.slug,
     versione: riuscito ? esito.versione ?? prima?.versione ?? null : prima?.versione ?? null,
     ref: riuscito ? esito.ref ?? prima?.ref ?? null : prima?.ref ?? null,
+    commit: riuscito ? esito.commit ?? prima?.commit ?? null : prima?.commit ?? null,
     ambiente: esito.ambiente ?? prima?.ambiente ?? null,
     profilo: riuscito ? esito.profilo ?? prima?.profilo ?? null : prima?.profilo ?? null,
     aggiornamento: {
@@ -234,6 +238,7 @@ function documentoIstanza(esito, prima = null, adesso = new Date()) {
     versione: esito.versione ?? prima?.versione ?? null,
     ambiente: esito.ambiente ?? prima?.ambiente ?? null,
     ref: esito.ref ?? prima?.ref ?? null,
+    commit: esito.commit ?? prima?.commit ?? null,
     profilo: esito.profilo ?? prima?.profilo ?? null,
     errore: esito.errore,
     aggiornata_il: adesso.toISOString(),
