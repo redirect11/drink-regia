@@ -87,50 +87,20 @@ describe('clienti/{uid}: la lettura', () => {
   })
 })
 
-describe('clienti/{uid}: la registrazione (create)', () => {
-  it('il titolare crea il suo documento come lo scrive il sito', async () => {
-    await assertSucceeds(setDoc(doc(CHI.clienteA(env), `clienti/${UID.a}`), registrazione(UID.a, EMAIL.a)))
+// LA REGISTRAZIONE NON PASSA PIÙ DAL BROWSER (REQ-FLOTTA-045, audit del
+// 09/11/2026, finding 4): le regole controllavano la forma dello slug, non
+// che fosse unico, e due titolari con lo stesso nome di locale finivano
+// sullo stesso slug. Ora il documento lo scrive la Function registraCliente,
+// che in transazione verifica che lo slug sia libero; qui la create è
+// `if false` per chiunque, anche con un documento perfetto.
+describe('clienti/{uid}: la registrazione (create) è solo della Function registraCliente', () => {
+  it('il titolare non crea il suo documento dal browser, nemmeno come lo scriveva il sito', async () => {
+    await assertFails(setDoc(doc(CHI.clienteA(env), `clienti/${UID.a}`), registrazione(UID.a, EMAIL.a)))
   })
 
   it('non lo crea sull’uid di un altro', async () => {
     await assertFails(setDoc(doc(CHI.clienteA(env), `clienti/${UID.b}`), registrazione(UID.b, EMAIL.a)))
   })
-
-  it('non lo crea con un’email diversa da quella dell’account', async () => {
-    await assertFails(setDoc(doc(CHI.clienteA(env), `clienti/${UID.a}`), registrazione(UID.a, 'altra@locale.example')))
-  })
-
-  it.each([
-    ['troppo corto', 'bar'],
-    ['con maiuscole', 'Bar-Centrale'],
-    ['che comincia con una cifra', '1bar-centrale'],
-    ['che finisce con un trattino', 'bar-centrale-'],
-    ['con caratteri non ammessi', 'bar_centrale'],
-    ['troppo lungo', 'b'.repeat(31)],
-  ])('non lo crea con uno slug %s', async (_, slug) => {
-    await assertFails(setDoc(doc(CHI.clienteA(env), `clienti/${UID.a}`), { ...registrazione(UID.a, EMAIL.a), slug }))
-  })
-
-  it.each(['1234', 'IT12345678901', '1234567890a', ''])('non lo crea con la partita IVA «%s», che non è di 11 cifre', async (partita_iva) => {
-    const cliente = registrazione(UID.a, EMAIL.a)
-    cliente.fatturazione = { ...cliente.fatturazione, partita_iva }
-    await assertFails(setDoc(doc(CHI.clienteA(env), `clienti/${UID.a}`), cliente))
-  })
-
-  it('non lo crea senza la data dei consensi', async () => {
-    const cliente = registrazione(UID.a, EMAIL.a)
-    cliente.consensi = { ...cliente.consensi, termini_il: null }
-    await assertFails(setDoc(doc(CHI.clienteA(env), `clienti/${UID.a}`), cliente))
-    cliente.consensi = { ...cliente.consensi, termini_il: cliente.creato_il, privacy_il: null }
-    await assertFails(setDoc(doc(CHI.clienteA(env), `clienti/${UID.a}`), cliente))
-  })
-
-  it.each(['piano', 'moduli', 'terminali', 'prove', 'sconto', 'abbonamento', 'interna', 'esistente', 'temi'])(
-    'non lo crea con «%s» dentro: quei campi li mettono l’admin e le Functions',
-    async (campo) => {
-      await assertFails(setDoc(doc(CHI.clienteA(env), `clienti/${UID.a}`), { ...registrazione(UID.a, EMAIL.a), [campo]: 'completo' }))
-    },
-  )
 
   it('chi non ha fatto l’accesso non crea niente', async () => {
     await assertFails(setDoc(doc(CHI.anonimo(env), `clienti/${UID.a}`), registrazione(UID.a, EMAIL.a)))
@@ -140,19 +110,12 @@ describe('clienti/{uid}: la registrazione (create)', () => {
     await assertFails(setDoc(doc(CHI.admin(env), `clienti/${UID.a}`), registrazione(UID.a, EMAIL.a)))
   })
 
-  // IL BUCO DEL FINDING 4 (audit del 09/11/2026): le regole controllano la
-  // forma dello slug, non che sia unico. Due titolari con lo stesso nome di
-  // locale registrano lo stesso slug, e `clienteDi(slug)` nelle Functions
-  // prende «il primo». Questa prova documenta che OGGI PASSA: non è il
-  // comportamento voluto, è quello che c'è.
-  // CAMBIERÀ: quando la create di clienti/{uid} uscirà dal browser (callable
-  // `registraCliente` che verifica lo slug in transazione), la regola
-  // diventerà `allow create: if false` e questa prova, come «crea il suo
-  // documento come lo scrive il sito» qui sopra, dovrà aspettarsi un rifiuto
-  // (assertFails) per entrambi i titolari.
-  it('due titolari con lo stesso slug: oggi la seconda registrazione PASSA (finding 4, cambierà)', async () => {
-    await assertSucceeds(setDoc(doc(CHI.clienteA(env), `clienti/${UID.a}`), registrazione(UID.a, EMAIL.a, 'Bar Centrale')))
-    await assertSucceeds(setDoc(doc(CHI.clienteB(env), `clienti/${UID.b}`), registrazione(UID.b, EMAIL.b, 'Bar Centrale')))
+  // Il buco del finding 4, chiuso: due titolari con lo stesso nome di locale
+  // non scrivono più lo stesso slug, perché dal browser non scrive nessuno;
+  // chi arriva secondo riceve «already-exists» dalla Function.
+  it('due titolari con lo stesso slug: nessuno dei due scrive dal browser (finding 4, chiuso)', async () => {
+    await assertFails(setDoc(doc(CHI.clienteA(env), `clienti/${UID.a}`), registrazione(UID.a, EMAIL.a, 'Bar Centrale')))
+    await assertFails(setDoc(doc(CHI.clienteB(env), `clienti/${UID.b}`), registrazione(UID.b, EMAIL.b, 'Bar Centrale')))
   })
 })
 

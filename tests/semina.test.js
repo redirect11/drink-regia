@@ -32,6 +32,9 @@ describe('le persone', () => {
     const casi = PERSONE.map((p) => p.caso)
     expect(casi).toEqual(['free', 'base-manuale', 'completo-stripe', 'base-moduli', 'fondatore', 'sconto-100', 'prova-modulo', 'moroso', 'disdetto', 'da-approvare', 'senza-piano', 'eliminato'])
     expect(new Set(casi).size).toBe(PERSONE.length)
+    // Lo slug è unico (REQ-FLOTTA-045): la semina scrive con l'Admin SDK,
+    // fuori dalla Function che lo garantisce, e non deve creare doppioni.
+    expect(new Set(PERSONE.map((p) => p.slug)).size).toBe(PERSONE.length)
     for (const p of PERSONE) {
       expect(p.slug).toMatch(SLUG_VALIDO)
       expect(emailDi(p.slug)).toMatch(/^[a-z0-9-]+@semina\.example$/)

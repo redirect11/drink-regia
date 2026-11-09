@@ -12,16 +12,17 @@ service cloud.firestore {
     // Il titolare: nasce alla registrazione, lo tocca solo lui (o l'admin).
     // Piano e abbonamento li scrive la regia (Functions/admin), non il
     // cliente: qui si impedisce che un cliente si assegni un piano da solo.
+    // LA CREAZIONE la fa SOLO la Function `registraCliente` (Admin SDK,
+    // fuori da queste regole), in transazione, dopo aver visto che lo slug
+    // è libero. Audit del 09/11/2026, finding 4: prima la creava il
+    // browser e la regola controllava la forma dello slug ma non che fosse
+    // di nessun altro, e una regola non può interrogare la collezione; due
+    // locali con lo stesso nome finivano sullo stesso slug, e la licenza, i
+    // dati del locale e la subscription di Stripe potevano andare al
+    // cliente sbagliato. Nessuna create dai client, a nessuna condizione.
     match /clienti/{uid} {
       allow read: if mio(uid) || admin();
-      allow create: if mio(uid)
-        && request.resource.data.keys().hasOnly(['uid', 'versione_schema', 'email', 'nome_locale', 'slug', 'locale', 'fatturazione', 'referente', 'consensi', 'creato_il'])
-        && request.resource.data.uid == uid
-        && request.resource.data.email == request.auth.token.email
-        && request.resource.data.slug.matches('^[a-z][a-z0-9-]{4,28}[a-z0-9]$')
-        && request.resource.data.fatturazione.partita_iva.matches('^[0-9]{11}$')
-        && request.resource.data.consensi.termini_il is string
-        && request.resource.data.consensi.privacy_il is string;
+      allow create: if false;
       // `interna` ed `esistente` (REQ-AI-003) li mette solo l'admin: un
       // titolare che se li scrivesse da sé uscirebbe dalla sospensione dei
       // morosi. La sospensione legge comunque il segno sull'istanza.
@@ -31,15 +32,17 @@ service cloud.firestore {
       // Un titolare poteva accendersi i moduli da solo (verifica del
       // 02/11/2026). Ora è un elenco di quello che può cambiare.
       // Dentro i blocchi permessi valgono gli stessi controlli della
-      // registrazione (H1, 02/11/2026): la partita IVA resta di 11 cifre, che
-      // serve alla fattura elettronica, e i consensi dati non si cancellano.
+      // registrazione (H1, 02/11/2026; oggi li fa `registraCliente`): la
+      // partita IVA resta di 11 cifre, che serve alla fattura elettronica,
+      // e i consensi dati non si cancellano.
       // VALIDO, O COM'ERA: un locale registrato come esistente (la Tana,
       // documentiEsistente) nasce con `fatturazione: {}` e i consensi a
       // null, e pretendere i valori pieni gli chiuderebbe ogni modifica.
       // Così chi li ha validi non li può guastare, e chi non li ha ancora
       // non resta bloccato: li può solo mettere giusti.
-      // Oggi il sito non aggiorna mai clienti/{uid} dal browser: modifiche
-      // dei dati, scelta del piano, sconti e prove passano dalle Functions.
+      // Oggi il sito non scrive mai clienti/{uid} dal browser: registrazione,
+      // modifiche dei dati, scelta del piano, sconti e prove passano dalle
+      // Functions.
       function nuovo(blocco, campo) {
         return request.resource.data.get(blocco, {}).get(campo, null);
       }

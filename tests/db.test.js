@@ -176,6 +176,7 @@ describe('le chiamate alle Functions', () => {
   // REQ-FLOTTA-042: i passi della vendita si contano, senza aspettare.
   it('registrazione, Free, checkout, contatto, codice e attivazione si segnalano alla Function traccia', async () => {
     fb.risposte.creaCheckout = { url: 'https://checkout.stripe.com/x' }
+    fb.risposte.registraCliente = { ok: true, cliente: { uid: 'nuovo' } }
     await db.registra({ email: 'bar@example.com', password: 'x', locale: { nome: 'Bar Mario' }, fatturazione: {}, referente: {} })
     await db.scegliFree()
     await db.avviaPagamento({ piano: 'base' })
@@ -247,11 +248,38 @@ describe('l’accesso', () => {
     expect(visti).toEqual([null, null])
   })
 
-  it('registrazione: account, documento del cliente, email di verifica', async () => {
+  // REQ-FLOTTA-045 (audit del 09/11/2026, finding 4): il documento del
+  // cliente lo scrive la Function registraCliente, mai il browser.
+  it('registrazione: account, la Function registraCliente coi dati del modulo, email di verifica; niente scritture dirette', async () => {
+    fb.risposte.registraCliente = { ok: true, slug: 'bar-mario', cliente: { uid: 'nuovo', slug: 'bar-mario' } }
+    const dati = { locale: { nome: 'Bar Mario' }, fatturazione: { partita_iva: '01234567897' }, referente: { termini: true, privacy: true } }
+    const cliente = await db.registra({ email: 'bar@example.com', password: 'x', ...dati })
+    expect(cliente).toEqual({ uid: 'nuovo', slug: 'bar-mario' })
+    expect(fb.chiamate).toEqual([
+      { nome: 'registraCliente', dati },
+      { nome: 'verifica', dati: 'nuovo' },
+    ])
+    expect(fb.scritti).toEqual([])
+  })
+
+  it('lo slug scelto a mano arriva alla Function solo se c’è, e un rifiuto per slug in uso si riconosce', async () => {
+    fb.risposte.registraCliente = { ok: true, cliente: { uid: 'nuovo' } }
+    await db.registra({ email: 'bar@example.com', password: 'x', locale: { nome: 'Bar Mario' }, fatturazione: {}, referente: {}, slug: 'bar-mario-nola' })
+    expect(fb.chiamate[0].dati).toMatchObject({ slug: 'bar-mario-nola' })
+    expect(db.slugGiaInUso({ code: 'functions/already-exists', details: { campo: 'slug', slug: 'bar-mario' } })).toBe(true)
+    expect(db.slugGiaInUso({ code: 'functions/already-exists', details: { campo: 'account' } })).toBe(false)
+    expect(db.slugGiaInUso({ code: 'functions/invalid-argument', details: { campo: 'slug' } })).toBe(false)
+    expect(db.slugGiaInUso(new Error('rete'))).toBe(false)
+  })
+
+  // Dopo un rifiuto l'account c'è: al secondo tentativo non si ricrea.
+  it('con l’account già entrato con la stessa email si scrive solo il cliente, senza ricreare l’account', async () => {
+    fb.auth = { currentUser: { uid: 'c1', email: 'Bar@Example.com', emailVerified: false } }
+    fb.risposte.registraCliente = { ok: true, cliente: { uid: 'c1' } }
     const cliente = await db.registra({ email: 'bar@example.com', password: 'x', locale: { nome: 'Bar Mario' }, fatturazione: {}, referente: {} })
-    expect(cliente.uid).toBe('nuovo')
-    expect(fb.scritti[0]).toMatchObject({ come: 'set', percorso: 'clienti/nuovo' })
-    expect(fb.chiamate).toContainEqual({ nome: 'verifica', dati: 'nuovo' })
+    expect(cliente).toEqual({ uid: 'c1' })
+    expect(fb.chiamate.map((c) => c.nome)).toEqual(['registraCliente', 'verifica'])
+    expect(fb.chiamate[1].dati).toBe('c1')
   })
 
   it('accesso, uscita, recupero della password, verifica e rilettura', async () => {
@@ -273,23 +301,27 @@ describe('l’accesso', () => {
     expect(fb.chiamate).toEqual([{ nome: 'google', dati: { prompt: 'select_account' } }])
   })
 
-  it('chi è entrato con Google completa il cliente con l’email del suo account, senza verifica se è già verificata', async () => {
+  it('chi è entrato con Google completa il cliente dalla Function, con l’email del suo account, senza verifica se è già verificata', async () => {
     fb.auth = { currentUser: { uid: 'g1', email: 'Mario@Gmail.com', emailVerified: true } }
-    const cliente = await db.completaRegistrazione({ locale: { nome: 'Bar Mario' }, fatturazione: {}, referente: { termini: true, privacy: true } })
+    fb.risposte.registraCliente = { ok: true, cliente: { uid: 'g1', email: 'mario@gmail.com', slug: 'bar-mario' } }
+    const dati = { locale: { nome: 'Bar Mario' }, fatturazione: {}, referente: { termini: true, privacy: true } }
+    const cliente = await db.completaRegistrazione(dati)
     expect(cliente).toMatchObject({ uid: 'g1', email: 'mario@gmail.com', slug: 'bar-mario' })
-    expect(fb.scritti).toEqual([expect.objectContaining({ come: 'set', percorso: 'clienti/g1' })])
-    expect(fb.chiamate).toEqual([])
+    expect(fb.scritti).toEqual([])
+    expect(fb.chiamate).toEqual([{ nome: 'registraCliente', dati }])
     fb.auth.currentUser.emailVerified = false
     await db.completaRegistrazione({ locale: { nome: 'Bar Mario' }, fatturazione: {}, referente: {} })
-    expect(fb.chiamate).toEqual([{ nome: 'verifica', dati: 'g1' }])
+    expect(fb.chiamate.at(-1)).toEqual({ nome: 'verifica', dati: 'g1' })
   })
 
   it('senza accesso non si completa niente, e senza Firebase dice cosa manca', async () => {
     fb.auth = { currentUser: null }
     await expect(db.completaRegistrazione({ locale: { nome: 'Bar Mario' } })).rejects.toThrow(/Serve l’accesso/)
     expect(fb.scritti).toEqual([])
+    expect(fb.chiamate).toEqual([])
     fb.configurata = false
     await expect(db.entraConGoogle()).rejects.toThrow(/VITE_FIREBASE/)
+    await expect(db.registra({ email: 'a@b.it', password: 'x' })).rejects.toThrow(/VITE_FIREBASE/)
   })
 })
 

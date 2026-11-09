@@ -2064,8 +2064,10 @@ requirements:
       vera: chiediAttivazione, creaCheckout, attivaConCodice, cambiaScelta,
       chiediContatto, scegliFree, provaModulo, creaRicaricaAI rifiutano
       («Il sito non e' ancora aperto al pubblico.») e moduloDallApp risponde
-      409. La registrazione e' di Firebase Auth e non passa dalle Functions:
-      chi la chiamasse a mano avrebbe un account senza poter fare niente.
+      409. L'account e' di Firebase Auth e nasce comunque; dal 09/11/2026
+      il documento del cliente lo scrive la Function registraCliente
+      (REQ-FLOTTA-045), che col sito chiuso rifiuta: chi si registrasse a
+      mano avrebbe un account senza locale e senza poter fare niente.
     status: implemented
     generate_issue: true
     labels: [regia, produzione]
@@ -2117,6 +2119,95 @@ requirements:
       - tests/moduliapp.test.js
       - tests/prove.test.js
       - tests/Home.test.jsx
+      - tests/SceltaPiano.test.jsx
+  - id: REQ-FLOTTA-045
+    title: "Lo slug del cliente è unico: la registrazione la scrive la Function registraCliente, e ogni ricerca per slug si ferma davanti a un doppione"
+    area: "functions/lib/registrazione.js (nuovoCliente, documentoRegistrazione, registraCliente, clientePerSlug), functions/index.js (registraCliente, docClientePerSlug e tutte le ricerche per slug), firestore.rules (clienti/{uid}: create if false), src/lib/db.js (creaCliente, registra, completaRegistrazione, slugGiaInUso), src/pages/Registrati.jsx (la casella dell'identificativo)"
+    description: >
+      Audit di sicurezza del 09/11/2026, finding 4 (alta). Il documento
+      clienti/{uid} lo scriveva il browser alla registrazione, e la regola
+      `create` controllava la forma dello slug ma non che fosse libero: una
+      regola non può interrogare la collezione. Due locali con lo stesso
+      nome (o un malintenzionato col nome di un concorrente non ancora
+      attivo) finivano sullo stesso slug, e le Functions cercavano il
+      cliente con `where('slug', '==').limit(1)`: con due clienti «il
+      primo», in silenzio. La licenza, i dati del locale copiati nell'app
+      (P.IVA, telefono), la subscription di Stripe di un modulo comprato
+      dall'app potevano andare al cliente sbagliato.
+      LA REGISTRAZIONE passa dalla callable `registraCliente`: uid ed email
+      sono quelli dell'account, i dati del locale, della fatturazione e
+      del referente arrivano come li raccoglie il modulo, e il documento si
+      costruisce sul server con gli stessi campi di prima (un test lo
+      confronta con nuovoCliente del sito, campo per campo), con i
+      controlli che facevano le regole (slug valido, partita IVA di 11
+      cifre) più i consensi dati davvero. Si scrive in TRANSAZIONE, dopo
+      aver letto che nessun cliente e nessuna istanza hanno quello slug e
+      che l'account non ha già un locale. Slug preso: `already-exists`,
+      «Questo identificativo è già in uso: scegline un altro.», con
+      `details.campo = 'slug'`; il sito torna al passo del locale e apre la
+      casella dell'identificativo, prima nascosta, già piena di quello
+      rifiutato; chi non ha il problema non la vede e tiene lo slug dal
+      nome, come sempre. Col sito chiuso (REQ-FLOTTA-043) non si registra
+      nessuno: chiude anche il finding 26. Dopo un rifiuto l'account c'è:
+      al secondo tentativo con lo stesso account entrato non si ricrea.
+      LE REGOLE: `allow create: if false` su clienti/{uid}; il sito non
+      scrive mai clienti/{uid} dal browser, nemmeno alla registrazione.
+      LE RICERCHE PER SLUG: l'helper `clientePerSlug` chiede due documenti
+      (`limit(2)`) e con due si ferma con «Identificativo ambiguo: più di un
+      cliente con lo slug …» (`failed-precondition`; 409 per l'app dei
+      locali in moduloDallApp). Lo usano tutte le ricerche di index.js:
+      clienteDi (licenza, dati del locale, aggiornamenti), le scadenze, le
+      callable admin (registraPagamento, applicaSconto, impostaTemi,
+      gestisciEliminazione, cambiaPianoAdmin, creaCliente,
+      registraLocaleEsistente), lanciaAggiornamento, moduloDallApp.
+      LA SEMINA (REQ-DEV-004) scrive con l'Admin SDK: gli slug delle
+      persone sono diversi fra loro, e un test lo tiene così.
+      Le regole restano provate sul testo (finding 16: l'emulatore non è
+      ancora fra le dipendenze); la transazione si prova con un Firestore
+      finto.
+    status: implemented
+    generate_issue: true
+    labels: [flotta, regia, sicurezza]
+    priority: P1
+    test_cases:
+      - tests/registrazione.test.js
+      - tests/clienti.test.js
+      - tests/db.test.js
+      - tests/Registrati.test.jsx
+      - tests/semina.test.js
+  - id: REQ-FLOTTA-046
+    title: "Il cambio di piano del titolare su un abbonamento a mano: subito solo la riduzione, l'aumento è una richiesta all'assistenza"
+    area: "functions/lib/cambiopiano.js (eRiduzione, decisioneManuale), functions/index.js (cambiaScelta, ramo manuale), src/pages/SceltaPiano.jsx (il messaggio con via 'richiesta')"
+    description: >
+      Audit di sicurezza del 09/11/2026, finding 5 (alta; era la M2 del
+      22/10/2026). Con `abbonamento.origine === 'manuale'` (bonifico, piano
+      scritto dall'admin con «Cambia piano» fuori da Stripe, codice al 100%
+      poi pagato) `cambiaScelta` scriveva subito piano, moduli e terminali
+      sul cliente, e `licenzaSegueIlPiano` riscriveva la licenza
+      dell'istanza: qualunque titolare con un piano a mano chiamava la
+      callable con il Completo, tutti i moduli e venti terminali e si
+      trovava tutto acceso senza pagare. `moduloDallApp` nello stesso caso
+      faceva già la cosa giusta (una richiesta in contatti/).
+      ORA: se la scelta è una RIDUZIONE (piano uguale o più economico,
+      nessuna funzione in più fra quelle che la licenza accende, cioè i
+      moduli compresi nel piano più quelli comprati, terminali non di più)
+      si scrive subito come prima e la Function risponde `via: 'manuale'`.
+      Altrimenti si scrive una richiesta di contatto in contatti/<uid>
+      (stesso documento della dashboard coi pagamenti spenti,
+      REQ-FLOTTA-017: una aperta per cliente, la nuova prende il posto di
+      quella), con la scelta chiesta e quello che il cliente ha oggi
+      (`dalla_dashboard`), e la Function risponde `{ ok: true, via:
+      'richiesta' }`: il piano non si tocca e la licenza non cambia. L'admin
+      la vede fra le richieste, concorda il pagamento e accende con «Cambia
+      piano» fuori da Stripe (REQ-FLOTTA-016). La dashboard, con `via ===
+      'richiesta'`, dice «Richiesta inviata: ti ricontattiamo per
+      attivarla.» invece di «Piano aggiornato».
+    status: implemented
+    generate_issue: true
+    labels: [flotta, regia, sicurezza]
+    priority: P1
+    test_cases:
+      - tests/cambiopiano.test.js
       - tests/SceltaPiano.test.jsx
   - id: REQ-FLOTTA-049
     title: "Il callback esitoProvisioning non si fida del corpo: progetto e url dell'istanza, bucket della regia, un run una volta sola, segreto usabile"

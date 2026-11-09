@@ -6,6 +6,20 @@ data.
 
 ## Prossima release (da decidere)
 
+- L'identificativo del locale (lo slug, l'indirizzo che l'app avrà) è
+  unico: alla registrazione lo controlla e lo scrive la regia, non il
+  browser, e se è già di un altro locale il modulo torna al passo del
+  locale con una casella per sceglierne un altro. Ogni ricerca di un
+  cliente per identificativo si ferma con un errore esplicito se ne trova
+  due, invece di prendere il primo (audit di sicurezza del 09/11/2026,
+  REQ-FLOTTA-045).
+- Chi ha un abbonamento gestito a mano (bonifico, piano scritto
+  dall'amministratore) e dalla dashboard chiede un piano più grande, un
+  modulo o un terminale in più non lo ottiene da solo: la richiesta va
+  all'assistenza («Richiesta inviata: ti ricontattiamo per attivarla») e
+  l'amministratore la evade con «Cambia piano» a pagamento concordato. Le
+  riduzioni si applicano subito come prima (audit del 09/11/2026,
+  REQ-FLOTTA-046).
 - L'esito che i workflow della flotta mandano alla regia non è più preso
   per buono (audit del 09/11/2026, finding 12): il progetto deve essere
   quello dell'istanza, l'indirizzo dell'app deve stare sui suoi domini, il
