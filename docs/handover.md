@@ -964,6 +964,13 @@ moduli, la licenza nell'istanza e la Tana.
   `PROVISIONING_CALLBACK_SECRET`, corpo con `slug`, `stato`, `progetto`,
   `url`, `errore`, `versione`, `ref`, `ambiente`, `operazione` (sotto,
   «Rilasci a ondate»). È l'unico esito che arriva ancora da tana-drink.
+  Dal 09/11/2026 (REQ-FLOTTA-049, audit finding 12) la regia non si fida
+  del corpo: `progetto` deve essere quello scritto sull'istanza, `url`
+  deve stare sui domini dell'installazione, e i nostri workflow mandano
+  anche `run_id` (`github.run_id`, numero) e `inviato_il` (ISO), che la
+  regia accetta una volta sola ed entro dieci minuti. **Da chiedere a
+  tana-drink**: che il workflow della Tana mandi gli stessi due campi;
+  finché non lo fa, per un locale esistente restano facoltativi.
 - **Licenza nell'istanza** (BUG-125 di tana-drink, dal 31/10/2026):
   `licenza/attuale` = `{ piano, moduli: {id: bool}, terminali, temi,
   temi_su_misura, limiti, prove, stato: attiva|sospesa|chiusa, motivo, dal,
@@ -1062,7 +1069,11 @@ moduli, la licenza nell'istanza e la Tana.
   piano gestito a mano (la richiesta va all'assistenza: l'admin la evade
   dal backoffice e l'app vede il cambio dalla licenza); errori `{ ok:
   false, errore }` con 400, 401, 403, 404, 409, 502, 503, e `errore`
-  impersonale da mostrare così com'è. Oggi la regia non risponde mai
+  impersonale da mostrare così com'è. Dal 09/11/2026 (REQ-FLOTTA-050,
+  audit finding 17) il `403` arriva anche a un admin del locale che non è
+  il cliente della regia (stesso uid, M7, o email verificata uguale): i
+  moduli li tocca solo il titolare, «Solo il titolare del locale può
+  gestire i moduli.» Oggi la regia non risponde mai
   `checkout_url`: un modulo si compra online solo su un abbonamento Stripe
   già attivo. Disdire online risponde `dal` = oggi, col conguaglio come
   «Cambia piano», non la fine del periodo pagato.
@@ -1093,7 +1104,10 @@ moduli, la licenza nell'istanza e la Tana.
   titolare>`, il token che Firebase dà all'app nel progetto del locale, e
   il corpo `{ "tag": "vX.Y.Z", "scelta": "aggiorna" | "salta" }`. La regia
   (`sceltaDallApp`) riconosce il locale dal progetto del token, lo
-  verifica, vuole il ruolo `admin` (il titolare) e applica subito.
+  verifica, vuole il titolare e applica subito. Dal 09/11/2026
+  (REQ-FLOTTA-050, audit finding 17) titolare vuol dire ruolo `admin` **e**
+  l'account del cliente della regia: lo stesso uid (M7) o l'email
+  verificata uguale; un altro admin del locale riceve `403`.
   Risposte: `200 { ok, scelta }`; `400` corpo sbagliato; `401` token
   mancante o non valido; `403` non è il titolare; `404` locale
   sconosciuto; `409` la proposta non è più quella, o la stessa scelta è

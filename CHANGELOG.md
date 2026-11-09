@@ -6,6 +6,38 @@ data.
 
 ## Prossima release (da decidere)
 
+- L'esito che i workflow della flotta mandano alla regia non è più preso
+  per buono (audit del 09/11/2026, finding 12): il progetto deve essere
+  quello dell'istanza, l'indirizzo dell'app deve stare sui suoi domini, il
+  bucket degli archivi è quello della regia e non viaggia più nel corpo, e
+  ogni run di GitHub passa una volta sola, entro dieci minuti. Col segreto
+  del callback non configurato o troppo corto la regia risponde 503
+  (REQ-FLOTTA-049).
+- Dall'app del locale i moduli (prova, aggiunta, disdetta) e la scelta
+  degli aggiornamenti li fa solo il titolare: l'account del cliente della
+  regia (stesso uid, o email verificata uguale), non un altro admin del
+  locale, che riceve «Solo il titolare del locale può …» (audit del
+  09/11/2026, finding 17; REQ-FLOTTA-050).
+- I log delle Functions non scrivono più l'email di chi agisce (l'uid, o
+  un'impronta), e la regia non si segna più quale utente del locale ha
+  aperto per primo una versione nuova dell'app (audit del 09/11/2026,
+  finding 29; REQ-FLOTTA-051).
+- L'attivazione e l'aggiornamento di un locale sono quattro job in fila
+  invece di uno: il codice di tana-drink (`npm ci`, la build) gira in un
+  job senza environment e senza nessun segreto, e i job con la chiave di
+  provisioning non scaricano l'app e non ne eseguono niente. La
+  configurazione web del progetto passa da un job all'altro come output,
+  l'app compilata come artifact; la build è dello SHA controllato, non del
+  ramo riletto. Se un job prima fallisce, l'esito di errore arriva lo
+  stesso alla regia (REQ-FLOTTA-047, audit del 09/11/2026, punto 6).
+- Prima di eliminare un locale il workflow verifica che il progetto porti
+  l'etichetta `ambiente` della regia che lancia e che il suo stato
+  Terraform esista; prima di aggiornarlo, l'etichetta. Un progetto che non
+  è di quella regia non si tocca, nemmeno per il backup: la regia di test
+  non può più eliminare o ripubblicare un locale di produzione. Un locale
+  esistente (la Tana, la demo) riceve l'etichetta una volta a mano. Lo SHA
+  di tana-drink pubblicato è pronto per l'esito (REQ-FLOTTA-048, audit
+  del 09/11/2026, punti 7 e 29).
 - Il sito manda con ogni pagina le intestazioni di sicurezza: nessuno lo
   incornicia in una pagina altrui, i file si leggono per quello che sono,
   il referrer esce solo come origine, fotocamera, microfono e posizione

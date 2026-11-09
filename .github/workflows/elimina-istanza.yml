@@ -5,6 +5,9 @@ name: Elimina istanza
 # eliminazioniProgrammate 30 giorni dopo la chiusura) quando l'admin l'ha
 # chiesta per un locale già chiuso, scrivendo il nome dell'app. In ordine,
 # e ogni passo solo se il precedente è riuscito:
+#   0. IL PROGETTO È DI QUESTA REGIA (REQ-FLOTTA-048): l'etichetta
+#      `ambiente` del progetto è la sua e lo stato Terraform c'è;
+#      altrimenti si ferma prima di leggere o toccare qualunque cosa;
 #   1. BACKUP: il backup leggibile (dati.json, utenti.json, file/,
 #      manifesto.json, in un archivio.zip) e l'export nativo di Firestore;
 #   2. ARCHIVIO: tutto nel bucket degli archivi (ARCHIVIO_BUCKET), che lo
@@ -84,6 +87,29 @@ jobs:
       - name: Dipendenze
         run: npm ci --prefix functions
 
+      # IL PROGETTO È DI QUESTA REGIA? (REQ-FLOTTA-048, audit del 09/11/2026,
+      # punto 7). Le due regie usano la stessa chiave: senza questo controllo
+      # un lancio con `ambiente: test` cancellava un locale di produzione.
+      # Un locale della regia si riconosce da due cose, tutte e due
+      # necessarie: l'etichetta `ambiente` che il Terraform mette sul
+      # progetto (infra/istanza/main.tf) è quella di questa regia, e il suo
+      # stato Terraform sta nel prefisso dello slug. Se una manca, non si
+      # tocca niente: nemmeno il backup, che leggerebbe dati non nostri.
+      - name: Il progetto è di questa regia?
+        env:
+          TFSTATE_BUCKET: ${{ vars.TFSTATE_BUCKET }}
+        run: |
+          ETICHETTA=$(gcloud projects describe "$PROGETTO" --format='value(labels.ambiente)')
+          if [ "$ETICHETTA" != "$AMBIENTE" ]; then
+            echo "::error::$PROGETTO ha l'etichetta ambiente «${ETICHETTA:-nessuna}», non «$AMBIENTE»: non è un locale di questa regia, non lo tocco."
+            exit 1
+          fi
+          if [ -z "$(gcloud storage ls "gs://$TFSTATE_BUCKET/istanze/$SLUG/" 2>/dev/null)" ]; then
+            echo "::error::Nessuno stato Terraform in gs://$TFSTATE_BUCKET/istanze/$SLUG/: il progetto non l'ha creato la regia, non lo tocco."
+            exit 1
+          fi
+          echo "$PROGETTO è un locale di questa regia ($AMBIENTE), con il suo stato Terraform."
+
       # 1. BACKUP. Prima il leggibile, poi l'export nativo: lo script salta
       # il prefisso dell'export, che finisce nello stesso bucket.
       - name: Il backup leggibile
@@ -139,16 +165,19 @@ jobs:
         env:
           CALLBACK_URL: ${{ vars.REGIA_CALLBACK_URL }}
           CALLBACK_SECRET: ${{ secrets.PROVISIONING_CALLBACK_SECRET }}
-          ARCHIVIO_BUCKET: ${{ vars.ARCHIVIO_BUCKET }}
           ESITO_JOB: ${{ job.status }}
           RUN_ID: ${{ github.run_id }}
+        # Il bucket non viaggia nel corpo: la regia conosce il suo
+        # (ARCHIVIO_BUCKET nelle Functions), e un bucket dichiarato da fuori
+        # non deve mai diventare il link che il titolare scarica.
         run: |
           if [ -z "$CALLBACK_URL" ]; then echo "Nessuna REGIA_CALLBACK_URL: esito non inviato."; exit 0; fi
           if [ "$ESITO_JOB" = "success" ]; then STATO=eliminata; ERR=""; else STATO=errore; ERR="Eliminazione $ESITO_JOB: GitHub Actions run $RUN_ID. Il progetto è stato eliminato solo se il backup era verificato."; fi
           node -e '
-            const [url, secret, slug, stato, bucket, percorso, byte, conteggi, errore] = process.argv.slice(1);
-            const archivio = stato === "eliminata" ? { bucket, percorso, zip: `${percorso}/archivio.zip`, byte: Number(byte) || null, conteggi: conteggi ? JSON.parse(conteggi) : null } : null;
+            const [url, secret, slug, stato, percorso, byte, conteggi, errore] = process.argv.slice(1);
+            const archivio = stato === "eliminata" ? { percorso, zip: `${percorso}/archivio.zip`, byte: Number(byte) || null, conteggi: conteggi ? JSON.parse(conteggi) : null } : null;
             fetch(url, { method: "POST", headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
-              body: JSON.stringify({ slug, operazione: "eliminazione", stato, archivio, errore: errore || null }) })
+              body: JSON.stringify({ slug, operazione: "eliminazione", stato, archivio, errore: errore || null,
+                run_id: Number(process.env.RUN_ID), inviato_il: new Date().toISOString() }) })
               .then((r) => { console.log("regia:", r.status); if (r.status >= 300) process.exit(1); })
-          ' "$CALLBACK_URL" "$CALLBACK_SECRET" "$SLUG" "$STATO" "$ARCHIVIO_BUCKET" "${PERCORSO:-}" "${BYTE_ZIP:-}" "${CONTEGGI:-}" "$ERR"
+          ' "$CALLBACK_URL" "$CALLBACK_SECRET" "$SLUG" "$STATO" "${PERCORSO:-}" "${BYTE_ZIP:-}" "${CONTEGGI:-}" "$ERR"
