@@ -42,6 +42,20 @@ export function statoIstanza(istanza, richiesta) {
 export const progettoDi = (slug) => `${PREFISSO_PROGETTI}-${slug}`
 export const urlDi = (slug) => `https://${slug}.${DOMINIO_ISTANZE}`
 
+// Un indirizzo buono per un href: solo https, altrimenti null (niente
+// link). `istanza.url` lo scrive il provisioning, ma passa per Firestore e
+// per l'esito del workflow (audit del 09/11/2026, finding 28): un valore
+// `javascript:` o `data:` non deve diventare un link nella dashboard o nel
+// backoffice. Un indirizzo che non si legge come URL vale niente.
+export function hrefSicuro(url) {
+  if (typeof url !== 'string' || !url) return null
+  try {
+    return new URL(url).protocol === 'https:' ? url : null
+  } catch {
+    return null
+  }
+}
+
 // Si può chiedere l'attivazione? Serve un abbonamento valido (o un piano
 // segnato pagato a mano dall'admin, finché Stripe non c'è) e nessuna
 // attivazione già in viaggio. Questo decide solo se il tasto è acceso: la

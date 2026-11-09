@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { osservaCliente, osservaIstanza, osservaRichiesta, chiediAttivazione, inviaVerificaEmail, rileggiUtente, apriPortaleAbbonamento, apriLaTuaApp } from '../lib/db.js'
-import { statoIstanza, statoDetto, puoAttivare, urlDi, progettoDi, riduzioneDetta, STATI } from '../lib/istanze.js'
+import { statoIstanza, statoDetto, puoAttivare, urlDi, progettoDi, riduzioneDetta, hrefSicuro, STATI } from '../lib/istanze.js'
 import { PIANI, MODULI, prezzoMensile, prezzoAnnuale, prezzoFondatori, conIva, euro } from '../lib/piani.js'
 import { prezzoConSconto, scontoDetto } from '../lib/sconti.js'
 import { nomeStile } from '../lib/temi.js'
@@ -68,6 +68,9 @@ export default function Dashboard({ utente, chiuso = false }) {
   const prezzo = piano ? (annuale ? prezzoAnnuale(mensile) : Math.round(mensile * 100) / 100) : 0
   // I dati del locale stanno per essere cancellati: si dice per primo.
   const cancellazione = ['programmata', 'in coda', 'in corso'].includes(istanza?.eliminazione?.stato)
+  // L'indirizzo dell'app: quello scritto dal provisioning se è un https
+  // (hrefSicuro), altrimenti quello che l'istanza avrà per il suo slug.
+  const indirizzoApp = hrefSicuro(istanza?.url) || urlDi(cliente.slug)
 
   const attiva = async () => {
     setErrore(null)
@@ -146,7 +149,7 @@ export default function Dashboard({ utente, chiuso = false }) {
           </p>
           {stato === STATI.ATTIVA && (
             <p>
-              L’app è su <a href={istanza?.url || urlDi(cliente.slug)}>{istanza?.url || urlDi(cliente.slug)}</a>. Sei l’admin del
+              L’app è su <a href={indirizzoApp}>{indirizzoApp}</a>. Sei l’admin del
               locale con l’email di questo account: ti abbiamo scritto per impostare la password. Se non trovi il messaggio, usa
               «password dimenticata» nell’app.
               {istanza?.versione && <span className="muted small"> Versione {istanza.versione}.</span>}

@@ -178,6 +178,18 @@ describe('il backoffice', () => {
     expect(within(licenza).queryByRole('button', { name: /Aggiorna/ })).toBeNull()
   })
 
+  // Audit del 09/11/2026, finding 28 (REQ-FLOTTA-057): «Apri l'app» solo
+  // se l'indirizzo dell'istanza è un https.
+  it('un url dell’istanza che non è https non diventa «Apri l’app»', async () => {
+    db.elencoIstanze.mockResolvedValue({
+      'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', url: 'javascript:alert(1)' },
+    })
+    mostra()
+    const attivo = await apri('Bar Attivo')
+    expect(within(attivo).getByText('Attiva')).toHaveClass('stato-ok')
+    expect(within(attivo).queryByRole('link', { name: /Apri l’app/ })).toBeNull()
+  })
+
   it('una sospesa lo dice col motivo e si riattiva', async () => {
     const user = userEvent.setup()
     db.elencoIstanze.mockResolvedValue({

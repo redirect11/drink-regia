@@ -41,7 +41,7 @@ import {
 } from '../lib/db.js'
 import { venditaPulita } from '../lib/vendita.js'
 import { ESCLUSIVI, nomeStile, nomeImpaginazione, ORIGINI_DETTE, STATI_DETTI, temaVuoto } from '../lib/temi.js'
-import { statoIstanza, statoDetto, STATI, progettoDi, riduzioneDetta } from '../lib/istanze.js'
+import { statoIstanza, statoDetto, STATI, progettoDi, riduzioneDetta, hrefSicuro } from '../lib/istanze.js'
 import { PIANI, MODULI, prezzoMensile, euro, baseMancante, senzaOrfani } from '../lib/piani.js'
 import { prezzoConSconto, scontoDetto, usiDetti, CODICE_VALIDO, REGOLA_CODICE, LIMITE_PER_IL_CENTO, generaCodice } from '../lib/sconti.js'
 import CatalogoTemi, { EditorTema } from './CatalogoTemi.jsx'
@@ -620,9 +620,10 @@ function SchedaLocale({ riga, az, lanciato, cambiaAperto, onCambia, eliminaApert
           <dd>
             <code>{istanza?.progetto || progettoDi(c.slug)}</code>
             {istanza?.profilo === 'leggero' && <div className="muted small">profilo leggero (Free)</div>}
-            {istanza?.url && (
+            {/* Solo un https diventa un link (hrefSicuro, audit del 09/11/2026, finding 28). */}
+            {hrefSicuro(istanza?.url) && (
               <div className="small">
-                <a href={istanza.url} target="_blank" rel="noreferrer">
+                <a href={hrefSicuro(istanza.url)} target="_blank" rel="noreferrer">
                   Apri l’app ↗
                 </a>
               </div>

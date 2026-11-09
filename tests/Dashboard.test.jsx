@@ -265,6 +265,16 @@ describe('la dashboard', () => {
     expect(screen.queryByRole('button', { name: /Attiva l’istanza/ })).toBeNull()
   })
 
+  // Audit del 09/11/2026, finding 28 (REQ-FLOTTA-057): un url che non è
+  // https non diventa un link; si mostra l'indirizzo che l'istanza avrà.
+  it('attiva con un url che non è https: il link è l’indirizzo del suo slug', () => {
+    stato.istanza = { stato: 'attiva', url: 'javascript:alert(1)' }
+    mostra()
+    const link = screen.getByRole('link', { name: /^https:\/\/bar-mario\./ })
+    expect(link).toHaveAttribute('href', expect.stringMatching(/^https:\/\/bar-mario\./))
+    expect(screen.queryByText(/javascript:/)).toBeNull()
+  })
+
   it('in coda: niente tasto, si aspetta', () => {
     stato.richiesta = { stato: 'in coda' }
     mostra()

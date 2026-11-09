@@ -2279,3 +2279,36 @@ requirements:
     priority: P3
     test_cases:
       - tests/commerciale.test.js
+  - id: REQ-FLOTTA-057
+    title: "Le cose piccole dell'audit: impostazioni solo all'admin, admin-regia senza progetto predefinito, link alle istanze solo in https"
+    area: "firestore.rules (impostazioni), scripts/admin-regia.mjs, src/lib/istanze.js (hrefSicuro), src/pages/Dashboard.jsx, src/pages/Backoffice.jsx, docs/handover.md, README.md"
+    description: >
+      Audit di sicurezza del 09/11/2026, finding 28, la parte della regia.
+      LE IMPOSTAZIONI: impostazioni/{doc} (impostazioni/regia col deploy
+      automatico, impostazioni/aggiornamenti con le regole degli
+      aggiornamenti) era leggibile da ogni autenticato, e sono informazioni
+      interne. Nel sito le leggono solo osservaImpostazioniRegia e
+      osservaRegoleAggiornamenti di src/lib/db.js, chiamate solo da
+      Backoffice.jsx (la dashboard del titolare non le legge: un test lo
+      verifica scorrendo src/pages); le Functions le rileggono da se' con
+      l'Admin SDK. Quindi `allow read: if admin()`.
+      LO SCRIPT DELL'ADMIN: scripts/admin-regia.mjs aveva `--project` con
+      il predefinito `drink-regia`: un lancio distratto con l'email
+      sbagliata dava il claim admin in produzione. Ora `--project` e'
+      obbligatorio, come in semina-test.mjs, e senza lo script spiega e
+      esce. Aggiornati handover e README.
+      I LINK ALLE ISTANZE: `istanza.url` lo scrive il provisioning ma passa
+      per Firestore e per l'esito del workflow; nella dashboard del
+      titolare e nel backoffice finiva in un href senza controllo del
+      protocollo. hrefSicuro(url) in src/lib/istanze.js accetta solo un
+      https (altrimenti null): nel backoffice senza https non c'e' «Apri
+      l'app»; nella dashboard si mostra l'indirizzo che l'istanza avra' per
+      il suo slug (urlDi), che e' nostro.
+    status: implemented
+    generate_issue: true
+    labels: [regia, sicurezza]
+    priority: P3
+    test_cases:
+      - tests/sicurezza.test.js
+      - tests/Dashboard.test.jsx
+      - tests/Backoffice.test.jsx

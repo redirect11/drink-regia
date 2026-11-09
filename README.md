@@ -55,7 +55,7 @@ Ci si registra dal sito come un cliente qualsiasi, poi si dà il claim da
 qui, con le credenziali del progetto:
 
 ```sh
-node scripts/admin-regia.mjs --email <la tua email>
+node scripts/admin-regia.mjs --email <la tua email> --project <id del progetto>
 ```
 
 e si esce e rientra dal sito. Prima di tutto questo, in console Firebase

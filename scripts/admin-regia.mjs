@@ -1,8 +1,13 @@
 // =====================================================================
 //  DÀ (O TOGLIE) IL CLAIM `admin` A UN ACCOUNT DELLA REGIA.
 //
-//    node scripts/admin-regia.mjs --email daniele@esempio.it
-//    node scripts/admin-regia.mjs --email daniele@esempio.it --togli
+//    node scripts/admin-regia.mjs --email daniele@esempio.it --project drink-regia-test
+//    node scripts/admin-regia.mjs --email daniele@esempio.it --project drink-regia --togli
+//
+//  `--project` è obbligatorio (audit del 09/11/2026, finding 28): prima il
+//  predefinito era la produzione, e un lancio distratto con l'email
+//  sbagliata dava il claim admin su drink-regia. Come semina-test.mjs, il
+//  progetto si scrive ogni volta.
 //
 //  Il backoffice si apre solo col claim admin (App.jsx, firestore.rules,
 //  le callable in functions/index.js). Il claim non si dà da nessuna
@@ -27,10 +32,11 @@ const arg = (nome) => {
   return i >= 0 ? argv[i + 1] : undefined
 }
 const EMAIL = arg('email')
-const PROGETTO = arg('project') || 'drink-regia'
+const PROGETTO = arg('project')
 const TOGLI = argv.includes('--togli')
-if (!EMAIL) {
-  console.error('Uso: node scripts/admin-regia.mjs --email <email> [--togli] [--project drink-regia]')
+if (!EMAIL || !PROGETTO || PROGETTO.startsWith('--')) {
+  console.error('Uso: node scripts/admin-regia.mjs --email <email> --project <id del progetto> [--togli]')
+  console.error('Il progetto si scrive sempre: nessun predefinito, la produzione non si tocca per sbaglio.')
   process.exit(1)
 }
 

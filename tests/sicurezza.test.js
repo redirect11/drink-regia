@@ -68,3 +68,42 @@ describe('l’indirizzo di ritorno del Checkout (REQ-FLOTTA-054)', () => {
     expect(index).not.toMatch(/\/\^https\?:\\\/\\\/\/\.test\(ritorno\)/)
   })
 })
+
+// FINDING 28, le cose piccole (REQ-FLOTTA-057).
+describe('le cose piccole del finding 28 (REQ-FLOTTA-057)', () => {
+  it('le impostazioni della regia le legge solo l’admin: il sito dei clienti non le legge', () => {
+    const regole = readFileSync('firestore.rules', 'utf8')
+    const blocco = regole.slice(regole.indexOf('match /impostazioni/{doc}')).replace(/\/\/.*$/gm, '')
+    expect(blocco).toContain('allow read: if admin();')
+    expect(blocco).not.toContain('allow read: if autenticato();')
+    // Chi legge impostazioni/* nel sito: solo il backoffice, via db.js.
+    const db = readFileSync('src/lib/db.js', 'utf8')
+    const lettori = [...db.matchAll(/export function (\w+)\(cb\) \{\s*serve\(\)\s*return onSnapshot\(doc\(db, 'impostazioni'/g)].map((m) => m[1])
+    expect(lettori.sort()).toEqual(['osservaImpostazioniRegia', 'osservaRegoleAggiornamenti'])
+    const { readdirSync } = require('node:fs')
+    for (const f of readdirSync('src/pages')) {
+      const pagina = readFileSync(`src/pages/${f}`, 'utf8')
+      for (const l of lettori) if (pagina.includes(l)) expect(f, l).toBe('Backoffice.jsx')
+    }
+  })
+
+  it('admin-regia.mjs vuole --project ogni volta: nessun predefinito sulla produzione', () => {
+    const script = readFileSync('scripts/admin-regia.mjs', 'utf8')
+    expect(script).not.toMatch(/arg\('project'\) \|\| 'drink-regia'/)
+    expect(script).toContain("const PROGETTO = arg('project')")
+    expect(script).toMatch(/if \(!EMAIL \|\| !PROGETTO \|\| PROGETTO\.startsWith\('--'\)\) \{/)
+    expect(script).toContain('--project <id del progetto>')
+  })
+
+  it('hrefSicuro: solo un https diventa un link', async () => {
+    const { hrefSicuro } = await import('../src/lib/istanze.js')
+    expect(hrefSicuro('https://drinkpos-bar.web.app')).toBe('https://drinkpos-bar.web.app')
+    expect(hrefSicuro('https://bar.regiadrink.it/menu?x=1')).toBe('https://bar.regiadrink.it/menu?x=1')
+    for (const u of ['http://drinkpos-bar.web.app', 'javascript:alert(1)', 'data:text/html,ciao', 'ftp://x', 'drinkpos-bar.web.app', '', null, undefined, 42, {}]) {
+      expect(hrefSicuro(u), String(u)).toBeNull()
+    }
+    // Dashboard e backoffice ci passano.
+    expect(readFileSync('src/pages/Dashboard.jsx', 'utf8')).toContain('const indirizzoApp = hrefSicuro(istanza?.url) || urlDi(cliente.slug)')
+    expect(readFileSync('src/pages/Backoffice.jsx', 'utf8')).toContain('{hrefSicuro(istanza?.url) && (')
+  })
+})

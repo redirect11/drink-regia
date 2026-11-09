@@ -204,9 +204,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Le impostazioni della regia (REQ-FLOTTA-011): il deploy automatico.
+    // Le impostazioni della regia (REQ-FLOTTA-011): il deploy automatico, e
+    // le regole degli aggiornamenti (REQ-FLOTTA-020). Le legge solo il
+    // backoffice (src/lib/db.js: osservaImpostazioniRegia,
+    // osservaRegoleAggiornamenti, chiamate solo da Backoffice.jsx): prima
+    // le leggeva ogni autenticato, e sono informazioni interne (audit del
+    // 09/11/2026, finding 28). Le Functions le rileggono da sé.
     match /impostazioni/{doc} {
-      allow read: if autenticato();
+      allow read: if admin();
       allow write: if admin();
     }
   }

@@ -29,6 +29,10 @@ data.
 - Nel CSV del commerciale una cella che comincia con = + - @ o un tab
   prende un apostrofo davanti: Excel la legge come testo, non come formula
   (REQ-FLOTTA-056).
+- Le impostazioni della regia le legge solo l'amministratore; lo script
+  `admin-regia.mjs` vuole sempre `--project` (niente produzione per
+  sbaglio); «Apri l'app» e l'indirizzo dell'app nella dashboard sono link
+  solo se l'indirizzo e' un https (REQ-FLOTTA-057).
 - Il listino dei moduli cambia: il menù digitale col QR al tavolo è
   compreso nei piani Base e Completo; gli ordini dal telefono costano 12 €
   al mese; le fatture ai clienti (5 €) e le fatture ai fornitori (6 €) si
