@@ -195,6 +195,29 @@ const DURATA_SESSIONE_MS = 35 * 60 * 1000
 // un codice, e allora `fondatore` è false e `sconto` porta i metadati del
 // codice (acquisto.metadatiSconto), che il webhook riscrive sul cliente.
 // Un solo sconto per acquisto: quale, lo decide acquisto.scontoCheVale.
+// L'INDIRIZZO DI RITORNO DEL CHECKOUT (audit del 09/11/2026, finding 25).
+// Il sito manda la sua origine (window.location.origin) e Stripe, a
+// pagamento finito, rimanda a `<ritorno>/dashboard`. Prima bastava che
+// cominciasse con http(s): un Checkout vero poteva finire su un dominio
+// altrui, con la fiducia di chi ha appena pagato. Ora vale solo un'origine
+// fra i domini della regia (DOMINI_NOSTRI in index.js: i due di Hosting e
+// REGIA_URL), e se ne tiene solo l'origine: niente percorso, niente query.
+// In locale (`npm run dev` contro il progetto di test) il sito sta su
+// localhost: fuori dalla produzione passa anche quello, in http.
+const ORIGINI_LOCALI = ['localhost', '127.0.0.1']
+function ritornoAmmesso(ritorno, domini = [], { produzione = true } = {}) {
+  let url
+  try {
+    url = new URL(String(ritorno || ''))
+  } catch {
+    return null
+  }
+  const host = url.hostname.toLowerCase()
+  if (url.protocol === 'https:' && domini.some((d) => host === String(d).toLowerCase())) return url.origin
+  if (!produzione && url.protocol === 'http:' && ORIGINI_LOCALI.includes(host)) return url.origin
+  return null
+}
+
 function sessioneCheckout({ uid, cliente, scelta, ritorno, coupon = null, fondatore = Boolean(coupon), sconto = null, aliquotaIva, adesso = new Date() }) {
   serveAliquota(aliquotaIva)
   const metadata = { ...metadatiDi(uid, scelta), ...(fondatore ? { fondatore: '1' } : {}), ...(sconto || {}) }
@@ -362,6 +385,7 @@ function fondatoreDaConfermare(tipo, oggetto) {
 
 module.exports = {
   chiaveStripeVera,
+  ritornoAmmesso,
   sceltaPulita,
   intervalloPulito,
   centesimi,

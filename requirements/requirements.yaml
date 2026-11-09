@@ -2205,3 +2205,29 @@ requirements:
     test_cases:
       - tests/sconti.test.js
       - tests/Backoffice.test.jsx
+  - id: REQ-FLOTTA-054
+    title: "L'indirizzo di ritorno del Checkout e' solo un'origine della regia"
+    area: "functions/lib/abbonamento.js (ritornoAmmesso), functions/index.js (ritornoPulito, creaCheckout, creaRicaricaAI, DOMINI_NOSTRI)"
+    description: >
+      Audit di sicurezza del 09/11/2026, finding 25 (era L1 del 22/10):
+      creaCheckout e creaRicaricaAI accettavano come `ritorno` qualunque
+      indirizzo che cominciasse con http(s), e Stripe a pagamento finito
+      rimandava a `<ritorno>/dashboard`. Un Checkout vero poteva finire su
+      un dominio altrui, con la fiducia di chi ha appena pagato (open
+      redirect).
+      ORA ritornoAmmesso accetta solo un indirizzo https la cui origine
+      (new URL(ritorno).origin) sta fra i domini della regia, DOMINI_NOSTRI
+      (i due di Hosting del progetto e REGIA_URL, definiti accanto a
+      PROGETTO_REGIA), e ne tiene solo l'origine: niente percorso, niente
+      query. Fuori dalla produzione passa anche localhost/127.0.0.1 in
+      http, perche' `npm run dev` contro il progetto di test prova il
+      Checkout da li'. Il resto e' invalid-argument («Indirizzo di ritorno
+      non valido: il pagamento riparte solo dal sito della regia.»). Il
+      sito manda gia' window.location.origin (src/lib/db.js), quindi per
+      chi usa il sito non cambia niente.
+    status: implemented
+    generate_issue: true
+    labels: [regia, sicurezza]
+    priority: P3
+    test_cases:
+      - tests/sicurezza.test.js

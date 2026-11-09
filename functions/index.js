@@ -27,7 +27,7 @@ const rilasci = require('./lib/rilasci.js')
 const { sceltaCambiata, licenzaProtetta, stessaLicenza, perIlDatabase, scadenzaCoerente } = require('./lib/licenza.js')
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
 const { FieldValue, Timestamp } = require('firebase-admin/firestore')
-const { chiaveStripeVera, righeSubscription, prodottiDi, parametriAliquotaIva, eAliquotaIva, CHIAVE_IDEMPOTENZA_IVA, metadatiDi, aggiornamentoDaEvento, sceltaPulita, sessioneCheckout, intervalloDi, prenotazioneDaRilasciare, fondatoreDaConfermare, DURATA_SESSIONE_MS, fineDelPeriodo, STATI_STRIPE } = require('./lib/abbonamento.js')
+const { chiaveStripeVera, ritornoAmmesso, righeSubscription, prodottiDi, parametriAliquotaIva, eAliquotaIva, CHIAVE_IDEMPOTENZA_IVA, metadatiDi, aggiornamentoDaEvento, sceltaPulita, sessioneCheckout, intervalloDi, prenotazioneDaRilasciare, fondatoreDaConfermare, DURATA_SESSIONE_MS, fineDelPeriodo, STATI_STRIPE } = require('./lib/abbonamento.js')
 const fondatori = require('./lib/fondatori.js')
 const acquisto = require('./lib/acquisto.js')
 const { onTaskDispatched } = require('firebase-functions/v2/tasks')
@@ -103,6 +103,14 @@ const SCELTA_URL = PROGETTO_REGIA ? `https://europe-west1-${PROGETTO_REGIA}.clou
 // provenienza, e una chiamata da un altro sito non si conta) e agli
 // indirizzi di ritorno del Checkout (audit del 09/11/2026, finding 25).
 const DOMINI_NOSTRI = [PROGETTO_REGIA && `${PROGETTO_REGIA}.web.app`, PROGETTO_REGIA && `${PROGETTO_REGIA}.firebaseapp.com`, REGIA_URL && (() => { try { return new URL(REGIA_URL).hostname } catch { return null } })()].filter(Boolean)
+// L'origine a cui Stripe rimanda dopo il Checkout: solo una nostra
+// (abbonamento.ritornoAmmesso), altrimenti invalid-argument. Fuori dalla
+// produzione passa anche localhost, per provare in locale.
+function ritornoPulito(ritorno) {
+  const origine = ritornoAmmesso(ritorno, DOMINI_NOSTRI, { produzione: PROGETTO_REGIA === 'drink-regia' })
+  if (!origine) throw new HttpsError('invalid-argument', 'Indirizzo di ritorno non valido: il pagamento riparte solo dal sito della regia.')
+  return origine
+}
 
 async function dispatchGitHub(workflow, corpo) {
   return fetch(`https://api.github.com/repos/${REPO}/actions/workflows/${workflow}/dispatches`, {
@@ -339,8 +347,7 @@ exports.creaCheckout = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
   // Un modulo senza la sua base non si compra (tana-drink REQ-LIC-015).
   const basi = prove.problemaBasi(scelta)
   if (basi) throw new HttpsError('failed-precondition', basi)
-  const ritorno =String(req.data?.ritorno || '').replace(/\/$/, '')
-  if (!/^https?:\/\//.test(ritorno)) throw new HttpsError('invalid-argument', 'Indirizzo di ritorno non valido.')
+  const ritorno = ritornoPulito(req.data?.ritorno)
   const adesso = new Date()
   // IL CODICE SCONTO (REQ-FLOTTA-028): quello scritto ora dal titolare, o
   // quello che l'admin gli ha già dato. Un codice al 100% non passa da qui
@@ -2217,8 +2224,7 @@ exports.creaRicaricaAI = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async
   await solOSitoAperto()
   // Anche la ricarica passa da Stripe: coi pagamenti spenti la fa l'admin.
   if (!contatti.pagamentiOnline(await vendita())) throw new HttpsError('failed-precondition', PAGAMENTI_SPENTI)
-  const ritorno = String(req.data?.ritorno || '').replace(/\/$/, '')
-  if (!/^https?:\/\//.test(ritorno)) throw new HttpsError('invalid-argument', 'Indirizzo di ritorno non valido.')
+  const ritorno = ritornoPulito(req.data?.ritorno)
   const stripe = stripeClient()
   if (!stripe) throw new HttpsError('failed-precondition', 'Il pagamento online non è ancora attivo: scrivici all’email del prodotto.')
   const metadata = ai.metadatiRicarica({ uid, slug: cliente.slug, p })

@@ -19,6 +19,9 @@ data.
   prima restano validi. Un titolare che sbaglia dieci codici in un'ora
   aspetta un'ora («Troppi tentativi, riprova fra un'ora.»)
   (REQ-FLOTTA-053).
+- Dopo un pagamento con Stripe si torna solo sul sito della regia:
+  l'indirizzo di ritorno del Checkout e della ricarica AI e' accettato
+  solo se e' un'origine della regia (REQ-FLOTTA-054).
 - Il listino dei moduli cambia: il menù digitale col QR al tavolo è
   compreso nei piani Base e Completo; gli ordini dal telefono costano 12 €
   al mese; le fatture ai clienti (5 €) e le fatture ai fornitori (6 €) si
