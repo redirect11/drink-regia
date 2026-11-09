@@ -26,10 +26,9 @@ import Home from '../src/pages/Home.jsx'
 import { venditaPulita } from '../src/lib/vendita.js'
 import it_ from '../src/i18n/home.it.js'
 
-const FUTURO = { v7_startTransition: true, v7_relativeSplatPath: true }
 const mostra = () =>
   render(
-    <MemoryRouter future={FUTURO}>
+    <MemoryRouter>
       <Home utente={null} />
     </MemoryRouter>
   )

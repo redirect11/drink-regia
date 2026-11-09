@@ -50,7 +50,10 @@ vi.mock('firebase/firestore', () => ({
       return () => {}
     }
     const d = fb.documenti[percorso]
-    cb({ exists: () => d !== undefined, data: () => d })
+    // Un elenco [[id, dati]...] è una collezione osservata (snapshot con
+    // docs); un oggetto è un documento.
+    if (Array.isArray(d)) cb({ docs: d.map(([id, dd]) => ({ id, data: () => dd })) })
+    else cb({ exists: () => d !== undefined, data: () => d })
     return () => {}
   },
   updateDoc: async (percorso, dati) => fb.scritti.push({ come: 'update', percorso, dati }),
@@ -365,6 +368,25 @@ describe('i documenti della regia', () => {
     expect(await db.ultimeRicaricheAI('bar')).toEqual([{ il: 'y', origine: 'omaggio' }])
     fb.documenti.ai = [['bar', { credito: 1 }]]
     expect(await db.elencoCassettiAI()).toEqual({ bar: { credito: 1 } })
+  })
+
+  // I temi su misura del titolare (REQ-FLOTTA-035): la sottocollezione del
+  // suo cliente, osservata e letta; senza uid o senza Firebase, un elenco
+  // vuoto; un permesso negato non rompe la pagina.
+  it('i temi su misura si osservano e si leggono da clienti/{uid}/temi_su_misura', async () => {
+    fb.documenti['clienti/u1/temi_su_misura'] = [['t1', { id: 't1', stato: 'bozza' }]]
+    const visti = []
+    db.osservaTemiSuMisura('u1', (t) => visti.push(t))
+    db.osservaTemiSuMisura('', (t) => visti.push(t))
+    expect(visti).toEqual([[{ id: 't1', stato: 'bozza' }], []])
+    fb.documenti['clienti/u2/temi_su_misura'] = 'errore'
+    db.osservaTemiSuMisura('u2', (t) => visti.push(t))
+    expect(visti[2]).toEqual([])
+    expect(await db.elencoTemiSuMisura('u1')).toEqual([{ id: 't1', stato: 'bozza' }])
+    fb.configurata = false
+    db.osservaTemiSuMisura('u1', (t) => visti.push(t))
+    expect(visti[3]).toEqual([])
+    await expect(db.elencoTemiSuMisura('u1')).rejects.toThrow()
   })
 
   it('gli elenchi del backoffice: clienti, istanze, richieste, rilasci dal più recente', async () => {

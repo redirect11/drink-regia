@@ -25,7 +25,6 @@ import { PIANI, euro } from '../src/lib/piani.js'
 const ADESSO = new Date('2026-11-07T12:00:00.000Z')
 const giorniFa = (n) => new Date(ADESSO.getTime() - n * 86400000).toISOString()
 const giorno = (n) => giorniFa(n).slice(0, 10)
-const FUTURO = { v7_startTransition: true, v7_relativeSplatPath: true }
 
 function Dove() {
   const { pathname, search } = useLocation()
@@ -44,7 +43,7 @@ const righe = [
 ]
 const mostra = (percorso = '/backoffice/commerciale', props = {}) =>
   render(
-    <MemoryRouter initialEntries={[percorso]} future={FUTURO}>
+    <MemoryRouter initialEntries={[percorso]}>
       <Routes>
         <Route path="/backoffice/commerciale" element={<Commerciale righe={righe} contatti={[{ stato: 'aperta' }]} adesso={ADESSO} {...props} />} />
       </Routes>
@@ -125,7 +124,7 @@ describe('le tessere e il periodo', () => {
     db.elencoTraffico.mockResolvedValue([])
     db.statoFondatori.mockResolvedValue(null)
     render(
-      <MemoryRouter initialEntries={['/backoffice/commerciale']} future={FUTURO}>
+      <MemoryRouter initialEntries={['/backoffice/commerciale']}>
         <Routes>
           <Route path="/backoffice/commerciale" element={<Commerciale righe={[]} contatti={[]} adesso={ADESSO} />} />
         </Routes>

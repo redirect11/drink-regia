@@ -70,10 +70,9 @@ vi.mock('../src/lib/db.js', () => ({
 
 import Dashboard from '../src/pages/Dashboard.jsx'
 
-const FUTURO = { v7_startTransition: true, v7_relativeSplatPath: true }
 const mostra = () =>
   render(
-    <MemoryRouter future={FUTURO}>
+    <MemoryRouter>
       <Dashboard utente={{ uid: 'u1', email: 'mario@example.it' }} />
     </MemoryRouter>
   )
@@ -96,7 +95,7 @@ describe('la dashboard', () => {
     expect(screen.queryByText('Il sito apre a breve.')).toBeNull()
     unmount()
     render(
-      <MemoryRouter future={FUTURO}>
+      <MemoryRouter>
         <Dashboard utente={{ uid: 'u1', email: 'mario@example.it' }} chiuso />
       </MemoryRouter>
     )
@@ -106,7 +105,7 @@ describe('la dashboard', () => {
 
   it('con un locale, col sito chiuso, la dashboard resta la sua', () => {
     render(
-      <MemoryRouter future={FUTURO}>
+      <MemoryRouter>
         <Dashboard utente={{ uid: 'u1', email: 'mario@example.it' }} chiuso />
       </MemoryRouter>
     )

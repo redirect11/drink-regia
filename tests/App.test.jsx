@@ -66,10 +66,9 @@ vi.mock('../src/lib/db.js', () => ({
 
 import App from '../src/App.jsx'
 
-const FUTURO = { v7_startTransition: true, v7_relativeSplatPath: true }
 const mostra = (percorso = '/') =>
   render(
-    <MemoryRouter initialEntries={[percorso]} future={FUTURO}>
+    <MemoryRouter initialEntries={[percorso]}>
       <App />
     </MemoryRouter>
   )

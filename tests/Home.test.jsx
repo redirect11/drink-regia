@@ -42,10 +42,9 @@ import {
 import { NOME_PRODOTTO, URL_DEMO } from '../src/lib/prodotto.js'
 import it_ from '../src/i18n/home.it.js'
 
-const FUTURO = { v7_startTransition: true, v7_relativeSplatPath: true }
 const mostra = (utente = null) =>
   render(
-    <MemoryRouter future={FUTURO}>
+    <MemoryRouter>
       <Home utente={utente} />
     </MemoryRouter>
   )

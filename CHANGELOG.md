@@ -6,6 +6,11 @@ data.
 
 ## Prossima release (da decidere)
 
+- Le dipendenze con falle note aggiornate in un colpo solo (finding 24
+  dell'audit del 09/11/2026): vite 7, vitest 4, happy-dom 21 e
+  react-router 7, che chiude un open redirect nei collegamenti. Per chi
+  usa il sito non cambia niente; le correzioni automatiche di Dependabot
+  (#106, #107, #108, #114) non si potevano unire da sole (REQ-DEV-008).
 - Dall'audit di sicurezza del 09/11/2026, la parte della vendita e del
   sito. Il traffico del sito conta le provenienze per famiglia (Google,
   Instagram, Facebook…, «diretto», «altro») da un elenco chiuso, non più
