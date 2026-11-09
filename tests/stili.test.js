@@ -133,14 +133,12 @@ describe('nel sito e nella regia', () => {
     expect(nomeStile('ignoto')).toBe('ignoto')
   })
 
-  it('il catalogo dà anche gli stili; ritirarli è dell’admin; il database solo dalle Functions', () => {
+  // Che il database degli stili lo legga solo l'admin e lo scrivano solo
+  // le Functions si prova sull'emulatore: tests/regole/registri.test.js.
+  it('il catalogo dà anche gli stili; ritirarli è dell’admin', () => {
     const codice = readFileSync('functions/index.js', 'utf8')
     const gestione = codice.slice(codice.indexOf('exports.gestisciStili'), codice.indexOf('// ── IL SITO SI PRESENTA ALLA REGIA'))
     expect(gestione).toContain('req.auth?.token?.admin !== true')
     expect(gestione).toContain('stili.stileDalRepository(id)')
-    const regole = readFileSync('firestore.rules', 'utf8')
-    const blocco = regole.slice(regole.indexOf('match /stili/{id}'), regole.indexOf('match /sconti/{codice}'))
-    expect(blocco).toContain('allow read: if admin();')
-    expect(blocco).toContain('allow write: if false;')
   })
 })

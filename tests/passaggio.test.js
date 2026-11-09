@@ -120,10 +120,8 @@ describe('nella regia', () => {
     expect(codice).toContain('serviceAccountId: `firebase-adminsdk-fbsvc@${progetto}.iam.gserviceaccount.com`')
   })
 
-  it('i codici nel database non li tocca nessuno dal browser', () => {
-    const regole = readFileSync('firestore.rules', 'utf8')
-    expect(regole.slice(regole.indexOf('match /passaggi/{impronta}'), regole.indexOf('match /sconti/{codice}'))).toContain('allow read, write: if false;')
-  })
+  // Che i codici nel database non li tocchi nessuno dal browser si prova
+  // sull'emulatore: tests/regole/registri.test.js, passaggi/{impronta}.
 
   it('il Terraform dà alla regia, su ogni locale nuovo, lettura degli account e firma', () => {
     const tf = readFileSync('infra/istanza/main.tf', 'utf8')

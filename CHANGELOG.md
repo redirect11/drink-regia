@@ -13,6 +13,14 @@ data.
   file d'ambiente del progetto, e `REGIA_SA_EMAIL` nella flotta porta il
   Terraform dei locali a autorizzare lui. Prima sul test, poi in
   produzione (audit del 09/11/2026, finding 3; REQ-FLOTTA-058).
+- Le regole Firestore della regia si provano sull'emulatore, con le regole
+  vere e quattro attori (due titolari, l'admin, chi non ha fatto l'accesso),
+  collezione per collezione: `npm run test:regole` in locale, un job a parte
+  nella CI delle pull request con Java 21. Un test dentro `npm test` pretende
+  che ogni `match` delle regole abbia la sua prova. Due casi sono
+  documentati come stanno oggi e cambieranno: due titolari con lo stesso
+  slug (finding 4 dell'audit) e le impostazioni leggibili da ogni
+  autenticato (REQ-DEV-007).
 - Il listino dei moduli cambia: il menù digitale col QR al tavolo è
   compreso nei piani Base e Completo; gli ordini dal telefono costano 12 €
   al mese; le fatture ai clienti (5 €) e le fatture ai fornitori (6 €) si

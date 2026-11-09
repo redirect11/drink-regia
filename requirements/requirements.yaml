@@ -159,15 +159,16 @@ requirements:
       piano, moduli, terminali, prove, sconto, abbonamento, email e slug li
       scrivono solo l'admin e le Functions. Il sito non aggiorna mai
       clienti/{uid} dal browser: nessuna funzione dipendeva da quelle
-      scritture. Le regole sono provate sul testo; il 02/11/2026 anche
-      sull'emulatore di Firestore (25 casi, fuori dal repository, che non
-      ha ancora l'emulatore fra le dipendenze).
+      scritture. Le regole erano provate sul testo, e il 02/11/2026
+      sull'emulatore fuori dal repository; dal 09/11/2026 i casi stanno
+      in tests/regole/clienti.test.js e girano sull'emulatore con `npm run
+      test:regole` e nella CI (REQ-DEV-007).
       VALIDO, O COM'ERA (02/11/2026): un locale registrato come esistente
       (la Tana) nasce con fatturazione {} e consensi a null, e la regola
       che pretendeva i valori pieni gli chiudeva ogni modifica. Ora ogni
       campo controllato dev'essere valido o restare com'era: chi li ha
       validi non li guasta, chi non li ha li può solo mettere giusti.
-      Provata sull'emulatore (11 casi, fuori dal repository).
+      Provata sull'emulatore, in tests/regole/clienti.test.js.
       Da rivedere con un consulente prima di vendere: i testi di termini e
       privacy (src/pages/Legali.jsx) sono una struttura, non un
       parere legale.
@@ -176,6 +177,7 @@ requirements:
     labels: [prodotto, flotta, regia]
     test_cases:
       - tests/clienti.test.js
+      - tests/regole/clienti.test.js
       - tests/validazione.test.js
       - tests/Registrati.test.jsx
   - id: REQ-FLOTTA-004
@@ -248,6 +250,7 @@ requirements:
     test_cases:
       - tests/Backoffice.test.jsx
       - tests/App.test.jsx
+      - tests/regole/istanze.test.js
   - id: REQ-FLOTTA-007
     title: "L'abbonamento: Stripe Checkout nella regia, webhook che aggiorna il cliente, licenza che segue il piano"
     area: "functions/piani.json, src/lib/piani.js, src/pages/SceltaPiano.jsx, src/pages/Dashboard.jsx, src/lib/db.js (avviaPagamento), functions/index.js (creaCheckout, stripeWebhook), functions/lib/abbonamento.js"
@@ -591,6 +594,7 @@ requirements:
       - tests/provisioning.test.js
       - tests/Backoffice.test.jsx
       - tests/acquisto.test.js
+      - tests/regole/impostazioni.test.js
 
   - id: REQ-FLOTTA-012
     title: "I rilasci arrivano ai locali a ondate: prova, interne, pilota, tutti; un aggiornamento fallito ferma il rilascio, non il locale"
@@ -697,6 +701,7 @@ requirements:
       - tests/CreditoAI.test.jsx
       - tests/Backoffice.test.jsx
       - tests/abbonamento.test.js
+      - tests/regole/ai.test.js
 
   - id: REQ-FLOTTA-013
     title: "La flotta sta nella regia: Terraform, workflow e licenza dei locali, con un environment per ogni regia"
@@ -823,6 +828,7 @@ requirements:
       - tests/licenza.test.js
       - tests/provisioning.test.js
       - tests/flotta.test.js
+      - tests/regole/vendita.test.js
 
   - id: REQ-FLOTTA-016
     title: "Le prove dei moduli scelte dall'admin, e «Cambia piano» dell'admin con Stripe o fuori da Stripe"
@@ -884,6 +890,7 @@ requirements:
       - tests/SceltaPiano.test.jsx
       - tests/CreditoAI.test.jsx
       - tests/Backoffice.test.jsx
+      - tests/regole/vendita.test.js
   - id: REQ-FLOTTA-018
     title: "La Tana si aggiorna dalla regia come gli altri locali, sul suo progetto, e resta pubblicabile da tana-drink"
     area: "functions/lib/esistente.js (gestioneEsistente), functions/lib/rilasci.js (daFlotta), functions/lib/provisioning.js (dispatchAggiornamento), functions/index.js (lanciaAggiornamento, impostaAggiornamentiEsistente), .github/workflows/aggiorna-istanza.yml, src/lib/db.js"
@@ -2142,3 +2149,78 @@ requirements:
     labels: [regia, sicurezza, flotta]
     test_cases:
       - tests/runtime.test.js
+  - id: REQ-DEV-007
+    title: "Le regole Firestore della regia provate sull'emulatore, in locale e in CI"
+    area: "tests/regole/ (ambiente.js e un file per gruppo di collezioni), tests/regole.copertura.test.js, firebase.collaudo.json, vitest.regole.config.mjs, vitest.config.mjs (exclude), package.json (test:regole, test:regole:vitest, @firebase/rules-unit-testing, firebase-tools), .github/workflows/test.yml (job regole), tests/ci.test.js"
+    description: >
+      Audit di sicurezza del 09/11/2026, finding 16: le regole della regia
+      (firestore.rules) si provavano solo sul testo, con `toContain` sparsi
+      in sette file di test; i casi sull'emulatore erano «fuori dal
+      repository». Le regole sono l'unica barriera fra i documenti della
+      regia e chi apre la console del browser con apiKey e projectId, che
+      sono pubblici: un errore passava il cancello. tana-drink lo fa già
+      bene dal 07/11/2026 (REQ-DEV-017 di quel repository): stesso impianto,
+      adattato.
+      L'IMPIANTO: `@firebase/rules-unit-testing` e `firebase-tools` (fissato)
+      fra le dipendenze di sviluppo; `firebase.collaudo.json` col solo
+      emulatore Firestore sulla porta 8082 (la 8080 è quella di default,
+      spesso occupata; la 8081 è di tana-drink sulla stessa macchina) e
+      senza singleProjectMode, perché ogni file di prova usa un progetto suo;
+      `vitest.regole.config.mjs` con i soli tests/regole/ in fila indiana;
+      `npm run test:regole` accende l'emulatore con `emulators:exec` sul
+      progetto `demo-drink-regia` (il prefisso demo- è quello che gli
+      emulatori riconoscono come finto: nessun contatto con un progetto
+      vero), lancia vitest e spegne; `npm test` esclude tests/regole/, così i
+      test unitari restano veloci e verdi senza emulatore.
+      LA MATRICE (collezione × attore × operazione, con quattro attori: il
+      titolare A, il titolare B, l'admin col claim `admin: true`, chi non ha
+      fatto l'accesso): clienti/{uid} (lettura solo propria; la
+      registrazione con il documento vero di nuovoCliente, la forma dello
+      slug, la partita IVA di 11 cifre, i consensi datati, l'uid e l'email
+      dell'account, nessun campo oltre quelli della registrazione; le
+      modifiche del titolare solo sui blocchi anagrafici, H1, con la partita
+      IVA e i consensi «validi o com'erano» anche per un locale esistente
+      nato con fatturazione {} e consensi a null; delete solo admin);
+      clienti/{uid}/temi_su_misura; istanze e richieste (lettura del proprio
+      uid, l'elenco filtrato sul proprio uid passa e quello intero no;
+      richieste mai create dai client, nemmeno dall'admin: C2); rilasci;
+      ai/{slug} con consumi, ricariche e riservato (il segreto non lo legge
+      nessuno); vendita/listino (pubblico in lettura, scritto dall'admin) e
+      il suo storico (l'admin aggiunge, nessuno corregge); contatti (il
+      titolare legge la sua, l'admin segna gestita e non tocca altro, nessuno
+      crea dal browser); eventi_stripe, fondatori, controlli, temi, stili,
+      sconti, movimenti, traffico (solo l'admin legge, nessuno scrive);
+      passaggi (nessuno legge né scrive); impostazioni. Ogni test dice chi
+      fa cosa e cosa succede, e ogni prova è doppia: l'uso legittimo passa.
+      I CASI CHE CAMBIERANNO, documentati nei test come stanno oggi: due
+      titolari con lo stesso slug, la seconda registrazione PASSA (finding 4;
+      quando la create di clienti/{uid} uscirà dal browser diventerà un
+      rifiuto); impostazioni/* oggi le legge ogni autenticato (diventeranno
+      dell'admin). Chi cambia le regole adegua quelle righe.
+      LA COPERTURA (tests/regole.copertura.test.js, dentro `npm test`): ogni
+      file di tests/regole/ dichiara in testa le match che prova
+      («REGOLE PROVATE»); un parser legge le match di firestore.rules, anche
+      annidate, e pretende che ognuna sia dichiarata da un file che nomina
+      davvero quella collezione, e che nessuna dichiarazione sia rimasta
+      senza regola. Una collezione nuova senza test fa rosso a ogni push.
+      LA CI: in test.yml un job `regole` a parte, sulle pull request e a
+      mano, con actions/setup-java (Temurin 21, come in locale) fissato allo
+      SHA, la cache del jar dell'emulatore (~/.cache/firebase/emulators,
+      chiave sul lockfile) e `npm run test:regole`; lint, test e build non
+      lo aspettano.
+      I test testuali sostituiti: quelli che leggevano firestore.rules con
+      toContain in clienti, eventistripe, movimenti, passaggio, sconti,
+      stili e temi, dove il caso è ora provato sull'emulatore; resta il
+      controllo di documentiEsistente su fatturazione {} e consensi null.
+    status: implemented
+    generate_issue: true
+    labels: [regia, sicurezza, dev]
+    test_cases:
+      - tests/regole.copertura.test.js
+      - tests/ci.test.js
+      - tests/regole/clienti.test.js
+      - tests/regole/istanze.test.js
+      - tests/regole/ai.test.js
+      - tests/regole/vendita.test.js
+      - tests/regole/registri.test.js
+      - tests/regole/impostazioni.test.js

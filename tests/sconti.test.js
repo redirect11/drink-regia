@@ -8,7 +8,6 @@
 
 import { describe, it, expect } from 'vitest'
 import { createRequire } from 'node:module'
-import { readFileSync } from 'node:fs'
 import { scontoAttivo, prezzoConSconto, scontoDetto, usiDetti } from '../src/lib/sconti.js'
 
 
@@ -165,19 +164,8 @@ describe('nel sito', () => {
   })
 })
 
-describe('le regole', () => {
-  const regole = readFileSync('firestore.rules', 'utf8')
-
-  // Verifica del 02/11/2026: la regola vietava un elenco e lasciava passare
-  // moduli, terminali e prove, che la regia trasforma in licenza.
-  it('il titolare cambia solo i suoi dati anagrafici, mai moduli, terminali, prove o sconto', () => {
-    expect(regole).toContain("affectedKeys().hasOnly(['locale', 'fatturazione', 'referente', 'consensi'])")
-    expect(regole).not.toContain("affectedKeys().hasAny(['piano', 'abbonamento', 'uid', 'slug', 'interna', 'esistente'])")
-  })
-
-  it('i codici li legge solo l’admin, e li scrivono solo le Functions', () => {
-    const blocco = regole.slice(regole.indexOf('match /sconti/{codice}'), regole.indexOf('match /impostazioni/{doc}'))
-    expect(blocco).toContain('allow read: if admin();')
-    expect(blocco).toContain('allow write: if false;')
-  })
-})
+// LE REGOLE si provano sull'emulatore (REQ-DEV-007): che il titolare cambi
+// solo i suoi dati anagrafici e mai moduli, terminali, prove o sconto
+// (verifica del 02/11/2026) sta in tests/regole/clienti.test.js; che i
+// codici li legga solo l'admin e li scrivano solo le Functions in
+// tests/regole/registri.test.js.
