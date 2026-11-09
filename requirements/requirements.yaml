@@ -2168,3 +2168,37 @@ requirements:
       - tests/db.test.js
       - tests/Registrati.test.jsx
       - tests/semina.test.js
+  - id: REQ-FLOTTA-046
+    title: "Il cambio di piano del titolare su un abbonamento a mano: subito solo la riduzione, l'aumento è una richiesta all'assistenza"
+    area: "functions/lib/cambiopiano.js (eRiduzione, decisioneManuale), functions/index.js (cambiaScelta, ramo manuale), src/pages/SceltaPiano.jsx (il messaggio con via 'richiesta')"
+    description: >
+      Audit di sicurezza del 09/11/2026, finding 5 (alta; era la M2 del
+      22/10/2026). Con `abbonamento.origine === 'manuale'` (bonifico, piano
+      scritto dall'admin con «Cambia piano» fuori da Stripe, codice al 100%
+      poi pagato) `cambiaScelta` scriveva subito piano, moduli e terminali
+      sul cliente, e `licenzaSegueIlPiano` riscriveva la licenza
+      dell'istanza: qualunque titolare con un piano a mano chiamava la
+      callable con il Completo, tutti i moduli e venti terminali e si
+      trovava tutto acceso senza pagare. `moduloDallApp` nello stesso caso
+      faceva già la cosa giusta (una richiesta in contatti/).
+      ORA: se la scelta è una RIDUZIONE (piano uguale o più economico,
+      nessuna funzione in più fra quelle che la licenza accende, cioè i
+      moduli compresi nel piano più quelli comprati, terminali non di più)
+      si scrive subito come prima e la Function risponde `via: 'manuale'`.
+      Altrimenti si scrive una richiesta di contatto in contatti/<uid>
+      (stesso documento della dashboard coi pagamenti spenti,
+      REQ-FLOTTA-017: una aperta per cliente, la nuova prende il posto di
+      quella), con la scelta chiesta e quello che il cliente ha oggi
+      (`dalla_dashboard`), e la Function risponde `{ ok: true, via:
+      'richiesta' }`: il piano non si tocca e la licenza non cambia. L'admin
+      la vede fra le richieste, concorda il pagamento e accende con «Cambia
+      piano» fuori da Stripe (REQ-FLOTTA-016). La dashboard, con `via ===
+      'richiesta'`, dice «Richiesta inviata: ti ricontattiamo per
+      attivarla.» invece di «Piano aggiornato».
+    status: implemented
+    generate_issue: true
+    labels: [flotta, regia, sicurezza]
+    priority: P1
+    test_cases:
+      - tests/cambiopiano.test.js
+      - tests/SceltaPiano.test.jsx

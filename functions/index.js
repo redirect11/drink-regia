@@ -1821,12 +1821,17 @@ exports.cambiaScelta = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
   // il ramo qui sotto scrive il piano senza pagamento, ed era la strada per
   // avere il Base gratis. Resta per i clienti creati a mano dall'admin.
   if (cliente.abbonamento?.origine === 'gratuito') throw new HttpsError('failed-precondition', 'Per passare a un piano a pagamento scegli il piano e vai al pagamento.')
+  // Un piano a mano (REQ-FLOTTA-046, audit 09/11/2026, finding 5): si scrive
+  // subito solo una riduzione; un aumento è una richiesta all'assistenza,
+  // e la licenza non cambia finché l'admin non accende. Il sito legge `via`.
   if (cliente.abbonamento?.origine === 'manuale') {
-    const pulita = metadatiDi(uid, scelta)
-    await db.doc(`clienti/${uid}`).set(
-      { piano: pulita.piano, moduli: pulita.moduli ? pulita.moduli.split(',') : [], terminali: Number(pulita.terminali) || 1 },
-      { merge: true }
-    )
+    const d = decisioneManuale({ uid, ...cliente }, scelta)
+    if (d.via === 'richiesta') {
+      await db.doc(`contatti/${uid}`).set(d.documento)
+      console.log(`[cambio piano] ${cliente.slug}: aumento su un piano a mano, chiesto all'assistenza`)
+      return { ok: true, via: 'richiesta' }
+    }
+    await db.doc(`clienti/${uid}`).set(d.patch, { merge: true })
     return { ok: true, via: 'manuale' }
   }
   throw new HttpsError('failed-precondition', 'Prima serve un abbonamento: scegli un piano e paga.')
@@ -2564,7 +2569,7 @@ exports.scaricaArchivio = onCall(OPTS, async (req) => {
 
 // ── LE PROVE DEI MODULI E «CAMBIA PIANO» DELL'ADMIN (REQ-FLOTTA-016) ───
 const prove = require('./lib/prove.js')
-const { cambioAdmin } = require('./lib/cambiopiano.js')
+const { cambioAdmin, decisioneManuale } = require('./lib/cambiopiano.js')
 
 // Il titolare accende la prova di un modulo: quali si provano e per quanti
 // giorni lo decide l'admin (vendita/listino). Una volta sola per modulo.
