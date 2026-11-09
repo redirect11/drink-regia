@@ -33,6 +33,19 @@ describe('test.yml: i test a ogni push, mai un deploy', () => {
     expect(JSON.stringify(test.jobs)).not.toMatch(/firebase-tools deploy|deploy\.yml/)
   })
 
+  // Le regole Firestore sull'emulatore (REQ-DEV-007): un job a parte, con
+  // Java, sulle pull request e a mano; lint, test e build non lo aspettano.
+  it('prova le regole Firestore sull’emulatore, in un job a parte con Java 21, sulle pull request', () => {
+    const regole = test.jobs.regole
+    expect(regole.if).toBe("github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'")
+    const java = regole.steps.find((s) => /actions\/setup-java@/.test(s.uses || ''))
+    expect(java.with).toMatchObject({ distribution: 'temurin', 'java-version': 21 })
+    expect(regole.steps.map((s) => s.run)).toEqual(expect.arrayContaining(['npm ci', 'npm run test:regole']))
+    // L'emulatore si tiene in cache fra una PR e l'altra.
+    const cache = regole.steps.find((s) => /actions\/cache@/.test(s.uses || ''))
+    expect(cache.with.path).toBe('~/.cache/firebase/emulators')
+  })
+
   it('il vecchio ci.yml, che pubblicava da sé, non c’è più', () => {
     expect(existsSync(join(process.cwd(), '.github/workflows/ci.yml'))).toBe(false)
   })

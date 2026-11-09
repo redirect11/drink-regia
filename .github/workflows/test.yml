@@ -59,3 +59,39 @@ jobs:
           name: coverage-report
           path: coverage/
           retention-days: 14
+
+  # LE REGOLE DI FIRESTORE, SULL'EMULATORE (REQ-DEV-007). Sono l'unica
+  # barriera fra i documenti della regia (account, piani, abbonamenti) e chi
+  # apre la console del browser con apiKey e projectId, che sono pubblici.
+  # Fino all'audit del 09/11/2026 si provavano solo sul testo: un errore
+  # nelle regole passava il cancello. Ora girano su ogni pull request con le
+  # regole vere (tests/regole/). Un job a parte, come in tana-drink: ha
+  # bisogno di Java e dell'emulatore, e non rallenta lint, test e build.
+  regole:
+    name: Regole Firestore (emulatore)
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      # L'emulatore di Firestore gira su Java (21, come in locale).
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: 21
+      # Il jar dell'emulatore non cambia da una PR all'altra: si tiene,
+      # invece di riscaricarlo ogni volta. La chiave segue la versione di
+      # firebase-tools, fissata in package.json e quindi nel lockfile.
+      - name: Cache dell'emulatore
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/firebase/emulators
+          key: emulatori-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - run: npm ci
+      # firebase.collaudo.json e la versione di firebase-tools del lockfile:
+      # un emulatore nuovo che cambia comportamento non deve far diventare
+      # rossa una PR che non c'entra.
+      - run: npm run test:regole
