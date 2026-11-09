@@ -110,9 +110,22 @@ requirements:
       del sito resta scuro. Nessuna schermata dell'app: la demo non e'
       pubblicata e nel repository non ce ne sono, e la pagina non ne
       inventa (DESIGN.md §4, §9.7). Stessi testi e stesso ordine.
-      RESTA (DESIGN.md §9): le quattro schermate vere dell'app, il nome
-      del prodotto, la prova sociale, `/en` per chi non esegue JavaScript,
-      la verifica Lighthouse sul telefono.
+      IL NOME (decisione dell'utente del 09/11/2026: «Lime - SmartOrdres e
+      poi il sottotitolo lo metti. Il logo è una fetta di lime che sembra
+      un grafico a torta»): NOME_PRODOTTO «Lime», QUALIFICA «SmartOrders»,
+      NOME_ESTESO «Lime – SmartOrders» (src/lib/prodotto.js); il
+      sottotitolo scritto da noi, in due lingue (piede.sottotitolo:
+      «Comande, cassa e gestione del locale, in un’app sola.» / «Orders,
+      till and venue management, in one app.»); il logo come SVG in linea
+      (src/components/Logo.jsx: buccia verde, polpa chiara in otto
+      spicchi, uno più scuro e staccato di un filo, decorativo con
+      aria-hidden) e come favicon (public/favicon.svg). Il marchio nella
+      barra e nel piè di pagina mostra logo, nome e qualifica; il <title>
+      di index.html e i testi dell'anteprima usano il nome nuovo. Gli slug
+      tecnici (drink, drinkpos) e i nomi dei repository non cambiano.
+      RESTA (DESIGN.md §9): le quattro schermate vere dell'app, la prova
+      sociale, `/en` per chi non esegue JavaScript, la verifica
+      Lighthouse sul telefono.
     status: partial
     generate_issue: true
     labels: [prodotto, flotta, regia]

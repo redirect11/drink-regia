@@ -645,8 +645,11 @@ Accedi), il selettore di lingua, la versione pubblicata (c'è già).
 1. **Il titolo**: «Il gestionale del tuo locale. Dalla comanda alla
    cassa.», scelto dall'utente il 07/11/2026 fra tre righe corte; quello
    del 06/11 e le alternative B e C restano nel §5.1.
-2. **Il nome del prodotto**: «Drink» è un segnaposto. La pagina funziona
-   anche senza, ma il marchio in alto e il `<title>` lo usano.
+2. **Il nome del prodotto**: deciso il 09/11/2026, «Lime – SmartOrders»,
+   col logo della fetta di lime che sembra un grafico a torta
+   (`src/components/Logo.jsx`, `public/favicon.svg`) e il sottotitolo
+   «Comande, cassa e gestione del locale, in un’app sola.» Il marchio in
+   alto, il piè di pagina e il `<title>` lo usano da `src/lib/prodotto.js`.
 3. **La prova sociale**: si può dire che l'app è nata e lavora alla Tana
    del Coniglio, con il nome e magari una frase del titolare? Senza
    permesso, si resta su «nata al banco di un cocktail bar».

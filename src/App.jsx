@@ -10,7 +10,8 @@ import Anteprima from './pages/Anteprima.jsx'
 import { Termini, Privacy } from './pages/Legali.jsx'
 import { osservaUtente, esci, tracciaPagina, osservaVendita, registrazioneInCorso } from './lib/db.js'
 import { sitoChiuso, venditaPulita } from './lib/vendita.js'
-import { NOME_PRODOTTO, EMAIL_CONTATTI, URL_DEMO } from './lib/prodotto.js'
+import { NOME_PRODOTTO, QUALIFICA, EMAIL_CONTATTI, URL_DEMO } from './lib/prodotto.js'
+import Logo from './components/Logo.jsx'
 import { LINGUE, NOMI_LINGUE, leggiPreferenza, linguaDelPercorso, percorsoDellaLingua, salvaPreferenza } from './lib/lingua.js'
 import { testi } from './i18n/index.js'
 import { versioneDetta } from './lib/versione.js'
@@ -112,9 +113,11 @@ export default function App() {
         </div>
       )}
       <header className="barra">
+        {/* Il marchio: il logo (decorativo), il nome e la qualifica (09/11/2026). */}
         <Link to={casa} className="marchio">
-          <span className="marchio-punto" aria-hidden="true" />
-          {NOME_PRODOTTO}
+          <Logo />
+          {NOME_PRODOTTO}{' '}
+          <span className="marchio-qualifica">{QUALIFICA}</span>
         </Link>
         <div className="barra-destra">
           {primaPagina && <SceltaLingua lingua={lingua} etichetta={t.barra.lingua} />}
@@ -177,7 +180,12 @@ export default function App() {
       <footer className="piede">
         <div className="piede-colonne">
           <div>
-            <div className="marchio piede-marchio">{NOME_PRODOTTO}</div>
+            <div className="marchio piede-marchio">
+              <Logo />
+              {NOME_PRODOTTO}{' '}
+              <span className="marchio-qualifica">{QUALIFICA}</span>
+            </div>
+            <p className="marchio-sottotitolo">{t.piede.sottotitolo}</p>
             <p className="muted small">{t.piede.descrizione}</p>
             {primaPagina && <SceltaLingua lingua={lingua} etichetta={t.barra.lingua} />}
           </div>
