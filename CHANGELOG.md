@@ -21,6 +21,9 @@ data.
   e sul runner la navigazione arrivava prima (secondo collaudo,
   REQ-DEV-009). La password del titolare di collaudo ha una cifra fissa:
   la marca in base 36 poteva venire di sole lettere.
+- Un test unitario del backoffice («Sito aperto al pubblico») aspettava
+  l'elemento e non il testo, e sul runner ogni tanto leggeva la riga prima
+  che la vendita arrivasse; ora aspetta il testo.
 - Il prodotto ha il suo nome: **Lime – SmartOrders**, deciso dall'utente
   il 09/11/2026 al posto del segnaposto «Drink». Il logo è una fetta di
   lime che sembra un grafico a torta, nella barra, nel piè di pagina e

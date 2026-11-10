@@ -794,7 +794,10 @@ describe('i pagamenti online e le richieste di contatto', () => {
     unmount()
     regia.vendita = { free: false, moduli: {}, sito_aperto: false }
     mostra('/backoffice/vendita')
-    expect(await screen.findByTestId('sito-aperto')).toHaveTextContent(/Chiuso dappertutto/)
+    // Si aspetta il testo, non l'elemento: la riga c'è dal primo render
+    // (dice «Non ancora deciso» finché la vendita non arriva) e sul runner
+    // findByTestId la trovava prima che l'effetto la aggiornasse.
+    await waitFor(() => expect(screen.getByTestId('sito-aperto')).toHaveTextContent(/Chiuso dappertutto/))
     expect(screen.getByLabelText('Sito aperto al pubblico')).not.toBeChecked()
   })
 
