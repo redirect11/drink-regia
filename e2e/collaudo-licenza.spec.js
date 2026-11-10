@@ -18,7 +18,9 @@ const LOCALE = process.env.E2E_LOCALE_COLLAUDO || 'prova-bar'
 const APP = process.env.E2E_APP_COLLAUDO || `https://drinkpos-${LOCALE}.web.app`
 const MOTIVO = 'collaudo automatico'
 
-test.describe.configure({ mode: 'serial' })
+// Niente ripetizioni: ripetere il gruppo lancerebbe un secondo
+// aggiornamento vero del locale mentre il primo è ancora in corso.
+test.describe.configure({ mode: 'serial', retries: 0 })
 test.beforeEach(({ page }) => {
   test.skip(!COLLAUDO, 'il collaudo gira solo con E2E_COLLAUDO=true')
   test.skip(!PASSWORD, 'manca E2E_PASSWORD')
@@ -61,7 +63,9 @@ test('«Aggiorna subito» porta il locale all’ultima versione dell’app: il w
   let articolo = await scheda(page)
   const prima = (await versione(articolo).textContent()).trim()
   await articolo.getByRole('button', { name: /^Aggiorna subito/ }).click()
-  await expect(articolo.getByRole('status')).toContainText('partito')
+  // «partito» dura poco: appena la Function ha scritto, la scheda si
+  // ricarica e dice «in corso da meno di un minuto». Vanno bene tutti e due.
+  await expect(articolo.getByRole('status')).toContainText(/partito|in corso/)
 
   // Finché la scheda dice «in corso» si aspetta; «fallito» ferma tutto.
   const scadenza = Date.now() + 20 * 60_000

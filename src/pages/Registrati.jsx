@@ -223,12 +223,22 @@ export default function Registrati({ completa = null }) {
               Indietro
             </button>
           )}
+          {/* Le `key`: «Avanti» e il bottone che invia devono essere due
+              elementi diversi. Senza, React riusava lo stesso <button> e
+              gli cambiava il type da «button» a «submit» dentro il click
+              su «Avanti»; il browser decide cosa fa un click solo dopo che
+              i gestori hanno finito, e trovandolo «submit» inviava il
+              modulo appena arrivati al referente. Al primo giro i controlli
+              lo fermavano (ma mostravano gli errori dei campi ancora vuoti);
+              al secondo, con lo slug rifiutato e il referente già compilato,
+              l'account si creava senza che nessuno premesse «Crea l’account»
+              (trovato dal collaudo automatico del 09/11/2026, REQ-DEV-009). */}
           {passo < PASSI.length - 1 ? (
-            <button type="button" className="btn" onClick={avanti}>
+            <button key="avanti" type="button" className="btn" onClick={avanti}>
               Avanti
             </button>
           ) : (
-            <button type="submit" className="btn" disabled={inCorso}>
+            <button key="invia" type="submit" className="btn" disabled={inCorso}>
               {inCorso ? 'Un momento…' : completa ? 'Salva i dati del locale' : 'Crea l’account'}
             </button>
           )}

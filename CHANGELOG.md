@@ -6,6 +6,16 @@ data.
 
 ## Prossima release (da decidere)
 
+- Nella registrazione, arrivare al passo del referente non invia più il
+  modulo da sé: «Avanti» e «Crea l’account» erano lo stesso bottone, a cui
+  cambiava il tipo durante il click; al secondo tentativo (identificativo
+  rifiutato, referente già compilato) l'account nasceva senza premere
+  niente, al primo comparivano gli errori dei campi ancora vuoti. Trovato
+  dal primo collaudo automatico (REQ-FLOTTA-003).
+- Il collaudo automatico non si ripete da solo (ripeterlo lanciava un
+  secondo aggiornamento del locale), la pulizia dei clienti di collaudo
+  conta le righe e non i nomi, e «in corso» vale quanto «partito»
+  (REQ-DEV-009).
 - Il prodotto ha il suo nome: **Lime – SmartOrders**, deciso dall'utente
   il 09/11/2026 al posto del segnaposto «Drink». Il logo è una fetta di
   lime che sembra un grafico a torta, nella barra, nel piè di pagina e

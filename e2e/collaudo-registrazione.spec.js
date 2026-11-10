@@ -13,7 +13,7 @@
 // e possa sceglierne un altro. Non attiva mai l'istanza: creerebbe un
 // progetto Google, e la quota dei progetti è contata.
 import { test, expect } from '@playwright/test'
-import { entra, PASSWORD, COLLAUDO } from './aiuto.js'
+import { entra, menu, PASSWORD, COLLAUDO } from './aiuto.js'
 
 // Un'etichetta diversa a ogni giro, così due collaudi non si pestano; il
 // dominio .invalid non consegna mai (RFC 2606): l'email di verifica parte e
@@ -25,7 +25,11 @@ const email = (suffisso = '') => `collaudo-${marca}${suffisso}@collaudo.invalid`
 const PASSWORD_NUOVA = `collaudo-${marca}-ok`
 const SLUG_IN_USO = 'Questo identificativo è già in uso: scegline un altro.'
 
-test.describe.configure({ mode: 'serial' })
+// Niente ripetizioni: in un gruppo seriale un fallimento fa ripartire il
+// file intero, e qui il secondo giro trovava i clienti del primo (due con
+// lo stesso nome) e confondeva la pulizia. Un collaudo fallito si legge
+// nel rapporto e si rilancia col tag dopo.
+test.describe.configure({ mode: 'serial', retries: 0 })
 test.beforeEach(() => {
   test.skip(!COLLAUDO, 'il collaudo gira solo con E2E_COLLAUDO=true')
   test.skip(!PASSWORD, 'manca E2E_PASSWORD')
@@ -58,28 +62,33 @@ async function registra(page, { email, nome }) {
   await page.getByRole('button', { name: /Crea l’account/ }).click()
 }
 
-// L'admin cancella i clienti di collaudo: quelli di questo giro e quelli
-// rimasti da un giro fallito prima (la ricerca li trova tutti dallo slug).
+// L'admin, già entrato, cancella i clienti di collaudo: quelli di questo
+// giro e quelli rimasti da un giro fallito prima (la ricerca li trova
+// tutti dallo slug).
 async function ripulisci(page) {
-  await entra(page, 'admin')
   await page.goto('/backoffice/locali')
   const tabella = page.getByRole('table', { name: 'Locali' })
   await expect(tabella).toBeVisible()
   await page.getByRole('searchbox', { name: 'Cerca' }).fill('collaudo-')
   const righe = tabella.locator('tr.riga-locale')
-  // Una alla volta: ogni eliminazione ricarica l'elenco.
-  for (let giri = 0; giri < 20 && (await righe.count()) > 0; giri++) {
+  // Una alla volta: ogni eliminazione ricarica l'elenco. Si conta per
+  // righe e non per nome: due clienti di collaudo possono chiamarsi
+  // uguale (il titolare e il «secondo titolare» del giro prima).
+  for (let giri = 0; giri < 20; giri++) {
+    const quante = await righe.count()
+    if (quante === 0) break
     const nome = (await righe.first().locator('.nome-locale').textContent()).trim()
     await righe.first().getByRole('button', { name: nome }).click()
     const scheda = page.getByRole('article', { name: nome })
     page.once('dialog', (d) => d.accept())
     await scheda.getByRole('button', { name: 'Elimina cliente…' }).click()
-    await expect(tabella.getByRole('button', { name: nome })).toHaveCount(0)
+    await expect(righe).toHaveCount(quante - 1)
   }
   await expect(righe).toHaveCount(0)
 }
 
 test('prima, l’admin toglie i clienti di collaudo rimasti da un giro precedente', async ({ page }) => {
+  await entra(page, 'admin')
   await ripulisci(page)
 })
 
@@ -102,6 +111,11 @@ test('un secondo titolare con lo stesso nome del locale si ferma sullo slug, ne 
   await identificativo.fill(`${SLUG}-bis`)
   await page.getByRole('button', { name: 'Avanti' }).click()
   await page.getByRole('button', { name: 'Avanti' }).click()
+  // Arrivati al referente si è ancora sulla registrazione: il primo
+  // collaudo (09/11/2026) trovò che il secondo «Avanti» inviava il modulo
+  // da sé, e l'account nasceva senza premere «Crea l’account».
+  await expect(page).toHaveURL(/\/registrati/)
+  await expect(page.getByRole('button', { name: /Crea l’account/ })).toBeEnabled()
   await page.getByRole('button', { name: /Crea l’account/ }).click()
   await expect(page).toHaveURL(/\/dashboard/)
   await expect(page.getByRole('heading', { level: 2, name: NOME })).toBeVisible()
@@ -114,7 +128,9 @@ test('l’admin vede i due clienti nel backoffice e li elimina: account e docume
   const tabella = page.getByRole('table', { name: 'Locali' })
   await expect(tabella.locator('tr.riga-locale')).toHaveCount(2)
   await ripulisci(page)
-  // Il titolare eliminato non entra più: l'account non c'è.
+  // Il titolare eliminato non entra più: l'account non c'è. Prima esce
+  // l'admin, altrimenti /accedi rimanda alla sua dashboard.
+  await menu(page).getByRole('button', { name: 'Esci' }).click()
   await page.goto('/accedi')
   await page.getByLabel('Email').fill(email())
   await page.getByLabel('Password').fill(PASSWORD_NUOVA)

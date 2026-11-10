@@ -157,6 +157,30 @@ describe('registrarsi', () => {
     expect(await screen.findByText('DASHBOARD')).toBeInTheDocument()
   })
 
+  // Trovato dal primo collaudo automatico (09/11/2026, REQ-DEV-009):
+  // «Avanti» e il bottone che invia erano lo stesso <button>, a cui React
+  // cambiava il type da «button» a «submit» dentro il click; il browser
+  // decide cosa fa un click dopo i gestori, lo trovava «submit» e inviava
+  // il modulo appena arrivati al referente. Devono essere due elementi:
+  // quello di «Avanti» sparisce dal documento, e al referente si arriva
+  // senza errori e senza chiamate.
+  it('«Avanti» e «Crea l’account» sono due bottoni diversi: arrivare al referente non invia niente', async () => {
+    const user = userEvent.setup()
+    mostra()
+    await passoAccount(user)
+    await passoLocale(user)
+    await user.type(screen.getByLabelText('Ragione sociale'), 'Bar Mario srl')
+    await user.type(screen.getByLabelText('Partita IVA'), '01234567897')
+    await user.type(screen.getByLabelText('PEC'), 'bar@pec.it')
+    const avanti = screen.getByRole('button', { name: 'Avanti' })
+    await user.click(avanti)
+    const invia = screen.getByRole('button', { name: /Crea l’account/ })
+    expect(invia).not.toBe(avanti)
+    expect(avanti.isConnected).toBe(false)
+    expect(db.registra).not.toHaveBeenCalled()
+    expect(document.querySelectorAll('.errore')).toHaveLength(0)
+  })
+
   it('un identificativo scelto male lo dice accanto alla sua casella, e non si va avanti', async () => {
     const user = userEvent.setup()
     db.registra.mockRejectedValueOnce({ code: 'functions/already-exists', details: { campo: 'slug' } })
