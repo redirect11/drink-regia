@@ -22,7 +22,9 @@ const marca = Date.now().toString(36)
 const NOME = `Collaudo ${marca}`
 const SLUG = `collaudo-${marca}`
 const email = (suffisso = '') => `collaudo-${marca}${suffisso}@collaudo.invalid`
-const PASSWORD_NUOVA = `collaudo-${marca}-ok`
+// La cifra in fondo è fissa: la password vuole almeno una cifra, e la
+// marca in base 36 può venire di sole lettere (successe il 10/11/2026).
+const PASSWORD_NUOVA = `collaudo-${marca}-ok-1`
 const SLUG_IN_USO = 'Questo identificativo è già in uso: scegline un altro.'
 
 // Niente ripetizioni: in un gruppo seriale un fallimento fa ripartire il
@@ -129,8 +131,12 @@ test('l’admin vede i due clienti nel backoffice e li elimina: account e docume
   await expect(tabella.locator('tr.riga-locale')).toHaveCount(2)
   await ripulisci(page)
   // Il titolare eliminato non entra più: l'account non c'è. Prima esce
-  // l'admin, altrimenti /accedi rimanda alla sua dashboard.
+  // l'admin, altrimenti /accedi rimanda alla sua dashboard; e si aspetta
+  // che sia uscito davvero (il link «Accedi» al posto di «Esci»), perché
+  // l'uscita è asincrona: sul runner (tag v0.3.0-beta.3) la navigazione
+  // arrivava prima, e /accedi riportava l'admin alla dashboard.
   await menu(page).getByRole('button', { name: 'Esci' }).click()
+  await expect(menu(page).getByRole('link', { name: 'Accedi' })).toBeVisible()
   await page.goto('/accedi')
   await page.getByLabel('Email').fill(email())
   await page.getByLabel('Password').fill(PASSWORD_NUOVA)

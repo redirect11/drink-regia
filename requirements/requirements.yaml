@@ -3015,6 +3015,15 @@ requirements:
       modulo da sé, REQ-FLOTTA-003); il test della licenza che voleva
       «partito» quando la scheda diceva già «in corso»; la pulizia che
       contava i clienti per nome, e due si chiamavano uguale.
+      IL SECONDO (tag v0.3.0-beta.3, run 42800893624, 10/11/2026): cinque
+      prove su sei verdi, licenza compresa; l'ultima rossa perché dopo
+      «Esci» il test andava subito su /accedi e l'uscita, asincrona, non
+      era ancora avvenuta: la pagina rimandava l'admin alla sua dashboard.
+      Si aspetta il link «Accedi» prima di proseguire, come fa già
+      e2e/accesso.spec.js. Rifacendolo in locale è uscito un difetto
+      latente: la password del titolare di collaudo finiva con la marca in
+      base 36, che può venire di sole lettere, e la regola vuole una
+      cifra; ora la cifra è fissa.
       COSA NON COPRE, e resta a mano quando serve: l'attivazione di un
       locale nuovo (progetto Google), i pagamenti Stripe (sandbox), il
       cassetto AI.

@@ -16,6 +16,11 @@ data.
   secondo aggiornamento del locale), la pulizia dei clienti di collaudo
   conta le righe e non i nomi, e «in corso» vale quanto «partito»
   (REQ-DEV-009).
+- Nel collaudo, dopo «Esci» l'admin aspetta di essere uscito davvero
+  prima di provare l'accesso del titolare eliminato: l'uscita è asincrona
+  e sul runner la navigazione arrivava prima (secondo collaudo,
+  REQ-DEV-009). La password del titolare di collaudo ha una cifra fissa:
+  la marca in base 36 poteva venire di sole lettere.
 - Il prodotto ha il suo nome: **Lime – SmartOrders**, deciso dall'utente
   il 09/11/2026 al posto del segnaposto «Drink». Il logo è una fetta di
   lime che sembra un grafico a torta, nella barra, nel piè di pagina e
