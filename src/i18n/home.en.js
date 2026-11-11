@@ -96,7 +96,10 @@ export default {
       },
       numeri: {
         parola: 'Count.',
-        testo: 'After closing the takings are already counted: how much, what sold and at which hours. Staff hours are logged.',
+        frasi: {
+          statistiche: 'After closing the takings are already counted: how much, what sold and at which hours.',
+          staff: 'The hours of whoever worked are logged.',
+        },
       },
       scorta: {
         parola: 'Restock.',
@@ -104,6 +107,8 @@ export default {
       },
     },
     nota: 'The videos on this page are illustrative and AI-generated.',
+    ferma: 'Stop the videos',
+    riprendi: 'Play the videos',
   },
   funzioni: {
     occhiello: 'Features',

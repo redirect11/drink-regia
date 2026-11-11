@@ -31,7 +31,7 @@ import { TESTI, testi } from '../i18n/index.js'
 
 // LA PRIMA PAGINA (REQ-FLOTTA-002), secondo DESIGN.md. L'utente, 29/10/2026:
 // «dovrebbe essere più moderna… con slogan migliori… sia in inglese che in
-// italiano». Un percorso invece di un elenco: la promessa (hero), il
+// italiano». Un percorso invece di un elenco: la promessa (hero), i
 // cinque gesti del locale coi loro filmati, le funzioni coi loro
 // moduli, i tre passi, i prezzi, le domande, l'ultima azione. I testi stanno
 // in src/i18n (uno per lingua); qui c'è solo la struttura. I numeri vengono
@@ -39,7 +39,7 @@ import { TESTI, testi } from '../i18n/index.js'
 //
 // L'ASPETTO DEL 07/11/2026 (DESIGN.md §4, la direzione dell'utente: «sembri
 // il sito curato di un prodotto reale, nato e usato in un locale, non un
-// template generico»): fondo chiaro, poche sezioni scure volute (il
+// template generico»): dall'11/11/2026 tutta su fondo scuro (la
 // prima schermata, i gesti, la chiusura), il lime per azioni e dettagli (dal 11/11/2026);
 // niente luci sfocate, niente card tutte uguali con l'icona, composizioni
 // che si alternano (testo accanto a un pannello, righe numerate, una
@@ -129,28 +129,33 @@ function dueTempi(testo) {
   return { prima: testo.slice(0, taglio + 1), seconda: testo.slice(taglio + 2) }
 }
 
-// I VIDEO DELLA PRIMA PAGINA (11/11/2026, l'utente: «una pagina moderna…
-// nella parte sopra c'è il video in background e uno slogan davanti… con
-// i video nei box»). Tre filmati brevi in public/video, muti e in ciclo:
-// il barman dietro al titolo, la sala e la cassa nei riquadri. Sono
-// decorazione, non contenuto: nascosti a chi usa un lettore di schermo.
-// Chi chiede meno movimento (prefers-reduced-motion) o di risparmiare
-// dati vede il fermo immagine, che è anche quello che si vede finché il
-// codice non è partito: per questo il video non si scarica prima.
-function useMovimento() {
-  const [movimento, setMovimento] = useState(false)
+// I FILMATI DELLA PRIMA PAGINA (11/11/2026, l'utente: «una pagina moderna…
+// nella parte sopra c'è il video in background e uno slogan davanti»). Sei
+// filmati brevi in public/video, muti e in ciclo: il barman dietro al
+// titolo e uno per ognuno dei cinque gesti. Sono decorazione, non
+// contenuto: nascosti a chi usa un lettore di schermo.
+// QUANDO GIRANO. Chi chiede meno movimento (prefers-reduced-motion) o di
+// risparmiare dati vede il fermo immagine, che è anche quello che si vede
+// finché il codice non è partito: per questo il video non si scarica
+// prima. E chi li vede girare li può fermare, col bottone sotto i gesti:
+// partono da soli e non finiscono mai, e un movimento così accanto a un
+// testo deve potersi fermare (WCAG 2.2.2; rilievo del revisore, 11/11/2026).
+// `possibile` dice se il sistema li lascia girare, `acceso` se chi guarda
+// non li ha fermati.
+function useFilmati() {
+  const [possibile, setPossibile] = useState(false)
+  const [acceso, setAcceso] = useState(true)
   useEffect(() => {
     const fermo = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     const risparmio = navigator.connection?.saveData
-    setMovimento(!fermo && !risparmio)
+    setPossibile(!fermo && !risparmio)
   }, [])
-  return movimento
+  return { possibile, girano: possibile && acceso, cambia: () => setAcceso((a) => !a) }
 }
 
-function Filmato({ nome, className }) {
-  const movimento = useMovimento()
+function Filmato({ nome, className, gira }) {
   const fermo = `/video/${nome}.jpg`
-  if (!movimento) return <img className={className} src={fermo} alt="" decoding="async" />
+  if (!gira) return <img className={className} src={fermo} alt="" decoding="async" />
   return (
     <video className={className} poster={fermo} autoPlay muted loop playsInline preload="metadata" aria-hidden="true" tabIndex={-1}>
       <source src={`/video/${nome}.mp4`} type="video/mp4" />
@@ -174,6 +179,10 @@ function Filmato({ nome, className }) {
 // la scorta) non si vede se nessuno dei suoi è in vendita. Per questo la
 // riga di testo di «Ordina» e «Incassa» non promette il menù con QR o il
 // lettore di carte: quelli li dice l'etichetta, quando si possono comprare.
+// E per questo «Conta», che ha due moduli, ha una frase per modulo
+// (gesti.voci.numeri.frasi) invece di una riga sola: con le statistiche
+// in vendita e il personale no, la frase sulle ore non si deve leggere
+// (rilievo del revisore, 11/11/2026).
 // `lato` è il lato del testo, quello dove il filmato è più libero.
 const GESTI = [
   { id: 'sala', moduli: ['menu_tavoli', 'ordini_cliente'], base: true, lato: 'sinistra' },
@@ -231,6 +240,13 @@ export default function Home({ utente, lingua = 'it' }) {
   const funzioni = FUNZIONI.filter((f) => !f.moduli.length || f.moduli.some((id) => moduloVisibile(vendita, id)))
   const minori = MINORI.filter((f) => moduloVisibile(vendita, f.id))
   const gesti = GESTI.filter((g) => g.base || g.moduli.some((id) => moduloVisibile(vendita, id)))
+  const filmati = useFilmati()
+  // La riga di un gesto: la sua, oppure le frasi dei soli moduli in vendita.
+  const rigaGesto = (g) => {
+    const voce = t.gesti.voci[g.id]
+    if (!voce.frasi) return voce.testo
+    return g.moduli.filter((id) => moduloVisibile(vendita, id) && voce.frasi[id]).map((id) => voce.frasi[id]).join(' ')
+  }
   const { base, completo } = PIANI
   const inclusiNelBase = new Set(base.include)
   const inclusiNelCompleto = new Set(completo.include)
@@ -310,7 +326,7 @@ export default function Home({ utente, lingua = 'it' }) {
           velo scuro sopra, e davanti cosa è e cosa fare; a destra la scheda
           coi fatti (prezzo, abbonamento, attivazione), informazioni vere. */}
       <section className="hero" aria-labelledby="hero-titolo">
-        <Filmato nome="banco" className="hero-sfondo" />
+        <Filmato nome="banco" className="hero-sfondo" gira={filmati.girano} />
         <div className="hero-velo" />
         <div className="contenitore hero-griglia">
           <div className="hero-testo">
@@ -358,12 +374,12 @@ export default function Home({ utente, lingua = 'it' }) {
         <ol className="gesti-fasce">
           {gesti.map((g) => (
             <li key={g.id} className="gesto" data-lato={g.lato}>
-              <Filmato nome={g.id} className="gesto-sfondo" />
+              <Filmato nome={g.id} className="gesto-sfondo" gira={filmati.girano} />
               <div className="gesto-velo" />
               <div className="contenitore">
                 <div className="gesto-testo">
                   <h3>{t.gesti.voci[g.id].parola}</h3>
-                  <p>{t.gesti.voci[g.id].testo}</p>
+                  <p>{rigaGesto(g)}</p>
                   <ul className="gesto-moduli">
                     {etichetteGesto(g).map((e) => (
                       <li key={e}>{e}</li>
@@ -375,7 +391,17 @@ export default function Home({ utente, lingua = 'it' }) {
           ))}
         </ol>
         <div className="contenitore">
-          <p className="nota">{t.gesti.nota}</p>
+          <p className="nota">
+            {t.gesti.nota}
+            {filmati.possibile && (
+              <>
+                {' '}
+                <button type="button" className="link ferma-filmati" aria-pressed={!filmati.girano} onClick={filmati.cambia}>
+                  {filmati.girano ? t.gesti.ferma : t.gesti.riprendi}
+                </button>
+              </>
+            )}
+          </p>
         </div>
       </section>
 

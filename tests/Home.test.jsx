@@ -2,7 +2,7 @@
 'use strict'
 
 // LA PRIMA PAGINA (REQ-FLOTTA-002, DESIGN.md): la promessa nel titolo, il
-// problema, i tre pilastri, le funzioni coi loro moduli, i passi, i prezzi
+// cinque gesti coi filmati, le funzioni coi loro moduli, i passi, i prezzi
 // dal listino, le domande, l'ultima azione. Tono del mestiere, niente urla.
 //
 // 30/10/2026, la home nuova (l'utente: «più moderna… con slogan
@@ -15,9 +15,9 @@
 // dashboard.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, within, waitFor } from '@testing-library/react'
+import { render, screen, within, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { statSync } from 'node:fs'
+import { statSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import '@testing-library/jest-dom/vitest'
 
@@ -271,6 +271,64 @@ describe('la prima pagina', () => {
       expect(fermo).toHaveAttribute('alt', '')
     })
 
+    it('anche chi chiede di risparmiare dati vede i fermi immagine', async () => {
+      conMovimento(false)
+      vi.stubGlobal('navigator', { userAgent: navigator.userAgent, connection: { saveData: true } })
+      mostra()
+      await screen.findByRole('heading', { level: 2, name: it_.gesti.titolo })
+      expect(document.querySelector('video')).toBeNull()
+      expect(screen.queryByRole('button', { name: it_.gesti.ferma })).toBeNull()
+    })
+
+    // I filmati partono da soli e non finiscono: chi guarda li può fermare
+    // (WCAG 2.2.2, rilievo del revisore dell'11/11/2026). Fermati, restano
+    // i fermi immagine; il bottone li fa ripartire.
+    it('«Ferma i filmati» li ferma tutti e sei, e poi li fa ripartire', async () => {
+      conMovimento(false)
+      mostra()
+      const ferma = await screen.findByRole('button', { name: it_.gesti.ferma })
+      await waitFor(() => expect(document.querySelectorAll('video')).toHaveLength(6))
+      for (const v of document.querySelectorAll('li.gesto video')) expect(v).toHaveAttribute('aria-hidden', 'true')
+      expect(ferma).toHaveAttribute('aria-pressed', 'false')
+      fireEvent.click(ferma)
+      expect(document.querySelectorAll('video')).toHaveLength(0)
+      expect(document.querySelectorAll('img.gesto-sfondo')).toHaveLength(5)
+      const riprendi = screen.getByRole('button', { name: it_.gesti.riprendi })
+      expect(riprendi).toHaveAttribute('aria-pressed', 'true')
+      fireEvent.click(riprendi)
+      expect(document.querySelectorAll('video')).toHaveLength(6)
+    })
+
+    it('chi ha chiesto meno movimento non ha il bottone: non c’è niente da fermare', () => {
+      conMovimento(true)
+      mostra()
+      expect(screen.queryByRole('button', { name: it_.gesti.ferma })).toBeNull()
+      expect(screen.queryByRole('button', { name: it_.gesti.riprendi })).toBeNull()
+    })
+
+    // Criterio 9: la prima pagina è scura. I token della vetrina sono
+    // quelli scuri, e non resta un fondo chiaro cablato.
+    it('la prima pagina è sul fondo scuro: i token della vetrina non hanno più i valori chiari', () => {
+      const css = readFileSync(join(import.meta.dirname, '..', 'src', 'index.css'), 'utf8')
+      const inizio = css.indexOf('.regia.vetrina {')
+      const vetrina = css.slice(inizio, css.indexOf('}', inizio))
+      expect(vetrina).toContain('--bg: #0c0f0a;')
+      expect(vetrina).toContain('--text: #eef2e6;')
+      expect(vetrina).toContain('--lime: #b4ec2b;')
+      for (const chiaro of ['#f7f9f1', '#fefffa', '#f6f2ea', '#fffdf8']) expect(css, chiaro).not.toContain(chiaro)
+    })
+
+    it('«Cosa comprende» nelle funzioni è chiuso e si apre a richiesta', () => {
+      conMovimento(true)
+      mostra()
+      const dettagli = [...document.querySelectorAll('#funzioni details.funzione-riquadro')]
+      expect(dettagli.length).toBeGreaterThan(0)
+      for (const d of dettagli) {
+        expect(d.open).toBe(false)
+        expect(d.querySelector('summary')).toHaveTextContent(it_.funzioni.punti)
+      }
+    })
+
     // Criterio 8 di REQ-FLOTTA-060: i filmati stanno in pagina, non in un
     // servizio esterno, e una prima pagina non può pesare come un film.
     it('ogni filmato ha il suo fermo immagine e pesa meno di 700 KB', () => {
@@ -294,7 +352,13 @@ describe('la prima pagina', () => {
       for (const g of gesti) expect(g.querySelector('img')).toHaveAttribute('alt', '')
       const moduli = (g) => [...g.querySelectorAll('.gesto-moduli li')].map((e) => e.textContent)
       // I gesti che si fanno già col piano di partenza lo dicono per primo.
+      expect(moduli(gesti[0])).toEqual(['Nel piano Base', 'Modulo Ordini dal telefono del cliente'])
       expect(moduli(gesti[1])).toEqual(['Nel piano Base'])
+      expect(moduli(gesti[3])).toEqual(['Modulo Statistiche e bilancio', 'Modulo Personale e ore'])
+      // Ogni gesto ha la sua riga, e «Conta» le sue due frasi.
+      for (const g of gesti) expect(g.querySelector('.gesto-testo > p').textContent.length).toBeGreaterThan(30)
+      expect(gesti[3]).toHaveTextContent(it_.gesti.voci.numeri.frasi.statistiche)
+      expect(gesti[3]).toHaveTextContent(it_.gesti.voci.numeri.frasi.staff)
       expect(moduli(gesti[2])).toEqual(['Nel piano Base', 'Modulo Pagamenti con lettore SumUp'])
       expect(moduli(gesti[4])).toEqual(['Modulo Magazzino e fornitori'])
       // Il lato del testo segue il filmato: solo la scorta ha il soggetto a sinistra.
@@ -303,7 +367,7 @@ describe('la prima pagina', () => {
     })
   })
 
-  it('il titolo resta una frase intera, con la seconda parte in oro', () => {
+  it('il titolo resta una frase intera, con la seconda parte nel lime', () => {
     mostra()
     const h1 = screen.getByRole('heading', { level: 1 })
     expect(h1).toHaveTextContent(it_.hero.titolo)

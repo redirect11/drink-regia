@@ -111,10 +111,10 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 /* ── La prima pagina (REQ-FLOTTA-002, DESIGN.md §4) ──────────────────
    Una vetrina, non il gestionale. Dal 07/11/2026 (la direzione dell'utente:
    «sembri il sito curato di un prodotto reale, nato e usato in un locale,
-   non un template generico») un'identità editoriale: fondo chiaro appena verde, testo
-   scuro, il lime per le azioni e i dettagli (dal 11/11/2026, prima verde e oro)
-   (numeri, filetti, la seconda frase del titolo), due sole sezioni scure
-   (i filmati e la chiusura). Niente luci sfocate, gradienti, aloni o
+   non un template generico») un'identità editoriale. Dall'11/11/2026 è tutta su fondo
+   scuro, col lime per le azioni e i dettagli (numeri, filetti, la seconda
+   frase del titolo): prima era avorio col verde e l'oro, poi chiara col
+   lime per un pomeriggio. Niente luci sfocate, gradienti, aloni o
    vetro; niente card tutte uguali: griglie, filetti e righe numerate. Le
    misure seguono la scala del DESIGN.md (4…96 px); se cambiano qui, si
    aggiornano là. I token della vetrina valgono per barra e piè di pagina
@@ -241,6 +241,7 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .gesto-testo p { margin: 0; font-size: 1.125rem; line-height: 1.55; color: #e6ebdc; }
 .gesto-moduli { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 18px 0 0; padding: 14px 0 0; border-top: 1px solid rgba(255, 255, 255, 0.2); font-size: 0.875rem; font-weight: 600; color: var(--lime); }
 .gesti .nota { color: var(--scuro-muted); padding: 20px 0 28px; margin: 0; max-width: none; }
+.ferma-filmati { background: none; border: none; padding: 12px 0; min-height: 44px; font: inherit; color: var(--accent); text-decoration: underline; cursor: pointer; }
 @media (min-width: 900px) {
   .gesto { min-height: 78vh; padding: 80px 0; }
   .gesto-velo { background: linear-gradient(90deg, rgba(8, 11, 6, 0.9) 0%, rgba(8, 11, 6, 0.6) 42%, rgba(8, 11, 6, 0.12) 100%); }
@@ -266,9 +267,9 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .etichette-moduli { list-style: none; padding: 0; margin: 16px 0 0; display: flex; flex-wrap: wrap; gap: 8px; }
 .etichette-moduli li { font-size: 0.8125rem; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--line); color: var(--muted); background: var(--bg-2); }
 .funzione-riquadro { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; }
-.funzione-riquadro > summary { cursor: pointer; margin: 0; min-height: 24px; }
-.funzione-riquadro[open] > summary { margin-bottom: 10px; }
 .funzione-riquadro { align-self: start; }
+.funzione-riquadro > summary { display: flex; align-items: center; cursor: pointer; margin: 0; min-height: 44px; }
+.funzione-riquadro[open] > summary { margin-bottom: 6px; }
 .punti { list-style: none; padding: 0; margin: 0; display: grid; }
 .punti li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
 .icona.spunta { width: 18px; height: 18px; color: var(--ok); flex: none; margin-top: 4px; }
@@ -342,7 +343,7 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .domande details[open] summary::after { transform: rotate(45deg); }
 .domande details p { margin: 0 0 18px; color: var(--muted); max-width: 44rem; }
 
-/* ── La chiusura: la seconda sezione scura, a tutta larghezza, col testo a
+/* ── La chiusura: una fascia a tutta larghezza, col testo a
    sinistra e i bottoni a destra. Sul fondo scuro l'azione principale è
    lime col testo scuro, la seconda col contorno chiaro. ── */
 .chiusura { margin-top: 56px; padding: 56px 0; background: var(--bg-2); border-top: 1px solid var(--line); color: var(--scuro-testo); }
@@ -377,8 +378,6 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
   .domande-griglia { grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr); gap: 64px; align-items: start; }
   .domande-griglia h2 { position: sticky; top: 104px; }
   .chiusura-griglia { grid-template-columns: minmax(0, 1fr) auto; gap: 48px; }
-}
-@media (min-width: 1024px) {
 }
 
 /* Le sezioni che entrano (src/lib/comparsa.js): una dissolvenza di 12px,

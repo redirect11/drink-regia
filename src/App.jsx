@@ -104,7 +104,7 @@ export default function App() {
   if (PRODUZIONE && vendita === undefined) return null
   return (
     // Sulla prima pagina (DESIGN.md §4, 07/11/2026) barra e piè di pagina
-    // prendono i colori della vetrina, chiaro e lime; il resto del sito
+    // prendono i colori della vetrina, scuro e lime; il resto del sito
     // resta col tema scuro.
     <div className={`regia${primaPagina ? ' vetrina' : ''}`}>
       {!PRODUZIONE && (

@@ -170,7 +170,13 @@ frasi riportate nel registro (REQ-FLOTTA-060).
 - **I moduli di un gesto seguono la vendita** come le funzioni (§5.4): un
   modulo non in vendita non compare, e «Conta» e «Riordina», che vivono
   solo di moduli, spariscono coi loro. Per questo le righe di «Ordina» e
-  «Incassa» non promettono il menù con QR o il lettore di carte.
+  «Incassa» non promettono il menù con QR o il lettore di carte, e
+  «Conta», che ha due moduli, ha una frase per modulo: si legge solo
+  quella del modulo in vendita.
+- **I filmati si possono fermare**: sotto i gesti c'è «Ferma i filmati»,
+  che li sostituisce coi fermi immagine e poi li fa ripartire. Partono da
+  soli e non finiscono, e un movimento così accanto a un testo deve
+  potersi fermare (WCAG 2.2.2).
 - **Le funzioni** (§5.4) restano prima dei prezzi, più corte: «Cosa
   comprende» è chiuso e si apre a richiesta.
 - **Tutta la pagina è scura**, sul nero appena verde del resto del sito:

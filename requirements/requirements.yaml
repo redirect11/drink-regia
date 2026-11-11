@@ -132,6 +132,11 @@ requirements:
       regge il contrasto; sul fondo scuro, ora un nero appena verde, è
       l'accento pieno. «In attesa» e gli avvisi restano ambra, con un
       token loro: in verde sembrerebbero «a posto».
+      SUPERATO PER L'ASPETTO (11/11/2026, la sera, REQ-FLOTTA-060): la
+      prima pagina è su fondo scuro, coi filmati e i cinque gesti al
+      posto del problema e dei pilastri. Quello che qui sopra dice
+      «avorio», «due sole sezioni scure» e «sul chiaro» racconta le
+      versioni di prima; vale REQ-FLOTTA-060.
       RESTA (DESIGN.md §9): le quattro schermate vere dell'app, la prova
       sociale, `/en` per chi non esegue JavaScript, la verifica
       Lighthouse sul telefono.
@@ -3195,7 +3200,29 @@ requirements:
       sezioni «problema» e «pilastri» non ci sono più, e i loro testi
       nemmeno. (6) La pagina dice che i filmati sono generati con
       l'intelligenza artificiale. (7) Italiano e inglese hanno le stesse
-      voci. (8) I filmati pesano meno di 700 KB l'uno.
+      voci. (8) I filmati pesano meno di 700 KB l'uno. (9) La prima
+      pagina è sul fondo scuro: i token della vetrina sono quelli scuri
+      e non restano fondi chiari. (10) Chi vede girare i filmati li può
+      fermare e far ripartire con un bottone; chi ha chiesto meno
+      movimento il bottone non lo vede. (11) «Cosa comprende» nelle
+      funzioni è chiuso e si apre a richiesta. (12) Un gesto con più
+      moduli dice solo le frasi dei moduli in vendita.
+      LA PAGINA SCURA, aggiunta in corsa l'11/11/2026: vista la bozza,
+      Daniele ha detto «lo sfondo troppo chiaro cozza un po' con il
+      verde lime». La prima pagina passa al fondo scuro, lo stesso nero
+      appena verde di dashboard e backoffice: il lime regge anche come
+      testo e la pagina non salta dal chiaro allo scuro a ogni filmato.
+      DALLA REVISIONE (revisore, 11/11/2026): i criteri 9-12, il bottone
+      per fermare i filmati (WCAG 2.2.2: partono da soli e non
+      finiscono), e «Conta» con una frase per modulo, perché con uno solo
+      dei due in vendita prometteva anche l'altro.
+      I FILMATI di «Incassa», «Conta» e «Riordina» sono una prima prova:
+      Daniele ne genera di più fedeli alla parola, e si sostituiscono
+      senza toccare il codice (stesso nome in public/video).
+      RESTA: i sei filmati partono tutti al caricamento, anche quelli
+      fuori vista (circa 2,3 MB); caricarli quando entrano in vista è il
+      passo dopo. Il contrasto del testo sopra i filmati dipende dal
+      filmato: coi prossimi va riguardato.
     status: implemented
     generate_issue: true
     labels: [prodotto, regia, home]
@@ -3203,6 +3230,7 @@ requirements:
     test_cases:
       - tests/Home.test.jsx
       - tests/HomeVendita.test.jsx
+      - tests/lingua.test.js
 
   - id: REQ-FLOTTA-059
     title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"

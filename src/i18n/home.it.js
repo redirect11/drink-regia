@@ -114,7 +114,10 @@ export default {
       },
       numeri: {
         parola: 'Conta.',
-        testo: 'A serata finita l’incasso è già fatto: quanto, cosa si è venduto e in quali ore. Le ore di chi ha lavorato sono segnate.',
+        frasi: {
+          statistiche: 'A serata finita l’incasso è già fatto: quanto, cosa si è venduto e in quali ore.',
+          staff: 'Le ore di chi ha lavorato sono segnate.',
+        },
       },
       scorta: {
         parola: 'Riordina.',
@@ -122,6 +125,8 @@ export default {
       },
     },
     nota: 'I filmati di questa pagina sono dimostrativi, generati con l’intelligenza artificiale.',
+    ferma: 'Ferma i filmati',
+    riprendi: 'Fai ripartire i filmati',
   },
   funzioni: {
     occhiello: 'Funzioni',

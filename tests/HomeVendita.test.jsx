@@ -55,6 +55,17 @@ describe('la vendita nella prima pagina', () => {
     expect([...incassa.querySelectorAll('.gesto-moduli li')].map((e) => e.textContent)).toEqual(['Nel piano Base'])
   })
 
+  // Rilievo del revisore (11/11/2026): «Conta» ha due moduli e una frase
+  // per modulo. Con uno solo in vendita si legge solo la sua.
+  it('«Conta.» dice solo quello che si può comprare: senza il personale, niente frase sulle ore', () => {
+    stato.vendita = venditaPulita({ moduli: { staff: false } })
+    mostra()
+    const conta = [...document.querySelectorAll('li.gesto')].find((g) => g.querySelector('h3').textContent === 'Conta.')
+    expect(conta).toHaveTextContent(it_.gesti.voci.numeri.frasi.statistiche)
+    expect(conta).not.toHaveTextContent(it_.gesti.voci.numeri.frasi.staff)
+    expect([...conta.querySelectorAll('.gesto-moduli li')].map((e) => e.textContent)).toEqual(['Modulo Statistiche e bilancio'])
+  })
+
   it('senza statistiche né personale non c’è «Conta.»', () => {
     stato.vendita = venditaPulita({ moduli: { statistiche: false, staff: false } })
     mostra()
