@@ -6,6 +6,10 @@ data.
 
 ## Prossima release (da decidere)
 
+- Il sito di test era uscito vuoto col tag `v0.3.0-beta.7`: una delle
+  versioni forzate (`minimatch` sotto `glob`) faceva pubblicare zero
+  file. L'override è tolto, e un test controlla che il deploy trovi i
+  file prima di accettarne altri (REQ-DEV-010, #129).
 - Il codice è dichiarato proprietario: `LICENSE` con tutti i diritti
   riservati, `"license": "UNLICENSED"` nei due `package.json`, la sezione
   «Licenza» nel README e l'elenco dei file di terzi
