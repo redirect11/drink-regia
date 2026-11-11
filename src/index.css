@@ -7,18 +7,27 @@
 @font-face { font-family: 'Playfair Display'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/playfair-display-latin-700-normal.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
 
 :root {
-  --bg: #0e0e15;
-  --bg-2: #171724;
-  --bg-3: #1f1f30;
-  --text: #ececf3;
-  --muted: #9b9ba8;
+  /* LA PALETTE LIME (11/11/2026, DESIGN.md §4 «Colori»): il prodotto si
+     chiama Lime e il colore primario è il verde lime. Sul fondo scuro, un
+     nero appena verde, il lime fa da accento pieno: i bottoni lo portano
+     col testo scuro sopra (12:1), i link e il testo evidenziato usano la
+     sua versione più chiara. */
+  --bg: #0c0f0a;
+  --bg-2: #141911;
+  --bg-3: #1c2318;
+  --text: #eef2e6;
+  --muted: #9aa38e;
   --line: rgba(255, 255, 255, 0.1);
-  --accent: #e3b23c;
-  --accent-soft: rgba(227, 178, 60, 0.14);
-  /* L'oro per il TESTO su fondo scuro (contrasto sopra 4,5:1) e il verde
-     delle spunte nella tabella dei piani (DESIGN.md §4, «Colori»). */
-  --accent-2: #f0c96b;
+  --accent: #b4ec2b;
+  --accent-soft: rgba(180, 236, 43, 0.13);
+  /* Il lime per il TESTO su fondo scuro e il verde delle spunte. */
+  --accent-2: #c6f25a;
   --ok: #5fd3a1;
+  /* L'ambra di «in attesa» e degli avvisi: prima era l'accento (l'oro);
+     ora che l'accento è verde, uno stato in attesa in lime sembrerebbe
+     «a posto». Il colore di stato resta suo. */
+  --attesa: #e3b23c;
+  --attesa-soft: rgba(227, 178, 60, 0.14);
   --titoli: 'Playfair Display', Georgia, 'Times New Roman', serif;
   --errore: #e74c3c;
   --raggio: 14px;
@@ -36,7 +45,7 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 
 /* ── La barra: marchio a sinistra, menù a destra; sul telefono il menù si
    apre col tasto. Resta in cima, sopra la pagina che scorre. ── */
-.barra { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 12px 24px; padding: 12px 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); background: rgba(14, 14, 21, 0.72); backdrop-filter: saturate(140%) blur(16px); }
+.barra { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 12px 24px; padding: 12px 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); background: rgba(12, 15, 10, 0.72); backdrop-filter: saturate(140%) blur(16px); }
 /* Il selettore della lingua e il tasto del menù stanno a destra, dopo il
    menù; sul telefono il menù si apre sotto e restano visibili loro. */
 .barra-destra { order: 3; display: flex; align-items: center; gap: 12px; }
@@ -56,8 +65,8 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .barra nav a:hover, .barra nav .link:hover { color: var(--accent-2); }
 /* Il bottone del menù: la regola sopra gli toglieva lo sfondo, e il testo
    scuro spariva sul fondo scuro della barra. */
-.barra nav a.btn { color: #1a1a1a; background: linear-gradient(135deg, #f7dc93, #e3b23c 50%, #c7922c); border: 1px solid transparent; border-radius: 999px; padding: 8px 18px; font-weight: 600; box-shadow: 0 8px 24px -10px rgba(227, 178, 60, 0.8); }
-.barra nav a.btn:hover { color: #1a1a1a; }
+.barra nav a.btn { color: #16210a; background: var(--accent); border: 1px solid transparent; border-radius: 999px; padding: 8px 18px; font-weight: 600; }
+.barra nav a.btn:hover { color: #16210a; }
 .menu-tasto { display: none; min-height: 44px; background: none; border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 6px 14px; font: inherit; cursor: pointer; }
 @media (max-width: 760px) {
   .barra-destra { margin-left: auto; }
@@ -73,7 +82,7 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .muted { color: var(--muted); }
 .small { font-size: 0.85rem; }
 .azioni { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
-.btn { display: inline-block; padding: 11px 18px; border-radius: 10px; border: 1px solid var(--accent); background: var(--accent); color: #1a1a1a; font-weight: 600; text-decoration: none; cursor: pointer; font: inherit; transition: transform 0.12s ease, filter 0.12s ease; }
+.btn { display: inline-block; padding: 11px 18px; border-radius: 10px; border: 1px solid var(--accent); background: var(--accent); color: #16210a; font-weight: 600; text-decoration: none; cursor: pointer; font: inherit; transition: transform 0.12s ease, filter 0.12s ease; }
 .btn:hover { filter: brightness(1.06); transform: translateY(-1px); }
 .btn.ghost { background: transparent; color: var(--text); border-color: var(--line); }
 .btn.ghost:hover { border-color: var(--accent); }
@@ -102,8 +111,8 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 /* ── La prima pagina (REQ-FLOTTA-002, DESIGN.md §4) ──────────────────
    Una vetrina, non il gestionale. Dal 07/11/2026 (la direzione dell'utente:
    «sembri il sito curato di un prodotto reale, nato e usato in un locale,
-   non un template generico») un'identità editoriale: fondo avorio, testo
-   scuro, un accento solo (il verde) per le azioni, l'oro come dettaglio
+   non un template generico») un'identità editoriale: fondo chiaro appena verde, testo
+   scuro, il lime per le azioni e i dettagli (dal 11/11/2026, prima verde e oro)
    (numeri, filetti, la seconda frase del titolo), due sole sezioni scure
    (il problema e la chiusura). Niente luci sfocate, gradienti, aloni o
    vetro; niente card tutte uguali: griglie, filetti e righe numerate. Le
@@ -112,29 +121,34 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
    sulla prima pagina soltanto (.regia.vetrina, App.jsx): il resto del sito
    resta col tema scuro. */
 .regia.vetrina {
-  --bg: #f6f2ea;
-  --bg-2: #fffdf8;
-  --bg-3: #ece5d8;
-  --text: #1f1c18;
-  --muted: #5d574e;
-  --line: #d9d0c0;
-  --accent: #1f5a46;
-  --accent-2: #1f5a46;
-  --accent-soft: rgba(31, 90, 70, 0.1);
-  --ok: #1f5a46;
-  /* L'oro della regia, scurito perché regga sull'avorio (4,6:1). */
-  --oro: #9a7424;
-  /* Le due sezioni scure: un bruno caldo, non il nero. */
-  --scuro: #1d1a16;
-  --scuro-2: #2a2520;
-  --scuro-testo: #f3ede2;
-  --scuro-muted: #c4bbab;
+  /* La palette lime sul chiaro (11/11/2026). Il lime pieno non regge
+     come colore di testo sul fondo chiaro (1,3:1): fa da RIEMPIMENTO
+     (bottoni col testo scuro sopra, filetti, l'evidenziatore del titolo),
+     mentre testo e link in colore usano il verde foglia (--accent, 6:1). */
+  --bg: #f7f9f1;
+  --bg-2: #fefffa;
+  --bg-3: #e8eed8;
+  --text: #161b10;
+  --muted: #525c47;
+  --line: #d5ddc3;
+  --accent: #2f6b0f;
+  --accent-2: #2f6b0f;
+  --accent-soft: rgba(47, 107, 15, 0.1);
+  --ok: #2f6b0f;
+  --lime: #b4ec2b;
+  --lime-forte: #a0d81a;
+  --su-lime: #16210a;
+  /* Le due sezioni scure: un nero appena verde, lo stesso del resto del sito. */
+  --scuro: #11150c;
+  --scuro-2: #1b2114;
+  --scuro-testo: #f1f5e8;
+  --scuro-muted: #b8c1a6;
   background: var(--bg);
   color: var(--text);
 }
-.regia.vetrina .barra { background: rgba(246, 242, 234, 0.88); border-bottom-color: var(--line); }
-.regia.vetrina .barra nav a.btn { color: #fff; background: var(--accent); border-color: var(--accent); box-shadow: none; }
-.regia.vetrina .barra nav a.btn:hover { color: #fff; background: #184838; }
+.regia.vetrina .barra { background: rgba(247, 249, 241, 0.88); border-bottom-color: var(--line); }
+.regia.vetrina .barra nav a.btn { color: var(--su-lime); background: var(--lime); border-color: var(--lime); box-shadow: none; }
+.regia.vetrina .barra nav a.btn:hover { color: var(--su-lime); background: var(--lime-forte); }
 .regia.vetrina .barra nav a:hover, .regia.vetrina .barra nav .link:hover { color: var(--accent); }
 .regia.vetrina .scelta-lingua a[aria-current='true'] { color: var(--accent); }
 .regia.vetrina .menu-tasto { border-color: var(--line); }
@@ -153,9 +167,9 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .landing h2 { font-size: clamp(1.75rem, 3.2vw, 2.375rem); line-height: 1.12; margin: 0 0 16px; }
 .landing h3 { text-wrap: balance; }
 .landing p { line-height: 1.6; }
-/* L'occhiello: una riga piccola col filetto d'oro davanti, in minuscolo. */
+/* L'occhiello: una riga piccola col filetto lime davanti, in minuscolo. */
 .occhiello { display: flex; align-items: center; gap: 10px; color: var(--muted); font-weight: 600; font-size: 0.875rem; margin: 0 0 12px; }
-.occhiello::before { content: ''; width: 20px; height: 2px; background: var(--oro); flex: none; }
+.occhiello::before { content: ''; width: 20px; height: 3px; background: var(--lime); flex: none; }
 .sezione { padding: 56px 0 0; }
 .sezione-testa { max-width: 42rem; margin: 0 0 32px; }
 .sezione-sotto { color: var(--muted); margin: 0; }
@@ -165,12 +179,12 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 /* Il titoletto di un pannello (la scheda dei fatti, «Cosa comprende»). */
 .scheda-titolo { margin: 0 0 10px; font-size: 0.8125rem; font-weight: 600; color: var(--muted); }
 
-/* I bottoni della vetrina: il verde pieno col testo bianco per l'azione
+/* I bottoni della vetrina: il lime pieno col testo scuro per l'azione
    principale, il contorno per la seconda. Angoli moderati, nessuna ombra. */
 .landing .btn { border-radius: 8px; font-weight: 600; transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease; }
 .landing .btn:hover { transform: none; filter: none; }
-.landing .btn:not(.ghost) { background: var(--accent); border-color: var(--accent); color: #fff; }
-.landing .btn:not(.ghost):hover { background: #184838; border-color: #184838; }
+.landing .btn:not(.ghost) { background: var(--lime); border-color: var(--lime); color: var(--su-lime); }
+.landing .btn:not(.ghost):hover { background: var(--lime-forte); border-color: var(--lime-forte); }
 .landing .btn.ghost { background: transparent; color: var(--text); border-color: var(--text); }
 .landing .btn.ghost:hover { background: rgba(0, 0, 0, 0.05); }
 .btn.grande { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 12px 22px; }
@@ -189,17 +203,19 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .hero { padding: 48px 0 56px; border-bottom: 1px solid var(--line); }
 .hero-griglia { display: grid; gap: 32px; align-items: start; }
 .hero h1 { font-size: clamp(2.125rem, 4.6vw, 3.5rem); line-height: 1.08; margin: 0 0 20px; max-width: 18ch; }
-/* La seconda frase del titolo nell'oro: un dettaglio, non un effetto. Dove i
-   colori li sceglie il sistema (contrasto elevato) torna testo normale. */
-.titolo-oro { color: var(--oro); }
-@media (forced-colors: active) { .titolo-oro { color: currentColor; } }
+/* La seconda frase del titolo passata con l'evidenziatore lime: il testo
+   resta scuro (il lime non regge come colore di testo sul chiaro) e il
+   colore sta sotto, come un tratto di pennarello. Dove i colori li sceglie
+   il sistema (contrasto elevato) il tratto sparisce e resta il testo. */
+.titolo-accento > span { background: linear-gradient(transparent 62%, var(--lime) 62%, var(--lime) 92%, transparent 92%); box-decoration-break: clone; -webkit-box-decoration-break: clone; padding: 0 0.08em; margin: 0 -0.08em; }
+@media (forced-colors: active) { .titolo-accento > span { background: none; } }
 .hero-sotto { font-size: 1.0625rem; max-width: 36rem; margin: 0; color: var(--muted); }
 .hero .azioni { margin-top: 28px; gap: 12px; }
 /* La scheda dei fatti: un pannello di carta con le righe divise da un filo. */
 .hero-scheda { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; }
 .fatti { list-style: none; padding: 0; margin: 0; }
 .fatti li { display: flex; align-items: baseline; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); font-size: 0.9375rem; }
-.fatti li::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--oro); flex: none; transform: translateY(-2px); }
+.fatti li::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 0 1px var(--lime-forte); flex: none; transform: translateY(-2px); }
 .nota-lingua { margin: 16px 0 0; font-size: 0.875rem; color: var(--muted); }
 
 /* ── Il problema: la prima sezione scura, voluta. Titolo a sinistra, testo
@@ -208,15 +224,15 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .problema-griglia { display: grid; gap: 24px; }
 .problema h2 { font-size: clamp(1.875rem, 3.6vw, 2.75rem); margin: 0; max-width: 16ch; }
 .problema-testo { font-size: clamp(1.0625rem, 1.6vw, 1.25rem); line-height: 1.6; max-width: 40rem; margin: 0; color: var(--scuro-testo); }
-/* La chiusa: una riga col filetto d'oro, dopo il testo. */
+/* La chiusa: una riga col filetto lime, dopo il testo. */
 .problema-chiusa { display: flex; align-items: center; gap: 14px; margin: 24px 0 0; max-width: 40rem; color: var(--scuro-muted); font-weight: 600; }
-.problema-chiusa::before { content: ''; width: 28px; height: 2px; background: var(--oro); flex: none; }
+.problema-chiusa::before { content: ''; width: 28px; height: 3px; background: var(--lime); flex: none; }
 
-/* ── I tre pilastri: tre colonne divise da un filo, col numero in oro. ── */
+/* ── I tre pilastri: tre colonne divise da un filo, col numero nel verde. ── */
 #pilastri { padding-top: 56px; }
 .pilastri { list-style: none; padding: 0; margin: 0; display: grid; gap: 24px; }
 .pilastro { padding-top: 16px; border-top: 2px solid var(--text); }
-.pilastro-numero { display: block; font-family: var(--titoli); font-variant-numeric: lining-nums; font-size: 1.125rem; color: var(--oro); margin-bottom: 12px; }
+.pilastro-numero { display: block; font-family: var(--titoli); font-variant-numeric: lining-nums; font-size: 1.125rem; color: var(--accent); margin-bottom: 12px; }
 .pilastro h3 { font-size: 1.1875rem; margin: 0 0 8px; }
 .pilastro p { margin: 0; color: var(--muted); }
 
@@ -225,7 +241,7 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
    lista di cosa comprende, su carta. ── */
 .funzioni { display: grid; gap: 48px; }
 .funzione { display: grid; gap: 20px; align-items: center; padding-top: 32px; border-top: 1px solid var(--line); }
-.numero-funzione { font-family: var(--titoli); font-variant-numeric: lining-nums; color: var(--oro); }
+.numero-funzione { font-family: var(--titoli); font-variant-numeric: lining-nums; color: var(--accent); }
 .funzione h3 { font-family: var(--titoli); font-size: clamp(1.5rem, 2.4vw, 1.875rem); line-height: 1.15; letter-spacing: -0.01em; margin: 0 0 12px; }
 .funzione-testo p:not(.occhiello) { color: var(--muted); max-width: 34rem; margin: 0; }
 .etichette-moduli { list-style: none; padding: 0; margin: 16px 0 0; display: flex; flex-wrap: wrap; gap: 8px; }
@@ -242,7 +258,7 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 /* ── I tre passi: numerati, con un filo sopra. ── */
 .passi-landing { display: grid; gap: 24px; list-style: none; padding: 0; margin: 32px 0 0; counter-reset: passo; }
 .passi-landing li { padding-top: 16px; border-top: 2px solid var(--text); }
-.passi-landing .numero { display: block; font-family: var(--titoli); font-variant-numeric: lining-nums; font-size: 1.75rem; line-height: 1; color: var(--oro); margin-bottom: 12px; }
+.passi-landing .numero { display: block; font-family: var(--titoli); font-variant-numeric: lining-nums; font-size: 1.75rem; line-height: 1; color: var(--accent); margin-bottom: 12px; }
 .passi-landing h3 { margin: 0 0 6px; font-size: 1.125rem; }
 .passi-landing p { margin: 0; color: var(--muted); }
 
@@ -264,8 +280,8 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .landing .piano .btn { margin-top: auto; min-height: 48px; display: flex; align-items: center; justify-content: center; }
 /* L'etichetta del piano in evidenza: una targhetta, nel verde. */
 .etichetta { font-size: 0.75rem; font-weight: 600; color: var(--accent); background: var(--accent-soft); border-radius: 6px; padding: 4px 8px; white-space: nowrap; }
-/* L'offerta Fondatori: un pannello sobrio col filetto d'oro, senza urgenza. */
-.fondatori { padding: 18px 22px; border: 1px solid var(--line); border-left: 3px solid var(--oro); border-radius: 0 12px 12px 0; background: var(--bg-2); margin: 0 0 20px; }
+/* L'offerta Fondatori: un pannello sobrio col filetto lime, senza urgenza. */
+.fondatori { padding: 18px 22px; border: 1px solid var(--line); border-left: 3px solid var(--lime); border-radius: 0 12px 12px 0; background: var(--bg-2); margin: 0 0 20px; }
 .fondatori h3 { font-size: 1.0625rem; margin: 0 0 6px; }
 .fondatori p { margin: 0; }
 .fondatori .nota-piccola { margin-top: 6px; font-size: 0.875rem; color: var(--muted); }
@@ -306,14 +322,14 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 
 /* ── La chiusura: la seconda sezione scura, a tutta larghezza, col testo a
    sinistra e i bottoni a destra. Sul fondo scuro l'azione principale è
-   avorio col testo scuro, la seconda col contorno chiaro. ── */
+   lime col testo scuro, la seconda col contorno chiaro. ── */
 .chiusura { margin-top: 56px; padding: 56px 0; background: var(--scuro); color: var(--scuro-testo); }
 .chiusura-griglia { display: grid; gap: 24px; align-items: center; }
 .chiusura h2 { margin: 0 0 12px; font-size: clamp(1.75rem, 3.2vw, 2.5rem); }
 .chiusura p { color: var(--scuro-muted); max-width: 34rem; margin: 0; }
 .chiusura .azioni { margin: 0; gap: 12px; }
-.chiusura .btn:not(.ghost) { background: var(--bg); border-color: var(--bg); color: var(--scuro); }
-.chiusura .btn:not(.ghost):hover { background: #fff; border-color: #fff; }
+.chiusura .btn:not(.ghost) { background: var(--lime); border-color: var(--lime); color: var(--su-lime); }
+.chiusura .btn:not(.ghost):hover { background: #c6f25a; border-color: #c6f25a; }
 .chiusura .btn.ghost { color: var(--scuro-testo); border-color: var(--scuro-muted); }
 .chiusura .btn.ghost:hover { background: rgba(255, 255, 255, 0.08); }
 
@@ -331,7 +347,7 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
   .fascia { padding: 80px 0; }
   .hero { padding: 72px 0 80px; }
   .hero-sotto { font-size: 1.125rem; }
-  .titolo-oro { display: block; }
+  .titolo-accento { display: block; }
   .chiusura { margin-top: 80px; padding: 80px 0; }
 }
 @media (min-width: 900px) {
@@ -377,7 +393,7 @@ legend { font-weight: 600; margin: 10px 0 4px; }
 .passi li { padding: 4px 8px; border-radius: 999px; border: 1px solid var(--line); }
 .passi li.corrente { color: var(--text); border-color: var(--accent); }
 .passi li.fatto { color: var(--accent); }
-.card.avviso { border-color: var(--accent); margin-bottom: 12px; }
+.card.avviso { border-color: var(--attesa); margin-bottom: 12px; }
 input[aria-invalid='true'], select[aria-invalid='true'] { border-color: var(--errore); }
 .legale h2 { margin-top: 24px; }
 input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; }
@@ -391,12 +407,12 @@ input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--
 /* ── Il sotto-menù del backoffice (REQ-FLOTTA-005; l'utente, 30/10/2026:
    «Così è tutto troppo caotico»). Una riga di voci che sul telefono scorre
    di lato dentro sé stessa: la pagina non scorre mai in orizzontale. La
-   voce attiva ha la riga oro; il contatore dice che dietro c'è da fare. ── */
+   voce attiva ha la riga lime; il contatore dice che dietro c'è da fare. ── */
 .sotto-menu { display: flex; gap: 4px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; border-bottom: 1px solid var(--line); margin: 8px 0 16px; }
 .sotto-menu a { flex: none; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; color: var(--muted); text-decoration: none; white-space: nowrap; border-bottom: 2px solid transparent; }
 .sotto-menu a:hover { color: var(--text); }
 .sotto-menu a[aria-current='page'] { color: var(--accent-2); border-bottom-color: var(--accent); }
-.conta { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--accent); color: #1a1a1a; font-size: 0.75rem; font-weight: 700; }
+.conta { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--accent); color: #16210a; font-size: 0.75rem; font-weight: 700; }
 .bo-sezione { display: grid; gap: 12px; }
 .bo-sezione > * { min-width: 0; }
 .filtri-locali { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; }
@@ -417,7 +433,7 @@ input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--
 .riga-locale:hover, .riga-locale.aperta { background: rgba(255, 255, 255, 0.03); }
 .riga-locale.tono-ok > th { box-shadow: inset 3px 0 0 #5fd3a1; }
 .riga-locale.tono-errore > th { box-shadow: inset 3px 0 0 var(--errore); }
-.riga-locale.tono-attesa > th { box-shadow: inset 3px 0 0 var(--accent); }
+.riga-locale.tono-attesa > th { box-shadow: inset 3px 0 0 var(--attesa); }
 .riga-locale.tono-avviso > th { box-shadow: inset 3px 0 0 #e67e22; }
 .nome-locale { background: none; border: 0; padding: 0; color: var(--text); font: inherit; font-weight: 600; cursor: pointer; text-align: left; }
 .nome-locale:hover, .nome-locale:focus-visible { color: var(--accent); text-decoration: underline; }
@@ -441,14 +457,14 @@ input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--
 .locale { background: var(--bg-2); border: 1px solid var(--line); border-left: 3px solid var(--line); border-radius: var(--raggio); padding: 16px 18px; display: grid; gap: 14px; }
 .locale.tono-ok { border-left-color: #5fd3a1; }
 .locale.tono-errore { border-left-color: var(--errore); background: linear-gradient(90deg, rgba(231, 76, 60, 0.07), var(--bg-2) 45%); }
-.locale.tono-attesa { border-left-color: var(--accent); }
+.locale.tono-attesa { border-left-color: var(--attesa); }
 .locale.tono-avviso { border-left-color: #e67e22; }
 .locale-testa { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .locale-testa h3 { margin: 0; font-size: 1.1rem; }
 .stato { font-size: 0.8rem; font-weight: 600; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); white-space: nowrap; }
 .stato-ok { color: #5fd3a1; border-color: rgba(95, 211, 161, 0.4); background: rgba(95, 211, 161, 0.08); }
 .stato-errore { color: #ff8a7a; border-color: rgba(231, 76, 60, 0.5); background: rgba(231, 76, 60, 0.1); }
-.stato-attesa { color: var(--accent); border-color: rgba(227, 178, 60, 0.4); background: var(--accent-soft); }
+.stato-attesa { color: var(--attesa); border-color: rgba(227, 178, 60, 0.4); background: var(--attesa-soft); }
 .stato-avviso { color: #f0a35e; border-color: rgba(230, 126, 34, 0.45); background: rgba(230, 126, 34, 0.1); }
 .locale-dati { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px 20px; margin: 0; }
 .locale-dati dt { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 4px; }
@@ -517,7 +533,7 @@ code { background: rgba(255, 255, 255, 0.06); padding: 1px 5px; border-radius: 5
 /* Gli aggiornamenti a scelta (REQ-FLOTTA-020): l'avviso delle condizioni
    si distingue; le note di una versione possono essere lunghe e scorrono
    dentro il loro riquadro, non allungano la pagina. */
-.card .avviso { border-left: 3px solid var(--accent); padding: 8px 12px; margin: 8px 0; background: var(--bg-3); }
+.card .avviso { border-left: 3px solid var(--attesa); padding: 8px 12px; margin: 8px 0; background: var(--bg-3); }
 .proposta { margin-top: 12px; }
 .note-versione { max-height: 20rem; overflow-y: auto; padding: 4px 12px; border: 1px solid var(--line); border-radius: 8px; margin: 8px 0; }
 .note-versione h5 { margin: 12px 0 4px; font-size: 1rem; }
@@ -526,7 +542,7 @@ code { background: rgba(255, 255, 255, 0.06); padding: 1px 5px; border-radius: 5
 
 /* ── Il commerciale (REQ-FLOTTA-041, REQ-FLOTTA-042): la dashboard di chi
    vende. Le tessere coi numeri di testa; i grafici a colonne, una serie
-   sola nell'oro della regia, barre sottili e fondo che separa; le tabelle
+   sola nel lime della regia, barre sottili e fondo che separa; le tabelle
    coi numeri allineati a destra. ── */
 .commerciale { display: grid; gap: 16px; }
 .commerciale .filtri-locali { align-items: end; }

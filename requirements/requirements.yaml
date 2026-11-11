@@ -123,6 +123,15 @@ requirements:
       barra e nel piè di pagina mostra logo, nome e qualifica; il <title>
       di index.html e i testi dell'anteprima usano il nome nuovo. Gli slug
       tecnici (drink, drinkpos) e i nomi dei repository non cambiano.
+      LA PALETTE LIME (11/11/2026, l'utente: «i colori debbano diventare
+      tipo verde acido o verde lime con palette che abbia senso con
+      questo colore primario»): il lime #b4ec2b è il colore primario di
+      tutto il sito (DESIGN.md §4 «Colori»). Sul chiaro fa da riempimento
+      (bottoni col testo scuro, filetti, l'evidenziatore sotto la seconda
+      frase del titolo) e il testo in colore usa un verde foglia che
+      regge il contrasto; sul fondo scuro, ora un nero appena verde, è
+      l'accento pieno. «In attesa» e gli avvisi restano ambra, con un
+      token loro: in verde sembrerebbero «a posto».
       RESTA (DESIGN.md §9): le quattro schermate vere dell'app, la prova
       sociale, `/en` per chi non esegue JavaScript, la verifica
       Lighthouse sul telefono.

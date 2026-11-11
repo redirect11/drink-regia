@@ -239,7 +239,7 @@ describe('la prima pagina', () => {
     mostra()
     const h1 = screen.getByRole('heading', { level: 1 })
     expect(h1).toHaveTextContent(it_.hero.titolo)
-    expect(h1.querySelector('.titolo-oro')).toHaveTextContent('Dalla comanda alla cassa.')
+    expect(h1.querySelector('.titolo-accento')).toHaveTextContent('Dalla comanda alla cassa.')
   })
 
   it('mette lingua, titolo e alternative della pagina, e li toglie uscendo', () => {
