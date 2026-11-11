@@ -39,7 +39,12 @@ jobs:
     # passi: «Collaudo sul test» è quello che la garanzia della produzione
     # cerca, fra i passi del job.
     name: Playwright sul sito di test
-    runs-on: ubuntu-latest
+    # Non ubuntu-latest: dal 11/11/2026 punta a ubuntu-26.04, dove
+    # `playwright install --with-deps` non risolve i mirror apt di Ubuntu
+    # («Temporary failure resolving archive.ubuntu.com», tag v0.3.0-beta.4,
+    # run 43032681824, tre volte di fila). È l'unico job che installa
+    # pacchetti di sistema: gli altri restano su ubuntu-latest.
+    runs-on: ubuntu-24.04
     environment: test
     env:
       E2E_URL: https://drink-regia-test.web.app

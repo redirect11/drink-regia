@@ -24,6 +24,10 @@ data.
 - Un test unitario del backoffice («Sito aperto al pubblico») aspettava
   l'elemento e non il testo, e sul runner ogni tanto leggeva la riga prima
   che la vendita arrivasse; ora aspetta il testo.
+- Il job Playwright gira su `ubuntu-24.04` e non su `ubuntu-latest`: dal
+  11/11/2026 quest'ultimo è Ubuntu 26.04, dove l'installazione dei
+  pacchetti di sistema di Chromium non risolve i mirror apt e il
+  collaudo non parte (REQ-DEV-009).
 - Il prodotto ha il suo nome: **Lime – SmartOrders**, deciso dall'utente
   il 09/11/2026 al posto del segnaposto «Drink». Il logo è una fetta di
   lime che sembra un grafico a torta, nella barra, nel piè di pagina e

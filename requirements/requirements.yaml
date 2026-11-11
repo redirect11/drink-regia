@@ -3024,6 +3024,11 @@ requirements:
       latente: la password del titolare di collaudo finiva con la marca in
       base 36, che può venire di sole lettere, e la regola vuole una
       cifra; ora la cifra è fissa.
+      IL TERZO (tag v0.3.0-beta.4, run 43032681824, 11/11/2026) non è
+      arrivato alle prove: `playwright install --with-deps` non risolveva
+      i mirror apt di Ubuntu sull'immagine ubuntu-26.04, che ubuntu-latest
+      aveva appena iniziato a dare, tre volte su tre. Il job Playwright
+      gira su ubuntu-24.04: è l'unico che installa pacchetti di sistema.
       COSA NON COPRE, e resta a mano quando serve: l'attivazione di un
       locale nuovo (progetto Google), i pagamenti Stripe (sandbox), il
       cassetto AI.
