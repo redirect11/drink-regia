@@ -204,6 +204,16 @@ requirements:
       Da rivedere con un consulente prima di vendere: i testi di termini e
       privacy (src/pages/Legali.jsx) sono una struttura, non un
       parere legale.
+      IL RIMBALZO DOPO LO SLUG RIFIUTATO (collaudo del tag v0.3.0-beta.6,
+      11/11/2026, REQ-DEV-009): rifiutato l'identificativo, l'account
+      esiste ed e' entrato ma il cliente no; il segnale «registrazione in
+      corso» tornava falso, e al primo ridisegno App mandava alla
+      dashboard chi stava correggendo l'identificativo. Succedeva prima o
+      dopo il secondo «Avanti» secondo i tempi: per questo il collaudo
+      passava a volte si' e a volte no, e il 09/11 l'avevo attribuito
+      tutto al bottone che cambiava tipo. Ora la registrazione resta in
+      sospeso per quell'account finche' il cliente non e' scritto
+      (src/lib/db.js, tests/db.test.js).
     status: implemented
     generate_issue: true
     labels: [prodotto, flotta, regia]
