@@ -7,7 +7,7 @@
 // quando lo è: pagamenti online accesi, o il Free in vendita.
 
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, within, act } from '@testing-library/react'
+import { render, screen, within, act, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import '@testing-library/jest-dom/vitest'
 
@@ -43,33 +43,49 @@ describe('la vendita nella prima pagina', () => {
     expect(free).not.toHaveTextContent('IVA')
   })
 
-  // REQ-FLOTTA-060: i cinque gesti seguono la vendita come le funzioni. Un
-  // gesto che vive solo di moduli sparisce coi suoi moduli; uno del piano
-  // Base resta, senza l'etichetta del modulo che non si può comprare.
+  // REQ-FLOTTA-061 (e prima REQ-FLOTTA-060): i gesti del carosello seguono
+  // la vendita come le funzioni. Un gesto che vive solo di moduli sparisce
+  // coi suoi; uno del piano Base resta, senza l'etichetta del modulo che
+  // non si può comprare.
+  const parole = () => [...document.querySelectorAll('.gesto-punto')].map((p) => p.getAttribute('aria-label').split(' ')[0])
+  const vaiAlGesto = (parola) => fireEvent.click([...document.querySelectorAll('.gesto-punto')].find((p) => p.getAttribute('aria-label').startsWith(parola)))
+  const moduliDelGesto = () => [...document.querySelectorAll('.gesto-moduli li')].map((e) => e.textContent)
+
   it('i gesti seguono la vendita: senza magazzino non c’è «Riordina.», senza SumUp «Incassa.» resta nel piano Base', () => {
     stato.vendita = venditaPulita({ moduli: { magazzino: false, sumup: false } })
     mostra()
-    const parole = [...document.querySelectorAll('li.gesto h3')].map((h) => h.textContent)
-    expect(parole).toEqual(['Ordina.', 'Prepara.', 'Incassa.', 'Conta.'])
-    const incassa = document.querySelectorAll('li.gesto')[2]
-    expect([...incassa.querySelectorAll('.gesto-moduli li')].map((e) => e.textContent)).toEqual(['Nel piano Base'])
+    expect(parole()).toEqual(['Ordina.', 'Prepara.', 'Incassa.', 'Conta.'])
+    expect(document.querySelectorAll('.diapositiva')).toHaveLength(4)
+    vaiAlGesto('Incassa.')
+    expect(moduliDelGesto()).toEqual(['Nel piano Base'])
   })
 
   // Rilievo del revisore (11/11/2026): «Conta» ha due moduli e una frase
-  // per modulo. Con uno solo in vendita si legge solo la sua.
-  it('«Conta.» dice solo quello che si può comprare: senza il personale, niente frase sulle ore', () => {
-    stato.vendita = venditaPulita({ moduli: { staff: false } })
+  // per modulo. Si legge quella del primo in vendita, mai l'altra.
+  it('«Conta.» dice solo quello che si può comprare: senza le statistiche, la frase è quella delle ore', () => {
+    stato.vendita = venditaPulita({ moduli: { statistiche: false } })
     mostra()
-    const conta = [...document.querySelectorAll('li.gesto')].find((g) => g.querySelector('h3').textContent === 'Conta.')
-    expect(conta).toHaveTextContent(it_.gesti.voci.numeri.frasi.statistiche)
-    expect(conta).not.toHaveTextContent(it_.gesti.voci.numeri.frasi.staff)
-    expect([...conta.querySelectorAll('.gesto-moduli li')].map((e) => e.textContent)).toEqual(['Modulo Statistiche e bilancio'])
+    vaiAlGesto('Conta.')
+    const riga = document.querySelector('.gesto-riga').textContent
+    expect(riga).toBe(it_.gesti.voci.numeri.frasi.staff)
+    expect(moduliDelGesto()).toEqual(['Modulo Personale e ore'])
   })
 
   it('senza statistiche né personale non c’è «Conta.»', () => {
     stato.vendita = venditaPulita({ moduli: { statistiche: false, staff: false } })
     mostra()
-    expect([...document.querySelectorAll('li.gesto h3')].map((h) => h.textContent)).toEqual(['Ordina.', 'Prepara.', 'Incassa.', 'Riordina.'])
+    expect(parole()).toEqual(['Ordina.', 'Prepara.', 'Incassa.', 'Riordina.'])
+  })
+
+  // Se la vendita cambia a pagina aperta mentre si guarda l'ultimo gesto,
+  // il carosello non resta su una diapositiva che non c'è più.
+  it('un gesto che sparisce a pagina aperta non lascia il carosello nel vuoto', () => {
+    mostra()
+    vaiAlGesto('Riordina.')
+    expect(document.querySelector('.gesto-parola')).toHaveTextContent('Riordina.')
+    act(() => stato.richiama(venditaPulita({ moduli: { magazzino: false } })))
+    expect(document.querySelector('.gesto-parola')).toHaveTextContent('Conta.')
+    expect(document.querySelector('.diapositiva[data-visibile="true"]').dataset.gesto).toBe('numeri')
   })
 
   it('un modulo tolto dalla vendita non compare nella tabella dei prezzi', () => {

@@ -3253,9 +3253,11 @@ requirements:
       I FILMATI di «Incassa», «Conta» e «Riordina» sono una prima prova:
       Daniele ne genera di più fedeli alla parola, e si sostituiscono
       senza toccare il codice (stesso nome in public/video).
-      RESTA: i sei filmati partono tutti al caricamento, anche quelli
-      fuori vista (circa 2,3 MB); caricarli quando entrano in vista è il
-      passo dopo. Il contrasto del testo sopra i filmati dipende dal
+      SUPERATO IN PARTE da REQ-FLOTTA-061 (11/11/2026): le cinque fasce
+      in verticale sono diventate un carosello nella prima schermata, i
+      criteri 3 e 11 valgono in quella forma, e gira solo il filmato
+      della diapositiva visibile, quindi non se ne scaricano più sei
+      insieme. Il contrasto del testo sopra i filmati dipende dal
       filmato: coi prossimi va riguardato.
     status: implemented
     generate_issue: true
@@ -3305,6 +3307,60 @@ requirements:
     priority: P2
     test_cases:
       - tests/Dashboard.test.jsx
+  - id: REQ-FLOTTA-061
+    title: "I cinque gesti in un carosello in cima alla prima pagina, al posto delle fasce in verticale"
+    area: "src/pages/Home.jsx, src/i18n/home.it.js, src/i18n/home.en.js, src/index.css, DESIGN.md"
+    description: >
+      Richieste di Daniele dell'11/11/2026, la sera, dopo aver visto la
+      pagina di REQ-FLOTTA-060 sul sito di test. «Fai un carosello sopra
+      a tutto dove sta il primo video con tutti i video che scorrono:
+      quelle cose invece di scorrerle in verticale le facciamo scorrere
+      in automatico in orizzontale». «I box cosa comprende dovrebbero
+      essere sempre aperti». E sul testo di «Riordina» («Le giacenze
+      scendono da sole con le comande. Prima di aprire si vede cosa
+      manca, e l'ordine al fornitore parte da lì»): «quanto fa schifo
+      questo testo».
+      COSA SI FA. La prima schermata diventa un carosello: i cinque
+      filmati scorrono in orizzontale da soli, uno alla volta, e ognuno
+      porta la sua parola (Ordina, Prepara, Incassa, Conta, Riordina) e
+      una riga corta. Titolo, sottotitolo, bottoni e scheda dei fatti
+      restano fermi davanti. Le cinque fasce in verticale spariscono. I
+      riquadri «Cosa comprende» tornano aperti. Le righe dei gesti si
+      riscrivono corte: una frase, senza giri.
+      CRITERI DI ACCETTAZIONE. (1) La prima schermata ha cinque
+      diapositive nell'ordine del servizio, una sola visibile alla
+      volta; la parola e la riga di quella visibile si leggono. (2)
+      Avanza da sola ogni sei secondi circa, in orizzontale. (3) Ci sono
+      «precedente» e «successiva», e un indicatore che dice quale delle
+      cinque si vede; si usano da tastiera. (4) Un bottone ferma tutto,
+      scorrimento e filmati, e li fa ripartire; quando il puntatore o il
+      fuoco sono sul carosello lo scorrimento aspetta. (5) Chi chiede
+      meno movimento vede la prima diapositiva ferma col fermo immagine,
+      e scorre solo a mano. (6) Gira solo il filmato della diapositiva
+      visibile: gli altri sono fermi immagine, così la pagina non scarica
+      cinque filmati insieme. (7) Le diapositive seguono la vendita come
+      i gesti di REQ-FLOTTA-060: un gesto senza moduli in vendita non
+      c'è, e una frase legata a un modulo non in vendita non si legge.
+      (8) Un solo h1, sempre lo stesso; il cambio di diapositiva non è
+      annunciato a ogni giro ai lettori di schermo. (9) La sezione dei
+      gesti in verticale non c'è più. (10) «Cosa comprende» è sempre
+      aperto, non un elemento che si apre. (11) Ogni riga di gesto è una
+      frase sola, sotto gli 80 caratteri, in italiano e in inglese.
+      LE FRASI NUOVE le ho scritte io e le decide Daniele: «La comanda
+      parte dal tavolo e arriva subito al banco.», «Chi prepara vede cosa
+      c'è da fare, in ordine.», «Il conto è già pronto: si incassa e si
+      stampa.», «L'incasso della serata è già fatto, senza rifare i
+      conti.» (o, senza le statistiche, «Le ore di chi ha lavorato sono
+      già segnate.»), «Sai cosa sta finendo prima che finisca.».
+      RESTA: i filmati definitivi di Incassa, Conta e Riordina; il
+      bottone «Prova la demo», che porta a un sito non pubblicato.
+    status: implemented
+    generate_issue: true
+    labels: [prodotto, regia, home]
+    priority: P1
+    test_cases:
+      - tests/Home.test.jsx
+      - tests/HomeVendita.test.jsx
 
   - id: REQ-FLOTTA-059
     title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"

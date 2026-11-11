@@ -81,31 +81,23 @@ export default {
   },
   gesti: {
     titolo: 'Running a venue, in five moves',
+    carosello: 'carousel',
     voci: {
-      sala: {
-        parola: 'Order.',
-        testo: 'Orders are taken at the table, on a tablet or a phone, and reach whoever prepares them straight away.',
-      },
-      banco: {
-        parola: 'Prepare.',
-        testo: 'Orders reach the bar in a queue, table by table. Whoever prepares sees what to do and in which order.',
-      },
-      conto: {
-        parola: 'Charge.',
-        testo: 'The bill is ready when the customer asks: take the payment and print the receipt.',
-      },
+      sala: { parola: 'Order.', testo: 'The order leaves the table and reaches the bar at once.' },
+      banco: { parola: 'Prepare.', testo: 'Whoever prepares sees what to make, in order.' },
+      conto: { parola: 'Charge.', testo: 'The bill is ready: take the payment and print.' },
       numeri: {
         parola: 'Count.',
         frasi: {
-          statistiche: 'After closing the takings are already counted: how much, what sold and at which hours.',
-          staff: 'The hours of whoever worked are logged.',
+          statistiche: 'Tonight’s takings are already counted, with no sums to redo.',
+          staff: 'The hours of whoever worked are already logged.',
         },
       },
-      scorta: {
-        parola: 'Restock.',
-        testo: 'Stock goes down by itself with every order. Before opening you see what is running low, and the supplier order starts from there.',
-      },
+      scorta: { parola: 'Restock.', testo: 'You know what is running out before it runs out.' },
     },
+    precedente: 'Previous move',
+    successiva: 'Next move',
+    vaiA: '{parola} Move {n} of {totale}',
     nota: 'The videos on this page are illustrative and AI-generated.',
     ferma: 'Stop the videos',
     riprendi: 'Play the videos',

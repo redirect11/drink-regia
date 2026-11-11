@@ -10,19 +10,24 @@ data.
   sta subito sotto il precedente. Prima erano sfalsati, e «Temi su
   misura» finiva solo, molto più in basso. L'avviso dell'email da
   confermare occupa una riga (REQ-FLOTTA-062).
+- I cinque gesti stanno in un carosello nella prima schermata, al posto
+  delle fasce una sotto l'altra: i filmati scorrono in orizzontale da
+  soli, ognuno con la sua parola e una frase corta. Si va avanti e
+  indietro a mano, e «Ferma i filmati» ferma anche lo scorrimento. I
+  riquadri «Cosa comprende» sono di nuovo sempre aperti. Le frasi dei
+  gesti sono riscritte, più corte (REQ-FLOTTA-061, #135).
+- La prima pagina ha i filmati e racconta il lavoro del locale in cinque
+  gesti, ognuno con una parola sola: Ordina, Prepara, Incassa, Conta,
+  Riordina (dal carosello della voce qui sopra; all'inizio erano cinque
+  fasce una sotto l'altra). «Quello che si vede dal banco» e i tre
+  pilastri non ci sono più. Tutta la pagina è sul fondo scuro, dove il
+  lime rende meglio. Chi ha chiesto meno movimento vede immagini ferme
+  (REQ-FLOTTA-060, #131).
 - Dopo un rilascio il sito non si vede più senza grafica: la pagina si
   ricontrolla a ogni visita, e i file di stile e di codice, che hanno
   l'impronta nel nome, restano in memoria. Prima il browser teneva per
   un'ora la pagina vecchia, che chiedeva file ormai tolti (REQ-DEV-013,
   #133).
-- La prima pagina ha i filmati. Dietro al titolo gira il barman al banco;
-  sotto, il lavoro del locale in cinque gesti, uno per fascia col suo
-  filmato e una parola sola: Ordina, Prepara, Incassa, Conta, Riordina.
-  «Quello che si vede dal banco» e i tre pilastri non ci sono più;
-  l'elenco delle funzioni è più corto, col dettaglio che si apre a
-  richiesta. Tutta la pagina è sul fondo scuro, dove il lime rende
-  meglio. Chi ha chiesto meno movimento vede immagini ferme
-  (REQ-FLOTTA-060, #131).
 - Il sito di test era uscito vuoto col tag `v0.3.0-beta.7`: una delle
   versioni forzate (`minimatch` sotto `glob`) faceva pubblicare zero
   file. L'override è tolto, e un test controlla che il deploy trovi i

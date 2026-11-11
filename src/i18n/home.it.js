@@ -94,36 +94,31 @@ export default {
     automatica: 'Attivazione automatica',
     concordata: 'Attivazione concordata con noi',
   },
-  // I cinque gesti (11/11/2026): una parola per fascia, col suo filmato.
-  // Ogni riga dice una cosa che l'app fa davvero, con le parole del
-  // listino nella riga «funzioni»; la nota dice che i filmati sono generati.
+  // I cinque gesti del carosello (REQ-FLOTTA-061). Una parola e una frase
+  // sola, corta: Daniele, sulla riga di prima di «Riordina» («Le giacenze
+  // scendono da sole con le comande. Prima di aprire si vede cosa manca,
+  // e l'ordine al fornitore parte da lì»): «quanto fa schifo questo
+  // testo». Ogni frase dice una cosa che l'app fa, senza giri; «Conta» ne
+  // ha una per modulo e si legge quella del primo in vendita.
   gesti: {
     titolo: 'Il lavoro del locale, in cinque gesti',
+    carosello: 'carosello',
     voci: {
-      sala: {
-        parola: 'Ordina.',
-        testo: 'La comanda si prende al tavolo, dal tablet o dal telefono, e arriva subito a chi prepara.',
-      },
-      banco: {
-        parola: 'Prepara.',
-        testo: 'Le comande arrivano al banco in fila, tavolo per tavolo. Chi prepara vede cosa fare e in che ordine.',
-      },
-      conto: {
-        parola: 'Incassa.',
-        testo: 'Il conto è pronto quando il cliente lo chiede: si incassa e si stampa lo scontrino.',
-      },
+      sala: { parola: 'Ordina.', testo: 'La comanda parte dal tavolo e arriva subito al banco.' },
+      banco: { parola: 'Prepara.', testo: 'Chi prepara vede cosa c’è da fare, in ordine.' },
+      conto: { parola: 'Incassa.', testo: 'Il conto è già pronto: si incassa e si stampa.' },
       numeri: {
         parola: 'Conta.',
         frasi: {
-          statistiche: 'A serata finita l’incasso è già fatto: quanto, cosa si è venduto e in quali ore.',
-          staff: 'Le ore di chi ha lavorato sono segnate.',
+          statistiche: 'L’incasso della serata è già fatto, senza rifare i conti.',
+          staff: 'Le ore di chi ha lavorato sono già segnate.',
         },
       },
-      scorta: {
-        parola: 'Riordina.',
-        testo: 'Le giacenze scendono da sole con le comande. Prima di aprire si vede cosa manca, e l’ordine al fornitore parte da lì.',
-      },
+      scorta: { parola: 'Riordina.', testo: 'Sai cosa sta finendo prima che finisca.' },
     },
+    precedente: 'Gesto precedente',
+    successiva: 'Gesto successivo',
+    vaiA: '{parola} Gesto {n} di {totale}',
     nota: 'I filmati di questa pagina sono dimostrativi, generati con l’intelligenza artificiale.',
     ferma: 'Ferma i filmati',
     riprendi: 'Fai ripartire i filmati',

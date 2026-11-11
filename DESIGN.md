@@ -189,6 +189,32 @@ frasi riportate nel registro (REQ-FLOTTA-060).
   movimento o di risparmiare dati vede il fermo immagine, che è anche
   quello che si vede prima che il codice parta.
 
+### Il carosello dei gesti (11/11/2026, la sera, REQ-FLOTTA-061)
+
+Supera, del paragrafo sopra, le cinque fasce in verticale e «Cosa
+comprende» chiuso. Daniele, vista la pagina sul sito di test: «fai un
+carosello sopra a tutto dove sta il primo video… invece di scorrerle in
+verticale le facciamo scorrere in automatico in orizzontale», e «i box
+cosa comprende dovrebbero essere sempre aperti».
+
+- **La prima schermata è il carosello.** I cinque filmati stanno in fila
+  dietro a tutto e scorrono in orizzontale, uno ogni sei secondi. Titolo,
+  sottotitolo, bottoni e scheda dei fatti restano fermi davanti.
+- **In basso** la parola del gesto che si vede, con l'iniziale lime, una
+  frase sola e i moduli; accanto i comandi: indietro, avanti, cinque punti
+  (quello acceso è una lineetta lime) e «Ferma i filmati».
+- **Lo scorrimento aspetta** quando il puntatore o il fuoco sono sulla
+  prima schermata, e si ferma del tutto con «Ferma i filmati». Chi ha
+  chiesto meno movimento vede la prima diapositiva ferma e scorre a mano.
+- **Gira un filmato solo**, quello della diapositiva visibile; gli altri
+  sono fermi immagine.
+- **Per i lettori di schermo** la fila dei filmati è nascosta; la parola
+  del gesto è un gruppo con nome, annunciato solo quando si scorre a mano.
+  L'h1 resta uno e non cambia.
+- **Le frasi sono corte**: una sola, sotto gli 80 caratteri. La regola
+  viene dal rifiuto della riga di «Riordina» di prima («quanto fa schifo
+  questo testo»).
+
 ### Colori
 
 **LA PALETTE LIME (11/11/2026).** L'utente, dopo il nome «Lime –

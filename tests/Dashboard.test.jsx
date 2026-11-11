@@ -318,7 +318,7 @@ describe('la dashboard su due colonne', () => {
     await screen.findByRole('heading', { level: 2 })
     expect(nomi(pile()[0])).toEqual(['L’app', 'Piano'])
     expect(pile()[1].childNodes).toHaveLength(0)
-    const css = readFileSync(join(import.meta.dirname, '..', 'src', 'index.css'), 'utf8')
+    const css = readFileSync(join(import.meta.dirname, '..', 'src', 'index.css'), 'utf8').replace(/\r\n/g, '\n')
     expect(css).toContain('.pila:empty { display: none; }')
   })
 
@@ -333,7 +333,7 @@ describe('la dashboard su due colonne', () => {
   })
 
   it('sotto i 900px le pile stanno una sotto l’altra; sopra, affiancate, tre parti a due', () => {
-    const css = readFileSync(join(import.meta.dirname, '..', 'src', 'index.css'), 'utf8')
+    const css = readFileSync(join(import.meta.dirname, '..', 'src', 'index.css'), 'utf8').replace(/\r\n/g, '\n')
     const regola = (selettore) => {
       const i = css.indexOf(`${selettore} {`)
       return css.slice(i, css.indexOf('}', i))
