@@ -79,59 +79,31 @@ export default {
     automatica: 'Automatic setup',
     concordata: 'Setup arranged with us',
   },
-  problema: {
-    titolo: 'What you see from behind the bar.',
-    testo:
-      'Orders on a pad, bills worked out aloud, a till that only keeps the total. Stock from memory, staff hours on a sheet, the night’s takings pieced together the next day. Each piece works on its own, and the whole picture lives in the head of whoever is behind the bar.',
-    chiusa: 'The app was born behind the bar of a cocktail bar to put that picture on a tablet, and it works there every night.',
-  },
   gesti: {
     titolo: 'Running a venue, in five moves',
     voci: {
       sala: {
         parola: 'Order.',
-        testo: 'Orders are taken at the table, on a tablet or a phone. Guests who prefer can order by themselves from the QR menu.',
-        funzioni: 'Orders · Digital menu and tables · Orders from the guest’s phone',
+        testo: 'Orders are taken at the table, on a tablet or a phone, and reach whoever prepares them straight away.',
       },
       banco: {
         parola: 'Prepare.',
         testo: 'Orders reach the bar in a queue, table by table. Whoever prepares sees what to do and in which order.',
-        funzioni: 'Orders',
       },
       conto: {
         parola: 'Charge.',
-        testo: 'The bill is ready when the customer asks. It goes to the card reader, comes back paid by itself, and the receipt prints.',
-        funzioni: 'Till · Payments with a SumUp reader',
+        testo: 'The bill is ready when the customer asks: take the payment and print the receipt.',
       },
       numeri: {
         parola: 'Count.',
         testo: 'After closing the takings are already counted: how much, what sold and at which hours. Staff hours are logged.',
-        funzioni: 'Statistics and balance · Staff and hours',
       },
       scorta: {
         parola: 'Restock.',
         testo: 'Stock goes down by itself with every order. Before opening you see what is running low, and the supplier order starts from there.',
-        funzioni: 'Stock and suppliers',
       },
     },
     nota: 'The videos on this page are illustrative and AI-generated.',
-  },
-  pilastri: {
-    titolo: 'Three decisions made behind the bar',
-    voci: [
-      {
-        titolo: 'Works even without a connection.',
-        testo: 'Behind the bar a connection is never a given: orders, bills and payments stay on the tablet and service carries on; when the network returns, the changes go out on their own.',
-      },
-      {
-        titolo: 'One installation per venue.',
-        testo: 'A venue’s numbers belong to the venue. Yours has its own installation, with its own data and its own address, separate from everyone else’s: no one else sees your bills, your prices or your takings.',
-      },
-      {
-        titolo: 'Built for service.',
-        testo: 'Every screen was tried out with a full room and a tablet in hand, at the bar and on the floor: few steps, and nothing that slows service down.',
-      },
-    ],
   },
   funzioni: {
     occhiello: 'Features',

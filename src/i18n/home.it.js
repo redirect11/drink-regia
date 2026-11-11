@@ -94,17 +94,6 @@ export default {
     automatica: 'Attivazione automatica',
     concordata: 'Attivazione concordata con noi',
   },
-  problema: {
-    // Il contesto, non un dramma: il locale gestito a pezzi, visto da chi
-    // sta al banco. Il registratore «tiene solo il totale»: non si promette
-    // di sostituirlo, lo scontrino fiscale resta suo.
-    titolo: 'Quello che si vede dal banco.',
-    testo:
-      'Le comande su un blocco, i conti rifatti a voce, il registratore che tiene solo il totale. Il magazzino a memoria, le ore del personale su un foglio, l’incasso della serata ricostruito il giorno dopo. Ogni pezzo funziona per conto suo, e il quadro intero lo tiene in testa chi sta al banco.',
-    // Neutro finché l'utente non decide se nominare il locale dove l'app è
-    // nata (DESIGN.md §9.3).
-    chiusa: 'L’app è nata al banco di un cocktail bar per mettere quel quadro su un tablet, e lì lavora ogni sera.',
-  },
   // I cinque gesti (11/11/2026): una parola per fascia, col suo filmato.
   // Ogni riga dice una cosa che l'app fa davvero, con le parole del
   // listino nella riga «funzioni»; la nota dice che i filmati sono generati.
@@ -113,52 +102,26 @@ export default {
     voci: {
       sala: {
         parola: 'Ordina.',
-        testo: 'La comanda si prende al tavolo, dal tablet o dal telefono. Chi vuole ordina da solo, dal menù con il QR.',
-        funzioni: 'Comande · Menù digitale e tavoli · Ordini dal telefono del cliente',
+        testo: 'La comanda si prende al tavolo, dal tablet o dal telefono, e arriva subito a chi prepara.',
       },
       banco: {
         parola: 'Prepara.',
         testo: 'Le comande arrivano al banco in fila, tavolo per tavolo. Chi prepara vede cosa fare e in che ordine.',
-        funzioni: 'Comande',
       },
       conto: {
         parola: 'Incassa.',
-        testo: 'Il conto è pronto quando il cliente lo chiede. Va al lettore di carte, torna pagato da solo, e si stampa lo scontrino.',
-        funzioni: 'Cassa · Pagamenti con lettore SumUp',
+        testo: 'Il conto è pronto quando il cliente lo chiede: si incassa e si stampa lo scontrino.',
       },
       numeri: {
         parola: 'Conta.',
         testo: 'A serata finita l’incasso è già fatto: quanto, cosa si è venduto e in quali ore. Le ore di chi ha lavorato sono segnate.',
-        funzioni: 'Statistiche e bilancio · Personale e ore',
       },
       scorta: {
         parola: 'Riordina.',
         testo: 'Le giacenze scendono da sole con le comande. Prima di aprire si vede cosa manca, e l’ordine al fornitore parte da lì.',
-        funzioni: 'Magazzino e fornitori',
       },
     },
     nota: 'I filmati di questa pagina sono dimostrativi, generati con l’intelligenza artificiale.',
-  },
-  pilastri: {
-    titolo: 'Tre scelte fatte al banco',
-    voci: [
-      {
-        // «Non si ferma mai» prometteva più dei Termini («senza garanzia di
-        // continuità assoluta», Legali.jsx §5). Si dice quello che l'app fa
-        // davvero (tana-drink, REQ-OFFLINE-001 e 006): le scritture restano
-        // sul dispositivo e partono al ritorno della rete.
-        titolo: 'Lavora anche senza rete.',
-        testo: 'Al banco la connessione non è una certezza: comande, conti e incassi restano sul tablet e il servizio prosegue; quando la rete torna, le modifiche partono da sole.',
-      },
-      {
-        titolo: 'Un’installazione per locale.',
-        testo: 'I numeri di un locale sono del locale. Il tuo ha la sua installazione, con i suoi dati e il suo indirizzo, separata da tutte le altre: nessun altro vede i tuoi conti, i tuoi prezzi, i tuoi incassi.',
-      },
-      {
-        titolo: 'Fatta per il servizio.',
-        testo: 'Ogni schermata è stata provata con il locale pieno e il tablet in mano, al banco e in sala: pochi passaggi, e niente che rallenti il servizio.',
-      },
-    ],
   },
   funzioni: {
     occhiello: 'Funzioni',

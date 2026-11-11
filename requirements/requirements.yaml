@@ -3196,7 +3196,7 @@ requirements:
       nemmeno. (6) La pagina dice che i filmati sono generati con
       l'intelligenza artificiale. (7) Italiano e inglese hanno le stesse
       voci. (8) I filmati pesano meno di 700 KB l'uno.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [prodotto, regia, home]
     priority: P1

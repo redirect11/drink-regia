@@ -151,6 +151,38 @@ scena, tutta in `src/index.css` sotto `.regia.vetrina` e `.landing`:
 - **Gli occhielli** sono in minuscolo, con un filetto d'oro davanti: niente
   maiuscole spaziate.
 
+### I filmati e la pagina scura (11/11/2026, REQ-FLOTTA-060)
+
+Questa parte supera, per la prima pagina, tre cose scritte sopra il
+07/11/2026: «il fondo è avorio», «niente immagini» nella prima schermata
+e «due sole sezioni scure». Le ha cambiate Daniele l'11/11/2026, con le
+frasi riportate nel registro (REQ-FLOTTA-060).
+
+- **La prima schermata** ha un filmato a tutta larghezza (il barman al
+  banco), scurito da un velo più fitto dal lato del testo. Titolo,
+  sottotitolo, bottoni e scheda dei fatti restano dove erano.
+- **I cinque gesti** prendono il posto di «Quello che si vede dal banco»
+  (§5.2) e dei tre pilastri (§5.3), tolti coi loro testi. Una fascia a
+  tutta larghezza per gesto, col filmato sotto e una parola sola in
+  grande, con l'iniziale lime: Ordina, Prepara, Incassa, Conta, Riordina.
+  Sotto la parola, una riga su cosa fa l'app e i moduli che servono.
+  Niente schede e niente effetti allo scorrere: la semplicità è voluta.
+- **I moduli di un gesto seguono la vendita** come le funzioni (§5.4): un
+  modulo non in vendita non compare, e «Conta» e «Riordina», che vivono
+  solo di moduli, spariscono coi loro. Per questo le righe di «Ordina» e
+  «Incassa» non promettono il menù con QR o il lettore di carte.
+- **Le funzioni** (§5.4) restano prima dei prezzi, più corte: «Cosa
+  comprende» è chiuso e si apre a richiesta.
+- **Tutta la pagina è scura**, sul nero appena verde del resto del sito:
+  sul chiaro il lime «cozzava». I pannelli sono un gradino più chiari del
+  fondo; la seconda frase del titolo è scritta nel lime.
+- **I filmati sono generati con l'intelligenza artificiale** e la pagina
+  lo dice, sotto i gesti. Stanno in `public/video` (H.264, senza audio,
+  sotto i 700 KB l'uno), ognuno col suo fermo immagine. Sono decorazione:
+  nascosti ai lettori di schermo, muti, in ciclo. Chi chiede meno
+  movimento o di risparmiare dati vede il fermo immagine, che è anche
+  quello che si vede prima che il codice parta.
+
 ### Colori
 
 **LA PALETTE LIME (11/11/2026).** L'utente, dopo il nome «Lime –
@@ -186,7 +218,7 @@ pagina):
 | `--ok` | `#5fd3a1` | stato «attivo», spunte |
 | `--attesa` | `#e3b23c` | stato «in attesa», avvisi |
 
-Ridefiniti sotto `.regia.vetrina` per la prima pagina soltanto:
+Ridefiniti sotto `.regia.vetrina` per la prima pagina soltanto. **Dalla sera dell'11/11/2026 la prima pagina è scura** (paragrafo sopra) e questi valori chiari non sono più in uso: i token della vetrina oggi sono quelli scuri, con `--accent #c6f25a` per il testo in colore e `--bg-2 #151a11` per i pannelli. La tabella resta come storia della versione chiara, durata un pomeriggio.
 
 | Token | Valore | Ruolo |
 |---|---|---|

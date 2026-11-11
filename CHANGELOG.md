@@ -6,6 +6,14 @@ data.
 
 ## Prossima release (da decidere)
 
+- La prima pagina ha i filmati. Dietro al titolo gira il barman al banco;
+  sotto, il lavoro del locale in cinque gesti, uno per fascia col suo
+  filmato e una parola sola: Ordina, Prepara, Incassa, Conta, Riordina.
+  «Quello che si vede dal banco» e i tre pilastri non ci sono più;
+  l'elenco delle funzioni è più corto, col dettaglio che si apre a
+  richiesta. Tutta la pagina è sul fondo scuro, dove il lime rende
+  meglio. Chi ha chiesto meno movimento vede immagini ferme
+  (REQ-FLOTTA-060, #131).
 - Il sito di test era uscito vuoto col tag `v0.3.0-beta.7`: una delle
   versioni forzate (`minimatch` sotto `glob`) faceva pubblicare zero
   file. L'override è tolto, e un test controlla che il deploy trovi i

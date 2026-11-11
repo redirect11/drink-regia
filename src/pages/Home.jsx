@@ -32,7 +32,7 @@ import { TESTI, testi } from '../i18n/index.js'
 // LA PRIMA PAGINA (REQ-FLOTTA-002), secondo DESIGN.md. L'utente, 29/10/2026:
 // «dovrebbe essere più moderna… con slogan migliori… sia in inglese che in
 // italiano». Un percorso invece di un elenco: la promessa (hero), il
-// problema che il titolare riconosce, i tre pilastri, le funzioni coi loro
+// cinque gesti del locale coi loro filmati, le funzioni coi loro
 // moduli, i tre passi, i prezzi, le domande, l'ultima azione. I testi stanno
 // in src/i18n (uno per lingua); qui c'è solo la struttura. I numeri vengono
 // dal listino e dalla vendita decisa dall'admin, mai scritti a mano.
@@ -40,7 +40,7 @@ import { TESTI, testi } from '../i18n/index.js'
 // L'ASPETTO DEL 07/11/2026 (DESIGN.md §4, la direzione dell'utente: «sembri
 // il sito curato di un prodotto reale, nato e usato in un locale, non un
 // template generico»): fondo chiaro, poche sezioni scure volute (il
-// problema, la chiusura), il lime per azioni e dettagli (dal 11/11/2026);
+// prima schermata, i gesti, la chiusura), il lime per azioni e dettagli (dal 11/11/2026);
 // niente luci sfocate, niente card tutte uguali con l'icona, composizioni
 // che si alternano (testo accanto a un pannello, righe numerate, una
 // tabella). Niente schermate finte: le vere arriveranno quando ci saranno
@@ -167,7 +167,21 @@ function Filmato({ nome, className }) {
 // coinvolti. L'ordine è quello del servizio, dalla comanda ai numeri, e
 // riprende lo slogan «Dalla comanda alla cassa». Struttura qui, testi in
 // src/i18n (gesti.voci).
-const GESTI = ['sala', 'banco', 'conto', 'numeri', 'scorta']
+//
+// I MODULI DI OGNI GESTO seguono la vendita decisa dall'admin, come le
+// funzioni più sotto (REQ-FLOTTA-015): un modulo non in vendita non
+// compare fra le etichette, e un gesto che vive solo di moduli (i numeri,
+// la scorta) non si vede se nessuno dei suoi è in vendita. Per questo la
+// riga di testo di «Ordina» e «Incassa» non promette il menù con QR o il
+// lettore di carte: quelli li dice l'etichetta, quando si possono comprare.
+// `lato` è il lato del testo, quello dove il filmato è più libero.
+const GESTI = [
+  { id: 'sala', moduli: ['menu_tavoli', 'ordini_cliente'], base: true, lato: 'sinistra' },
+  { id: 'banco', moduli: [], base: true, lato: 'sinistra' },
+  { id: 'conto', moduli: ['sumup'], base: true, lato: 'sinistra' },
+  { id: 'numeri', moduli: ['statistiche', 'staff'], base: false, lato: 'sinistra' },
+  { id: 'scorta', moduli: ['magazzino'], base: false, lato: 'destra' },
+]
 
 // L'aliquota del listino, scritta una volta («IVA esclusa, al 22%»).
 const IVA_PERCENTO = `${IVA}%`
@@ -216,6 +230,7 @@ export default function Home({ utente, lingua = 'it' }) {
   const moduliVisibili = MODULI.filter((m) => moduloVisibile(vendita, m.id))
   const funzioni = FUNZIONI.filter((f) => !f.moduli.length || f.moduli.some((id) => moduloVisibile(vendita, id)))
   const minori = MINORI.filter((f) => moduloVisibile(vendita, f.id))
+  const gesti = GESTI.filter((g) => g.base || g.moduli.some((id) => moduloVisibile(vendita, id)))
   const { base, completo } = PIANI
   const inclusiNelBase = new Set(base.include)
   const inclusiNelCompleto = new Set(completo.include)
@@ -263,6 +278,15 @@ export default function Home({ utente, lingua = 'it' }) {
       inclusiNelBase.has(m.id) ? nelBase : interpola(t.funzioni.modulo, { nome: nomeModulo(t, m) })
     )
     return etichette.length ? [...new Set(etichette)] : [nelBase]
+  }
+
+  // Le etichette di un gesto: «Nel piano Base» se il gesto si fa già col
+  // piano di partenza, poi i suoi moduli in vendita.
+  const etichetteGesto = (g) => {
+    const moduli = MODULI.filter((m) => g.moduli.includes(m.id) && moduloVisibile(vendita, m.id)).map((m) =>
+      inclusiNelBase.has(m.id) ? nelBase : interpola(t.funzioni.modulo, { nome: nomeModulo(t, m) })
+    )
+    return [...new Set([...(g.base ? [nelBase] : []), ...moduli])]
   }
 
   // Un'azione principale per schermata (DESIGN.md §2): chi è già dentro va
@@ -332,15 +356,19 @@ export default function Home({ utente, lingua = 'it' }) {
           {t.gesti.titolo}
         </h2>
         <ol className="gesti-fasce">
-          {GESTI.map((id) => (
-            <li key={id} className="gesto">
-              <Filmato nome={id} className="gesto-sfondo" />
+          {gesti.map((g) => (
+            <li key={g.id} className="gesto" data-lato={g.lato}>
+              <Filmato nome={g.id} className="gesto-sfondo" />
               <div className="gesto-velo" />
               <div className="contenitore">
                 <div className="gesto-testo">
-                  <h3>{t.gesti.voci[id].parola}</h3>
-                  <p>{t.gesti.voci[id].testo}</p>
-                  <p className="gesto-funzioni">{t.gesti.voci[id].funzioni}</p>
+                  <h3>{t.gesti.voci[g.id].parola}</h3>
+                  <p>{t.gesti.voci[g.id].testo}</p>
+                  <ul className="gesto-moduli">
+                    {etichetteGesto(g).map((e) => (
+                      <li key={e}>{e}</li>
+                    ))}
+                  </ul>
                 </div>
               </div>
             </li>
@@ -348,39 +376,6 @@ export default function Home({ utente, lingua = 'it' }) {
         </ol>
         <div className="contenitore">
           <p className="nota">{t.gesti.nota}</p>
-        </div>
-      </section>
-
-      {/* IL PROBLEMA: la prima delle due sezioni scure, volute. Il titolo a
-          sinistra, il testo a destra: una pagina di rivista, non una card. */}
-      <section id="problema" className="fascia problema" aria-labelledby="problema-titolo" data-comparsa>
-        <div className="contenitore problema-griglia">
-          <h2 id="problema-titolo">{t.problema.titolo}</h2>
-          <div>
-            <p className="problema-testo">{t.problema.testo}</p>
-            <p className="problema-chiusa">{t.problema.chiusa}</p>
-          </div>
-        </div>
-      </section>
-
-      {/* I PILASTRI: tre colonne numerate, divise da un filo. Niente card,
-          niente icone: il numero nel verde e il titolo bastano. */}
-      <section id="pilastri" className="sezione" aria-labelledby="pilastri-titolo" data-comparsa>
-        <div className="contenitore">
-          <h2 id="pilastri-titolo" className="titolo-sezione">
-            {t.pilastri.titolo}
-          </h2>
-          <ol className="pilastri">
-            {t.pilastri.voci.map((p, i) => (
-              <li key={p.titolo} className="pilastro">
-                <span className="pilastro-numero" aria-hidden="true">
-                  {String(i + 1).padStart(2, '0')}
-                </span>
-                <h3>{p.titolo}</h3>
-                <p>{p.testo}</p>
-              </li>
-            ))}
-          </ol>
         </div>
       </section>
 
@@ -414,8 +409,11 @@ export default function Home({ utente, lingua = 'it' }) {
                       ))}
                     </ul>
                   </div>
-                  <div className="funzione-riquadro">
-                    <p className="scheda-titolo">{t.funzioni.punti}</p>
+                  {/* Chiuso finché non lo si apre (11/11/2026): coi cinque
+                      gesti sopra, qui serve il dettaglio per chi lo cerca,
+                      non un secondo racconto. */}
+                  <details className="funzione-riquadro">
+                    <summary className="scheda-titolo">{t.funzioni.punti}</summary>
                     <ul className="punti" aria-label={t.funzioni.punti}>
                       {v.punti.map((p) => (
                         <li key={p}>
@@ -424,7 +422,7 @@ export default function Home({ utente, lingua = 'it' }) {
                         </li>
                       ))}
                     </ul>
-                  </div>
+                  </details>
                 </article>
               )
             })}
