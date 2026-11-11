@@ -8,6 +8,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import '@testing-library/jest-dom/vitest'
 
 const stato = vi.hoisted(() => ({ cliente: null, istanza: null, richiesta: null }))
@@ -284,6 +286,40 @@ describe('la dashboard', () => {
 
 // REQ-FLOTTA-015: un cliente Free vede i limiti del suo piano, e sotto la
 // scelta per passare a pagamento, col Checkout e non con «modifica».
+// REQ-FLOTTA-062 (Daniele, 11/11/2026: «tutti i box sono sfalsati, quello
+// sotto è lontanissimo. Va rifatto meglio»). I riquadri stavano in una
+// griglia a righe, alta quanto il riquadro più alto: accanto restavano
+// buchi. Ora sono due pile, e in una pila ogni riquadro sta subito sotto
+// il precedente.
+describe('la dashboard su due colonne', () => {
+  const nomi = (pila) => [...pila.querySelectorAll(':scope > .card')].map((c) => c.getAttribute('aria-label') || c.querySelector('h3')?.textContent)
+
+  it('a sinistra l’app, il piano e i moduli; a destra il credito AI; la scelta del piano sotto, a tutta larghezza', async () => {
+    mostra()
+    await screen.findByRole('heading', { level: 2 })
+    const colonne = document.querySelector('.dashboard-colonne')
+    const pile = [...colonne.querySelectorAll(':scope > .pila')]
+    expect(pile.map((p) => p.className)).toEqual(['pila principale', 'pila accanto'])
+    expect(nomi(pile[0]).slice(0, 2)).toEqual(['L’app', 'Piano'])
+    // Il credito AI ha i suoi test: qui conta che la sua pila ci sia, accanto.
+    // Ogni riquadro sta in una pila: nessuno direttamente nella griglia.
+    expect(colonne.querySelectorAll(':scope > .card')).toHaveLength(0)
+    // La griglia a righe di prima non c'è più, e la scelta del piano sta fuori dalle colonne.
+    expect(document.querySelector('main.dashboard .riquadri')).toBeNull()
+    const piano = document.querySelector('.dashboard-piano')
+    expect(piano).not.toBeNull()
+    expect(colonne.contains(piano)).toBe(false)
+    expect(colonne.compareDocumentPosition(piano) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('sotto i 900px una colonna sola; sopra, due: lo dice il foglio di stile', () => {
+    const css = readFileSync(join(import.meta.dirname, '..', 'src', 'index.css'), 'utf8')
+    const base = css.slice(css.indexOf('.dashboard-colonne {'), css.indexOf('}', css.indexOf('.dashboard-colonne {')))
+    expect(base).not.toContain('grid-template-columns')
+    expect(css).toMatch(/@media \(min-width: 900px\) \{\s*\.dashboard-colonne \{ grid-template-columns: minmax\(0, 3fr\) minmax\(0, 2fr\)/)
+  })
+})
+
 describe('la dashboard di un cliente Free', () => {
   it('dice i limiti del Free e propone i piani a pagamento', () => {
     stato.cliente = { ...stato.cliente, piano: 'free', moduli: [], terminali: 1, abbonamento: { stato: 'attivo', origine: 'gratuito' } }

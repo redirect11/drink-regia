@@ -97,9 +97,26 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
    «questi box messi così uno sopra l'altro e attaccati tra loro sono
    orribili»): nella dashboard, nel backoffice, ovunque. */
 .card + .card { margin-top: 16px; }
-/* La dashboard del titolare: riquadri affiancati, due o tre colonne
-   secondo lo schermo, una sul telefono. Nella griglia lo spazio lo dà
-   gap, non il margine fra riquadri. */
+/* La dashboard del titolare (REQ-FLOTTA-062): due colonne, ognuna una pila
+   di riquadri, così ognuno sta subito sotto il precedente qualunque
+   altezza abbia; sotto i 900px una colonna sola. La griglia a righe
+   (.riquadri, più sotto) lasciava buchi accanto al riquadro più alto: la
+   tiene il commerciale del backoffice, dove i riquadri sono alti uguali.
+   Lo spazio lo dà gap, non il margine fra riquadri. */
+.dashboard-colonne { display: grid; gap: 16px; align-items: start; margin-bottom: 16px; }
+.pila { display: grid; gap: 16px; min-width: 0; }
+.pila .card, .dashboard-piano .card { margin: 0; }
+.pila .card h3:first-child { margin-top: 0; }
+.dashboard-piano { margin-bottom: 16px; }
+@media (min-width: 900px) {
+  .dashboard-colonne { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 20px; }
+  .pila { gap: 20px; }
+}
+/* L'avviso dell'email: testo e bottoni sulla stessa riga quando c'è spazio. */
+.avviso-email { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; }
+.avviso-email > p { flex: 1 1 22rem; margin: 0; }
+.avviso-email .azioni { margin: 0; }
+.avviso-email > .muted { flex-basis: 100%; margin: 0; }
 .pagina.dashboard { max-width: 1120px; }
 .dashboard-testa { margin-bottom: 16px; }
 .dashboard-testa h2 { margin: 0 0 4px; }

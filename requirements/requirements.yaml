@@ -3280,23 +3280,23 @@ requirements:
       una colonna stretta.
       COSA SI FA. Due colonne vere, ognuna una pila di riquadri: ogni
       riquadro sta subito sotto il precedente, qualunque altezza abbia.
-      A sinistra, più larga, quello che riguarda il locale oggi: l'app,
-      il piano, gli aggiornamenti, le prove dei moduli. A destra gli
-      extra: il credito AI e i temi su misura. Sotto, a tutta larghezza,
+      A sinistra, più larga, l'app, il piano, gli aggiornamenti, le prove
+      dei moduli e i temi su misura, che è un modulo lungo da compilare.
+      A destra il credito AI, che è un riepilogo. Sotto, a tutta larghezza,
       la scelta del piano. Sul telefono una colonna sola, nello stesso
       ordine. L'avviso dell'email da confermare sta su una riga, coi
       bottoni accanto al testo quando c'è spazio.
       CRITERI DI ACCETTAZIONE. (1) I riquadri stanno in due colonne,
       «principale» e «accanto», ognuna una pila. (2) Nella principale,
       nell'ordine: app, piano, aggiornamenti (se l'app è attiva), prove
-      dei moduli. Nell'altra: credito AI, temi su misura (se l'app è
-      attiva). (3) La scelta del piano resta sotto le due colonne, a
+      dei moduli, temi su misura (se l'app è attiva). Nell'altra: il
+      credito AI. (3) La scelta del piano resta sotto le due colonne, a
       tutta larghezza. (4) Nessun contenuto e nessun comportamento
       cambia: stessi riquadri, stessi testi, stesse condizioni per
       vederli. (5) Sotto i 900px le colonne diventano una. (6) La
       griglia a righe non si usa più nella dashboard del titolare; il
       commerciale del backoffice, che ha riquadri alti uguali, la tiene.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [prodotto, regia, dashboard]
     priority: P2
