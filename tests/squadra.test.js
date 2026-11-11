@@ -15,13 +15,15 @@ const leggi = (f) => readFileSync(join(RADICE, f), 'utf8')
 describe('la squadra di Stonebit', () => {
   it('CLAUDE.md apre con la sezione di Stonebit, e le regole del repository restano tutte sotto', () => {
     const regole = leggi('CLAUDE.md')
-    const righe = regole.split('\n')
+    // I fine riga cambiano col sistema (git su Windows li riscrive): si taglia su entrambi.
+    const righe = regole.split(/\r?\n/)
     expect(righe[0]).toMatch(/^# drink-regia/)
     expect(righe.find((r) => r.startsWith('## '))).toBe('## Stonebit — chi sei e come lavori qui')
     expect(regole).toContain('### Regola zero: decide Daniele')
     expect(regole).toContain('sei il **PM di Lime (regia)**')
     // Le issue nascono dal registro, mai a mano: è la regola del processo.
-    expect(regole).toMatch(/Le issue nascono dal registro.***mai a mano**/)
+    expect(regole).toContain('Le issue nascono dal registro')
+    expect(regole).toContain('**mai a mano**')
     // Le regole di prima: nessuna tolta.
     for (const frase of ['docs/handover.md', '**GitFlow**', '**I test sono la specifica**', '**Non si scrive in produzione di propria iniziativa.**', 'non contiene mai i dati operativi dei locali']) {
       expect(regole, frase).toContain(frase)
