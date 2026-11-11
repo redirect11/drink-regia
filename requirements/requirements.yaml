@@ -132,6 +132,11 @@ requirements:
       regge il contrasto; sul fondo scuro, ora un nero appena verde, è
       l'accento pieno. «In attesa» e gli avvisi restano ambra, con un
       token loro: in verde sembrerebbero «a posto».
+      SUPERATO PER L'ASPETTO (11/11/2026, la sera, REQ-FLOTTA-060): la
+      prima pagina è su fondo scuro, coi filmati e i cinque gesti al
+      posto del problema e dei pilastri. Quello che qui sopra dice
+      «avorio», «due sole sezioni scure» e «sul chiaro» racconta le
+      versioni di prima; vale REQ-FLOTTA-060.
       RESTA (DESIGN.md §9): le quattro schermate vere dell'app, la prova
       sociale, `/en` per chi non esegue JavaScript, la verifica
       Lighthouse sul telefono.
@@ -3161,6 +3166,71 @@ requirements:
     priority: P2
     test_cases:
       - tests/squadra.test.js
+
+  - id: REQ-FLOTTA-060
+    title: "La prima pagina coi filmati: il barman dietro al titolo e i cinque gesti del locale"
+    area: "src/pages/Home.jsx, src/i18n/home.it.js, src/i18n/home.en.js, src/index.css, public/video/, DESIGN.md"
+    description: >
+      Richieste di Daniele dell'11/11/2026, in chat. «Facciamo una pagina
+      moderna come quelle di oggi dove nella parte sopra di front page
+      c'è il video in background e uno slogan davanti… con i video nei
+      box». Poi: «non farlo proprio uguale a Tilby… facciamo qualcosa di
+      nuovo», «la cosa degli orari non mi piace», «deve essere semplice
+      non troppo complesso ma originale». Sulla proposta dei cinque gesti:
+      «sì». Su «Quello che si vede dal banco»: «questa roba qua è orribile
+      e va cambiata. Non si capisce proprio che vuole dire», e fra le tre
+      strade proposte: «toglila». I filmati li ha generati lui con LTX 2.5
+      e li ha caricati in chat.
+      COSA SI FA. La prima schermata ha il filmato del barman a tutta
+      larghezza, scurito dal lato del testo; titolo, sottotitolo, bottoni
+      e scheda dei fatti restano. Sotto, al posto di «Quello che si vede
+      dal banco» e dei tre pilastri, i cinque gesti del locale, uno per
+      fascia a tutta larghezza col suo filmato e una parola sola: Ordina,
+      Prepara, Incassa, Conta, Riordina. Ogni fascia ha una riga su cosa
+      fa l'app e i moduli che servono. L'elenco delle funzioni resta
+      prima dei prezzi, più corto: il dettaglio «Cosa comprende» si apre
+      a richiesta.
+      CRITERI DI ACCETTAZIONE. (1) Dietro al titolo c'è un video muto, in
+      ciclo, nascosto ai lettori di schermo, col fermo immagine come
+      poster. (2) Chi chiede meno movimento, o di risparmiare dati, vede
+      i fermi immagine e nessun video. (3) I cinque gesti sono in
+      quest'ordine, ognuno con parola, riga e moduli. (4) Un gesto che
+      vive solo di moduli non in vendita non si vede, e un modulo non in
+      vendita non compare fra le etichette (REQ-FLOTTA-015). (5) Le
+      sezioni «problema» e «pilastri» non ci sono più, e i loro testi
+      nemmeno. (6) La pagina dice che i filmati sono generati con
+      l'intelligenza artificiale. (7) Italiano e inglese hanno le stesse
+      voci. (8) I filmati pesano meno di 700 KB l'uno. (9) La prima
+      pagina è sul fondo scuro: i token della vetrina sono quelli scuri
+      e non restano fondi chiari. (10) Chi vede girare i filmati li può
+      fermare e far ripartire con un bottone; chi ha chiesto meno
+      movimento il bottone non lo vede. (11) «Cosa comprende» nelle
+      funzioni è chiuso e si apre a richiesta. (12) Un gesto con più
+      moduli dice solo le frasi dei moduli in vendita.
+      LA PAGINA SCURA, aggiunta in corsa l'11/11/2026: vista la bozza,
+      Daniele ha detto «lo sfondo troppo chiaro cozza un po' con il
+      verde lime». La prima pagina passa al fondo scuro, lo stesso nero
+      appena verde di dashboard e backoffice: il lime regge anche come
+      testo e la pagina non salta dal chiaro allo scuro a ogni filmato.
+      DALLA REVISIONE (revisore, 11/11/2026): i criteri 9-12, il bottone
+      per fermare i filmati (WCAG 2.2.2: partono da soli e non
+      finiscono), e «Conta» con una frase per modulo, perché con uno solo
+      dei due in vendita prometteva anche l'altro.
+      I FILMATI di «Incassa», «Conta» e «Riordina» sono una prima prova:
+      Daniele ne genera di più fedeli alla parola, e si sostituiscono
+      senza toccare il codice (stesso nome in public/video).
+      RESTA: i sei filmati partono tutti al caricamento, anche quelli
+      fuori vista (circa 2,3 MB); caricarli quando entrano in vista è il
+      passo dopo. Il contrasto del testo sopra i filmati dipende dal
+      filmato: coi prossimi va riguardato.
+    status: implemented
+    generate_issue: true
+    labels: [prodotto, regia, home]
+    priority: P1
+    test_cases:
+      - tests/Home.test.jsx
+      - tests/HomeVendita.test.jsx
+      - tests/lingua.test.js
 
   - id: REQ-FLOTTA-059
     title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"

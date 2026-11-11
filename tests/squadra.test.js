@@ -10,7 +10,9 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const RADICE = join(import.meta.dirname, '..')
-const leggi = (f) => readFileSync(join(RADICE, f), 'utf8')
+// I fine riga cambiano col sistema (git su Windows li riscrive): si leggono
+// sempre come \n, così i controlli valgono uguali qui e sulla CI.
+const leggi = (f) => readFileSync(join(RADICE, f), 'utf8').replace(/\r\n/g, '\n')
 
 describe('la squadra di Stonebit', () => {
   it('CLAUDE.md apre con la sezione di Stonebit, e le regole del repository restano tutte sotto', () => {

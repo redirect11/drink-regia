@@ -31,16 +31,16 @@ import { TESTI, testi } from '../i18n/index.js'
 
 // LA PRIMA PAGINA (REQ-FLOTTA-002), secondo DESIGN.md. L'utente, 29/10/2026:
 // «dovrebbe essere più moderna… con slogan migliori… sia in inglese che in
-// italiano». Un percorso invece di un elenco: la promessa (hero), il
-// problema che il titolare riconosce, i tre pilastri, le funzioni coi loro
+// italiano». Un percorso invece di un elenco: la promessa (hero), i
+// cinque gesti del locale coi loro filmati, le funzioni coi loro
 // moduli, i tre passi, i prezzi, le domande, l'ultima azione. I testi stanno
 // in src/i18n (uno per lingua); qui c'è solo la struttura. I numeri vengono
 // dal listino e dalla vendita decisa dall'admin, mai scritti a mano.
 //
 // L'ASPETTO DEL 07/11/2026 (DESIGN.md §4, la direzione dell'utente: «sembri
 // il sito curato di un prodotto reale, nato e usato in un locale, non un
-// template generico»): fondo chiaro, poche sezioni scure volute (il
-// problema, la chiusura), il lime per azioni e dettagli (dal 11/11/2026);
+// template generico»): dall'11/11/2026 tutta su fondo scuro (la
+// prima schermata, i gesti, la chiusura), il lime per azioni e dettagli (dal 11/11/2026);
 // niente luci sfocate, niente card tutte uguali con l'icona, composizioni
 // che si alternano (testo accanto a un pannello, righe numerate, una
 // tabella). Niente schermate finte: le vere arriveranno quando ci saranno
@@ -129,6 +129,69 @@ function dueTempi(testo) {
   return { prima: testo.slice(0, taglio + 1), seconda: testo.slice(taglio + 2) }
 }
 
+// I FILMATI DELLA PRIMA PAGINA (11/11/2026, l'utente: «una pagina moderna…
+// nella parte sopra c'è il video in background e uno slogan davanti»). Sei
+// filmati brevi in public/video, muti e in ciclo: il barman dietro al
+// titolo e uno per ognuno dei cinque gesti. Sono decorazione, non
+// contenuto: nascosti a chi usa un lettore di schermo.
+// QUANDO GIRANO. Chi chiede meno movimento (prefers-reduced-motion) o di
+// risparmiare dati vede il fermo immagine, che è anche quello che si vede
+// finché il codice non è partito: per questo il video non si scarica
+// prima. E chi li vede girare li può fermare, col bottone sotto i gesti:
+// partono da soli e non finiscono mai, e un movimento così accanto a un
+// testo deve potersi fermare (WCAG 2.2.2; rilievo del revisore, 11/11/2026).
+// `possibile` dice se il sistema li lascia girare, `acceso` se chi guarda
+// non li ha fermati.
+function useFilmati() {
+  const [possibile, setPossibile] = useState(false)
+  const [acceso, setAcceso] = useState(true)
+  useEffect(() => {
+    const fermo = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    const risparmio = navigator.connection?.saveData
+    setPossibile(!fermo && !risparmio)
+  }, [])
+  return { possibile, girano: possibile && acceso, cambia: () => setAcceso((a) => !a) }
+}
+
+function Filmato({ nome, className, gira }) {
+  const fermo = `/video/${nome}.jpg`
+  if (!gira) return <img className={className} src={fermo} alt="" decoding="async" />
+  return (
+    <video className={className} poster={fermo} autoPlay muted loop playsInline preload="metadata" aria-hidden="true" tabIndex={-1}>
+      <source src={`/video/${nome}.mp4`} type="video/mp4" />
+    </video>
+  )
+}
+
+// I CINQUE GESTI (11/11/2026). L'utente ha scartato gli orari («la cosa
+// degli orari non mi piace») e ha chiesto «semplice, non troppo complesso
+// ma originale». Il lavoro di un locale sono cinque gesti, e l'app sta
+// dentro ognuno: ogni gesto è una fascia a tutta larghezza col suo
+// filmato e una parola sola, grande. Niente schede, niente elenchi: la
+// parola dice il gesto, una riga dice cosa fa l'app, e sotto i moduli
+// coinvolti. L'ordine è quello del servizio, dalla comanda ai numeri, e
+// riprende lo slogan «Dalla comanda alla cassa». Struttura qui, testi in
+// src/i18n (gesti.voci).
+//
+// I MODULI DI OGNI GESTO seguono la vendita decisa dall'admin, come le
+// funzioni più sotto (REQ-FLOTTA-015): un modulo non in vendita non
+// compare fra le etichette, e un gesto che vive solo di moduli (i numeri,
+// la scorta) non si vede se nessuno dei suoi è in vendita. Per questo la
+// riga di testo di «Ordina» e «Incassa» non promette il menù con QR o il
+// lettore di carte: quelli li dice l'etichetta, quando si possono comprare.
+// E per questo «Conta», che ha due moduli, ha una frase per modulo
+// (gesti.voci.numeri.frasi) invece di una riga sola: con le statistiche
+// in vendita e il personale no, la frase sulle ore non si deve leggere
+// (rilievo del revisore, 11/11/2026).
+// `lato` è il lato del testo, quello dove il filmato è più libero.
+const GESTI = [
+  { id: 'sala', moduli: ['menu_tavoli', 'ordini_cliente'], base: true, lato: 'sinistra' },
+  { id: 'banco', moduli: [], base: true, lato: 'sinistra' },
+  { id: 'conto', moduli: ['sumup'], base: true, lato: 'sinistra' },
+  { id: 'numeri', moduli: ['statistiche', 'staff'], base: false, lato: 'sinistra' },
+  { id: 'scorta', moduli: ['magazzino'], base: false, lato: 'destra' },
+]
+
 // L'aliquota del listino, scritta una volta («IVA esclusa, al 22%»).
 const IVA_PERCENTO = `${IVA}%`
 
@@ -176,6 +239,14 @@ export default function Home({ utente, lingua = 'it' }) {
   const moduliVisibili = MODULI.filter((m) => moduloVisibile(vendita, m.id))
   const funzioni = FUNZIONI.filter((f) => !f.moduli.length || f.moduli.some((id) => moduloVisibile(vendita, id)))
   const minori = MINORI.filter((f) => moduloVisibile(vendita, f.id))
+  const gesti = GESTI.filter((g) => g.base || g.moduli.some((id) => moduloVisibile(vendita, id)))
+  const filmati = useFilmati()
+  // La riga di un gesto: la sua, oppure le frasi dei soli moduli in vendita.
+  const rigaGesto = (g) => {
+    const voce = t.gesti.voci[g.id]
+    if (!voce.frasi) return voce.testo
+    return g.moduli.filter((id) => moduloVisibile(vendita, id) && voce.frasi[id]).map((id) => voce.frasi[id]).join(' ')
+  }
   const { base, completo } = PIANI
   const inclusiNelBase = new Set(base.include)
   const inclusiNelCompleto = new Set(completo.include)
@@ -225,6 +296,15 @@ export default function Home({ utente, lingua = 'it' }) {
     return etichette.length ? [...new Set(etichette)] : [nelBase]
   }
 
+  // Le etichette di un gesto: «Nel piano Base» se il gesto si fa già col
+  // piano di partenza, poi i suoi moduli in vendita.
+  const etichetteGesto = (g) => {
+    const moduli = MODULI.filter((m) => g.moduli.includes(m.id) && moduloVisibile(vendita, m.id)).map((m) =>
+      inclusiNelBase.has(m.id) ? nelBase : interpola(t.funzioni.modulo, { nome: nomeModulo(t, m) })
+    )
+    return [...new Set([...(g.base ? [nelBase] : []), ...moduli])]
+  }
+
   // Un'azione principale per schermata (DESIGN.md §2): chi è già dentro va
   // alla sua dashboard, gli altri all'attivazione.
   const azionePrincipale = (testo) =>
@@ -242,10 +322,12 @@ export default function Home({ utente, lingua = 'it' }) {
     <main className="landing" ref={radice}>
       {proposta && <AvvisoLingua lingua={lingua} proposta={proposta} chiudi={() => setProposta(null)} />}
 
-      {/* LA PRIMA SCHERMATA: a sinistra cosa è e cosa fare, a destra la
-          scheda coi fatti (prezzo, abbonamento, attivazione): informazioni
-          vere al posto di una decorazione. Niente immagini da scaricare. */}
+      {/* LA PRIMA SCHERMATA: il filmato del barman a tutta larghezza, un
+          velo scuro sopra, e davanti cosa è e cosa fare; a destra la scheda
+          coi fatti (prezzo, abbonamento, attivazione), informazioni vere. */}
       <section className="hero" aria-labelledby="hero-titolo">
+        <Filmato nome="banco" className="hero-sfondo" gira={filmati.girano} />
+        <div className="hero-velo" />
         <div className="contenitore hero-griglia">
           <div className="hero-testo">
             <p className="occhiello hero-occhiello">{t.hero.occhiello}</p>
@@ -280,36 +362,46 @@ export default function Home({ utente, lingua = 'it' }) {
         </div>
       </section>
 
-      {/* IL PROBLEMA: la prima delle due sezioni scure, volute. Il titolo a
-          sinistra, il testo a destra: una pagina di rivista, non una card. */}
-      <section id="problema" className="fascia problema" aria-labelledby="problema-titolo" data-comparsa>
-        <div className="contenitore problema-griglia">
-          <h2 id="problema-titolo">{t.problema.titolo}</h2>
-          <div>
-            <p className="problema-testo">{t.problema.testo}</p>
-            <p className="problema-chiusa">{t.problema.chiusa}</p>
-          </div>
-        </div>
-      </section>
-
-      {/* I PILASTRI: tre colonne numerate, divise da un filo. Niente card,
-          niente icone: il numero nel verde e il titolo bastano. */}
-      <section id="pilastri" className="sezione" aria-labelledby="pilastri-titolo" data-comparsa>
+      {/* I CINQUE GESTI: una fascia per gesto, col filmato sotto, un velo
+          scuro e la parola grande davanti; il testo sta a sinistra o a
+          destra a fasce alterne, dal lato dove il filmato è più libero.
+          La nota in fondo dice che i filmati sono generati: nessuno deve
+          prenderli per riprese di un locale vero. */}
+      <section id="gesti" className="gesti" aria-labelledby="gesti-titolo">
+        <h2 id="gesti-titolo" className="solo-lettori">
+          {t.gesti.titolo}
+        </h2>
+        <ol className="gesti-fasce">
+          {gesti.map((g) => (
+            <li key={g.id} className="gesto" data-lato={g.lato}>
+              <Filmato nome={g.id} className="gesto-sfondo" gira={filmati.girano} />
+              <div className="gesto-velo" />
+              <div className="contenitore">
+                <div className="gesto-testo">
+                  <h3>{t.gesti.voci[g.id].parola}</h3>
+                  <p>{rigaGesto(g)}</p>
+                  <ul className="gesto-moduli">
+                    {etichetteGesto(g).map((e) => (
+                      <li key={e}>{e}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
         <div className="contenitore">
-          <h2 id="pilastri-titolo" className="titolo-sezione">
-            {t.pilastri.titolo}
-          </h2>
-          <ol className="pilastri">
-            {t.pilastri.voci.map((p, i) => (
-              <li key={p.titolo} className="pilastro">
-                <span className="pilastro-numero" aria-hidden="true">
-                  {String(i + 1).padStart(2, '0')}
-                </span>
-                <h3>{p.titolo}</h3>
-                <p>{p.testo}</p>
-              </li>
-            ))}
-          </ol>
+          <p className="nota">
+            {t.gesti.nota}
+            {filmati.possibile && (
+              <>
+                {' '}
+                <button type="button" className="link ferma-filmati" aria-pressed={!filmati.girano} onClick={filmati.cambia}>
+                  {filmati.girano ? t.gesti.ferma : t.gesti.riprendi}
+                </button>
+              </>
+            )}
+          </p>
         </div>
       </section>
 
@@ -343,8 +435,11 @@ export default function Home({ utente, lingua = 'it' }) {
                       ))}
                     </ul>
                   </div>
-                  <div className="funzione-riquadro">
-                    <p className="scheda-titolo">{t.funzioni.punti}</p>
+                  {/* Chiuso finché non lo si apre (11/11/2026): coi cinque
+                      gesti sopra, qui serve il dettaglio per chi lo cerca,
+                      non un secondo racconto. */}
+                  <details className="funzione-riquadro">
+                    <summary className="scheda-titolo">{t.funzioni.punti}</summary>
                     <ul className="punti" aria-label={t.funzioni.punti}>
                       {v.punti.map((p) => (
                         <li key={p}>
@@ -353,7 +448,7 @@ export default function Home({ utente, lingua = 'it' }) {
                         </li>
                       ))}
                     </ul>
-                  </div>
+                  </details>
                 </article>
               )
             })}

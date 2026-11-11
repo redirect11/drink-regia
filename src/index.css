@@ -111,42 +111,45 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 /* ── La prima pagina (REQ-FLOTTA-002, DESIGN.md §4) ──────────────────
    Una vetrina, non il gestionale. Dal 07/11/2026 (la direzione dell'utente:
    «sembri il sito curato di un prodotto reale, nato e usato in un locale,
-   non un template generico») un'identità editoriale: fondo chiaro appena verde, testo
-   scuro, il lime per le azioni e i dettagli (dal 11/11/2026, prima verde e oro)
-   (numeri, filetti, la seconda frase del titolo), due sole sezioni scure
-   (il problema e la chiusura). Niente luci sfocate, gradienti, aloni o
+   non un template generico») un'identità editoriale. Dall'11/11/2026 è tutta su fondo
+   scuro, col lime per le azioni e i dettagli (numeri, filetti, la seconda
+   frase del titolo): prima era avorio col verde e l'oro, poi chiara col
+   lime per un pomeriggio. Niente luci sfocate, gradienti, aloni o
    vetro; niente card tutte uguali: griglie, filetti e righe numerate. Le
    misure seguono la scala del DESIGN.md (4…96 px); se cambiano qui, si
    aggiornano là. I token della vetrina valgono per barra e piè di pagina
    sulla prima pagina soltanto (.regia.vetrina, App.jsx): il resto del sito
    resta col tema scuro. */
 .regia.vetrina {
-  /* La palette lime sul chiaro (11/11/2026). Il lime pieno non regge
-     come colore di testo sul fondo chiaro (1,3:1): fa da RIEMPIMENTO
-     (bottoni col testo scuro sopra, filetti, l'evidenziatore del titolo),
-     mentre testo e link in colore usano il verde foglia (--accent, 6:1). */
-  --bg: #f7f9f1;
-  --bg-2: #fefffa;
-  --bg-3: #e8eed8;
-  --text: #161b10;
-  --muted: #525c47;
-  --line: #d5ddc3;
-  --accent: #2f6b0f;
-  --accent-2: #2f6b0f;
-  --accent-soft: rgba(47, 107, 15, 0.1);
-  --ok: #2f6b0f;
+  /* LA PRIMA PAGINA È SCURA (11/11/2026, la sera). La palette lime sul
+     chiaro è durata un pomeriggio: Daniele, vedendola coi filmati, «lo
+     sfondo troppo chiaro cozza un po' con il verde lime». Sul fondo nero
+     appena verde il lime regge sia come riempimento sia come testo, e la
+     pagina non salta più dal chiaro allo scuro a ogni filmato. I pannelli
+     (scheda dei fatti, piani, tabella) sono un gradino più chiari del
+     fondo; il testo in colore usa il lime chiaro (--accent, 13:1). */
+  --bg: #0c0f0a;
+  --bg-2: #151a11;
+  --bg-3: #1c2318;
+  --text: #eef2e6;
+  --muted: #a3ac96;
+  --line: rgba(255, 255, 255, 0.14);
+  --accent: #c6f25a;
+  --accent-2: #c6f25a;
+  --accent-soft: rgba(180, 236, 43, 0.13);
+  --ok: #c6f25a;
   --lime: #b4ec2b;
-  --lime-forte: #a0d81a;
+  --lime-forte: #c6f25a;
   --su-lime: #16210a;
-  /* Le due sezioni scure: un nero appena verde, lo stesso del resto del sito. */
-  --scuro: #11150c;
-  --scuro-2: #1b2114;
-  --scuro-testo: #f1f5e8;
+  /* Le fasce coi filmati e la chiusura: lo stesso nero, un filo sotto. */
+  --scuro: #0c0f0a;
+  --scuro-2: #151a11;
+  --scuro-testo: #eef2e6;
   --scuro-muted: #b8c1a6;
   background: var(--bg);
   color: var(--text);
 }
-.regia.vetrina .barra { background: rgba(247, 249, 241, 0.88); border-bottom-color: var(--line); }
+.regia.vetrina .barra { background: rgba(12, 15, 10, 0.88); border-bottom-color: var(--line); }
 .regia.vetrina .barra nav a.btn { color: var(--su-lime); background: var(--lime); border-color: var(--lime); box-shadow: none; }
 .regia.vetrina .barra nav a.btn:hover { color: var(--su-lime); background: var(--lime-forte); }
 .regia.vetrina .barra nav a:hover, .regia.vetrina .barra nav .link:hover { color: var(--accent); }
@@ -158,7 +161,7 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 @media (max-width: 760px) { .regia.vetrina .barra nav { background: var(--bg-2); } }
 .regia.vetrina .piede { background: var(--bg-3); border-top-color: var(--line); }
 .regia.vetrina .piede-colonne a:hover { color: var(--accent); }
-.regia.vetrina code { background: rgba(0, 0, 0, 0.06); }
+.regia.vetrina code { background: rgba(255, 255, 255, 0.08); }
 .regia.vetrina :focus-visible { outline-color: var(--accent); }
 
 .landing { flex: 1; width: 100%; font-size: 1rem; overflow-x: clip; }
@@ -186,7 +189,7 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .landing .btn:not(.ghost) { background: var(--lime); border-color: var(--lime); color: var(--su-lime); }
 .landing .btn:not(.ghost):hover { background: var(--lime-forte); border-color: var(--lime-forte); }
 .landing .btn.ghost { background: transparent; color: var(--text); border-color: var(--text); }
-.landing .btn.ghost:hover { background: rgba(0, 0, 0, 0.05); }
+.landing .btn.ghost:hover { background: rgba(255, 255, 255, 0.08); }
 .btn.grande { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 12px 22px; }
 .landing .btn.block { border-radius: 8px; }
 
@@ -197,44 +200,61 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .avviso-lingua a, .avviso-lingua .link { display: inline-flex; align-items: center; min-height: 44px; }
 .avviso-lingua .link { background: none; border: none; padding: 0; font: inherit; color: var(--muted); text-decoration: underline; cursor: pointer; }
 
-/* ── La prima schermata: due colonne da 900px, il testo a sinistra e la
-   scheda dei fatti a destra; sul telefono una sotto l'altra. Niente
-   immagini, niente luci. ── */
-.hero { padding: 48px 0 56px; border-bottom: 1px solid var(--line); }
+/* ── La prima schermata: il filmato a tutta larghezza con un velo scuro,
+   e davanti due colonne da 900px, il testo a sinistra e la scheda dei
+   fatti a destra; sul telefono una sotto l'altra. Il velo è più fitto a
+   sinistra, dove sta il testo, e lascia vedere il barman a destra; sul
+   telefono è uniforme, perché il testo copre tutto. Senza filmato (non
+   ancora caricato) resta il fondo scuro: il testo si legge comunque. ── */
+.hero { position: relative; isolation: isolate; overflow: hidden; padding: 56px 0 64px; background: var(--scuro); color: var(--scuro-testo); }
+.hero-sfondo { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; object-position: 72% center; }
+.hero-velo { position: absolute; inset: 0; z-index: -1; background: rgba(8, 11, 6, 0.74); }
+.hero .occhiello { color: var(--scuro-muted); }
+.hero .btn.ghost { color: var(--scuro-testo); border-color: var(--scuro-muted); }
+.hero .btn.ghost:hover { background: rgba(255, 255, 255, 0.08); }
+.hero .nota-lingua { color: var(--scuro-muted); }
 .hero-griglia { display: grid; gap: 32px; align-items: start; }
 .hero h1 { font-size: clamp(2.125rem, 4.6vw, 3.5rem); line-height: 1.08; margin: 0 0 20px; max-width: 18ch; }
-/* La seconda frase del titolo passata con l'evidenziatore lime: il testo
-   resta scuro (il lime non regge come colore di testo sul chiaro) e il
-   colore sta sotto, come un tratto di pennarello. Dove i colori li sceglie
-   il sistema (contrasto elevato) il tratto sparisce e resta il testo. */
-.titolo-accento > span { background: linear-gradient(transparent 62%, var(--lime) 62%, var(--lime) 92%, transparent 92%); box-decoration-break: clone; -webkit-box-decoration-break: clone; padding: 0 0.08em; margin: 0 -0.08em; }
-@media (forced-colors: active) { .titolo-accento > span { background: none; } }
-.hero-sotto { font-size: 1.0625rem; max-width: 36rem; margin: 0; color: var(--muted); }
+/* La seconda frase del titolo è scritta nel lime (13:1 sul fondo scuro).
+   Dove i colori li sceglie il sistema (contrasto elevato) torna testo. */
+.titolo-accento > span { color: var(--lime); }
+@media (forced-colors: active) { .titolo-accento > span { color: currentColor; } }
+.hero-sotto { font-size: 1.0625rem; max-width: 36rem; margin: 0; color: #dfe5d2; }
 .hero .azioni { margin-top: 28px; gap: 12px; }
 /* La scheda dei fatti: un pannello di carta con le righe divise da un filo. */
-.hero-scheda { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; }
+.hero-scheda { background: rgba(12, 15, 10, 0.72); border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 12px; padding: 20px 22px; }
+.hero-scheda .scheda-titolo { color: var(--scuro-muted); }
+
+/* ── I cinque gesti: fasce a tutta larghezza, una per gesto. Il filmato sta
+   sotto, il velo scuro sopra, e davanti una parola sola, grande, con l'iniziale
+   lime. Il velo è più fitto dal lato del testo (data-lato), quello dove
+   il filmato è più libero; sul telefono è uniforme. Fra una fascia e l'altra un filo
+   sottile, perché restino cinque e non un filmato solo. ── */
+.gesti { background: var(--scuro); color: var(--scuro-testo); }
+.gesti-fasce { list-style: none; margin: 0; padding: 0; }
+.gesto { position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: flex-end; min-height: 68vh; padding: 56px 0; border-top: 1px solid rgba(255, 255, 255, 0.12); }
+.gesto-sfondo { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; }
+.gesto-velo { position: absolute; inset: 0; z-index: -1; background: rgba(8, 11, 6, 0.66); }
+.gesto-testo { max-width: 30rem; }
+.gesto h3 { font-family: var(--titoli); font-weight: 700; font-size: clamp(3.25rem, 11vw, 7.5rem); line-height: 0.95; letter-spacing: -0.02em; margin: 0 0 20px; }
+.gesto h3::first-letter { color: var(--lime); }
+.gesto-testo p { margin: 0; font-size: 1.125rem; line-height: 1.55; color: #e6ebdc; }
+.gesto-moduli { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 18px 0 0; padding: 14px 0 0; border-top: 1px solid rgba(255, 255, 255, 0.2); font-size: 0.875rem; font-weight: 600; color: var(--lime); }
+.gesti .nota { color: var(--scuro-muted); padding: 20px 0 28px; margin: 0; max-width: none; }
+.ferma-filmati { background: none; border: none; padding: 12px 0; min-height: 44px; font: inherit; color: var(--accent); text-decoration: underline; cursor: pointer; }
+@media (min-width: 900px) {
+  .gesto { min-height: 78vh; padding: 80px 0; }
+  .gesto-velo { background: linear-gradient(90deg, rgba(8, 11, 6, 0.9) 0%, rgba(8, 11, 6, 0.6) 42%, rgba(8, 11, 6, 0.12) 100%); }
+  .gesto[data-lato='destra'] .gesto-velo { background: linear-gradient(270deg, rgba(8, 11, 6, 0.9) 0%, rgba(8, 11, 6, 0.6) 42%, rgba(8, 11, 6, 0.12) 100%); }
+  .gesto[data-lato='destra'] .gesto-testo { margin-left: auto; }
+}
 .fatti { list-style: none; padding: 0; margin: 0; }
-.fatti li { display: flex; align-items: baseline; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); font-size: 0.9375rem; }
+.fatti li { display: flex; align-items: baseline; gap: 12px; padding: 10px 0; border-top: 1px solid rgba(255, 255, 255, 0.14); font-size: 0.9375rem; }
+
 .fatti li::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 0 1px var(--lime-forte); flex: none; transform: translateY(-2px); }
 .nota-lingua { margin: 16px 0 0; font-size: 0.875rem; color: var(--muted); }
 
-/* ── Il problema: la prima sezione scura, voluta. Titolo a sinistra, testo
-   a destra, tutto allineato a sinistra. ── */
-.fascia { background: var(--scuro); color: var(--scuro-testo); padding: 56px 0; }
-.problema-griglia { display: grid; gap: 24px; }
-.problema h2 { font-size: clamp(1.875rem, 3.6vw, 2.75rem); margin: 0; max-width: 16ch; }
-.problema-testo { font-size: clamp(1.0625rem, 1.6vw, 1.25rem); line-height: 1.6; max-width: 40rem; margin: 0; color: var(--scuro-testo); }
-/* La chiusa: una riga col filetto lime, dopo il testo. */
-.problema-chiusa { display: flex; align-items: center; gap: 14px; margin: 24px 0 0; max-width: 40rem; color: var(--scuro-muted); font-weight: 600; }
-.problema-chiusa::before { content: ''; width: 28px; height: 3px; background: var(--lime); flex: none; }
 
-/* ── I tre pilastri: tre colonne divise da un filo, col numero nel verde. ── */
-#pilastri { padding-top: 56px; }
-.pilastri { list-style: none; padding: 0; margin: 0; display: grid; gap: 24px; }
-.pilastro { padding-top: 16px; border-top: 2px solid var(--text); }
-.pilastro-numero { display: block; font-family: var(--titoli); font-variant-numeric: lining-nums; font-size: 1.125rem; color: var(--accent); margin-bottom: 12px; }
-.pilastro h3 { font-size: 1.1875rem; margin: 0 0 8px; }
-.pilastro p { margin: 0; color: var(--muted); }
 
 /* ── Le funzioni: testo e pannello alternati a destra e a sinistra. Il
    pannello aspetta le schermate vere dell'app (DESIGN.md §9): intanto è la
@@ -247,6 +267,9 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .etichette-moduli { list-style: none; padding: 0; margin: 16px 0 0; display: flex; flex-wrap: wrap; gap: 8px; }
 .etichette-moduli li { font-size: 0.8125rem; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--line); color: var(--muted); background: var(--bg-2); }
 .funzione-riquadro { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; }
+.funzione-riquadro { align-self: start; }
+.funzione-riquadro > summary { display: flex; align-items: center; cursor: pointer; margin: 0; min-height: 44px; }
+.funzione-riquadro[open] > summary { margin-bottom: 6px; }
 .punti { list-style: none; padding: 0; margin: 0; display: grid; }
 .punti li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
 .icona.spunta { width: 18px; height: 18px; color: var(--ok); flex: none; margin-top: 4px; }
@@ -320,10 +343,10 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .domande details[open] summary::after { transform: rotate(45deg); }
 .domande details p { margin: 0 0 18px; color: var(--muted); max-width: 44rem; }
 
-/* ── La chiusura: la seconda sezione scura, a tutta larghezza, col testo a
+/* ── La chiusura: una fascia a tutta larghezza, col testo a
    sinistra e i bottoni a destra. Sul fondo scuro l'azione principale è
    lime col testo scuro, la seconda col contorno chiaro. ── */
-.chiusura { margin-top: 56px; padding: 56px 0; background: var(--scuro); color: var(--scuro-testo); }
+.chiusura { margin-top: 56px; padding: 56px 0; background: var(--bg-2); border-top: 1px solid var(--line); color: var(--scuro-testo); }
 .chiusura-griglia { display: grid; gap: 24px; align-items: center; }
 .chiusura h2 { margin: 0 0 12px; font-size: clamp(1.75rem, 3.2vw, 2.5rem); }
 .chiusura p { color: var(--scuro-muted); max-width: 34rem; margin: 0; }
@@ -335,8 +358,6 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 
 @media (min-width: 640px) {
   .contenitore { padding: 0 32px; }
-  .pilastri { grid-template-columns: 1fr 1fr; }
-  .pilastro:last-child:nth-child(odd) { grid-column: 1 / -1; }
   .funzioni-minori { grid-template-columns: 1fr 1fr; }
   .landing .piani { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
   .passi-landing { grid-template-columns: repeat(3, 1fr); gap: 24px; }
@@ -344,24 +365,19 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 @media (min-width: 768px) {
   .landing { font-size: 1.0625rem; }
   .sezione { padding-top: 80px; }
-  .fascia { padding: 80px 0; }
-  .hero { padding: 72px 0 80px; }
+  .hero { padding: 96px 0 104px; }
+  .hero-velo { background: linear-gradient(90deg, rgba(8, 11, 6, 0.9) 0%, rgba(8, 11, 6, 0.72) 48%, rgba(8, 11, 6, 0.28) 100%); }
   .hero-sotto { font-size: 1.125rem; }
   .titolo-accento { display: block; }
   .chiusura { margin-top: 80px; padding: 80px 0; }
 }
 @media (min-width: 900px) {
   .hero-griglia { grid-template-columns: minmax(0, 7fr) minmax(0, 4fr); gap: 64px; align-items: end; }
-  .problema-griglia { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 64px; }
   .funzione { grid-template-columns: 1fr 1fr; gap: 64px; }
   .funzione:nth-child(even) .funzione-testo { order: 2; }
   .domande-griglia { grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr); gap: 64px; align-items: start; }
   .domande-griglia h2 { position: sticky; top: 104px; }
   .chiusura-griglia { grid-template-columns: minmax(0, 1fr) auto; gap: 48px; }
-}
-@media (min-width: 1024px) {
-  .pilastri { grid-template-columns: repeat(3, 1fr); gap: 32px; }
-  .pilastro:last-child:nth-child(odd) { grid-column: auto; }
 }
 
 /* Le sezioni che entrano (src/lib/comparsa.js): una dissolvenza di 12px,
@@ -371,8 +387,8 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .in-attesa { opacity: 0; transform: translateY(12px); }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  .btn, [data-comparsa], .pilastro, .domande summary::after { transition: none; }
-  .btn:hover, .pilastro:hover { transform: none; }
+  .btn, [data-comparsa], .domande summary::after { transition: none; }
+  .btn:hover { transform: none; }
   .in-attesa { opacity: 1; transform: none; }
 }
 

@@ -2,7 +2,7 @@
 'use strict'
 
 // LA PRIMA PAGINA (REQ-FLOTTA-002, DESIGN.md): la promessa nel titolo, il
-// problema, i tre pilastri, le funzioni coi loro moduli, i passi, i prezzi
+// cinque gesti coi filmati, le funzioni coi loro moduli, i passi, i prezzi
 // dal listino, le domande, l'ultima azione. Tono del mestiere, niente urla.
 //
 // 30/10/2026, la home nuova (l'utente: «più moderna… con slogan
@@ -15,8 +15,10 @@
 // dashboard.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, within, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { statSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import '@testing-library/jest-dom/vitest'
 
 // La prima pagina legge la vendita da db.js (REQ-FLOTTA-015). Qui si usa la
@@ -41,6 +43,7 @@ import {
 } from '../src/lib/piani.js'
 import { NOME_PRODOTTO, URL_DEMO } from '../src/lib/prodotto.js'
 import it_ from '../src/i18n/home.it.js'
+import en from '../src/i18n/home.en.js'
 
 const mostra = (utente = null) =>
   render(
@@ -77,13 +80,17 @@ describe('la prima pagina', () => {
     })
   })
 
-  it('ha le sezioni nell’ordine del percorso: problema, pilastri, funzioni, passi, prezzi, domande, chiusura', () => {
+  it('ha le sezioni nell’ordine del percorso: gesti, funzioni, passi, prezzi, domande, chiusura', () => {
     mostra()
-    const ordine = ['problema', 'pilastri', 'funzioni', 'come-funziona', 'prezzi', 'domande', 'contatti']
+    const ordine = ['gesti', 'funzioni', 'come-funziona', 'prezzi', 'domande', 'contatti']
     const trovate = [...document.querySelectorAll('main section[id]')].map((s) => s.id)
     expect(trovate).toEqual(ordine)
-    expect(screen.getByRole('heading', { name: it_.problema.titolo })).toBeInTheDocument()
-    for (const p of it_.pilastri.voci) expect(screen.getByRole('heading', { name: p.titolo })).toBeInTheDocument()
+    // «Quello che si vede dal banco» e i tre pilastri non ci sono più
+    // (Daniele, 11/11/2026: «toglila»): né le sezioni né i testi.
+    expect(document.getElementById('problema')).toBeNull()
+    expect(document.getElementById('pilastri')).toBeNull()
+    expect(it_.problema).toBeUndefined()
+    expect(it_.pilastri).toBeUndefined()
     expect(screen.getByRole('heading', { name: 'Dalla registrazione alla prima comanda' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Domande frequenti' })).toBeInTheDocument()
     // Le domande si aprono una per una.
@@ -189,13 +196,16 @@ describe('la prima pagina', () => {
 
   it('le funzioni dicono il modulo che le porta, e quella di base il piano', () => {
     mostra()
+    // Dentro la sezione delle funzioni: le stesse etichette stanno anche nei
+    // cinque gesti, più su (REQ-FLOTTA-060).
+    const funzioni = within(document.getElementById('funzioni'))
     const magazzino = MODULI.find((m) => m.id === 'magazzino')
-    expect(screen.getByText(`Modulo ${magazzino.nome}`)).toBeInTheDocument()
+    expect(funzioni.getByText(`Modulo ${magazzino.nome}`)).toBeInTheDocument()
     // La cassa sta nel Base; il menù digitale pure (dal 07/11/2026), e la
     // sua funzione lo dice accanto al modulo degli ordini dal telefono.
-    expect(screen.getAllByText(`Nel piano ${PIANI.base.nome}`)).toHaveLength(2)
+    expect(funzioni.getAllByText(`Nel piano ${PIANI.base.nome}`)).toHaveLength(2)
     const ordini = MODULI.find((m) => m.id === 'ordini_cliente')
-    expect(screen.getByText(`Modulo ${ordini.nome}`)).toBeInTheDocument()
+    expect(funzioni.getByText(`Modulo ${ordini.nome}`)).toBeInTheDocument()
     // I terminali oltre quelli del piano si pagano, e il prezzo viene dal
     // listino (revisione PR #20: «Più terminali sulla stessa cassa» sotto
     // «Nel piano Base» lasciava credere che fossero inclusi).
@@ -223,19 +233,141 @@ describe('la prima pagina', () => {
     expect(testo).not.toContain('!')
   })
 
-  // 07/11/2026 (la direzione dell'utente: «non un template generico», niente
-  // sfondi sfocati, bagliori o immagini stock): la prima schermata non
-  // scarica immagini e non ha decorazioni; a destra del testo sta la scheda
-  // coi fatti (prezzo, abbonamento, attivazione), che sono informazioni vere.
-  it('la prima schermata non scarica immagini né ha decorazioni: accanto al testo la scheda dei fatti', () => {
-    mostra()
-    const hero = document.querySelector('.hero')
-    expect(hero.querySelector('img')).toBeNull()
-    expect(hero.querySelector('.hero-luci, [aria-hidden="true"]:empty')).toBeNull()
-    expect(within(hero).getByRole('list', { name: 'In breve' }).closest('.hero-scheda')).not.toBeNull()
+  // 11/11/2026 (l'utente: «nella parte sopra c'è il video in background e
+  // uno slogan davanti… con i video nei box»), al posto della prima
+  // schermata senza immagini del 07/11. I filmati sono decorazione: chi
+  // chiede meno movimento vede il fermo immagine, e un lettore di schermo
+  // non incontra né l'uno né l'altro.
+  describe('i filmati', () => {
+    const conMovimento = (ridotto) => {
+      vi.stubGlobal('matchMedia', (q) => ({ matches: ridotto && /reduced-motion/.test(q), addEventListener() {}, removeEventListener() {} }))
+    }
+    afterEach(() => vi.unstubAllGlobals())
+
+    it('dietro al titolo gira il filmato del banco, muto e in ciclo; la scheda dei fatti resta accanto al testo', async () => {
+      conMovimento(false)
+      mostra()
+      const hero = document.querySelector('.hero')
+      const video = await waitFor(() => {
+        const v = hero.querySelector('video.hero-sfondo')
+        expect(v).not.toBeNull()
+        return v
+      })
+      expect(video).toHaveAttribute('aria-hidden', 'true')
+      expect(video).toHaveAttribute('poster', '/video/banco.jpg')
+      expect(video.loop).toBe(true)
+      expect(video.muted).toBe(true)
+      expect(video.querySelector('source')).toHaveAttribute('src', '/video/banco.mp4')
+      expect(within(hero).getByRole('list', { name: 'In breve' }).closest('.hero-scheda')).not.toBeNull()
+    })
+
+    it('chi chiede meno movimento vede i fermi immagine, senza testo alternativo: nessun video', async () => {
+      conMovimento(true)
+      mostra()
+      await screen.findByRole('heading', { level: 2, name: it_.gesti.titolo })
+      expect(document.querySelector('video')).toBeNull()
+      const fermo = document.querySelector('.hero img.hero-sfondo')
+      expect(fermo).toHaveAttribute('src', '/video/banco.jpg')
+      expect(fermo).toHaveAttribute('alt', '')
+    })
+
+    it('anche chi chiede di risparmiare dati vede i fermi immagine', async () => {
+      conMovimento(false)
+      vi.stubGlobal('navigator', { userAgent: navigator.userAgent, connection: { saveData: true } })
+      mostra()
+      await screen.findByRole('heading', { level: 2, name: it_.gesti.titolo })
+      expect(document.querySelector('video')).toBeNull()
+      expect(screen.queryByRole('button', { name: it_.gesti.ferma })).toBeNull()
+    })
+
+    // I filmati partono da soli e non finiscono: chi guarda li può fermare
+    // (WCAG 2.2.2, rilievo del revisore dell'11/11/2026). Fermati, restano
+    // i fermi immagine; il bottone li fa ripartire.
+    it('«Ferma i filmati» li ferma tutti e sei, e poi li fa ripartire', async () => {
+      conMovimento(false)
+      mostra()
+      const ferma = await screen.findByRole('button', { name: it_.gesti.ferma })
+      await waitFor(() => expect(document.querySelectorAll('video')).toHaveLength(6))
+      for (const v of document.querySelectorAll('li.gesto video')) expect(v).toHaveAttribute('aria-hidden', 'true')
+      expect(ferma).toHaveAttribute('aria-pressed', 'false')
+      fireEvent.click(ferma)
+      expect(document.querySelectorAll('video')).toHaveLength(0)
+      expect(document.querySelectorAll('img.gesto-sfondo')).toHaveLength(5)
+      const riprendi = screen.getByRole('button', { name: it_.gesti.riprendi })
+      expect(riprendi).toHaveAttribute('aria-pressed', 'true')
+      fireEvent.click(riprendi)
+      expect(document.querySelectorAll('video')).toHaveLength(6)
+    })
+
+    it('chi ha chiesto meno movimento non ha il bottone: non c’è niente da fermare', () => {
+      conMovimento(true)
+      mostra()
+      expect(screen.queryByRole('button', { name: it_.gesti.ferma })).toBeNull()
+      expect(screen.queryByRole('button', { name: it_.gesti.riprendi })).toBeNull()
+    })
+
+    // Criterio 9: la prima pagina è scura. I token della vetrina sono
+    // quelli scuri, e non resta un fondo chiaro cablato.
+    it('la prima pagina è sul fondo scuro: i token della vetrina non hanno più i valori chiari', () => {
+      const css = readFileSync(join(import.meta.dirname, '..', 'src', 'index.css'), 'utf8')
+      const inizio = css.indexOf('.regia.vetrina {')
+      const vetrina = css.slice(inizio, css.indexOf('}', inizio))
+      expect(vetrina).toContain('--bg: #0c0f0a;')
+      expect(vetrina).toContain('--text: #eef2e6;')
+      expect(vetrina).toContain('--lime: #b4ec2b;')
+      for (const chiaro of ['#f7f9f1', '#fefffa', '#f6f2ea', '#fffdf8']) expect(css, chiaro).not.toContain(chiaro)
+    })
+
+    it('«Cosa comprende» nelle funzioni è chiuso e si apre a richiesta', () => {
+      conMovimento(true)
+      mostra()
+      const dettagli = [...document.querySelectorAll('#funzioni details.funzione-riquadro')]
+      expect(dettagli.length).toBeGreaterThan(0)
+      for (const d of dettagli) {
+        expect(d.open).toBe(false)
+        expect(d.querySelector('summary')).toHaveTextContent(it_.funzioni.punti)
+      }
+    })
+
+    // Criterio 8 di REQ-FLOTTA-060: i filmati stanno in pagina, non in un
+    // servizio esterno, e una prima pagina non può pesare come un film.
+    it('ogni filmato ha il suo fermo immagine e pesa meno di 700 KB', () => {
+      for (const nome of ['banco', 'sala', 'conto', 'numeri', 'scorta']) {
+        const video = statSync(join(import.meta.dirname, '..', 'public', 'video', `${nome}.mp4`))
+        expect(video.size, `${nome}.mp4`).toBeLessThan(700 * 1024)
+        expect(statSync(join(import.meta.dirname, '..', 'public', 'video', `${nome}.jpg`)).size, `${nome}.jpg`).toBeLessThan(120 * 1024)
+      }
+    })
+
+    it('i cinque gesti, nell’ordine del servizio: una parola, una riga, i moduli; e la nota che i filmati sono generati', () => {
+      expect(Object.keys(en.gesti.voci)).toEqual(Object.keys(it_.gesti.voci))
+      conMovimento(true)
+      mostra()
+      const sezione = screen.getByRole('heading', { level: 2, name: it_.gesti.titolo }).closest('section')
+      const gesti = [...sezione.querySelectorAll('li.gesto')]
+      expect(gesti.map((g) => within(g).getByRole('heading', { level: 3 }).textContent)).toEqual(['Ordina.', 'Prepara.', 'Incassa.', 'Conta.', 'Riordina.'])
+      expect(gesti.map((g) => g.querySelector('img').getAttribute('src'))).toEqual(
+        ['sala', 'banco', 'conto', 'numeri', 'scorta'].map((n) => `/video/${n}.jpg`),
+      )
+      for (const g of gesti) expect(g.querySelector('img')).toHaveAttribute('alt', '')
+      const moduli = (g) => [...g.querySelectorAll('.gesto-moduli li')].map((e) => e.textContent)
+      // I gesti che si fanno già col piano di partenza lo dicono per primo.
+      expect(moduli(gesti[0])).toEqual(['Nel piano Base', 'Modulo Ordini dal telefono del cliente'])
+      expect(moduli(gesti[1])).toEqual(['Nel piano Base'])
+      expect(moduli(gesti[3])).toEqual(['Modulo Statistiche e bilancio', 'Modulo Personale e ore'])
+      // Ogni gesto ha la sua riga, e «Conta» le sue due frasi.
+      for (const g of gesti) expect(g.querySelector('.gesto-testo > p').textContent.length).toBeGreaterThan(30)
+      expect(gesti[3]).toHaveTextContent(it_.gesti.voci.numeri.frasi.statistiche)
+      expect(gesti[3]).toHaveTextContent(it_.gesti.voci.numeri.frasi.staff)
+      expect(moduli(gesti[2])).toEqual(['Nel piano Base', 'Modulo Pagamenti con lettore SumUp'])
+      expect(moduli(gesti[4])).toEqual(['Modulo Magazzino e fornitori'])
+      // Il lato del testo segue il filmato: solo la scorta ha il soggetto a sinistra.
+      expect(gesti.map((g) => g.dataset.lato)).toEqual(['sinistra', 'sinistra', 'sinistra', 'sinistra', 'destra'])
+      expect(within(sezione).getByText(/generati con l’intelligenza artificiale/)).toBeInTheDocument()
+    })
   })
 
-  it('il titolo resta una frase intera, con la seconda parte in oro', () => {
+  it('il titolo resta una frase intera, con la seconda parte nel lime', () => {
     mostra()
     const h1 = screen.getByRole('heading', { level: 1 })
     expect(h1).toHaveTextContent(it_.hero.titolo)

@@ -43,6 +43,35 @@ describe('la vendita nella prima pagina', () => {
     expect(free).not.toHaveTextContent('IVA')
   })
 
+  // REQ-FLOTTA-060: i cinque gesti seguono la vendita come le funzioni. Un
+  // gesto che vive solo di moduli sparisce coi suoi moduli; uno del piano
+  // Base resta, senza l'etichetta del modulo che non si può comprare.
+  it('i gesti seguono la vendita: senza magazzino non c’è «Riordina.», senza SumUp «Incassa.» resta nel piano Base', () => {
+    stato.vendita = venditaPulita({ moduli: { magazzino: false, sumup: false } })
+    mostra()
+    const parole = [...document.querySelectorAll('li.gesto h3')].map((h) => h.textContent)
+    expect(parole).toEqual(['Ordina.', 'Prepara.', 'Incassa.', 'Conta.'])
+    const incassa = document.querySelectorAll('li.gesto')[2]
+    expect([...incassa.querySelectorAll('.gesto-moduli li')].map((e) => e.textContent)).toEqual(['Nel piano Base'])
+  })
+
+  // Rilievo del revisore (11/11/2026): «Conta» ha due moduli e una frase
+  // per modulo. Con uno solo in vendita si legge solo la sua.
+  it('«Conta.» dice solo quello che si può comprare: senza il personale, niente frase sulle ore', () => {
+    stato.vendita = venditaPulita({ moduli: { staff: false } })
+    mostra()
+    const conta = [...document.querySelectorAll('li.gesto')].find((g) => g.querySelector('h3').textContent === 'Conta.')
+    expect(conta).toHaveTextContent(it_.gesti.voci.numeri.frasi.statistiche)
+    expect(conta).not.toHaveTextContent(it_.gesti.voci.numeri.frasi.staff)
+    expect([...conta.querySelectorAll('.gesto-moduli li')].map((e) => e.textContent)).toEqual(['Modulo Statistiche e bilancio'])
+  })
+
+  it('senza statistiche né personale non c’è «Conta.»', () => {
+    stato.vendita = venditaPulita({ moduli: { statistiche: false, staff: false } })
+    mostra()
+    expect([...document.querySelectorAll('li.gesto h3')].map((h) => h.textContent)).toEqual(['Ordina.', 'Prepara.', 'Incassa.', 'Riordina.'])
+  })
+
   it('un modulo tolto dalla vendita non compare nella tabella dei prezzi', () => {
     stato.vendita = venditaPulita({ moduli: { sumup: false } })
     mostra()
@@ -53,7 +82,7 @@ describe('la vendita nella prima pagina', () => {
     // Sparisce anche fra le funzioni raccontate: niente etichetta di un
     // modulo che non si può comprare (DESIGN.md §5.4).
     expect(screen.queryByText('Modulo Pagamenti con lettore SumUp')).toBeNull()
-    expect(screen.getByText('Modulo Magazzino e fornitori')).toBeInTheDocument()
+    expect(within(document.getElementById('funzioni')).getByText('Modulo Magazzino e fornitori')).toBeInTheDocument()
   })
 
   it('col Free in vendita la prima schermata lo dice', () => {
@@ -106,7 +135,7 @@ describe('la vendita nella prima pagina', () => {
     const titolo = it_.funzioni.voci.magazzino.titolo
     expect(screen.queryByRole('heading', { name: titolo })).toBeNull()
     // Le sezioni del primo giro sono osservate (e aspettano di comparire).
-    expect(document.getElementById('problema')).toHaveClass('in-attesa')
+    expect(document.getElementById('come-funziona')).toHaveClass('in-attesa')
     act(() => stato.richiama(venditaPulita(null)))
     const nuova = screen.getByRole('heading', { name: titolo }).closest('article')
     expect(nuova).not.toHaveClass('in-attesa')
