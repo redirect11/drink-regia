@@ -18,6 +18,18 @@ data.
   fasce una sotto l'altra). «Quello che si vede dal banco» e i tre
   pilastri non ci sono più. Tutta la pagina è sul fondo scuro, dove il
   lime rende meglio. Chi ha chiesto meno movimento vede immagini ferme
+- Dopo un rilascio il sito non si vede più senza grafica: la pagina si
+  ricontrolla a ogni visita, e i file di stile e di codice, che hanno
+  l'impronta nel nome, restano in memoria. Prima il browser teneva per
+  un'ora la pagina vecchia, che chiedeva file ormai tolti (REQ-DEV-013,
+  #133).
+- La prima pagina ha i filmati. Dietro al titolo gira il barman al banco;
+  sotto, il lavoro del locale in cinque gesti, uno per fascia col suo
+  filmato e una parola sola: Ordina, Prepara, Incassa, Conta, Riordina.
+  «Quello che si vede dal banco» e i tre pilastri non ci sono più;
+  l'elenco delle funzioni è più corto, col dettaglio che si apre a
+  richiesta. Tutta la pagina è sul fondo scuro, dove il lime rende
+  meglio. Chi ha chiesto meno movimento vede immagini ferme
   (REQ-FLOTTA-060, #131).
 - Il sito di test era uscito vuoto col tag `v0.3.0-beta.7`: una delle
   versioni forzate (`minimatch` sotto `glob`) faceva pubblicare zero

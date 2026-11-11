@@ -29,8 +29,8 @@ const csp = Object.fromEntries(
 )
 
 describe('firebase.json: le intestazioni di sicurezza su ogni pagina', () => {
-  it('una sola regola, per tutto il sito', () => {
-    expect(config.hosting.headers).toHaveLength(1)
+  it('la regola di sicurezza vale per tutto il sito, ed è la prima', () => {
+    expect(config.hosting.headers[0]).toBe(regole)
     expect(regole.source).toBe('**')
   })
 
@@ -99,5 +99,45 @@ describe('la Content-Security-Policy, in osservazione', () => {
 
   it('il sito non chiama nessuno in chiaro', () => {
     expect(intestazione('Content-Security-Policy-Report-Only')).not.toMatch(/http:\/\//)
+  })
+})
+
+// LA MEMORIA DEL BROWSER (REQ-DEV-013). Il 11/11/2026, dopo il tag
+// v0.3.0-beta.9, Daniele ha aperto il sito di test e l'ha visto senza
+// grafica. Firebase serviva tutto con «max-age=3600»: il suo browser aveva
+// ancora la pagina della beta.8, che chiede il foglio di stile della beta.8;
+// il deploy nuovo quel file l'aveva tolto, e al suo posto la riscrittura
+// verso index.html rispondeva con una pagina HTML, che il browser rifiuta
+// come stile (X-Content-Type-Options: nosniff). A ogni rilascio, chi era
+// passato dal sito nell'ora prima l'avrebbe visto rotto. Tre regole:
+// la pagina si ricontrolla sempre; i file di /assets, che hanno l'impronta
+// nel nome e non cambiano mai, si tengono un anno; un file che manca è un
+// 404, non la prima pagina travestita.
+describe('firebase.json: cosa il browser può tenere in memoria', () => {
+  const regola = (source) => config.hosting.headers.find((r) => r.source === source)
+  const memoria = (source) => regola(source)?.headers.find((h) => h.key === 'Cache-Control')?.value
+
+  it('la pagina si ricontrolla a ogni visita: dopo un rilascio nessuno resta con quella vecchia', () => {
+    expect(memoria('**')).toBe('no-cache')
+  })
+
+  it('i file con l’impronta nel nome si tengono un anno, e non si richiedono più', () => {
+    expect(memoria('/assets/**')).toBe('public, max-age=31536000, immutable')
+  })
+
+  it('caratteri e filmati hanno un nome fisso: un mese i primi, un’ora i secondi, che cambiano', () => {
+    expect(memoria('/fonts/**')).toBe('public, max-age=2592000')
+    expect(memoria('/video/**')).toBe('public, max-age=3600')
+  })
+
+  // Firebase applica tutte le regole che combaciano, e per la stessa
+  // intestazione vince l'ultima: le regole particolari stanno dopo «**».
+  it('le regole particolari vengono dopo quella generale, sennò «no-cache» le coprirebbe', () => {
+    const ordine = config.hosting.headers.map((r) => r.source)
+    for (const s of ['/assets/**', '/fonts/**', '/video/**']) expect(ordine.indexOf(s)).toBeGreaterThan(ordine.indexOf('**'))
+  })
+
+  it('un file che manca in /assets, /fonts o /video è un 404: la riscrittura verso index.html non li tocca', () => {
+    expect(config.hosting.rewrites).toEqual([{ source: '!/@(assets|fonts|video)/**', destination: '/index.html' }])
   })
 })

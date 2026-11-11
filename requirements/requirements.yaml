@@ -3167,6 +3167,40 @@ requirements:
     test_cases:
       - tests/squadra.test.js
 
+  - id: REQ-DEV-013
+    title: "Dopo un rilascio nessuno vede il sito senza grafica: la pagina si ricontrolla, i file con l'impronta si tengono"
+    area: "firebase.json (hosting.headers, hosting.rewrites)"
+    description: >
+      Trovato da Daniele l'11/11/2026, dopo il tag v0.3.0-beta.9: «si è
+      decisamente rotto qualcosa», con lo screenshot del sito di test
+      senza foglio di stile e, nella console, «la risorsa
+      assets/index-CTkyoWbz.css è stata bloccata a causa della mancata
+      corrispondenza del tipo MIME (text/html)». Il nastro in alto diceva
+      ancora beta.8. Firebase serviva ogni file con «Cache-Control:
+      max-age=3600»: il browser teneva per un'ora la pagina vecchia, che
+      chiede i file della versione vecchia; il deploy nuovo li toglie, e
+      la riscrittura di tutto verso index.html rispondeva al loro posto
+      con una pagina HTML, che il browser rifiuta come stile. Su un sito
+      vero succederebbe a ogni rilascio, a chi è passato nell'ora prima.
+      CRITERI DI ACCETTAZIONE. (1) La pagina (e ogni file senza una
+      regola sua) esce con «Cache-Control: no-cache»: il browser la
+      ricontrolla a ogni visita, e con l'ETag la riscarica solo se è
+      cambiata. (2) I file di /assets, che Vite nomina con l'impronta
+      del contenuto, escono con «public, max-age=31536000, immutable».
+      (3) I caratteri (/fonts) un mese, i filmati (/video) un'ora: hanno
+      un nome fisso, e i filmati si sostituiscono. (4) Un file che manca
+      in /assets, /fonts o /video risponde 404 e non la prima pagina:
+      la riscrittura verso index.html li esclude. (5) Le intestazioni di
+      sicurezza restano su tutto il sito.
+      NON RISOLVE il primo rilascio dopo questo: chi ha già in memoria
+      una pagina con «max-age=3600» la tiene fino a un'ora.
+    status: implemented
+    generate_issue: true
+    labels: [metodo, regia]
+    priority: P1
+    test_cases:
+      - tests/hosting.test.js
+
   - id: REQ-FLOTTA-060
     title: "La prima pagina coi filmati: il barman dietro al titolo e i cinque gesti del locale"
     area: "src/pages/Home.jsx, src/i18n/home.it.js, src/i18n/home.en.js, src/index.css, public/video/, DESIGN.md"
