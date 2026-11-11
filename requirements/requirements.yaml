@@ -3098,7 +3098,7 @@ requirements:
       glob torna alla versione che firebase-tools chiede: l'avviso
       riguarda uno strumento di sviluppo, e si chiude a mano finche'
       firebase-tools non aggiorna glob.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [metodo, regia, sicurezza]
     priority: P2
