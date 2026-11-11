@@ -3081,6 +3081,30 @@ requirements:
     test_cases:
       - tests/dipendenze-indirette.test.js
 
+  - id: REQ-DEV-012
+    title: "La squadra di Stonebit: il Tech Lead, i quattro sub-agenti e le regole comuni"
+    area: "CLAUDE.md, AGENTS.md, .claude/agents/"
+    description: >
+      Dal messaggio del CEO-agente di Stonebit per conto di Daniele
+      (11/11/2026): la sessione principale su questo repository lavora
+      come Tech Lead di Lime SmartOrders, a capo di una squadra di
+      sub-agenti. CLAUDE.md apre con la sezione «Stonebit — chi sei e
+      come lavori qui» (ruolo, regola zero, come si guida la squadra,
+      come si ragiona, regole fisse, rapporto di fine sessione); le
+      regole del repository restano tutte, sotto, e restano vincolanti.
+      AGENTS.md nella radice rimanda a CLAUDE.md per qualunque agente.
+      In .claude/agents/ i quattro file della squadra: frontend-developer,
+      backend-developer, devops-flotta, revisore. I testi sono quelli del
+      messaggio, copiati così come sono. Le contraddizioni fra la sezione
+      nuova e le regole di prima non le ho risolte io: stanno elencate
+      nella PR, per Daniele.
+    status: todo
+    generate_issue: true
+    labels: [metodo, regia]
+    priority: P2
+    test_cases:
+      - tests/squadra.test.js
+
   - id: REQ-FLOTTA-059
     title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"
     area: "functions/lib/eliminazione-cliente.js, functions/index.js (eliminaCliente), src/lib/db.js (eliminaCliente), src/pages/Backoffice.jsx (Elimina cliente…)"
