@@ -197,10 +197,19 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .avviso-lingua a, .avviso-lingua .link { display: inline-flex; align-items: center; min-height: 44px; }
 .avviso-lingua .link { background: none; border: none; padding: 0; font: inherit; color: var(--muted); text-decoration: underline; cursor: pointer; }
 
-/* ── La prima schermata: due colonne da 900px, il testo a sinistra e la
-   scheda dei fatti a destra; sul telefono una sotto l'altra. Niente
-   immagini, niente luci. ── */
-.hero { padding: 48px 0 56px; border-bottom: 1px solid var(--line); }
+/* ── La prima schermata: il filmato a tutta larghezza con un velo scuro,
+   e davanti due colonne da 900px, il testo a sinistra e la scheda dei
+   fatti a destra; sul telefono una sotto l'altra. Il velo è più fitto a
+   sinistra, dove sta il testo, e lascia vedere il barman a destra; sul
+   telefono è uniforme, perché il testo copre tutto. Senza filmato (non
+   ancora caricato) resta il fondo scuro: il testo si legge comunque. ── */
+.hero { position: relative; isolation: isolate; overflow: hidden; padding: 56px 0 64px; background: var(--scuro); color: var(--scuro-testo); }
+.hero-sfondo { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; object-position: 72% center; }
+.hero-velo { position: absolute; inset: 0; z-index: -1; background: rgba(8, 11, 6, 0.74); }
+.hero .occhiello { color: var(--scuro-muted); }
+.hero .btn.ghost { color: var(--scuro-testo); border-color: var(--scuro-muted); }
+.hero .btn.ghost:hover { background: rgba(255, 255, 255, 0.08); }
+.hero .nota-lingua { color: var(--scuro-muted); }
 .hero-griglia { display: grid; gap: 32px; align-items: start; }
 .hero h1 { font-size: clamp(2.125rem, 4.6vw, 3.5rem); line-height: 1.08; margin: 0 0 20px; max-width: 18ch; }
 /* La seconda frase del titolo passata con l'evidenziatore lime: il testo
@@ -208,13 +217,27 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
    colore sta sotto, come un tratto di pennarello. Dove i colori li sceglie
    il sistema (contrasto elevato) il tratto sparisce e resta il testo. */
 .titolo-accento > span { background: linear-gradient(transparent 62%, var(--lime) 62%, var(--lime) 92%, transparent 92%); box-decoration-break: clone; -webkit-box-decoration-break: clone; padding: 0 0.08em; margin: 0 -0.08em; }
-@media (forced-colors: active) { .titolo-accento > span { background: none; } }
-.hero-sotto { font-size: 1.0625rem; max-width: 36rem; margin: 0; color: var(--muted); }
+/* Sul filmato il titolo è chiaro, e un tratto lime sotto un testo chiaro
+   non si leggerebbe: lì la seconda frase è scritta nel lime (13:1 sul
+   fondo scuro), senza tratto. */
+.hero .titolo-accento > span { background: none; color: var(--lime); padding: 0; margin: 0; }
+@media (forced-colors: active) { .titolo-accento > span { background: none; } .hero .titolo-accento > span { color: currentColor; } }
+.hero-sotto { font-size: 1.0625rem; max-width: 36rem; margin: 0; color: #dfe5d2; }
 .hero .azioni { margin-top: 28px; gap: 12px; }
 /* La scheda dei fatti: un pannello di carta con le righe divise da un filo. */
-.hero-scheda { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; }
+.hero-scheda { background: rgba(12, 15, 10, 0.72); border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 12px; padding: 20px 22px; }
+.hero-scheda .scheda-titolo { color: var(--scuro-muted); }
 .fatti { list-style: none; padding: 0; margin: 0; }
-.fatti li { display: flex; align-items: baseline; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); font-size: 0.9375rem; }
+.fatti li { display: flex; align-items: baseline; gap: 12px; padding: 10px 0; border-top: 1px solid rgba(255, 255, 255, 0.14); font-size: 0.9375rem; }
+
+/* ── Durante il servizio: due riquadri col filmato e due righe sotto. ── */
+.servizio { padding-bottom: 56px; }
+.servizio-griglia { display: grid; gap: 32px; margin-top: 24px; }
+.riquadro-video { margin: 0; }
+.riquadro-video video, .riquadro-video img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 12px; background: var(--bg-3); }
+.riquadro-video h3 { font-size: 1.125rem; margin: 16px 0 4px; }
+.riquadro-video p { margin: 0; color: var(--muted); max-width: 34rem; }
+@media (min-width: 760px) { .servizio-griglia { grid-template-columns: 1fr 1fr; } }
 .fatti li::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 0 1px var(--lime-forte); flex: none; transform: translateY(-2px); }
 .nota-lingua { margin: 16px 0 0; font-size: 0.875rem; color: var(--muted); }
 
@@ -345,7 +368,8 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
   .landing { font-size: 1.0625rem; }
   .sezione { padding-top: 80px; }
   .fascia { padding: 80px 0; }
-  .hero { padding: 72px 0 80px; }
+  .hero { padding: 96px 0 104px; }
+  .hero-velo { background: linear-gradient(90deg, rgba(8, 11, 6, 0.9) 0%, rgba(8, 11, 6, 0.72) 48%, rgba(8, 11, 6, 0.28) 100%); }
   .hero-sotto { font-size: 1.125rem; }
   .titolo-accento { display: block; }
   .chiusura { margin-top: 80px; padding: 80px 0; }

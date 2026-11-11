@@ -105,6 +105,23 @@ export default {
     // nata (DESIGN.md §9.3).
     chiusa: 'L’app è nata al banco di un cocktail bar per mettere quel quadro su un tablet, e lì lavora ogni sera.',
   },
+  // I riquadri coi filmati (11/11/2026). Ogni riga dice una cosa che
+  // l'app fa davvero in quel momento del servizio; la nota dice che i
+  // filmati sono generati.
+  servizio: {
+    titolo: 'Durante il servizio.',
+    voci: {
+      sala: {
+        titolo: 'In sala',
+        testo: 'La comanda si prende al tavolo, dal tablet o dal telefono, e arriva subito a chi prepara.',
+      },
+      cassa: {
+        titolo: 'Alla cassa',
+        testo: 'Il conto è già pronto quando il cliente lo chiede: si incassa e si stampa lo scontrino.',
+      },
+    },
+    nota: 'I filmati di questa pagina sono dimostrativi, generati con l’intelligenza artificiale.',
+  },
   pilastri: {
     titolo: 'Tre scelte fatte al banco',
     voci: [

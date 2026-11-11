@@ -85,6 +85,20 @@ export default {
       'Orders on a pad, bills worked out aloud, a till that only keeps the total. Stock from memory, staff hours on a sheet, the night’s takings pieced together the next day. Each piece works on its own, and the whole picture lives in the head of whoever is behind the bar.',
     chiusa: 'The app was born behind the bar of a cocktail bar to put that picture on a tablet, and it works there every night.',
   },
+  servizio: {
+    titolo: 'During service.',
+    voci: {
+      sala: {
+        titolo: 'On the floor',
+        testo: 'Orders are taken at the table, on a tablet or a phone, and reach whoever prepares them straight away.',
+      },
+      cassa: {
+        titolo: 'At the till',
+        testo: 'The bill is ready when the customer asks for it: take the payment and print the receipt.',
+      },
+    },
+    nota: 'The videos on this page are illustrative and AI-generated.',
+  },
   pilastri: {
     titolo: 'Three decisions made behind the bar',
     voci: [

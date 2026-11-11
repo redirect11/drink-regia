@@ -15,7 +15,7 @@
 // dashboard.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, within, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import '@testing-library/jest-dom/vitest'
 
@@ -77,9 +77,9 @@ describe('la prima pagina', () => {
     })
   })
 
-  it('ha le sezioni nell’ordine del percorso: problema, pilastri, funzioni, passi, prezzi, domande, chiusura', () => {
+  it('ha le sezioni nell’ordine del percorso: servizio, problema, pilastri, funzioni, passi, prezzi, domande, chiusura', () => {
     mostra()
-    const ordine = ['problema', 'pilastri', 'funzioni', 'come-funziona', 'prezzi', 'domande', 'contatti']
+    const ordine = ['servizio', 'problema', 'pilastri', 'funzioni', 'come-funziona', 'prezzi', 'domande', 'contatti']
     const trovate = [...document.querySelectorAll('main section[id]')].map((s) => s.id)
     expect(trovate).toEqual(ordine)
     expect(screen.getByRole('heading', { name: it_.problema.titolo })).toBeInTheDocument()
@@ -223,16 +223,56 @@ describe('la prima pagina', () => {
     expect(testo).not.toContain('!')
   })
 
-  // 07/11/2026 (la direzione dell'utente: «non un template generico», niente
-  // sfondi sfocati, bagliori o immagini stock): la prima schermata non
-  // scarica immagini e non ha decorazioni; a destra del testo sta la scheda
-  // coi fatti (prezzo, abbonamento, attivazione), che sono informazioni vere.
-  it('la prima schermata non scarica immagini né ha decorazioni: accanto al testo la scheda dei fatti', () => {
-    mostra()
-    const hero = document.querySelector('.hero')
-    expect(hero.querySelector('img')).toBeNull()
-    expect(hero.querySelector('.hero-luci, [aria-hidden="true"]:empty')).toBeNull()
-    expect(within(hero).getByRole('list', { name: 'In breve' }).closest('.hero-scheda')).not.toBeNull()
+  // 11/11/2026 (l'utente: «nella parte sopra c'è il video in background e
+  // uno slogan davanti… con i video nei box»), al posto della prima
+  // schermata senza immagini del 07/11. I filmati sono decorazione: chi
+  // chiede meno movimento vede il fermo immagine, e un lettore di schermo
+  // non incontra né l'uno né l'altro.
+  describe('i filmati', () => {
+    const conMovimento = (ridotto) => {
+      vi.stubGlobal('matchMedia', (q) => ({ matches: ridotto && /reduced-motion/.test(q), addEventListener() {}, removeEventListener() {} }))
+    }
+    afterEach(() => vi.unstubAllGlobals())
+
+    it('dietro al titolo gira il filmato del banco, muto e in ciclo; la scheda dei fatti resta accanto al testo', async () => {
+      conMovimento(false)
+      mostra()
+      const hero = document.querySelector('.hero')
+      const video = await waitFor(() => {
+        const v = hero.querySelector('video.hero-sfondo')
+        expect(v).not.toBeNull()
+        return v
+      })
+      expect(video).toHaveAttribute('aria-hidden', 'true')
+      expect(video).toHaveAttribute('poster', '/video/banco.jpg')
+      expect(video.loop).toBe(true)
+      expect(video.muted).toBe(true)
+      expect(video.querySelector('source')).toHaveAttribute('src', '/video/banco.mp4')
+      expect(within(hero).getByRole('list', { name: 'In breve' }).closest('.hero-scheda')).not.toBeNull()
+    })
+
+    it('chi chiede meno movimento vede i fermi immagine, senza testo alternativo: nessun video', async () => {
+      conMovimento(true)
+      mostra()
+      await screen.findByRole('heading', { level: 2, name: it_.servizio.titolo })
+      expect(document.querySelector('video')).toBeNull()
+      const fermo = document.querySelector('.hero img.hero-sfondo')
+      expect(fermo).toHaveAttribute('src', '/video/banco.jpg')
+      expect(fermo).toHaveAttribute('alt', '')
+    })
+
+    it('«Durante il servizio» ha due riquadri, la sala e la cassa, e dice che i filmati sono generati', () => {
+      conMovimento(true)
+      mostra()
+      const sezione = screen.getByRole('heading', { level: 2, name: it_.servizio.titolo }).closest('section')
+      const riquadri = sezione.querySelectorAll('figure.riquadro-video')
+      expect(riquadri).toHaveLength(2)
+      expect(within(riquadri[0]).getByRole('heading', { level: 3 })).toHaveTextContent('In sala')
+      expect(riquadri[0].querySelector('img')).toHaveAttribute('src', '/video/sala.jpg')
+      expect(within(riquadri[1]).getByRole('heading', { level: 3 })).toHaveTextContent('Alla cassa')
+      expect(riquadri[1].querySelector('img')).toHaveAttribute('src', '/video/cassa.jpg')
+      expect(within(sezione).getByText(/generati con l’intelligenza artificiale/)).toBeInTheDocument()
+    })
   })
 
   it('il titolo resta una frase intera, con la seconda parte in oro', () => {

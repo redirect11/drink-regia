@@ -129,6 +129,39 @@ function dueTempi(testo) {
   return { prima: testo.slice(0, taglio + 1), seconda: testo.slice(taglio + 2) }
 }
 
+// I VIDEO DELLA PRIMA PAGINA (11/11/2026, l'utente: «una pagina moderna…
+// nella parte sopra c'è il video in background e uno slogan davanti… con
+// i video nei box»). Tre filmati brevi in public/video, muti e in ciclo:
+// il barman dietro al titolo, la sala e la cassa nei riquadri. Sono
+// decorazione, non contenuto: nascosti a chi usa un lettore di schermo.
+// Chi chiede meno movimento (prefers-reduced-motion) o di risparmiare
+// dati vede il fermo immagine, che è anche quello che si vede finché il
+// codice non è partito: per questo il video non si scarica prima.
+function useMovimento() {
+  const [movimento, setMovimento] = useState(false)
+  useEffect(() => {
+    const fermo = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    const risparmio = navigator.connection?.saveData
+    setMovimento(!fermo && !risparmio)
+  }, [])
+  return movimento
+}
+
+function Filmato({ nome, className }) {
+  const movimento = useMovimento()
+  const fermo = `/video/${nome}.jpg`
+  if (!movimento) return <img className={className} src={fermo} alt="" decoding="async" />
+  return (
+    <video className={className} poster={fermo} autoPlay muted loop playsInline preload="metadata" aria-hidden="true" tabIndex={-1}>
+      <source src={`/video/${nome}.mp4`} type="video/mp4" />
+    </video>
+  )
+}
+
+// I riquadri di «Durante il servizio»: un filmato ciascuno, coi testi in
+// src/i18n (servizio.voci).
+const RIQUADRI = ['sala', 'cassa']
+
 // L'aliquota del listino, scritta una volta («IVA esclusa, al 22%»).
 const IVA_PERCENTO = `${IVA}%`
 
@@ -242,10 +275,12 @@ export default function Home({ utente, lingua = 'it' }) {
     <main className="landing" ref={radice}>
       {proposta && <AvvisoLingua lingua={lingua} proposta={proposta} chiudi={() => setProposta(null)} />}
 
-      {/* LA PRIMA SCHERMATA: a sinistra cosa è e cosa fare, a destra la
-          scheda coi fatti (prezzo, abbonamento, attivazione): informazioni
-          vere al posto di una decorazione. Niente immagini da scaricare. */}
+      {/* LA PRIMA SCHERMATA: il filmato del barman a tutta larghezza, un
+          velo scuro sopra, e davanti cosa è e cosa fare; a destra la scheda
+          coi fatti (prezzo, abbonamento, attivazione), informazioni vere. */}
       <section className="hero" aria-labelledby="hero-titolo">
+        <Filmato nome="banco" className="hero-sfondo" />
+        <div className="hero-velo" />
         <div className="contenitore hero-griglia">
           <div className="hero-testo">
             <p className="occhiello hero-occhiello">{t.hero.occhiello}</p>
@@ -277,6 +312,30 @@ export default function Home({ utente, lingua = 'it' }) {
               <li>{automatica ? t.hero.automatica : t.hero.concordata}</li>
             </ul>
           </aside>
+        </div>
+      </section>
+
+      {/* DURANTE IL SERVIZIO: due riquadri col filmato, la sala e la cassa,
+          e sotto ognuno cosa fa l'app in quel momento. La nota in fondo
+          dice che i filmati sono generati: nessuno deve prenderli per
+          riprese di un locale vero. */}
+      <section id="servizio" className="sezione servizio" aria-labelledby="servizio-titolo" data-comparsa>
+        <div className="contenitore">
+          <h2 id="servizio-titolo" className="titolo-sezione">
+            {t.servizio.titolo}
+          </h2>
+          <div className="servizio-griglia">
+            {RIQUADRI.map((id) => (
+              <figure key={id} className="riquadro-video">
+                <Filmato nome={id} />
+                <figcaption>
+                  <h3>{t.servizio.voci[id].titolo}</h3>
+                  <p>{t.servizio.voci[id].testo}</p>
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+          <p className="nota">{t.servizio.nota}</p>
         </div>
       </section>
 
