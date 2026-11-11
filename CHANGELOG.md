@@ -6,8 +6,10 @@ data.
 
 ## Prossima release (da decidere)
 
-- Nel carosello ogni filmato resta quattro secondi, non più sei
-  (REQ-FLOTTA-061, #135).
+- Nel carosello ogni filmato resta quattro secondi, non più sei, e sotto
+  la frase non ci sono più le etichette dei piani e dei moduli. La
+  sezione «Funzioni» si apre con «Ogni funzione è frutto dell'esperienza
+  dietro al banco.» (REQ-FLOTTA-061, #135).
 - La dashboard del titolare è su due colonne senza buchi: ogni riquadro
   sta subito sotto il precedente. Prima erano sfalsati, e «Temi su
   misura» finiva solo, molto più in basso. L'avviso dell'email da

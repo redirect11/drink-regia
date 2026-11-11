@@ -250,17 +250,16 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 /* ── Il carosello dei cinque gesti (REQ-FLOTTA-061). Le diapositive stanno in
    fila dietro a tutto e scorrono in orizzontale: si sposta la fila, una
    larghezza alla volta. Davanti, in basso, la parola del gesto con
-   l'iniziale lime, la sua riga, i moduli e i comandi. Chi ha chiesto meno
+   l'iniziale lime, la sua riga e i comandi. Chi ha chiesto meno
    movimento non vede lo scorrimento: la diapositiva cambia di colpo. ── */
 .carosello { position: absolute; inset: 0; z-index: -2; overflow: hidden; }
 .diapositive { display: flex; height: 100%; margin: 0; padding: 0; list-style: none; transition: transform 0.7s ease; }
 .diapositiva { position: relative; flex: 0 0 100%; height: 100%; }
 .gesti { display: grid; gap: 16px; margin-top: 40px; padding-top: 24px; border-top: 1px solid rgba(255, 255, 255, 0.2); }
-.gesto-testo { min-height: 9.5rem; }
+.gesto-testo { min-height: 7.5rem; }
 .gesto-parola { font-family: var(--titoli); font-weight: 700; font-size: clamp(2.5rem, 7vw, 4rem); line-height: 1; letter-spacing: -0.02em; margin: 0 0 10px; }
 .gesto-parola::first-letter { color: var(--lime); }
 .gesto-riga { margin: 0; font-size: 1.125rem; line-height: 1.5; color: #e6ebdc; max-width: 34rem; }
-.gesto-moduli { list-style: none; display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 12px 0 0; padding: 0; font-size: 0.875rem; font-weight: 600; color: var(--lime); }
 .gesto-comandi { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .gesto-freccia { width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.4); background: rgba(12, 15, 10, 0.5); color: var(--scuro-testo); font-size: 1.5rem; line-height: 1; cursor: pointer; }
 .gesto-freccia:hover { border-color: var(--lime); color: var(--lime); }
@@ -274,7 +273,7 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .nota-filmati { color: var(--scuro-muted); margin: 12px 0 0; max-width: none; }
 @media (min-width: 900px) {
   .gesti { grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 32px; margin-top: 32px; }
-  .gesto-testo { min-height: 8.5rem; }
+  .gesto-testo { min-height: 7rem; }
 }
 @media (prefers-reduced-motion: reduce) {
   .diapositive, .gesto-punto::before { transition: none; }

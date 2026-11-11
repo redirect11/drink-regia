@@ -176,9 +176,12 @@ function Filmato({ nome, className, gira }) {
 // e titolo, bottoni e scheda dei fatti restano fermi davanti.
 //
 // I MODULI DI OGNI GESTO seguono la vendita decisa dall'admin, come le
-// funzioni più sotto (REQ-FLOTTA-015): un modulo non in vendita non
-// compare fra le etichette, e un gesto che vive solo di moduli (i numeri,
-// la scorta) non si vede se nessuno dei suoi è in vendita. Per questo la
+// funzioni più sotto (REQ-FLOTTA-015): un gesto che vive solo di moduli
+// (i numeri, la scorta) non si vede se nessuno dei suoi è in vendita.
+// Le etichette dei moduli sotto la frase («Nel piano Base», «Modulo…»)
+// non ci sono più: Daniele, 11/11/2026, «non hanno senso lì: l'utente
+// deve prima capire di che si parla». Piani e moduli li dicono l'elenco
+// delle funzioni e la tabella dei prezzi, più sotto. Per questo la
 // riga di «Ordina» e «Incassa» non promette il menù con QR o il lettore
 // di carte, e «Conta», che ha due moduli, ha una frase per modulo: si
 // legge quella del primo in vendita.
@@ -328,15 +331,6 @@ export default function Home({ utente, lingua = 'it' }) {
     return etichette.length ? [...new Set(etichette)] : [nelBase]
   }
 
-  // Le etichette di un gesto: «Nel piano Base» se il gesto si fa già col
-  // piano di partenza, poi i suoi moduli in vendita.
-  const etichetteGesto = (g) => {
-    const moduli = MODULI.filter((m) => g.moduli.includes(m.id) && moduloVisibile(vendita, m.id)).map((m) =>
-      inclusiNelBase.has(m.id) ? nelBase : interpola(t.funzioni.modulo, { nome: nomeModulo(t, m) })
-    )
-    return [...new Set([...(g.base ? [nelBase] : []), ...moduli])]
-  }
-
   // Un'azione principale per schermata (DESIGN.md §2): chi è già dentro va
   // alla sua dashboard, gli altri all'attivazione.
   const azionePrincipale = (testo) =>
@@ -358,7 +352,7 @@ export default function Home({ utente, lingua = 'it' }) {
           che scorrono in orizzontale uno alla volta; sopra un velo scuro;
           davanti, ferme, le cose che non cambiano: cosa è, cosa fare e la
           scheda coi fatti. In basso la parola del gesto che si vede, la
-          sua riga, i moduli, e i comandi: indietro, avanti, i cinque
+          sua riga, e i comandi: indietro, avanti, i cinque
           punti, e «Ferma i filmati» che ferma anche lo scorrimento.
           Gira solo il filmato della diapositiva che si vede: gli altri
           sono fermi immagine, così non si scaricano cinque filmati
@@ -419,11 +413,6 @@ export default function Home({ utente, lingua = 'it' }) {
             <div className="gesto-testo" aria-live={scorre ? 'off' : 'polite'} aria-atomic="true">
               <p className="gesto-parola">{t.gesti.voci[gesto.id].parola}</p>
               <p className="gesto-riga">{rigaGesto(gesto)}</p>
-              <ul className="gesto-moduli">
-                {etichetteGesto(gesto).map((e) => (
-                  <li key={e}>{e}</li>
-                ))}
-              </ul>
             </div>
             <div className="gesto-comandi">
               <button type="button" className="gesto-freccia" aria-label={t.gesti.precedente} onClick={() => vai(indice - 1)}>

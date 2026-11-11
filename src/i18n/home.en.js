@@ -105,7 +105,7 @@ export default {
   funzioni: {
     occhiello: 'Features',
     titolo: 'From the first order to closing the till.',
-    sotto: 'Every feature is there because it was needed behind the bar. Till, orders and receipts are in the starting plan; the rest are modules, and each feature says here which one it belongs to. Prices are further down.',
+    sotto: 'Every feature comes from experience behind the bar. Till, orders and receipts are in the starting plan; the rest are modules, and each feature says here which one it belongs to. Prices are further down.',
     nelPiano: 'Included in {piano}',
     modulo: '{nome} module',
     punti: 'What it includes',

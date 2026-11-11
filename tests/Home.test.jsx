@@ -459,27 +459,22 @@ describe('la prima pagina', () => {
       expect(gruppo()).toHaveAttribute('aria-roledescription', 'carosello')
     })
 
-    it('ogni gesto ha la sua parola, una frase sola sotto gli 80 caratteri e i suoi moduli, uguali per forma in inglese', () => {
+    it('ogni gesto ha la sua parola e una frase sola sotto gli 80 caratteri, uguali per forma in inglese; niente etichette dei moduli', () => {
       conMovimento(true)
       mostra()
       const avanti = screen.getByRole('button', { name: it_.gesti.successiva })
       const visti = []
       for (let i = 0; i < 5; i++) {
-        visti.push({
-          parola: parola(),
-          riga: gruppo().querySelector('.gesto-riga').textContent,
-          moduli: [...gruppo().querySelectorAll('.gesto-moduli li')].map((e) => e.textContent),
-        })
+        visti.push({ parola: parola(), riga: gruppo().querySelector('.gesto-riga').textContent })
+        // Daniele, 11/11/2026: «i sottotitoli che dicono "nel piano base" e
+        // poi "altro modulo" non hanno senso lì: l'utente deve prima capire
+        // di che si parla». Piani e moduli stanno nelle funzioni e nei prezzi.
+        expect(gruppo().querySelector('.gesto-moduli')).toBeNull()
+        expect(gruppo()).not.toHaveTextContent(/Nel piano|Modulo /)
         fireEvent.click(avanti)
       }
       expect(visti.map((v) => v.parola)).toEqual(PAROLE)
-      expect(visti.map((v) => v.moduli)).toEqual([
-        ['Nel piano Base', 'Modulo Ordini dal telefono del cliente'],
-        ['Nel piano Base'],
-        ['Nel piano Base', 'Modulo Pagamenti con lettore SumUp'],
-        ['Modulo Statistiche e bilancio', 'Modulo Personale e ore'],
-        ['Modulo Magazzino e fornitori'],
-      ])
+      for (const v of visti) expect(v.riga.length).toBeGreaterThan(20)
       expect(visti[3].riga).toBe(it_.gesti.voci.numeri.frasi.statistiche)
       const frasi = (t) => Object.values(t.gesti.voci).flatMap((v) => (v.frasi ? Object.values(v.frasi) : [v.testo]))
       for (const frase of [...frasi(it_), ...frasi(en)]) {
