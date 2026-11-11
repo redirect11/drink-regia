@@ -251,9 +251,9 @@ export default function Dashboard({ utente, chiuso = false }) {
           <CreditoAI slug={cliente.slug} istanzaAttiva={stato === STATI.ATTIVA} />
         </div>
       </div>
-        {/* Senza un abbonamento attivo si sceglie (o si rinnova) il piano. Dal
-            Free a un piano a pagamento si passa dal Checkout, non da «modifica»
-            (REQ-FLOTTA-015). */}
+      {/* Senza un abbonamento attivo si sceglie (o si rinnova) il piano. Dal
+          Free a un piano a pagamento si passa dal Checkout, non da «modifica»
+          (REQ-FLOTTA-015). */}
       <div className="dashboard-piano">
         {(cliente.abbonamento?.stato !== 'attivo' || cliente.abbonamento?.origine === 'gratuito') && <SceltaPiano cliente={cliente} />}
         {cliente.abbonamento?.stato === 'attivo' && cliente.abbonamento?.origine !== 'gratuito' && <SceltaPiano cliente={cliente} modifica />}

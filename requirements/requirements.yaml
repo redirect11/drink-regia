@@ -3296,6 +3296,9 @@ requirements:
       vederli. (5) Sotto i 900px le colonne diventano una. (6) La
       griglia a righe non si usa più nella dashboard del titolare; il
       commerciale del backoffice, che ha riquadri alti uguali, la tiene.
+      (7) Una colonna senza riquadri non occupa spazio: per un locale
+      non ancora attivo il credito AI non c'è, e «app» e «piano»
+      prendono tutta la larghezza (rilievo del revisore, 11/11/2026).
     status: implemented
     generate_issue: true
     labels: [prodotto, regia, dashboard]

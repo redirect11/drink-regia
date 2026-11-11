@@ -103,14 +103,20 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
    (.riquadri, più sotto) lasciava buchi accanto al riquadro più alto: la
    tiene il commerciale del backoffice, dove i riquadri sono alti uguali.
    Lo spazio lo dà gap, non il margine fra riquadri. */
-.dashboard-colonne { display: grid; gap: 16px; align-items: start; margin-bottom: 16px; }
-.pila { display: grid; gap: 16px; min-width: 0; }
+.dashboard-colonne { display: flex; flex-direction: column; gap: 16px; margin-bottom: 16px; }
+.pila { display: grid; gap: 16px; min-width: 0; align-content: start; }
+/* Una pila senza riquadri non è una colonna: per un locale non ancora
+   attivo il credito AI non c'è, e la colonna di destra restava vuota
+   (rilievo del revisore, 11/11/2026). Sparendo, l'altra prende tutto. */
+.pila:empty { display: none; }
 .pila .card, .dashboard-piano .card { margin: 0; }
-.pila .card h3:first-child { margin-top: 0; }
+.pila .card h3:first-child, .dashboard-piano .card h3:first-child { margin-top: 0; }
 .dashboard-piano { margin-bottom: 16px; }
 @media (min-width: 900px) {
-  .dashboard-colonne { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 20px; }
+  .dashboard-colonne { flex-direction: row; align-items: flex-start; gap: 20px; }
   .pila { gap: 20px; }
+  .pila.principale { flex: 3 1 0; }
+  .pila.accanto { flex: 2 1 0; }
 }
 /* L'avviso dell'email: testo e bottoni sulla stessa riga quando c'è spazio. */
 .avviso-email { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; }
@@ -122,7 +128,6 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .dashboard-testa h2 { margin: 0 0 4px; }
 .riquadri { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); align-items: start; margin-bottom: 16px; }
 .riquadri .card { margin: 0; }
-.riquadri .intera { grid-column: 1 / -1; }
 .riquadri .card h3:first-child { margin-top: 0; }
 
 /* ── La prima pagina (REQ-FLOTTA-002, DESIGN.md §4) ──────────────────
