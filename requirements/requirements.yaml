@@ -3027,8 +3027,12 @@ requirements:
       IL TERZO (tag v0.3.0-beta.4, run 43032681824, 11/11/2026) non è
       arrivato alle prove: `playwright install --with-deps` non risolveva
       i mirror apt di Ubuntu sull'immagine ubuntu-26.04, che ubuntu-latest
-      aveva appena iniziato a dare, tre volte su tre. Il job Playwright
-      gira su ubuntu-24.04: è l'unico che installa pacchetti di sistema.
+      aveva appena iniziato a dare, tre volte su tre. Fissare il job su
+      ubuntu-24.04 non è bastato (tag v0.3.0-beta.5, run 43046827763,
+      stesso errore): non era l'immagine, erano i mirror di Ubuntu
+      irraggiungibili dai runner. Il browser si installa senza
+      `--with-deps`, cioè senza apt: le librerie di sistema l'immagine
+      le ha già.
       COSA NON COPRE, e resta a mano quando serve: l'attivazione di un
       locale nuovo (progetto Google), i pagamenti Stripe (sandbox), il
       cassetto AI.
