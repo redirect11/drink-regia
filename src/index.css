@@ -368,7 +368,7 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .confronto-tabella tbody th { font-weight: 500; color: var(--text); }
 .confronto-tabella td { color: var(--text); white-space: nowrap; }
 .confronto-tabella .gruppo th { padding-top: 22px; font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); border-bottom-color: var(--lime); }
-.confronto-tabella tbody tr:last-child th, .confronto-tabella tbody tr:last-child td { border-bottom: none; }
+.confronto-tabella tbody:last-child tr:last-child th, .confronto-tabella tbody:last-child tr:last-child td { border-bottom: none; }
 .confronto-nota { padding: 0 20px 18px; margin: 12px 0 0; }
 
 /* I moduli, uno per uno: righe separate da un filo, il nome a sinistra e
@@ -467,7 +467,7 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 
 /* I prezzi e le tabelle delle altre pagine (scelta del piano, backoffice). */
 .prezzo { font-size: 2rem; font-weight: 700; margin: 4px 0; }
-table.moduli, table.clienti { width: 100%; border-collapse: collapse; }
+table.clienti { width: 100%; border-collapse: collapse; }
 table th, table td { text-align: left; padding: 12px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
 
 /* ── Moduli, form, tabelle delle pagine interne ── */

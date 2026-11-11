@@ -217,6 +217,41 @@ describe('la prima pagina', () => {
       expect(chiavi(en.prezzi.confronto)).toEqual(chiavi(it_.prezzi.confronto))
     })
 
+    // Criteri 9 e 13: sul telefono. happy-dom non applica le media query,
+    // quindi qui si tiene ferma la regola nel foglio di stile; a schermo
+    // si guarda sul sito di test (rilievo del revisore, 11/11/2026).
+    it('sul telefono le colonne del confronto restano affiancate e vanno a capo, e la barra stretta non porta la qualifica', () => {
+      const css = readFileSync(join(import.meta.dirname, '..', 'src', 'index.css'), 'utf8').replace(/\r\n/g, '\n')
+      const telefono = css.slice(css.indexOf('@media (max-width: 639px) {\n  /* Sul telefono le colonne dei piani'))
+      expect(telefono).toContain('.confronto-tabella { font-size: 0.8125rem; table-layout: fixed; }')
+      expect(telefono).toMatch(/\.confronto-tabella th, \.confronto-tabella td \{[^}]*white-space: normal; overflow-wrap: anywhere; \}/)
+      // Da quando il marchio è «Lime SmartOrders» a 390px il tasto del menù
+      // usciva dallo schermo: sotto i 480px la barra mostra solo «Lime».
+      expect(css).toMatch(/@media \(max-width: 479px\) \{\n {2}\.barra \.marchio-qualifica \{ display: none; \}/)
+    })
+
+    it('un modulo aperto si richiude, e le parole della tabella sono le stesse nelle due lingue', () => {
+      mostra()
+      const elenco = within(document.querySelector('.moduli-elenco'))
+      const b = elenco.getByRole('button', { name: /^Magazzino e fornitori/ })
+      // Fra il nome e il prezzo c'è uno spazio: un lettore non li legge attaccati.
+      expect(b.textContent).toMatch(/^Magazzino e fornitori \d/)
+      fireEvent.click(b)
+      expect(b).toHaveAttribute('aria-expanded', 'true')
+      fireEvent.click(b)
+      expect(b).toHaveAttribute('aria-expanded', 'false')
+      expect(document.getElementById('modulo-magazzino')).toHaveAttribute('aria-hidden', 'true')
+      expect(Object.keys(en.prezzi.tabella)).toEqual(Object.keys(it_.prezzi.tabella))
+    })
+
+    it('ogni gruppo di righe del confronto ha il suo corpo di tabella', () => {
+      mostra()
+      fireEvent.click(comando())
+      const corpi = [...screen.getByRole('table').querySelectorAll('tbody')]
+      expect(corpi.map((c) => c.querySelector('tr.gruppo th').textContent)).toEqual([it_.prezzi.confronto.gruppoLavoro, it_.prezzi.confronto.gruppoModuli])
+      for (const c of corpi) expect(c.querySelector('tr.gruppo th')).toHaveAttribute('scope', 'rowgroup')
+    })
+
     // Criterio 8: chi ha chiesto meno movimento vede aprirsi di colpo.
     it('con «meno movimento» l’apertura non è animata: lo dice il foglio di stile', () => {
       const css = readFileSync(join(import.meta.dirname, '..', 'src', 'index.css'), 'utf8').replace(/\r\n/g, '\n')

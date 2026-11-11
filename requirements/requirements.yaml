@@ -3425,8 +3425,9 @@ requirements:
       piani in vendita, nell'ordine Free, Base, Completo. (3) I limiti
       del Free e i terminali di ogni piano vengono dal listino, mai
       scritti a mano. (4) Per ogni modulo in vendita: «Incluso» nei
-      piani che lo comprendono, il prezzo «+ IVA al mese» col totale IVA
-      inclusa dove si compra a parte, «Non disponibile» nel Free. (5) Un
+      piani che lo comprendono, il prezzo «+ IVA» col totale IVA inclusa
+      dove si compra a parte («al mese» lo dice la riga sotto la
+      tabella, una volta sola), «Non disponibile» nel Free. (5) Un
       modulo non in vendita non compare, né nel confronto né
       nell'elenco (REQ-FLOTTA-015). (6) Il terminale in più ha la sua
       riga, col prezzo. (7) Ogni modulo dell'elenco si apre e si chiude
@@ -3447,6 +3448,18 @@ requirements:
       dedotto dall'assenza del limite, che solo il Free ha), e che nel
       Free il terminale in più non si possa aggiungere («Non
       disponibile», come i moduli).
+      DALLA REVISIONE (revisore, 11/11/2026): le due deduzioni reggono
+      rispetto al codice (functions/lib/licenza.js: senza limiti scritti
+      l'app non ne applica; functions/lib/free.js: il Free ha un
+      terminale e non passa da Stripe), ma restano da confermare. I test
+      dei criteri 9 e 13 tengono ferma la regola nel foglio di stile: a
+      schermo si guarda sul sito di test. Un corpo di tabella per gruppo
+      di righe. RESTA DA DECIDERE: il Free porta «Creato con Lime» in
+      fondo allo scontrino e al menù digitale (`marchio: true` nel
+      listino) e la pagina non lo dice da nessuna parte, nemmeno nel
+      confronto. E il criterio 13 nasconde «SmartOrders» dalla barra sul
+      telefono: tocca come si mostra il nome del prodotto, che cambia
+      solo su decisione di Daniele.
     status: implemented
     generate_issue: true
     labels: [prodotto, regia, home]

@@ -110,6 +110,12 @@ describe('la vendita nella prima pagina', () => {
     expect(magazzino[0]).toBe('Non disponibile')
     expect(magazzino[1]).toMatch(/^15 € \+ IVA/)
     expect(magazzino[2]).toBe('Incluso')
+    // Il terminale in più: nel Free non c'è (il Free ha un terminale e
+    // non passa dal pagamento); negli altri ha il suo prezzo.
+    const terminale = [...tabella.getByRole('row', { name: /^Terminale in più/ }).querySelectorAll('td')].map((td) => td.textContent)
+    expect(terminale[0]).toBe('Non disponibile')
+    expect(terminale[1]).toMatch(/^12 € \+ IVA/)
+    expect(terminale[2]).toMatch(/^12 € \+ IVA/)
   })
 
   it('un modulo tolto dalla vendita non compare né nel confronto né nell’elenco dei moduli', () => {

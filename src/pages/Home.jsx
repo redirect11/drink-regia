@@ -208,6 +208,10 @@ const PASSO_CAROSELLO_MS = 4000
 // nel documento, così l'altezza si può animare, ma da chiuso è `inert` e
 // nascosto ai lettori di schermo, quindi non ci si arriva né con Tab né
 // con un lettore. Chi ha chiesto meno movimento lo vede aprirsi di colpo.
+// `inert` è scritto come stringa vuota perché React 18 non lo conosce e lo
+// passa com'è; da React 19 è un booleano, e la stringa vuota varrebbe
+// falso: all'aggiornamento va scritto `inert={!aperto}`. Il test che
+// cerca l'attributo se ne accorge.
 function Apribile({ id, comando, className = '', children }) {
   const [aperto, setAperto] = useState(false)
   return (
@@ -673,6 +677,11 @@ export default function Home({ utente, lingua = 'it' }) {
                       ))}
                     </tr>
                   ))}
+                </tbody>
+                {/* Un <tbody> per gruppo: l'intestazione di gruppo vale per le
+                    righe del suo, e un lettore di schermo non attribuisce «Il
+                    lavoro di ogni giorno» ai moduli. */}
+                <tbody>
                   <tr className="gruppo">
                     <th scope="rowgroup" colSpan={piani.length + 1}>
                       {c.gruppoModuli}
@@ -737,7 +746,7 @@ export default function Home({ utente, lingua = 'it' }) {
                   className="modulo"
                   comando={
                     <>
-                      <span className="apribile-titolo">{nomeModulo(t, m)}</span>
+                      <span className="apribile-titolo">{nomeModulo(t, m)}</span>{' '}
                       <span className="modulo-prezzo">
                         {inclusiNelBase.has(m.id) ? interpola(c.nelPiano, { piano: nomeBase }) : `${piuIva(m.prezzo)} ${t.prezzi.alMese}`}
                       </span>
@@ -764,7 +773,7 @@ export default function Home({ utente, lingua = 'it' }) {
                 className="modulo"
                 comando={
                   <>
-                    <span className="apribile-titolo">{t.prezzi.tabella.terminale}</span>
+                    <span className="apribile-titolo">{t.prezzi.tabella.terminale}</span>{' '}
                     <span className="modulo-prezzo">
                       {piuIva(TERMINALE_IN_PIU)} {t.prezzi.alMese}
                     </span>

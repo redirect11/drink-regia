@@ -351,7 +351,8 @@ sulla pagina.
 - Un solo `h1`; i titoli seguono l'ordine. Bersagli di tocco ≥ 44px. Il
   fuoco visibile nel verde.
 - Il menù in alto, le domande e la tabella dei piani si usano anche da
-  tastiera; sul telefono la tabella dei moduli diventa una scheda per riga.
+  tastiera. (Fino all'11/11/2026 sul telefono la tabella dei moduli
+  diventava una scheda per riga: ora c'è il confronto fra i piani, §4.)
 - Niente informazione affidata al solo colore: la seconda frase del titolo
   in oro è la stessa frase, l'etichetta del Completo ha il suo testo, le
   spunte hanno la parola «Incluso».
@@ -599,8 +600,10 @@ inglese: sono nomi propri del prodotto, e si cambiano in un posto solo.
 L'etichetta del Completo è «Tutto incluso», non «Il più scelto»: quella
 si scrive solo quando i numeri dei clienti lo dicono davvero.
 
-Sotto le due card: la tabella dei moduli, con una colonna per il prezzo
-sul Base e una spunta (`--ok`) per il Completo. Una riga sola dice quanto
+Sotto le due card, fino all'11/11/2026: la tabella dei moduli, con una
+colonna per il prezzo sul Base e una spunta (`--ok`) per il Completo. Ora
+c'è il confronto fra i piani che si apre e l'elenco dei moduli a scomparsa
+(§4, REQ-FLOTTA-063). Una riga sola dice quanto
 conviene il Completo: la somma dei moduli sul Base contro il prezzo del
 Completo, calcolata dal listino, mai scritta a mano.
 
