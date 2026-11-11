@@ -3116,6 +3116,37 @@ requirements:
     priority: P1
     test_cases:
       - tests/proprieta.test.js
+  - id: REQ-DEV-012
+    title: "La squadra di Stonebit: il PM, il Tech Lead, i developer, il revisore e le regole comuni"
+    area: "CLAUDE.md, AGENTS.md, .claude/agents/"
+    description: >
+      Dal messaggio del CEO-agente di Stonebit per conto di Daniele
+      (11/11/2026, nella seconda versione arrivata lo stesso giorno:
+      «istruzioni aggiornate», lo schema del progetto Planner). Una
+      sessione aperta su questo repository lavora come PM di Lime
+      (regia): raccoglie le richieste, le trasforma in requisiti, propone
+      il piano a Daniele, coordina la squadra e scrive il rapporto. Passa
+      il lavoro, nell'ordine, a Tech Lead, developer, revisore, Tech Lead,
+      Daniele: un sub-agente non ne chiama un altro. CLAUDE.md apre con la
+      sezione «Stonebit — chi sei e come lavori qui» (ruolo, regola zero,
+      regole di lavoro, come si ragiona, inizio e fine di ogni sessione);
+      le regole del repository restano tutte, sotto, e restano vincolanti.
+      AGENTS.md nella radice rimanda a CLAUDE.md per qualunque agente. In
+      .claude/agents/ i sei file della squadra: pm, tech-lead,
+      frontend-developer, backend-developer, devops-flotta, revisore. I
+      testi sono quelli del messaggio, copiati così come sono.
+      CRITERI DI ACCETTAZIONE: la sezione è la prima del CLAUDE.md dopo
+      il titolo; nessuna regola di prima è sparita; i sei agenti hanno
+      nome e descrizione nell'intestazione; AGENTS.md rimanda a CLAUDE.md
+      e a .claude/agents/. Le contraddizioni fra la sezione nuova e le
+      regole di prima non le ho risolte io: stanno elencate nella PR, per
+      Daniele.
+    status: implemented
+    generate_issue: true
+    labels: [metodo, regia]
+    priority: P2
+    test_cases:
+      - tests/squadra.test.js
 
   - id: REQ-FLOTTA-059
     title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"

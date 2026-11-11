@@ -15,6 +15,10 @@ data.
   in uso non viene più mandato alla dashboard mentre lo corregge: la
   pagina resta, coi dati inseriti, finché l'account non ha il suo locale.
   Trovato dal collaudo automatico (REQ-FLOTTA-003).
+- Il repository ha le regole di Stonebit e la sua squadra di agenti:
+  `CLAUDE.md` apre con «Stonebit — chi sei e come lavori qui», `AGENTS.md`
+  rimanda lì, e `.claude/agents/` definisce PM, Tech Lead, frontend,
+  backend, DevOps della flotta e revisore (REQ-DEV-012, #127).
 - Le dipendenze indirette con avvisi di sicurezza sono forzate alla
   versione corretta (`overrides`): `@grpc/grpc-js` 1.14, `uuid` 11,
   `fast-xml-parser` 5.12, e `minimatch` 11 dove serviva. Le librerie di
