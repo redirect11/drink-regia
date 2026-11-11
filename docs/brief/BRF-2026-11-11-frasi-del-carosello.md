@@ -189,12 +189,13 @@ punto 5; cambia come si dicono. I testi di oggi, tutti da rifare:
 
 In testa alla sezione: l'etichetta «Funzioni», il titolo «Dalla prima comanda
 alla chiusura di cassa.» e il paragrafo «Ogni funzione è frutto
-dell'esperienza dietro al banco. Cassa, comande e scontrino sono nel piano di
-partenza; il resto sono moduli, e ogni funzione dice qui a quale appartiene. I
-prezzi sono più sotto.» Solo la prima frase è di Daniele.
+dell'esperienza dietro al banco.», che è di Daniele.
 
-Qui, a differenza del carosello, **le etichette dei moduli restano**: è il
-posto dove si dice cosa sta nel piano di partenza e cosa si aggiunge.
+**Anche qui le etichette dei moduli sono tolte.** Daniele, subito dopo: «pure
+sotto le funzioni non mettere i moduli o piano base. Quello viene dopo». E il
+paragrafo in testa è rimasto la sola frase sua. Quindi in questa sezione i
+testi non devono parlare di piani, moduli o prezzi: spiegano cosa fa il
+prodotto. Cosa si compra lo dice la sezione dei prezzi, più sotto.
 
 ## 7. Cosa chiedo
 

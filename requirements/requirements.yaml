@@ -3371,6 +3371,14 @@ requirements:
       conti»: «veramente quanta banalità». La frase di Daniele è in
       pagina com'è; il resto dei testi delle funzioni è nella stessa
       richiesta al marketing.
+      E ancora: «pure sotto le funzioni non mettere i moduli o piano
+      base. Quello viene dopo». (13) Nemmeno la sezione «Funzioni» ha
+      etichette di piani o moduli, e il suo paragrafo in testa è la sola
+      frase di Daniele: cosa si compra lo dicono i prezzi, più sotto.
+      Supera, per le etichette, quanto scritto in REQ-FLOTTA-015 e in
+      DESIGN.md §5.4 («ogni funzione dice a quale modulo appartiene»);
+      resta la regola che una funzione senza moduli in vendita non si
+      vede.
       RESTA: i filmati definitivi di Incassa, Conta e Riordina; il
       bottone «Prova la demo», che porta a un sito non pubblicato.
     status: implemented

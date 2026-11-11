@@ -129,9 +129,7 @@ export default {
     // La prima frase è di Daniele (11/11/2026). Quella di prima, «Ogni
     // funzione è entrata perché serviva al banco», l'ha bocciata: «questa
     // cosa non si può leggere… devi usare questo tipo di frasi».
-    sotto: 'Ogni funzione è frutto dell’esperienza dietro al banco. Cassa, comande e scontrino sono nel piano di partenza; il resto sono moduli, e ogni funzione dice qui a quale appartiene. I prezzi sono più sotto.',
-    nelPiano: 'Nel piano {piano}',
-    modulo: 'Modulo {nome}',
+    sotto: 'Ogni funzione è frutto dell’esperienza dietro al banco.',
     punti: 'Cosa comprende',
     voci: {
       conti: {

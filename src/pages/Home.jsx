@@ -48,8 +48,10 @@ import { TESTI, testi } from '../i18n/index.js'
 
 // Le funzioni e i moduli che le portano: la struttura, uguale nelle due
 // lingue. Una funzione senza moduli sta nel piano Base; una con moduli si
-// vede se almeno uno è in vendita (REQ-FLOTTA-015), e porta l'etichetta di
-// ognuno: niente sorprese al momento del prezzo (DESIGN.md §5.4).
+// vede se almeno uno è in vendita (REQ-FLOTTA-015). Fino all'11/11/2026
+// ognuna portava l'etichetta del suo piano o modulo; Daniele: «pure sotto
+// le funzioni non mettere i moduli o piano base. Quello viene dopo». Qui
+// si spiega cosa fa il prodotto; cosa si compra lo dicono i prezzi.
 const FUNZIONI = [
   { id: 'conti', moduli: [] },
   { id: 'menu', moduli: ['menu_tavoli', 'ordini_cliente'] },
@@ -321,15 +323,6 @@ export default function Home({ utente, lingua = 'it' }) {
   const colonnaBase = interpola(t.prezzi.tabella.sulBase, { base: nomeBase })
   const colonnaCompleto = interpola(t.prezzi.tabella.nelCompleto, { completo: nomeCompleto })
 
-  // Un modulo compreso nel Base (il menù digitale) si dice «Nel piano
-  // Base», come le funzioni senza moduli: non è una cosa da comprare.
-  const nelBase = interpola(t.funzioni.nelPiano, { piano: nomeBase })
-  const etichetteModuli = (ids) => {
-    const etichette = MODULI.filter((m) => ids.includes(m.id) && moduloVisibile(vendita, m.id)).map((m) =>
-      inclusiNelBase.has(m.id) ? nelBase : interpola(t.funzioni.modulo, { nome: nomeModulo(t, m) })
-    )
-    return etichette.length ? [...new Set(etichette)] : [nelBase]
-  }
 
   // Un'azione principale per schermata (DESIGN.md §2): chi è già dentro va
   // alla sua dashboard, gli altri all'attivazione.
@@ -469,11 +462,6 @@ export default function Home({ utente, lingua = 'it' }) {
                     </p>
                     <h3 id={`funzione-${f.id}`}>{v.titolo}</h3>
                     <p>{v.testo}</p>
-                    <ul className="etichette-moduli">
-                      {etichetteModuli(f.moduli).map((e) => (
-                        <li key={e}>{e}</li>
-                      ))}
-                    </ul>
                   </div>
                   {/* Sempre aperto (Daniele, 11/11/2026: «i box cosa comprende
                       dovrebbero essere sempre aperti»): per un pomeriggio
@@ -498,11 +486,6 @@ export default function Home({ utente, lingua = 'it' }) {
               {minori.map((f) => (
                 <li key={f.id} className="minore">
                   <p className="minore-testo">{t.funzioni.minori[f.id]}</p>
-                  <ul className="etichette-moduli">
-                    {etichetteModuli([f.id]).map((e) => (
-                      <li key={e}>{e}</li>
-                    ))}
-                  </ul>
                 </li>
               ))}
             </ul>

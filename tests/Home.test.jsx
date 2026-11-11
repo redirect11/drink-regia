@@ -194,23 +194,23 @@ describe('la prima pagina', () => {
     expect(frase).not.toHaveTextContent(/terminal/)
   })
 
-  it('le funzioni dicono il modulo che le porta, e quella di base il piano', () => {
+  // Daniele, 11/11/2026: «pure sotto le funzioni non mettere i moduli o
+  // piano base. Quello viene dopo». Fino a quel giorno ogni funzione
+  // portava l'etichetta del suo piano o modulo (DESIGN.md §5.4).
+  it('le funzioni spiegano cosa fa il prodotto, senza etichette di piani o moduli: quelle stanno nei prezzi', () => {
     mostra()
-    // Dentro la sezione delle funzioni: le stesse etichette stanno anche nei
-    // cinque gesti, più su (REQ-FLOTTA-060).
-    const funzioni = within(document.getElementById('funzioni'))
-    const magazzino = MODULI.find((m) => m.id === 'magazzino')
-    expect(funzioni.getByText(`Modulo ${magazzino.nome}`)).toBeInTheDocument()
-    // La cassa sta nel Base; il menù digitale pure (dal 07/11/2026), e la
-    // sua funzione lo dice accanto al modulo degli ordini dal telefono.
-    expect(funzioni.getAllByText(`Nel piano ${PIANI.base.nome}`)).toHaveLength(2)
-    const ordini = MODULI.find((m) => m.id === 'ordini_cliente')
-    expect(funzioni.getByText(`Modulo ${ordini.nome}`)).toBeInTheDocument()
-    // I terminali oltre quelli del piano si pagano, e il prezzo viene dal
-    // listino (revisione PR #20: «Più terminali sulla stessa cassa» sotto
-    // «Nel piano Base» lasciava credere che fossero inclusi).
-    expect(screen.getByText(`Altri terminali a ${euro(TERMINALE_IN_PIU)} + IVA al mese`)).toBeInTheDocument()
+    const sezione = document.getElementById('funzioni')
+    expect(sezione.querySelector('.etichette-moduli')).toBeNull()
+    expect(sezione).not.toHaveTextContent(/Nel piano |Modulo /)
+    expect(within(sezione).getByText(it_.funzioni.sotto)).toBeInTheDocument()
+    expect(it_.funzioni.sotto).toBe('Ogni funzione è frutto dell’esperienza dietro al banco.')
     expect(screen.getByRole('heading', { name: it_.funzioni.voci.magazzino.titolo })).toBeInTheDocument()
+    // I moduli coi loro prezzi ci sono, nella tabella dei prezzi.
+    const magazzino = MODULI.find((m) => m.id === 'magazzino')
+    expect(within(screen.getByRole('table')).getByText(magazzino.nome)).toBeInTheDocument()
+    // I terminali oltre quelli del piano si pagano, e il prezzo viene dal
+    // listino (revisione PR #20).
+    expect(screen.getByText(`Altri terminali a ${euro(TERMINALE_IN_PIU)} + IVA al mese`)).toBeInTheDocument()
   })
 
   it('le azioni: attivare il locale, la demo in una scheda nuova, scriverci', () => {

@@ -93,10 +93,11 @@ describe('la vendita nella prima pagina', () => {
     expect(tabella.queryByText('Pagamenti con lettore SumUp')).toBeNull()
     expect(tabella.getByText('Magazzino e fornitori')).toBeInTheDocument()
     expect(screen.queryByRole('article', { name: 'Piano Free' })).toBeNull()
-    // Sparisce anche fra le funzioni raccontate: niente etichetta di un
-    // modulo che non si può comprare (DESIGN.md §5.4).
-    expect(screen.queryByText('Modulo Pagamenti con lettore SumUp')).toBeNull()
-    expect(within(document.getElementById('funzioni')).getByText('Modulo Magazzino e fornitori')).toBeInTheDocument()
+    // Sparisce anche fra le funzioni raccontate: la riga del lettore di
+    // carte non c'è, quella del magazzino sì.
+    const funzioni = document.getElementById('funzioni')
+    expect(funzioni).not.toHaveTextContent(it_.funzioni.minori.sumup)
+    expect(within(funzioni).getByRole('heading', { name: it_.funzioni.voci.magazzino.titolo })).toBeInTheDocument()
   })
 
   it('col Free in vendita la prima schermata lo dice', () => {

@@ -294,8 +294,6 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .numero-funzione { font-family: var(--titoli); font-variant-numeric: lining-nums; color: var(--accent); }
 .funzione h3 { font-family: var(--titoli); font-size: clamp(1.5rem, 2.4vw, 1.875rem); line-height: 1.15; letter-spacing: -0.01em; margin: 0 0 12px; }
 .funzione-testo p:not(.occhiello) { color: var(--muted); max-width: 34rem; margin: 0; }
-.etichette-moduli { list-style: none; padding: 0; margin: 16px 0 0; display: flex; flex-wrap: wrap; gap: 8px; }
-.etichette-moduli li { font-size: 0.8125rem; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--line); color: var(--muted); background: var(--bg-2); }
 .funzione-riquadro { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; }
 .punti { list-style: none; padding: 0; margin: 0; display: grid; }
 .punti li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
@@ -303,7 +301,6 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .funzioni-minori { list-style: none; padding: 0; margin: 48px 0 0; display: grid; gap: 20px; }
 .minore { padding-top: 16px; border-top: 1px solid var(--line); }
 .minore-testo { margin: 0; }
-.minore .etichette-moduli { margin-top: 10px; }
 
 /* ── I tre passi: numerati, con un filo sopra. ── */
 .passi-landing { display: grid; gap: 24px; list-style: none; padding: 0; margin: 32px 0 0; counter-reset: passo; }
