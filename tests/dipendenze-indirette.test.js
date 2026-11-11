@@ -9,6 +9,10 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { createRequire } from 'node:module'
+
+// firebase-tools è CommonJS e si carica com'è, come fa la sua CLI.
+const require = createRequire(import.meta.url)
 
 const RADICE = join(import.meta.dirname, '..')
 const lock = (cartella) => JSON.parse(readFileSync(join(RADICE, cartella, 'package-lock.json'), 'utf8')).packages
@@ -44,10 +48,16 @@ describe('le dipendenze indirette con avvisi di sicurezza', () => {
     for (const v of versioni(functions, 'fast-xml-parser')) expect(almeno(v, '5.12.0'), v).toBe(true)
   })
 
-  it('nessun minimatch fra 7.0.0 e 11.0.0: le versioni vecchie (3, 5, 6) non hanno il difetto', () => {
-    for (const v of versioni(sito, 'minimatch')) {
-      const colpita = almeno(v, '7.0.0') && !almeno(v, '11.0.1')
-      expect(colpita, v).toBe(false)
-    }
+  // IL DEPLOY VUOTO (tag v0.3.0-beta.7, 11/11/2026): minimatch 11 forzato
+  // sotto glob 10 faceva elencare a firebase-tools zero file, e il sito di
+  // test è uscito vuoto. Questa è la stessa funzione che il deploy usa per
+  // scegliere cosa caricare: se un override la rompe, lo si vede qui e non
+  // su un sito. Per questo minimatch sotto glob non è più forzato.
+  it('firebase-tools elenca i file che pubblicherebbe: un override non deve svuotare il deploy', () => {
+    const { listFiles } = require('firebase-tools/lib/listFiles')
+    const ignora = JSON.parse(readFileSync(join(RADICE, 'firebase.json'), 'utf8')).hosting.ignore
+    const trovati = listFiles(join(RADICE, 'public'), ignora)
+    expect(trovati).toContain('favicon.svg')
+    expect(trovati).toContain('fonts/OFL.txt')
   })
 })

@@ -3084,7 +3084,21 @@ requirements:
       guarda i lockfile: se un aggiornamento riporta dentro una versione
       colpita, fallisce li'. Quando Google aggiorna le sue librerie gli
       override si tolgono.
-    status: implemented
+      IL DEPLOY VUOTO (tag v0.3.0-beta.7, run 43076605297, 11/11/2026):
+      con minimatch 11 forzato sotto glob, firebase-tools elencava zero
+      file («found 0 files in dist») e ha pubblicato sul sito di test una
+      versione vuota: «Page Not Found» su ogni pagina. glob 10 non regge
+      minimatch 11. Lint, test, build ed emulatori erano verdi: nessuno
+      di loro elenca i file di un deploy, e nella PR #124 il deploy vero
+      era segnato come non provato. CRITERIO DI ACCETTAZIONE: con le
+      dipendenze installate dal lockfile, l'elenco dei file che
+      firebase-tools pubblicherebbe da una cartella non e' vuoto
+      (firebase-tools/lib/listFiles, la stessa funzione del deploy). Un
+      override entra solo se questo test resta verde. minimatch sotto
+      glob torna alla versione che firebase-tools chiede: l'avviso
+      riguarda uno strumento di sviluppo, e si chiude a mano finche'
+      firebase-tools non aggiorna glob.
+    status: todo
     generate_issue: true
     labels: [metodo, regia, sicurezza]
     priority: P2
