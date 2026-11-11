@@ -204,6 +204,16 @@ requirements:
       Da rivedere con un consulente prima di vendere: i testi di termini e
       privacy (src/pages/Legali.jsx) sono una struttura, non un
       parere legale.
+      IL RIMBALZO DOPO LO SLUG RIFIUTATO (collaudo del tag v0.3.0-beta.6,
+      11/11/2026, REQ-DEV-009): rifiutato l'identificativo, l'account
+      esiste ed e' entrato ma il cliente no; il segnale «registrazione in
+      corso» tornava falso, e al primo ridisegno App mandava alla
+      dashboard chi stava correggendo l'identificativo. Succedeva prima o
+      dopo il secondo «Avanti» secondo i tempi: per questo il collaudo
+      passava a volte si' e a volte no, e il 09/11 l'avevo attribuito
+      tutto al bottone che cambiava tipo. Ora la registrazione resta in
+      sospeso per quell'account finche' il cliente non e' scritto
+      (src/lib/db.js, tests/db.test.js).
     status: implemented
     generate_issue: true
     labels: [prodotto, flotta, regia]
@@ -3036,8 +3046,12 @@ requirements:
       IL TERZO (tag v0.3.0-beta.4, run 43032681824, 11/11/2026) non è
       arrivato alle prove: `playwright install --with-deps` non risolveva
       i mirror apt di Ubuntu sull'immagine ubuntu-26.04, che ubuntu-latest
-      aveva appena iniziato a dare, tre volte su tre. Il job Playwright
-      gira su ubuntu-24.04: è l'unico che installa pacchetti di sistema.
+      aveva appena iniziato a dare, tre volte su tre. Fissare il job su
+      ubuntu-24.04 non è bastato (tag v0.3.0-beta.5, run 43046827763,
+      stesso errore): non era l'immagine, erano i mirror di Ubuntu
+      irraggiungibili dai runner. Il browser si installa senza
+      `--with-deps`, cioè senza apt: le librerie di sistema l'immagine
+      le ha già.
       COSA NON COPRE, e resta a mano quando serve: l'attivazione di un
       locale nuovo (progetto Google), i pagamenti Stripe (sandbox), il
       cassetto AI.
@@ -3047,6 +3061,106 @@ requirements:
     priority: P1
     test_cases:
       - tests/ci.test.js
+
+  - id: REQ-DEV-010
+    title: "Le dipendenze indirette con avvisi di sicurezza sono forzate alla versione corretta"
+    area: "package.json e functions/package.json (overrides), i due package-lock.json"
+    description: >
+      L'utente, 11/11/2026, davanti ai run rossi di Dependabot e alla
+      proposta di chiudere gli avvisi non applicabili: «direi di forzare
+      le versioni corrette e adeguarci noi. Mi sembra proprio
+      l'obiettivo di quei controlli di sicurezza». I pacchetti con un
+      avviso non li scegliamo noi: li portano firebase, firebase-tools e
+      firebase-admin, che chiedono ancora le versioni vecchie, e per
+      questo Dependabot non riusciva ad aprire la sua PR («security
+      update not possible»). Con `overrides` si installa la versione
+      corretta: @grpc/grpc-js ^1.14.5 e uuid ^11.1.1 nel sito e nelle
+      Functions, fast-xml-parser ^5.12.0 nelle Functions, minimatch
+      ^11.0.1 solo sotto glob (eslint e gli altri vogliono la 3, la 5 e
+      la 6, che il difetto non ce l'hanno). uuid resta alla 11 e non va
+      oltre: dalla 12 e' solo ESM, e le librerie di Google lo caricano
+      con require. Provato l'11/11/2026 con lint, tutti i test, la build,
+      la CLI di Firebase e i test delle regole sull'emulatore. Il test
+      guarda i lockfile: se un aggiornamento riporta dentro una versione
+      colpita, fallisce li'. Quando Google aggiorna le sue librerie gli
+      override si tolgono.
+      IL DEPLOY VUOTO (tag v0.3.0-beta.7, run 43076605297, 11/11/2026):
+      con minimatch 11 forzato sotto glob, firebase-tools elencava zero
+      file («found 0 files in dist») e ha pubblicato sul sito di test una
+      versione vuota: «Page Not Found» su ogni pagina. glob 10 non regge
+      minimatch 11. Lint, test, build ed emulatori erano verdi: nessuno
+      di loro elenca i file di un deploy, e nella PR #124 il deploy vero
+      era segnato come non provato. CRITERIO DI ACCETTAZIONE: con le
+      dipendenze installate dal lockfile, l'elenco dei file che
+      firebase-tools pubblicherebbe da una cartella non e' vuoto
+      (firebase-tools/lib/listFiles, la stessa funzione del deploy). Un
+      override entra solo se questo test resta verde. minimatch sotto
+      glob torna alla versione che firebase-tools chiede: l'avviso
+      riguarda uno strumento di sviluppo, e si chiude a mano finche'
+      firebase-tools non aggiorna glob.
+    status: implemented
+    generate_issue: true
+    labels: [metodo, regia, sicurezza]
+    priority: P2
+    test_cases:
+      - tests/dipendenze-indirette.test.js
+
+  - id: REQ-DEV-011
+    title: "Il codice è proprietario: LICENSE, package.json e README lo dicono"
+    area: "LICENSE, THIRD_PARTY_NOTICES.md, package.json, functions/package.json, README.md, CLAUDE.md"
+    description: >
+      Decisione di Daniele, arrivata l'11/11/2026 col messaggio di
+      Stonebit agli agenti: il repository è pubblico (dal 10/11/2026) solo
+      per la CI gratuita, il codice resta proprietario, mai licenze open
+      source. LICENSE nella radice riserva tutti i diritti, in italiano e
+      in inglese, col testo dato da Daniele: si può solo guardare il
+      repository e farne fork dentro GitHub; i nomi Stonebit, Lime e Lime
+      SmartOrders non sono concessi. L'anno è il 2026, quello del primo
+      commit e di oggi. I due package.json dichiarano `"license":
+      "UNLICENSED"` e restano privati. Il README chiude con la sezione
+      «Licenza». THIRD_PARTY_NOTICES.md elenca i file di terzi copiati nel
+      repository: oggi uno solo, il carattere Playfair Display (SIL OFL
+      1.1, testo accanto al file). La storia git è stata cercata il
+      10/11/2026 prima di rendere pubblico il repository: nessuna chiave,
+      token o credenziale. CLAUDE.md prende la sezione «Stonebit — regole
+      comuni».
+    status: implemented
+    generate_issue: true
+    labels: [metodo, regia]
+    priority: P1
+    test_cases:
+      - tests/proprieta.test.js
+  - id: REQ-DEV-012
+    title: "La squadra di Stonebit: il PM, il Tech Lead, i developer, il revisore e le regole comuni"
+    area: "CLAUDE.md, AGENTS.md, .claude/agents/"
+    description: >
+      Dal messaggio del CEO-agente di Stonebit per conto di Daniele
+      (11/11/2026, nella seconda versione arrivata lo stesso giorno:
+      «istruzioni aggiornate», lo schema del progetto Planner). Una
+      sessione aperta su questo repository lavora come PM di Lime
+      (regia): raccoglie le richieste, le trasforma in requisiti, propone
+      il piano a Daniele, coordina la squadra e scrive il rapporto. Passa
+      il lavoro, nell'ordine, a Tech Lead, developer, revisore, Tech Lead,
+      Daniele: un sub-agente non ne chiama un altro. CLAUDE.md apre con la
+      sezione «Stonebit — chi sei e come lavori qui» (ruolo, regola zero,
+      regole di lavoro, come si ragiona, inizio e fine di ogni sessione);
+      le regole del repository restano tutte, sotto, e restano vincolanti.
+      AGENTS.md nella radice rimanda a CLAUDE.md per qualunque agente. In
+      .claude/agents/ i sei file della squadra: pm, tech-lead,
+      frontend-developer, backend-developer, devops-flotta, revisore. I
+      testi sono quelli del messaggio, copiati così come sono.
+      CRITERI DI ACCETTAZIONE: la sezione è la prima del CLAUDE.md dopo
+      il titolo; nessuna regola di prima è sparita; i sei agenti hanno
+      nome e descrizione nell'intestazione; AGENTS.md rimanda a CLAUDE.md
+      e a .claude/agents/. Le contraddizioni fra la sezione nuova e le
+      regole di prima non le ho risolte io: stanno elencate nella PR, per
+      Daniele.
+    status: implemented
+    generate_issue: true
+    labels: [metodo, regia]
+    priority: P2
+    test_cases:
+      - tests/squadra.test.js
 
   - id: REQ-FLOTTA-059
     title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"

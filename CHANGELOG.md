@@ -6,6 +6,27 @@ data.
 
 ## Prossima release (da decidere)
 
+- Il sito di test era uscito vuoto col tag `v0.3.0-beta.7`: una delle
+  versioni forzate (`minimatch` sotto `glob`) faceva pubblicare zero
+  file. L'override è tolto, e un test controlla che il deploy trovi i
+  file prima di accettarne altri (REQ-DEV-010, #129).
+- Il codice è dichiarato proprietario: `LICENSE` con tutti i diritti
+  riservati, `"license": "UNLICENSED"` nei due `package.json`, la sezione
+  «Licenza» nel README e l'elenco dei file di terzi
+  (`THIRD_PARTY_NOTICES.md`). Il repository è pubblico solo per la CI
+  (REQ-DEV-011).
+- Nella registrazione, chi si vede rifiutare l'identificativo perché già
+  in uso non viene più mandato alla dashboard mentre lo corregge: la
+  pagina resta, coi dati inseriti, finché l'account non ha il suo locale.
+  Trovato dal collaudo automatico (REQ-FLOTTA-003).
+- Il repository ha le regole di Stonebit e la sua squadra di agenti:
+  `CLAUDE.md` apre con «Stonebit — chi sei e come lavori qui», `AGENTS.md`
+  rimanda lì, e `.claude/agents/` definisce PM, Tech Lead, frontend,
+  backend, DevOps della flotta e revisore (REQ-DEV-012, #127).
+- Le dipendenze indirette con avvisi di sicurezza sono forzate alla
+  versione corretta (`overrides`): `@grpc/grpc-js` 1.14, `uuid` 11,
+  `fast-xml-parser` 5.12, e `minimatch` 11 dove serviva. Le librerie di
+  Google che le portano chiedevano ancora le vecchie (REQ-DEV-010).
 - I colori sono quelli di Lime: il verde lime è il colore primario di
   tutto il sito, al posto del verde bottiglia e dell'oro. Sulla prima
   pagina i bottoni principali sono lime col testo scuro e la seconda
@@ -34,6 +55,9 @@ data.
   11/11/2026 quest'ultimo è Ubuntu 26.04, dove l'installazione dei
   pacchetti di sistema di Chromium non risolve i mirror apt e il
   collaudo non parte (REQ-DEV-009).
+- Fissare l'immagine non bastava: erano i mirror apt di Ubuntu a non
+  rispondere ai runner. Il collaudo installa Chromium senza passare da
+  apt, con le librerie che l'immagine ha già (REQ-DEV-009).
 - Il prodotto ha il suo nome: **Lime – SmartOrders**, deciso dall'utente
   il 09/11/2026 al posto del segnaposto «Drink». Il logo è una fetta di
   lime che sembra un grafico a torta, nella barra, nel piè di pagina e

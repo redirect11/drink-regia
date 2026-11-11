@@ -71,3 +71,9 @@ da chiudere prima della prima attivazione reale, sta in
 I prezzi stanno in `functions/piani.json`, in un posto solo. Il nome visibile del
 prodotto in `src/lib/prodotto.js`. I requisiti in
 `requirements/requirements.yaml`, coi test che li dimostrano.
+
+## Licenza
+
+Codice proprietario, tutti i diritti riservati: il repository è pubblico solo
+per usare la CI di GitHub. Le condizioni stanno in [LICENSE](LICENSE), i file
+di terzi in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
