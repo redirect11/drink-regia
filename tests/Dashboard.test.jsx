@@ -8,6 +8,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import '@testing-library/jest-dom/vitest'
 
 const stato = vi.hoisted(() => ({ cliente: null, istanza: null, richiesta: null }))
@@ -279,6 +281,83 @@ describe('la dashboard', () => {
     mostra()
     expect(screen.getByTestId('stato-istanza')).toHaveTextContent(/In coda/)
     expect(screen.queryByRole('button', { name: /Attiva l’istanza/ })).toBeNull()
+  })
+})
+
+// REQ-FLOTTA-062 (Daniele, 11/11/2026: «tutti i box sono sfalsati, quello
+// sotto è lontanissimo. Va rifatto meglio»). I riquadri stavano in una
+// griglia a righe, alta quanto il riquadro più alto: accanto restavano
+// buchi. Ora sono due pile, e in una pila ogni riquadro sta subito sotto
+// il precedente.
+describe('la dashboard su due colonne', () => {
+  const pile = () => [...document.querySelectorAll('.dashboard-colonne > .pila')]
+  const nomi = (pila) => [...pila.querySelectorAll(':scope > .card')].map((c) => c.getAttribute('aria-label'))
+
+  it('con l’app attiva: a sinistra app, piano, aggiornamenti e temi su misura, in quest’ordine; a destra il credito AI', async () => {
+    stato.istanza = {
+      stato: 'attiva',
+      progetto: 'drinkpos-bar-mario',
+      url: 'https://drinkpos-bar-mario.web.app',
+      avviso_aggiornamenti: 'Dal 1° dicembre gli aggiornamenti cambiano.',
+    }
+    mostra()
+    await screen.findByRole('region', { name: 'Credito AI' })
+    expect(pile().map((p) => p.className)).toEqual(['pila principale', 'pila accanto'])
+    expect(nomi(pile()[0])).toEqual(['L’app', 'Piano', 'Aggiornamenti', 'Temi su misura'])
+    expect(nomi(pile()[1])).toEqual(['Credito AI'])
+    // Ogni riquadro sta in una pila: nessuno direttamente fra le colonne.
+    expect(document.querySelectorAll('.dashboard-colonne > .card')).toHaveLength(0)
+    expect(document.querySelector('main.dashboard .riquadri')).toBeNull()
+  })
+
+  // Rilievo del revisore: senza app attiva il credito AI non c'è. La pila
+  // di destra resta senza riquadri, e il foglio di stile la toglie: non
+  // deve restare una colonna vuota accanto ad «app» e «piano».
+  it('senza app attiva: solo app e piano, e la pila di destra è vuota (e quindi sparisce)', async () => {
+    mostra()
+    await screen.findByRole('heading', { level: 2 })
+    expect(nomi(pile()[0])).toEqual(['L’app', 'Piano'])
+    expect(pile()[1].childNodes).toHaveLength(0)
+    const css = readFileSync(join(import.meta.dirname, '..', 'src', 'index.css'), 'utf8').replace(/\r\n/g, '\n')
+    expect(css).toContain('.pila:empty { display: none; }')
+  })
+
+  it('la scelta del piano sta sotto le due colonne, fuori da esse', async () => {
+    mostra()
+    await screen.findByRole('heading', { level: 2 })
+    const colonne = document.querySelector('.dashboard-colonne')
+    const piano = document.querySelector('.dashboard-piano')
+    expect(piano.querySelectorAll(':scope > .card')).toHaveLength(1)
+    expect(colonne.contains(piano)).toBe(false)
+    expect(colonne.compareDocumentPosition(piano) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('sotto i 900px le pile stanno una sotto l’altra; sopra, affiancate, tre parti a due', () => {
+    const css = readFileSync(join(import.meta.dirname, '..', 'src', 'index.css'), 'utf8').replace(/\r\n/g, '\n')
+    const regola = (selettore) => {
+      const i = css.indexOf(`${selettore} {`)
+      return css.slice(i, css.indexOf('}', i))
+    }
+    expect(regola('.dashboard-colonne')).toContain('flex-direction: column')
+    const larga = css.slice(css.indexOf('@media (min-width: 900px) {\n  .dashboard-colonne'))
+    expect(larga).toContain('.dashboard-colonne { flex-direction: row;')
+    expect(larga).toContain('.pila.principale { flex: 3 1 0; }')
+    expect(larga).toContain('.pila.accanto { flex: 2 1 0; }')
+  })
+
+  // L'unico punto dove il markup cambia: l'avviso dell'email ha il testo
+  // in un paragrafo e i bottoni accanto. Dice e fa le stesse cose.
+  it('l’avviso dell’email da confermare dice le stesse cose, coi suoi due bottoni', async () => {
+    render(
+      <MemoryRouter>
+        <Dashboard utente={{ uid: 'u1', email: 'mario@example.it', emailVerificata: false }} />
+      </MemoryRouter>
+    )
+    const avviso = (await screen.findByText('Conferma la tua email.')).closest('section')
+    expect(avviso).toHaveAttribute('role', 'status')
+    expect(avviso).toHaveTextContent('Ti abbiamo scritto a mario@example.it: apri il link nel messaggio. Senza, l’app non si attiva.')
+    expect(avviso.querySelector('p')).toHaveTextContent('Conferma la tua email.')
+    expect([...avviso.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Invia di nuovo', 'Ho confermato'])
   })
 })
 

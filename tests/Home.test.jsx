@@ -493,7 +493,7 @@ describe('la prima pagina', () => {
 
     // Criterio 9 di REQ-FLOTTA-060: la prima pagina è scura.
     it('la prima pagina è sul fondo scuro: i token della vetrina non hanno più i valori chiari', () => {
-      const css = readFileSync(join(import.meta.dirname, '..', 'src', 'index.css'), 'utf8')
+      const css = readFileSync(join(import.meta.dirname, '..', 'src', 'index.css'), 'utf8').replace(/\r\n/g, '\n')
       const inizio = css.indexOf('.regia.vetrina {')
       const vetrina = css.slice(inizio, css.indexOf('}', inizio))
       expect(vetrina).toContain('--bg: #0c0f0a;')

@@ -6,6 +6,10 @@ data.
 
 ## Prossima release (da decidere)
 
+- La dashboard del titolare è su due colonne senza buchi: ogni riquadro
+  sta subito sotto il precedente. Prima erano sfalsati, e «Temi su
+  misura» finiva solo, molto più in basso. L'avviso dell'email da
+  confermare occupa una riga (REQ-FLOTTA-062).
 - I cinque gesti stanno in un carosello nella prima schermata, al posto
   delle fasce una sotto l'altra: i filmati scorrono in orizzontale da
   soli, ognuno con la sua parola e una frase corta. Si va avanti e
