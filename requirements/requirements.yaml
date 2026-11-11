@@ -3091,6 +3091,32 @@ requirements:
     test_cases:
       - tests/dipendenze-indirette.test.js
 
+  - id: REQ-DEV-011
+    title: "Il codice è proprietario: LICENSE, package.json e README lo dicono"
+    area: "LICENSE, THIRD_PARTY_NOTICES.md, package.json, functions/package.json, README.md, CLAUDE.md"
+    description: >
+      Decisione di Daniele, arrivata l'11/11/2026 col messaggio di
+      Stonebit agli agenti: il repository è pubblico (dal 10/11/2026) solo
+      per la CI gratuita, il codice resta proprietario, mai licenze open
+      source. LICENSE nella radice riserva tutti i diritti, in italiano e
+      in inglese, col testo dato da Daniele: si può solo guardare il
+      repository e farne fork dentro GitHub; i nomi Stonebit, Lime e Lime
+      SmartOrders non sono concessi. L'anno è il 2026, quello del primo
+      commit e di oggi. I due package.json dichiarano `"license":
+      "UNLICENSED"` e restano privati. Il README chiude con la sezione
+      «Licenza». THIRD_PARTY_NOTICES.md elenca i file di terzi copiati nel
+      repository: oggi uno solo, il carattere Playfair Display (SIL OFL
+      1.1, testo accanto al file). La storia git è stata cercata il
+      10/11/2026 prima di rendere pubblico il repository: nessuna chiave,
+      token o credenziale. CLAUDE.md prende la sezione «Stonebit — regole
+      comuni».
+    status: implemented
+    generate_issue: true
+    labels: [metodo, regia]
+    priority: P1
+    test_cases:
+      - tests/proprieta.test.js
+
   - id: REQ-FLOTTA-059
     title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"
     area: "functions/lib/eliminazione-cliente.js, functions/index.js (eliminaCliente), src/lib/db.js (eliminaCliente), src/pages/Backoffice.jsx (Elimina cliente…)"

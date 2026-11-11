@@ -34,3 +34,12 @@ lavoro sono le stesse di quel repository.
   si cambiano solo su decisione dell'utente.
 - La regia **non contiene mai i dati operativi dei locali**: solo account,
   piani, abbonamenti, stato delle istanze.
+
+## Stonebit — regole comuni
+Questo repo è un prodotto di Stonebit (Daniele Napolitano). Regola zero: decide Daniele
+(spese, produzione, merge su main, tag, prezzi, comunicazioni esterne, scelte legali/fiscali,
+cancellazioni). Ogni lavoro su un ramo feature/… nel suo worktree; la release la sceglie
+Daniele. Prima di lavorare: fetch + pull --ff-only. Test come specifica, tutto in italiano,
+almeno due rischi per proposta, "Dove potrei sbagliare" in chiusura.
+Codice proprietario: tutti i diritti riservati, mai licenze open source.
+A fine sessione: report nella descrizione della PR (fatto / non fatto / blocchi / decisioni).
