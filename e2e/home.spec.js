@@ -9,7 +9,7 @@ test.describe('la prima pagina', () => {
     await page.goto('/')
     const titolo = page.getByRole('heading', { level: 1 })
     await expect(titolo).toContainText('Il gestionale del tuo locale.')
-    await expect(titolo.locator('.titolo-oro')).toHaveText('Dalla comanda alla cassa.')
+    await expect(titolo.locator('.titolo-accento')).toHaveText('Dalla comanda alla cassa.')
     await expect(page.getByRole('note')).toContainText('TEST')
     await expect(menu(page).getByRole('link', { name: 'Prezzi' })).toHaveAttribute('href', '/#prezzi')
     // Il listino è quello di functions/piani.json: il Base col suo prezzo.

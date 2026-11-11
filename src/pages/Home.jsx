@@ -39,8 +39,8 @@ import { TESTI, testi } from '../i18n/index.js'
 //
 // L'ASPETTO DEL 07/11/2026 (DESIGN.md §4, la direzione dell'utente: «sembri
 // il sito curato di un prodotto reale, nato e usato in un locale, non un
-// template generico»): fondo avorio, poche sezioni scure volute (il
-// problema, la chiusura), un accento solo (il verde) e l'oro come dettaglio;
+// template generico»): fondo chiaro, poche sezioni scure volute (il
+// problema, la chiusura), il lime per azioni e dettagli (dal 11/11/2026);
 // niente luci sfocate, niente card tutte uguali con l'icona, composizioni
 // che si alternano (testo accanto a un pannello, righe numerate, una
 // tabella). Niente schermate finte: le vere arriveranno quando ci saranno
@@ -120,7 +120,7 @@ function AvvisoLingua({ lingua, proposta, chiudi }) {
 }
 
 // Il titolo in due tempi: la prima frase nel colore del testo, la seconda
-// nell'oro (un dettaglio, non un effetto). Si taglia alla prima frase, così
+// con l'evidenziatore lime. Si taglia alla prima frase, così
 // i testi in src/i18n restano una frase intera per lingua; un titolo di una
 // frase sola resta tutto di un colore.
 function dueTempi(testo) {
@@ -254,7 +254,7 @@ export default function Home({ utente, lingua = 'it' }) {
               {titolo.seconda && (
                 <>
                   {' '}
-                  <span className="titolo-oro">{titolo.seconda}</span>
+                  <span className="titolo-accento"><span>{titolo.seconda}</span></span>
                 </>
               )}
             </h1>
@@ -293,7 +293,7 @@ export default function Home({ utente, lingua = 'it' }) {
       </section>
 
       {/* I PILASTRI: tre colonne numerate, divise da un filo. Niente card,
-          niente icone: il numero in oro e il titolo bastano. */}
+          niente icone: il numero nel verde e il titolo bastano. */}
       <section id="pilastri" className="sezione" aria-labelledby="pilastri-titolo" data-comparsa>
         <div className="contenitore">
           <h2 id="pilastri-titolo" className="titolo-sezione">

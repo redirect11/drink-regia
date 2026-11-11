@@ -153,21 +153,54 @@ scena, tutta in `src/index.css` sotto `.regia.vetrina` e `.landing`:
 
 ### Colori
 
-I token di `src/index.css`, ridefiniti sotto `.regia.vetrina` per la
-prima pagina soltanto.
+**LA PALETTE LIME (11/11/2026).** L'utente, dopo il nome «Lime –
+SmartOrders»: «i colori debbano diventare tipo verde acido o verde lime
+con palette che abbia senso con questo colore primario». Il lime
+(`#b4ec2b`) è il colore primario di tutto il sito, e prende il posto del
+verde bottiglia e dell'oro di cui parlano i paragrafi sopra, che restano
+come storia. Tre regole, che vengono dal contrasto e non dal gusto:
+
+- **Il lime è un riempimento, non un colore di testo, sul chiaro.** Sul
+  fondo chiaro arriva a 1,3:1: sta nei bottoni principali (col testo
+  scuro `--su-lime` sopra, 12:1), nei filetti, nei puntini della scheda
+  dei fatti e nell'evidenziatore sotto la seconda frase del titolo. Il
+  testo in colore (link, numeri, etichette, spunte) usa il verde foglia
+  `--accent #2f6b0f` (6:1).
+- **Sul fondo scuro il lime è l'accento pieno**: bottoni col testo scuro,
+  link e voci attive nella sua versione chiara (`--accent-2 #c6f25a`). Il
+  fondo scuro è un nero appena verde, uguale per dashboard, backoffice e
+  le due sezioni scure della prima pagina.
+- **«In attesa» e gli avvisi restano ambra** (`--attesa #e3b23c`). Prima
+  usavano l'accento, che era oro; con l'accento verde uno stato in attesa
+  sembrerebbe «a posto», accanto al verde di «attivo».
+
+I token di `src/index.css`. Il tema scuro (tutto il sito tranne la prima
+pagina):
 
 | Token | Valore | Ruolo |
 |---|---|---|
-| `--bg` | `#f6f2ea` | sfondo della pagina (avorio) |
-| `--bg-2` | `#fffdf8` | pannelli di carta (scheda dei fatti, piani, tabella) |
-| `--bg-3` | `#ece5d8` | superfici secondarie (piè di pagina, avviso della lingua) |
-| `--text` | `#1f1c18` | testo |
-| `--muted` | `#5d574e` | testo secondario (6,4:1 sull'avorio; mai per informazioni critiche) |
-| `--line` | `#d9d0c0` | fili e bordi |
-| `--accent` | `#1f5a46` | azioni, link, evidenze (bianco sopra 7,3:1) |
-| `--accent-soft` | `rgba(31,90,70,.1)` | sfondi di evidenza (etichetta, riga del confronto) |
-| `--oro` | `#9a7424` | dettagli: numeri, filetti, la seconda frase del titolo (4,6:1 sull'avorio) |
-| `--scuro` / `--scuro-testo` / `--scuro-muted` | `#1d1a16` / `#f3ede2` / `#c4bbab` | le due sezioni scure |
+| `--bg` / `--bg-2` / `--bg-3` | `#0c0f0a` / `#141911` / `#1c2318` | sfondo, pannelli, superfici secondarie |
+| `--text` / `--muted` | `#eef2e6` / `#9aa38e` | testo e testo secondario (7:1 sul fondo) |
+| `--accent` | `#b4ec2b` | bottoni (testo `#16210a` sopra), barre dei grafici, bordi di scelta |
+| `--accent-2` | `#c6f25a` | testo in colore: link al passaggio, voce attiva del sotto-menù |
+| `--ok` | `#5fd3a1` | stato «attivo», spunte |
+| `--attesa` | `#e3b23c` | stato «in attesa», avvisi |
+
+Ridefiniti sotto `.regia.vetrina` per la prima pagina soltanto:
+
+| Token | Valore | Ruolo |
+|---|---|---|
+| `--bg` | `#f7f9f1` | sfondo della pagina (bianco appena verde) |
+| `--bg-2` | `#fefffa` | pannelli (scheda dei fatti, piani, tabella) |
+| `--bg-3` | `#e8eed8` | superfici secondarie (piè di pagina, avviso della lingua) |
+| `--text` | `#161b10` | testo |
+| `--muted` | `#525c47` | testo secondario (6,6:1 sul fondo; mai per informazioni critiche) |
+| `--line` | `#d5ddc3` | fili e bordi |
+| `--lime` / `--lime-forte` | `#b4ec2b` / `#a0d81a` | riempimenti: bottoni principali, filetti, puntini, evidenziatore del titolo; il secondo al passaggio |
+| `--su-lime` | `#16210a` | il testo sopra il lime (12:1) |
+| `--accent` | `#2f6b0f` | testo in colore: link, numeri, etichetta, spunte, bordo del piano in evidenza (6:1) |
+| `--accent-soft` | `rgba(47,107,15,.1)` | sfondi di evidenza (etichetta, riga del confronto) |
+| `--scuro` / `--scuro-testo` / `--scuro-muted` | `#11150c` / `#f1f5e8` / `#b8c1a6` | le due sezioni scure |
 
 Contrasto: 4,5:1 per il testo normale, 3:1 per il testo grande (WCAG AA).
 I valori sopra sono calcolati sui token, non misurati con uno strumento

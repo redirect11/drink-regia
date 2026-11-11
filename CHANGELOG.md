@@ -6,6 +6,12 @@ data.
 
 ## Prossima release (da decidere)
 
+- I colori sono quelli di Lime: il verde lime è il colore primario di
+  tutto il sito, al posto del verde bottiglia e dell'oro. Sulla prima
+  pagina i bottoni principali sono lime col testo scuro e la seconda
+  frase del titolo è passata con l'evidenziatore; dashboard e backoffice
+  hanno il fondo nero appena verde e l'accento lime. «In attesa» e gli
+  avvisi restano ambra (REQ-FLOTTA-002).
 - Nella registrazione, arrivare al passo del referente non invia più il
   modulo da sé: «Avanti» e «Crea l’account» erano lo stesso bottone, a cui
   cambiava il tipo durante il click; al secondo tentativo (identificativo
