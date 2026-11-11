@@ -21,8 +21,7 @@ describe('la squadra di Stonebit', () => {
     expect(regole).toContain('### Regola zero: decide Daniele')
     expect(regole).toContain('sei il **PM di Lime (regia)**')
     // Le issue nascono dal registro, mai a mano: è la regola del processo.
-    expect(regole).toMatch(/Le issue nascono dal registro[^
-]*\*\*mai a mano\*\*/)
+    expect(regole).toMatch(/Le issue nascono dal registro.***mai a mano**/)
     // Le regole di prima: nessuna tolta.
     for (const frase of ['docs/handover.md', '**GitFlow**', '**I test sono la specifica**', '**Non si scrive in produzione di propria iniziativa.**', 'non contiene mai i dati operativi dei locali']) {
       expect(regole, frase).toContain(frase)

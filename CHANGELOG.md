@@ -6,6 +6,15 @@ data.
 
 ## Prossima release (da decidere)
 
+- Il codice è dichiarato proprietario: `LICENSE` con tutti i diritti
+  riservati, `"license": "UNLICENSED"` nei due `package.json`, la sezione
+  «Licenza» nel README e l'elenco dei file di terzi
+  (`THIRD_PARTY_NOTICES.md`). Il repository è pubblico solo per la CI
+  (REQ-DEV-011).
+- Nella registrazione, chi si vede rifiutare l'identificativo perché già
+  in uso non viene più mandato alla dashboard mentre lo corregge: la
+  pagina resta, coi dati inseriti, finché l'account non ha il suo locale.
+  Trovato dal collaudo automatico (REQ-FLOTTA-003).
 - Il repository ha le regole di Stonebit e la sua squadra di agenti:
   `CLAUDE.md` apre con «Stonebit — chi sei e come lavori qui», `AGENTS.md`
   rimanda lì, e `.claude/agents/` definisce PM, Tech Lead, frontend,
