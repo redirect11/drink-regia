@@ -299,15 +299,15 @@ describe('la prima pagina', () => {
       expect(punti[2]).toHaveAttribute('aria-current', 'true')
     })
 
-    it('avanza da solo ogni sei secondi; aspetta col puntatore o il fuoco sopra; «Ferma i filmati» ferma tutto', () => {
+    it('avanza da solo ogni quattro secondi; aspetta col puntatore o il fuoco sopra; «Ferma i filmati» ferma tutto', () => {
       vi.useFakeTimers()
       conMovimento(false)
       mostra()
       act(() => vi.advanceTimersByTime(0))
       expect(parola()).toBe('Ordina.')
-      act(() => vi.advanceTimersByTime(6000))
+      act(() => vi.advanceTimersByTime(4000))
       expect(parola()).toBe('Prepara.')
-      act(() => vi.advanceTimersByTime(6000))
+      act(() => vi.advanceTimersByTime(4000))
       expect(parola()).toBe('Incassa.')
       // Col puntatore sopra non cambia sotto le mani di chi legge.
       const hero = document.querySelector('.hero')
@@ -315,7 +315,7 @@ describe('la prima pagina', () => {
       act(() => vi.advanceTimersByTime(20000))
       expect(parola()).toBe('Incassa.')
       fireEvent.pointerLeave(hero, { pointerType: 'mouse' })
-      act(() => vi.advanceTimersByTime(6000))
+      act(() => vi.advanceTimersByTime(4000))
       expect(parola()).toBe('Conta.')
       // Col fuoco su un comando, lo stesso; e riparte quando il fuoco esce.
       const avanti = screen.getByRole('button', { name: it_.gesti.successiva })
@@ -323,7 +323,7 @@ describe('la prima pagina', () => {
       act(() => vi.advanceTimersByTime(20000))
       expect(parola()).toBe('Conta.')
       fireEvent.blur(avanti)
-      act(() => vi.advanceTimersByTime(6000))
+      act(() => vi.advanceTimersByTime(4000))
       expect(parola()).toBe('Riordina.')
       fireEvent.click(avanti)
       fireEvent.click(avanti)
@@ -342,15 +342,15 @@ describe('la prima pagina', () => {
       const riprendi = screen.getByRole('button', { name: it_.gesti.riprendi })
       expect(riprendi).toHaveAttribute('aria-pressed', 'true')
       fireEvent.click(riprendi)
-      act(() => vi.advanceTimersByTime(6000))
+      act(() => vi.advanceTimersByTime(4000))
       expect(parola()).toBe('Ordina.')
     })
 
     // Rilievi del revisore (11/11/2026). Puntatore e fuoco sono due motivi
     // distinti per aspettare: uno che finisce non fa ripartire se l'altro
     // dura. Il tocco non conta come puntatore sopra. E un cambio a mano fa
-    // ripartire il conto dei sei secondi da capo.
-    it('puntatore e fuoco contano ognuno per sé; il tocco non ferma; un cambio a mano riparte da sei secondi', () => {
+    // ripartire il conto dei quattro secondi da capo.
+    it('puntatore e fuoco contano ognuno per sé; il tocco non ferma; un cambio a mano riparte da quattro secondi', () => {
       vi.useFakeTimers()
       conMovimento(false)
       mostra()
@@ -377,13 +377,13 @@ describe('la prima pagina', () => {
       fireEvent.pointerLeave(hero, { pointerType: 'mouse' })
       // Un dito sulla schermata non è un puntatore che resta sopra.
       fireEvent.pointerEnter(hero, { pointerType: 'touch' })
-      act(() => vi.advanceTimersByTime(6000))
-      expect(parola()).toBe('Prepara.')
-      // A metà del giro si cambia a mano: la nuova resta sei secondi interi.
       act(() => vi.advanceTimersByTime(4000))
+      expect(parola()).toBe('Prepara.')
+      // A metà del giro si cambia a mano: la nuova resta quattro secondi interi.
+      act(() => vi.advanceTimersByTime(2000))
       fireEvent.click(screen.getAllByRole('button', { name: /Gesto \d di 5/ })[3])
       expect(parola()).toBe('Conta.')
-      act(() => vi.advanceTimersByTime(5000))
+      act(() => vi.advanceTimersByTime(3000))
       expect(parola()).toBe('Conta.')
       act(() => vi.advanceTimersByTime(1000))
       expect(parola()).toBe('Riordina.')
@@ -446,7 +446,7 @@ describe('la prima pagina', () => {
     })
 
     // Il giro automatico non si annuncia: un lettore di schermo sentirebbe
-    // una parola nuova ogni sei secondi. Quando si scorre a mano, sì.
+    // una parola nuova ogni quattro secondi. Quando si scorre a mano, sì.
     it('il cambio si annuncia ai lettori di schermo solo quando non scorre da solo', () => {
       vi.useFakeTimers()
       conMovimento(false)

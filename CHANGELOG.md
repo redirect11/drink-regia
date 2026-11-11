@@ -6,6 +6,8 @@ data.
 
 ## Prossima release (da decidere)
 
+- Nel carosello ogni filmato resta quattro secondi, non più sei
+  (REQ-FLOTTA-061, #135).
 - La dashboard del titolare è su due colonne senza buchi: ogni riquadro
   sta subito sotto il precedente. Prima erano sfalsati, e «Temi su
   misura» finiva solo, molto più in basso. L'avviso dell'email da

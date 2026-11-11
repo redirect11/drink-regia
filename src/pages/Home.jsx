@@ -189,8 +189,10 @@ const GESTI = [
   { id: 'numeri', moduli: ['statistiche', 'staff'], base: false },
   { id: 'scorta', moduli: ['magazzino'], base: false },
 ]
-// Ogni quanto il carosello passa al gesto dopo, da solo.
-const PASSO_CAROSELLO_MS = 6000
+// Ogni quanto il carosello passa al gesto dopo, da solo. Erano sei secondi;
+// Daniele, visto sul sito di test (11/11/2026): «i filmati dovrebbero
+// durare di meno». Quattro bastano a leggere una parola e una frase corta.
+const PASSO_CAROSELLO_MS = 4000
 
 // L'aliquota del listino, scritta una volta («IVA esclusa, al 22%»).
 const IVA_PERCENTO = `${IVA}%`
@@ -271,7 +273,7 @@ export default function Home({ utente, lingua = 'it' }) {
   useEffect(() => {
     if (!scorre) return undefined
     // Riparte a ogni cambio di diapositiva (per questo `indice` è fra le
-    // dipendenze): chi ne ha scelta una a mano la vede per sei secondi
+    // dipendenze): chi ne ha scelta una a mano la vede per quattro secondi
     // interi, non per quel che restava del giro.
     const giro = setTimeout(() => setScelto((i) => (Math.min(i, quanti - 1) + 1) % quanti), PASSO_CAROSELLO_MS)
     return () => clearTimeout(giro)
