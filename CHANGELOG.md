@@ -11,6 +11,10 @@ data.
   «Licenza» nel README e l'elenco dei file di terzi
   (`THIRD_PARTY_NOTICES.md`). Il repository è pubblico solo per la CI
   (REQ-DEV-011).
+- Nella registrazione, chi si vede rifiutare l'identificativo perché già
+  in uso non viene più mandato alla dashboard mentre lo corregge: la
+  pagina resta, coi dati inseriti, finché l'account non ha il suo locale.
+  Trovato dal collaudo automatico (REQ-FLOTTA-003).
 - Le dipendenze indirette con avvisi di sicurezza sono forzate alla
   versione corretta (`overrides`): `@grpc/grpc-js` 1.14, `uuid` 11,
   `fast-xml-parser` 5.12, e `minimatch` 11 dove serviva. Le librerie di
