@@ -3162,6 +3162,48 @@ requirements:
     test_cases:
       - tests/squadra.test.js
 
+  - id: REQ-FLOTTA-060
+    title: "La prima pagina coi filmati: il barman dietro al titolo e i cinque gesti del locale"
+    area: "src/pages/Home.jsx, src/i18n/home.it.js, src/i18n/home.en.js, src/index.css, public/video/, DESIGN.md"
+    description: >
+      Richieste di Daniele dell'11/11/2026, in chat. «Facciamo una pagina
+      moderna come quelle di oggi dove nella parte sopra di front page
+      c'è il video in background e uno slogan davanti… con i video nei
+      box». Poi: «non farlo proprio uguale a Tilby… facciamo qualcosa di
+      nuovo», «la cosa degli orari non mi piace», «deve essere semplice
+      non troppo complesso ma originale». Sulla proposta dei cinque gesti:
+      «sì». Su «Quello che si vede dal banco»: «questa roba qua è orribile
+      e va cambiata. Non si capisce proprio che vuole dire», e fra le tre
+      strade proposte: «toglila». I filmati li ha generati lui con LTX 2.5
+      e li ha caricati in chat.
+      COSA SI FA. La prima schermata ha il filmato del barman a tutta
+      larghezza, scurito dal lato del testo; titolo, sottotitolo, bottoni
+      e scheda dei fatti restano. Sotto, al posto di «Quello che si vede
+      dal banco» e dei tre pilastri, i cinque gesti del locale, uno per
+      fascia a tutta larghezza col suo filmato e una parola sola: Ordina,
+      Prepara, Incassa, Conta, Riordina. Ogni fascia ha una riga su cosa
+      fa l'app e i moduli che servono. L'elenco delle funzioni resta
+      prima dei prezzi, più corto: il dettaglio «Cosa comprende» si apre
+      a richiesta.
+      CRITERI DI ACCETTAZIONE. (1) Dietro al titolo c'è un video muto, in
+      ciclo, nascosto ai lettori di schermo, col fermo immagine come
+      poster. (2) Chi chiede meno movimento, o di risparmiare dati, vede
+      i fermi immagine e nessun video. (3) I cinque gesti sono in
+      quest'ordine, ognuno con parola, riga e moduli. (4) Un gesto che
+      vive solo di moduli non in vendita non si vede, e un modulo non in
+      vendita non compare fra le etichette (REQ-FLOTTA-015). (5) Le
+      sezioni «problema» e «pilastri» non ci sono più, e i loro testi
+      nemmeno. (6) La pagina dice che i filmati sono generati con
+      l'intelligenza artificiale. (7) Italiano e inglese hanno le stesse
+      voci. (8) I filmati pesano meno di 700 KB l'uno.
+    status: todo
+    generate_issue: true
+    labels: [prodotto, regia, home]
+    priority: P1
+    test_cases:
+      - tests/Home.test.jsx
+      - tests/HomeVendita.test.jsx
+
   - id: REQ-FLOTTA-059
     title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"
     area: "functions/lib/eliminazione-cliente.js, functions/index.js (eliminaCliente), src/lib/db.js (eliminaCliente), src/pages/Backoffice.jsx (Elimina cliente…)"
