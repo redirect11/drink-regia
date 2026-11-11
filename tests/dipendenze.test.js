@@ -1,53 +1,46 @@
-// LE DIPENDENZE INDIRETTE FORZATE (REQ-DEV-010). Gli avvisi di sicurezza di
-// GitHub (Dependabot) riguardavano pacchetti che non scegliamo noi: li
-// portano firebase, firebase-tools e firebase-admin, che chiedono ancora le
-// versioni vecchie. Dependabot non poteva aggiornarli («security update not
-// possible»), quindi le versioni corrette le forziamo con `overrides`.
-// Questo test guarda i lockfile, cioè quello che si installa davvero: se un
-// aggiornamento di Firebase riporta dentro una versione vulnerabile, o se
-// qualcuno toglie un override, fallisce qui e non in un avviso da leggere.
+// LE DIPENDENZE DI SVILUPPO SENZA FALLE NOTE (REQ-DEV-008, audit del
+// 09/11/2026, finding 24). Dependabot ha aperto le correzioni di sicurezza
+// (#106, #107, #108, #114) e non riusciva a unirle: vitest 4 e 5 vogliono
+// vite 6 o successivi, il sito stava su vite 5. La migrazione si fa qui,
+// in un colpo solo, e questo test tiene ferme le soglie: sotto, le falle
+// tornano (vitest < 4.1.12, vite < 6.4.4, happy-dom < 21.0.4, react-router
+// < 7.18.0 per l'open redirect in Link e useNavigate).
+
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 
-const RADICE = join(import.meta.dirname, '..')
-const lock = (cartella) => JSON.parse(readFileSync(join(RADICE, cartella, 'package-lock.json'), 'utf8')).packages
-
-// Le versioni installate di un pacchetto, ovunque stia nell'albero.
-const versioni = (pacchetti, nome) =>
-  Object.entries(pacchetti)
-    .filter(([percorso]) => percorso === `node_modules/${nome}` || percorso.endsWith(`/node_modules/${nome}`))
-    .map(([, p]) => p.version)
-
-const numeri = (v) => v.split('.').map((n) => parseInt(n, 10))
-const almeno = (v, minima) => {
-  const [a, b] = [numeri(v), numeri(minima)]
-  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] > b[i]
-  return true
+const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
+const lock = JSON.parse(readFileSync('package-lock.json', 'utf8'))
+const installata = (nome) => lock.packages[`node_modules/${nome}`]?.version
+const numeri = (v) => String(v).replace(/^[\^~]/, '').split('.').map(Number)
+const almeno = (v, min) => {
+  const [a, b, c] = numeri(v)
+  const [x, y, z] = numeri(min)
+  return a !== x ? a > x : b !== y ? b > y : c >= z
 }
 
-describe('le dipendenze indirette con avvisi di sicurezza', () => {
-  const sito = lock('.')
-  const functions = lock('functions')
-
-  it('@grpc/grpc-js è almeno 1.14.5 (GHSA-m9gg-hp2v-232j), nel sito e nelle Functions', () => {
-    for (const v of [...versioni(sito, '@grpc/grpc-js'), ...versioni(functions, '@grpc/grpc-js')]) expect(almeno(v, '1.14.5'), v).toBe(true)
+describe('le dipendenze di sviluppo', () => {
+  it.each([
+    ['vite', '6.4.4', 'devDependencies'],
+    ['vitest', '4.1.12', 'devDependencies'],
+    ['@vitest/coverage-v8', '4.1.12', 'devDependencies'],
+    ['happy-dom', '21.0.4', 'devDependencies'],
+    ['react-router-dom', '7.18.0', 'dependencies'],
+  ])('%s è almeno %s, dichiarata e installata', (nome, minima, gruppo) => {
+    expect(almeno(pkg[gruppo][nome], minima), `${nome} in package.json: ${pkg[gruppo][nome]}`).toBe(true)
+    expect(almeno(installata(nome), minima), `${nome} nel lockfile: ${installata(nome)}`).toBe(true)
   })
 
-  it('uuid è almeno 11.1.1, nel sito e nelle Functions', () => {
-    const tutte = [...versioni(sito, 'uuid'), ...versioni(functions, 'uuid')]
-    expect(tutte.length).toBeGreaterThan(0)
-    for (const v of tutte) expect(almeno(v, '11.1.1'), v).toBe(true)
+  it('coverage-v8 e vitest hanno la stessa versione: coverage-v8 la pretende', () => {
+    expect(numeri(installata('@vitest/coverage-v8')).slice(0, 2)).toEqual(numeri(installata('vitest')).slice(0, 2))
   })
 
-  it('fast-xml-parser nelle Functions è almeno 5.12.0', () => {
-    for (const v of versioni(functions, 'fast-xml-parser')) expect(almeno(v, '5.12.0'), v).toBe(true)
-  })
-
-  it('nessun minimatch fra 7.0.0 e 11.0.0: le versioni vecchie (3, 5, 6) non hanno il difetto', () => {
-    for (const v of versioni(sito, 'minimatch')) {
-      const colpita = almeno(v, '7.0.0') && !almeno(v, '11.0.1')
-      expect(colpita, v).toBe(false)
-    }
+  // happy-dom 21 non definisce più i dialoghi del browser: li mette
+  // tests/finestra.js, caricato prima di ogni file di test.
+  it('la finestra finta ha alert, confirm e prompt (tests/finestra.js nei setupFiles)', () => {
+    const config = readFileSync('vitest.config.mjs', 'utf8')
+    expect(config).toMatch(/setupFiles:\s*\['tests\/finestra\.js'\]/)
+    const finestra = readFileSync('tests/finestra.js', 'utf8')
+    for (const nome of ['alert', 'confirm', 'prompt']) expect(finestra).toContain(`${nome}:`)
   })
 })

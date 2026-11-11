@@ -3079,7 +3079,7 @@ requirements:
     labels: [metodo, regia, sicurezza]
     priority: P2
     test_cases:
-      - tests/dipendenze.test.js
+      - tests/dipendenze-indirette.test.js
 
   - id: REQ-FLOTTA-059
     title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"
