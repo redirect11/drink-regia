@@ -3098,7 +3098,7 @@ requirements:
       messaggio, copiati così come sono. Le contraddizioni fra la sezione
       nuova e le regole di prima non le ho risolte io: stanno elencate
       nella PR, per Daniele.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [metodo, regia]
     priority: P2

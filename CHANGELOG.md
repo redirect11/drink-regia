@@ -6,6 +6,10 @@ data.
 
 ## Prossima release (da decidere)
 
+- Il repository ha le regole di Stonebit e la sua squadra di agenti:
+  `CLAUDE.md` apre con «Stonebit — chi sei e come lavori qui», `AGENTS.md`
+  rimanda lì, e `.claude/agents/` definisce frontend, backend, DevOps
+  della flotta e revisore (REQ-DEV-012).
 - Le dipendenze indirette con avvisi di sicurezza sono forzate alla
   versione corretta (`overrides`): `@grpc/grpc-js` 1.14, `uuid` 11,
   `fast-xml-parser` 5.12, e `minimatch` 11 dove serviva. Le librerie di
