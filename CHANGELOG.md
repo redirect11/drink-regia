@@ -6,6 +6,10 @@ data.
 
 ## Prossima release (da decidere)
 
+- Le dipendenze indirette con avvisi di sicurezza sono forzate alla
+  versione corretta (`overrides`): `@grpc/grpc-js` 1.14, `uuid` 11,
+  `fast-xml-parser` 5.12, e `minimatch` 11 dove serviva. Le librerie di
+  Google che le portano chiedevano ancora le vecchie (REQ-DEV-010).
 - I colori sono quelli di Lime: il verde lime è il colore primario di
   tutto il sito, al posto del verde bottiglia e dell'oro. Sulla prima
   pagina i bottoni principali sono lime col testo scuro e la seconda
