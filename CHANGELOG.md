@@ -6,6 +6,11 @@ data.
 
 ## Prossima release (da decidere)
 
+- Dopo un rilascio il sito non si vede più senza grafica: la pagina si
+  ricontrolla a ogni visita, e i file di stile e di codice, che hanno
+  l'impronta nel nome, restano in memoria. Prima il browser teneva per
+  un'ora la pagina vecchia, che chiedeva file ormai tolti (REQ-DEV-013,
+  #133).
 - La prima pagina ha i filmati. Dietro al titolo gira il barman al banco;
   sotto, il lavoro del locale in cinque gesti, uno per fascia col suo
   filmato e una parola sola: Ordina, Prepara, Incassa, Conta, Riordina.

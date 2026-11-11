@@ -3194,7 +3194,7 @@ requirements:
       sicurezza restano su tutto il sito.
       NON RISOLVE il primo rilascio dopo questo: chi ha già in memoria
       una pagina con «max-age=3600» la tiene fino a un'ora.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [metodo, regia]
     priority: P1
