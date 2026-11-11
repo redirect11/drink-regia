@@ -272,16 +272,32 @@ describe('l’accesso', () => {
   // Trovato dal primo collaudo automatico (09/11/2026, REQ-DEV-009): fra
   // l'account creato e il cliente scritto App.jsx mandava alla dashboard,
   // e il rifiuto dello slug spariva con la pagina. Finché registra lavora,
-  // la registrazione «è in corso»; finita bene o male, non lo è più.
-  it('registrazioneInCorso è vero mentre registra lavora, e torna falso anche se la Function rifiuta', async () => {
+  // la registrazione «è in corso»; finita bene, non lo è più.
+  // 11/11/2026 (tag v0.3.0-beta.6): se la Function rifiuta lo slug
+  // l'account c'è e la registrazione resta in corso, finché il secondo
+  // tentativo non scrive il cliente. Prima tornava falso al rifiuto, e la
+  // pagina rimbalzava alla dashboard mentre si correggeva l'identificativo.
+  it('registrazioneInCorso è vero mentre registra lavora e dopo un rifiuto dello slug; torna falso quando il cliente è scritto', async () => {
     expect(db.registrazioneInCorso()).toBe(false)
     const p = db.registra({ email: 'bar@example.com', password: 'x', locale: { nome: 'Bar Mario' } })
     expect(db.registrazioneInCorso()).toBe(true)
     await p
     expect(db.registrazioneInCorso()).toBe(false)
+    const risposta = fb.risposte.registraCliente
     fb.risposte.registraCliente = Object.assign(new Error('in uso'), { code: 'functions/already-exists', details: { campo: 'slug' } })
+    // L'account creato è entrato (come fa Firebase), e il cliente è rifiutato.
+    const admin = fb.auth
+    fb.auth = { currentUser: { uid: 'c1', email: 'bar@example.com', emailVerified: false } }
     await expect(db.registra({ email: 'bar@example.com', password: 'x', locale: { nome: 'Bar Mario' } })).rejects.toThrow()
+    expect(db.registrazioneInCorso()).toBe(true)
+    // Il segnale è di quell'account: un altro che entra va alla dashboard.
+    fb.auth = admin
     expect(db.registrazioneInCorso()).toBe(false)
+    fb.auth = { currentUser: { uid: 'c1', email: 'bar@example.com', emailVerified: false } }
+    fb.risposte.registraCliente = risposta
+    await db.registra({ email: 'bar@example.com', password: 'x', locale: { nome: 'Bar Mario' }, slug: 'bar-mario-2' })
+    expect(db.registrazioneInCorso()).toBe(false)
+    fb.auth = admin
   })
 
   it('lo slug scelto a mano arriva alla Function solo se c’è, e un rifiuto per slug in uso si riconosce', async () => {

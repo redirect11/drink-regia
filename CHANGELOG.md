@@ -6,6 +6,10 @@ data.
 
 ## Prossima release (da decidere)
 
+- Nella registrazione, chi si vede rifiutare l'identificativo perché già
+  in uso non viene più mandato alla dashboard mentre lo corregge: la
+  pagina resta, coi dati inseriti, finché l'account non ha il suo locale.
+  Trovato dal collaudo automatico (REQ-FLOTTA-003).
 - I colori sono quelli di Lime: il verde lime è il colore primario di
   tutto il sito, al posto del verde bottiglia e dell'oro. Sulla prima
   pagina i bottoni principali sono lime col testo scuro e la seconda

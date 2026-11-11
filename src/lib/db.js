@@ -89,15 +89,29 @@ export const tracciaEvento = (evento) => traccia({ evento })
 // smontava la pagina, e se la Function rifiutava lo slug il messaggio e i
 // dati inseriti sparivano (trovato dal primo collaudo automatico,
 // 09/11/2026, REQ-DEV-009). Finché è in corso, App lascia la pagina dov'è.
+// E RESTA IN CORSO ANCHE DOPO UN RIFIUTO (11/11/2026, tag v0.3.0-beta.6):
+// con l'account creato e il cliente rifiutato l'utente è entrato ma la
+// registrazione non è finita. Prima il segnale tornava falso, e al primo
+// ridisegno di App la pagina rimbalzava alla dashboard mentre il titolare
+// stava correggendo l'identificativo: a volte prima, a volte dopo il
+// secondo «Avanti», secondo i tempi. Torna falso solo quando il cliente è
+// scritto. Se la pagina si ricarica il segnale si perde, e va bene: la
+// dashboard, a chi ha l'account senza il locale, fa completare i dati.
+// `sospesa` è l'uid dell'account rimasto senza cliente: il segnale vale
+// solo per lui. Se esce ed entra un altro, quello va alla dashboard.
 let inCorso = false
-export const registrazioneInCorso = () => inCorso
+let sospesa = null
+export const registrazioneInCorso = () => inCorso || Boolean(sospesa && auth?.currentUser?.uid === sospesa)
 export async function registra({ email, password, ...dati }) {
   serve()
   inCorso = true
   try {
     const stessa = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase()
     const utente = auth.currentUser && stessa(auth.currentUser.email, email) ? auth.currentUser : (await createUserWithEmailAndPassword(auth, email, password)).user
+    // Da qui l'account c'è: se il cliente viene rifiutato, resta in sospeso.
+    sospesa = utente.uid
     const cliente = await creaCliente(utente, dati)
+    sospesa = null
     tracciaEvento('registrazione')
     return cliente
   } finally {
