@@ -105,38 +105,36 @@ export default {
     // nata (DESIGN.md §9.3).
     chiusa: 'L’app è nata al banco di un cocktail bar per mettere quel quadro su un tablet, e lì lavora ogni sera.',
   },
-  // La serata (11/11/2026): un turno dall'apertura alla chiusura. Ogni
-  // momento dice una cosa che l'app fa davvero, con le parole del listino
-  // (i moduli stanno nella riga «funzioni»); la nota dice che i filmati
-  // sono generati.
-  serata: {
-    titolo: 'Una serata, dall’apertura alla chiusura.',
-    sotto: 'Quello che succede in un locale in un turno, e cosa fa l’app in ogni momento.',
+  // I cinque gesti (11/11/2026): una parola per fascia, col suo filmato.
+  // Ogni riga dice una cosa che l'app fa davvero, con le parole del
+  // listino nella riga «funzioni»; la nota dice che i filmati sono generati.
+  gesti: {
+    titolo: 'Il lavoro del locale, in cinque gesti',
     voci: {
-      apertura: {
-        titolo: 'Prima di aprire',
-        testo: 'Si guarda cosa manca. Le giacenze sono già scese da sole con le comande di ieri, e l’ordine al fornitore parte da lì.',
-        funzioni: 'Magazzino e fornitori',
-      },
       sala: {
-        titolo: 'La sala si riempie',
+        parola: 'Ordina.',
         testo: 'La comanda si prende al tavolo, dal tablet o dal telefono. Chi vuole ordina da solo, dal menù con il QR.',
         funzioni: 'Comande · Menù digitale e tavoli · Ordini dal telefono del cliente',
       },
       banco: {
-        titolo: 'Al banco',
-        testo: 'Le comande arrivano in fila, tavolo per tavolo. Chi prepara vede cosa fare e in che ordine, senza foglietti.',
+        parola: 'Prepara.',
+        testo: 'Le comande arrivano al banco in fila, tavolo per tavolo. Chi prepara vede cosa fare e in che ordine.',
         funzioni: 'Comande',
       },
       conto: {
-        titolo: 'Il conto',
-        testo: 'È già pronto quando il cliente lo chiede. Va al lettore di carte, torna pagato da solo, e si stampa lo scontrino.',
+        parola: 'Incassa.',
+        testo: 'Il conto è pronto quando il cliente lo chiede. Va al lettore di carte, torna pagato da solo, e si stampa lo scontrino.',
         funzioni: 'Cassa · Pagamenti con lettore SumUp',
       },
-      chiusura: {
-        titolo: 'A serata finita',
-        testo: 'L’incasso è già fatto: quanto, cosa si è venduto e in quali ore. Le ore di chi ha lavorato sono segnate.',
+      numeri: {
+        parola: 'Conta.',
+        testo: 'A serata finita l’incasso è già fatto: quanto, cosa si è venduto e in quali ore. Le ore di chi ha lavorato sono segnate.',
         funzioni: 'Statistiche e bilancio · Personale e ore',
+      },
+      scorta: {
+        parola: 'Riordina.',
+        testo: 'Le giacenze scendono da sole con le comande. Prima di aprire si vede cosa manca, e l’ordine al fornitore parte da lì.',
+        funzioni: 'Magazzino e fornitori',
       },
     },
     nota: 'I filmati di questa pagina sono dimostrativi, generati con l’intelligenza artificiale.',

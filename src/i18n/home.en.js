@@ -85,34 +85,33 @@ export default {
       'Orders on a pad, bills worked out aloud, a till that only keeps the total. Stock from memory, staff hours on a sheet, the night’s takings pieced together the next day. Each piece works on its own, and the whole picture lives in the head of whoever is behind the bar.',
     chiusa: 'The app was born behind the bar of a cocktail bar to put that picture on a tablet, and it works there every night.',
   },
-  serata: {
-    titolo: 'One evening, from opening to closing.',
-    sotto: 'What happens in a venue during a shift, and what the app does at each moment.',
+  gesti: {
+    titolo: 'Running a venue, in five moves',
     voci: {
-      apertura: {
-        titolo: 'Before opening',
-        testo: 'You check what is running low. Stock has already gone down by itself with yesterday’s orders, and the supplier order starts from there.',
-        funzioni: 'Stock and suppliers',
-      },
       sala: {
-        titolo: 'The room fills up',
+        parola: 'Order.',
         testo: 'Orders are taken at the table, on a tablet or a phone. Guests who prefer can order by themselves from the QR menu.',
         funzioni: 'Orders · Digital menu and tables · Orders from the guest’s phone',
       },
       banco: {
-        titolo: 'At the bar',
-        testo: 'Orders arrive in a queue, table by table. Whoever prepares sees what to do and in which order, with no paper slips.',
+        parola: 'Prepare.',
+        testo: 'Orders reach the bar in a queue, table by table. Whoever prepares sees what to do and in which order.',
         funzioni: 'Orders',
       },
       conto: {
-        titolo: 'The bill',
-        testo: 'It is ready when the customer asks. It goes to the card reader, comes back paid by itself, and the receipt prints.',
+        parola: 'Charge.',
+        testo: 'The bill is ready when the customer asks. It goes to the card reader, comes back paid by itself, and the receipt prints.',
         funzioni: 'Till · Payments with a SumUp reader',
       },
-      chiusura: {
-        titolo: 'After closing',
-        testo: 'The takings are already counted: how much, what sold and at which hours. The hours of whoever worked are logged.',
+      numeri: {
+        parola: 'Count.',
+        testo: 'After closing the takings are already counted: how much, what sold and at which hours. Staff hours are logged.',
         funzioni: 'Statistics and balance · Staff and hours',
+      },
+      scorta: {
+        parola: 'Restock.',
+        testo: 'Stock goes down by itself with every order. Before opening you see what is running low, and the supplier order starts from there.',
+        funzioni: 'Stock and suppliers',
       },
     },
     nota: 'The videos on this page are illustrative and AI-generated.',

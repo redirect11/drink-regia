@@ -77,9 +77,9 @@ describe('la prima pagina', () => {
     })
   })
 
-  it('ha le sezioni nell’ordine del percorso: serata, problema, pilastri, funzioni, passi, prezzi, domande, chiusura', () => {
+  it('ha le sezioni nell’ordine del percorso: gesti, problema, pilastri, funzioni, passi, prezzi, domande, chiusura', () => {
     mostra()
-    const ordine = ['serata', 'problema', 'pilastri', 'funzioni', 'come-funziona', 'prezzi', 'domande', 'contatti']
+    const ordine = ['gesti', 'problema', 'pilastri', 'funzioni', 'come-funziona', 'prezzi', 'domande', 'contatti']
     const trovate = [...document.querySelectorAll('main section[id]')].map((s) => s.id)
     expect(trovate).toEqual(ordine)
     expect(screen.getByRole('heading', { name: it_.problema.titolo })).toBeInTheDocument()
@@ -254,27 +254,24 @@ describe('la prima pagina', () => {
     it('chi chiede meno movimento vede i fermi immagine, senza testo alternativo: nessun video', async () => {
       conMovimento(true)
       mostra()
-      await screen.findByRole('heading', { level: 2, name: it_.serata.titolo })
+      await screen.findByRole('heading', { level: 2, name: it_.gesti.titolo })
       expect(document.querySelector('video')).toBeNull()
       const fermo = document.querySelector('.hero img.hero-sfondo')
       expect(fermo).toHaveAttribute('src', '/video/banco.jpg')
       expect(fermo).toHaveAttribute('alt', '')
     })
 
-    it('la serata ha cinque momenti in ordine d’ora, ognuno con le sue funzioni, e dice che i filmati sono generati', () => {
+    it('i cinque gesti, nell’ordine del servizio: una parola, una riga, i moduli; e la nota che i filmati sono generati', () => {
       conMovimento(true)
       mostra()
-      const sezione = screen.getByRole('heading', { level: 2, name: it_.serata.titolo }).closest('section')
-      const momenti = [...sezione.querySelectorAll('li.momento')]
-      expect(momenti.map((m) => m.querySelector('time').textContent)).toEqual(['17:30', '20:30', '23:00', '01:00', '02:00'])
-      expect(momenti.map((m) => within(m).getByRole('heading', { level: 3 }).textContent)).toEqual(
-        ['apertura', 'sala', 'banco', 'conto', 'chiusura'].map((id) => it_.serata.voci[id].titolo),
+      const sezione = screen.getByRole('heading', { level: 2, name: it_.gesti.titolo }).closest('section')
+      const gesti = [...sezione.querySelectorAll('li.gesto')]
+      expect(gesti.map((g) => within(g).getByRole('heading', { level: 3 }).textContent)).toEqual(['Ordina.', 'Prepara.', 'Incassa.', 'Conta.', 'Riordina.'])
+      expect(gesti.map((g) => g.querySelector('img').getAttribute('src'))).toEqual(
+        ['sala', 'banco', 'conto', 'numeri', 'scorta'].map((n) => `/video/${n}.jpg`),
       )
-      expect(momenti[1].querySelector('img')).toHaveAttribute('src', '/video/sala.jpg')
-      expect(within(momenti[3]).getByText(/SumUp/)).toBeInTheDocument()
-      // Un momento senza filmato ha il pannello con l'ora, non un'immagine rotta.
-      expect(momenti[0].querySelector('img, video')).toBeNull()
-      expect(momenti[0].querySelector('.filmato-vuoto')).toHaveTextContent('17:30')
+      for (const g of gesti) expect(g.querySelector('img')).toHaveAttribute('alt', '')
+      expect(within(gesti[2]).getByText(/SumUp/)).toBeInTheDocument()
       expect(within(sezione).getByText(/generati con l’intelligenza artificiale/)).toBeInTheDocument()
     })
   })

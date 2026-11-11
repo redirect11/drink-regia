@@ -158,20 +158,16 @@ function Filmato({ nome, className }) {
   )
 }
 
-// LA SERATA (11/11/2026, l'utente: «non farlo proprio uguale a Tilby…
-// facciamo qualcosa di nuovo»): invece dell'elenco di riquadri, un turno
-// di lavoro dall'apertura alla chiusura. Scorrendo passano le ore, e a
-// ogni ora un filmato e la cosa che l'app fa in quel momento. Le ore e i
-// filmati sono struttura, uguale nelle due lingue; i testi stanno in
-// src/i18n (serata.voci). Un momento senza filmato (non ancora girato)
-// mostra un pannello scuro con l'ora.
-const SERATA = [
-  { id: 'apertura', ora: '17:30', filmato: null },
-  { id: 'sala', ora: '20:30', filmato: 'sala' },
-  { id: 'banco', ora: '23:00', filmato: 'banco' },
-  { id: 'conto', ora: '01:00', filmato: 'cassa' },
-  { id: 'chiusura', ora: '02:00', filmato: null },
-]
+// I CINQUE GESTI (11/11/2026). L'utente ha scartato gli orari («la cosa
+// degli orari non mi piace») e ha chiesto «semplice, non troppo complesso
+// ma originale». Il lavoro di un locale sono cinque gesti, e l'app sta
+// dentro ognuno: ogni gesto è una fascia a tutta larghezza col suo
+// filmato e una parola sola, grande. Niente schede, niente elenchi: la
+// parola dice il gesto, una riga dice cosa fa l'app, e sotto i moduli
+// coinvolti. L'ordine è quello del servizio, dalla comanda ai numeri, e
+// riprende lo slogan «Dalla comanda alla cassa». Struttura qui, testi in
+// src/i18n (gesti.voci).
+const GESTI = ['sala', 'banco', 'conto', 'numeri', 'scorta']
 
 // L'aliquota del listino, scritta una volta («IVA esclusa, al 22%»).
 const IVA_PERCENTO = `${IVA}%`
@@ -326,41 +322,32 @@ export default function Home({ utente, lingua = 'it' }) {
         </div>
       </section>
 
-      {/* LA SERATA: una riga per ogni momento del turno. A sinistra l'ora
-          su un filo che scende per tutta la sezione, poi il filmato e il
-          testo, che si scambiano di posto a righe alterne. La nota in
-          fondo dice che i filmati sono generati: nessuno deve prenderli
-          per riprese di un locale vero. */}
-      <section id="serata" className="sezione serata" aria-labelledby="serata-titolo">
+      {/* I CINQUE GESTI: una fascia per gesto, col filmato sotto, un velo
+          scuro e la parola grande davanti; il testo sta a sinistra o a
+          destra a fasce alterne, dal lato dove il filmato è più libero.
+          La nota in fondo dice che i filmati sono generati: nessuno deve
+          prenderli per riprese di un locale vero. */}
+      <section id="gesti" className="gesti" aria-labelledby="gesti-titolo">
+        <h2 id="gesti-titolo" className="solo-lettori">
+          {t.gesti.titolo}
+        </h2>
+        <ol className="gesti-fasce">
+          {GESTI.map((id) => (
+            <li key={id} className="gesto">
+              <Filmato nome={id} className="gesto-sfondo" />
+              <div className="gesto-velo" />
+              <div className="contenitore">
+                <div className="gesto-testo">
+                  <h3>{t.gesti.voci[id].parola}</h3>
+                  <p>{t.gesti.voci[id].testo}</p>
+                  <p className="gesto-funzioni">{t.gesti.voci[id].funzioni}</p>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
         <div className="contenitore">
-          <div className="sezione-testa">
-            <h2 id="serata-titolo">{t.serata.titolo}</h2>
-            <p className="sezione-sotto">{t.serata.sotto}</p>
-          </div>
-          <ol className="serata-righe">
-            {SERATA.map((m) => (
-              <li key={m.id} className="momento" data-comparsa>
-                <p className="momento-ora">
-                  <time dateTime={m.ora}>{m.ora}</time>
-                </p>
-                <div className="momento-filmato">
-                  {m.filmato ? (
-                    <Filmato nome={m.filmato} />
-                  ) : (
-                    <div className="filmato-vuoto" aria-hidden="true">
-                      {m.ora}
-                    </div>
-                  )}
-                </div>
-                <div className="momento-testo">
-                  <h3>{t.serata.voci[m.id].titolo}</h3>
-                  <p>{t.serata.voci[m.id].testo}</p>
-                  <p className="momento-funzioni">{t.serata.voci[m.id].funzioni}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
-          <p className="nota">{t.serata.nota}</p>
+          <p className="nota">{t.gesti.nota}</p>
         </div>
       </section>
 

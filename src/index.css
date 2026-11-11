@@ -227,29 +227,32 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 /* La scheda dei fatti: un pannello di carta con le righe divise da un filo. */
 .hero-scheda { background: rgba(12, 15, 10, 0.72); border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 12px; padding: 20px 22px; }
 .hero-scheda .scheda-titolo { color: var(--scuro-muted); }
+
+/* ── I cinque gesti: fasce a tutta larghezza, una per gesto. Il filmato sta
+   sotto, il velo scuro sopra, e davanti una parola sola, grande, col punto
+   lime. Il velo è più fitto dal lato del testo, che cambia a fasce
+   alterne; sul telefono è uniforme. Fra una fascia e l'altra un filo
+   sottile, perché restino cinque e non un filmato solo. ── */
+.gesti { background: var(--scuro); color: var(--scuro-testo); }
+.gesti-fasce { list-style: none; margin: 0; padding: 0; }
+.gesto { position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: flex-end; min-height: 68vh; padding: 56px 0; border-top: 1px solid rgba(255, 255, 255, 0.12); }
+.gesto-sfondo { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; }
+.gesto-velo { position: absolute; inset: 0; z-index: -1; background: rgba(8, 11, 6, 0.66); }
+.gesto-testo { max-width: 30rem; }
+.gesto h3 { font-family: var(--titoli); font-weight: 700; font-size: clamp(3.25rem, 11vw, 7.5rem); line-height: 0.95; letter-spacing: -0.02em; margin: 0 0 20px; }
+.gesto h3::first-letter { color: var(--lime); }
+.gesto-testo p { margin: 0; font-size: 1.125rem; line-height: 1.55; color: #e6ebdc; }
+.gesto-testo .gesto-funzioni { margin-top: 18px; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.2); font-size: 0.875rem; font-weight: 600; color: var(--lime); }
+.gesti .nota { color: var(--scuro-muted); padding: 20px 0 28px; margin: 0; max-width: none; }
+@media (min-width: 900px) {
+  .gesto { min-height: 78vh; padding: 80px 0; }
+  .gesto-velo { background: linear-gradient(90deg, rgba(8, 11, 6, 0.9) 0%, rgba(8, 11, 6, 0.6) 42%, rgba(8, 11, 6, 0.12) 100%); }
+  .gesto:nth-child(even) .gesto-velo { background: linear-gradient(270deg, rgba(8, 11, 6, 0.9) 0%, rgba(8, 11, 6, 0.6) 42%, rgba(8, 11, 6, 0.12) 100%); }
+  .gesto:nth-child(even) .gesto-testo { margin-left: auto; }
+}
 .fatti { list-style: none; padding: 0; margin: 0; }
 .fatti li { display: flex; align-items: baseline; gap: 12px; padding: 10px 0; border-top: 1px solid rgba(255, 255, 255, 0.14); font-size: 0.9375rem; }
 
-/* ── La serata: un turno di lavoro in cinque momenti. Il filo a sinistra
-   scende per tutta la sezione e ogni ora ci sta sopra con un punto lime;
-   dal tablet filmato e testo stanno affiancati e si scambiano di posto a
-   righe alterne. ── */
-.serata { padding-bottom: 64px; }
-.serata-righe { list-style: none; margin: 0; padding: 0 0 0 28px; border-left: 2px solid var(--line); display: grid; gap: 48px; }
-.momento { position: relative; display: grid; gap: 16px; }
-.momento-ora { position: relative; margin: 0; font-family: var(--titoli); font-variant-numeric: lining-nums; font-size: 1.75rem; line-height: 1; color: var(--text); }
-.momento-ora::before { content: ''; position: absolute; left: -37px; top: 50%; width: 16px; height: 16px; margin-top: -8px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 0 4px var(--bg); }
-.momento-filmato video, .momento-filmato img, .filmato-vuoto { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 12px; background: var(--scuro); }
-.filmato-vuoto { display: flex; align-items: center; justify-content: center; font-family: var(--titoli); font-size: 3rem; color: rgba(255, 255, 255, 0.16); }
-.momento-testo h3 { font-family: var(--titoli); font-size: 1.5rem; margin: 0 0 8px; }
-.momento-testo p { margin: 0; color: var(--muted); max-width: 30rem; }
-.momento-testo .momento-funzioni { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 0.875rem; font-weight: 600; color: var(--accent); }
-@media (min-width: 900px) {
-  .serata-righe { gap: 72px; padding-left: 40px; }
-  .momento { grid-template-columns: 96px minmax(0, 6fr) minmax(0, 5fr); gap: 32px; align-items: center; }
-  .momento-ora::before { left: -49px; }
-  .momento:nth-child(even) .momento-filmato { order: 3; }
-}
 .fatti li::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 0 1px var(--lime-forte); flex: none; transform: translateY(-2px); }
 .nota-lingua { margin: 16px 0 0; font-size: 0.875rem; color: var(--muted); }
 
