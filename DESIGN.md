@@ -216,6 +216,35 @@ cosa comprende dovrebbero essere sempre aperti».
   viene dal rifiuto della riga di «Riordina» di prima («quanto fa schifo
   questo testo»).
 
+### Il confronto fra i piani e i moduli a scomparsa (11/11/2026, REQ-FLOTTA-063)
+
+Supera la tabella «I moduli, uno per uno» sempre aperta (§5.6). Daniele:
+«la comparison table che si apre tra i due piani… i moduli che sono inclusi
+nel premium saranno scritti come a pagamento nel basic… e poi sotto, a
+scomparsa, i dettagli dei moduli come è ora ma magari un po' più elegante».
+
+- **Un comando sotto le schede dei piani**, «Confronta i piani», largo
+  quanto loro: sembra il loro piede. Aperto, la tabella sta nello stesso
+  pannello.
+- **Una colonna per piano in vendita**, il Completo col nome nel lime.
+  Due gruppi di righe, col titolo in maiuscoletto e un filo lime: «Il
+  lavoro di ogni giorno» e «I moduli».
+- **Le celle dei moduli** dicono «Incluso» con la spunta, oppure il prezzo
+  con l'IVA inclusa sotto, oppure «Non disponibile» nel piano gratuito.
+- **Niente righe uguali**: una riga che dice la stessa cosa per tutti i
+  piani non è un confronto e non si mostra, tranne i terminali.
+- **I moduli uno per uno** sono righe separate da un filo: il nome a
+  sinistra, quanto costa a destra, il segno in fondo. Aperta, la riga dice
+  cosa fa il modulo e dove è compreso.
+- **Come si apre**: l'altezza cresce da zero in 0,35 secondi e il segno
+  «+» ruota in «×» diventando lime. È lo stesso gesto per il confronto e
+  per ogni modulo. Con «meno movimento» si apre di colpo.
+- **Da chiuso** il contenuto non si raggiunge né con Tab né con un
+  lettore di schermo.
+- **Sul telefono** le colonne restano affiancate, con caratteri più
+  piccoli e celle che vanno a capo; nella riga di un modulo il prezzo va
+  sotto il nome.
+
 ### Colori
 
 **LA PALETTE LIME (11/11/2026).** L'utente, dopo il nome «Lime –

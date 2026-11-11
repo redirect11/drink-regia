@@ -6,6 +6,12 @@ data.
 
 ## Prossima release (da decidere)
 
+- Nei prezzi c'è il confronto fra i piani, che si apre con un comando
+  sotto le schede: una colonna per piano, «Incluso» dove un modulo è
+  compreso e il prezzo dove si compra a parte; col Free in vendita, anche
+  cosa gli manca. Sotto, i moduli uno per uno in righe che si aprono, al
+  posto della tabella sempre aperta. Sul telefono il tasto del menù non
+  esce più dallo schermo (REQ-FLOTTA-063, #139).
 - Nel carosello ogni filmato resta quattro secondi, non più sei, e sotto
   la frase non ci sono più le etichette dei piani e dei moduli. Nemmeno
   sotto le funzioni: lì si spiega cosa fa il prodotto, e cosa si compra

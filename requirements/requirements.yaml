@@ -3436,7 +3436,18 @@ requirements:
       leggibile senza scorrere di lato la pagina. (10) Italiano e
       inglese hanno le stesse voci. (11) La frase sulla convenienza del
       Completo e la nota sullo scontrino non fiscale restano.
-    status: todo
+      (12) Una riga del «lavoro di ogni giorno» che dice la stessa cosa
+      per tutti i piani in colonna non si mostra, tranne i terminali:
+      senza il Free in vendita, Base e Completo hanno comande, prodotti,
+      conti, utenti, sconti e storico uguali. (13) Sul telefono stretto
+      il tasto del menù resta dentro lo schermo: sotto i 480px la barra
+      non porta la qualifica «SmartOrders», che resta nel piè di pagina.
+      DA VERIFICARE CON DANIELE, perché il listino non lo scrive: che
+      Base e Completo non abbiano un limite di utenti («Senza limite» è
+      dedotto dall'assenza del limite, che solo il Free ha), e che nel
+      Free il terminale in più non si possa aggiungere («Non
+      disponibile», come i moduli).
+    status: implemented
     generate_issue: true
     labels: [prodotto, regia, home]
     priority: P1

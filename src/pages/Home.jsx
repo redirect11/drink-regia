@@ -199,6 +199,30 @@ const GESTI = [
 // durare di meno». Quattro bastano a leggere una parola e una frase corta.
 const PASSO_CAROSELLO_MS = 4000
 
+// UN PEZZO CHE SI APRE (REQ-FLOTTA-063): il confronto fra i piani e ogni
+// modulo dell'elenco. Daniele, 11/11/2026: i moduli a pagamento «nascosti,
+// che si possono aprire… con qualche animazione ben integrata nella UI».
+// Il comando è un bottone che dice lo stato (aria-expanded) e comanda la
+// sua regione. L'animazione è l'altezza che passa da zero a quella del
+// contenuto (una griglia da 0fr a 1fr, src/index.css): il contenuto resta
+// nel documento, così l'altezza si può animare, ma da chiuso è `inert` e
+// nascosto ai lettori di schermo, quindi non ci si arriva né con Tab né
+// con un lettore. Chi ha chiesto meno movimento lo vede aprirsi di colpo.
+function Apribile({ id, comando, className = '', children }) {
+  const [aperto, setAperto] = useState(false)
+  return (
+    <div className={`apribile ${className}`.trim()} data-aperto={aperto}>
+      <button type="button" className="apribile-comando" aria-expanded={aperto} aria-controls={id} onClick={() => setAperto((a) => !a)}>
+        {comando}
+        <span className="apribile-segno" aria-hidden="true" />
+      </button>
+      <div id={id} className="apribile-corpo" aria-hidden={!aperto} inert={aperto ? undefined : ''}>
+        <div className="apribile-dentro">{children}</div>
+      </div>
+    </div>
+  )
+}
+
 // L'aliquota del listino, scritta una volta («IVA esclusa, al 22%»).
 const IVA_PERCENTO = `${IVA}%`
 
@@ -320,8 +344,35 @@ export default function Home({ utente, lingua = 'it' }) {
             : t.prezzi.fondatori.attivazioneGratuita,
         })
       : null
-  const colonnaBase = interpola(t.prezzi.tabella.sulBase, { base: nomeBase })
-  const colonnaCompleto = interpola(t.prezzi.tabella.nelCompleto, { completo: nomeCompleto })
+  // IL CONFRONTO FRA I PIANI (REQ-FLOTTA-063). Le colonne sono i piani in
+  // vendita. Le righe del «lavoro di ogni giorno» nascono dai limiti del
+  // listino (functions/piani.json): un piano senza un limite scritto non
+  // ce l'ha, e la cella lo dice («Senza limite», «Sì», «Tutto»). Nessun
+  // numero scritto a mano.
+  const c = t.prezzi.confronto
+  const limite = (p, chiave) => p.limiti?.[chiave]
+  const righeLavoro = [
+    { id: 'comande', valore: (p) => (limite(p, 'comande') === false ? c.no : c.si) },
+    { id: 'prodotti', valore: (p) => (limite(p, 'prodotti_max') ? interpola(c.finoA, { n: limite(p, 'prodotti_max') }) : c.senzaLimite) },
+    { id: 'conti', valore: (p) => (limite(p, 'conti_aperti_max') ? interpola(c.finoA, { n: limite(p, 'conti_aperti_max') }) : c.senzaLimite) },
+    { id: 'utenti', valore: (p) => (limite(p, 'utenti_max') === 1 ? c.soloTitolare : limite(p, 'utenti_max') ? interpola(c.finoA, { n: limite(p, 'utenti_max') }) : c.senzaLimite) },
+    { id: 'sconti', valore: (p) => (limite(p, 'sconti') === false ? c.no : c.si) },
+    { id: 'storico', valore: (p) => (limite(p, 'storico_giorni') ? interpola(c.giorni, { n: limite(p, 'storico_giorni') }) : c.tutto) },
+    { id: 'terminali', valore: (p) => String(p.terminali || 1) },
+  ]
+  // Una riga che dice la stessa cosa per tutti i piani in colonna non è un
+  // confronto: senza il Free in vendita, Base e Completo hanno comande,
+  // prodotti, conti, utenti, sconti e storico uguali, e sei righe identiche
+  // nasconderebbero l'unica cosa che conta, i moduli. I terminali restano
+  // sempre: sono un numero che chi compra vuole leggere.
+  const righeDaMostrare = righeLavoro.filter((r) => r.id === 'terminali' || new Set(piani.map((p) => r.valore(p))).size > 1)
+  // Un modulo, in un piano: compreso, da comprare a parte, o (nel piano
+  // gratuito, che non ha moduli) non disponibile.
+  const cellaModulo = (p, m) => {
+    if ((p.include || []).includes(m.id)) return 'incluso'
+    if (p.gratuito) return 'no'
+    return 'prezzo'
+  }
 
 
   // Un'azione principale per schermata (DESIGN.md §2): chi è già dentro va
@@ -588,69 +639,151 @@ export default function Home({ utente, lingua = 'it' }) {
               })}
             </p>
           )}
-          <h3 className="tabella-titolo">{t.prezzi.tabella.titolo}</h3>
-          <div className="tabella-moduli">
-            <table className="moduli">
-              <caption className="solo-lettori">
-                {interpola(t.prezzi.tabella.didascalia, { base: nomeBase, completo: nomeCompleto })}
-              </caption>
-              <thead>
-                <tr>
-                  <th scope="col">{t.prezzi.tabella.modulo}</th>
-                  <th scope="col">{t.prezzi.tabella.cosaFa}</th>
-                  <th scope="col" className="numero-colonna">
-                    {colonnaBase}
-                  </th>
-                  <th scope="col" className="numero-colonna">
-                    {colonnaCompleto}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {moduliVisibili.map((m) => (
-                  <tr key={m.id}>
-                    <th scope="row">{nomeModulo(t, m)}</th>
-                    <td className="cosa-fa">{descrizioneModulo(t, m)}</td>
-                    {/* data-colonna: sul telefono la tabella va in colonna, e l'intestazione si ripete accanto al valore. */}
-                    <td className="numero-colonna" data-colonna={colonnaBase}>
-                      {inclusiNelBase.has(m.id) ? (
-                        <span className="incluso">
-                          <Icona d={SPUNTA} className="icona spunta" />
-                          {t.prezzi.tabella.incluso}
-                        </span>
-                      ) : (
-                        <>
-                          {piuIva(m.prezzo)} {t.prezzi.alMese}
-                          <span className="iva-inclusa">{ivaInclusa(m.prezzo)}</span>
-                        </>
-                      )}
-                    </td>
-                    <td className="numero-colonna" data-colonna={colonnaCompleto}>
-                      {inclusiNelCompleto.has(m.id) ? (
-                        <span className="incluso">
-                          <Icona d={SPUNTA} className="icona spunta" />
-                          {t.prezzi.tabella.incluso}
-                        </span>
-                      ) : (
-                        <span className="non-incluso">{t.prezzi.tabella.nonIncluso}</span>
-                      )}
-                    </td>
+          {/* IL CONFRONTO FRA I PIANI, CHE SI APRE (REQ-FLOTTA-063). Una
+              colonna per piano in vendita. Prima cosa cambia nel lavoro di
+              ogni giorno, poi i moduli: «Incluso» dove il piano li
+              comprende, il prezzo dove si comprano a parte, «Non
+              disponibile» nel piano gratuito. I prezzi sono al mese e IVA
+              esclusa, e lo dice la riga sotto la tabella. */}
+          <Apribile id="confronto-piani" className="confronto" comando={<span className="apribile-titolo">{c.apri}</span>}>
+            <div className="tabella-confronto">
+              <table className="confronto-tabella">
+                <caption className="solo-lettori">{c.didascalia}</caption>
+                <thead>
+                  <tr>
+                    <td />
+                    {piani.map((p) => (
+                      <th scope="col" key={p.id} className={p.id === 'completo' ? 'in-evidenza' : undefined}>
+                        {nomePiano(t, p)}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-                <tr>
-                  <th scope="row">{t.prezzi.tabella.terminale}</th>
-                  <td className="cosa-fa">{t.prezzi.tabella.terminaleTesto}</td>
-                  <td className="numero-colonna" data-colonna={colonnaBase}>
-                    {piuIva(TERMINALE_IN_PIU)} {t.prezzi.alMese}
-                    <span className="iva-inclusa">{ivaInclusa(TERMINALE_IN_PIU)}</span>
-                  </td>
-                  <td className="numero-colonna" data-colonna={colonnaCompleto}>
-                    {plurale(completo.terminali || 1, t.prezzi.tabella.terminaliInclusi)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  <tr className="gruppo">
+                    <th scope="rowgroup" colSpan={piani.length + 1}>
+                      {c.gruppoLavoro}
+                    </th>
+                  </tr>
+                  {righeDaMostrare.map((r) => (
+                    <tr key={r.id}>
+                      <th scope="row">{c.righe[r.id]}</th>
+                      {piani.map((p) => (
+                        <td key={p.id}>{r.valore(p)}</td>
+                      ))}
+                    </tr>
+                  ))}
+                  <tr className="gruppo">
+                    <th scope="rowgroup" colSpan={piani.length + 1}>
+                      {c.gruppoModuli}
+                    </th>
+                  </tr>
+                  {moduliVisibili.map((m) => (
+                    <tr key={m.id}>
+                      <th scope="row">{nomeModulo(t, m)}</th>
+                      {piani.map((p) => {
+                        const cosa = cellaModulo(p, m)
+                        return (
+                          <td key={p.id}>
+                            {cosa === 'incluso' && (
+                              <span className="incluso">
+                                <Icona d={SPUNTA} className="icona spunta" />
+                                {t.prezzi.tabella.incluso}
+                              </span>
+                            )}
+                            {cosa === 'no' && <span className="non-incluso">{c.nonDisponibile}</span>}
+                            {cosa === 'prezzo' && (
+                              <>
+                                {piuIva(m.prezzo)}
+                                <span className="iva-inclusa">{ivaInclusa(m.prezzo)}</span>
+                              </>
+                            )}
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  ))}
+                  <tr>
+                    <th scope="row">{t.prezzi.tabella.terminale}</th>
+                    {piani.map((p) => (
+                      <td key={p.id}>
+                        {p.gratuito ? (
+                          <span className="non-incluso">{c.nonDisponibile}</span>
+                        ) : (
+                          <>
+                            {piuIva(TERMINALE_IN_PIU)}
+                            <span className="iva-inclusa">{ivaInclusa(TERMINALE_IN_PIU)}</span>
+                          </>
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p className="nota confronto-nota">{c.nota}</p>
+          </Apribile>
+
+          {/* I MODULI, UNO PER UNO, A SCOMPARSA. Una riga per modulo col nome
+              e quanto costa; si apre a dire cosa fa. Prima era una tabella
+              sempre aperta, e in testa ai prezzi c'erano nove righe di
+              moduli prima ancora di aver capito i piani. */}
+          <h3 className="tabella-titolo">{t.prezzi.tabella.titolo}</h3>
+          <ul className="moduli-elenco">
+            {moduliVisibili.map((m) => (
+              <li key={m.id}>
+                <Apribile
+                  id={`modulo-${m.id}`}
+                  className="modulo"
+                  comando={
+                    <>
+                      <span className="apribile-titolo">{nomeModulo(t, m)}</span>
+                      <span className="modulo-prezzo">
+                        {inclusiNelBase.has(m.id) ? interpola(c.nelPiano, { piano: nomeBase }) : `${piuIva(m.prezzo)} ${t.prezzi.alMese}`}
+                      </span>
+                    </>
+                  }
+                >
+                  <p className="modulo-cosa">{descrizioneModulo(t, m)}</p>
+                  <p className="modulo-dove">
+                    {inclusiNelBase.has(m.id)
+                      ? interpola(c.inclusoInTutti, { base: nomeBase, completo: nomeCompleto })
+                      : interpola(inclusiNelCompleto.has(m.id) ? c.aParteEIncluso : c.aParte, {
+                          base: nomeBase,
+                          completo: nomeCompleto,
+                          prezzo: piuIva(m.prezzo),
+                          lordo: ivaInclusa(m.prezzo),
+                        })}
+                  </p>
+                </Apribile>
+              </li>
+            ))}
+            <li>
+              <Apribile
+                id="modulo-terminale"
+                className="modulo"
+                comando={
+                  <>
+                    <span className="apribile-titolo">{t.prezzi.tabella.terminale}</span>
+                    <span className="modulo-prezzo">
+                      {piuIva(TERMINALE_IN_PIU)} {t.prezzi.alMese}
+                    </span>
+                  </>
+                }
+              >
+                <p className="modulo-cosa">{t.prezzi.tabella.terminaleTesto}</p>
+                <p className="modulo-dove">
+                  {interpola(c.terminaliNelPiano, {
+                    base: nomeBase,
+                    completo: nomeCompleto,
+                    n_base: plurale(base.terminali || 1, t.prezzi.tabella.terminaliInclusi),
+                    n_completo: plurale(completo.terminali || 1, t.prezzi.tabella.terminaliInclusi),
+                    lordo: ivaInclusa(TERMINALE_IN_PIU),
+                  })}
+                </p>
+              </Apribile>
+            </li>
+          </ul>
           <p className="nota">{t.prezzi.notaScontrino}</p>
           {/* Il tetto dell'assistenza e le stampanti a preventivo (DEC-0005):
               detti qui, prima della firma, e ripetuti nei Termini. */}
