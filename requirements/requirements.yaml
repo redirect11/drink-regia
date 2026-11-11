@@ -3266,6 +3266,46 @@ requirements:
       - tests/HomeVendita.test.jsx
       - tests/lingua.test.js
 
+  - id: REQ-FLOTTA-062
+    title: "La dashboard del titolare su due colonne, senza buchi fra i riquadri"
+    area: "src/pages/Dashboard.jsx, src/index.css"
+    description: >
+      Daniele, 11/11/2026, con lo screenshot della dashboard di un locale
+      attivo: «non mi piace il layout della dashboard», e poi «non vedi
+      che tutti i box sono sfalsati, quello sotto è lontanissimo. Va
+      rifatto meglio». I riquadri stavano in una griglia a righe: ogni
+      riga è alta quanto il riquadro più alto («Credito AI»), quindi
+      accanto a lui restavano buchi, e il quarto riquadro («Temi su
+      misura») finiva in una riga nuova, molto più in basso, da solo in
+      una colonna stretta.
+      COSA SI FA. Due colonne vere, ognuna una pila di riquadri: ogni
+      riquadro sta subito sotto il precedente, qualunque altezza abbia.
+      A sinistra, più larga, l'app, il piano, gli aggiornamenti, le prove
+      dei moduli e i temi su misura, che è un modulo lungo da compilare.
+      A destra il credito AI, che è un riepilogo. Sotto, a tutta larghezza,
+      la scelta del piano. Sul telefono una colonna sola, nello stesso
+      ordine. L'avviso dell'email da confermare sta su una riga, coi
+      bottoni accanto al testo quando c'è spazio.
+      CRITERI DI ACCETTAZIONE. (1) I riquadri stanno in due colonne,
+      «principale» e «accanto», ognuna una pila. (2) Nella principale,
+      nell'ordine: app, piano, aggiornamenti (se l'app è attiva), prove
+      dei moduli, temi su misura (se l'app è attiva). Nell'altra: il
+      credito AI. (3) La scelta del piano resta sotto le due colonne, a
+      tutta larghezza. (4) Nessun contenuto e nessun comportamento
+      cambia: stessi riquadri, stessi testi, stesse condizioni per
+      vederli. (5) Sotto i 900px le colonne diventano una. (6) La
+      griglia a righe non si usa più nella dashboard del titolare; il
+      commerciale del backoffice, che ha riquadri alti uguali, la tiene.
+      (7) Una colonna senza riquadri non occupa spazio: per un locale
+      non ancora attivo il credito AI non c'è, e «app» e «piano»
+      prendono tutta la larghezza (rilievo del revisore, 11/11/2026).
+    status: implemented
+    generate_issue: true
+    labels: [prodotto, regia, dashboard]
+    priority: P2
+    test_cases:
+      - tests/Dashboard.test.jsx
+
   - id: REQ-FLOTTA-059
     title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"
     area: "functions/lib/eliminazione-cliente.js, functions/index.js (eliminaCliente), src/lib/db.js (eliminaCliente), src/pages/Backoffice.jsx (Elimina cliente…)"
