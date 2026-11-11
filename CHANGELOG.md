@@ -6,6 +6,12 @@ data.
 
 ## Prossima release (da decidere)
 
+- I cinque gesti stanno in un carosello nella prima schermata, al posto
+  delle fasce una sotto l'altra: i filmati scorrono in orizzontale da
+  soli, ognuno con la sua parola e una frase corta. Si va avanti e
+  indietro a mano, e «Ferma i filmati» ferma anche lo scorrimento. I
+  riquadri «Cosa comprende» sono di nuovo sempre aperti. Le frasi dei
+  gesti sono riscritte, più corte (REQ-FLOTTA-061, #135).
 - La prima pagina ha i filmati. Dietro al titolo gira il barman al banco;
   sotto, il lavoro del locale in cinque gesti, uno per fascia col suo
   filmato e una parola sola: Ordina, Prepara, Incassa, Conta, Riordina.

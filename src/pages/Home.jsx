@@ -130,14 +130,15 @@ function dueTempi(testo) {
 }
 
 // I FILMATI DELLA PRIMA PAGINA (11/11/2026, l'utente: «una pagina moderna…
-// nella parte sopra c'è il video in background e uno slogan davanti»). Sei
-// filmati brevi in public/video, muti e in ciclo: il barman dietro al
-// titolo e uno per ognuno dei cinque gesti. Sono decorazione, non
+// nella parte sopra c'è il video in background e uno slogan davanti»).
+// Cinque filmati brevi in public/video, muti e in ciclo, uno per gesto:
+// fanno da sfondo alla prima schermata, a turno. Sono decorazione, non
 // contenuto: nascosti a chi usa un lettore di schermo.
 // QUANDO GIRANO. Chi chiede meno movimento (prefers-reduced-motion) o di
 // risparmiare dati vede il fermo immagine, che è anche quello che si vede
 // finché il codice non è partito: per questo il video non si scarica
-// prima. E chi li vede girare li può fermare, col bottone sotto i gesti:
+// prima. E chi li vede girare li può fermare, col bottone fra i comandi
+// del carosello, che ferma anche lo scorrimento:
 // partono da soli e non finiscono mai, e un movimento così accanto a un
 // testo deve potersi fermare (WCAG 2.2.2; rilievo del revisore, 11/11/2026).
 // `possibile` dice se il sistema li lascia girare, `acceso` se chi guarda
@@ -163,34 +164,33 @@ function Filmato({ nome, className, gira }) {
   )
 }
 
-// I CINQUE GESTI (11/11/2026). L'utente ha scartato gli orari («la cosa
-// degli orari non mi piace») e ha chiesto «semplice, non troppo complesso
-// ma originale». Il lavoro di un locale sono cinque gesti, e l'app sta
-// dentro ognuno: ogni gesto è una fascia a tutta larghezza col suo
-// filmato e una parola sola, grande. Niente schede, niente elenchi: la
-// parola dice il gesto, una riga dice cosa fa l'app, e sotto i moduli
-// coinvolti. L'ordine è quello del servizio, dalla comanda ai numeri, e
-// riprende lo slogan «Dalla comanda alla cassa». Struttura qui, testi in
-// src/i18n (gesti.voci).
+// I CINQUE GESTI, IN UN CAROSELLO (11/11/2026, REQ-FLOTTA-061). Il lavoro
+// di un locale sono cinque gesti, e l'app sta dentro ognuno: Ordina,
+// Prepara, Incassa, Conta, Riordina, nell'ordine del servizio, che è lo
+// slogan «Dalla comanda alla cassa». La prima versione (REQ-FLOTTA-060)
+// li metteva in cinque fasce una sotto l'altra; Daniele, vista sul sito di
+// test: «fai un carosello sopra a tutto dove sta il primo video… invece
+// di scorrerle in verticale le facciamo scorrere in automatico in
+// orizzontale». Ora ogni gesto è una diapositiva della prima schermata:
+// il suo filmato fa da sfondo, la parola e una riga corta stanno in basso,
+// e titolo, bottoni e scheda dei fatti restano fermi davanti.
 //
 // I MODULI DI OGNI GESTO seguono la vendita decisa dall'admin, come le
 // funzioni più sotto (REQ-FLOTTA-015): un modulo non in vendita non
 // compare fra le etichette, e un gesto che vive solo di moduli (i numeri,
 // la scorta) non si vede se nessuno dei suoi è in vendita. Per questo la
-// riga di testo di «Ordina» e «Incassa» non promette il menù con QR o il
-// lettore di carte: quelli li dice l'etichetta, quando si possono comprare.
-// E per questo «Conta», che ha due moduli, ha una frase per modulo
-// (gesti.voci.numeri.frasi) invece di una riga sola: con le statistiche
-// in vendita e il personale no, la frase sulle ore non si deve leggere
-// (rilievo del revisore, 11/11/2026).
-// `lato` è il lato del testo, quello dove il filmato è più libero.
+// riga di «Ordina» e «Incassa» non promette il menù con QR o il lettore
+// di carte, e «Conta», che ha due moduli, ha una frase per modulo: si
+// legge quella del primo in vendita.
 const GESTI = [
-  { id: 'sala', moduli: ['menu_tavoli', 'ordini_cliente'], base: true, lato: 'sinistra' },
-  { id: 'banco', moduli: [], base: true, lato: 'sinistra' },
-  { id: 'conto', moduli: ['sumup'], base: true, lato: 'sinistra' },
-  { id: 'numeri', moduli: ['statistiche', 'staff'], base: false, lato: 'sinistra' },
-  { id: 'scorta', moduli: ['magazzino'], base: false, lato: 'destra' },
+  { id: 'sala', moduli: ['menu_tavoli', 'ordini_cliente'], base: true },
+  { id: 'banco', moduli: [], base: true },
+  { id: 'conto', moduli: ['sumup'], base: true },
+  { id: 'numeri', moduli: ['statistiche', 'staff'], base: false },
+  { id: 'scorta', moduli: ['magazzino'], base: false },
 ]
+// Ogni quanto il carosello passa al gesto dopo, da solo.
+const PASSO_CAROSELLO_MS = 6000
 
 // L'aliquota del listino, scritta una volta («IVA esclusa, al 22%»).
 const IVA_PERCENTO = `${IVA}%`
@@ -242,11 +242,32 @@ export default function Home({ utente, lingua = 'it' }) {
   const gesti = GESTI.filter((g) => g.base || g.moduli.some((id) => moduloVisibile(vendita, id)))
   const filmati = useFilmati()
   // La riga di un gesto: la sua, oppure le frasi dei soli moduli in vendita.
+  // Una frase sola (REQ-FLOTTA-061): per un gesto con più moduli, quella
+  // del primo modulo in vendita.
   const rigaGesto = (g) => {
     const voce = t.gesti.voci[g.id]
     if (!voce.frasi) return voce.testo
-    return g.moduli.filter((id) => moduloVisibile(vendita, id) && voce.frasi[id]).map((id) => voce.frasi[id]).join(' ')
+    const primo = g.moduli.find((id) => moduloVisibile(vendita, id) && voce.frasi[id])
+    return primo ? voce.frasi[primo] : ''
   }
+  // IL CAROSELLO. `scelto` è il gesto che si vede; se la vendita cambia a
+  // pagina aperta e i gesti diventano meno, si resta sull'ultimo. Avanza
+  // da solo finché i filmati girano (cioè: il sistema lo permette e
+  // nessuno ha premuto «Ferma»), e aspetta quando il puntatore o il fuoco
+  // sono sulla prima schermata: chi sta leggendo o usando i comandi non
+  // deve vedersi cambiare la diapositiva sotto le mani.
+  const [scelto, setScelto] = useState(0)
+  const [inPausa, setInPausa] = useState(false)
+  const indice = Math.min(scelto, gesti.length - 1)
+  const quanti = gesti.length
+  const vai = (i) => setScelto(((i % quanti) + quanti) % quanti)
+  const scorre = filmati.girano && !inPausa && quanti > 1
+  useEffect(() => {
+    if (!scorre) return undefined
+    const giro = setInterval(() => setScelto((i) => (Math.min(i, quanti - 1) + 1) % quanti), PASSO_CAROSELLO_MS)
+    return () => clearInterval(giro)
+  }, [scorre, quanti])
+  const gesto = gesti[indice]
   const { base, completo } = PIANI
   const inclusiNelBase = new Set(base.include)
   const inclusiNelCompleto = new Set(completo.include)
@@ -322,11 +343,33 @@ export default function Home({ utente, lingua = 'it' }) {
     <main className="landing" ref={radice}>
       {proposta && <AvvisoLingua lingua={lingua} proposta={proposta} chiudi={() => setProposta(null)} />}
 
-      {/* LA PRIMA SCHERMATA: il filmato del barman a tutta larghezza, un
-          velo scuro sopra, e davanti cosa è e cosa fare; a destra la scheda
-          coi fatti (prezzo, abbonamento, attivazione), informazioni vere. */}
-      <section className="hero" aria-labelledby="hero-titolo">
-        <Filmato nome="banco" className="hero-sfondo" gira={filmati.girano} />
+      {/* LA PRIMA SCHERMATA È UN CAROSELLO. Sotto, i cinque filmati in fila,
+          che scorrono in orizzontale uno alla volta; sopra un velo scuro;
+          davanti, ferme, le cose che non cambiano: cosa è, cosa fare e la
+          scheda coi fatti. In basso la parola del gesto che si vede, la
+          sua riga, i moduli, e i comandi: indietro, avanti, i cinque
+          punti, e «Ferma i filmati» che ferma anche lo scorrimento.
+          Gira solo il filmato della diapositiva che si vede: gli altri
+          sono fermi immagine, così non si scaricano cinque filmati
+          insieme. La parola del gesto è annunciata ai lettori di schermo
+          solo quando si cambia a mano, non a ogni giro. */}
+      <section
+        className="hero"
+        aria-labelledby="hero-titolo"
+        onMouseEnter={() => setInPausa(true)}
+        onMouseLeave={() => setInPausa(false)}
+        onFocus={() => setInPausa(true)}
+        onBlur={() => setInPausa(false)}
+      >
+        <div className="carosello" aria-hidden="true">
+          <ol className="diapositive" style={{ transform: `translateX(-${indice * 100}%)` }}>
+            {gesti.map((g, i) => (
+              <li key={g.id} className="diapositiva" data-gesto={g.id} data-visibile={i === indice}>
+                <Filmato nome={g.id} className="hero-sfondo" gira={filmati.girano && i === indice} />
+              </li>
+            ))}
+          </ol>
+        </div>
         <div className="hero-velo" />
         <div className="contenitore hero-griglia">
           <div className="hero-testo">
@@ -360,48 +403,45 @@ export default function Home({ utente, lingua = 'it' }) {
             </ul>
           </aside>
         </div>
-      </section>
-
-      {/* I CINQUE GESTI: una fascia per gesto, col filmato sotto, un velo
-          scuro e la parola grande davanti; il testo sta a sinistra o a
-          destra a fasce alterne, dal lato dove il filmato è più libero.
-          La nota in fondo dice che i filmati sono generati: nessuno deve
-          prenderli per riprese di un locale vero. */}
-      <section id="gesti" className="gesti" aria-labelledby="gesti-titolo">
-        <h2 id="gesti-titolo" className="solo-lettori">
-          {t.gesti.titolo}
-        </h2>
-        <ol className="gesti-fasce">
-          {gesti.map((g) => (
-            <li key={g.id} className="gesto" data-lato={g.lato}>
-              <Filmato nome={g.id} className="gesto-sfondo" gira={filmati.girano} />
-              <div className="gesto-velo" />
-              <div className="contenitore">
-                <div className="gesto-testo">
-                  <h3>{t.gesti.voci[g.id].parola}</h3>
-                  <p>{rigaGesto(g)}</p>
-                  <ul className="gesto-moduli">
-                    {etichetteGesto(g).map((e) => (
-                      <li key={e}>{e}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </li>
-          ))}
-        </ol>
         <div className="contenitore">
-          <p className="nota">
-            {t.gesti.nota}
-            {filmati.possibile && (
-              <>
-                {' '}
+          <div id="gesti" className="gesti" role="group" aria-roledescription={t.gesti.carosello} aria-label={t.gesti.titolo}>
+            <div className="gesto-testo" aria-live={scorre ? 'off' : 'polite'} aria-atomic="true">
+              <p className="gesto-parola">{t.gesti.voci[gesto.id].parola}</p>
+              <p className="gesto-riga">{rigaGesto(gesto)}</p>
+              <ul className="gesto-moduli">
+                {etichetteGesto(gesto).map((e) => (
+                  <li key={e}>{e}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="gesto-comandi">
+              <button type="button" className="gesto-freccia" aria-label={t.gesti.precedente} onClick={() => vai(indice - 1)}>
+                <span aria-hidden="true">‹</span>
+              </button>
+              <ol className="gesto-punti">
+                {gesti.map((g, i) => (
+                  <li key={g.id}>
+                    <button
+                      type="button"
+                      className="gesto-punto"
+                      aria-label={interpola(t.gesti.vaiA, { parola: t.gesti.voci[g.id].parola, n: i + 1, totale: quanti })}
+                      aria-current={i === indice ? 'true' : undefined}
+                      onClick={() => vai(i)}
+                    />
+                  </li>
+                ))}
+              </ol>
+              <button type="button" className="gesto-freccia" aria-label={t.gesti.successiva} onClick={() => vai(indice + 1)}>
+                <span aria-hidden="true">›</span>
+              </button>
+              {filmati.possibile && (
                 <button type="button" className="link ferma-filmati" aria-pressed={!filmati.girano} onClick={filmati.cambia}>
                   {filmati.girano ? t.gesti.ferma : t.gesti.riprendi}
                 </button>
-              </>
-            )}
-          </p>
+              )}
+            </div>
+          </div>
+          <p className="nota nota-filmati">{t.gesti.nota}</p>
         </div>
       </section>
 
@@ -435,11 +475,11 @@ export default function Home({ utente, lingua = 'it' }) {
                       ))}
                     </ul>
                   </div>
-                  {/* Chiuso finché non lo si apre (11/11/2026): coi cinque
-                      gesti sopra, qui serve il dettaglio per chi lo cerca,
-                      non un secondo racconto. */}
-                  <details className="funzione-riquadro">
-                    <summary className="scheda-titolo">{t.funzioni.punti}</summary>
+                  {/* Sempre aperto (Daniele, 11/11/2026: «i box cosa comprende
+                      dovrebbero essere sempre aperti»): per un pomeriggio
+                      è stato un elemento che si apriva. */}
+                  <div className="funzione-riquadro">
+                    <p className="scheda-titolo">{t.funzioni.punti}</p>
                     <ul className="punti" aria-label={t.funzioni.punti}>
                       {v.punti.map((p) => (
                         <li key={p}>
@@ -448,7 +488,7 @@ export default function Home({ utente, lingua = 'it' }) {
                         </li>
                       ))}
                     </ul>
-                  </details>
+                  </div>
                 </article>
               )
             })}

@@ -206,7 +206,7 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
    sinistra, dove sta il testo, e lascia vedere il barman a destra; sul
    telefono è uniforme, perché il testo copre tutto. Senza filmato (non
    ancora caricato) resta il fondo scuro: il testo si legge comunque. ── */
-.hero { position: relative; isolation: isolate; overflow: hidden; padding: 56px 0 64px; background: var(--scuro); color: var(--scuro-testo); }
+.hero { position: relative; isolation: isolate; overflow: hidden; padding: 56px 0 28px; background: var(--scuro); color: var(--scuro-testo); }
 .hero-sfondo { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; object-position: 72% center; }
 .hero-velo { position: absolute; inset: 0; z-index: -1; background: rgba(8, 11, 6, 0.74); }
 .hero .occhiello { color: var(--scuro-muted); }
@@ -225,28 +225,37 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .hero-scheda { background: rgba(12, 15, 10, 0.72); border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 12px; padding: 20px 22px; }
 .hero-scheda .scheda-titolo { color: var(--scuro-muted); }
 
-/* ── I cinque gesti: fasce a tutta larghezza, una per gesto. Il filmato sta
-   sotto, il velo scuro sopra, e davanti una parola sola, grande, con l'iniziale
-   lime. Il velo è più fitto dal lato del testo (data-lato), quello dove
-   il filmato è più libero; sul telefono è uniforme. Fra una fascia e l'altra un filo
-   sottile, perché restino cinque e non un filmato solo. ── */
-.gesti { background: var(--scuro); color: var(--scuro-testo); }
-.gesti-fasce { list-style: none; margin: 0; padding: 0; }
-.gesto { position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: flex-end; min-height: 68vh; padding: 56px 0; border-top: 1px solid rgba(255, 255, 255, 0.12); }
-.gesto-sfondo { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; }
-.gesto-velo { position: absolute; inset: 0; z-index: -1; background: rgba(8, 11, 6, 0.66); }
-.gesto-testo { max-width: 30rem; }
-.gesto h3 { font-family: var(--titoli); font-weight: 700; font-size: clamp(3.25rem, 11vw, 7.5rem); line-height: 0.95; letter-spacing: -0.02em; margin: 0 0 20px; }
-.gesto h3::first-letter { color: var(--lime); }
-.gesto-testo p { margin: 0; font-size: 1.125rem; line-height: 1.55; color: #e6ebdc; }
-.gesto-moduli { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 18px 0 0; padding: 14px 0 0; border-top: 1px solid rgba(255, 255, 255, 0.2); font-size: 0.875rem; font-weight: 600; color: var(--lime); }
-.gesti .nota { color: var(--scuro-muted); padding: 20px 0 28px; margin: 0; max-width: none; }
-.ferma-filmati { background: none; border: none; padding: 12px 0; min-height: 44px; font: inherit; color: var(--accent); text-decoration: underline; cursor: pointer; }
+/* ── Il carosello dei cinque gesti (REQ-FLOTTA-061). Le diapositive stanno in
+   fila dietro a tutto e scorrono in orizzontale: si sposta la fila, una
+   larghezza alla volta. Davanti, in basso, la parola del gesto con
+   l'iniziale lime, la sua riga, i moduli e i comandi. Chi ha chiesto meno
+   movimento non vede lo scorrimento: la diapositiva cambia di colpo. ── */
+.carosello { position: absolute; inset: 0; z-index: -2; overflow: hidden; }
+.diapositive { display: flex; height: 100%; margin: 0; padding: 0; list-style: none; transition: transform 0.7s ease; }
+.diapositiva { position: relative; flex: 0 0 100%; height: 100%; }
+.gesti { display: grid; gap: 16px; margin-top: 40px; padding-top: 24px; border-top: 1px solid rgba(255, 255, 255, 0.2); }
+.gesto-testo { min-height: 9.5rem; }
+.gesto-parola { font-family: var(--titoli); font-weight: 700; font-size: clamp(2.5rem, 7vw, 4rem); line-height: 1; letter-spacing: -0.02em; margin: 0 0 10px; }
+.gesto-parola::first-letter { color: var(--lime); }
+.gesto-riga { margin: 0; font-size: 1.125rem; line-height: 1.5; color: #e6ebdc; max-width: 34rem; }
+.gesto-moduli { list-style: none; display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 12px 0 0; padding: 0; font-size: 0.875rem; font-weight: 600; color: var(--lime); }
+.gesto-comandi { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.gesto-freccia { width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.4); background: rgba(12, 15, 10, 0.5); color: var(--scuro-testo); font-size: 1.5rem; line-height: 1; cursor: pointer; }
+.gesto-freccia:hover { border-color: var(--lime); color: var(--lime); }
+.gesto-punti { display: flex; align-items: center; margin: 0; padding: 0; list-style: none; }
+/* Il punto è piccolo, il bottone no: 44px di lato da toccare, il segno al centro. */
+.gesto-punto { position: relative; width: 32px; height: 44px; padding: 0; border: none; background: none; cursor: pointer; }
+.gesto-punto::before { content: ''; position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: rgba(255, 255, 255, 0.45); transition: width 0.2s ease, margin 0.2s ease, background-color 0.2s ease; }
+.gesto-punto:hover::before { background: #fff; }
+.gesto-punto[aria-current='true']::before { width: 24px; margin-left: -12px; border-radius: 999px; background: var(--lime); }
+.ferma-filmati { margin-left: 8px; background: none; border: none; padding: 12px 0; min-height: 44px; font: inherit; font-size: 0.875rem; color: var(--scuro-testo); text-decoration: underline; cursor: pointer; }
+.nota-filmati { color: var(--scuro-muted); margin: 12px 0 0; max-width: none; }
 @media (min-width: 900px) {
-  .gesto { min-height: 78vh; padding: 80px 0; }
-  .gesto-velo { background: linear-gradient(90deg, rgba(8, 11, 6, 0.9) 0%, rgba(8, 11, 6, 0.6) 42%, rgba(8, 11, 6, 0.12) 100%); }
-  .gesto[data-lato='destra'] .gesto-velo { background: linear-gradient(270deg, rgba(8, 11, 6, 0.9) 0%, rgba(8, 11, 6, 0.6) 42%, rgba(8, 11, 6, 0.12) 100%); }
-  .gesto[data-lato='destra'] .gesto-testo { margin-left: auto; }
+  .gesti { grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 32px; margin-top: 32px; }
+  .gesto-testo { min-height: 8.5rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .diapositive, .gesto-punto::before { transition: none; }
 }
 .fatti { list-style: none; padding: 0; margin: 0; }
 .fatti li { display: flex; align-items: baseline; gap: 12px; padding: 10px 0; border-top: 1px solid rgba(255, 255, 255, 0.14); font-size: 0.9375rem; }
@@ -267,9 +276,6 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .etichette-moduli { list-style: none; padding: 0; margin: 16px 0 0; display: flex; flex-wrap: wrap; gap: 8px; }
 .etichette-moduli li { font-size: 0.8125rem; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--line); color: var(--muted); background: var(--bg-2); }
 .funzione-riquadro { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; }
-.funzione-riquadro { align-self: start; }
-.funzione-riquadro > summary { display: flex; align-items: center; cursor: pointer; margin: 0; min-height: 44px; }
-.funzione-riquadro[open] > summary { margin-bottom: 6px; }
 .punti { list-style: none; padding: 0; margin: 0; display: grid; }
 .punti li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
 .icona.spunta { width: 18px; height: 18px; color: var(--ok); flex: none; margin-top: 4px; }
@@ -365,7 +371,7 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 @media (min-width: 768px) {
   .landing { font-size: 1.0625rem; }
   .sezione { padding-top: 80px; }
-  .hero { padding: 96px 0 104px; }
+  .hero { padding: 56px 0 28px; }
   .hero-velo { background: linear-gradient(90deg, rgba(8, 11, 6, 0.9) 0%, rgba(8, 11, 6, 0.72) 48%, rgba(8, 11, 6, 0.28) 100%); }
   .hero-sotto { font-size: 1.125rem; }
   .titolo-accento { display: block; }

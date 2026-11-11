@@ -3219,9 +3219,11 @@ requirements:
       I FILMATI di «Incassa», «Conta» e «Riordina» sono una prima prova:
       Daniele ne genera di più fedeli alla parola, e si sostituiscono
       senza toccare il codice (stesso nome in public/video).
-      RESTA: i sei filmati partono tutti al caricamento, anche quelli
-      fuori vista (circa 2,3 MB); caricarli quando entrano in vista è il
-      passo dopo. Il contrasto del testo sopra i filmati dipende dal
+      SUPERATO IN PARTE da REQ-FLOTTA-061 (11/11/2026): le cinque fasce
+      in verticale sono diventate un carosello nella prima schermata, i
+      criteri 3 e 11 valgono in quella forma, e gira solo il filmato
+      della diapositiva visibile, quindi non se ne scaricano più sei
+      insieme. Il contrasto del testo sopra i filmati dipende dal
       filmato: coi prossimi va riguardato.
     status: implemented
     generate_issue: true
@@ -3271,7 +3273,15 @@ requirements:
       gesti in verticale non c'è più. (10) «Cosa comprende» è sempre
       aperto, non un elemento che si apre. (11) Ogni riga di gesto è una
       frase sola, sotto gli 80 caratteri, in italiano e in inglese.
-    status: todo
+      LE FRASI NUOVE le ho scritte io e le decide Daniele: «La comanda
+      parte dal tavolo e arriva subito al banco.», «Chi prepara vede cosa
+      c'è da fare, in ordine.», «Il conto è già pronto: si incassa e si
+      stampa.», «L'incasso della serata è già fatto, senza rifare i
+      conti.» (o, senza le statistiche, «Le ore di chi ha lavorato sono
+      già segnate.»), «Sai cosa sta finendo prima che finisca.».
+      RESTA: i filmati definitivi di Incassa, Conta e Riordina; il
+      bottone «Prova la demo», che porta a un sito non pubblicato.
+    status: implemented
     generate_issue: true
     labels: [prodotto, regia, home]
     priority: P1

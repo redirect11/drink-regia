@@ -15,7 +15,7 @@
 // dashboard.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, within, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, within, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { statSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -80,9 +80,9 @@ describe('la prima pagina', () => {
     })
   })
 
-  it('ha le sezioni nell’ordine del percorso: gesti, funzioni, passi, prezzi, domande, chiusura', () => {
+  it('ha le sezioni nell’ordine del percorso: funzioni, passi, prezzi, domande, chiusura', () => {
     mostra()
-    const ordine = ['gesti', 'funzioni', 'come-funziona', 'prezzi', 'domande', 'contatti']
+    const ordine = ['funzioni', 'come-funziona', 'prezzi', 'domande', 'contatti']
     const trovate = [...document.querySelectorAll('main section[id]')].map((s) => s.id)
     expect(trovate).toEqual(ordine)
     // «Quello che si vede dal banco» e i tre pilastri non ci sono più
@@ -238,76 +238,200 @@ describe('la prima pagina', () => {
   // schermata senza immagini del 07/11. I filmati sono decorazione: chi
   // chiede meno movimento vede il fermo immagine, e un lettore di schermo
   // non incontra né l'uno né l'altro.
-  describe('i filmati', () => {
+  // REQ-FLOTTA-061 (11/11/2026, Daniele: «fai un carosello sopra a tutto
+  // dove sta il primo video… le facciamo scorrere in automatico in
+  // orizzontale»), al posto delle cinque fasce in verticale di
+  // REQ-FLOTTA-060. La prima schermata ha cinque diapositive, una per
+  // gesto; titolo, bottoni e scheda dei fatti restano fermi davanti.
+  describe('il carosello dei cinque gesti', () => {
     const conMovimento = (ridotto) => {
       vi.stubGlobal('matchMedia', (q) => ({ matches: ridotto && /reduced-motion/.test(q), addEventListener() {}, removeEventListener() {} }))
     }
-    afterEach(() => vi.unstubAllGlobals())
-
-    it('dietro al titolo gira il filmato del banco, muto e in ciclo; la scheda dei fatti resta accanto al testo', async () => {
-      conMovimento(false)
-      mostra()
-      const hero = document.querySelector('.hero')
-      const video = await waitFor(() => {
-        const v = hero.querySelector('video.hero-sfondo')
-        expect(v).not.toBeNull()
-        return v
-      })
-      expect(video).toHaveAttribute('aria-hidden', 'true')
-      expect(video).toHaveAttribute('poster', '/video/banco.jpg')
-      expect(video.loop).toBe(true)
-      expect(video.muted).toBe(true)
-      expect(video.querySelector('source')).toHaveAttribute('src', '/video/banco.mp4')
-      expect(within(hero).getByRole('list', { name: 'In breve' }).closest('.hero-scheda')).not.toBeNull()
+    afterEach(() => {
+      vi.useRealTimers()
+      vi.unstubAllGlobals()
     })
+    const PAROLE = ['Ordina.', 'Prepara.', 'Incassa.', 'Conta.', 'Riordina.']
+    const FILMATI = ['sala', 'banco', 'conto', 'numeri', 'scorta']
+    const gruppo = () => screen.getByRole('group', { name: it_.gesti.titolo })
+    const parola = () => gruppo().querySelector('.gesto-parola').textContent
+    const visibile = () => document.querySelector('.diapositiva[data-visibile="true"]').dataset.gesto
+    const fila = () => document.querySelector('.diapositive').style.transform
 
-    it('chi chiede meno movimento vede i fermi immagine, senza testo alternativo: nessun video', async () => {
+    it('cinque diapositive nell’ordine del servizio, una sola visibile; davanti titolo, bottoni e scheda dei fatti', () => {
       conMovimento(true)
       mostra()
-      await screen.findByRole('heading', { level: 2, name: it_.gesti.titolo })
-      expect(document.querySelector('video')).toBeNull()
-      const fermo = document.querySelector('.hero img.hero-sfondo')
-      expect(fermo).toHaveAttribute('src', '/video/banco.jpg')
-      expect(fermo).toHaveAttribute('alt', '')
+      const hero = document.querySelector('.hero')
+      const diapositive = [...hero.querySelectorAll('.diapositiva')]
+      expect(diapositive.map((d) => d.dataset.gesto)).toEqual(FILMATI)
+      expect(diapositive.filter((d) => d.dataset.visibile === 'true')).toHaveLength(1)
+      expect(visibile()).toBe('sala')
+      expect(parola()).toBe('Ordina.')
+      expect(gruppo()).toHaveTextContent(it_.gesti.voci.sala.testo)
+      // Un solo h1, sempre lo stesso: la parola del gesto non è un titolo.
+      expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+      expect(within(hero).getByRole('heading', { level: 1 })).toHaveTextContent(it_.hero.titolo)
+      expect(within(hero).getByRole('list', { name: 'In breve' }).closest('.hero-scheda')).not.toBeNull()
+      // Le fasce in verticale non ci sono più.
+      expect(document.querySelector('.gesti-fasce, li.gesto')).toBeNull()
+      // I filmati sono decorazione: la fila è nascosta ai lettori di schermo.
+      expect(hero.querySelector('.carosello')).toHaveAttribute('aria-hidden', 'true')
+      expect(screen.getByText(/generati con l’intelligenza artificiale/)).toBeInTheDocument()
     })
 
-    it('anche chi chiede di risparmiare dati vede i fermi immagine', async () => {
-      conMovimento(false)
-      vi.stubGlobal('navigator', { userAgent: navigator.userAgent, connection: { saveData: true } })
+    it('avanti e indietro scorrono in orizzontale, in tondo; i punti dicono quale si vede e ci portano', () => {
+      conMovimento(true)
       mostra()
-      await screen.findByRole('heading', { level: 2, name: it_.gesti.titolo })
-      expect(document.querySelector('video')).toBeNull()
-      expect(screen.queryByRole('button', { name: it_.gesti.ferma })).toBeNull()
+      expect(fila()).toBe('translateX(-0%)')
+      fireEvent.click(screen.getByRole('button', { name: it_.gesti.successiva }))
+      expect(parola()).toBe('Prepara.')
+      expect(visibile()).toBe('banco')
+      expect(fila()).toBe('translateX(-100%)')
+      fireEvent.click(screen.getByRole('button', { name: it_.gesti.precedente }))
+      fireEvent.click(screen.getByRole('button', { name: it_.gesti.precedente }))
+      expect(parola()).toBe('Riordina.')
+      expect(fila()).toBe('translateX(-400%)')
+      const punti = within(gruppo()).getAllByRole('button', { name: /Gesto \d di 5/ })
+      expect(punti.map((p) => p.getAttribute('aria-label'))).toEqual(PAROLE.map((p, i) => `${p} Gesto ${i + 1} di 5`))
+      expect(punti.filter((p) => p.getAttribute('aria-current') === 'true')).toEqual([punti[4]])
+      fireEvent.click(punti[2])
+      expect(parola()).toBe('Incassa.')
+      expect(punti[2]).toHaveAttribute('aria-current', 'true')
     })
 
-    // I filmati partono da soli e non finiscono: chi guarda li può fermare
-    // (WCAG 2.2.2, rilievo del revisore dell'11/11/2026). Fermati, restano
-    // i fermi immagine; il bottone li fa ripartire.
-    it('«Ferma i filmati» li ferma tutti e sei, e poi li fa ripartire', async () => {
+    it('avanza da solo ogni sei secondi; aspetta col puntatore o il fuoco sopra; «Ferma i filmati» ferma tutto', () => {
+      vi.useFakeTimers()
       conMovimento(false)
       mostra()
-      const ferma = await screen.findByRole('button', { name: it_.gesti.ferma })
-      await waitFor(() => expect(document.querySelectorAll('video')).toHaveLength(6))
-      for (const v of document.querySelectorAll('li.gesto video')) expect(v).toHaveAttribute('aria-hidden', 'true')
+      act(() => vi.advanceTimersByTime(0))
+      expect(parola()).toBe('Ordina.')
+      act(() => vi.advanceTimersByTime(6000))
+      expect(parola()).toBe('Prepara.')
+      act(() => vi.advanceTimersByTime(6000))
+      expect(parola()).toBe('Incassa.')
+      // Col puntatore sopra non cambia sotto le mani di chi legge.
+      const hero = document.querySelector('.hero')
+      fireEvent.mouseEnter(hero)
+      act(() => vi.advanceTimersByTime(20000))
+      expect(parola()).toBe('Incassa.')
+      fireEvent.mouseLeave(hero)
+      act(() => vi.advanceTimersByTime(6000))
+      expect(parola()).toBe('Conta.')
+      // Col fuoco su un comando, lo stesso.
+      const avanti = screen.getByRole('button', { name: it_.gesti.successiva })
+      fireEvent.focus(avanti)
+      act(() => vi.advanceTimersByTime(20000))
+      expect(parola()).toBe('Conta.')
+      fireEvent.blur(avanti)
+      // «Ferma i filmati» ferma scorrimento e filmati; a mano si scorre ancora.
+      const ferma = screen.getByRole('button', { name: it_.gesti.ferma })
       expect(ferma).toHaveAttribute('aria-pressed', 'false')
       fireEvent.click(ferma)
-      expect(document.querySelectorAll('video')).toHaveLength(0)
-      expect(document.querySelectorAll('img.gesto-sfondo')).toHaveLength(5)
+      expect(document.querySelector('video')).toBeNull()
+      act(() => vi.advanceTimersByTime(20000))
+      expect(parola()).toBe('Conta.')
+      fireEvent.click(avanti)
+      expect(parola()).toBe('Riordina.')
       const riprendi = screen.getByRole('button', { name: it_.gesti.riprendi })
       expect(riprendi).toHaveAttribute('aria-pressed', 'true')
       fireEvent.click(riprendi)
-      expect(document.querySelectorAll('video')).toHaveLength(6)
+      act(() => vi.advanceTimersByTime(6000))
+      expect(parola()).toBe('Ordina.')
     })
 
-    it('chi ha chiesto meno movimento non ha il bottone: non c’è niente da fermare', () => {
+    it('gira solo il filmato della diapositiva che si vede: gli altri sono fermi immagine', () => {
+      vi.useFakeTimers()
+      conMovimento(false)
+      mostra()
+      act(() => vi.advanceTimersByTime(0))
+      const video = () => [...document.querySelectorAll('video')]
+      expect(video()).toHaveLength(1)
+      const primo = video()[0]
+      expect(primo.closest('.diapositiva').dataset.gesto).toBe('sala')
+      expect(primo).toHaveAttribute('poster', '/video/sala.jpg')
+      expect(primo.loop).toBe(true)
+      expect(primo.muted).toBe(true)
+      expect(primo.querySelector('source')).toHaveAttribute('src', '/video/sala.mp4')
+      expect([...document.querySelectorAll('.diapositiva img')].map((i) => i.getAttribute('src'))).toEqual(
+        ['banco', 'conto', 'numeri', 'scorta'].map((n) => `/video/${n}.jpg`),
+      )
+      for (const i of document.querySelectorAll('.diapositiva img')) expect(i).toHaveAttribute('alt', '')
+      fireEvent.click(screen.getByRole('button', { name: it_.gesti.successiva }))
+      expect(video()).toHaveLength(1)
+      expect(video()[0].closest('.diapositiva').dataset.gesto).toBe('banco')
+    })
+
+    it('chi chiede meno movimento vede la prima ferma, senza video e senza «Ferma»: scorre solo a mano', () => {
+      vi.useFakeTimers()
       conMovimento(true)
       mostra()
+      act(() => vi.advanceTimersByTime(30000))
+      expect(parola()).toBe('Ordina.')
+      expect(document.querySelector('video')).toBeNull()
+      expect(document.querySelector('.diapositiva[data-visibile="true"] img')).toHaveAttribute('src', '/video/sala.jpg')
       expect(screen.queryByRole('button', { name: it_.gesti.ferma })).toBeNull()
       expect(screen.queryByRole('button', { name: it_.gesti.riprendi })).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: it_.gesti.successiva }))
+      expect(parola()).toBe('Prepara.')
     })
 
-    // Criterio 9: la prima pagina è scura. I token della vetrina sono
-    // quelli scuri, e non resta un fondo chiaro cablato.
+    it('anche chi chiede di risparmiare dati vede i fermi immagine, e non scorre da solo', () => {
+      vi.useFakeTimers()
+      conMovimento(false)
+      vi.stubGlobal('navigator', { userAgent: navigator.userAgent, connection: { saveData: true } })
+      mostra()
+      act(() => vi.advanceTimersByTime(30000))
+      expect(document.querySelector('video')).toBeNull()
+      expect(parola()).toBe('Ordina.')
+    })
+
+    // Il giro automatico non si annuncia: un lettore di schermo sentirebbe
+    // una parola nuova ogni sei secondi. Quando si scorre a mano, sì.
+    it('il cambio si annuncia ai lettori di schermo solo quando non scorre da solo', () => {
+      vi.useFakeTimers()
+      conMovimento(false)
+      mostra()
+      act(() => vi.advanceTimersByTime(0))
+      const testo = gruppo().querySelector('.gesto-testo')
+      expect(testo).toHaveAttribute('aria-live', 'off')
+      fireEvent.click(screen.getByRole('button', { name: it_.gesti.ferma }))
+      expect(testo).toHaveAttribute('aria-live', 'polite')
+      expect(gruppo()).toHaveAttribute('aria-roledescription', 'carosello')
+    })
+
+    it('ogni gesto ha la sua parola, una frase sola sotto gli 80 caratteri e i suoi moduli, uguali per forma in inglese', () => {
+      conMovimento(true)
+      mostra()
+      const avanti = screen.getByRole('button', { name: it_.gesti.successiva })
+      const visti = []
+      for (let i = 0; i < 5; i++) {
+        visti.push({
+          parola: parola(),
+          riga: gruppo().querySelector('.gesto-riga').textContent,
+          moduli: [...gruppo().querySelectorAll('.gesto-moduli li')].map((e) => e.textContent),
+        })
+        fireEvent.click(avanti)
+      }
+      expect(visti.map((v) => v.parola)).toEqual(PAROLE)
+      expect(visti.map((v) => v.moduli)).toEqual([
+        ['Nel piano Base', 'Modulo Ordini dal telefono del cliente'],
+        ['Nel piano Base'],
+        ['Nel piano Base', 'Modulo Pagamenti con lettore SumUp'],
+        ['Modulo Statistiche e bilancio', 'Modulo Personale e ore'],
+        ['Modulo Magazzino e fornitori'],
+      ])
+      expect(visti[3].riga).toBe(it_.gesti.voci.numeri.frasi.statistiche)
+      const frasi = (t) => Object.values(t.gesti.voci).flatMap((v) => (v.frasi ? Object.values(v.frasi) : [v.testo]))
+      for (const frase of [...frasi(it_), ...frasi(en)]) {
+        expect(frase.length, frase).toBeLessThan(80)
+        // Una frase sola: un punto, in fondo.
+        expect(frase.match(/\./g), frase).toHaveLength(1)
+        expect(frase.endsWith('.'), frase).toBe(true)
+      }
+      expect(Object.keys(en.gesti.voci)).toEqual(Object.keys(it_.gesti.voci))
+    })
+
+    // Criterio 9 di REQ-FLOTTA-060: la prima pagina è scura.
     it('la prima pagina è sul fondo scuro: i token della vetrina non hanno più i valori chiari', () => {
       const css = readFileSync(join(import.meta.dirname, '..', 'src', 'index.css'), 'utf8')
       const inizio = css.indexOf('.regia.vetrina {')
@@ -318,52 +442,28 @@ describe('la prima pagina', () => {
       for (const chiaro of ['#f7f9f1', '#fefffa', '#f6f2ea', '#fffdf8']) expect(css, chiaro).not.toContain(chiaro)
     })
 
-    it('«Cosa comprende» nelle funzioni è chiuso e si apre a richiesta', () => {
+    // Daniele, 11/11/2026: «i box cosa comprende dovrebbero essere sempre
+    // aperti». Per un pomeriggio sono stati elementi che si aprivano.
+    it('«Cosa comprende» nelle funzioni è sempre aperto: un riquadro, non un elemento che si apre', () => {
       conMovimento(true)
       mostra()
-      const dettagli = [...document.querySelectorAll('#funzioni details.funzione-riquadro')]
-      expect(dettagli.length).toBeGreaterThan(0)
-      for (const d of dettagli) {
-        expect(d.open).toBe(false)
-        expect(d.querySelector('summary')).toHaveTextContent(it_.funzioni.punti)
+      expect(document.querySelector('#funzioni details')).toBeNull()
+      const riquadri = [...document.querySelectorAll('#funzioni .funzione-riquadro')]
+      expect(riquadri.length).toBeGreaterThan(0)
+      for (const r of riquadri) {
+        expect(r.tagName).toBe('DIV')
+        expect(within(r).getByRole('list', { name: it_.funzioni.punti })).toBeVisible()
       }
     })
 
-    // Criterio 8 di REQ-FLOTTA-060: i filmati stanno in pagina, non in un
-    // servizio esterno, e una prima pagina non può pesare come un film.
+    // I filmati stanno in pagina, non in un servizio esterno, e una prima
+    // pagina non può pesare come un film.
     it('ogni filmato ha il suo fermo immagine e pesa meno di 700 KB', () => {
-      for (const nome of ['banco', 'sala', 'conto', 'numeri', 'scorta']) {
+      for (const nome of FILMATI) {
         const video = statSync(join(import.meta.dirname, '..', 'public', 'video', `${nome}.mp4`))
         expect(video.size, `${nome}.mp4`).toBeLessThan(700 * 1024)
         expect(statSync(join(import.meta.dirname, '..', 'public', 'video', `${nome}.jpg`)).size, `${nome}.jpg`).toBeLessThan(120 * 1024)
       }
-    })
-
-    it('i cinque gesti, nell’ordine del servizio: una parola, una riga, i moduli; e la nota che i filmati sono generati', () => {
-      expect(Object.keys(en.gesti.voci)).toEqual(Object.keys(it_.gesti.voci))
-      conMovimento(true)
-      mostra()
-      const sezione = screen.getByRole('heading', { level: 2, name: it_.gesti.titolo }).closest('section')
-      const gesti = [...sezione.querySelectorAll('li.gesto')]
-      expect(gesti.map((g) => within(g).getByRole('heading', { level: 3 }).textContent)).toEqual(['Ordina.', 'Prepara.', 'Incassa.', 'Conta.', 'Riordina.'])
-      expect(gesti.map((g) => g.querySelector('img').getAttribute('src'))).toEqual(
-        ['sala', 'banco', 'conto', 'numeri', 'scorta'].map((n) => `/video/${n}.jpg`),
-      )
-      for (const g of gesti) expect(g.querySelector('img')).toHaveAttribute('alt', '')
-      const moduli = (g) => [...g.querySelectorAll('.gesto-moduli li')].map((e) => e.textContent)
-      // I gesti che si fanno già col piano di partenza lo dicono per primo.
-      expect(moduli(gesti[0])).toEqual(['Nel piano Base', 'Modulo Ordini dal telefono del cliente'])
-      expect(moduli(gesti[1])).toEqual(['Nel piano Base'])
-      expect(moduli(gesti[3])).toEqual(['Modulo Statistiche e bilancio', 'Modulo Personale e ore'])
-      // Ogni gesto ha la sua riga, e «Conta» le sue due frasi.
-      for (const g of gesti) expect(g.querySelector('.gesto-testo > p').textContent.length).toBeGreaterThan(30)
-      expect(gesti[3]).toHaveTextContent(it_.gesti.voci.numeri.frasi.statistiche)
-      expect(gesti[3]).toHaveTextContent(it_.gesti.voci.numeri.frasi.staff)
-      expect(moduli(gesti[2])).toEqual(['Nel piano Base', 'Modulo Pagamenti con lettore SumUp'])
-      expect(moduli(gesti[4])).toEqual(['Modulo Magazzino e fornitori'])
-      // Il lato del testo segue il filmato: solo la scorta ha il soggetto a sinistra.
-      expect(gesti.map((g) => g.dataset.lato)).toEqual(['sinistra', 'sinistra', 'sinistra', 'sinistra', 'destra'])
-      expect(within(sezione).getByText(/generati con l’intelligenza artificiale/)).toBeInTheDocument()
     })
   })
 
