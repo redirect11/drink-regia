@@ -1,6 +1,7 @@
 {
   "name": "drink-regia-functions",
   "private": true,
+  "license": "UNLICENSED",
   "description": "Le Functions della regia: lanciano l'attivazione di un'istanza e ne ricevono l'esito (REQ-FLOTTA-006).",
   "engines": {
     "node": "22"
