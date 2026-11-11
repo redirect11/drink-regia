@@ -77,9 +77,9 @@ describe('la prima pagina', () => {
     })
   })
 
-  it('ha le sezioni nell’ordine del percorso: servizio, problema, pilastri, funzioni, passi, prezzi, domande, chiusura', () => {
+  it('ha le sezioni nell’ordine del percorso: serata, problema, pilastri, funzioni, passi, prezzi, domande, chiusura', () => {
     mostra()
-    const ordine = ['servizio', 'problema', 'pilastri', 'funzioni', 'come-funziona', 'prezzi', 'domande', 'contatti']
+    const ordine = ['serata', 'problema', 'pilastri', 'funzioni', 'come-funziona', 'prezzi', 'domande', 'contatti']
     const trovate = [...document.querySelectorAll('main section[id]')].map((s) => s.id)
     expect(trovate).toEqual(ordine)
     expect(screen.getByRole('heading', { name: it_.problema.titolo })).toBeInTheDocument()
@@ -254,23 +254,27 @@ describe('la prima pagina', () => {
     it('chi chiede meno movimento vede i fermi immagine, senza testo alternativo: nessun video', async () => {
       conMovimento(true)
       mostra()
-      await screen.findByRole('heading', { level: 2, name: it_.servizio.titolo })
+      await screen.findByRole('heading', { level: 2, name: it_.serata.titolo })
       expect(document.querySelector('video')).toBeNull()
       const fermo = document.querySelector('.hero img.hero-sfondo')
       expect(fermo).toHaveAttribute('src', '/video/banco.jpg')
       expect(fermo).toHaveAttribute('alt', '')
     })
 
-    it('«Durante il servizio» ha due riquadri, la sala e la cassa, e dice che i filmati sono generati', () => {
+    it('la serata ha cinque momenti in ordine d’ora, ognuno con le sue funzioni, e dice che i filmati sono generati', () => {
       conMovimento(true)
       mostra()
-      const sezione = screen.getByRole('heading', { level: 2, name: it_.servizio.titolo }).closest('section')
-      const riquadri = sezione.querySelectorAll('figure.riquadro-video')
-      expect(riquadri).toHaveLength(2)
-      expect(within(riquadri[0]).getByRole('heading', { level: 3 })).toHaveTextContent('In sala')
-      expect(riquadri[0].querySelector('img')).toHaveAttribute('src', '/video/sala.jpg')
-      expect(within(riquadri[1]).getByRole('heading', { level: 3 })).toHaveTextContent('Alla cassa')
-      expect(riquadri[1].querySelector('img')).toHaveAttribute('src', '/video/cassa.jpg')
+      const sezione = screen.getByRole('heading', { level: 2, name: it_.serata.titolo }).closest('section')
+      const momenti = [...sezione.querySelectorAll('li.momento')]
+      expect(momenti.map((m) => m.querySelector('time').textContent)).toEqual(['17:30', '20:30', '23:00', '01:00', '02:00'])
+      expect(momenti.map((m) => within(m).getByRole('heading', { level: 3 }).textContent)).toEqual(
+        ['apertura', 'sala', 'banco', 'conto', 'chiusura'].map((id) => it_.serata.voci[id].titolo),
+      )
+      expect(momenti[1].querySelector('img')).toHaveAttribute('src', '/video/sala.jpg')
+      expect(within(momenti[3]).getByText(/SumUp/)).toBeInTheDocument()
+      // Un momento senza filmato ha il pannello con l'ora, non un'immagine rotta.
+      expect(momenti[0].querySelector('img, video')).toBeNull()
+      expect(momenti[0].querySelector('.filmato-vuoto')).toHaveTextContent('17:30')
       expect(within(sezione).getByText(/generati con l’intelligenza artificiale/)).toBeInTheDocument()
     })
   })

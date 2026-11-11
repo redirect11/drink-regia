@@ -105,19 +105,38 @@ export default {
     // nata (DESIGN.md §9.3).
     chiusa: 'L’app è nata al banco di un cocktail bar per mettere quel quadro su un tablet, e lì lavora ogni sera.',
   },
-  // I riquadri coi filmati (11/11/2026). Ogni riga dice una cosa che
-  // l'app fa davvero in quel momento del servizio; la nota dice che i
-  // filmati sono generati.
-  servizio: {
-    titolo: 'Durante il servizio.',
+  // La serata (11/11/2026): un turno dall'apertura alla chiusura. Ogni
+  // momento dice una cosa che l'app fa davvero, con le parole del listino
+  // (i moduli stanno nella riga «funzioni»); la nota dice che i filmati
+  // sono generati.
+  serata: {
+    titolo: 'Una serata, dall’apertura alla chiusura.',
+    sotto: 'Quello che succede in un locale in un turno, e cosa fa l’app in ogni momento.',
     voci: {
-      sala: {
-        titolo: 'In sala',
-        testo: 'La comanda si prende al tavolo, dal tablet o dal telefono, e arriva subito a chi prepara.',
+      apertura: {
+        titolo: 'Prima di aprire',
+        testo: 'Si guarda cosa manca. Le giacenze sono già scese da sole con le comande di ieri, e l’ordine al fornitore parte da lì.',
+        funzioni: 'Magazzino e fornitori',
       },
-      cassa: {
-        titolo: 'Alla cassa',
-        testo: 'Il conto è già pronto quando il cliente lo chiede: si incassa e si stampa lo scontrino.',
+      sala: {
+        titolo: 'La sala si riempie',
+        testo: 'La comanda si prende al tavolo, dal tablet o dal telefono. Chi vuole ordina da solo, dal menù con il QR.',
+        funzioni: 'Comande · Menù digitale e tavoli · Ordini dal telefono del cliente',
+      },
+      banco: {
+        titolo: 'Al banco',
+        testo: 'Le comande arrivano in fila, tavolo per tavolo. Chi prepara vede cosa fare e in che ordine, senza foglietti.',
+        funzioni: 'Comande',
+      },
+      conto: {
+        titolo: 'Il conto',
+        testo: 'È già pronto quando il cliente lo chiede. Va al lettore di carte, torna pagato da solo, e si stampa lo scontrino.',
+        funzioni: 'Cassa · Pagamenti con lettore SumUp',
+      },
+      chiusura: {
+        titolo: 'A serata finita',
+        testo: 'L’incasso è già fatto: quanto, cosa si è venduto e in quali ore. Le ore di chi ha lavorato sono segnate.',
+        funzioni: 'Statistiche e bilancio · Personale e ore',
       },
     },
     nota: 'I filmati di questa pagina sono dimostrativi, generati con l’intelligenza artificiale.',

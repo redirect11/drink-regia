@@ -230,14 +230,26 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .fatti { list-style: none; padding: 0; margin: 0; }
 .fatti li { display: flex; align-items: baseline; gap: 12px; padding: 10px 0; border-top: 1px solid rgba(255, 255, 255, 0.14); font-size: 0.9375rem; }
 
-/* ── Durante il servizio: due riquadri col filmato e due righe sotto. ── */
-.servizio { padding-bottom: 56px; }
-.servizio-griglia { display: grid; gap: 32px; margin-top: 24px; }
-.riquadro-video { margin: 0; }
-.riquadro-video video, .riquadro-video img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 12px; background: var(--bg-3); }
-.riquadro-video h3 { font-size: 1.125rem; margin: 16px 0 4px; }
-.riquadro-video p { margin: 0; color: var(--muted); max-width: 34rem; }
-@media (min-width: 760px) { .servizio-griglia { grid-template-columns: 1fr 1fr; } }
+/* ── La serata: un turno di lavoro in cinque momenti. Il filo a sinistra
+   scende per tutta la sezione e ogni ora ci sta sopra con un punto lime;
+   dal tablet filmato e testo stanno affiancati e si scambiano di posto a
+   righe alterne. ── */
+.serata { padding-bottom: 64px; }
+.serata-righe { list-style: none; margin: 0; padding: 0 0 0 28px; border-left: 2px solid var(--line); display: grid; gap: 48px; }
+.momento { position: relative; display: grid; gap: 16px; }
+.momento-ora { position: relative; margin: 0; font-family: var(--titoli); font-variant-numeric: lining-nums; font-size: 1.75rem; line-height: 1; color: var(--text); }
+.momento-ora::before { content: ''; position: absolute; left: -37px; top: 50%; width: 16px; height: 16px; margin-top: -8px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 0 4px var(--bg); }
+.momento-filmato video, .momento-filmato img, .filmato-vuoto { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 12px; background: var(--scuro); }
+.filmato-vuoto { display: flex; align-items: center; justify-content: center; font-family: var(--titoli); font-size: 3rem; color: rgba(255, 255, 255, 0.16); }
+.momento-testo h3 { font-family: var(--titoli); font-size: 1.5rem; margin: 0 0 8px; }
+.momento-testo p { margin: 0; color: var(--muted); max-width: 30rem; }
+.momento-testo .momento-funzioni { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 0.875rem; font-weight: 600; color: var(--accent); }
+@media (min-width: 900px) {
+  .serata-righe { gap: 72px; padding-left: 40px; }
+  .momento { grid-template-columns: 96px minmax(0, 6fr) minmax(0, 5fr); gap: 32px; align-items: center; }
+  .momento-ora::before { left: -49px; }
+  .momento:nth-child(even) .momento-filmato { order: 3; }
+}
 .fatti li::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 0 1px var(--lime-forte); flex: none; transform: translateY(-2px); }
 .nota-lingua { margin: 16px 0 0; font-size: 0.875rem; color: var(--muted); }
 
