@@ -311,18 +311,25 @@ describe('la prima pagina', () => {
       expect(parola()).toBe('Incassa.')
       // Col puntatore sopra non cambia sotto le mani di chi legge.
       const hero = document.querySelector('.hero')
-      fireEvent.mouseEnter(hero)
+      fireEvent.pointerEnter(hero, { pointerType: 'mouse' })
       act(() => vi.advanceTimersByTime(20000))
       expect(parola()).toBe('Incassa.')
-      fireEvent.mouseLeave(hero)
+      fireEvent.pointerLeave(hero, { pointerType: 'mouse' })
       act(() => vi.advanceTimersByTime(6000))
       expect(parola()).toBe('Conta.')
-      // Col fuoco su un comando, lo stesso.
+      // Col fuoco su un comando, lo stesso; e riparte quando il fuoco esce.
       const avanti = screen.getByRole('button', { name: it_.gesti.successiva })
       fireEvent.focus(avanti)
       act(() => vi.advanceTimersByTime(20000))
       expect(parola()).toBe('Conta.')
       fireEvent.blur(avanti)
+      act(() => vi.advanceTimersByTime(6000))
+      expect(parola()).toBe('Riordina.')
+      fireEvent.click(avanti)
+      fireEvent.click(avanti)
+      fireEvent.click(avanti)
+      fireEvent.click(avanti)
+      expect(parola()).toBe('Conta.')
       // «Ferma i filmati» ferma scorrimento e filmati; a mano si scorre ancora.
       const ferma = screen.getByRole('button', { name: it_.gesti.ferma })
       expect(ferma).toHaveAttribute('aria-pressed', 'false')
@@ -337,6 +344,59 @@ describe('la prima pagina', () => {
       fireEvent.click(riprendi)
       act(() => vi.advanceTimersByTime(6000))
       expect(parola()).toBe('Ordina.')
+    })
+
+    // Rilievi del revisore (11/11/2026). Puntatore e fuoco sono due motivi
+    // distinti per aspettare: uno che finisce non fa ripartire se l'altro
+    // dura. Il tocco non conta come puntatore sopra. E un cambio a mano fa
+    // ripartire il conto dei sei secondi da capo.
+    it('puntatore e fuoco contano ognuno per sé; il tocco non ferma; un cambio a mano riparte da sei secondi', () => {
+      vi.useFakeTimers()
+      conMovimento(false)
+      mostra()
+      act(() => vi.advanceTimersByTime(0))
+      const hero = document.querySelector('.hero')
+      const avanti = screen.getByRole('button', { name: it_.gesti.successiva })
+      // Mouse sopra e fuoco su un comando; il mouse esce, il fuoco resta.
+      fireEvent.pointerEnter(hero, { pointerType: 'mouse' })
+      fireEvent.focus(avanti)
+      fireEvent.pointerLeave(hero, { pointerType: 'mouse' })
+      act(() => vi.advanceTimersByTime(20000))
+      expect(parola()).toBe('Ordina.')
+      // Il fuoco passa a un altro comando della stessa schermata: aspetta ancora.
+      const indietro = screen.getByRole('button', { name: it_.gesti.precedente })
+      fireEvent.blur(avanti, { relatedTarget: indietro })
+      fireEvent.focus(indietro)
+      act(() => vi.advanceTimersByTime(20000))
+      expect(parola()).toBe('Ordina.')
+      // Il fuoco esce col mouse di nuovo sopra: aspetta ancora.
+      fireEvent.pointerEnter(hero, { pointerType: 'mouse' })
+      fireEvent.blur(indietro)
+      act(() => vi.advanceTimersByTime(20000))
+      expect(parola()).toBe('Ordina.')
+      fireEvent.pointerLeave(hero, { pointerType: 'mouse' })
+      // Un dito sulla schermata non è un puntatore che resta sopra.
+      fireEvent.pointerEnter(hero, { pointerType: 'touch' })
+      act(() => vi.advanceTimersByTime(6000))
+      expect(parola()).toBe('Prepara.')
+      // A metà del giro si cambia a mano: la nuova resta sei secondi interi.
+      act(() => vi.advanceTimersByTime(4000))
+      fireEvent.click(screen.getAllByRole('button', { name: /Gesto \d di 5/ })[3])
+      expect(parola()).toBe('Conta.')
+      act(() => vi.advanceTimersByTime(5000))
+      expect(parola()).toBe('Conta.')
+      act(() => vi.advanceTimersByTime(1000))
+      expect(parola()).toBe('Riordina.')
+    })
+
+    it('scorrendo, l’h1 resta uno e lo stesso', () => {
+      conMovimento(true)
+      mostra()
+      for (let i = 0; i < 5; i++) {
+        expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+        expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(it_.hero.titolo)
+        fireEvent.click(screen.getByRole('button', { name: it_.gesti.successiva }))
+      }
     })
 
     it('gira solo il filmato della diapositiva che si vede: gli altri sono fermi immagine', () => {

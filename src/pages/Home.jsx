@@ -241,7 +241,6 @@ export default function Home({ utente, lingua = 'it' }) {
   const minori = MINORI.filter((f) => moduloVisibile(vendita, f.id))
   const gesti = GESTI.filter((g) => g.base || g.moduli.some((id) => moduloVisibile(vendita, id)))
   const filmati = useFilmati()
-  // La riga di un gesto: la sua, oppure le frasi dei soli moduli in vendita.
   // Una frase sola (REQ-FLOTTA-061): per un gesto con più moduli, quella
   // del primo modulo in vendita.
   const rigaGesto = (g) => {
@@ -257,16 +256,26 @@ export default function Home({ utente, lingua = 'it' }) {
   // sono sulla prima schermata: chi sta leggendo o usando i comandi non
   // deve vedersi cambiare la diapositiva sotto le mani.
   const [scelto, setScelto] = useState(0)
-  const [inPausa, setInPausa] = useState(false)
+  // Due motivi per aspettare, ognuno col suo stato (rilievo del revisore,
+  // 11/11/2026): con uno solo, l'ultimo evento vinceva, e il mouse che
+  // usciva faceva ripartire lo scorrimento anche col fuoco ancora su un
+  // comando. Il puntatore conta solo se è un mouse: al tocco «entra» ma non
+  // «esce» mai, e lo scorrimento restava fermo per sempre.
+  const [puntatoreSopra, setPuntatoreSopra] = useState(false)
+  const [fuocoDentro, setFuocoDentro] = useState(false)
+  const inPausa = puntatoreSopra || fuocoDentro
   const indice = Math.min(scelto, gesti.length - 1)
   const quanti = gesti.length
   const vai = (i) => setScelto(((i % quanti) + quanti) % quanti)
   const scorre = filmati.girano && !inPausa && quanti > 1
   useEffect(() => {
     if (!scorre) return undefined
-    const giro = setInterval(() => setScelto((i) => (Math.min(i, quanti - 1) + 1) % quanti), PASSO_CAROSELLO_MS)
-    return () => clearInterval(giro)
-  }, [scorre, quanti])
+    // Riparte a ogni cambio di diapositiva (per questo `indice` è fra le
+    // dipendenze): chi ne ha scelta una a mano la vede per sei secondi
+    // interi, non per quel che restava del giro.
+    const giro = setTimeout(() => setScelto((i) => (Math.min(i, quanti - 1) + 1) % quanti), PASSO_CAROSELLO_MS)
+    return () => clearTimeout(giro)
+  }, [scorre, quanti, indice])
   const gesto = gesti[indice]
   const { base, completo } = PIANI
   const inclusiNelBase = new Set(base.include)
@@ -356,10 +365,10 @@ export default function Home({ utente, lingua = 'it' }) {
       <section
         className="hero"
         aria-labelledby="hero-titolo"
-        onMouseEnter={() => setInPausa(true)}
-        onMouseLeave={() => setInPausa(false)}
-        onFocus={() => setInPausa(true)}
-        onBlur={() => setInPausa(false)}
+        onPointerEnter={(e) => e.pointerType !== 'touch' && setPuntatoreSopra(true)}
+        onPointerLeave={() => setPuntatoreSopra(false)}
+        onFocus={() => setFuocoDentro(true)}
+        onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && setFuocoDentro(false)}
       >
         <div className="carosello" aria-hidden="true">
           <ol className="diapositive" style={{ transform: `translateX(-${indice * 100}%)` }}>

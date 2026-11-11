@@ -12,13 +12,12 @@ data.
   indietro a mano, e «Ferma i filmati» ferma anche lo scorrimento. I
   riquadri «Cosa comprende» sono di nuovo sempre aperti. Le frasi dei
   gesti sono riscritte, più corte (REQ-FLOTTA-061, #135).
-- La prima pagina ha i filmati. Dietro al titolo gira il barman al banco;
-  sotto, il lavoro del locale in cinque gesti, uno per fascia col suo
-  filmato e una parola sola: Ordina, Prepara, Incassa, Conta, Riordina.
-  «Quello che si vede dal banco» e i tre pilastri non ci sono più;
-  l'elenco delle funzioni è più corto, col dettaglio che si apre a
-  richiesta. Tutta la pagina è sul fondo scuro, dove il lime rende
-  meglio. Chi ha chiesto meno movimento vede immagini ferme
+- La prima pagina ha i filmati e racconta il lavoro del locale in cinque
+  gesti, ognuno con una parola sola: Ordina, Prepara, Incassa, Conta,
+  Riordina (dal carosello della voce qui sopra; all'inizio erano cinque
+  fasce una sotto l'altra). «Quello che si vede dal banco» e i tre
+  pilastri non ci sono più. Tutta la pagina è sul fondo scuro, dove il
+  lime rende meglio. Chi ha chiesto meno movimento vede immagini ferme
   (REQ-FLOTTA-060, #131).
 - Il sito di test era uscito vuoto col tag `v0.3.0-beta.7`: una delle
   versioni forzate (`minimatch` sotto `glob`) faceva pubblicare zero

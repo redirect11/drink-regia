@@ -203,7 +203,7 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 /* ── La prima schermata: il filmato a tutta larghezza con un velo scuro,
    e davanti due colonne da 900px, il testo a sinistra e la scheda dei
    fatti a destra; sul telefono una sotto l'altra. Il velo è più fitto a
-   sinistra, dove sta il testo, e lascia vedere il barman a destra; sul
+   sinistra, dove sta il testo, e lascia vedere il filmato a destra; sul
    telefono è uniforme, perché il testo copre tutto. Senza filmato (non
    ancora caricato) resta il fondo scuro: il testo si legge comunque. ── */
 .hero { position: relative; isolation: isolate; overflow: hidden; padding: 56px 0 28px; background: var(--scuro); color: var(--scuro-testo); }
@@ -243,8 +243,8 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .gesto-freccia { width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.4); background: rgba(12, 15, 10, 0.5); color: var(--scuro-testo); font-size: 1.5rem; line-height: 1; cursor: pointer; }
 .gesto-freccia:hover { border-color: var(--lime); color: var(--lime); }
 .gesto-punti { display: flex; align-items: center; margin: 0; padding: 0; list-style: none; }
-/* Il punto è piccolo, il bottone no: 44px di lato da toccare, il segno al centro. */
-.gesto-punto { position: relative; width: 32px; height: 44px; padding: 0; border: none; background: none; cursor: pointer; }
+/* Il punto è piccolo, il bottone no: 44px di lato da toccare (DESIGN.md), il segno al centro. */
+.gesto-punto { position: relative; width: 44px; height: 44px; padding: 0; border: none; background: none; cursor: pointer; }
 .gesto-punto::before { content: ''; position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: rgba(255, 255, 255, 0.45); transition: width 0.2s ease, margin 0.2s ease, background-color 0.2s ease; }
 .gesto-punto:hover::before { background: #fff; }
 .gesto-punto[aria-current='true']::before { width: 24px; margin-left: -12px; border-radius: 999px; background: var(--lime); }
@@ -371,7 +371,6 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 @media (min-width: 768px) {
   .landing { font-size: 1.0625rem; }
   .sezione { padding-top: 80px; }
-  .hero { padding: 56px 0 28px; }
   .hero-velo { background: linear-gradient(90deg, rgba(8, 11, 6, 0.9) 0%, rgba(8, 11, 6, 0.72) 48%, rgba(8, 11, 6, 0.28) 100%); }
   .hero-sotto { font-size: 1.125rem; }
   .titolo-accento { display: block; }
