@@ -39,11 +39,9 @@ jobs:
     # passi: «Collaudo sul test» è quello che la garanzia della produzione
     # cerca, fra i passi del job.
     name: Playwright sul sito di test
-    # Non ubuntu-latest: dal 11/11/2026 punta a ubuntu-26.04, dove
-    # `playwright install --with-deps` non risolve i mirror apt di Ubuntu
-    # («Temporary failure resolving archive.ubuntu.com», tag v0.3.0-beta.4,
-    # run 43032681824, tre volte di fila). È l'unico job che installa
-    # pacchetti di sistema: gli altri restano su ubuntu-latest.
+    # Un'immagine fissa, non ubuntu-latest: Chromium si appoggia alle
+    # librerie di sistema che l'immagine ha già (sotto, il perché), e una
+    # versione nuova di Ubuntu non deve cambiarle sotto i piedi.
     runs-on: ubuntu-24.04
     environment: test
     env:
@@ -56,7 +54,14 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      # Senza `--with-deps`: quell'opzione passa da apt, e l'11/11/2026 i
+      # runner non risolvevano i mirror di Ubuntu («Temporary failure
+      # resolving archive.ubuntu.com»): i tag v0.3.0-beta.4 e beta.5 non
+      # sono arrivati alle prove, su ubuntu-26.04 come su ubuntu-24.04.
+      # Le librerie che servono a Chromium l'immagine le ha già (porta
+      # Chrome installato); qui si scarica solo il browser di Playwright,
+      # dal suo CDN. Un collaudo non deve dipendere da apt.
+      - run: npx playwright install chromium
       # Le prove che non scrivono: sempre.
       - name: Prove in sola lettura
         run: npx playwright test --grep-invert collaudo

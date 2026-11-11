@@ -34,6 +34,9 @@ data.
   11/11/2026 quest'ultimo è Ubuntu 26.04, dove l'installazione dei
   pacchetti di sistema di Chromium non risolve i mirror apt e il
   collaudo non parte (REQ-DEV-009).
+- Fissare l'immagine non bastava: erano i mirror apt di Ubuntu a non
+  rispondere ai runner. Il collaudo installa Chromium senza passare da
+  apt, con le librerie che l'immagine ha già (REQ-DEV-009).
 - Il prodotto ha il suo nome: **Lime – SmartOrders**, deciso dall'utente
   il 09/11/2026 al posto del segnaposto «Drink». Il logo è una fetta di
   lime che sembra un grafico a torta, nella barra, nel piè di pagina e
