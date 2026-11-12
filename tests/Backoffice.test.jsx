@@ -1558,9 +1558,7 @@ describe('le stampanti del locale nel backoffice', () => {
 describe('il segno che gira dell’aggiornamento', () => {
   it('non si restringe accanto a un testo lungo: resta tondo', async () => {
     const { readFileSync } = await import('node:fs')
-    const css = readFileSync('src/index.css', 'utf8').replace(/
-/g, '
-')
+    const css = readFileSync('src/index.css', 'utf8').replace(/\r\n/g, '\n')
     expect(css).toMatch(/\.spinner \{[^}]*flex: none;[^}]*width: 12px; height: 12px;[^}]*border-radius: 50%;/)
   })
 })

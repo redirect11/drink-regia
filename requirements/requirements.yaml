@@ -4315,7 +4315,7 @@ requirements:
       CRITERI DI ACCETTAZIONE. (1) Il segno non si restringe: resta di 12
       pixel per 12, tondo, qualunque sia il testo accanto. (2) Chi chiede
       meno movimento lo vede fermo, come prima.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [backoffice, regia]
     priority: P3

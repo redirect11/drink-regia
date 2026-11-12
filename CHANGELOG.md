@@ -6,6 +6,8 @@ data.
 
 ## Prossima release (da decidere)
 
+- Nel backoffice il segno che gira dell'aggiornamento resta tondo anche
+  accanto a un testo lungo (REQ-FLOTTA-082).
 - Nella richiesta di informazioni e in quella d'acquisto il titolare dice
   la sua stampante non fiscale e il suo registratore telematico, da un
   elenco o scritti a mano; il backoffice li mostra (REQ-FLOTTA-081).
