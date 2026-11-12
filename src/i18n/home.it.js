@@ -136,10 +136,11 @@ export default {
         occhiello: 'Comande e conti',
         titolo: 'Dal tavolo al banco, senza passaggi a voce.',
         // La stampa automatica è una scelta del locale (tana-drink,
-        // REQ-STAMPA-001); i terminali oltre quelli del piano (3 dal
-        // 02/11/2026) si pagano a parte.
+        // REQ-STAMPA-001). Il prezzo dei terminali oltre quelli del piano
+        // stava qui fra i punti: dal 12/11/2026 sta solo nei prezzi
+        // (REQ-FLOTTA-068, Daniele: «si»).
         testo: 'La prendi al tavolo o al banco: arriva subito e, se lo scegli, si stampa da sola. Il conto ha già tutto sopra e si chiude in contanti o con carta; lo scontrino di cortesia esce sulla stampante termica.',
-        punti: ['Comanda stampata al banco', 'Contanti e carta', 'Altri terminali a {terminale} al mese'],
+        punti: ['Comanda stampata al banco', 'Contanti e carta', 'Scontrino di cortesia'],
       },
       menu: {
         occhiello: 'Menù digitale e ordini dal tavolo',
@@ -244,6 +245,7 @@ export default {
         sconti: 'Sconti',
         storico: 'Storico',
         terminali: 'Terminali inclusi',
+        marchio: 'Scritta in fondo a scontrino e menù',
       },
       si: 'Sì',
       no: 'No',
@@ -252,6 +254,8 @@ export default {
       soloTitolare: 'Solo il titolare',
       giorni: 'Ultimi {n} giorni',
       tutto: 'Tutto',
+      marchio: '«Creato con {nome}»',
+      nessuna: 'Nessuna',
       nonDisponibile: 'Non disponibile',
       nota: 'Dove c’è un prezzo, è al mese e IVA esclusa: sotto, il totale IVA inclusa.',
       nelPiano: 'Nel piano {piano}',

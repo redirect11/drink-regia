@@ -6,6 +6,9 @@ data.
 
 ## Prossima release (da decidere)
 
+- Nella prima pagina il confronto fra i piani dice che il Free porta
+  «Creato con Lime» in fondo allo scontrino e al menù, e il prezzo dei
+  terminali in più sta solo nei prezzi (REQ-FLOTTA-068).
 - Anche rilasci, commerciale, temi e stili, nel backoffice, si leggono
   sempre dal server: con la rete che cade non sembrano più vuoti, e la
   pagina dice di controllare la connessione (REQ-FLOTTA-067, #148).

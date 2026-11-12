@@ -3683,7 +3683,7 @@ requirements:
       [da verificare] Il testo inglese della scritta («Made with») è
       quello che la regia mostra; quello che l'app stampa davvero sta in
       tana-drink.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [prodotto, regia, home]
     priority: P2

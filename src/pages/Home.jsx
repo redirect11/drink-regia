@@ -362,6 +362,9 @@ export default function Home({ utente, lingua = 'it' }) {
     { id: 'utenti', valore: (p) => (limite(p, 'utenti_max') === 1 ? c.soloTitolare : limite(p, 'utenti_max') ? interpola(c.finoA, { n: limite(p, 'utenti_max') }) : c.senzaLimite) },
     { id: 'sconti', valore: (p) => (limite(p, 'sconti') === false ? c.no : c.si) },
     { id: 'storico', valore: (p) => (limite(p, 'storico_giorni') ? interpola(c.giorni, { n: limite(p, 'storico_giorni') }) : c.tutto) },
+    // La scritta col nome del prodotto in fondo allo scontrino e al menù
+    // (REQ-FLOTTA-068): la porta chi ha `marchio` nel listino, oggi il Free.
+    { id: 'marchio', valore: (p) => (limite(p, 'marchio') ? interpola(c.marchio, { nome: NOME_PRODOTTO }) : c.nessuna) },
     { id: 'terminali', valore: (p) => String(p.terminali || 1) },
   ]
   // Una riga che dice la stessa cosa per tutti i piani in colonna non è un
@@ -527,7 +530,7 @@ export default function Home({ utente, lingua = 'it' }) {
                       {v.punti.map((p) => (
                         <li key={p}>
                           <Icona d={SPUNTA} className="icona spunta" />
-                          {interpola(p, { terminale: piuIva(TERMINALE_IN_PIU) })}
+                          {p}
                         </li>
                       ))}
                     </ul>
