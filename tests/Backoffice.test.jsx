@@ -750,7 +750,8 @@ describe('la vendita nel backoffice', () => {
     regia.vendita = { free: false, moduli: { menu_tavoli: true, ordini_cliente: true, clienti: true, magazzino: true, statistiche: true, staff: true, sumup: true } }
     mostra('/backoffice/vendita')
     const vendita = await screen.findByRole('region', { name: 'Vendita' })
-    const free = within(vendita).getByLabelText('Piano Free in vendita')
+    // «Disponibile», non «in vendita»: il Free non si vende (REQ-FLOTTA-073).
+    const free = within(vendita).getByLabelText('Piano Free disponibile')
     expect(free).not.toBeChecked()
     expect(vendita).toHaveTextContent(/Tienilo spento finché l’app non fa rispettare i suoi limiti/)
     await user.click(free)
@@ -761,6 +762,19 @@ describe('la vendita nel backoffice', () => {
 
   // REQ-FLOTTA-071 (Daniele, 12/11/2026: «mettimelo che posso mostrarlo
   // oppure no… no proprio nascondere il free»).
+  // REQ-FLOTTA-073: la frase sull'attivazione in prima pagina la decide l'admin.
+  it('mostrare l’attivazione automatica ha il suo interruttore, spento, e un clic scrive la vendita', async () => {
+    const user = userEvent.setup()
+    regia.vendita = { free: false, moduli: {} }
+    mostra('/backoffice/vendita')
+    const vendita = await screen.findByRole('region', { name: 'Vendita' })
+    const mostraAutomatica = within(vendita).getByLabelText('Mostra «Attivazione automatica» nella prima pagina')
+    expect(mostraAutomatica).not.toBeChecked()
+    expect(vendita).toHaveTextContent(/dice «Attivazione concordata con noi»/)
+    await user.click(mostraAutomatica)
+    expect(db.impostaVendita).toHaveBeenCalledWith({ mostra_attivazione_automatica: true })
+  })
+
   it('nascondere il Free ha il suo interruttore, spento, e un clic scrive la vendita', async () => {
     const user = userEvent.setup()
     regia.vendita = { free: false, moduli: {} }

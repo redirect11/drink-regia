@@ -3887,6 +3887,41 @@ requirements:
       - tests/Home.test.jsx
       - tests/HomeLingua.test.jsx
 
+  - id: REQ-FLOTTA-073
+    title: "Cosa promette la prima pagina sull'attivazione lo decide l'admin; il Free «disponibile», non «in vendita»"
+    area: "src/lib/vendita.js, src/pages/Home.jsx, src/pages/Backoffice.jsx"
+    description: >
+      Daniele, 12/11/2026, in chat: «il fatto che non si possa attivare non
+      deve coincidere per forza con quello che si vede… dovrebbe essere che
+      sono io a decidere dal backoffice se si vede la cosa
+      dell'attivazione automatica oppure no… il deploy automatico
+      effettivo non lo decide cosa è mostrato nella home, lo decidiamo noi
+      nel backoffice». E sul Free: «che vuol dire free in home ma non in
+      vendita? È free, non si vende». Fino a qui la prima pagina diceva
+      «Attivazione automatica» da sola quando erano accesi i pagamenti
+      online o il Free (REQ-FLOTTA-017), e l'interruttore del Free si
+      chiamava «in vendita».
+      CRITERI DI ACCETTAZIONE. (1) Nella vendita c'è
+      `mostra_attivazione_automatica`, spento finché l'admin non lo
+      accende. (2) Acceso, la scheda «In breve» dice «Attivazione
+      automatica» e il terzo passo dice che l'installazione nasce da sola;
+      spento, dicono l'attivazione concordata. (3) Pagamenti online e Free
+      non cambiano più queste due frasi: lo fa solo l'interruttore. Se
+      l'attivazione è davvero automatica lo decidono «Deploy automatico» e,
+      sul test, «Attivazione simulata» (REQ-FLOTTA-011, REQ-FLOTTA-072).
+      (4) Nel backoffice l'interruttore del Free si chiama «Piano Free
+      disponibile», e la sua riga dice che cosa mostra e che cosa decide
+      il deploy. (5) Il nuovo interruttore sta nella stessa scheda
+      «Vendita», con una riga che dice cosa cambia; un clic scrive la
+      vendita.
+    status: todo
+    generate_issue: true
+    labels: [prodotto, regia, home, backoffice]
+    priority: P2
+    test_cases:
+      - tests/HomeVendita.test.jsx
+      - tests/Backoffice.test.jsx
+
   - id: REQ-FLOTTA-059
     title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"
     area: "functions/lib/eliminazione-cliente.js, functions/index.js (eliminaCliente), src/lib/db.js (eliminaCliente), src/pages/Backoffice.jsx (Elimina cliente…)"
