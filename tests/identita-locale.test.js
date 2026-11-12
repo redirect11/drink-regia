@@ -14,7 +14,10 @@ import { generateKeyPairSync, sign } from 'node:crypto'
 
 const require = createRequire(import.meta.url)
 const id = require('../functions/lib/identita-locale.js')
-const { OAuth2Client } = require('../functions/node_modules/google-auth-library')
+// Dalla radice (arriva con firebase-tools): in CI le Functions non hanno i
+// loro node_modules. Il controllo della firma è lo stesso della versione
+// delle Functions.
+const { OAuth2Client } = require('google-auth-library')
 
 const REGIA = 'drink-regia-test'
 const AUD = id.audienceAI(REGIA)
