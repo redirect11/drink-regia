@@ -214,6 +214,13 @@ export async function impostaDeployAutomatico(acceso) {
   await setDoc(doc(db, 'impostazioni', 'regia'), { deploy_automatico: Boolean(acceso), aggiornate_il: new Date().toISOString() }, { merge: true })
 }
 
+// L'attivazione simulata (REQ-FLOTTA-072): solo sul test. Il server la
+// rifiuta da sé sulla regia di produzione, qualunque cosa ci sia scritto.
+export async function impostaAttivazioneSimulata(acceso) {
+  serve()
+  await setDoc(doc(db, 'impostazioni', 'regia'), { attivazione_simulata: Boolean(acceso), aggiornate_il: new Date().toISOString() }, { merge: true })
+}
+
 // L'admin autorizza (→ in coda, la Function la lancia) o rifiuta una richiesta.
 export async function autorizzaRichiesta(slug) {
   serve()

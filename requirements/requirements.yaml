@@ -3870,7 +3870,7 @@ requirements:
       l'eliminazione non lancia il workflow: il locale diventa «eliminata»
       senza archivio. (6) Il deploy automatico resta com'è: spento,
       l'attivazione simulata aspetta l'autorizzazione come una vera.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [flotta, regia, backoffice]
     priority: P2

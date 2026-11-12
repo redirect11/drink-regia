@@ -22,7 +22,7 @@ const { defineSecret } = require('firebase-functions/params')
 const eventiStripe = require('./lib/eventistripe.js')
 const { initializeApp } = require('firebase-admin/app')
 const { getFirestore } = require('firebase-admin/firestore')
-const { preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, eAggiornamento, documentoIstanza, documentoAggiornamento, vincoliEsito, bearerValido, segretoUsabile } = require('./lib/provisioning.js')
+const { simulazioneAmmessa, documentoSimulato, preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, eAggiornamento, documentoIstanza, documentoAggiornamento, vincoliEsito, bearerValido, segretoUsabile } = require('./lib/provisioning.js')
 const rilasci = require('./lib/rilasci.js')
 const { sceltaCambiata, licenzaProtetta, stessaLicenza, perIlDatabase, scadenzaCoerente } = require('./lib/licenza.js')
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
@@ -151,6 +151,17 @@ async function lancia(richiesta) {
   if (!coerenza.ok) {
     console.error(`[provisioning] ${richiesta.slug} non parte: ${coerenza.perche}`)
     await db.doc(`richieste/${richiesta.slug}`).set({ stato: 'errore', errore: `Lancio rifiutato: ${coerenza.perche}`, aggiornata_il: adesso }, { merge: true })
+    return
+  }
+  // L'ATTIVAZIONE SIMULATA (REQ-FLOTTA-072): sul test, con l'interruttore
+  // acceso, il locale arriva ad «attiva» qui, senza GitHub né Google.
+  const impostazioni = (await db.doc('impostazioni/regia').get()).data() || {}
+  if (simulazioneAmmessa(impostazioni, PROGETTO_REGIA)) {
+    const istRef = db.doc(`istanze/${richiesta.slug}`)
+    const prima = (await istRef.get()).data() || null
+    const condizioni = prima?.condizioni_aggiornamenti || (await regoleAggiornamenti().catch(() => null))
+    await istRef.set({ ...documentoSimulato(richiesta.slug, prima), uid: richiesta.uid || null, ...(condizioni ? { condizioni_aggiornamenti: condizioni } : {}) }, { merge: true })
+    await db.doc(`richieste/${richiesta.slug}`).set({ stato: 'attiva', simulata: true, lanciata_il: adesso, aggiornata_il: adesso }, { merge: true })
     return
   }
   const corpo = dispatchPayload({ ...richiesta, nome_locale: cliente.nome_locale, piano: cliente.piano, moduli: cliente.moduli, email: cliente.email }, { ref: REF, app: REF_APP, ambiente: AMBIENTE_FLOTTA })
@@ -1095,6 +1106,8 @@ async function lanciaAggiornamento(slug, ref, { rilascio = null, ritorno = false
   const istRef = db.doc(`istanze/${slug}`)
   const ist = (await istRef.get()).data()
   if (!ist || ist.stato !== 'attiva') return 'L’istanza non è attiva.'
+  // Un locale simulato (REQ-FLOTTA-072) non ha un progetto da aggiornare.
+  if (ist.simulata) return 'Locale simulato: non ha un progetto da aggiornare.'
   // Un locale registrato come esistente (la Tana, REQ-AI-003) si aggiorna
   // dal suo repository, finché l'admin non lo affida alla regia
   // (REQ-FLOTTA-018): allora il workflow della flotta pubblica sul SUO
@@ -2588,8 +2601,15 @@ exports.temiDelLocale = onCall(OPTS, async (req) => {
 // l'eliminazione. Le regole stanno in lib/eliminazione.js.
 
 async function lanciaEliminazione(slug) {
-  const res = await dispatchGitHub(WORKFLOW_ELIMINA, elim.dispatchEliminazione(slug, { ref: REF, ambiente: AMBIENTE_FLOTTA }))
   const ref = db.doc(`istanze/${slug}`)
+  // Un locale simulato (REQ-FLOTTA-072): niente progetto da archiviare e
+  // cancellare, si segna eliminato e basta.
+  const ist = (await ref.get()).data() || null
+  if (ist?.simulata) {
+    await ref.set(elim.eliminazioneSimulata(ist), { merge: true })
+    return null
+  }
+  const res = await dispatchGitHub(WORKFLOW_ELIMINA, elim.dispatchEliminazione(slug, { ref: REF, ambiente: AMBIENTE_FLOTTA }))
   if (res.status !== 204) {
     await ref.set({ eliminazione: { stato: 'fallita', errore: `GitHub ${res.status}: il workflow non è partito`, finito_il: new Date().toISOString() } }, { merge: true })
     return `GitHub ${res.status}`
@@ -2631,7 +2651,7 @@ exports.gestisciEliminazione = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN
   if (azione === 'chiedi' && !admin) {
     const puo = elim.puoChiedereTitolare(ist)
     if (!puo.ok) throw new HttpsError('failed-precondition', puo.perche)
-    if (!elim.confermaValida(ist, conferma)) throw new HttpsError('invalid-argument', `Per confermare scrivi ${ist.progetto}.`)
+    if (!elim.confermaValida(ist, conferma)) throw new HttpsError('invalid-argument', `Per confermare scrivi ${ist.simulata ? ist.slug : ist.progetto}.`)
     const richiesta = elim.richiestaTitolare(ist, { da: req.auth.token.email || req.auth.uid, adesso })
     await scriviStatoIstanza(slug, 'chiusa', 'chiusura chiesta dal titolare', { per: 'titolare' })
     await istRef.set({ eliminazione: richiesta }, { merge: true })
@@ -2644,7 +2664,7 @@ exports.gestisciEliminazione = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN
   if (azione === 'chiedi' && admin) {
     const puo = elim.puoEliminare(ist)
     if (!puo.ok) throw new HttpsError('failed-precondition', puo.perche)
-    if (!elim.confermaValida(ist, conferma)) throw new HttpsError('invalid-argument', `Per confermare scrivi ${ist.progetto}.`)
+    if (!elim.confermaValida(ist, conferma)) throw new HttpsError('invalid-argument', `Per confermare scrivi ${ist.simulata ? ist.slug : ist.progetto}.`)
     const richiesta = elim.eliminazioneChiesta(ist, { subito: Boolean(subito), da: req.auth.token.email || req.auth.uid, adesso })
     await istRef.set({ eliminazione: richiesta }, { merge: true })
     if (!subito) {

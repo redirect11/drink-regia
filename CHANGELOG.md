@@ -6,6 +6,9 @@ data.
 
 ## Prossima release (da decidere)
 
+- Sul test, dal backoffice, l'attivazione simulata: il locale arriva ad
+  attivo con un indirizzo finto, senza creare un progetto Google
+  (REQ-FLOTTA-072).
 - I tre passi della prima pagina si chiamano «Pronto in 3 passi»
   (REQ-FLOTTA-070).
 - Il carosello della prima pagina scorre da solo anche col mouse sulla

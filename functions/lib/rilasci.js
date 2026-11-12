@@ -41,7 +41,8 @@ function ondataDi(ist) {
 // Chi riceve il rilascio: le istanze attive. Una chiusa no: la sua app
 // è ferma e non serve aggiornarla. Una sospesa sì, così alla
 // riattivazione è già allineata.
-const partecipa = (ist) => ist?.stato === 'attiva' && ist?.licenza_stato !== 'chiusa'
+// Un locale simulato (REQ-FLOTTA-072) no: non ha un progetto da aggiornare.
+const partecipa = (ist) => ist?.stato === 'attiva' && ist?.licenza_stato !== 'chiusa' && ist?.simulata !== true
 
 // Il rilascio nasce con le ondate fotografate in quel momento: chi si
 // attiva dopo nasce già con l'ultima versione. Un rilascio OBBLIGATORIO

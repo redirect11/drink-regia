@@ -326,4 +326,23 @@ function bearerValido(header, segreto) {
   return diff === 0
 }
 
-module.exports = { preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, eAggiornamento, documentoIstanza, documentoAggiornamento, vincoliEsito, progettoAtteso, urlAmmesso, runIdValido, istanteValido, bearerValido, segretoUsabile, STATI, PREFISSO_PROGETTI, ESITO_VECCHIO_MS, ESITO_FUTURO_MS, SEGRETO_MIN }
+// L'ATTIVAZIONE SIMULATA (REQ-FLOTTA-072, Daniele, 12/11/2026: «almeno
+// per test… facciamo l'attivazione finta»). Sul test, se l'admin la
+// accende, un'attivazione arriva ad «attiva» senza GitHub e senza un
+// progetto Google: si prova tutto il giro senza consumare la quota. Mai
+// sulla regia di produzione, qualunque cosa dica l'interruttore: lo
+// decide il progetto in cui gira la Function, non un dato che si scrive.
+const REGIA_DI_PRODUZIONE = 'drink-regia'
+function simulazioneAmmessa(impostazioni, progettoRegia) {
+  return impostazioni?.attivazione_simulata === true && typeof progettoRegia === 'string' && progettoRegia !== '' && progettoRegia !== REGIA_DI_PRODUZIONE
+}
+
+// Il locale simulato: attivo, senza progetto (così niente prova a
+// scriverci: licenza, dati, accesso all'app si fermano da soli), con un
+// indirizzo in `.invalid`, il dominio che per norma non esiste.
+function documentoSimulato(slug, prima = null, adesso = new Date()) {
+  const doc = documentoIstanza({ slug, stato: 'attiva', url: `https://${slug}.simulata.invalid`, versione: 'simulata', errore: null }, prima, adesso)
+  return { ...doc, progetto: null, simulata: true }
+}
+
+module.exports = { simulazioneAmmessa, documentoSimulato, preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, eAggiornamento, documentoIstanza, documentoAggiornamento, vincoliEsito, progettoAtteso, urlAmmesso, runIdValido, istanteValido, bearerValido, segretoUsabile, STATI, PREFISSO_PROGETTI, ESITO_VECCHIO_MS, ESITO_FUTURO_MS, SEGRETO_MIN }

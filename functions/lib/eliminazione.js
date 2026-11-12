@@ -36,7 +36,17 @@ function puoEliminare(ist) {
 // tollerate né pezzi, perché è l'ultimo freno prima di un gesto che non si
 // annulla.
 function confermaValida(ist, conferma) {
-  return Boolean(ist?.progetto) && String(conferma ?? '').trim() === ist.progetto
+  // Un locale simulato (REQ-FLOTTA-072) non ha un progetto: si conferma
+  // con lo slug.
+  const atteso = ist?.simulata === true ? ist.slug : ist?.progetto
+  return Boolean(atteso) && String(conferma ?? '').trim() === atteso
+}
+
+// L'eliminazione di un locale simulato (REQ-FLOTTA-072): niente workflow,
+// niente archivio, perché non c'è un progetto né dati da salvare.
+function eliminazioneSimulata(ist, adesso = new Date()) {
+  const il = adesso.toISOString()
+  return { stato: 'eliminata', eliminata_il: il, eliminazione: { ...(ist?.eliminazione || {}), stato: 'eliminata', errore: null, archivio: null, finito_il: il, simulata: true } }
 }
 
 // Quando parte: subito, o 30 giorni dopo la chiusura (mai nel passato).
@@ -177,6 +187,7 @@ function archivioScaricabile(ist, adesso = new Date()) {
 module.exports = {
   puoEliminare,
   confermaValida,
+  eliminazioneSimulata,
   quandoEliminare,
   eliminazioneChiesta,
   puoChiedereTitolare,
