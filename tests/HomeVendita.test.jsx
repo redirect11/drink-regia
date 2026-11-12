@@ -98,7 +98,7 @@ describe('la vendita nella prima pagina', () => {
     const tabella = within(screen.getByRole('table'))
     expect(tabella.getAllByRole('columnheader').map((c) => c.textContent)).toEqual(['Free', 'Base', 'Completo'])
     const c = it_.prezzi.confronto
-    const riga = (id) => [...tabella.getByRole('row', { name: new RegExp(`^${c.righe[id]}`) }).querySelectorAll('td')].map((td) => td.textContent)
+    const riga = (id) => [...tabella.getByRole('row', { name: new RegExp(`^${c.righe[id].replace(/[()]/g, '\\$&')}`) }).querySelectorAll('td')].map((td) => td.textContent)
     const limiti = PIANI.free.limiti
     expect(riga('comande')).toEqual(['No', 'Sì', 'Sì'])
     expect(riga('prodotti')).toEqual([`Fino a ${limiti.prodotti_max}`, 'Senza limite', 'Senza limite'])
@@ -217,7 +217,7 @@ describe('la vendita nella prima pagina', () => {
 describe('il Free nel confronto anche fuori vendita, e nascosto a richiesta', () => {
   const c = it_.prezzi.confronto
   const intestazioni = () => within(screen.getByRole('table')).getAllByRole('columnheader').map((h) => h.textContent)
-  const riga = (id) => [...within(screen.getByRole('table')).getByRole('row', { name: new RegExp(`^${c.righe[id]}`) }).querySelectorAll('td')].map((td) => td.textContent)
+  const riga = (id) => [...within(screen.getByRole('table')).getByRole('row', { name: new RegExp(`^${c.righe[id].replace(/[()]/g, '\\$&')}`) }).querySelectorAll('td')].map((td) => td.textContent)
 
   it('l’interruttore per nasconderlo è spento finché l’admin non lo accende', () => {
     expect(venditaPulita(null).nascondi_free).toBe(false)

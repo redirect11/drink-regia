@@ -4207,7 +4207,7 @@ requirements:
       di «senza comande». (4) Italiano e inglese hanno le stesse voci.
       DA DIRE A TANA-DRINK: la chiave `stampa: false` nei limiti del Free,
       che spegne anche lo scontrino.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [prodotto, regia, home]
     priority: P2

@@ -6,6 +6,9 @@ data.
 
 ## Prossima release (da decidere)
 
+- Il Free è una cassa semplice: il confronto dice «Stati di servizio» e
+  «Stampa di comande e scontrino», tutti e due assenti nel Free, e la
+  licenza porta anche `stampa: false` (REQ-FLOTTA-080).
 - Ogni locale completo riceve l'account dell'AI dalla regia a ogni
   aggiornamento, senza passi a mano; per un locale esistente come la Tana
   c'è il workflow «Prepara l'AI di un locale esistente», che dà anche il
