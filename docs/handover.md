@@ -106,17 +106,22 @@ produzione su `drink-regia`. Si prova in locale e sui test automatici.
 
 - `main`: produzione. Solo merge via pull request dal ramo di rilascio.
 - `develop`: integrazione. Solo merge via pull request.
-- `release/x.y.z`: il ramo di lavoro, staccato da `develop`. Se ne esiste
-  uno aperto, si lavora lì. Il lavoro finito si porta sul ramo di
-  rilascio con merge locali (fast-forward o rebase, storia lineare);
-  le PR sono solo verso `develop` e verso `main`.
-- `feature/<nome>`: solo per una funzione grossa o quando l'utente lo
-  chiede.
-- `hotfix/<nome>`: nasce da `main`, un solo ramo cumulativo; PR verso
-  `main`, poi `develop` fuso nel ramo e PR verso `develop` dallo stesso
-  ramo.
+- **Un ramo per ogni lavoro, staccato da `develop`** (decisione di Daniele
+  del 12/11/2026). `feature/<nome>` per una cosa nuova, `fix/<nome>` per
+  una correzione, `hotfix/<nome>` per una correzione urgente. Ognuno ha
+  la sua pull request verso `develop`, che unisce Daniele.
+  FINO AL 12/11/2026 la regola scritta qui era un'altra: il lavoro su
+  `release/x.y.z`, `feature/` solo per una funzione grossa, `hotfix/` da
+  `main`. Ma da fine ottobre il lavoro andava già per rami singoli con la
+  loro PR, e Daniele le univa una per una. Messo davanti alla
+  differenza, ha scelto la pratica: «usa questa: una ventina di rami
+  feature/, fix/ e hotfix/, tutti staccati da develop, ognuno con la sua
+  PR». I rami `release/0.1.0`…`release/0.3.0` restano nella storia.
+  DA DECIDERE AL PRIMO RILASCIO IN PRODUZIONE: da dove parte la PR verso
+  `main` (i passi più sotto dicono «dal ramo di release») e da dove
+  nasce un hotfix quando `main` e `develop` saranno diversi.
 - **Un worktree per ramo**: non si cambia ramo nella cartella
-  principale, si fa `git worktree add ../drink-regia-<x.y.x> release/x.y.z`.
+  principale, si fa `git worktree add ../drink-regia-<nome> -b feature/<nome> origin/develop`.
   In un worktree nuovo mancano `.env` e `node_modules`
   (`npm install` e `npm install --prefix functions`).
 

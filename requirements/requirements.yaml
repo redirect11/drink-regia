@@ -3127,8 +3127,10 @@ requirements:
       repository: oggi uno solo, il carattere Playfair Display (SIL OFL
       1.1, testo accanto al file). La storia git è stata cercata il
       10/11/2026 prima di rendere pubblico il repository: nessuna chiave,
-      token o credenziale. CLAUDE.md prende la sezione «Stonebit — regole
-      comuni».
+      token o credenziale. La sezione «Stonebit — regole comuni» che
+      questa voce aveva messo in fondo al CLAUDE.md è stata tolta il
+      12/11/2026 (REQ-DEV-012): che il codice è proprietario lo dice la
+      sezione di Stonebit in testa.
     status: implemented
     generate_issue: true
     labels: [metodo, regia]
@@ -3160,6 +3162,51 @@ requirements:
       e a .claude/agents/. Le contraddizioni fra la sezione nuova e le
       regole di prima non le ho risolte io: stanno elencate nella PR, per
       Daniele.
+      TERZA VERSIONE (12/11/2026, dal CEO-agente): la sezione va dopo il
+      titolo e la presentazione del repository, prima delle sue regole.
+      E cambia la regola sulle contraddizioni: «dove la sezione nuova e
+      le regole già presenti nel repo si contraddicono, valgono le
+      regole del repo» (Daniele, 11/11/2026: «continua come hai sempre
+      fatto»). Il testo della sezione e degli agenti si adatta, e la PR
+      dice cosa è stato adattato. La sezione ha ora «Precedenza», i rami
+      come li vuole docs/handover.md (release/x.y.z, feature solo per
+      una funzione grossa, hotfix da main, un worktree per ramo), i tag
+      sul test messi dall'agente quando Daniele lo chiede. La sezione
+      «Stonebit — regole comuni» in fondo, che veniva dalla prima
+      versione dell'altro messaggio e che la versione aggiornata non
+      chiede più, è tolta: diceva «ogni lavoro su un ramo feature/…»,
+      il contrario della regola del repository.
+      CRITERI DI ACCETTAZIONE, aggiornati: nell'ordine titolo,
+      presentazione, sezione di Stonebit, regole del repository; una
+      sola sezione di Stonebit; «Precedenza» presente; i rami scritti
+      come in docs/handover.md; nessuna regola di prima sparita; i sei
+      agenti con nome e descrizione.
+      I RAMI, DECISI DA DANIELE (12/11/2026). La terza versione
+      riportava la regola scritta nel repository: lavoro su
+      release/x.y.z, feature solo per una funzione grossa, hotfix da
+      main. La pratica, da fine ottobre, era un'altra. Messo davanti
+      alla differenza, Daniele ha scelto la pratica: «usa questa: una
+      ventina di rami feature/, fix/ e hotfix/, tutti staccati da
+      develop, ognuno con la sua PR». La regola è riscritta così nella
+      sezione di Stonebit, nel punto «GitFlow» del CLAUDE.md e in
+      docs/handover.md («I rami»), e il test tiene uguali i tre testi.
+      Resta da decidere, al primo rilascio in produzione, da dove parte
+      la PR verso main e da dove nasce un hotfix.
+      QUARTA VERSIONE (12/11/2026, dal CEO-agente), che supera il ruolo
+      scritto qui sopra. La sessione aperta sul repository non è il PM:
+      «lavora come ha sempre fatto», cioè raccoglie la richiesta, scrive
+      requisito e test, implementa e porta la pull request a Daniele. E
+      Daniele, in chat, lo stesso giorno: «il tech lead sei tu». Quindi
+      il Tech Lead è la sessione, e il suo file fra gli agenti è tolto.
+      Il PM resta come ruolo di solo controllo: verifica che il lavoro
+      corrisponda ai requisiti del registro e tiene il punto dal lato
+      del business; non dirige, non assegna, non fissa scadenze. Non c'è
+      più una catena obbligata fra i ruoli, né l'obbligo di proporre un
+      piano a inizio sessione. Gli agenti sono cinque: pm,
+      frontend-developer, backend-developer, devops-flotta, revisore.
+      I rami restano quelli decisi da Daniele il 12/11/2026: la quarta
+      versione riportava ancora release/x.y.z, ma dice lei stessa che
+      vincono le regole del repository.
     status: implemented
     generate_issue: true
     labels: [metodo, regia]
