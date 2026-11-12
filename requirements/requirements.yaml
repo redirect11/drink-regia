@@ -3679,6 +3679,37 @@ requirements:
     test_cases:
       - tests/db.test.js
 
+  - id: REQ-DEV-015
+    title: "Le issue a posteriori: una voce già fatta senza issue la fa nascere, se il registro lo chiede"
+    area: "scripts/lib-requisiti.mjs (deveNascere), scripts/generate-issues.mjs, requirements/requirements.yaml"
+    description: >
+      Dal 07/11 all'11/11/2026 ventisei voci del registro sono state
+      scritte direttamente come fatte, senza passare da «da fare»: la
+      loro issue non è mai nata, perché il generatore apre issue solo
+      per quello che resta da fare (REQ-DEV-003). Chi guarda le issue
+      non vede quel lavoro. Daniele, 12/11/2026, alla domanda «le issue
+      mancanti per le voci scritte già fatte dal 6 novembre: le faccio
+      nascere a posteriori?»: «si». Le voci scritte prima del 06/11
+      (venticinque, dal 22/10 al 04/11) restano senza: la domanda non le
+      comprendeva.
+      CRITERI DI ACCETTAZIONE. (1) Una voce fatta (implemented, fixed,
+      done) con `generate_issue: true` e `issue_a_posteriori: true`, che
+      non ha nessuna issue, aperta o chiusa, ne fa nascere una. (2)
+      L'issue porta l'etichetta `a-posteriori` e una riga che dice che è
+      nata a lavoro finito. (3) Poi segue la strada di ogni altra: sui
+      rami di lavoro resta aperta, su develop va «in prova», da main si
+      chiude. (4) Una voce scartata (deprecated, wontfix) non ne fa
+      nascere nessuna, anche col segno. (5) Senza il segno una voce fatta
+      non ne fa nascere nessuna, come prima. (6) Se l'issue c'è già,
+      aperta o chiusa, non ne nasce un'altra. (7) Il segno è sulle
+      ventisei voci, e solo su voci fatte.
+    status: todo
+    generate_issue: true
+    labels: [metodo, regia]
+    priority: P3
+    test_cases:
+      - tests/issue.test.js
+
   - id: REQ-FLOTTA-059
     title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"
     area: "functions/lib/eliminazione-cliente.js, functions/index.js (eliminaCliente), src/lib/db.js (eliminaCliente), src/pages/Backoffice.jsx (Elimina cliente…)"
