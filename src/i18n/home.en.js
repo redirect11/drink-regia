@@ -98,9 +98,9 @@ export default {
     precedente: 'Previous move',
     successiva: 'Next move',
     vaiA: '{parola} Move {n} of {totale}',
-    nota: 'The videos on this page are illustrative and AI-generated.',
-    ferma: 'Stop the videos',
-    riprendi: 'Play the videos',
+    nota: '* The videos on this page are illustrative and AI-generated.',
+    ferma: 'Pause the carousel',
+    riprendi: 'Play the carousel',
   },
   funzioni: {
     occhiello: 'Features',

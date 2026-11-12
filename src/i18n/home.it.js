@@ -119,9 +119,10 @@ export default {
     precedente: 'Gesto precedente',
     successiva: 'Gesto successivo',
     vaiA: '{parola} Gesto {n} di {totale}',
-    nota: 'I filmati di questa pagina sono dimostrativi, generati con l’intelligenza artificiale.',
-    ferma: 'Ferma i filmati',
-    riprendi: 'Fai ripartire i filmati',
+    nota: '* I filmati di questa pagina sono dimostrativi, generati con l’intelligenza artificiale.',
+    // I nomi del tasto di pausa e play, che a schermo è solo un'icona.
+    ferma: 'Metti in pausa il carosello',
+    riprendi: 'Fai ripartire il carosello',
   },
   funzioni: {
     occhiello: 'Funzioni',

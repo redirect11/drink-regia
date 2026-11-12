@@ -3802,7 +3802,7 @@ requirements:
       (5) Chi chiede meno movimento o di risparmiare dati resta come oggi:
       prima diapositiva ferma, niente tasto, si scorre a mano.
       (6) Italiano e inglese hanno le stesse voci.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [prodotto, regia, home]
     priority: P2
