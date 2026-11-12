@@ -18,6 +18,9 @@ const giorniDiProva = (g) => {
 export function venditaPulita(doc) {
   return {
     free: doc?.free === true,
+    // Il Free fuori vendita si mostra nel confronto, come un piano
+    // normale, finché l'admin non lo nasconde (REQ-FLOTTA-071).
+    nascondi_free: doc?.nascondi_free === true,
     // Spenti finché l'admin non li accende (REQ-FLOTTA-017).
     pagamenti_online: doc?.pagamenti_online === true,
     // Il sito aperto al pubblico (REQ-FLOTTA-043): true, false, o null se

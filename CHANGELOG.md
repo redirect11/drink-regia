@@ -9,6 +9,9 @@ data.
 - Sul test, dal backoffice, l'attivazione simulata: il locale arriva ad
   attivo con un indirizzo finto, senza creare un progetto Google
   (REQ-FLOTTA-072).
+- Il confronto fra i piani mostra il Free, con le sue differenze da Base
+  e Completo, anche prima che sia in vendita; dal backoffice si nasconde
+  (REQ-FLOTTA-071).
 - I tre passi della prima pagina si chiamano «Pronto in 3 passi»
   (REQ-FLOTTA-070).
 - Il carosello della prima pagina scorre da solo anche col mouse sulla

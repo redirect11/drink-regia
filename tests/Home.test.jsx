@@ -162,21 +162,21 @@ describe('la prima pagina', () => {
       expect(screen.queryByRole('table')).toBeNull()
     })
 
-    it('senza il Free in vendita le colonne sono Base e Completo, e delle righe uguali resta solo quella dei terminali', () => {
+    // Senza nessuna scelta dell'admin il Free fuori vendita c'è, come un
+    // piano normale (REQ-FLOTTA-071): le righe in cui è diverso si mostrano.
+    it('senza il Free in vendita le colonne sono Free, Base e Completo, e si vedono le differenze', () => {
       mostra()
       fireEvent.click(comando())
       const tabella = within(screen.getByRole('table'))
-      expect(tabella.getAllByRole('columnheader').map((c) => c.textContent)).toEqual([PIANI.base.nome, PIANI.completo.nome])
       const c = it_.prezzi.confronto
+      expect(tabella.getAllByRole('columnheader').map((h) => h.textContent)).toEqual([PIANI.free.nome, PIANI.base.nome, PIANI.completo.nome])
       expect(tabella.getByRole('row', { name: new RegExp(`^${c.righe.terminali}`) })).toHaveTextContent(
-        `${c.righe.terminali}${PIANI.base.terminali}${PIANI.completo.terminali}`,
+        `${c.righe.terminali}${PIANI.free.terminali}${PIANI.base.terminali}${PIANI.completo.terminali}`,
       )
-      // Comande, prodotti, conti, utenti, sconti, storico: uguali nei due
-      // piani a pagamento, quindi non sono un confronto e non si mostrano.
       for (const id of ['comande', 'prodotti', 'conti', 'utenti', 'sconti', 'storico']) {
-        expect(tabella.queryByRole('row', { name: new RegExp(`^${c.righe[id]}`) })).toBeNull()
+        expect(tabella.getByRole('row', { name: new RegExp(`^${c.righe[id]}`) })).toBeInTheDocument()
       }
-      expect(tabella.queryByText(c.nonDisponibile)).toBeNull()
+      expect(tabella.getAllByText(c.nonDisponibile).length).toBeGreaterThan(0)
     })
 
     it('i moduli, uno per uno: ogni riga dice il nome e quanto costa, e si apre per conto suo a dire cosa fa', () => {
