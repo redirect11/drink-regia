@@ -153,20 +153,49 @@ async function clientePerSlug(db, slug, transazione = null) {
 // l'account non abbia già un locale, e solo allora si scrive. Due
 // registrazioni insieme con lo stesso slug: una delle due transazioni
 // rilegge e trova l'altra. Torna il documento scritto.
+// UN ACCOUNT PER PERSONA (REQ-FLOTTA-083, Daniele, 12/11/2026): chi si
+// registra non usa un'email col «+», né una variante di un'email che ha già
+// un account. La forma base: minuscole, senza «+qualcosa» e, per Gmail,
+// senza punti (Gmail li ignora) e con gmail.com.
+const DOMINI_GMAIL = ['gmail.com', 'googlemail.com']
+function emailNorma(email) {
+  const m = String(email || '').trim().toLowerCase()
+  const at = m.lastIndexOf('@')
+  if (at < 1) return m
+  let locale = m.slice(0, at).split('+')[0]
+  let dominio = m.slice(at + 1)
+  if (DOMINI_GMAIL.includes(dominio)) {
+    locale = locale.replace(/\./g, '')
+    dominio = 'gmail.com'
+  }
+  return `${locale}@${dominio}`
+}
+const conPiu = (email) => String(email || '').split('@')[0].includes('+')
+const EMAIL_CON_PIU = 'Per registrarti usa il tuo indirizzo senza «+…»: un account è uno per persona.'
+const EMAIL_IN_USO = 'Esiste già un account con questa email: entra con quello.'
+
 async function registraCliente(db, { uid, email, dati, adesso = new Date() }) {
-  const cliente = documentoRegistrazione({ uid, email, dati, adesso })
+  if (conPiu(email)) throw new RegistrazioneRifiutata('invalid-argument', EMAIL_CON_PIU, { campo: 'email' })
+  const cliente = { ...documentoRegistrazione({ uid, email, dati, adesso }), email_norma: emailNorma(email) }
   const ref = db.doc(`clienti/${uid}`)
   await db.runTransaction(async (t) => {
-    const [stessoSlug, istanza, mio] = await Promise.all([
+    const [stessoSlug, istanza, mio, stessaEmail] = await Promise.all([
       t.get(db.collection('clienti').where('slug', '==', cliente.slug).limit(2)),
       t.get(db.doc(`istanze/${cliente.slug}`)),
       t.get(ref),
+      t.get(db.collection('clienti').where('email_norma', '==', cliente.email_norma).limit(2)),
     ])
     if (mio.exists) throw new RegistrazioneRifiutata('already-exists', 'Questo account ha già un locale registrato.', { campo: 'account' })
+    if (stessaEmail.docs.some((d) => d.id !== uid)) throw new RegistrazioneRifiutata('already-exists', EMAIL_IN_USO, { campo: 'email' })
     if (!stessoSlug.empty || istanza.exists) throw new RegistrazioneRifiutata('already-exists', SLUG_IN_USO, { campo: 'slug', slug: cliente.slug })
     t.set(ref, cliente)
   })
   return cliente
 }
 
-module.exports = { SLUG_VALIDO, RISERVATI, problemaSlug, RegistrazioneRifiutata, SLUG_IN_USO, nuovoCliente, documentoRegistrazione, SlugAmbiguo, clientePerSlug, registraCliente }
+// I clienti nati prima di REQ-FLOTTA-083 non hanno la forma base: quelli da
+// allineare, mai un'email col «+» (le prove dell'admin).
+const emailDaAllineare = (clienti) =>
+  clienti.filter((c) => !c.email_norma && c.email && !conPiu(c.email)).map((c) => ({ id: c.id, email_norma: emailNorma(c.email) }))
+
+module.exports = { emailNorma, emailDaAllineare, EMAIL_CON_PIU, EMAIL_IN_USO, SLUG_VALIDO, RISERVATI, problemaSlug, RegistrazioneRifiutata, SLUG_IN_USO, nuovoCliente, documentoRegistrazione, SlugAmbiguo, clientePerSlug, registraCliente }

@@ -12,6 +12,8 @@ data.
   indirizzo sotto /dashboard. Nella scelta del piano il piano attuale del
   cliente compare come «Il tuo piano», anche il Free fuori vendita, e il
   tasto si accende solo per un cambio (REQ-FLOTTA-084).
+- Un account per persona: chi si registra non usa un'email col «+», né
+  una variante di un'email che ha già un account (REQ-FLOTTA-083).
 - Nel backoffice il segno che gira dell'aggiornamento resta tondo anche
   accanto a un testo lungo (REQ-FLOTTA-082).
 - Nella richiesta di informazioni e in quella d'acquisto il titolare dice

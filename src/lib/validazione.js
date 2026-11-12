@@ -61,6 +61,8 @@ const vuoto = (v) => !String(v || '').trim()
 export function problemiAccount({ email, password, conferma }) {
   const p = {}
   if (!validaEmail(email)) p.email = 'Scrivi un’email valida.'
+  // Un account per persona (REQ-FLOTTA-083): niente «+» da chi si registra.
+  else if (String(email).trim().split('@')[0].includes('+')) p.email = 'Per registrarti usa il tuo indirizzo senza «+…»: un account è uno per persona.'
   const pw = problemaPassword(password)
   if (pw) p.password = pw
   if (password !== conferma) p.conferma = 'Le due password non coincidono.'

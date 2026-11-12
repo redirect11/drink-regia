@@ -4378,6 +4378,47 @@ requirements:
       - tests/Dashboard.test.jsx
       - tests/SceltaPiano.test.jsx
 
+  - id: REQ-FLOTTA-083
+    title: "Un account per persona: chi si registra non usa un'email col «+», né una variante di un'email che ha già un account"
+    area: "functions/lib/registrazione.js (emailNorma, emailDaAllineare, registraCliente), functions/index.js (creaCliente, allineaEmail), src/lib/validazione.js, src/pages/Registrati.jsx, src/pages/Backoffice.jsx (Allinea le email)"
+    description: >
+      Daniele, 12/11/2026, scoperto che con `nome+qualcosa@gmail.com` si
+      registrano quanti locali si vuole: «le possiamo usare noi per test
+      ma non dobbiamo accettarle in alcun modo da chi si registra. Se uno
+      prova a registrarsi con una mail che già esiste, quindi anche con il
+      + davanti, non può registrarsi perché ha già una sua utenza».
+      CRITERI DI ACCETTAZIONE. (1) Chi si registra da sé con un'email col
+      «+» viene fermato: nel modulo, accanto alla casella, prima di creare
+      l'account; e dalla regia, che lo rifiuta comunque. (2) Ogni cliente
+      ha la forma base della sua email (`email_norma`): minuscole, senza
+      «+qualcosa» e, per Gmail, senza punti e con gmail.com. (3) La
+      registrazione rifiuta un'email la cui forma base è già di un altro
+      cliente, con «Esiste già un account con questa email: entra con
+      quello.», nella stessa transazione che controlla lo slug. (4) L'admin
+      dal backoffice («Nuovo locale») può ancora usare il «+», per le prove:
+      quei clienti non riservano la forma base. (5) Per i clienti nati
+      prima, nel backoffice (sezione «Rilasci», accanto a «Scadenze») c'è
+      «Allinea le email», solo per l'admin: la regia scrive la forma base
+      dove manca e mai per un'email col «+», e dice quanti clienti ha
+      allineato; rifatto non cambia niente. Daniele, 13/11/2026, sullo
+      script da lanciare con le sue credenziali: «Come faccio a darti il
+      permesso di farlo tu? … non ho accesso al pc … e non posso usare il
+      terminale»: lo fa la regia, dal browser.
+      DA TOGLIERE DOPO (Daniele, 13/11/2026: «dopo che l'ho fatto togliamo
+      sta funzione che non servirà più»): quando «Allinea le email» è stato
+      premuto sul test e in produzione, la Function allineaEmail e il suo
+      riquadro si tolgono, con una voce a parte.
+      Il resto della richiesta di Daniele (più locali per un account a
+      pagamento, un solo Free) è un lavoro a parte, da progettare.
+    status: implemented
+    generate_issue: true
+    labels: [regia, sicurezza, registrazione]
+    priority: P1
+    test_cases:
+      - tests/registrazione.test.js
+      - tests/validazione.test.js
+      - tests/Registrati.test.jsx
+
   - id: REQ-FLOTTA-059
     title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"
     area: "functions/lib/eliminazione-cliente.js, functions/index.js (eliminaCliente), src/lib/db.js (eliminaCliente), src/pages/Backoffice.jsx (Elimina cliente…)"

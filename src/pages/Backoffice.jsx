@@ -36,6 +36,7 @@ import {
   gestisciSconti,
   applicaSconto,
   programmaScadenze,
+  allineaEmail,
   impostaTemi,
   temiDelLocale,
   elencoTemiSuMisura,
@@ -393,6 +394,7 @@ export default function Backoffice() {
               <>
                 <LicenzeProtette onErrore={setErrore} onFatto={carica} />
                 <Scadenze onErrore={setErrore} />
+                <AllineaEmail onErrore={setErrore} />
                 <RegoleAggiornamenti onErrore={setErrore} onFatto={carica} />
                 <Rilasci rilasci={rilasci} onAzione={azioneRilascio} />
                 <AggiornamentiFalliti righe={righe} az={az} />
@@ -1052,6 +1054,45 @@ function Scadenze({ onErrore }) {
       <div className="azioni">
         <button type="button" className="btn ghost small" disabled={inCorso} onClick={programma}>
           {inCorso ? 'Programmo…' : 'Programma le scadenze'}
+        </button>
+      </div>
+      {esito && (
+        <p className="small" role="status">
+          {esito}
+        </p>
+      )}
+    </section>
+  )
+}
+
+// UN ACCOUNT PER PERSONA (REQ-FLOTTA-083): i clienti registrati prima non
+// hanno la forma base dell'email, e il controllo dei doppioni non li vede.
+// Una volta dopo il deploy; rifatto non cambia niente.
+function AllineaEmail({ onErrore }) {
+  const [inCorso, setInCorso] = useState(false)
+  const [esito, setEsito] = useState(null)
+  const allinea = async () => {
+    setInCorso(true)
+    setEsito(null)
+    try {
+      const r = await allineaEmail()
+      setEsito(`Allineati ${r?.allineati ?? 0} clienti su ${r?.totale ?? 0}.`)
+    } catch (e) {
+      onErrore(e.message)
+    } finally {
+      setInCorso(false)
+    }
+  }
+  return (
+    <section className="card" aria-label="Email dei clienti">
+      <h3>Email dei clienti</h3>
+      <p className="muted small">
+        Un account per persona: chi si registra non può usare una variante di un’email che ha già un account. I clienti registrati prima di
+        questa versione vanno allineati una volta; rifarlo non cambia niente.
+      </p>
+      <div className="azioni">
+        <button type="button" className="btn ghost small" disabled={inCorso} onClick={allinea}>
+          {inCorso ? 'Allineo…' : 'Allinea le email'}
         </button>
       </div>
       {esito && (
