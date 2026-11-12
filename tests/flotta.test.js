@@ -918,3 +918,65 @@ describe('il .env delle Functions del locale dice qual è la sua regia', () => {
     expect(p.run).toContain('if [ -n "$REGIA_PROGETTO" ]; then')
   })
 })
+
+// REQ-FLOTTA-078 (Daniele, 12/11/2026: «noi dobbiamo deployare in
+// automatico tutto»). Un locale esistente non ha il Terraform della flotta:
+// l'account ai-locale glielo dà l'aggiornamento.
+describe('l’account dell’AI di un locale esistente', () => {
+  // Anche per i locali della flotta già completi: il Terraform su un
+  // progetto completo non si riapplica (visto sul test con la beta.17).
+  it('c’è un passo, per ogni locale completo tranne la demo, prima del deploy, che non ferma il deploy', () => {
+    const p = passo(aggiorna, "L'account dell'AI del locale")
+    expect(p.if).toBe("env.PROFILO == 'completo' && env.DEMO != 'true'")
+    expect(p.run).toContain('node scripts/account-ai-locale.mjs --project "$PROGETTO" ${DEPLOY:+--deploy "$DEPLOY"} || echo "::warning::')
+    const nomi = passi(aggiorna).map((s) => s.name)
+    expect(nomi.indexOf("L'account dell'AI del locale")).toBeGreaterThan(nomi.indexOf('Dipendenze della regia'))
+    expect(nomi.indexOf("L'account dell'AI del locale")).toBeLessThan(nomi.indexOf('Deploy regole, indici, Functions e hosting'))
+  })
+  it('lo script crea ai-locale e dà gli stessi ruoli del Terraform, aggiungendo e mai togliendo', () => {
+    const script = leggi('scripts/account-ai-locale.mjs')
+    const tf = leggi('infra/istanza/main.tf')
+    const blocco = tf.slice(tf.indexOf('resource "google_project_iam_member" "ai_locale"'))
+    const ruoliTf = [...blocco.slice(0, blocco.indexOf('\n}\n')).matchAll(/"(roles\/[a-zA-Z.]+)"/g)].map((m) => m[1]).sort()
+    const ruoliScript = [...script.slice(script.indexOf('const RUOLI'), script.indexOf(']', script.indexOf('const RUOLI'))).matchAll(/'(roles\/[a-zA-Z.]+)'/g)].map((m) => m[1]).sort()
+    expect(ruoliScript).toEqual(ruoliTf)
+    expect(script).toContain("accountId: 'ai-locale'")
+    expect(script).toContain("import { conIRuoli } from './lib-iam.js'")
+    expect(script).not.toMatch(/members\.filter|splice|delete /)
+  })
+})
+
+// REQ-FLOTTA-078, la Tana (da tana-drink, 12/11/2026): le sue Functions le
+// pubblica il deploy di tana-drink col suo account, che deve poter agire
+// come ai-locale; e la Tana non passa da «Aggiorna» della regia.
+describe('l’AI di un locale esistente: il permesso del deploy e il workflow suo', () => {
+  const prepara = load(leggi('.github/workflows/prepara-ai-locale.yml'))
+  it('lo script dà a --deploy il permesso sul solo account ai-locale', () => {
+    const script = leggi('scripts/account-ai-locale.mjs')
+    expect(script).toContain("const DEPLOY = arg('deploy')")
+    expect(script).toContain('/serviceAccounts/${EMAIL}`')
+    expect(script).toContain("conIRuoli(letta.data, `serviceAccount:${DEPLOY}`, ['roles/iam.serviceAccountUser'])")
+  })
+  it('l’aggiornamento di un esistente passa l’account di deploy del progetto', () => {
+    const run = passo(aggiorna, "L'account dell'AI del locale").run
+    expect(run).toContain('if [ "$ESISTENTE" = "true" ]; then DEPLOY="firebase-adminsdk-fbsvc@$PROGETTO.iam.gserviceaccount.com"; fi')
+    expect(run).toContain('${DEPLOY:+--deploy "$DEPLOY"}')
+  })
+  it('il workflow suo: a comando, input controllati, credenziali pulite, mai su un progetto della regia', () => {
+    expect(Object.keys(prepara.on)).toEqual(['workflow_dispatch'])
+    expect(Object.keys(prepara.on.workflow_dispatch.inputs).sort()).toEqual(['ambiente', 'progetto'])
+    expect(prepara.permissions).toEqual({ contents: 'read' })
+    const job = prepara.jobs.prepara
+    expect(job.environment).toBe("${{ inputs.ambiente == 'test' && 'flotta-test' || 'flotta' }}")
+    const nomi = job.steps.map((p) => p.name || p.uses)
+    expect(nomi[0]).toBe('Controlla il progetto')
+    expect(job.steps[0].run).toContain('è un progetto della regia')
+    const p = job.steps.find((x) => x.name === "L'account dell'AI e il permesso del deploy")
+    expect(p.run).toBe('node scripts/account-ai-locale.mjs --project "$PROGETTO" --deploy "firebase-adminsdk-fbsvc@$PROGETTO.iam.gserviceaccount.com"')
+    const pulizia = job.steps.at(-1)
+    expect(pulizia.name).toBe('Pulizia credenziali')
+    expect(pulizia.if).toBe('always()')
+    // Nessun input dentro un comando: solo variabili d'ambiente.
+    for (const x of job.steps) expect(String(x.run || '')).not.toContain('${{')
+  })
+})

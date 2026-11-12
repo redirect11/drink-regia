@@ -4130,6 +4130,62 @@ requirements:
     test_cases:
       - tests/identita-locale.test.js
 
+  - id: REQ-FLOTTA-078
+    title: "Ogni locale completo, anche esistente come la Tana, riceve l'account ai-locale dalla regia a ogni aggiornamento, senza passi a mano"
+    area: "scripts/account-ai-locale.mjs, .github/workflows/aggiorna-istanza.yml, .github/workflows/prepara-ai-locale.yml"
+    description: >
+      Il seguito di REQ-FLOTTA-077. L'account `ai-locale` lo crea il
+      Terraform dei locali della flotta; un locale esistente (la Tana,
+      REQ-AI-003, REQ-FLOTTA-018) non ha il Terraform della flotta, e
+      l'account sarebbe rimasto da creare a mano. Daniele, 12/11/2026: «noi
+      dobbiamo deployare in automatico tutto. Che significa che va fatto a
+      mano? Lo scopo di regia è quello che tutto questo venga
+      automatizzato».
+      VISTO SUL TEST (beta.17, 12/11/2026): l'aggiornamento di prova-bar
+      non ha riapplicato il Terraform («Il progetto è già completo»): lo
+      riapplica solo per passare dal Free al completo. Quindi anche i
+      locali della flotta già attivi non ricevono l'account dal Terraform,
+      ma solo quelli che nascono adesso.
+      CRITERI DI ACCETTAZIONE. (1) Nell'aggiornamento di ogni locale col
+      profilo completo, della flotta o esistente, prima del deploy, la
+      regia crea l'account `ai-locale` nel suo progetto se manca, e gli dà
+      gli stessi ruoli del Terraform (Firestore e log del progetto),
+      aggiungendo e mai togliendo. Se c'è già, non cambia niente. (2) La
+      demo no: non ha l'AI. (3) Se la regia
+      non ha il permesso di farlo, il passo lo dice con un avviso e il
+      deploy continua: l'AI di quel locale resta spenta, il resto lavora.
+      (4) Lo script e il Terraform danno gli stessi ruoli: un test li
+      confronta.
+      LA TANA (da tana-drink, 12/11/2026): «Le Functions della Tana non le
+      pubblica la regia: le pubblica deploy.yml di tana-drink, al tag, con
+      il suo account (firebase-adminsdk-fbsvc@…). Dal 09/11 quell'account
+      può agire solo come gli account di runtime che conosce già … Se la
+      Function chiede ai-locale@ senza quel permesso, il deploy si ferma
+      con iam.serviceaccounts.actAs … per tutte le Functions della Tana».
+      E «REGIA_PROGETTO per la Tana lo scrivo io, e solo dopo» che account
+      e permesso ci sono. (5) Per un locale esistente lo script dà anche
+      `roles/iam.serviceAccountUser` sull'account `ai-locale` (non sul
+      progetto) all'account di deploy di tana-drink,
+      `firebase-adminsdk-fbsvc@<progetto>`. (6) La Tana non passa da
+      «Aggiorna» della regia: un workflow suo, «Prepara l'AI di un locale
+      esistente», fa account, ruoli e permesso su richiesta, sul test o in
+      produzione, e si può rilanciare senza cambiare niente.
+      PROVATO SUL TEST (12/11/2026, run 43286842706): l'aggiornamento di
+      prova-bar con l'app di tana-drink feature/ai-dalla-regia ha creato
+      ai-locale@drinkpos-prova-bar coi suoi ruoli, e ha pubblicato
+      richiestaAI con `serviceAccount: 'ai-locale@'` («Successful create
+      operation»).
+      Resta, una volta sola e solo se manca: l'account di provisioning
+      della regia deve poter gestire gli account dei progetti della Tana
+      (come per i locali della flotta, dove è proprietario). [da
+      verificare] se lo ha già: lo dice il primo giro del workflow.
+    status: implemented
+    generate_issue: true
+    labels: [flotta, regia, ai]
+    priority: P2
+    test_cases:
+      - tests/flotta.test.js
+
   - id: REQ-FLOTTA-059
     title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"
     area: "functions/lib/eliminazione-cliente.js, functions/index.js (eliminaCliente), src/lib/db.js (eliminaCliente), src/pages/Backoffice.jsx (Elimina cliente…)"

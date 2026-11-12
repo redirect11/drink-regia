@@ -6,6 +6,10 @@ data.
 
 ## Prossima release (da decidere)
 
+- Ogni locale completo riceve l'account dell'AI dalla regia a ogni
+  aggiornamento, senza passi a mano; per un locale esistente come la Tana
+  c'è il workflow «Prepara l'AI di un locale esistente», che dà anche il
+  permesso al deploy di tana-drink (REQ-FLOTTA-078).
 - L'AI del locale si fa riconoscere dalla regia col gettone di Google del
   suo account «ai-locale», senza chiavi da creare o rinnovare
   (REQ-FLOTTA-077).
