@@ -35,6 +35,7 @@ export default function Dashboard({ utente, chiuso = false }) {
   // Gli avvisi che si dicono per primi stanno in cima alla panoramica, sopra
   // il nome del locale; nelle altre sezioni c'è la sezione e basta.
   const inPanoramica = Boolean(useMatch(BASE_TITOLARE))
+  const { pathname, search } = useLocation()
 
   useEffect(() => osservaCliente(utente.uid, setCliente), [utente.uid])
   useEffect(() => {
@@ -47,6 +48,9 @@ export default function Dashboard({ utente, chiuso = false }) {
     }
   }, [cliente?.slug])
 
+  // /dashboard/ con la barra finale (scritto a mano) è la panoramica: senza
+  // questo nessuna voce del menù resta accesa (revisione del 13/11/2026).
+  if (pathname === `${BASE_TITOLARE}/`) return <Navigate to={`${BASE_TITOLARE}${search}`} replace />
   if (cliente === undefined) return <main className="pagina stretta muted">Carico…</main>
   // Un account senza locale (entrato con Google la prima volta, o una
   // registrazione interrotta) completa qui i dati (REQ-FLOTTA-038).

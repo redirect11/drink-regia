@@ -155,6 +155,11 @@ describe('l’area del titolare: il sotto-menù', () => {
     expect(screen.getByRole('region', { name: 'L’app' })).toBeInTheDocument()
   })
 
+  it('/dashboard/ con la barra finale è la panoramica, con la sua voce accesa', () => {
+    mostra('/dashboard/')
+    expect(within(menu()).getByRole('link', { name: 'Panoramica' })).toHaveAttribute('aria-current', 'page')
+  })
+
   it('un indirizzo che non c’è torna alla panoramica', () => {
     mostra('/dashboard/non-esiste')
     expect(within(menu()).getByRole('link', { name: 'Panoramica' })).toHaveAttribute('aria-current', 'page')
@@ -263,7 +268,7 @@ describe('«Il locale»', () => {
       'Anna Esempio',
       '+39 111 1111111',
       'titolare@example.it',
-      'Stampante: Epson TM-m30III · RT: Marca Esempio RT1',
+      'Stampante: Epson TM-m30III · Registratore telematico: Marca Esempio RT1',
     ])
       expect(dati).toHaveTextContent(testo)
     expect(within(dati).queryByRole('textbox')).toBeNull()

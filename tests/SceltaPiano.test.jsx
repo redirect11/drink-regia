@@ -113,6 +113,8 @@ describe('la scelta del piano', () => {
     expect(db.cambiaScelta).toHaveBeenCalledWith({ piano: 'completo', moduli: [], terminali: 1, intervallo: 'mese' })
     expect(db.avviaPagamento).not.toHaveBeenCalled()
     expect(await screen.findByText(/Piano aggiornato/)).toBeInTheDocument()
+    // Dopo l'aggiornamento riuscito non si invita più a cambiare (revisione del 13/11/2026).
+    expect(screen.queryByTestId('scelta-invariata')).toBeNull()
   })
 
   // REQ-FLOTTA-046 (audit del 09/11/2026, finding 5): su un abbonamento a

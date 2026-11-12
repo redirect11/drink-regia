@@ -1,5 +1,5 @@
 import { EMAIL_CONTATTI } from '../lib/prodotto.js'
-import { stampantiDette } from '../lib/stampanti.js'
+import { stampantiPerIlTitolare } from '../lib/stampanti.js'
 import { contattoDi } from '../lib/clienti.js'
 
 // «IL LOCALE» NELL'AREA DEL TITOLARE (REQ-FLOTTA-084): i dati che la regia
@@ -39,7 +39,7 @@ export default function IlLocale({ cliente }) {
   const locale = cliente.locale || {}
   const f = cliente.fatturazione || {}
   const r = cliente.referente || {}
-  const stampanti = stampantiDette(cliente.stampanti)
+  const stampanti = stampantiPerIlTitolare(cliente.stampanti)
   return (
     <section className="card" aria-label="Dati del locale">
       <h3>Dati del locale</h3>

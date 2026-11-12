@@ -377,7 +377,7 @@ export default function SceltaPiano({ cliente, modifica = false, vai = (url) => 
       )}
       {errore && <p className="errore">{errore}</p>}
       {fatto && <p className="muted small">{fatto}</p>}
-      {invariata && (
+      {invariata && !fatto && (
         <p className="muted small" data-testid="scelta-invariata">
           {modifica ? 'Cambia piano, moduli, terminali o pagamento per aggiornarlo.' : 'È il piano che hai: scegline un altro per cambiarlo.'}
         </p>
