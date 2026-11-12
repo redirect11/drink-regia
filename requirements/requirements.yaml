@@ -3914,7 +3914,7 @@ requirements:
       il deploy. (5) Il nuovo interruttore sta nella stessa scheda
       «Vendita», con una riga che dice cosa cambia; un clic scrive la
       vendita.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [prodotto, regia, home, backoffice]
     priority: P2
