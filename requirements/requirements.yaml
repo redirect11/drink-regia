@@ -3512,6 +3512,9 @@ requirements:
       confronto. E il criterio 13 nasconde «SmartOrders» dalla barra sul
       telefono: tocca come si mostra il nome del prodotto, che cambia
       solo su decisione di Daniele.
+      DECISO (Daniele, 12/11/2026, «ok»): utenti senza limite in Base e
+      Completo, terminale in più non disponibile nel Free, e il Free dice
+      che porta «Creato con Lime». Il lavoro è in REQ-FLOTTA-068.
     status: implemented
     generate_issue: true
     labels: [prodotto, regia, home]
@@ -3654,6 +3657,39 @@ requirements:
     priority: P2
     test_cases:
       - tests/db.test.js
+
+  - id: REQ-FLOTTA-068
+    title: "Il confronto dice che il Free porta «Creato con Lime»; il terminale in più sta solo nei prezzi"
+    area: "src/pages/Home.jsx, src/i18n/home.it.js, src/i18n/home.en.js"
+    description: >
+      Le domande lasciate aperte da REQ-FLOTTA-063, e una della struttura
+      della pagina. Daniele, 12/11/2026, in chat, alla domanda «confermi
+      "utenti senza limite" in Base e Completo, il terminale in più non
+      disponibile nel Free, e se dire che il Free porta "Creato con
+      Lime"?»: «ok». Alla domanda «"Altri terminali a 12 €" fra i punti di
+      una funzione: lo sposto nei prezzi?»: «si».
+      CRITERI DI ACCETTAZIONE. (1) Col Free in vendita il confronto ha
+      una riga sulla scritta in fondo allo scontrino e al menù digitale:
+      nel Free «Creato con» e il nome del prodotto, negli altri piani
+      nessuna. La riga nasce da `marchio` nei limiti del listino, non da
+      un nome di piano scritto a mano. (2) Senza il Free in vendita la
+      riga non si mostra, come le altre righe uguali per tutti i piani
+      (REQ-FLOTTA-063, criterio 12). (3) Fra i punti delle funzioni non
+      c'è più il prezzo dei terminali: resta nei prezzi, nella riga
+      «Terminale in più» dell'elenco dei moduli e del confronto. (4)
+      Italiano e inglese hanno le stesse voci. «Senza limite» per gli
+      utenti di Base e Completo e «Non disponibile» per il terminale in
+      più nel Free restano come sono: confermati.
+      [da verificare] Il testo inglese della scritta («Made with») è
+      quello che la regia mostra; quello che l'app stampa davvero sta in
+      tana-drink.
+    status: todo
+    generate_issue: true
+    labels: [prodotto, regia, home]
+    priority: P2
+    test_cases:
+      - tests/Home.test.jsx
+      - tests/HomeVendita.test.jsx
 
   - id: REQ-FLOTTA-059
     title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"
