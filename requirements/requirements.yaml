@@ -508,6 +508,7 @@ requirements:
       scrive sul test: il test resta com'era.
     status: implemented
     generate_issue: true
+    issue_a_posteriori: true
     labels: [metodo, regia, test]
     priority: P2
     test_cases:
@@ -2065,6 +2066,7 @@ requirements:
       dall'inizio, senza gli eliminati.
     status: implemented
     generate_issue: true
+    issue_a_posteriori: true
     labels: [regia, commerciale]
     priority: P1
     test_cases:
@@ -2098,6 +2100,7 @@ requirements:
       è il danno peggiore che può fare.
     status: implemented
     generate_issue: true
+    issue_a_posteriori: true
     labels: [regia, commerciale, privacy]
     priority: P2
     test_cases:
@@ -2139,6 +2142,7 @@ requirements:
       mano avrebbe un account senza locale e senza poter fare niente.
     status: implemented
     generate_issue: true
+    issue_a_posteriori: true
     labels: [regia, produzione]
     priority: P1
     test_cases:
@@ -2248,6 +2252,7 @@ requirements:
       tests/App.test.jsx).
     status: implemented
     generate_issue: true
+    issue_a_posteriori: true
     labels: [flotta, regia, sicurezza]
     priority: P1
     test_cases:
@@ -2285,6 +2290,7 @@ requirements:
       attivarla.» invece di «Piano aggiornato».
     status: implemented
     generate_issue: true
+    issue_a_posteriori: true
     labels: [flotta, regia, sicurezza]
     priority: P1
     test_cases:
@@ -2333,6 +2339,7 @@ requirements:
       /repos/{repo}/actions/runs/{id} e un segreto diverso per regia.
     status: implemented
     generate_issue: true
+    issue_a_posteriori: true
     labels: [regia, flotta, sicurezza]
     priority: P1
     test_cases:
@@ -2369,6 +2376,7 @@ requirements:
       solo che un admin che non è il titolare vede quel 403.
     status: implemented
     generate_issue: true
+    issue_a_posteriori: true
     labels: [regia, flotta, sicurezza]
     priority: P1
     test_cases:
@@ -2396,6 +2404,7 @@ requirements:
       arrivare lì) e il richiedente della richiesta di contatto.
     status: implemented
     generate_issue: true
+    issue_a_posteriori: true
     labels: [regia, privacy]
     priority: P2
     test_cases:
@@ -2476,6 +2485,7 @@ requirements:
       workflow; la demo non lo produce né lo scarica.
     status: implemented
     generate_issue: true
+    issue_a_posteriori: true
     labels: [sicurezza, flotta, regia]
     priority: P1
     test_cases:
@@ -2519,6 +2529,7 @@ requirements:
       (`esitoProvisioning`, `istanze/<slug>.commit`) niente è cambiato.
     status: implemented
     generate_issue: true
+    issue_a_posteriori: true
     labels: [sicurezza, flotta, regia]
     priority: P1
     test_cases:
@@ -2561,6 +2572,7 @@ requirements:
       -Report-Only in firebase.json e nel test, e la CSP diventa vincolante.
     status: implemented
     generate_issue: true
+    issue_a_posteriori: true
     labels: [regia, sicurezza]
     priority: P2
     test_cases:
@@ -2605,6 +2617,7 @@ requirements:
       @anthropic-ai/sdk 1.3.0 -> 1.6.0 nelle Functions, è fatto.
     status: implemented
     generate_issue: true
+    issue_a_posteriori: true
     labels: [metodo, sicurezza]
     priority: P2
     test_cases:
@@ -2637,6 +2650,7 @@ requirements:
       locali da quello delle sole Functions di vendita.
     status: implemented
     generate_issue: true
+    issue_a_posteriori: true
     labels: [regia, sicurezza, flotta]
     test_cases:
       - tests/runtime.test.js
@@ -2705,6 +2719,7 @@ requirements:
       controllo di documentiEsistente su fatturazione {} e consensi null.
     status: implemented
     generate_issue: true
+    issue_a_posteriori: true
     labels: [regia, sicurezza, dev]
     test_cases:
       - tests/regole.copertura.test.js
@@ -2761,6 +2776,7 @@ requirements:
       src/lib torna a 98,3%.
     status: implemented
     generate_issue: true
+    issue_a_posteriori: true
     labels: [metodo, sicurezza]
     priority: P2
     test_cases:
@@ -2812,6 +2828,7 @@ requirements:
       riusano anche gli indirizzi di ritorno del Checkout (REQ-FLOTTA-054).
     status: implemented
     generate_issue: true
+    issue_a_posteriori: true
     labels: [regia, sicurezza]
     priority: P2
     test_cases:
@@ -2858,6 +2875,7 @@ requirements:
       un costo per tentativo fallito, non per verifica riuscita.
     status: implemented
     generate_issue: true
+    issue_a_posteriori: true
     labels: [regia, sicurezza]
     priority: P2
     test_cases:
@@ -2885,6 +2903,7 @@ requirements:
       chi usa il sito non cambia niente.
     status: implemented
     generate_issue: true
+    issue_a_posteriori: true
     labels: [regia, sicurezza]
     priority: P3
     test_cases:
@@ -2910,6 +2929,7 @@ requirements:
       il buco anche lato server: qui si chiude la porta del sito.
     status: implemented
     generate_issue: true
+    issue_a_posteriori: true
     labels: [regia, sicurezza]
     priority: P3
     test_cases:
@@ -2933,6 +2953,7 @@ requirements:
       lo prendono; date e testi normali restano com'erano.
     status: implemented
     generate_issue: true
+    issue_a_posteriori: true
     labels: [regia, sicurezza]
     priority: P3
     test_cases:
@@ -2964,6 +2985,7 @@ requirements:
       il suo slug (urlDi), che e' nostro.
     status: implemented
     generate_issue: true
+    issue_a_posteriori: true
     labels: [regia, sicurezza]
     priority: P3
     test_cases:
@@ -3067,6 +3089,7 @@ requirements:
       cassetto AI.
     status: implemented
     generate_issue: true
+    issue_a_posteriori: true
     labels: [metodo, regia]
     priority: P1
     test_cases:
@@ -3138,6 +3161,7 @@ requirements:
       sezione di Stonebit in testa.
     status: implemented
     generate_issue: true
+    issue_a_posteriori: true
     labels: [metodo, regia]
     priority: P1
     test_cases:
@@ -3355,6 +3379,7 @@ requirements:
       prendono tutta la larghezza (rilievo del revisore, 11/11/2026).
     status: implemented
     generate_issue: true
+    issue_a_posteriori: true
     labels: [prodotto, regia, dashboard]
     priority: P2
     test_cases:
@@ -3703,7 +3728,7 @@ requirements:
       non ne fa nascere nessuna, come prima. (6) Se l'issue c'è già,
       aperta o chiusa, non ne nasce un'altra. (7) Il segno è sulle
       ventisei voci, e solo su voci fatte.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [metodo, regia]
     priority: P3
@@ -3738,6 +3763,7 @@ requirements:
       torna indietro.
     status: implemented
     generate_issue: true
+    issue_a_posteriori: true
     labels: [regia, backoffice, privacy]
     priority: P2
     test_cases:
