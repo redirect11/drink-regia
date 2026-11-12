@@ -3127,8 +3127,10 @@ requirements:
       repository: oggi uno solo, il carattere Playfair Display (SIL OFL
       1.1, testo accanto al file). La storia git è stata cercata il
       10/11/2026 prima di rendere pubblico il repository: nessuna chiave,
-      token o credenziale. CLAUDE.md prende la sezione «Stonebit — regole
-      comuni».
+      token o credenziale. La sezione «Stonebit — regole comuni» che
+      questa voce aveva messo in fondo al CLAUDE.md è stata tolta il
+      12/11/2026 (REQ-DEV-012): che il codice è proprietario lo dice la
+      sezione di Stonebit in testa.
     status: implemented
     generate_issue: true
     labels: [metodo, regia]
@@ -3160,6 +3162,25 @@ requirements:
       e a .claude/agents/. Le contraddizioni fra la sezione nuova e le
       regole di prima non le ho risolte io: stanno elencate nella PR, per
       Daniele.
+      TERZA VERSIONE (12/11/2026, dal CEO-agente): la sezione va dopo il
+      titolo e la presentazione del repository, prima delle sue regole.
+      E cambia la regola sulle contraddizioni: «dove la sezione nuova e
+      le regole già presenti nel repo si contraddicono, valgono le
+      regole del repo» (Daniele, 11/11/2026: «continua come hai sempre
+      fatto»). Il testo della sezione e degli agenti si adatta, e la PR
+      dice cosa è stato adattato. La sezione ha ora «Precedenza», i rami
+      come li vuole docs/handover.md (release/x.y.z, feature solo per
+      una funzione grossa, hotfix da main, un worktree per ramo), i tag
+      sul test messi dall'agente quando Daniele lo chiede. La sezione
+      «Stonebit — regole comuni» in fondo, che veniva dalla prima
+      versione dell'altro messaggio e che la versione aggiornata non
+      chiede più, è tolta: diceva «ogni lavoro su un ramo feature/…»,
+      il contrario della regola del repository.
+      CRITERI DI ACCETTAZIONE, aggiornati: nell'ordine titolo,
+      presentazione, sezione di Stonebit, regole del repository; una
+      sola sezione di Stonebit; «Precedenza» presente; i rami scritti
+      come in docs/handover.md; nessuna regola di prima sparita; i sei
+      agenti con nome e descrizione.
     status: implemented
     generate_issue: true
     labels: [metodo, regia]

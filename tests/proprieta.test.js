@@ -50,9 +50,11 @@ describe('il codice è proprietario', () => {
     expect(avvisi).toContain('public/fonts/OFL.txt')
   })
 
-  it('CLAUDE.md porta le regole comuni di Stonebit', () => {
+  it('CLAUDE.md dice che il codice è proprietario', () => {
     const regole = leggi('CLAUDE.md')
-    expect(regole).toMatch(/^## Stonebit — regole comuni$/m)
+    // Sta nella sezione di Stonebit in testa (REQ-DEV-012): quella «regole
+    // comuni» in fondo, della prima versione del messaggio, è stata tolta.
+    expect(regole).toMatch(/^## Stonebit — chi sei e come lavori qui$/m)
     expect(regole).toContain('mai licenze open source')
   })
 })

@@ -15,12 +15,18 @@ const RADICE = join(import.meta.dirname, '..')
 const leggi = (f) => readFileSync(join(RADICE, f), 'utf8').replace(/\r\n/g, '\n')
 
 describe('la squadra di Stonebit', () => {
-  it('CLAUDE.md apre con la sezione di Stonebit, e le regole del repository restano tutte sotto', () => {
+  // Terza versione del messaggio (12/11/2026): la sezione viene dopo il
+  // titolo e la presentazione del repository, prima delle sue regole; e
+  // dove contraddice le regole del repository, valgono quelle (Daniele,
+  // 11/11/2026: «continua come hai sempre fatto»).
+  it('CLAUDE.md: titolo, presentazione del repository, la sezione di Stonebit, poi le regole del repository', () => {
     const regole = leggi('CLAUDE.md')
-    // I fine riga cambiano col sistema (git su Windows li riscrive): si taglia su entrambi.
-    const righe = regole.split(/\r?\n/)
+    const righe = regole.split('\n')
     expect(righe[0]).toMatch(/^# drink-regia/)
-    expect(righe.find((r) => r.startsWith('## '))).toBe('## Stonebit — chi sei e come lavori qui')
+    // La presentazione sta prima di ogni sezione.
+    const primaSezione = regole.indexOf('\n## ')
+    expect(regole.slice(0, primaSezione)).toContain('Il sito del prodotto:')
+    expect(righe.filter((r) => r.startsWith('## '))).toEqual(['## Stonebit — chi sei e come lavori qui', '## Le regole di questo repository'])
     expect(regole).toContain('### Regola zero: decide Daniele')
     expect(regole).toContain('sei il **PM di Lime (regia)**')
     // Le issue nascono dal registro, mai a mano: è la regola del processo.
@@ -31,6 +37,25 @@ describe('la squadra di Stonebit', () => {
       expect(regole, frase).toContain(frase)
     }
     expect(regole.indexOf('## Stonebit — chi sei')).toBeLessThan(regole.indexOf('**GitFlow**'))
+  })
+
+  it('la sezione dice che sulle regole di lavoro vince il repository, e le ripete come sono', () => {
+    const regole = leggi('CLAUDE.md')
+    expect(regole).toContain('### Precedenza')
+    expect(regole).toMatch(/se\s+qualcosa qui le contraddice, vincono loro/)
+    // I rami come li vuole docs/handover.md: release/x.y.z, feature solo
+    // per una funzione grossa, hotfix da main, un worktree per ramo.
+    expect(regole).toContain('il lavoro normale va su `release/x.y.z`, staccato da `develop`')
+    expect(regole).toContain('`hotfix/<nome>` nasce da `main`')
+    expect(regole).toContain('Un worktree per ramo')
+    const manuale = leggi('docs/handover.md')
+    expect(manuale).toContain('`release/x.y.z`: il ramo di lavoro, staccato da `develop`')
+    expect(manuale).toContain('`hotfix/<nome>`: nasce da `main`')
+    expect(manuale).toContain('**Un worktree per ramo**')
+    // I tag sul test li mette l'agente quando Daniele lo chiede; la produzione no.
+    expect(regole).toContain("pubblicano sul test li mette l'agente quando Daniele lo chiede in chat")
+    // Una sola sezione di Stonebit: quella «regole comuni» in fondo non c'è più.
+    expect(regole).not.toContain('## Stonebit — regole comuni')
   })
 
   it('AGENTS.md rimanda a CLAUDE.md e alla cartella della squadra', () => {
@@ -52,7 +77,7 @@ describe('la squadra di Stonebit', () => {
     for (const nome of ['frontend-developer', 'backend-developer', 'devops-flotta']) {
       expect(leggi(`.claude/agents/${nome}.md`), nome).toContain('Non fai merge, tag, deploy')
     }
-    expect(leggi('.claude/agents/tech-lead.md')).toContain('Mai merge, tag o deploy')
+    expect(leggi('.claude/agents/tech-lead.md')).toContain('Mai merge;')
     expect(leggi('.claude/agents/pm.md')).toContain('non scrivi codice')
     expect(leggi('.claude/agents/revisore.md')).toContain('Non scrivi codice')
   })
