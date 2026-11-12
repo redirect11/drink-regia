@@ -6,6 +6,9 @@ data.
 
 ## Prossima release (da decidere)
 
+- Il Free è una cassa semplice: il confronto dice «Stati di servizio» e
+  «Stampa di comande e scontrino», tutti e due assenti nel Free, e la
+  licenza porta anche `stampa: false` (REQ-FLOTTA-080).
 - Via la «Chiave AI»: l'AI del locale passa solo dal gettone di Google
   del suo account; il backoffice non la crea più e i workflow non creano
   più il segreto REGIA_AI_KEY (REQ-FLOTTA-079).

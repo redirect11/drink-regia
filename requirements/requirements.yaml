@@ -4188,6 +4188,35 @@ requirements:
     test_cases:
       - tests/flotta.test.js
 
+  - id: REQ-FLOTTA-080
+    title: "Il Free senza stati di servizio e senza stampa: il confronto lo dice così, e la licenza porta anche `stampa: false`"
+    area: "functions/piani.json (piani.free), src/pages/Home.jsx, src/i18n/home.it.js, src/i18n/home.en.js"
+    description: >
+      Daniele, 12/11/2026, sulla riga «Comande: No» del Free nel
+      confronto: «io intendevo gli stati di servizio. Quello va tolto e
+      anche la possibilità di stampare». In tana-drink il limite
+      `comande: false` (REQ-LIC-005) toglie già gli stati di servizio (in
+      preparazione, pronto, servito) e la stampa della comanda, ma lascia
+      lo scontrino.
+      CRITERI DI ACCETTAZIONE. (1) Nel listino i limiti del Free hanno
+      anche `stampa: false`: la licenza lo porta all'app, che spegne tutta
+      la stampa, comanda e scontrino, quando lo sa leggere; finché non lo
+      legge non cambia niente. (2) Nel confronto la riga «Comande» diventa
+      «Stati di servizio (in preparazione, pronto, servito)», e c'è una
+      riga «Stampa di comande e scontrino»: tutte e due «No» nel Free, «Sì»
+      nei piani a pagamento. (3) La descrizione del Free, nel listino e
+      nella pagina, dice «senza stati di servizio, senza stampa» al posto
+      di «senza comande». (4) Italiano e inglese hanno le stesse voci.
+      DA DIRE A TANA-DRINK: la chiave `stampa: false` nei limiti del Free,
+      che spegne anche lo scontrino.
+    status: implemented
+    generate_issue: true
+    labels: [prodotto, regia, home]
+    priority: P2
+    test_cases:
+      - tests/HomeVendita.test.jsx
+      - tests/Home.test.jsx
+
   - id: REQ-FLOTTA-079
     title: "Via la «Chiave AI»: l'AI del locale passa solo dal gettone di Google"
     area: "functions/index.js (richiestaAI, gestisciCassettoAI), functions/lib/ai.js, functions/lib/chiave-locale.js, infra/istanza/main.tf, .github/workflows/provisiona-istanza.yml, .github/workflows/aggiorna-istanza.yml, src/pages/Backoffice.jsx, src/lib/ai.js, src/pages/CreditoAI.jsx, docs/handover.md §7"
