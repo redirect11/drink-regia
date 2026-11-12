@@ -3809,6 +3809,47 @@ requirements:
     test_cases:
       - tests/Home.test.jsx
 
+  - id: REQ-FLOTTA-071
+    title: "Il Free nel confronto anche prima di essere in vendita, «in arrivo»; dal backoffice si nasconde"
+    area: "src/lib/vendita.js, src/pages/Home.jsx, src/pages/Backoffice.jsx, src/i18n/home.it.js, src/i18n/home.en.js, src/index.css"
+    description: >
+      Daniele, 12/11/2026, in chat. Alla domanda sul Free che non si vede:
+      «Il Free sul sito prima di essere in vendita … mostrarlo nel
+      confronto anche spento, per esempio come "in arrivo". Mettilo. Tanto
+      se non è attivo il deploy automatico dal backoffice non si può
+      deployare. L'attivazione la facciamo sempre noi per ora». Subito
+      dopo: «si ma mettimelo che posso mostrarlo oppure no», e «no proprio
+      nascondere il free».
+      CRITERI DI ACCETTAZIONE. (1) Nella vendita c'è un interruttore suo,
+      `nascondi_free`, spento finché l'admin non lo accende, distinto da
+      «Piano Free in vendita». (2) Spento, col Free non in vendita, il
+      confronto fra i piani ha la colonna del Free con «In arrivo» sotto il
+      nome, e mostra le righe in cui il Free è diverso da Base e Completo
+      (comande, prodotti, conti, utenti, sconti, storico, la scritta
+      «Creato con»), coi moduli e il terminale in più «Non disponibile».
+      (3) Il Free «in arrivo» non ha la sua scheda fra i piani, non è nella
+      scheda «In breve», non si sceglie e non cambia come si dice
+      l'attivazione: non è in vendita. (4) Col Free in vendita la colonna
+      c'è come oggi, senza «In arrivo», anche con `nascondi_free`: un piano
+      in vendita non si nasconde. (5) Con `nascondi_free` acceso e il Free
+      non in vendita, il Free non si vede da nessuna parte del sito: il
+      confronto resta su Base e Completo. (6) Nel backoffice l'interruttore
+      sta sotto quello del Free, con una riga che dice cosa succede; un
+      clic scrive la vendita. (7) Italiano e inglese hanno le stesse voci.
+      Cambia REQ-FLOTTA-068, criterio 2: la riga della scritta «Creato con»
+      si mostra quando il Free è nel confronto, in vendita o «in arrivo».
+      E cambia la prima pagina di oggi: senza toccare il backoffice, dopo
+      il rilascio il Free compare «in arrivo».
+    status: todo
+    generate_issue: true
+    labels: [prodotto, regia, home, backoffice]
+    priority: P2
+    test_cases:
+      - tests/HomeVendita.test.jsx
+      - tests/Backoffice.test.jsx
+      - tests/Home.test.jsx
+      - tests/HomeLingua.test.jsx
+
   - id: REQ-FLOTTA-059
     title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"
     area: "functions/lib/eliminazione-cliente.js, functions/index.js (eliminaCliente), src/lib/db.js (eliminaCliente), src/pages/Backoffice.jsx (Elimina cliente…)"
