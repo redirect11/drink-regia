@@ -4131,7 +4131,7 @@ requirements:
       - tests/identita-locale.test.js
 
   - id: REQ-FLOTTA-078
-    title: "Anche un locale esistente (la Tana) riceve l'account ai-locale dalla regia, a ogni aggiornamento, senza passi a mano"
+    title: "Ogni locale completo, anche esistente come la Tana, riceve l'account ai-locale dalla regia a ogni aggiornamento, senza passi a mano"
     area: "scripts/account-ai-locale.mjs, .github/workflows/aggiorna-istanza.yml"
     description: >
       Il seguito di REQ-FLOTTA-077. L'account `ai-locale` lo crea il
@@ -4141,12 +4141,17 @@ requirements:
       dobbiamo deployare in automatico tutto. Che significa che va fatto a
       mano? Lo scopo di regia è quello che tutto questo venga
       automatizzato».
-      CRITERI DI ACCETTAZIONE. (1) Nell'aggiornamento di un locale
-      esistente col profilo completo, prima del deploy, la regia crea
-      l'account `ai-locale` nel suo progetto se manca, e gli dà gli stessi
-      ruoli del Terraform (Firestore e log del progetto), aggiungendo e mai
-      togliendo. Se c'è già, non cambia niente. (2) La demo no: non ha
-      l'AI. I locali della flotta no: lo fa il Terraform. (3) Se la regia
+      VISTO SUL TEST (beta.17, 12/11/2026): l'aggiornamento di prova-bar
+      non ha riapplicato il Terraform («Il progetto è già completo»): lo
+      riapplica solo per passare dal Free al completo. Quindi anche i
+      locali della flotta già attivi non ricevono l'account dal Terraform,
+      ma solo quelli che nascono adesso.
+      CRITERI DI ACCETTAZIONE. (1) Nell'aggiornamento di ogni locale col
+      profilo completo, della flotta o esistente, prima del deploy, la
+      regia crea l'account `ai-locale` nel suo progetto se manca, e gli dà
+      gli stessi ruoli del Terraform (Firestore e log del progetto),
+      aggiungendo e mai togliendo. Se c'è già, non cambia niente. (2) La
+      demo no: non ha l'AI. (3) Se la regia
       non ha il permesso di farlo, il passo lo dice con un avviso e il
       deploy continua: l'AI di quel locale resta spenta, il resto lavora.
       (4) Lo script e il Terraform danno gli stessi ruoli: un test li
@@ -4155,7 +4160,7 @@ requirements:
       della regia deve poter gestire gli account del progetto della Tana
       (come per i locali della flotta, dove è proprietario). [da
       verificare] se lo ha già.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [flotta, regia, ai]
     priority: P2

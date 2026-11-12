@@ -923,9 +923,11 @@ describe('il .env delle Functions del locale dice qual è la sua regia', () => {
 // automatico tutto»). Un locale esistente non ha il Terraform della flotta:
 // l'account ai-locale glielo dà l'aggiornamento.
 describe('l’account dell’AI di un locale esistente', () => {
-  it('c’è un passo, solo per gli esistenti col profilo completo, prima del deploy, che non ferma il deploy', () => {
+  // Anche per i locali della flotta già completi: il Terraform su un
+  // progetto completo non si riapplica (visto sul test con la beta.17).
+  it('c’è un passo, per ogni locale completo tranne la demo, prima del deploy, che non ferma il deploy', () => {
     const p = passo(aggiorna, "L'account dell'AI del locale")
-    expect(p.if).toBe("env.PROFILO == 'completo' && env.ESISTENTE == 'true' && env.DEMO != 'true'")
+    expect(p.if).toBe("env.PROFILO == 'completo' && env.DEMO != 'true'")
     expect(p.run).toContain('node scripts/account-ai-locale.mjs --project "$PROGETTO" || echo "::warning::')
     const nomi = passi(aggiorna).map((s) => s.name)
     expect(nomi.indexOf("L'account dell'AI del locale")).toBeGreaterThan(nomi.indexOf('Dipendenze della regia'))

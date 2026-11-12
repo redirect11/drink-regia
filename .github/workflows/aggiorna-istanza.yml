@@ -560,6 +560,18 @@ jobs:
         if: env.PROFILO == 'completo'
         run: node scripts/segreti-istanza.mjs --project "$PROGETTO" --segreti "$SEGRETI_APP"
 
+      # L'ACCOUNT DELL'AI DEL LOCALE (REQ-FLOTTA-078), a ogni aggiornamento
+      # di un locale completo, prima del deploy. Il Terraform lo crea solo
+      # all'attivazione: su un progetto già completo non si riapplica (passo
+      # «Il profilo completo nel progetto»), e un locale esistente (la Tana)
+      # non lo ha proprio. Lo script crea l'account se manca e dà gli stessi
+      # ruoli; rilanciato non cambia niente. Se la regia non può, lo dice e
+      # il deploy continua: l'AI di quel locale resta spenta.
+      - name: L'account dell'AI del locale
+        if: env.PROFILO == 'completo' && env.DEMO != 'true'
+        run: |
+          node scripts/account-ai-locale.mjs --project "$PROGETTO" || echo "::warning::L'account ai-locale di $PROGETTO non si crea: l'AI di questo locale resta spenta finché l'account di provisioning non ha il permesso di gestire gli account del progetto."
+
       # LA DEMO (REQ-FLOTTA-019): il database chiuso a tutti, al posto delle
       # regole dell'app. Nella build della demo i dati sono di prova e quello
       # che fa chi prova resta nel suo browser
