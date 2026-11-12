@@ -266,6 +266,9 @@ export default function Registrati({ completa = null }) {
 // e la finestra di Google (REQ-FLOTTA-038).
 export function messaggio(err) {
   const codice = err?.code || ''
+  // Un'email che ha già un account, o col «+» (REQ-FLOTTA-083): il
+  // messaggio della regia dice già cosa fare.
+  if (err?.details?.campo === 'email' && err?.message) return err.message
   if (codice.includes('email-already-in-use')) return 'Questa email ha già un account: accedi.'
   if (codice.includes('invalid-email')) return 'L’email non è scritta bene.'
   if (codice.includes('weak-password')) return 'La password è troppo corta.'

@@ -82,3 +82,13 @@ describe('i quattro passi', () => {
     expect(problemiReferente({ nome: 'Mario', cognome: 'Rossi', telefono: '', termini: true, privacy: true })).toEqual({})
   })
 })
+
+// REQ-FLOTTA-083: un account per persona, niente «+» nell'email.
+describe('l’email col «+» nella registrazione', () => {
+  it('si ferma accanto alla casella', async () => {
+    const { problemiAccount } = await import('../src/lib/validazione.js')
+    const ok = { password: 'unaPassword1', conferma: 'unaPassword1' }
+    expect(problemiAccount({ ...ok, email: 'mario+bar2@gmail.com' }).email).toBe('Per registrarti usa il tuo indirizzo senza «+…»: un account è uno per persona.')
+    expect(problemiAccount({ ...ok, email: 'mario@gmail.com' }).email).toBeUndefined()
+  })
+})

@@ -1093,6 +1093,21 @@ exports.registraPagamento = onCall(OPTS, async (req) => {
 // scadenze che c'erano già (pagamenti a mano, prove, eliminazioni,
 // condizioni), e il «perché» delle sospensioni per il pagamento di prima.
 // Rifarlo non fa danni: lo stesso compito non si programma due volte.
+// UN ACCOUNT PER PERSONA (REQ-FLOTTA-083): i clienti nati prima non hanno
+// la forma base dell'email, e il controllo dei doppioni non li vede. L'admin
+// la fa scrivere una volta dal backoffice; rifatto non cambia niente.
+exports.allineaEmail = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const clienti = (await db.collection('clienti').get()).docs.map((d) => ({ id: d.id, ...d.data() }))
+  const da = registrazione.emailDaAllineare(clienti)
+  for (let i = 0; i < da.length; i += 400) {
+    const batch = db.batch()
+    for (const { id, email_norma } of da.slice(i, i + 400)) batch.set(db.doc(`clienti/${id}`), { email_norma }, { merge: true })
+    await batch.commit()
+  }
+  return { ok: true, allineati: da.length, totale: clienti.length }
+})
+
 exports.programmaScadenze = onCall({ ...OPTS, timeoutSeconds: 540 }, async (req) => {
   if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
   const [clienti, istanze, grazia] = await Promise.all([db.collection('clienti').get().then((q) => q.docs.map((d) => d.data())), tutteLeIstanze(), giorniDiGrazia()])
@@ -2181,6 +2196,9 @@ exports.creaCliente = onCall(OPTS, async (req) => {
     uid: utente.uid,
     versione_schema: 2,
     email: String(email).toLowerCase(),
+    // La forma base dell'email (REQ-FLOTTA-083), per i doppioni. Col «+»
+    // (le prove dell'admin) non si riserva.
+    ...(String(email).includes('+') ? {} : { email_norma: registrazione.emailNorma(email) }),
     nome_locale: nome,
     slug,
     locale: { tipo: 'altro', indirizzo: {}, telefono: '', sito: '' },

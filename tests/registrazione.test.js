@@ -144,8 +144,9 @@ describe('registraCliente, in transazione', () => {
     const scritto = await r.registraCliente(db, { uid: 'u1', email: 'Mario@Example.IT', dati: { ...DATI, uid: 'furbo', email: 'altro@x.it' }, adesso: ADESSO })
     expect(db.scritture).toEqual(['clienti/u1'])
     expect(db.dati['clienti/u1']).toEqual(scritto)
-    expect(scritto).toEqual(nuovoClienteDelSito({ uid: 'u1', email: 'mario@example.it', ...DATI, adesso: ADESSO }))
-    expect(db.letture).toEqual(['clienti dove slug == bar-mario (2)', 'istanze/bar-mario', 'clienti/u1'])
+    // Il documento del sito, più la forma base dell'email (REQ-FLOTTA-083).
+    expect(scritto).toEqual({ ...nuovoClienteDelSito({ uid: 'u1', email: 'mario@example.it', ...DATI, adesso: ADESSO }), email_norma: 'mario@example.it' })
+    expect(db.letture).toEqual(['clienti dove slug == bar-mario (2)', 'istanze/bar-mario', 'clienti/u1', 'clienti dove email_norma == mario@example.it (2)'])
   })
 
   it('con lo slug di un altro cliente rifiuta con already-exists, dice di sceglierne un altro, e non scrive niente', async () => {
@@ -233,5 +234,46 @@ describe('functions/index.js', () => {
     const lib = readFileSync('functions/lib/registrazione.js', 'utf8')
     expect(lib).toContain(".where('slug', '==', String(slug || '')).limit(2)")
     expect(lib).toContain('if (snap.size > 1) throw new SlugAmbiguo(slug)')
+  })
+})
+
+// UN ACCOUNT PER PERSONA (REQ-FLOTTA-083, Daniele, 12/11/2026: «non
+// dobbiamo accettarle in alcun modo da chi si registra»).
+describe('le email col «+» e le varianti di un account che c’è già', () => {
+  it('la forma base: minuscole, senza «+qualcosa», per Gmail senza punti', () => {
+    expect(r.emailNorma('Mario.Rossi+Bar2@Gmail.com')).toBe('mariorossi@gmail.com')
+    expect(r.emailNorma('mario.rossi@googlemail.com')).toBe('mariorossi@gmail.com')
+    expect(r.emailNorma('mario.rossi+x@libero.it')).toBe('mario.rossi@libero.it')
+    expect(r.emailNorma(' Info@Bar.IT ')).toBe('info@bar.it')
+  })
+  it('chi si registra con un’email col «+» si ferma prima della transazione', async () => {
+    const db = firestoreFinto()
+    await expect(r.registraCliente(db, { uid: 'u1', email: 'mario+bar2@gmail.com', dati: DATI })).rejects.toMatchObject({ codice: 'invalid-argument', dettagli: { campo: 'email' } })
+    expect(db.letture).toEqual([])
+    expect(r.EMAIL_CON_PIU).toBe('Per registrarti usa il tuo indirizzo senza «+…»: un account è uno per persona.')
+  })
+  it('una variante di un’email che ha già un account si rifiuta, e non si scrive niente', async () => {
+    const db = firestoreFinto({ 'clienti/altro': { slug: 'osteria-nova', email_norma: 'mariorossi@gmail.com' } })
+    const errore = await r.registraCliente(db, { uid: 'u1', email: 'Mario.Rossi@gmail.com', dati: DATI }).catch((e) => e)
+    expect(errore).toMatchObject({ codice: 'already-exists', message: 'Esiste già un account con questa email: entra con quello.', dettagli: { campo: 'email' } })
+    expect(db.scritture).toEqual([])
+  })
+  it('l’admin può creare un locale con un’email col «+», e quel cliente non riserva la forma base', () => {
+    const codice = readFileSync('functions/index.js', 'utf8').replace(/\r\n/g, '\n')
+    const crea = codice.slice(codice.indexOf('exports.creaCliente = '), codice.indexOf('exports.', codice.indexOf('exports.creaCliente = ') + 10))
+    expect(crea).toContain("...(String(email).includes('+') ? {} : { email_norma: registrazione.emailNorma(email) })")
+  })
+  // Daniele, 13/11/2026: «non posso usare il terminale»: lo fa la regia.
+  it('i clienti di prima: la forma base solo dove manca, mai col «+», e lo fa l’admin dal backoffice', () => {
+    expect(r.emailDaAllineare([
+      { id: 'a', email: 'Mario.Rossi@gmail.com' },
+      { id: 'b', email: 'luca@bar.it', email_norma: 'luca@bar.it' },
+      { id: 'c', email: 'prova+free@gmail.com' },
+      { id: 'd' },
+    ])).toEqual([{ id: 'a', email_norma: 'mariorossi@gmail.com' }])
+    const codice = readFileSync('functions/index.js', 'utf8').replace(/\r\n/g, '\n')
+    const allinea = codice.slice(codice.indexOf('exports.allineaEmail = '), codice.indexOf('exports.', codice.indexOf('exports.allineaEmail = ') + 10))
+    expect(allinea).toContain("if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied'")
+    expect(allinea).toContain('registrazione.emailDaAllineare(')
   })
 })

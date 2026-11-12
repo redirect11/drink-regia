@@ -420,6 +420,15 @@ export async function statoFondatori() {
   return s.exists() ? s.data() : null
 }
 
+// Una volta, dopo il deploy: la forma base dell'email dei clienti di prima
+// (REQ-FLOTTA-083).
+export async function allineaEmail() {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'allineaEmail')
+  const { data } = await fn({})
+  return data
+}
+
 // Una volta, dopo il deploy: i compiti per le scadenze che c'erano già.
 export async function programmaScadenze() {
   serve()
