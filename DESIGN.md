@@ -216,6 +216,35 @@ cosa comprende dovrebbero essere sempre aperti».
   viene dal rifiuto della riga di «Riordina» di prima («quanto fa schifo
   questo testo»).
 
+### Il confronto fra i piani e i moduli a scomparsa (11/11/2026, REQ-FLOTTA-063)
+
+Supera la tabella «I moduli, uno per uno» sempre aperta (§5.6). Daniele:
+«la comparison table che si apre tra i due piani… i moduli che sono inclusi
+nel premium saranno scritti come a pagamento nel basic… e poi sotto, a
+scomparsa, i dettagli dei moduli come è ora ma magari un po' più elegante».
+
+- **Un comando sotto le schede dei piani**, «Confronta i piani», largo
+  quanto loro: sembra il loro piede. Aperto, la tabella sta nello stesso
+  pannello.
+- **Una colonna per piano in vendita**, il Completo col nome nel lime.
+  Due gruppi di righe, col titolo in maiuscoletto e un filo lime: «Il
+  lavoro di ogni giorno» e «I moduli».
+- **Le celle dei moduli** dicono «Incluso» con la spunta, oppure il prezzo
+  con l'IVA inclusa sotto, oppure «Non disponibile» nel piano gratuito.
+- **Niente righe uguali**: una riga che dice la stessa cosa per tutti i
+  piani non è un confronto e non si mostra, tranne i terminali.
+- **I moduli uno per uno** sono righe separate da un filo: il nome a
+  sinistra, quanto costa a destra, il segno in fondo. Aperta, la riga dice
+  cosa fa il modulo e dove è compreso.
+- **Come si apre**: l'altezza cresce da zero in 0,35 secondi e il segno
+  «+» ruota in «×» diventando lime. È lo stesso gesto per il confronto e
+  per ogni modulo. Con «meno movimento» si apre di colpo.
+- **Da chiuso** il contenuto non si raggiunge né con Tab né con un
+  lettore di schermo.
+- **Sul telefono** le colonne restano affiancate, con caratteri più
+  piccoli e celle che vanno a capo; nella riga di un modulo il prezzo va
+  sotto il nome.
+
 ### Colori
 
 **LA PALETTE LIME (11/11/2026).** L'utente, dopo il nome «Lime –
@@ -322,7 +351,8 @@ sulla pagina.
 - Un solo `h1`; i titoli seguono l'ordine. Bersagli di tocco ≥ 44px. Il
   fuoco visibile nel verde.
 - Il menù in alto, le domande e la tabella dei piani si usano anche da
-  tastiera; sul telefono la tabella dei moduli diventa una scheda per riga.
+  tastiera. (Fino all'11/11/2026 sul telefono la tabella dei moduli
+  diventava una scheda per riga: ora c'è il confronto fra i piani, §4.)
 - Niente informazione affidata al solo colore: la seconda frase del titolo
   in oro è la stessa frase, l'etichetta del Completo ha il suo testo, le
   spunte hanno la parola «Incluso».
@@ -570,8 +600,10 @@ inglese: sono nomi propri del prodotto, e si cambiano in un posto solo.
 L'etichetta del Completo è «Tutto incluso», non «Il più scelto»: quella
 si scrive solo quando i numeri dei clienti lo dicono davvero.
 
-Sotto le due card: la tabella dei moduli, con una colonna per il prezzo
-sul Base e una spunta (`--ok`) per il Completo. Una riga sola dice quanto
+Sotto le due card, fino all'11/11/2026: la tabella dei moduli, con una
+colonna per il prezzo sul Base e una spunta (`--ok`) per il Completo. Ora
+c'è il confronto fra i piani che si apre e l'elenco dei moduli a scomparsa
+(§4, REQ-FLOTTA-063). Una riga sola dice quanto
 conviene il Completo: la somma dei moduli sul Base contro il prezzo del
 Completo, calcolata dal listino, mai scritta a mano.
 

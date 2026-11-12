@@ -78,7 +78,7 @@ afterEach(() => {
 })
 
 describe('la pagina inglese', () => {
-  it('su /en è tutta in inglese: titolo, lang, menù, prezzi, piani e moduli', () => {
+  it('su /en è tutta in inglese: titolo, lang, menù, prezzi, piani e moduli', async () => {
     mostra('/en')
     expect(titolo()).toHaveTextContent(en.hero.titolo)
     expect(document.documentElement).toHaveAttribute('lang', 'en')
@@ -95,8 +95,11 @@ describe('la pagina inglese', () => {
       expect(scheda).toHaveTextContent(`${importo(conIva(p.prezzo), 'en')} incl. VAT`)
     }
     expect(importo(PIANI.base.prezzo, 'en')).toMatch(/^€\d+\.\d\d$/)
+    // Il confronto fra i piani parte chiuso (REQ-FLOTTA-063): si apre.
+    await userEvent.click(screen.getByRole('button', { name: en.prezzi.confronto.apri }))
     const tabella = within(screen.getByRole('table'))
     for (const m of MODULI) expect(tabella.getByText(en.moduli[m.id].nome)).toBeInTheDocument()
+    expect(tabella.getAllByRole('columnheader').map((c) => c.textContent)).toEqual([en.prezzi.piani.base.nome, en.prezzi.piani.completo.nome])
     expect(screen.getByText(en.prezzi.notaScontrino)).toBeInTheDocument()
   })
 

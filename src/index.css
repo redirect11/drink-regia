@@ -333,28 +333,78 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .fondatori p { margin: 0; }
 .fondatori .nota-piccola { margin-top: 6px; font-size: 0.875rem; color: var(--muted); }
 .convenienza { padding: 12px 18px; border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: 0 8px 8px 0; margin: 0 0 40px; }
-.tabella-titolo { font-family: var(--titoli); font-size: 1.375rem; margin: 0 0 12px; }
-.tabella-moduli { border-radius: 12px; padding: 4px 20px; border: 1px solid var(--line); background: var(--bg-2); }
-.tabella-moduli thead th { font-size: 0.8125rem; color: var(--muted); font-weight: 600; }
-.tabella-moduli tbody th { font-weight: 600; }
-.tabella-moduli tbody tr:last-child th, .tabella-moduli tbody tr:last-child td { border-bottom: none; }
-.numero-colonna { text-align: right; white-space: nowrap; }
-.cosa-fa { color: var(--muted); }
+.tabella-titolo { font-family: var(--titoli); font-size: 1.375rem; margin: 40px 0 12px; }
+
+/* ── Un pezzo che si apre (REQ-FLOTTA-063): il confronto fra i piani e ogni
+   modulo dell'elenco. L'altezza si anima facendo passare l'unica riga di
+   una griglia da 0fr a 1fr: è il modo che non chiede di conoscere
+   l'altezza del contenuto. Da chiuso il contenuto è anche `visibility:
+   hidden`, che lo toglie dal giro del Tab nei browser senza `inert`; la
+   visibilità cambia a fine chiusura, sennò il contenuto sparirebbe prima
+   di essersi richiuso. Il segno a destra è un «+» che ruota in «×». ── */
+.apribile-comando { display: flex; align-items: center; gap: 16px; width: 100%; min-height: 56px; padding: 12px 0; background: none; border: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.apribile-titolo { flex: 1; font-weight: 600; }
+.apribile-segno { position: relative; flex: none; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line); transition: transform 0.3s ease, border-color 0.2s ease, background-color 0.2s ease; }
+.apribile-segno::before, .apribile-segno::after { content: ''; position: absolute; left: 50%; top: 50%; width: 10px; height: 2px; margin: -1px 0 0 -5px; background: var(--text); border-radius: 1px; }
+.apribile-segno::after { transform: rotate(90deg); }
+.apribile-comando:hover .apribile-segno { border-color: var(--lime); }
+.apribile[data-aperto='true'] > .apribile-comando .apribile-segno { transform: rotate(45deg); background: var(--lime); border-color: var(--lime); }
+.apribile[data-aperto='true'] > .apribile-comando .apribile-segno::before, .apribile[data-aperto='true'] > .apribile-comando .apribile-segno::after { background: var(--su-lime); }
+.apribile-corpo { display: grid; grid-template-rows: 0fr; visibility: hidden; transition: grid-template-rows 0.35s ease, visibility 0s linear 0.35s; }
+.apribile[data-aperto='true'] > .apribile-corpo { grid-template-rows: 1fr; visibility: visible; transition: grid-template-rows 0.35s ease, visibility 0s; }
+.apribile-dentro { min-height: 0; overflow: hidden; }
+
+/* Il confronto fra i piani: un comando largo quanto le schede dei piani,
+   che sembra il loro piede; aperto, la tabella sta in un pannello. */
+.confronto { margin: 0 0 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-2); }
+.confronto > .apribile-comando { padding: 12px 20px; }
+.confronto > .apribile-comando .apribile-titolo { font-size: 1.0625rem; }
+.confronto[data-aperto='true'] > .apribile-comando { border-bottom: 1px solid var(--line); }
+.tabella-confronto { padding: 4px 20px 0; overflow-x: auto; }
+.confronto-tabella { width: 100%; border-collapse: collapse; font-size: 0.9375rem; }
+.confronto-tabella th, .confronto-tabella td { padding: 12px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.confronto-tabella thead th { font-family: var(--titoli); font-size: 1.125rem; }
+.confronto-tabella thead th.in-evidenza { color: var(--accent); }
+.confronto-tabella tbody th { font-weight: 500; color: var(--text); }
+.confronto-tabella td { color: var(--text); white-space: nowrap; }
+.confronto-tabella .gruppo th { padding-top: 22px; font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); border-bottom-color: var(--lime); }
+.confronto-tabella tbody:last-child tr:last-child th, .confronto-tabella tbody:last-child tr:last-child td { border-bottom: none; }
+.confronto-nota { padding: 0 20px 18px; margin: 12px 0 0; }
+
+/* I moduli, uno per uno: righe separate da un filo, il nome a sinistra e
+   quanto costa a destra; aperte, dicono cosa fa il modulo. */
+.moduli-elenco { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.moduli-elenco > li { border-bottom: 1px solid var(--line); }
+.modulo-prezzo { flex: none; color: var(--muted); font-size: 0.9375rem; text-align: right; }
+.modulo .apribile-dentro > p { margin: 0; max-width: 46rem; }
+.modulo-cosa { color: var(--text); }
+.modulo .apribile-dentro > .modulo-dove { color: var(--muted); font-size: 0.9375rem; margin-top: 6px; padding-bottom: 18px; }
+/* Sul telefono stretto la barra non ci stava più: da quando il marchio è
+   «Lime SmartOrders» (09/11/2026), a 390px il tasto del menù finiva fuori
+   dallo schermo e la pagina scorreva di lato. Sotto i 480px la qualifica
+   si toglie dalla barra; resta nel piè di pagina, dove c'è posto. */
+@media (max-width: 479px) {
+  .barra .marchio-qualifica { display: none; }
+  .barra { padding-left: 16px; padding-right: 16px; }
+}
+@media (max-width: 639px) {
+  /* Sul telefono le colonne dei piani restano affiancate: nomi corti, celle
+     che vanno a capo, e l'IVA inclusa sotto. La pagina non scorre di lato. */
+  .tabella-confronto { padding: 0 12px; }
+  .confronto-tabella { font-size: 0.8125rem; table-layout: fixed; }
+  .confronto-tabella th, .confronto-tabella td { padding: 10px 4px; white-space: normal; overflow-wrap: anywhere; }
+  .confronto-tabella thead th { font-size: 0.9375rem; }
+  .confronto-tabella .incluso .icona.spunta { display: none; }
+  .apribile-comando { flex-wrap: wrap; gap: 4px 12px; }
+  .modulo .apribile-titolo { flex-basis: calc(100% - 44px); }
+  .modulo-prezzo { order: 3; text-align: left; flex-basis: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .apribile-corpo, .apribile[data-aperto='true'] > .apribile-corpo, .apribile-segno { transition: none; }
+}
 .incluso { display: inline-flex; gap: 6px; align-items: center; color: var(--ok); font-weight: 600; }
 .incluso .icona.spunta { margin-top: 0; width: 18px; height: 18px; }
 .non-incluso { color: var(--muted); }
-/* Sul telefono la tabella a quattro colonne non ci sta: ogni riga diventa
-   una scheda, e l'intestazione si ripete accanto al valore (data-colonna). */
-@media (max-width: 639px) {
-  .tabella-moduli { padding: 4px 16px; }
-  .tabella-moduli thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-  .tabella-moduli tr { display: grid; grid-template-columns: 1fr; gap: 6px; padding: 14px 0; border-bottom: 1px solid var(--line); }
-  .tabella-moduli tbody tr:last-child { border-bottom: none; }
-  .tabella-moduli th, .tabella-moduli td { padding: 0; border: none; }
-  .tabella-moduli .numero-colonna { display: flex; justify-content: space-between; gap: 12px; text-align: left; white-space: normal; }
-  .tabella-moduli .numero-colonna::before { content: attr(data-colonna); color: var(--muted); font-size: 0.875rem; }
-}
-
 /* ── Le domande: righe editoriali separate da un filo; il «+» ruota e
    diventa «×» quando la risposta è aperta. ── */
 .domande-griglia { display: grid; gap: 20px; }
@@ -417,7 +467,7 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 
 /* I prezzi e le tabelle delle altre pagine (scelta del piano, backoffice). */
 .prezzo { font-size: 2rem; font-weight: 700; margin: 4px 0; }
-table.moduli, table.clienti { width: 100%; border-collapse: collapse; }
+table.clienti { width: 100%; border-collapse: collapse; }
 table th, table td { text-align: left; padding: 12px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
 
 /* ── Moduli, form, tabelle delle pagine interne ── */

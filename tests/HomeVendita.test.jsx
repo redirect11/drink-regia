@@ -25,6 +25,7 @@ vi.mock('../src/lib/db.js', () => ({
 import Home from '../src/pages/Home.jsx'
 import { venditaPulita } from '../src/lib/vendita.js'
 import it_ from '../src/i18n/home.it.js'
+import { PIANI } from '../src/lib/piani.js'
 
 const mostra = () =>
   render(
@@ -86,12 +87,47 @@ describe('la vendita nella prima pagina', () => {
     expect(document.querySelector('.diapositiva[data-visibile="true"]').dataset.gesto).toBe('numeri')
   })
 
-  it('un modulo tolto dalla vendita non compare nella tabella dei prezzi', () => {
+  // REQ-FLOTTA-063: col Free in vendita il confronto ha tre colonne, e
+  // dice cosa manca al Free coi numeri del listino.
+  it('col Free in vendita il confronto ha tre colonne: i limiti del Free vengono dal listino, e i moduli lì non sono disponibili', () => {
+    stato.vendita = venditaPulita({ free: true })
+    mostra()
+    fireEvent.click(screen.getByRole('button', { name: it_.prezzi.confronto.apri }))
+    const tabella = within(screen.getByRole('table'))
+    expect(tabella.getAllByRole('columnheader').map((c) => c.textContent)).toEqual(['Free', 'Base', 'Completo'])
+    const c = it_.prezzi.confronto
+    const riga = (id) => [...tabella.getByRole('row', { name: new RegExp(`^${c.righe[id]}`) }).querySelectorAll('td')].map((td) => td.textContent)
+    const limiti = PIANI.free.limiti
+    expect(riga('comande')).toEqual(['No', 'Sì', 'Sì'])
+    expect(riga('prodotti')).toEqual([`Fino a ${limiti.prodotti_max}`, 'Senza limite', 'Senza limite'])
+    expect(riga('conti')).toEqual([`Fino a ${limiti.conti_aperti_max}`, 'Senza limite', 'Senza limite'])
+    expect(riga('utenti')).toEqual(['Solo il titolare', 'Senza limite', 'Senza limite'])
+    expect(riga('sconti')).toEqual(['No', 'Sì', 'Sì'])
+    expect(riga('storico')).toEqual([`Ultimi ${limiti.storico_giorni} giorni`, 'Tutto', 'Tutto'])
+    expect(riga('terminali')).toEqual([String(PIANI.free.terminali), String(PIANI.base.terminali), String(PIANI.completo.terminali)])
+    // Un modulo a pagamento: non disponibile nel Free, a prezzo nel Base, compreso nel Completo.
+    const magazzino = [...tabella.getByRole('row', { name: /^Magazzino e fornitori/ }).querySelectorAll('td')].map((td) => td.textContent)
+    expect(magazzino[0]).toBe('Non disponibile')
+    expect(magazzino[1]).toMatch(/^15 € \+ IVA/)
+    expect(magazzino[2]).toBe('Incluso')
+    // Il terminale in più: nel Free non c'è (il Free ha un terminale e
+    // non passa dal pagamento); negli altri ha il suo prezzo.
+    const terminale = [...tabella.getByRole('row', { name: /^Terminale in più/ }).querySelectorAll('td')].map((td) => td.textContent)
+    expect(terminale[0]).toBe('Non disponibile')
+    expect(terminale[1]).toMatch(/^12 € \+ IVA/)
+    expect(terminale[2]).toMatch(/^12 € \+ IVA/)
+  })
+
+  it('un modulo tolto dalla vendita non compare né nel confronto né nell’elenco dei moduli', () => {
     stato.vendita = venditaPulita({ moduli: { sumup: false } })
     mostra()
+    fireEvent.click(screen.getByRole('button', { name: it_.prezzi.confronto.apri }))
     const tabella = within(screen.getByRole('table'))
     expect(tabella.queryByText('Pagamenti con lettore SumUp')).toBeNull()
     expect(tabella.getByText('Magazzino e fornitori')).toBeInTheDocument()
+    const elenco = within(document.querySelector('.moduli-elenco'))
+    expect(elenco.queryByRole('button', { name: /^Pagamenti con lettore SumUp/ })).toBeNull()
+    expect(elenco.getByRole('button', { name: /^Magazzino e fornitori/ })).toBeInTheDocument()
     expect(screen.queryByRole('article', { name: 'Piano Free' })).toBeNull()
     // Sparisce anche fra le funzioni raccontate: la riga del lettore di
     // carte non c'è, quella del magazzino sì.

@@ -118,6 +118,8 @@ describe('la prima pagina', () => {
       screen.getByText(`Attivazione una tantum: ${euro(ATTIVAZIONE)} + IVA (${euro(conIva(ATTIVAZIONE))} IVA inclusa)`, { exact: false })
     ).toHaveTextContent('IVA al 22%')
 
+    // Il confronto fra i piani parte chiuso (REQ-FLOTTA-063): si apre.
+    fireEvent.click(screen.getByRole('button', { name: it_.prezzi.confronto.apri }))
     const tabella = within(screen.getByRole('table'))
     for (const m of MODULI) {
       const riga = tabella.getByRole('row', { name: new RegExp(m.nome) })
@@ -133,6 +135,128 @@ describe('la prima pagina', () => {
       if (PIANI.completo.include.includes(m.id)) expect(riga).toHaveTextContent('Incluso')
     }
     expect(tabella.getByRole('row', { name: /Terminale in più/ })).toHaveTextContent(`${euro(TERMINALE_IN_PIU)} + IVA`)
+  })
+
+  // REQ-FLOTTA-063 (Daniele, 11/11/2026: «la comparison table che si apre
+  // tra i due piani… e poi sotto, a scomparsa, i dettagli dei moduli»).
+  describe('il confronto fra i piani e i moduli a scomparsa', () => {
+    const comando = () => screen.getByRole('button', { name: it_.prezzi.confronto.apri })
+    const regione = () => document.getElementById('confronto-piani')
+
+    it('il confronto parte chiuso: il bottone lo dice, e il contenuto non si raggiunge', () => {
+      mostra()
+      expect(comando()).toHaveAttribute('aria-expanded', 'false')
+      expect(comando()).toHaveAttribute('aria-controls', 'confronto-piani')
+      expect(regione()).toHaveAttribute('aria-hidden', 'true')
+      expect(regione()).toHaveAttribute('inert')
+      expect(screen.queryByRole('table')).toBeNull()
+      fireEvent.click(comando())
+      expect(comando()).toHaveAttribute('aria-expanded', 'true')
+      expect(regione()).toHaveAttribute('aria-hidden', 'false')
+      expect(regione()).not.toHaveAttribute('inert')
+      expect(screen.getByRole('table')).toBeInTheDocument()
+      fireEvent.click(comando())
+      expect(comando()).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.queryByRole('table')).toBeNull()
+    })
+
+    it('senza il Free in vendita le colonne sono Base e Completo, e delle righe uguali resta solo quella dei terminali', () => {
+      mostra()
+      fireEvent.click(comando())
+      const tabella = within(screen.getByRole('table'))
+      expect(tabella.getAllByRole('columnheader').map((c) => c.textContent)).toEqual([PIANI.base.nome, PIANI.completo.nome])
+      const c = it_.prezzi.confronto
+      expect(tabella.getByRole('row', { name: new RegExp(`^${c.righe.terminali}`) })).toHaveTextContent(
+        `${c.righe.terminali}${PIANI.base.terminali}${PIANI.completo.terminali}`,
+      )
+      // Comande, prodotti, conti, utenti, sconti, storico: uguali nei due
+      // piani a pagamento, quindi non sono un confronto e non si mostrano.
+      for (const id of ['comande', 'prodotti', 'conti', 'utenti', 'sconti', 'storico']) {
+        expect(tabella.queryByRole('row', { name: new RegExp(`^${c.righe[id]}`) })).toBeNull()
+      }
+      expect(tabella.queryByText(c.nonDisponibile)).toBeNull()
+    })
+
+    it('i moduli, uno per uno: ogni riga dice il nome e quanto costa, e si apre per conto suo a dire cosa fa', () => {
+      mostra()
+      const elenco = document.querySelector('.moduli-elenco')
+      const bottoni = within(elenco).getAllByRole('button')
+      // Un bottone per modulo, più il terminale in più.
+      expect(bottoni).toHaveLength(MODULI.length + 1)
+      for (const b of bottoni) expect(b).toHaveAttribute('aria-expanded', 'false')
+      const magazzino = MODULI.find((m) => m.id === 'magazzino')
+      const statistiche = MODULI.find((m) => m.id === 'statistiche')
+      const delMagazzino = within(elenco).getByRole('button', { name: new RegExp(`^${magazzino.nome}`) })
+      expect(delMagazzino).toHaveTextContent(`${euro(magazzino.prezzo)} + IVA ${it_.prezzi.alMese}`)
+      // Chiuso, la descrizione non si raggiunge.
+      expect(document.getElementById('modulo-magazzino')).toHaveAttribute('aria-hidden', 'true')
+      fireEvent.click(delMagazzino)
+      expect(delMagazzino).toHaveAttribute('aria-expanded', 'true')
+      const aperto = document.getElementById('modulo-magazzino')
+      expect(aperto).toHaveAttribute('aria-hidden', 'false')
+      expect(aperto).toHaveTextContent(magazzino.descrizione)
+      expect(aperto).toHaveTextContent(`Sul Base si aggiunge a ${euro(magazzino.prezzo)} + IVA al mese (${euro(conIva(magazzino.prezzo))} IVA inclusa). Nel Completo è compreso.`)
+      // Gli altri restano chiusi: ognuno per conto suo.
+      expect(within(elenco).getByRole('button', { name: new RegExp(`^${statistiche.nome}`) })).toHaveAttribute('aria-expanded', 'false')
+      // Il modulo compreso nel Base lo dice al posto del prezzo.
+      const menu = MODULI.find((m) => PIANI.base.include.includes(m.id))
+      expect(within(elenco).getByRole('button', { name: new RegExp(`^${menu.nome}`) })).toHaveTextContent(`Nel piano ${PIANI.base.nome}`)
+      // Il terminale in più.
+      const terminale = within(elenco).getByRole('button', { name: /^Terminale in più/ })
+      expect(terminale).toHaveTextContent(`${euro(TERMINALE_IN_PIU)} + IVA ${it_.prezzi.alMese}`)
+    })
+
+    it('la frase sulla convenienza del Completo e la nota sullo scontrino non fiscale restano', () => {
+      mostra()
+      expect(document.querySelector('.convenienza')).toHaveTextContent(`il Completo li include tutti a ${euro(PIANI.completo.prezzo)} + IVA.`)
+      expect(screen.getByText(it_.prezzi.notaScontrino)).toBeInTheDocument()
+    })
+
+    it('italiano e inglese hanno le stesse voci del confronto', () => {
+      const chiavi = (o) => Object.entries(o).flatMap(([k, v]) => (v && typeof v === 'object' ? chiavi(v).map((x) => `${k}.${x}`) : [k]))
+      expect(chiavi(en.prezzi.confronto)).toEqual(chiavi(it_.prezzi.confronto))
+    })
+
+    // Criteri 9 e 13: sul telefono. happy-dom non applica le media query,
+    // quindi qui si tiene ferma la regola nel foglio di stile; a schermo
+    // si guarda sul sito di test (rilievo del revisore, 11/11/2026).
+    it('sul telefono le colonne del confronto restano affiancate e vanno a capo, e la barra stretta non porta la qualifica', () => {
+      const css = readFileSync(join(import.meta.dirname, '..', 'src', 'index.css'), 'utf8').replace(/\r\n/g, '\n')
+      const telefono = css.slice(css.indexOf('@media (max-width: 639px) {\n  /* Sul telefono le colonne dei piani'))
+      expect(telefono).toContain('.confronto-tabella { font-size: 0.8125rem; table-layout: fixed; }')
+      expect(telefono).toMatch(/\.confronto-tabella th, \.confronto-tabella td \{[^}]*white-space: normal; overflow-wrap: anywhere; \}/)
+      // Da quando il marchio è «Lime SmartOrders» a 390px il tasto del menù
+      // usciva dallo schermo: sotto i 480px la barra mostra solo «Lime».
+      expect(css).toMatch(/@media \(max-width: 479px\) \{\n {2}\.barra \.marchio-qualifica \{ display: none; \}/)
+    })
+
+    it('un modulo aperto si richiude, e le parole della tabella sono le stesse nelle due lingue', () => {
+      mostra()
+      const elenco = within(document.querySelector('.moduli-elenco'))
+      const b = elenco.getByRole('button', { name: /^Magazzino e fornitori/ })
+      // Fra il nome e il prezzo c'è uno spazio: un lettore non li legge attaccati.
+      expect(b.textContent).toMatch(/^Magazzino e fornitori \d/)
+      fireEvent.click(b)
+      expect(b).toHaveAttribute('aria-expanded', 'true')
+      fireEvent.click(b)
+      expect(b).toHaveAttribute('aria-expanded', 'false')
+      expect(document.getElementById('modulo-magazzino')).toHaveAttribute('aria-hidden', 'true')
+      expect(Object.keys(en.prezzi.tabella)).toEqual(Object.keys(it_.prezzi.tabella))
+    })
+
+    it('ogni gruppo di righe del confronto ha il suo corpo di tabella', () => {
+      mostra()
+      fireEvent.click(comando())
+      const corpi = [...screen.getByRole('table').querySelectorAll('tbody')]
+      expect(corpi.map((c) => c.querySelector('tr.gruppo th').textContent)).toEqual([it_.prezzi.confronto.gruppoLavoro, it_.prezzi.confronto.gruppoModuli])
+      for (const c of corpi) expect(c.querySelector('tr.gruppo th')).toHaveAttribute('scope', 'rowgroup')
+    })
+
+    // Criterio 8: chi ha chiesto meno movimento vede aprirsi di colpo.
+    it('con «meno movimento» l’apertura non è animata: lo dice il foglio di stile', () => {
+      const css = readFileSync(join(import.meta.dirname, '..', 'src', 'index.css'), 'utf8').replace(/\r\n/g, '\n')
+      expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\n {2}\.apribile-corpo, [^}]*transition: none; \}/)
+    })
   })
 
   it('il Base coi centesimi e il suo totale IVA inclusa, calcolato', () => {
@@ -205,9 +329,9 @@ describe('la prima pagina', () => {
     expect(within(sezione).getByText(it_.funzioni.sotto)).toBeInTheDocument()
     expect(it_.funzioni.sotto).toBe('Ogni funzione è frutto dell’esperienza dietro al banco.')
     expect(screen.getByRole('heading', { name: it_.funzioni.voci.magazzino.titolo })).toBeInTheDocument()
-    // I moduli coi loro prezzi ci sono, nella tabella dei prezzi.
+    // I moduli coi loro prezzi ci sono, nei prezzi: nell'elenco a scomparsa.
     const magazzino = MODULI.find((m) => m.id === 'magazzino')
-    expect(within(screen.getByRole('table')).getByText(magazzino.nome)).toBeInTheDocument()
+    expect(within(document.querySelector('.moduli-elenco')).getByRole('button', { name: new RegExp(`^${magazzino.nome}`) })).toBeInTheDocument()
     // I terminali oltre quelli del piano si pagano, e il prezzo viene dal
     // listino (revisione PR #20).
     expect(screen.getByText(`Altri terminali a ${euro(TERMINALE_IN_PIU)} + IVA al mese`)).toBeInTheDocument()

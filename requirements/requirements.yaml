@@ -3389,6 +3389,86 @@ requirements:
       - tests/Home.test.jsx
       - tests/HomeVendita.test.jsx
 
+  - id: REQ-FLOTTA-063
+    title: "Nei prezzi: il confronto fra i piani che si apre, e sotto i moduli uno per uno, a scomparsa"
+    area: "src/pages/Home.jsx, src/i18n/home.it.js, src/i18n/home.en.js, src/index.css, DESIGN.md"
+    description: >
+      Daniele, 11/11/2026, la sera, in chat. Sulla pagina: «il sito
+      dovrebbe mostrare la frontpage con i video, sotto dovrebbe spiegare
+      di che si parla. Poi si mostrano i prezzi degli abbonamenti e poi
+      sotto i moduli a pagamento ma nascosti, che si possono aprire in
+      qualche modo con qualche animazione ben integrata nella UI della
+      pagina». E poi, sui prezzi: «dobbiamo fare la comparison table che
+      si apre tra i due piani e dire cosa c'è nel free, cosa nel basic.
+      Nella stessa tabella, i moduli che sono inclusi nel premium
+      saranno scritti come a pagamento nel basic, e volendo possiamo
+      mettere anche i prezzi; e poi sotto, a scomparsa, i dettagli dei
+      moduli come è ora ma magari un po' più elegante. Tutto un po' più
+      elegante ma moderno». I piani si chiamano Free, Base e Completo:
+      «basic» e «premium» sono Base e Completo.
+      COSA SI FA. Sotto le schede dei piani un comando, «Confronta i
+      piani», apre una tabella di confronto con un'animazione. Le colonne
+      sono i piani in vendita (il Free solo se l'admin lo vende). Le
+      righe: prima cosa cambia fra i piani nel lavoro di ogni giorno
+      (comande, prodotti nel menù, conti aperti insieme, utenti, sconti,
+      storico, terminali), coi numeri presi dal listino; poi i moduli,
+      uno per riga: «Incluso» dove il piano lo comprende, il prezzo al
+      mese dove si compra a parte, «Non disponibile» nel Free, che non
+      ha moduli. Sotto la tabella, «I moduli, uno per uno»: un elenco a
+      scomparsa, una riga per modulo col nome e il prezzo, che si apre a
+      mostrare cosa fa. La tabella di oggi, sempre aperta, con le
+      colonne «Sul Base» e «Nel Completo», è sostituita da queste due.
+      CRITERI DI ACCETTAZIONE. (1) Il confronto parte chiuso e si apre e
+      si chiude con un bottone che dice lo stato (aria-expanded) e
+      comanda la sua regione; chiuso, il contenuto non è raggiungibile
+      né da tastiera né da un lettore di schermo. (2) Le colonne sono i
+      piani in vendita, nell'ordine Free, Base, Completo. (3) I limiti
+      del Free e i terminali di ogni piano vengono dal listino, mai
+      scritti a mano. (4) Per ogni modulo in vendita: «Incluso» nei
+      piani che lo comprendono, il prezzo «+ IVA» col totale IVA inclusa
+      dove si compra a parte («al mese» lo dice la riga sotto la
+      tabella, una volta sola), «Non disponibile» nel Free. (5) Un
+      modulo non in vendita non compare, né nel confronto né
+      nell'elenco (REQ-FLOTTA-015). (6) Il terminale in più ha la sua
+      riga, col prezzo. (7) Ogni modulo dell'elenco si apre e si chiude
+      per conto suo, con lo stesso tipo di comando; aperto mostra la
+      descrizione del listino. (8) Chi ha chiesto meno movimento vede
+      aprirsi e chiudersi di colpo. (9) Sul telefono il confronto resta
+      leggibile senza scorrere di lato la pagina. (10) Italiano e
+      inglese hanno le stesse voci. (11) La frase sulla convenienza del
+      Completo e la nota sullo scontrino non fiscale restano.
+      (12) Una riga del «lavoro di ogni giorno» che dice la stessa cosa
+      per tutti i piani in colonna non si mostra, tranne i terminali:
+      senza il Free in vendita, Base e Completo hanno comande, prodotti,
+      conti, utenti, sconti e storico uguali. (13) Sul telefono stretto
+      il tasto del menù resta dentro lo schermo: sotto i 480px la barra
+      non porta la qualifica «SmartOrders», che resta nel piè di pagina.
+      DA VERIFICARE CON DANIELE, perché il listino non lo scrive: che
+      Base e Completo non abbiano un limite di utenti («Senza limite» è
+      dedotto dall'assenza del limite, che solo il Free ha), e che nel
+      Free il terminale in più non si possa aggiungere («Non
+      disponibile», come i moduli).
+      DALLA REVISIONE (revisore, 11/11/2026): le due deduzioni reggono
+      rispetto al codice (functions/lib/licenza.js: senza limiti scritti
+      l'app non ne applica; functions/lib/free.js: il Free ha un
+      terminale e non passa da Stripe), ma restano da confermare. I test
+      dei criteri 9 e 13 tengono ferma la regola nel foglio di stile: a
+      schermo si guarda sul sito di test. Un corpo di tabella per gruppo
+      di righe. RESTA DA DECIDERE: il Free porta «Creato con Lime» in
+      fondo allo scontrino e al menù digitale (`marchio: true` nel
+      listino) e la pagina non lo dice da nessuna parte, nemmeno nel
+      confronto. E il criterio 13 nasconde «SmartOrders» dalla barra sul
+      telefono: tocca come si mostra il nome del prodotto, che cambia
+      solo su decisione di Daniele.
+    status: implemented
+    generate_issue: true
+    labels: [prodotto, regia, home]
+    priority: P1
+    test_cases:
+      - tests/Home.test.jsx
+      - tests/HomeVendita.test.jsx
+      - tests/HomeLingua.test.jsx
+
   - id: REQ-FLOTTA-059
     title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"
     area: "functions/lib/eliminazione-cliente.js, functions/index.js (eliminaCliente), src/lib/db.js (eliminaCliente), src/pages/Backoffice.jsx (Elimina cliente…)"
