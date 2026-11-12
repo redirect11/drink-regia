@@ -373,3 +373,13 @@ describe('la dashboard di un cliente Free', () => {
     expect(screen.getByRole('button', { name: 'Vai al pagamento' })).toBeInTheDocument()
   })
 })
+
+// REQ-FLOTTA-072, dalla revisione: il titolare di un locale simulato non
+// legge un progetto che non esiste.
+describe('un locale simulato nella dashboard', () => {
+  it('dice «simulato» al posto del progetto', async () => {
+    const { readFileSync } = await import('node:fs')
+    const codice = readFileSync('src/pages/Dashboard.jsx', 'utf8')
+    expect(codice).toContain("istanza?.simulata ? 'simulato' : istanza?.progetto || progettoDi(cliente.slug)")
+  })
+})

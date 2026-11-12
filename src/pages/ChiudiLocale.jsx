@@ -52,7 +52,9 @@ export default function ChiudiLocale({ istanza }) {
     )
   }
 
-  if (!istanza?.progetto || istanza.stato !== STATI.ATTIVA || istanza.origine === 'esistente' || istanza.interna) return null
+  // Un locale simulato (REQ-FLOTTA-072) non ha un progetto, e si chiude lo stesso.
+  if ((!istanza?.progetto && !istanza?.simulata) || istanza.stato !== STATI.ATTIVA || istanza.origine === 'esistente' || istanza.interna) return null
+  const daScrivere = istanza.simulata ? istanza.slug : istanza.progetto
 
   // Cancellazione programmata: si vede quando, e si può annullare se l'ha
   // chiesta il titolare.
@@ -110,11 +112,11 @@ export default function ChiudiLocale({ istanza }) {
           }}
         >
           <label htmlFor="conferma-chiusura">
-            Per confermare scrivi <code>{istanza.progetto}</code>
+            Per confermare scrivi <code>{daScrivere}</code>
           </label>
           <input id="conferma-chiusura" value={conferma} onChange={(ev) => setConferma(ev.target.value)} autoComplete="off" />
           <div className="azioni">
-            <button type="submit" className="btn pericolo" disabled={inCorso || conferma.trim() !== istanza.progetto}>
+            <button type="submit" className="btn pericolo" disabled={inCorso || conferma.trim() !== daScrivere}>
               Chiudi e cancella fra 30 giorni
             </button>
             <button type="button" className="btn ghost" onClick={() => setAperto(false)}>

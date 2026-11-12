@@ -22,7 +22,8 @@ const GIORNO = 24 * 60 * 60 * 1000
 
 // Si può chiedere l'eliminazione di quest'istanza? { ok, perche }
 function puoEliminare(ist) {
-  if (!ist?.progetto) return { ok: false, perche: 'L’istanza non ha un progetto.' }
+  // Un locale simulato (REQ-FLOTTA-072) non ha un progetto, e si elimina lo stesso.
+  if (!ist?.progetto && ist?.simulata !== true) return { ok: false, perche: 'L’istanza non ha un progetto.' }
   if (ist.origine === 'esistente') return { ok: false, perche: 'Un locale esistente si gestisce dal suo progetto, non dalla flotta.' }
   if (ist.interna) return { ok: false, perche: 'Un’installazione interna non si elimina dal backoffice.' }
   if (PROTETTI.includes(ist.progetto)) return { ok: false, perche: 'La demo non si elimina.' }
@@ -36,7 +37,17 @@ function puoEliminare(ist) {
 // tollerate né pezzi, perché è l'ultimo freno prima di un gesto che non si
 // annulla.
 function confermaValida(ist, conferma) {
-  return Boolean(ist?.progetto) && String(conferma ?? '').trim() === ist.progetto
+  // Un locale simulato (REQ-FLOTTA-072) non ha un progetto: si conferma
+  // con lo slug.
+  const atteso = ist?.simulata === true ? ist.slug : ist?.progetto
+  return Boolean(atteso) && String(conferma ?? '').trim() === atteso
+}
+
+// L'eliminazione di un locale simulato (REQ-FLOTTA-072): niente workflow,
+// niente archivio, perché non c'è un progetto né dati da salvare.
+function eliminazioneSimulata(ist, adesso = new Date()) {
+  const il = adesso.toISOString()
+  return { stato: 'eliminata', eliminata_il: il, eliminazione: { ...(ist?.eliminazione || {}), stato: 'eliminata', errore: null, archivio: null, finito_il: il, simulata: true } }
 }
 
 // Quando parte: subito, o 30 giorni dopo la chiusura (mai nel passato).
@@ -177,6 +188,7 @@ function archivioScaricabile(ist, adesso = new Date()) {
 module.exports = {
   puoEliminare,
   confermaValida,
+  eliminazioneSimulata,
   quandoEliminare,
   eliminazioneChiesta,
   puoChiedereTitolare,

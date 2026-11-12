@@ -6,6 +6,9 @@ data.
 
 ## Prossima release (da decidere)
 
+- Sul test, dal backoffice, l'attivazione simulata: il locale arriva ad
+  attivo con un indirizzo finto, senza creare un progetto Google
+  (REQ-FLOTTA-072).
 - Cosa la prima pagina dice dell'attivazione, automatica o concordata, lo
   decide un interruttore del backoffice; l'interruttore del Free si chiama
   «Piano Free disponibile» (REQ-FLOTTA-073).

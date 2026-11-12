@@ -174,3 +174,38 @@ describe('l’esito del workflow', () => {
     expect(readFileSync('functions/.env.drink-regia-test', 'utf8')).toMatch(/^ARCHIVIO_BUCKET=drink-regia-test-archivio$/m)
   })
 })
+
+// REQ-FLOTTA-072: un locale simulato non ha un progetto. Si conferma con lo
+// slug, e l'eliminazione non lancia il workflow: niente da archiviare.
+describe('l’eliminazione di un locale simulato', () => {
+  it('si conferma con lo slug, non col progetto che non ha', () => {
+    const ist = { slug: 'bar-prova', simulata: true, progetto: null, stato: 'attiva' }
+    expect(e.confermaValida(ist, 'bar-prova')).toBe(true)
+    expect(e.confermaValida(ist, '')).toBe(false)
+    expect(e.confermaValida(ist, 'drinkpos-bar-prova')).toBe(false)
+    // Un locale vero si conferma ancora col progetto.
+    expect(e.confermaValida({ slug: 'bar-vero', progetto: 'drinkpos-bar-vero' }, 'bar-vero')).toBe(false)
+  })
+  it('diventa eliminata subito, senza archivio', () => {
+    const adesso = new Date('2026-11-12T10:00:00Z')
+    const d = e.eliminazioneSimulata({ eliminazione: { stato: 'in coda', quando: 'q' } }, adesso)
+    expect(d).toMatchObject({ stato: 'eliminata', eliminata_il: adesso.toISOString() })
+    expect(d.eliminazione).toMatchObject({ stato: 'eliminata', quando: 'q', archivio: null, errore: null, simulata: true })
+  })
+})
+
+// Rilievo del revisore (12/11/2026): l'eliminazione di un simulato non si
+// raggiungeva, perché puoEliminare voleva un progetto.
+describe('un locale simulato si può chiudere ed eliminare', () => {
+  const simulato = { slug: 'bar-prova', simulata: true, progetto: null, stato: 'attiva' }
+  it('l’admin lo elimina dopo averlo chiuso', () => {
+    expect(e.puoEliminare({ ...simulato, licenza_stato: 'chiusa' })).toEqual({ ok: true, perche: null })
+    expect(e.puoEliminare(simulato).ok).toBe(false)
+  })
+  it('il titolare lo chiede da attivo', () => {
+    expect(e.puoChiedereTitolare(simulato)).toEqual({ ok: true, perche: null })
+  })
+  it('un locale vero senza progetto resta non eliminabile', () => {
+    expect(e.puoEliminare({ slug: 'bar-x', progetto: null, stato: 'attiva', licenza_stato: 'chiusa' }).ok).toBe(false)
+  })
+})

@@ -10,6 +10,7 @@ import {
   aggiornaIstanza,
   osservaImpostazioniRegia,
   impostaDeployAutomatico,
+  impostaAttivazioneSimulata,
   autorizzaRichiesta,
   autorizzaProfiloCompleto,
   rifiutaRichiesta,
@@ -41,6 +42,7 @@ import {
   gestisciTemiSuMisura,
 } from '../lib/db.js'
 import { venditaPulita } from '../lib/vendita.js'
+
 import { ESCLUSIVI, nomeStile, nomeImpaginazione, ORIGINI_DETTE, STATI_DETTI, temaVuoto } from '../lib/temi.js'
 import { statoIstanza, statoDetto, STATI, progettoDi, riduzioneDetta, hrefSicuro } from '../lib/istanze.js'
 import { PIANI, MODULI, prezzoMensile, euro, baseMancante, senzaOrfani } from '../lib/piani.js'
@@ -53,6 +55,9 @@ import { BASE, SEZIONI, VISTE, aggiornamentoFallito, aggiornaLaRegia, contiDelBa
 import Rilasci from './Rilasci.jsx'
 import Commerciale from './Commerciale.jsx'
 import { MODALITA, regolaDetta, propostaDetta } from '../lib/aggiornamenti.js'
+
+// Il sito di produzione: lo dice il deploy (deploy.yml), come in App.jsx.
+const PRODUZIONE = import.meta.env.VITE_APP_ENV === 'production'
 
 // IL BACKOFFICE (REQ-FLOTTA-005): tutti i clienti con piano, stato
 // dell'istanza, progetto, versione. Solo col claim admin (App.jsx non ci fa
@@ -141,6 +146,8 @@ export default function Backoffice() {
   // Spento finché l'admin non lo accende (02/11/2026): ogni deploy dopo un
   // acquisto passa da qui.
   const automatico = impostazioni.deploy_automatico === true
+  // L'attivazione simulata (REQ-FLOTTA-072): l'interruttore c'è solo sul test.
+  const simulata = impostazioni.attivazione_simulata === true
 
   // Sospendi, Riattiva, Chiudi (REQ-FLOTTA-008): l'app del locale si ferma
   // e lo dice; i dati restano. Il motivo lo legge il titolare.
@@ -391,6 +398,8 @@ export default function Backoffice() {
               <SezioneRichieste
                 automatico={automatico}
                 onAutomatico={(acceso) => impostaDeployAutomatico(acceso).catch((err) => setErrore(err.message))}
+                simulata={PRODUZIONE ? null : simulata}
+                onSimulata={(acceso) => impostaAttivazioneSimulata(acceso).catch((err) => setErrore(err.message))}
                 daApprovare={daApprovare}
                 profili={profiliDaAutorizzare}
                 onAutorizzaProfilo={autorizzaProfilo}
@@ -683,7 +692,7 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
         <div>
           <dt>Progetto</dt>
           <dd>
-            <code>{istanza?.progetto || progettoDi(c.slug)}</code>
+            <code>{istanza?.simulata ? 'simulato' : istanza?.progetto || progettoDi(c.slug)}</code>
             {istanza?.profilo === 'leggero' && <div className="muted small">profilo leggero (Free)</div>}
             {/* Solo un https diventa un link (hrefSicuro, audit del 09/11/2026, finding 28). */}
             {hrefSicuro(istanza?.url) && (
@@ -1221,7 +1230,7 @@ function GestioneEsistente({ cliente: c, istanza, onFatto, onErrore }) {
   )
 }
 
-function SezioneRichieste({ automatico, onAutomatico, daApprovare, profili = [], onAutorizzaProfilo, contatti, onAutorizza, onRifiuta, onSegna }) {
+function SezioneRichieste({ automatico, onAutomatico, simulata = null, onSimulata, daApprovare, profili = [], onAutorizzaProfilo, contatti, onAutorizza, onRifiuta, onSegna }) {
   return (
     <>
       <section className="card" aria-label="Attivazioni">
@@ -1235,6 +1244,23 @@ function SezioneRichieste({ automatico, onAutomatico, daApprovare, profili = [],
             ? 'Deploy automatico acceso: «Attiva» di un titolare parte da solo, e un locale Free che compra si ripubblica col profilo completo.'
             : 'Deploy automatico spento: le attivazioni dopo un acquisto, e i locali Free che comprano, aspettano la tua autorizzazione qui sotto.'}
         </p>
+        {/* SOLO SUL TEST (REQ-FLOTTA-072, Daniele, 12/11/2026: «facciamo
+            l'attivazione finta»): un'attivazione arriva ad attiva senza
+            GitHub e senza un progetto Google. In produzione l'interruttore
+            non c'è, e il server non simula comunque. */}
+        {simulata !== null && (
+          <>
+            <label className="opzione interruttore">
+              <input type="checkbox" checked={simulata} onChange={(e) => onSimulata(e.target.checked)} />
+              Attivazione simulata
+            </label>
+            <p className="muted small">
+              {simulata
+                ? 'Attivazione simulata accesa: chi attiva arriva al locale attivo con un indirizzo finto, e nessun progetto Google viene creato. Non c’è un’app da aprire. Il deploy automatico decide ancora se parte da solo o aspetta te.'
+                : 'Attivazione simulata spenta: le attivazioni creano davvero il progetto del locale. Accendila per provare tutto il giro senza creare progetti: nessun progetto Google, nessuna quota consumata.'}
+            </p>
+          </>
+        )}
         {daApprovare.length === 0 && profili.length === 0 && <p className="muted small">Nessuna attivazione da autorizzare.</p>}
       </section>
 
@@ -2114,7 +2140,8 @@ function EliminaLocale({ cliente, istanza, onFatto, onErrore }) {
   const [subito, setSubito] = useState(false)
   const [conferma, setConferma] = useState('')
   const [inCorso, setInCorso] = useState(false)
-  const progetto = istanza?.progetto || progettoDi(cliente.slug)
+  // Un locale simulato (REQ-FLOTTA-072) non ha un progetto: si conferma con lo slug.
+  const progetto = istanza?.simulata ? cliente.slug : istanza?.progetto || progettoDi(cliente.slug)
   const invia = async (e) => {
     e.preventDefault()
     setInCorso(true)

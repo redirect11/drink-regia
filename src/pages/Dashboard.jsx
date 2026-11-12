@@ -139,7 +139,7 @@ export default function Dashboard({ utente, chiuso = false }) {
         <h2>{cliente.nome_locale}</h2>
         <p className="muted small">
           {/* Il progetto lo dice l'istanza: un locale esistente (la Tana) non è drinkpos-<slug>. */}
-          Identificativo: <code>{cliente.slug}</code> · progetto <code>{istanza?.progetto || progettoDi(cliente.slug)}</code>
+          Identificativo: <code>{cliente.slug}</code> · progetto <code>{istanza?.simulata ? 'simulato' : istanza?.progetto || progettoDi(cliente.slug)}</code>
         </p>
       </header>
       {/* DUE COLONNE, OGNUNA UNA PILA (REQ-FLOTTA-062). Prima i riquadri

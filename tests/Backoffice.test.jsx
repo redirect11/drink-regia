@@ -18,6 +18,7 @@ import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import '@testing-library/jest-dom/vitest'
+import { readFileSync } from 'node:fs'
 
 const db = vi.hoisted(() => ({
   elencoClienti: vi.fn(),
@@ -33,6 +34,7 @@ const db = vi.hoisted(() => ({
     return () => {}
   }),
   impostaDeployAutomatico: vi.fn(async () => {}),
+  impostaAttivazioneSimulata: vi.fn(async () => {}),
   autorizzaRichiesta: vi.fn(async () => {}),
   autorizzaProfiloCompleto: vi.fn(async () => ({ ok: true })),
   rifiutaRichiesta: vi.fn(async () => {}),
@@ -318,6 +320,18 @@ describe('il backoffice governa i deploy', () => {
     expect(screen.getByText(/aspettano la tua autorizzazione/)).toBeInTheDocument()
     await user.click(interruttore)
     expect(db.impostaDeployAutomatico).toHaveBeenCalledWith(true)
+  })
+
+  // REQ-FLOTTA-072 (Daniele, 12/11/2026: «facciamo l'attivazione finta»).
+  // Nei test VITE_APP_ENV manca, come sul sito di test: l'interruttore c'è.
+  it('sul test l’attivazione simulata ha il suo interruttore, spento, sotto il deploy automatico', async () => {
+    const user = userEvent.setup()
+    mostra('/backoffice/richieste')
+    const simulata = await screen.findByLabelText('Attivazione simulata')
+    expect(simulata).not.toBeChecked()
+    expect(screen.getByText(/nessun progetto Google/)).toBeInTheDocument()
+    await user.click(simulata)
+    expect(db.impostaAttivazioneSimulata).toHaveBeenCalledWith(true)
   })
 
   it('un locale Free che ha comprato aspetta l’admin: «Pubblica il piano» lancia il profilo completo', async () => {
@@ -1513,5 +1527,18 @@ describe('i codici sconto nel backoffice', () => {
     const scheda = await apri('Bar Mario')
     await user.click(within(scheda).getByRole('button', { name: 'Sconto…' }))
     expect(await screen.findByText('Codice sconosciuto o disattivato.')).toBeInTheDocument()
+  })
+})
+
+// REQ-FLOTTA-072, dalla revisione: un locale simulato non ha un progetto, e
+// la conferma dell'eliminazione è il suo slug.
+describe('un locale simulato nel backoffice', () => {
+  it('il codice dice «simulato» al posto del progetto e conferma con lo slug', () => {
+    const codice = readFileSync('src/pages/Backoffice.jsx', 'utf8')
+    expect(codice).toContain("istanza?.simulata ? 'simulato' : istanza?.progetto || progettoDi(c.slug)")
+    expect(codice).toContain('const progetto = istanza?.simulata ? cliente.slug : istanza?.progetto || progettoDi(cliente.slug)')
+    // Il nome della costante del sito di produzione dopo gli import.
+    const ultimoImport = codice.lastIndexOf('\nimport ')
+    expect(codice.indexOf('const PRODUZIONE')).toBeGreaterThan(ultimoImport)
   })
 })

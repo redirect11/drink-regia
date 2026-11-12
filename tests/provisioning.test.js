@@ -330,3 +330,72 @@ describe('esitoProvisioning nelle Functions', () => {
     expect(fn).toContain('...documentoIstanza(esito, prima), ...segno')
   })
 })
+
+// L'ATTIVAZIONE SIMULATA (REQ-FLOTTA-072, Daniele, 12/11/2026: «facciamo
+// l'attivazione finta»). Sul test il locale arriva ad attivo senza GitHub
+// e senza un progetto Google; in produzione mai, qualunque cosa dica
+// l'interruttore.
+describe('l’attivazione simulata', () => {
+  const p = require('../functions/lib/provisioning.js')
+  it('si simula solo con l’interruttore acceso e sulla regia di test', () => {
+    expect(p.simulazioneAmmessa({ attivazione_simulata: true }, 'drink-regia-test')).toBe(true)
+    expect(p.simulazioneAmmessa({ attivazione_simulata: true }, 'drink-regia')).toBe(false)
+    // Un elenco di chi può: un'altra regia, anche nuova, non simula.
+    expect(p.simulazioneAmmessa({ attivazione_simulata: true }, 'altro-prodotto-regia')).toBe(false)
+    expect(p.simulazioneAmmessa({ attivazione_simulata: false }, 'drink-regia-test')).toBe(false)
+    expect(p.simulazioneAmmessa({ attivazione_simulata: 'sì' }, 'drink-regia-test')).toBe(false)
+    expect(p.simulazioneAmmessa({}, 'drink-regia-test')).toBe(false)
+    expect(p.simulazioneAmmessa({ attivazione_simulata: true }, null)).toBe(false)
+    expect(p.simulazioneAmmessa({ attivazione_simulata: true }, '')).toBe(false)
+  })
+  it('il locale simulato è attivo, senza progetto, con un indirizzo che non porta da nessuna parte', () => {
+    const adesso = new Date('2026-11-12T10:00:00Z')
+    const d = p.documentoSimulato('bar-prova', { progetto: 'drinkpos-bar-prova', stato: 'in corso', creata_il: 'x' }, adesso)
+    expect(d).toMatchObject({ slug: 'bar-prova', stato: 'attiva', progetto: null, simulata: true, versione: 'simulata', errore: null, creata_il: 'x' })
+    expect(d.url).toBe('https://bar-prova.simulata.invalid')
+    expect(d.aggiornata_il).toBe(adesso.toISOString())
+  })
+  it('nelle Functions la simulazione viene prima di GitHub; aggiornamento ed eliminazione la sanno', () => {
+    const codice = readFileSync('functions/index.js', 'utf8').replace(/\r\n/g, '\n')
+    const lancia = codice.slice(codice.indexOf('async function lancia(richiesta)'), codice.indexOf('exports.chiediAttivazione'))
+    expect(lancia.indexOf('simulazioneAmmessa(')).toBeGreaterThan(0)
+    expect(lancia.indexOf('simulazioneAmmessa(')).toBeLessThan(lancia.indexOf('dispatchPayload('))
+    expect(lancia).toContain('documentoSimulato(')
+    const aggiorna = codice.slice(codice.indexOf('async function lanciaAggiornamento('), codice.indexOf('async function tutteLeIstanze('))
+    expect(aggiorna.indexOf('ist.simulata')).toBeGreaterThan(0)
+    expect(aggiorna.indexOf('ist.simulata')).toBeLessThan(aggiorna.indexOf('dispatchGitHub('))
+    const elimina = codice.slice(codice.indexOf('async function lanciaEliminazione('), codice.indexOf('exports.gestisciEliminazione'))
+    expect(elimina.indexOf('eliminazioneSimulata(')).toBeGreaterThan(0)
+    expect(elimina.indexOf('eliminazioneSimulata(')).toBeLessThan(elimina.indexOf('dispatchGitHub('))
+  })
+
+  // Rilievi del revisore (12/11/2026).
+  it('non si simula sopra un locale che ha già un progetto: la richiesta va in errore', () => {
+    const codice = readFileSync('functions/index.js', 'utf8').replace(/\r\n/g, '\n')
+    const lancia = codice.slice(codice.indexOf('async function lancia(richiesta)'), codice.indexOf('exports.chiediAttivazione'))
+    const sopra = lancia.indexOf('prima?.progetto')
+    expect(sopra).toBeGreaterThan(lancia.indexOf('simulazioneAmmessa('))
+    expect(sopra).toBeLessThan(lancia.indexOf('documentoSimulato('))
+    expect(lancia).toMatch(/stato: 'errore'[^\n]*spegni l’attivazione simulata/)
+  })
+  it('un esito vero per un locale simulato si rifiuta, prima di scrivere qualunque cosa', () => {
+    const codice = readFileSync('functions/index.js', 'utf8').replace(/\r\n/g, '\n')
+    const esito = codice.slice(codice.indexOf('exports.esitoProvisioning'), codice.indexOf('// ── L\'ABBONAMENTO'))
+    const rifiuti = [...esito.matchAll(/return res\.status\(409\)\.json\(\{ errore: 'locale simulato' \}\)/g)]
+    // Uno per l'esito di un'eliminazione, uno per attivazione e aggiornamento.
+    expect(rifiuti).toHaveLength(2)
+    expect(rifiuti[1].index).toBeLessThan(esito.indexOf('vincoliEsito(esito'))
+  })
+  it('Sospendi, Riattiva e Chiudi su un locale simulato cambiano lo stato senza scrivere la licenza', () => {
+    const codice = readFileSync('functions/index.js', 'utf8').replace(/\r\n/g, '\n')
+    const stato = codice.slice(codice.indexOf('async function scriviStatoIstanza('), codice.indexOf('exports.impostaStatoIstanza'))
+    const simulato = stato.indexOf('ist?.simulata')
+    expect(simulato).toBeGreaterThan(0)
+    expect(simulato).toBeLessThan(stato.indexOf('Istanza senza progetto'))
+    expect(stato.slice(simulato, stato.indexOf('return', simulato))).not.toContain('scriviLicenza')
+  })
+  it('«Apri la tua app» su un locale simulato dice che non c’è un’app', () => {
+    const codice = readFileSync('functions/index.js', 'utf8')
+    expect(codice).toContain('Questo locale è simulato, sul sito di test: non c’è un’app da aprire.')
+  })
+})
