@@ -92,3 +92,18 @@ describe('il giro delle issue', () => {
     expect(finali).toEqual(['regia', 'requirements', 'P1'])
   })
 })
+
+// I RAMI CHE FANNO NASCERE LE ISSUE (REQ-DEV-003). Dal 12/11/2026 ogni
+// lavoro ha il suo ramo, staccato da develop: feature/, fix/, hotfix/
+// (docs/handover.md, «I rami»). Su ognuno la voce «da fare» deve avere la
+// sua issue prima del codice: il 12/11 su un ramo fix/ non nasceva.
+describe('generate-issues.yml: parte su tutti i rami di lavoro', () => {
+  it('feature/, fix/, hotfix/, release/, più develop e main, quando cambia il registro', async () => {
+    const { load } = await import('js-yaml')
+    const { readFileSync } = await import('node:fs')
+    const w = load(readFileSync('.github/workflows/generate-issues.yml', 'utf8'))
+    const push = w.on.push
+    for (const ramo of ['main', 'develop', 'feature/**', 'fix/**', 'hotfix/**', 'release/**']) expect(push.branches).toContain(ramo)
+    expect(push.paths).toEqual(['requirements/requirements.yaml', 'requirements/bugs.yaml'])
+  })
+})

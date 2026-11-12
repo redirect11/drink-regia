@@ -6,6 +6,10 @@ data.
 
 ## Prossima release (da decidere)
 
+- Nel backoffice, «Nuovo tema» e «Modifica» aprono il modulo subito sotto
+  i temi, e non più in fondo alla scheda dopo gli stili. E le issue
+  nascono dal registro anche sui rami di correzione (REQ-FLOTTA-066, #146;
+  REQ-DEV-003).
 - Quando costruisce l'app di un locale, la regia le chiede se sa leggere
   il tipo di locale e, se sì, le passa «bar». Oggi nessuna app lo sa
   ancora (lo farà tana-drink), quindi per i locali non cambia niente. Il
