@@ -3648,7 +3648,7 @@ requirements:
       in questo caso. Gli elenchi che sono «un di più» (traffico, cassetti
       AI, rilasci nel quadro dei locali) restano facoltativi come oggi: se
       non arrivano, il resto della pagina lavora.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [backoffice, regia]
     priority: P2

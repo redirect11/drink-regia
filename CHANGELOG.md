@@ -6,6 +6,9 @@ data.
 
 ## Prossima release (da decidere)
 
+- Anche rilasci, commerciale, temi e stili, nel backoffice, si leggono
+  sempre dal server: con la rete che cade non sembrano più vuoti, e la
+  pagina dice di controllare la connessione (REQ-FLOTTA-067, #148).
 - Nel backoffice, «Nuovo tema» e «Modifica» aprono il modulo subito sotto
   i temi, e non più in fondo alla scheda dopo gli stili. E le issue
   nascono dal registro anche sui rami di correzione (REQ-FLOTTA-066, #146;
