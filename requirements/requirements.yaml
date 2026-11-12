@@ -3597,6 +3597,33 @@ requirements:
       - tests/flotta.test.js
       - tests/registrazione.test.js
 
+  - id: REQ-FLOTTA-066
+    title: "Nel catalogo dei temi il modulo si apre dove lo si è chiesto, non in fondo alla scheda"
+    area: "src/pages/CatalogoTemi.jsx"
+    description: >
+      Daniele, 11/11/2026, nel backoffice, sezione Temi: «ma perché se
+      nuovo tema sta sotto ai temi poi apre il nuovo tema sotto a stili e
+      ricetta?». Il bottone «Nuovo tema» sta sotto la tabella dei temi, ma
+      il modulo veniva disegnato in fondo alla scheda, dopo tutta la
+      sezione degli stili a ricetta: chi premeva non lo vedeva comparire.
+      Lo stesso per «Modifica» su una riga della tabella.
+      CRITERI DI ACCETTAZIONE. (1) Il modulo di un tema, nuovo o da
+      modificare, compare subito sotto la tabella dei temi, prima del
+      titolo «Stili a ricetta». (2) Aperto il modulo, il bottone «Nuovo
+      tema» non c'è (come prima). (3) Chiuso o salvato il modulo, il
+      bottone torna nello stesso punto.
+      La seconda domanda di Daniele, «come si aggiunge uno stile e
+      ricetta?», resta aperta: oggi gli stili si aggiungono nel file
+      functions/temi/stili.json, con un rilascio, e dal backoffice si
+      pubblicano o si ritirano. Se crearli dal backoffice è una decisione
+      sua.
+    status: todo
+    generate_issue: true
+    labels: [backoffice, regia]
+    priority: P3
+    test_cases:
+      - tests/CatalogoTemi.test.jsx
+
   - id: REQ-FLOTTA-059
     title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"
     area: "functions/lib/eliminazione-cliente.js, functions/index.js (eliminaCliente), src/lib/db.js (eliminaCliente), src/pages/Backoffice.jsx (Elimina cliente…)"

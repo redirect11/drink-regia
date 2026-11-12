@@ -98,6 +98,30 @@ describe('il catalogo dei temi', () => {
     expect(db.gestisciTemi).toHaveBeenCalledWith('salva', expect.objectContaining({ nuovo: false, tema: expect.objectContaining({ tavolozza: { base: 'notte-blu', colori: {} } }) }))
   })
 
+  // REQ-FLOTTA-066 (Daniele, 11/11/2026: «perché se nuovo tema sta sotto ai
+  // temi poi apre il nuovo tema sotto a stili e ricetta?»).
+  it('il modulo si apre sotto i temi, prima degli stili a ricetta; chiuso, il bottone torna lì', async () => {
+    const user = userEvent.setup()
+    render(<CatalogoTemi onErrore={onErrore} />)
+    const prima = (a, b) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+    // Si aspetta che i temi del database siano arrivati: la bozza ha «Modifica».
+    await screen.findByTestId('tema-aurora')
+    const stili = screen.getByRole('heading', { name: 'Stili a ricetta' })
+    const tabellaTemi = screen.getByRole('table', { name: 'I temi' })
+    await user.click(screen.getByRole('button', { name: 'Nuovo tema' }))
+    const modulo = screen.getByRole('form', { name: 'Nuovo tema' })
+    expect(prima(tabellaTemi, modulo)).toBe(true)
+    expect(prima(modulo, stili)).toBe(true)
+    expect(screen.queryByRole('button', { name: 'Nuovo tema' })).toBeNull()
+    // Anche «Modifica» apre il modulo lì.
+    await user.click(within(modulo).getByRole('button', { name: 'Chiudi' }))
+    const nuovo = screen.getByRole('button', { name: 'Nuovo tema' })
+    expect(prima(tabellaTemi, nuovo) && prima(nuovo, stili)).toBe(true)
+    await user.click(within(tabellaTemi).getAllByRole('button', { name: 'Modifica' })[0])
+    const modifica = screen.getByRole('form', { name: /^Tema / })
+    expect(prima(tabellaTemi, modifica) && prima(modifica, stili)).toBe(true)
+  })
+
   it('se la regia rifiuta, il modulo resta aperto e l’errore si dice', async () => {
     const user = userEvent.setup()
     db.gestisciTemi.mockRejectedValueOnce(new Error('Il nome ci vuole, fino a 40 caratteri.'))
