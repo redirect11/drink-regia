@@ -6,6 +6,12 @@ data.
 
 ## Prossima release (da decidere)
 
+- L'area del titolare ha un sotto-menù, come il backoffice: Panoramica,
+  Piano e moduli, Credito AI, Il locale (i dati della registrazione e le
+  stampanti, in sola lettura) e Chiudi il locale, ognuna col suo
+  indirizzo sotto /dashboard. Nella scelta del piano il piano attuale del
+  cliente compare come «Il tuo piano», anche il Free fuori vendita, e il
+  tasto si accende solo per un cambio (REQ-FLOTTA-084).
 - Un account per persona: chi si registra non usa un'email col «+», né
   una variante di un'email che ha già un account (REQ-FLOTTA-083).
 - Nel backoffice il segno che gira dell'aggiornamento resta tondo anche

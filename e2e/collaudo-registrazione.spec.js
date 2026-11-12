@@ -13,7 +13,7 @@
 // e possa sceglierne un altro. Non attiva mai l'istanza: creerebbe un
 // progetto Google, e la quota dei progetti è contata.
 import { test, expect } from '@playwright/test'
-import { entra, menu, PASSWORD, COLLAUDO } from './aiuto.js'
+import { entra, menu, sezione, PASSWORD, COLLAUDO } from './aiuto.js'
 
 // Un'etichetta diversa a ogni giro, così due collaudi non si pestano; il
 // dominio .invalid non consegna mai (RFC 2606): l'email di verifica parte e
@@ -99,10 +99,12 @@ test('un titolare nuovo si registra: account, documento del cliente, dashboard c
   await expect(page).toHaveURL(/\/dashboard/)
   await expect(page.getByRole('heading', { level: 2, name: NOME })).toBeVisible()
   await expect(page.getByRole('status')).toContainText('Conferma la tua email')
-  await expect(page.getByRole('region', { name: 'Scelta del piano' })).toBeVisible()
   // L'app non si attiva da qui (niente progetto nuovo): senza l'email
   // verificata e senza un piano il bottone c'è ma è spento.
   await expect(page.getByRole('button', { name: 'Attiva l’istanza' })).toBeDisabled()
+  // La scelta del piano sta in «Piano e moduli» (REQ-FLOTTA-084).
+  await sezione(page, 'Piano e moduli')
+  await expect(page.getByRole('region', { name: 'Scelta del piano' })).toBeVisible()
 })
 
 test('un secondo titolare con lo stesso nome del locale si ferma sullo slug, ne sceglie un altro e passa', async ({ page }) => {

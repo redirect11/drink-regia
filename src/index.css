@@ -106,12 +106,18 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .dashboard-colonne { display: flex; flex-direction: column; gap: 16px; margin-bottom: 16px; }
 .pila { display: grid; gap: 16px; min-width: 0; align-content: start; }
 /* Una pila senza riquadri non è una colonna: per un locale non ancora
-   attivo il credito AI non c'è, e la colonna di destra restava vuota
-   (rilievo del revisore, 11/11/2026). Sparendo, l'altra prende tutto. */
+   attivo il credito AI non c'era, e la colonna di destra restava vuota
+   (rilievo del revisore, 11/11/2026). Sparendo, l'altra prende tutto. Dal
+   12/11/2026 il credito ha la sua sezione (REQ-FLOTTA-084) e a destra c'è
+   sempre il riepilogo del piano; la regola resta per una pila che si
+   ritrovi senza riquadri. */
 .pila:empty { display: none; }
 .pila .card, .dashboard-piano .card { margin: 0; }
 .pila .card h3:first-child, .dashboard-piano .card h3:first-child { margin-top: 0; }
 .dashboard-piano { margin-bottom: 16px; }
+/* «Piano e moduli» (REQ-FLOTTA-084): la scelta del piano sotto la pila del
+   riquadro del piano, staccata come due riquadri qualsiasi. */
+.pila + .dashboard-piano { margin-top: 16px; }
 @media (min-width: 900px) {
   .dashboard-colonne { flex-direction: row; align-items: flex-start; gap: 20px; }
   .pila { gap: 20px; }
