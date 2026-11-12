@@ -6,6 +6,8 @@ data.
 
 ## Prossima release (da decidere)
 
+- I tre passi della prima pagina si chiamano «Pronto in 3 passi»
+  (REQ-FLOTTA-070).
 - Il carosello della prima pagina scorre da solo anche col mouse sulla
   pagina: aspetta solo sopra i suoi comandi. «Ferma i filmati» diventa un
   tasto di pausa e play, e la nota sui filmati generati è una postilla

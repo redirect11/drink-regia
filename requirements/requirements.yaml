@@ -3774,6 +3774,35 @@ requirements:
       - tests/Home.test.jsx
       - tests/HomeVendita.test.jsx
 
+  - id: REQ-FLOTTA-070
+    title: "I tre passi si chiamano «Pronto in 3 passi»"
+    area: "src/i18n/home.it.js, src/i18n/home.en.js"
+    description: >
+      Daniele, 12/11/2026, in chat: «Dalla registrazione alla prima comanda
+      cambialo in: Pronto in 3 passi: e per ora lasci il resto. Poi deve
+      essere vero che in 3 passi effettivamente è pronto».
+      CRITERI DI ACCETTAZIONE. (1) Il titolo della sezione dei passi è
+      «Pronto in 3 passi», in inglese «Ready in 3 steps». (2) I passi e i
+      loro testi restano come sono.
+      È VERO? (verifica del 12/11/2026). Dal lato del titolare i passi sono
+      tre: si registra, sceglie il piano, entra e lavora. Con l'attivazione
+      concordata, che è quella che il sito mostra quando pagamenti online e
+      Free sono spenti, il terzo passo lo dice: «Ci accordiamo sul
+      pagamento e attiviamo la tua installazione». Con l'attivazione
+      automatica il terzo passo dice «La tua installazione nasce da sola»,
+      e oggi non è vero: né la regia di test né quella di produzione hanno
+      un'Organizzazione Google Cloud (`ORG_ID` vuota), e senza il progetto
+      di ogni locale lo crea una persona a mano prima dell'attivazione
+      (infra/README.md, punto 4; provisiona-istanza.yml si ferma e lo
+      dice). Resta da decidere con Daniele: l'Organizzazione, o un testo
+      diverso per l'attivazione automatica.
+    status: implemented
+    generate_issue: true
+    labels: [prodotto, regia, home]
+    priority: P3
+    test_cases:
+      - tests/Home.test.jsx
+
   - id: REQ-FLOTTA-069
     title: "Il carosello scorre da solo anche col mouse sulla pagina; pausa e play con un tasto; la nota sui filmati più piccola"
     area: "src/pages/Home.jsx, src/i18n/home.it.js, src/i18n/home.en.js, src/index.css, DESIGN.md"
