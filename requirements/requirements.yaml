@@ -3803,6 +3803,41 @@ requirements:
     test_cases:
       - tests/Home.test.jsx
 
+  - id: REQ-FLOTTA-069
+    title: "Il carosello scorre da solo anche col mouse sulla pagina; pausa e play con un tasto; la nota sui filmati più piccola"
+    area: "src/pages/Home.jsx, src/i18n/home.it.js, src/i18n/home.en.js, src/index.css, DESIGN.md"
+    description: >
+      Daniele, 12/11/2026, in chat: «il carosello dovrebbe scorrere da solo
+      e invece di ferma i filmati e riprendi i filmati metti un tasto play
+      pausa. e la cosa dei video generati con AI deve essere ancora più
+      piccola e con un asterisco e in corsivo».
+      PERCHÉ NON SCORREVA: lo scorrimento aspettava col puntatore sopra
+      tutta la prima schermata (REQ-FLOTTA-061), e su un computer il mouse
+      è quasi sempre lì. E aspettava col fuoco dentro: dopo un clic su un
+      punto, o su «Fai ripartire i filmati», il fuoco resta sul bottone e
+      lo scorrimento restava fermo.
+      CRITERI DI ACCETTAZIONE. (1) Il puntatore sulla prima schermata
+      (titolo, filmato, scheda) non ferma lo scorrimento; lo ferma solo
+      sopra la parola e i comandi del carosello, e riparte quando esce. Il
+      tocco non lo ferma. (2) Il fuoco lasciato da un clic non lo ferma;
+      il fuoco da tastiera sulle frecce o sui punti sì, finché resta lì.
+      Il fuoco sul tasto di pausa e play non lo ferma: chi preme play
+      vuole che scorra. (3) Al posto di «Ferma i filmati» c'è un tasto
+      tondo come le frecce, con l'icona di pausa quando scorre e di play
+      quando è fermo; il nome per i lettori di schermo dice cosa fa
+      («Metti in pausa il carosello», «Fai ripartire il carosello»). Ferma
+      scorrimento e filmati, come prima. (4) La nota sui filmati comincia
+      con un asterisco, è in corsivo ed è più piccola delle altre note.
+      (5) Chi chiede meno movimento o di risparmiare dati resta come oggi:
+      prima diapositiva ferma, niente tasto, si scorre a mano.
+      (6) Italiano e inglese hanno le stesse voci.
+    status: implemented
+    generate_issue: true
+    labels: [prodotto, regia, home]
+    priority: P2
+    test_cases:
+      - tests/Home.test.jsx
+
   - id: REQ-FLOTTA-059
     title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"
     area: "functions/lib/eliminazione-cliente.js, functions/index.js (eliminaCliente), src/lib/db.js (eliminaCliente), src/pages/Backoffice.jsx (Elimina cliente…)"

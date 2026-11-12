@@ -61,6 +61,8 @@ const FUNZIONI = [
 // Le due funzioni più piccole, in una riga a due colonne: ognuna è un modulo.
 const MINORI = [{ id: 'staff' }, { id: 'sumup' }]
 const SPUNTA = 'M5 12l5 5 9-11'
+const PAUSA = 'M9 6v12M15 6v12'
+const PLAY = 'M8 5.5v13l10.5-6.5z'
 
 function Icona({ d, className = 'icona' }) {
   return (
@@ -139,8 +141,8 @@ function dueTempi(testo) {
 // QUANDO GIRANO. Chi chiede meno movimento (prefers-reduced-motion) o di
 // risparmiare dati vede il fermo immagine, che è anche quello che si vede
 // finché il codice non è partito: per questo il video non si scarica
-// prima. E chi li vede girare li può fermare, col bottone fra i comandi
-// del carosello, che ferma anche lo scorrimento:
+// prima. E chi li vede girare li può fermare, col tasto di pausa fra i
+// comandi del carosello, che ferma anche lo scorrimento:
 // partono da soli e non finiscono mai, e un movimento così accanto a un
 // testo deve potersi fermare (WCAG 2.2.2; rilievo del revisore, 11/11/2026).
 // `possibile` dice se il sistema li lascia girare, `acceso` se chi guarda
@@ -287,9 +289,12 @@ export default function Home({ utente, lingua = 'it' }) {
   // IL CAROSELLO. `scelto` è il gesto che si vede; se la vendita cambia a
   // pagina aperta e i gesti diventano meno, si resta sull'ultimo. Avanza
   // da solo finché i filmati girano (cioè: il sistema lo permette e
-  // nessuno ha premuto «Ferma»), e aspetta quando il puntatore o il fuoco
-  // sono sulla prima schermata: chi sta leggendo o usando i comandi non
-  // deve vedersi cambiare la diapositiva sotto le mani.
+  // nessuno ha premuto la pausa), e aspetta quando il puntatore è sopra la
+  // parola e i comandi, o quando ci arriva il fuoco da tastiera: chi li sta
+  // usando non deve vedersi cambiare la diapositiva sotto le mani.
+  // Prima aspettava col puntatore su tutta la prima schermata, e su un
+  // computer il mouse è quasi sempre lì: non scorreva mai (REQ-FLOTTA-069,
+  // Daniele, 12/11/2026: «il carosello dovrebbe scorrere da solo»).
   const [scelto, setScelto] = useState(0)
   // Due motivi per aspettare, ognuno col suo stato (rilievo del revisore,
   // 11/11/2026): con uno solo, l'ultimo evento vinceva, e il mouse che
@@ -298,6 +303,10 @@ export default function Home({ utente, lingua = 'it' }) {
   // «esce» mai, e lo scorrimento restava fermo per sempre.
   const [puntatoreSopra, setPuntatoreSopra] = useState(false)
   const [fuocoDentro, setFuocoDentro] = useState(false)
+  // Il fuoco che un clic lascia sul bottone non è qualcuno che legge: si
+  // riconosce dall'istante del clic appena prima. Senza, dopo un clic su un
+  // punto lo scorrimento restava fermo finché il fuoco non usciva.
+  const ultimoClic = useRef(-Infinity)
   const inPausa = puntatoreSopra || fuocoDentro
   const indice = Math.min(scelto, gesti.length - 1)
   const quanti = gesti.length
@@ -406,19 +415,12 @@ export default function Home({ utente, lingua = 'it' }) {
           davanti, ferme, le cose che non cambiano: cosa è, cosa fare e la
           scheda coi fatti. In basso la parola del gesto che si vede, la
           sua riga, e i comandi: indietro, avanti, i cinque
-          punti, e «Ferma i filmati» che ferma anche lo scorrimento.
+          punti, e il tasto di pausa e play, che ferma anche i filmati.
           Gira solo il filmato della diapositiva che si vede: gli altri
           sono fermi immagine, così non si scaricano cinque filmati
           insieme. La parola del gesto è annunciata ai lettori di schermo
           solo quando si cambia a mano, non a ogni giro. */}
-      <section
-        className="hero"
-        aria-labelledby="hero-titolo"
-        onPointerEnter={(e) => e.pointerType !== 'touch' && setPuntatoreSopra(true)}
-        onPointerLeave={() => setPuntatoreSopra(false)}
-        onFocus={() => setFuocoDentro(true)}
-        onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && setFuocoDentro(false)}
-      >
+      <section className="hero" aria-labelledby="hero-titolo">
         <div className="carosello" aria-hidden="true">
           <ol className="diapositive" style={{ transform: `translateX(-${indice * 100}%)` }}>
             {gesti.map((g, i) => (
@@ -462,7 +464,22 @@ export default function Home({ utente, lingua = 'it' }) {
           </aside>
         </div>
         <div className="contenitore">
-          <div id="gesti" className="gesti" role="group" aria-roledescription={t.gesti.carosello} aria-label={t.gesti.titolo}>
+          <div
+            id="gesti"
+            className="gesti"
+            role="group"
+            aria-roledescription={t.gesti.carosello}
+            aria-label={t.gesti.titolo}
+            onPointerEnter={(e) => e.pointerType !== 'touch' && setPuntatoreSopra(true)}
+            onPointerLeave={() => setPuntatoreSopra(false)}
+            onPointerDown={() => {
+              ultimoClic.current = Date.now()
+            }}
+            // Il tasto di pausa e play non fa aspettare: chi preme play vuole
+            // che scorra, anche se il fuoco resta lì.
+            onFocus={(e) => setFuocoDentro(Date.now() - ultimoClic.current > 500 && !e.target.closest('.gesto-pausa'))}
+            onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && setFuocoDentro(false)}
+          >
             <div className="gesto-testo" aria-live={scorre ? 'off' : 'polite'} aria-atomic="true">
               <p className="gesto-parola">{t.gesti.voci[gesto.id].parola}</p>
               <p className="gesto-riga">{rigaGesto(gesto)}</p>
@@ -488,8 +505,16 @@ export default function Home({ utente, lingua = 'it' }) {
                 <span aria-hidden="true">›</span>
               </button>
               {filmati.possibile && (
-                <button type="button" className="link ferma-filmati" aria-pressed={!filmati.girano} onClick={filmati.cambia}>
-                  {filmati.girano ? t.gesti.ferma : t.gesti.riprendi}
+                // Un tasto tondo come le frecce (REQ-FLOTTA-069, Daniele: «metti
+                // un tasto play pausa»). Il nome dice cosa fa adesso, e per
+                // questo non porta anche aria-pressed.
+                <button
+                  type="button"
+                  className="gesto-freccia gesto-pausa"
+                  aria-label={filmati.girano ? t.gesti.ferma : t.gesti.riprendi}
+                  onClick={filmati.cambia}
+                >
+                  <Icona d={filmati.girano ? PAUSA : PLAY} />
                 </button>
               )}
             </div>

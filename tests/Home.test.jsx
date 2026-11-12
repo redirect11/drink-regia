@@ -428,7 +428,10 @@ describe('la prima pagina', () => {
       expect(punti[2]).toHaveAttribute('aria-current', 'true')
     })
 
-    it('avanza da solo ogni quattro secondi; aspetta col puntatore o il fuoco sopra; «Ferma i filmati» ferma tutto', () => {
+    // REQ-FLOTTA-069 (Daniele, 12/11/2026: «il carosello dovrebbe scorrere
+    // da solo… metti un tasto play pausa»). Prima aspettava col mouse sopra
+    // tutta la prima schermata, cioè quasi sempre.
+    it('avanza da solo ogni quattro secondi; il mouse sulla schermata non lo ferma, sui comandi sì; il tasto pausa e play', () => {
       vi.useFakeTimers()
       conMovimento(false)
       mostra()
@@ -436,86 +439,106 @@ describe('la prima pagina', () => {
       expect(parola()).toBe('Ordina.')
       act(() => vi.advanceTimersByTime(4000))
       expect(parola()).toBe('Prepara.')
-      act(() => vi.advanceTimersByTime(4000))
-      expect(parola()).toBe('Incassa.')
-      // Col puntatore sopra non cambia sotto le mani di chi legge.
+      // Il mouse sul titolo o sul filmato non lo ferma.
       const hero = document.querySelector('.hero')
       fireEvent.pointerEnter(hero, { pointerType: 'mouse' })
+      act(() => vi.advanceTimersByTime(4000))
+      expect(parola()).toBe('Incassa.')
+      // Sopra la parola e i comandi sì: chi li usa non li vede cambiare.
+      fireEvent.pointerEnter(gruppo(), { pointerType: 'mouse' })
       act(() => vi.advanceTimersByTime(20000))
       expect(parola()).toBe('Incassa.')
-      fireEvent.pointerLeave(hero, { pointerType: 'mouse' })
+      fireEvent.pointerLeave(gruppo(), { pointerType: 'mouse' })
       act(() => vi.advanceTimersByTime(4000))
       expect(parola()).toBe('Conta.')
-      // Col fuoco su un comando, lo stesso; e riparte quando il fuoco esce.
-      const avanti = screen.getByRole('button', { name: it_.gesti.successiva })
-      fireEvent.focus(avanti)
-      act(() => vi.advanceTimersByTime(20000))
-      expect(parola()).toBe('Conta.')
-      fireEvent.blur(avanti)
-      act(() => vi.advanceTimersByTime(4000))
-      expect(parola()).toBe('Riordina.')
-      fireEvent.click(avanti)
-      fireEvent.click(avanti)
-      fireEvent.click(avanti)
-      fireEvent.click(avanti)
-      expect(parola()).toBe('Conta.')
-      // «Ferma i filmati» ferma scorrimento e filmati; a mano si scorre ancora.
-      const ferma = screen.getByRole('button', { name: it_.gesti.ferma })
-      expect(ferma).toHaveAttribute('aria-pressed', 'false')
-      fireEvent.click(ferma)
+      // Il tasto: un'icona tonda, col nome che dice cosa fa, senza testo a schermo.
+      const pausa = screen.getByRole('button', { name: it_.gesti.ferma })
+      expect(it_.gesti.ferma).toBe('Metti in pausa il carosello')
+      expect(pausa).toHaveClass('gesto-freccia')
+      expect(pausa).not.toHaveAttribute('aria-pressed')
+      expect(pausa.textContent.trim()).toBe('')
+      expect(pausa.querySelector('svg')).not.toBeNull()
+      expect(document.querySelector('.ferma-filmati')).toBeNull()
+      fireEvent.pointerDown(pausa, { pointerType: 'mouse' })
+      fireEvent.focus(pausa)
+      fireEvent.click(pausa)
+      // In pausa: niente filmati e niente scorrimento; a mano si scorre ancora.
       expect(document.querySelector('video')).toBeNull()
       act(() => vi.advanceTimersByTime(20000))
       expect(parola()).toBe('Conta.')
-      fireEvent.click(avanti)
+      fireEvent.click(screen.getByRole('button', { name: it_.gesti.successiva }))
       expect(parola()).toBe('Riordina.')
-      const riprendi = screen.getByRole('button', { name: it_.gesti.riprendi })
-      expect(riprendi).toHaveAttribute('aria-pressed', 'true')
-      fireEvent.click(riprendi)
+      // Play, anche da tastiera col fuoco che resta sul tasto: riparte.
+      const play = screen.getByRole('button', { name: it_.gesti.riprendi })
+      expect(it_.gesti.riprendi).toBe('Fai ripartire il carosello')
+      expect(play.querySelector('svg')).not.toBeNull()
+      fireEvent.focus(play)
+      fireEvent.click(play)
+      expect(document.querySelector('video')).not.toBeNull()
       act(() => vi.advanceTimersByTime(4000))
       expect(parola()).toBe('Ordina.')
     })
 
-    // Rilievi del revisore (11/11/2026). Puntatore e fuoco sono due motivi
-    // distinti per aspettare: uno che finisce non fa ripartire se l'altro
-    // dura. Il tocco non conta come puntatore sopra. E un cambio a mano fa
-    // ripartire il conto dei quattro secondi da capo.
-    it('puntatore e fuoco contano ognuno per sé; il tocco non ferma; un cambio a mano riparte da quattro secondi', () => {
+    // Rilievi del revisore (11/11/2026), rivisti con REQ-FLOTTA-069. Puntatore
+    // e fuoco sono due motivi distinti per aspettare: uno che finisce non fa
+    // ripartire se l'altro dura. Il fuoco conta solo da tastiera: quello che
+    // un clic lascia sul bottone fermava lo scorrimento per sempre. Il tocco
+    // non conta come puntatore sopra. E un cambio a mano riparte da capo.
+    it('puntatore e fuoco da tastiera contano ognuno per sé; il clic e il tocco non fermano; un cambio a mano riparte da quattro secondi', () => {
       vi.useFakeTimers()
       conMovimento(false)
       mostra()
       act(() => vi.advanceTimersByTime(0))
-      const hero = document.querySelector('.hero')
+      const comandi = gruppo()
       const avanti = screen.getByRole('button', { name: it_.gesti.successiva })
-      // Mouse sopra e fuoco su un comando; il mouse esce, il fuoco resta.
-      fireEvent.pointerEnter(hero, { pointerType: 'mouse' })
+      const indietro = screen.getByRole('button', { name: it_.gesti.precedente })
+      // Mouse sui comandi e fuoco da tastiera su un comando; il mouse esce, il fuoco resta.
+      fireEvent.pointerEnter(comandi, { pointerType: 'mouse' })
       fireEvent.focus(avanti)
-      fireEvent.pointerLeave(hero, { pointerType: 'mouse' })
+      fireEvent.pointerLeave(comandi, { pointerType: 'mouse' })
       act(() => vi.advanceTimersByTime(20000))
       expect(parola()).toBe('Ordina.')
-      // Il fuoco passa a un altro comando della stessa schermata: aspetta ancora.
-      const indietro = screen.getByRole('button', { name: it_.gesti.precedente })
+      // Il fuoco passa a un altro comando: aspetta ancora.
       fireEvent.blur(avanti, { relatedTarget: indietro })
       fireEvent.focus(indietro)
       act(() => vi.advanceTimersByTime(20000))
       expect(parola()).toBe('Ordina.')
       // Il fuoco esce col mouse di nuovo sopra: aspetta ancora.
-      fireEvent.pointerEnter(hero, { pointerType: 'mouse' })
+      fireEvent.pointerEnter(comandi, { pointerType: 'mouse' })
       fireEvent.blur(indietro)
       act(() => vi.advanceTimersByTime(20000))
       expect(parola()).toBe('Ordina.')
-      fireEvent.pointerLeave(hero, { pointerType: 'mouse' })
-      // Un dito sulla schermata non è un puntatore che resta sopra.
-      fireEvent.pointerEnter(hero, { pointerType: 'touch' })
+      fireEvent.pointerLeave(comandi, { pointerType: 'mouse' })
+      // Un dito sui comandi non è un puntatore che resta sopra.
+      fireEvent.pointerEnter(comandi, { pointerType: 'touch' })
       act(() => vi.advanceTimersByTime(4000))
       expect(parola()).toBe('Prepara.')
-      // A metà del giro si cambia a mano: la nuova resta quattro secondi interi.
+      // A metà del giro un clic su un punto: il fuoco che il clic lascia non
+      // ferma, e la nuova diapositiva resta quattro secondi interi.
       act(() => vi.advanceTimersByTime(2000))
-      fireEvent.click(screen.getAllByRole('button', { name: /Gesto \d di 5/ })[3])
+      const punto = screen.getAllByRole('button', { name: /Gesto \d di 5/ })[3]
+      fireEvent.pointerDown(punto, { pointerType: 'mouse' })
+      fireEvent.focus(punto)
+      fireEvent.click(punto)
       expect(parola()).toBe('Conta.')
       act(() => vi.advanceTimersByTime(3000))
       expect(parola()).toBe('Conta.')
       act(() => vi.advanceTimersByTime(1000))
       expect(parola()).toBe('Riordina.')
+    })
+
+    // REQ-FLOTTA-069, criterio 4 (Daniele: «ancora più piccola e con un
+    // asterisco e in corsivo»). happy-dom non calcola gli stili: la regola
+    // si tiene nel foglio di stile.
+    it('la nota sui filmati comincia con un asterisco, piccola e in corsivo', () => {
+      conMovimento(true)
+      mostra()
+      const nota = document.querySelector('.nota-filmati')
+      expect(nota).toHaveTextContent(it_.gesti.nota)
+      expect(it_.gesti.nota).toMatch(/^\* I filmati/)
+      expect(en.gesti.nota).toMatch(/^\* The videos/)
+      const css = readFileSync(join(import.meta.dirname, '..', 'src', 'index.css'), 'utf8').replace(/\r\n/g, '\n')
+      expect(css).toMatch(/\.nota-filmati \{[^}]*font-size: 0\.75rem;[^}]*font-style: italic;/)
     })
 
     it('scorrendo, l’h1 resta uno e lo stesso', () => {

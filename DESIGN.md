@@ -173,8 +173,9 @@ frasi riportate nel registro (REQ-FLOTTA-060).
   «Incassa» non promettono il menù con QR o il lettore di carte, e
   «Conta», che ha due moduli, ha una frase per modulo: si legge solo
   quella del modulo in vendita.
-- **I filmati si possono fermare**: sotto i gesti c'è «Ferma i filmati»,
-  che li sostituisce coi fermi immagine e poi li fa ripartire. Partono da
+- **I filmati si possono fermare**: fra i comandi dei gesti c'è il tasto
+  di pausa e play, che li sostituisce coi fermi immagine e poi li fa
+  ripartire. Partono da
   soli e non finiscono, e un movimento così accanto a un testo deve
   potersi fermare (WCAG 2.2.2).
 - **Le funzioni** (§5.4) restano prima dei prezzi, più corte: «Cosa
@@ -203,10 +204,14 @@ cosa comprende dovrebbero essere sempre aperti».
 - **In basso** la parola del gesto che si vede, con l'iniziale lime, e una
   frase sola. Niente etichette di piani o moduli: chi guarda deve prima
   capire di cosa si parla. Accanto i comandi: indietro, avanti, cinque punti
-  (quello acceso è una lineetta lime) e «Ferma i filmati».
-- **Lo scorrimento aspetta** quando il puntatore o il fuoco sono sulla
-  prima schermata, e si ferma del tutto con «Ferma i filmati». Chi ha
+  (quello acceso è una lineetta lime) e il tasto tondo di pausa e play.
+- **Lo scorrimento aspetta** col puntatore sopra la parola e i comandi, o
+  col fuoco da tastiera su un comando, e si ferma del tutto con la pausa.
+  Il mouse sul resto della prima schermata non lo ferma: prima sì, e su
+  un computer non scorreva mai (REQ-FLOTTA-069, 12/11/2026). Chi ha
   chiesto meno movimento vede la prima diapositiva ferma e scorre a mano.
+- **La nota sui filmati generati** è una postilla: comincia con un
+  asterisco, in corsivo, più piccola delle altre note.
 - **Gira un filmato solo**, quello della diapositiva visibile; gli altri
   sono fermi immagine.
 - **Per i lettori di schermo** la fila dei filmati è nascosta; la parola
