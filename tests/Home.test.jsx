@@ -91,7 +91,9 @@ describe('la prima pagina', () => {
     expect(document.getElementById('pilastri')).toBeNull()
     expect(it_.problema).toBeUndefined()
     expect(it_.pilastri).toBeUndefined()
-    expect(screen.getByRole('heading', { name: 'Dalla registrazione alla prima comanda' })).toBeInTheDocument()
+    // REQ-FLOTTA-070 (Daniele, 12/11/2026: «cambialo in: Pronto in 3 passi»).
+    expect(screen.getByRole('heading', { name: 'Pronto in 3 passi' })).toBeInTheDocument()
+    expect(en.passi.titolo).toBe('Ready in 3 steps')
     expect(screen.getByRole('heading', { name: 'Domande frequenti' })).toBeInTheDocument()
     // Le domande si aprono una per una.
     expect(screen.getByText('Lo scontrino è fiscale?').closest('details')).not.toBeNull()
