@@ -20,7 +20,7 @@ const { onDocumentCreated, onDocumentUpdated, onDocumentWritten } = require('fir
 const { onRequest } = require('firebase-functions/v2/https')
 const { defineSecret } = require('firebase-functions/params')
 const eventiStripe = require('./lib/eventistripe.js')
-const { initializeApp } = require('firebase-admin/app')
+const { initializeApp, applicationDefault } = require('firebase-admin/app')
 const { getFirestore } = require('firebase-admin/firestore')
 const { simulazioneAmmessa, documentoSimulato, preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, eAggiornamento, documentoIstanza, documentoAggiornamento, vincoliEsito, bearerValido, segretoUsabile } = require('./lib/provisioning.js')
 const rilasci = require('./lib/rilasci.js')
@@ -38,6 +38,7 @@ const taglio = require('./lib/taglio.js')
 const { initializeApp: initializeAppCon, getApps } = require('firebase-admin/app')
 const { getAuth } = require('firebase-admin/auth')
 const ai = require('./lib/ai.js')
+const chiaveLocale = require('./lib/chiave-locale.js')
 const elim = require('./lib/eliminazione.js')
 const conserva = require('./lib/conservazione.js')
 const presenta = require('./lib/presentazione.js')
@@ -2444,8 +2445,20 @@ exports.gestisciCassettoAI = onCall(OPTS, async (req) => {
   if (azione === 'chiave') {
     const { bearer, impronta } = ai.nuovaChiave(slug)
     await db.doc(`ai/${slug}/riservato/chiave`).set({ impronta, creata_il: ora, da: req.auth.uid })
-    await ref.update({ chiave_creata_il: ora })
-    return { ok: true, chiave: bearer }
+    // LA CHIAVE NEL LOCALE (REQ-FLOTTA-076): la regia la scrive da sé nel
+    // segreto REGIA_AI_KEY del progetto del locale. Se non può, la chiave
+    // nasce lo stesso e il backoffice dice perché.
+    const ist = (await db.doc(`istanze/${slug}`).get()).data() || null
+    const dove = chiaveLocale.doveScrivere(ist)
+    let nelLocale = { scritta: false, perche: dove.perche }
+    if (dove.ok) {
+      nelLocale = await applicationDefault()
+        .getAccessToken()
+        .then(({ access_token: token }) => chiaveLocale.scriviChiave({ progetto: dove.progetto, chiave: bearer, token, fetch }))
+        .catch((e) => ({ scritta: false, perche: `Non sono riuscito a scriverla: ${String(e?.message || e).slice(0, 160)}` }))
+    }
+    await ref.update({ chiave_creata_il: ora, chiave_nel_locale_il: nelLocale.scritta ? ora : null })
+    return { ok: true, chiave: bearer, nel_locale: nelLocale, progetto: dove.progetto }
   }
   throw new HttpsError('invalid-argument', 'Azione sconosciuta.')
 })

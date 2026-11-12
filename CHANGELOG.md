@@ -6,6 +6,9 @@ data.
 
 ## Prossima release (da decidere)
 
+- La «Chiave AI» creata dal backoffice la regia la scrive da sé nel
+  segreto del locale, col permesso minimo; se non può, dice perché e come
+  farlo a mano (REQ-FLOTTA-076).
 - I workflow della flotta preparano l'AI del locale: il segreto
   REGIA_AI_KEY, col segnaposto se manca, e la regia da chiamare nel .env
   delle Functions (REQ-FLOTTA-075).

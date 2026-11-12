@@ -4010,6 +4010,41 @@ requirements:
     test_cases:
       - tests/Home.test.jsx
 
+  - id: REQ-FLOTTA-076
+    title: "La «Chiave AI» creata dal backoffice la regia la scrive da sé nel segreto del locale"
+    area: "functions/lib/chiave-locale.js, functions/index.js (gestisciCassettoAI), infra/istanza/main.tf, src/pages/Backoffice.jsx"
+    description: >
+      Il seguito di REQ-FLOTTA-075. La «Chiave AI» di un locale (REQ-AI-003)
+      si vede una volta sola nel backoffice, e andava copiata a mano nel
+      segreto REGIA_AI_KEY del progetto del locale. Alla proposta di farla
+      scrivere alla regia nel momento in cui la crea, Daniele, 12/11/2026:
+      «si procedi».
+      CRITERI DI ACCETTAZIONE. (1) Creata la chiave, la regia aggiunge una
+      versione nuova al segreto REGIA_AI_KEY del progetto del locale, con
+      le API di Secret Manager e l'account con cui girano le sue Functions.
+      (2) Il permesso è il minimo: `roles/secretmanager.secretVersionAdder`
+      sul progetto del locale, con una condizione che lo limita al segreto
+      REGIA_AI_KEY. La regia non legge i segreti del locale e non tocca gli
+      altri (SUMUP_API_KEY). Lo dà il Terraform del locale: i locali nuovi
+      lo hanno subito, quelli attivi al prossimo «Aggiorna». (3) Non si
+      scrive dove non serve o non si può: locale senza installazione,
+      simulato, esistente (la Tana tiene i suoi segreti), senza progetto,
+      col profilo leggero (il Free non ha le Functions). (4) Se Google
+      rifiuta, la chiave nasce lo stesso e il backoffice dice perché: senza
+      permesso (arriva col prossimo «Aggiorna»), segreto che non c'è ancora
+      (arriva col primo «Aggiorna» con l'app che usa l'AI), altro. In quei
+      casi mostra il comando per scriverla a mano. (5) Scritta, il
+      backoffice lo dice e ricorda di premere «Aggiorna»: le Functions del
+      locale leggono la versione nuova al deploy dopo. (6) La regia non
+      tiene la chiave intera: solo l'impronta, come prima.
+    status: implemented
+    generate_issue: true
+    labels: [flotta, regia, ai, backoffice]
+    priority: P2
+    test_cases:
+      - tests/chiave-locale.test.js
+      - tests/Backoffice.test.jsx
+
   - id: REQ-FLOTTA-075
     title: "I workflow preparano l'AI del locale: il segreto REGIA_AI_KEY e REGIA_PROGETTO nel .env delle Functions"
     area: ".github/workflows/provisiona-istanza.yml, .github/workflows/aggiorna-istanza.yml"
