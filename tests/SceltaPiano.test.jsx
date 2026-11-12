@@ -215,11 +215,86 @@ describe('la scelta del piano', () => {
     expect(screen.queryByLabelText(/^Free/)).toBeNull()
   })
 
-  it('un cliente Free che passa a pagamento parte dal Base', () => {
-    stato.vendita = venditaPulita({ free: true })
-    render(<SceltaPiano cliente={{ uid: 'u1', piano: 'free' }} />)
-    expect(screen.getByLabelText(/Base/)).toBeChecked()
-    expect(screen.queryByLabelText(/^Free/)).toBeNull()
+  // REQ-FLOTTA-084 (Daniele, 12/11/2026: «nella sua dashboard ha come
+  // piano selezionato il base ma invece è il free che non c'è nelle
+  // opzioni»). Fino ad allora qui si controllava il contrario: il Free del
+  // cliente tolto dalle opzioni e la scelta che partiva dal Base. Ora il
+  // piano attuale c'è, come «Il tuo piano», ed è quello scelto.
+  const FREE_ATTIVO = { uid: 'u1', piano: 'free', abbonamento: { stato: 'attivo', origine: 'gratuito' } }
+  const tasto = () => screen.getAllByRole('button').at(-1)
+
+  it('un cliente Free vede il suo Free come «Il tuo piano», scelto; il tasto si accende scegliendo un piano a pagamento', async () => {
+    const user = userEvent.setup()
+    // Il Free fuori vendita: c'è lo stesso, perché è il suo.
+    stato.vendita = venditaPulita({ pagamenti_online: true, free: false })
+    render(<SceltaPiano cliente={FREE_ATTIVO} vai={vi.fn()} />)
+    const free = screen.getByRole('radio', { name: /^Free/ })
+    expect(free).toBeChecked()
+    expect(free.closest('label')).toHaveTextContent('Il tuo piano')
+    expect(screen.getByRole('radio', { name: /^Base/ }).closest('label')).not.toHaveTextContent('Il tuo piano')
+    expect(tasto()).toBeDisabled()
+    expect(db.scegliFree).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('radio', { name: /^Base/ }))
+    expect(screen.getByRole('button', { name: 'Vai al pagamento' })).toBeEnabled()
+    // Tornando al Free il tasto si spegne di nuovo.
+    await user.click(free)
+    expect(tasto()).toBeDisabled()
+  })
+
+  it('col Free in vendita il cliente Free lo vede una volta sola, come «Il tuo piano»', () => {
+    stato.vendita = venditaPulita({ pagamenti_online: true, free: true })
+    render(<SceltaPiano cliente={FREE_ATTIVO} />)
+    expect(screen.getAllByRole('radio', { name: /^Free/ })).toHaveLength(1)
+    expect(screen.getByRole('radio', { name: /^Free/ })).toBeChecked()
+    expect(screen.getAllByText('Il tuo piano')).toHaveLength(1)
+  })
+
+  it('chi non ha un piano non ha «Il tuo piano», parte dal Base e il tasto è acceso', () => {
+    render(<SceltaPiano cliente={{ uid: 'u1' }} />)
+    expect(screen.queryByText('Il tuo piano')).toBeNull()
+    expect(screen.getByRole('radio', { name: /^Base/ })).toBeChecked()
+    expect(screen.getByRole('button', { name: 'Vai al pagamento' })).toBeEnabled()
+  })
+
+  it('un piano non più attivo non è «Il tuo piano»: chi rinnova riparte da quello e il tasto è acceso', () => {
+    render(<SceltaPiano cliente={{ uid: 'u1', piano: 'completo', abbonamento: { stato: 'non pagato', origine: 'stripe' } }} />)
+    expect(screen.queryByText('Il tuo piano')).toBeNull()
+    expect(screen.getByRole('radio', { name: /^Completo/ })).toBeChecked()
+    expect(screen.getByRole('button', { name: 'Vai al pagamento' })).toBeEnabled()
+  })
+
+  it('in modifica il piano a pagamento attuale è «Il tuo piano»; il tasto si accende con piano, moduli, terminali o pagamento diversi', async () => {
+    const user = userEvent.setup()
+    render(<SceltaPiano cliente={{ uid: 'u1', piano: 'base', moduli: ['staff'], terminali: 1, abbonamento: { stato: 'attivo', origine: 'stripe' } }} modifica />)
+    const base = screen.getByRole('radio', { name: /^Base/ })
+    expect(base).toBeChecked()
+    expect(base.closest('label')).toHaveTextContent('Il tuo piano')
+    const aggiorna = screen.getByRole('button', { name: 'Aggiorna il piano' })
+    expect(aggiorna).toBeDisabled()
+    // Un modulo in più, poi tolto: si riaccende e si rispegne.
+    const sumup = screen.getByLabelText(/Pagamenti con lettore SumUp/)
+    await user.click(sumup)
+    expect(aggiorna).toBeEnabled()
+    await user.click(sumup)
+    expect(aggiorna).toBeDisabled()
+    // Un modulo che aveva, tolto e rimesso.
+    await user.click(screen.getByLabelText(/Personale e ore/))
+    expect(aggiorna).toBeEnabled()
+    await user.click(screen.getByLabelText(/Personale e ore/))
+    expect(aggiorna).toBeDisabled()
+    // I terminali.
+    fireEvent.change(screen.getByLabelText(/Terminali/), { target: { value: '5' } })
+    expect(aggiorna).toBeEnabled()
+    fireEvent.change(screen.getByLabelText(/Terminali/), { target: { value: '1' } })
+    expect(aggiorna).toBeDisabled()
+    // Il pagamento.
+    await user.click(screen.getByLabelText(/Un anno in anticipo/))
+    expect(aggiorna).toBeEnabled()
+    await user.click(screen.getByLabelText('Ogni mese'))
+    expect(aggiorna).toBeDisabled()
+    // Il piano.
+    await user.click(screen.getByRole('radio', { name: /^Completo/ }))
+    expect(aggiorna).toBeEnabled()
   })
 
   it('un modulo fuori vendita non si mostra, ma chi lo ha già lo vede', () => {

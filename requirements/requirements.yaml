@@ -4322,6 +4322,62 @@ requirements:
     test_cases:
       - tests/Backoffice.test.jsx
 
+  - id: REQ-FLOTTA-084
+    title: "L'area del titolare in sezioni col sotto-menù, e il cliente Free vede il suo piano fra le opzioni"
+    area: "src/App.jsx (/dashboard/*), src/lib/areaTitolare.js, src/pages/Dashboard.jsx, src/pages/IlLocale.jsx, src/pages/SceltaPiano.jsx, src/index.css"
+    description: >
+      Daniele, 12/11/2026, dopo aver provato un locale Free: «prova free,
+      nella sua dashboard ha come piano selezionato il base ma invece è il
+      free che non c'è nelle opzioni della dashboard e va messo. E poi quel
+      box non dovrebbe essere messo nella dashboard, o meglio da qualche
+      altra parte nel backoffice del titolare di un locale. Non basta solo
+      la dashboard.» Alla struttura proposta (le cinque sezioni qui sotto):
+      «ti do l'ok per la struttura dell'area del titolare e procedi».
+      IL DIFETTO: la scelta del piano toglieva dalle opzioni il piano Free
+      del cliente e partiva dal Base, così sembrava che il suo piano fosse
+      il Base.
+      CRITERI DI ACCETTAZIONE. (1) L'area del titolare è una pagina con un
+      sotto-menù, come il backoffice: «Panoramica» (/dashboard), «Piano e
+      moduli» (/dashboard/piano), «Credito AI» (/dashboard/credito-ai), «Il
+      locale» (/dashboard/locale), «Chiudi il locale» (/dashboard/chiudi);
+      ogni voce porta alla sua sezione, la voce attiva lo dice
+      (aria-current), un indirizzo che non c'è torna alla panoramica. Il
+      link «Dashboard» della barra porta a /dashboard; l'accesso resta
+      quello di prima (chi non è entrato va ad «Accedi», col sito chiuso un
+      account senza locale vede l'anteprima). I dati (cliente, istanza,
+      richiesta) si leggono una volta nella pagina e passano alle sezioni.
+      (2) La panoramica ha l'avviso dell'email da confermare, la
+      cancellazione programmata in cima, lo stato del locale e il riquadro
+      «L'app» con «Apri la tua app», e un riepilogo del piano con un link
+      a «Piano e moduli». Il riquadro «Piano» e la scelta del piano stanno
+      in «Piano e moduli» e non più nella panoramica. Il ritorno da Stripe
+      (?pagamento=… e ?ricarica=…) porta alla sezione dove se ne parla.
+      (3) Nella scelta del piano il piano attuale del cliente (abbonamento
+      attivo, o il cambio di un abbonamento a pagamento) compare fra le
+      opzioni come «Il tuo piano», anche il Free quando non è in vendita,
+      ed è quello scelto all'inizio. Il tasto si accende solo quando la
+      scelta è diversa dal piano attuale: un altro piano, o per un piano a
+      pagamento moduli, terminali o pagamento diversi. Restano come prima
+      il cliente senza piano (parte dal Base), il cambio di un abbonamento
+      a pagamento (senza il Free), il Free in vendita, il codice sconto, la
+      richiesta di contatto e le stampanti (REQ-FLOTTA-081).
+      (4) «Il locale» mostra in sola lettura i dati che la regia ha nella
+      scheda del cliente: nome, tipo, indirizzo, telefono e sito del
+      locale; dati di fatturazione; referente; le stampanti se ci sono; e
+      come chiederne la modifica (l'email dei contatti), perché oggi il
+      sito non ha un modo di cambiarli. (5) «Chiudi il locale» è la
+      chiusura e cancellazione di prima (REQ-FLOTTA-014).
+      COSA NON C'È: la modifica dei dati del locale dal sito; la versione
+      inglese, perché l'area del titolare è solo in italiano (DESIGN.md §6).
+    status: todo
+    generate_issue: true
+    labels: [prodotto, regia, dashboard]
+    priority: P2
+    test_cases:
+      - tests/AreaTitolare.test.jsx
+      - tests/Dashboard.test.jsx
+      - tests/SceltaPiano.test.jsx
+
   - id: REQ-FLOTTA-059
     title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"
     area: "functions/lib/eliminazione-cliente.js, functions/index.js (eliminaCliente), src/lib/db.js (eliminaCliente), src/pages/Backoffice.jsx (Elimina cliente…)"
