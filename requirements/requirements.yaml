@@ -4324,7 +4324,7 @@ requirements:
 
   - id: REQ-FLOTTA-083
     title: "Un account per persona: chi si registra non usa un'email col «+», né una variante di un'email che ha già un account"
-    area: "functions/lib/registrazione.js (emailNorma, registraCliente), functions/index.js (creaCliente), src/lib/validazione.js, src/pages/Registrati.jsx, scripts/email-norma.mjs"
+    area: "functions/lib/registrazione.js (emailNorma, emailDaAllineare, registraCliente), functions/index.js (creaCliente, allineaEmail), src/lib/validazione.js, src/pages/Registrati.jsx, src/pages/Backoffice.jsx (Allinea le email)"
     description: >
       Daniele, 12/11/2026, scoperto che con `nome+qualcosa@gmail.com` si
       registrano quanti locali si vuole: «le possiamo usare noi per test
@@ -4341,8 +4341,17 @@ requirements:
       quello.», nella stessa transazione che controlla lo slug. (4) L'admin
       dal backoffice («Nuovo locale») può ancora usare il «+», per le prove:
       quei clienti non riservano la forma base. (5) Per i clienti nati
-      prima c'è uno script che scrive la forma base, solo dove manca e solo
-      senza «+».
+      prima, nel backoffice (sezione «Rilasci», accanto a «Scadenze») c'è
+      «Allinea le email», solo per l'admin: la regia scrive la forma base
+      dove manca e mai per un'email col «+», e dice quanti clienti ha
+      allineato; rifatto non cambia niente. Daniele, 13/11/2026, sullo
+      script da lanciare con le sue credenziali: «Come faccio a darti il
+      permesso di farlo tu? … non ho accesso al pc … e non posso usare il
+      terminale»: lo fa la regia, dal browser.
+      DA TOGLIERE DOPO (Daniele, 13/11/2026: «dopo che l'ho fatto togliamo
+      sta funzione che non servirà più»): quando «Allinea le email» è stato
+      premuto sul test e in produzione, la Function allineaEmail e il suo
+      riquadro si tolgono, con una voce a parte.
       Il resto della richiesta di Daniele (più locali per un account a
       pagamento, un solo Free) è un lavoro a parte, da progettare.
     status: implemented

@@ -72,6 +72,7 @@ const db = vi.hoisted(() => ({
   gestisciSconti: vi.fn(async () => ({ ok: true })),
   applicaSconto: vi.fn(async () => ({ ok: true })),
   programmaScadenze: vi.fn(async () => ({ ok: true, programmati: 3, errori: [] })),
+  allineaEmail: vi.fn(async () => ({ ok: true, allineati: 2, totale: 5 })),
   // I temi dei locali (REQ-FLOTTA-039).
   impostaTemi: vi.fn(async () => ({ ok: true })),
   temiDelLocale: vi.fn(async () => ({ stili_installati: [], temi_installati: [], stile_menu: null })),
@@ -1382,6 +1383,16 @@ describe('le scadenze nel backoffice', () => {
     await user.click(within(riquadro).getByRole('button', { name: 'Programma le scadenze' }))
     expect(db.programmaScadenze).toHaveBeenCalled()
     expect(await within(riquadro).findByRole('status')).toHaveTextContent('Programmate 3 scadenze.')
+  })
+
+  // REQ-FLOTTA-083 (Daniele, 13/11/2026: «non posso usare il terminale»).
+  it('le email dei clienti di prima si allineano una volta, e si dice quante', async () => {
+    const user = userEvent.setup()
+    mostra('/backoffice/rilasci')
+    const riquadro = await screen.findByRole('region', { name: 'Email dei clienti' })
+    await user.click(within(riquadro).getByRole('button', { name: 'Allinea le email' }))
+    expect(db.allineaEmail).toHaveBeenCalled()
+    expect(await within(riquadro).findByRole('status')).toHaveTextContent('Allineati 2 clienti su 5.')
   })
 })
 

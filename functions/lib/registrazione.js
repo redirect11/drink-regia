@@ -193,4 +193,9 @@ async function registraCliente(db, { uid, email, dati, adesso = new Date() }) {
   return cliente
 }
 
-module.exports = { emailNorma, EMAIL_CON_PIU, EMAIL_IN_USO, SLUG_VALIDO, RISERVATI, problemaSlug, RegistrazioneRifiutata, SLUG_IN_USO, nuovoCliente, documentoRegistrazione, SlugAmbiguo, clientePerSlug, registraCliente }
+// I clienti nati prima di REQ-FLOTTA-083 non hanno la forma base: quelli da
+// allineare, mai un'email col «+» (le prove dell'admin).
+const emailDaAllineare = (clienti) =>
+  clienti.filter((c) => !c.email_norma && c.email && !conPiu(c.email)).map((c) => ({ id: c.id, email_norma: emailNorma(c.email) }))
+
+module.exports = { emailNorma, emailDaAllineare, EMAIL_CON_PIU, EMAIL_IN_USO, SLUG_VALIDO, RISERVATI, problemaSlug, RegistrazioneRifiutata, SLUG_IN_USO, nuovoCliente, documentoRegistrazione, SlugAmbiguo, clientePerSlug, registraCliente }

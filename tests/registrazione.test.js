@@ -263,9 +263,17 @@ describe('le email col «+» e le varianti di un account che c’è già', () =>
     const crea = codice.slice(codice.indexOf('exports.creaCliente = '), codice.indexOf('exports.', codice.indexOf('exports.creaCliente = ') + 10))
     expect(crea).toContain("...(String(email).includes('+') ? {} : { email_norma: registrazione.emailNorma(email) })")
   })
-  it('lo script per i clienti di prima scrive la forma base solo dove manca e senza «+»', () => {
-    const script = readFileSync('scripts/email-norma.mjs', 'utf8')
-    expect(script).toContain('emailNorma')
-    expect(script).toMatch(/if \(c\.email_norma \|\| !c\.email \|\| String\(c\.email\)\.includes\('\+'\)\) continue/)
+  // Daniele, 13/11/2026: «non posso usare il terminale»: lo fa la regia.
+  it('i clienti di prima: la forma base solo dove manca, mai col «+», e lo fa l’admin dal backoffice', () => {
+    expect(r.emailDaAllineare([
+      { id: 'a', email: 'Mario.Rossi@gmail.com' },
+      { id: 'b', email: 'luca@bar.it', email_norma: 'luca@bar.it' },
+      { id: 'c', email: 'prova+free@gmail.com' },
+      { id: 'd' },
+    ])).toEqual([{ id: 'a', email_norma: 'mariorossi@gmail.com' }])
+    const codice = readFileSync('functions/index.js', 'utf8').replace(/\r\n/g, '\n')
+    const allinea = codice.slice(codice.indexOf('exports.allineaEmail = '), codice.indexOf('exports.', codice.indexOf('exports.allineaEmail = ') + 10))
+    expect(allinea).toContain("if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied'")
+    expect(allinea).toContain('registrazione.emailDaAllineare(')
   })
 })
