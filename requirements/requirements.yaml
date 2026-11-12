@@ -3551,6 +3551,52 @@ requirements:
       - tests/db.test.js
       - tests/Backoffice.test.jsx
 
+  - id: REQ-FLOTTA-065
+    title: "Il tipo di locale arriva all'app: la regia lo passa a genera-cliente.mjs solo se l'app dice di saperlo leggere"
+    area: ".github/workflows/provisiona-istanza.yml, .github/workflows/aggiorna-istanza.yml, functions/lib/registrazione.js, docs/flotta-nella-regia.md"
+    description: >
+      Decisione di Daniele del 05/11/2026: un prodotto solo, lancio sui
+      bar, in futuro anche ristoranti e pizzerie, a partire dai testi.
+      Arrivato dal messaggio del CEO-agente di Stonebit («testi pronti
+      per il profilo del locale»), e deciso in chat il 12/11/2026 in tre
+      punti: (1) in tana-drink solo la richiesta (fatta: ramo
+      feature/tipo-locale, REQ-VENUE-007, docs/tipo-locale.md); (2) nella
+      regia il tipo di locale si passa all'app solo se l'app dice di
+      saperlo leggere, così con un'app vecchia non cambia niente e
+      nessuna creazione di locale si rompe; (3) tutti i tipi vanno a
+      «bar» finché Daniele non decide altrimenti, e il tipo scelto alla
+      registrazione resta salvato com'è. Daniele: «ok con il punto 1, poi
+      vai con 2 e 3». Il nome è «tipo di locale» e non «profilo»: nella
+      regia «profilo» è già il tipo di installazione (completo o
+      leggero, il Free).
+      CRITERI DI ACCETTAZIONE. (1) I due workflow che costruiscono l'app
+      di un locale chiedono all'app `node scripts/genera-cliente.mjs --sa
+      tipo-locale`; se risponde con 0 ed elenca il tipo da mandare, lo
+      lanciano con `--tipo-locale`; altrimenti lo lanciano come prima,
+      senza. (2) La domanda gira nel job `compila`, l'unico senza
+      environment e senza secret (il codice di tana-drink non gira
+      altrove). (3) Il tipo mandato è sempre `bar`, scritto una volta
+      sola nel workflow. (4) Un'app che risponde con 0 ma non elenca
+      `bar` riceve la chiamata di prima. (5) In aggiorna-istanza un
+      cliente curato a mano (cartella già presente) resta com'è: lo
+      script non si lancia. (6) Il tipo scelto alla registrazione resta
+      nella scheda del cliente com'è, anche «pizzeria» o «ristorante».
+      (7) Il comportamento si prova lanciando il passo del workflow con
+      un genera-cliente.mjs finto, vecchio e nuovo.
+      VERIFICATO il 12/11/2026 sulla versione vera di oggi:
+      genera-cliente.mjs di tana-drink develop, alla domanda `--sa
+      tipo-locale`, esce con 1 (manca --slug), quindi la regia lo lancia
+      come prima. Su main di tana-drink lo script non c'è ancora: lì la
+      regia si ferma prima, come oggi. Finché tana-drink non fa
+      REQ-VENUE-007 nessuna app riceve il tipo, e nessuna cambia.
+    status: implemented
+    generate_issue: true
+    labels: [prodotto, flotta, regia]
+    priority: P2
+    test_cases:
+      - tests/flotta.test.js
+      - tests/registrazione.test.js
+
   - id: REQ-FLOTTA-059
     title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"
     area: "functions/lib/eliminazione-cliente.js, functions/index.js (eliminaCliente), src/lib/db.js (eliminaCliente), src/pages/Backoffice.jsx (Elimina cliente…)"
