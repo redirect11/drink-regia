@@ -289,10 +289,15 @@ describe('aggiorna-istanza.yml: un locale esistente, come la Tana', () => {
   // riscrivere il resto.
   it('il .env delle Functions che tana-drink ha già non si riscrive: gli si aggiunge REGIA_PROGETTO se manca', () => {
     const run = passo(aggiorna, 'Functions .env del progetto').run
-    expect(run).toMatch(/if \[ -f "app\/functions\/\.env\.\$PROGETTO" \]; then\n/)
+    // Il file che c'è già si guarda per primo, per tutti, demo compresa.
+    expect(run).toMatch(/^if \[ -f "app\/functions\/\.env\.\$PROGETTO" \]; then\n/)
     expect(run).toContain(`grep -q '^REGIA_PROGETTO=' "app/functions/.env.$PROGETTO" || printf 'REGIA_PROGETTO=%s\\n' "$REGIA_PROGETTO" >> "app/functions/.env.$PROGETTO"`)
     expect(run).toContain(`printf 'VENUE_NAME=%s\\nREGIA_PROGETTO=%s\\n' "$NOME" "$REGIA_PROGETTO" > "app/functions/.env.$PROGETTO"`)
-    expect(run).not.toMatch(/> "app\/functions\/\.env\.\$PROGETTO"[^\n]*\n[^\n]*exit 0/)
+    // Dentro quel ramo solo un'aggiunta, mai una riscrittura, e poi si esce.
+    const giaCe = run.slice(0, run.indexOf('\nfi\n'))
+    expect(giaCe).toContain('>> "app/functions/.env.$PROGETTO"')
+    expect(giaCe).not.toMatch(/[^>]> "app\/functions/)
+    expect(giaCe).toMatch(/exit 0$/)
   })
 })
 
@@ -907,6 +912,9 @@ describe('il .env delle Functions del locale dice qual è la sua regia', () => {
   it('aggiorna-istanza.yml: la stessa regia, e la demo no', () => {
     const p = passo(aggiorna, 'Functions .env del progetto')
     expect(p.env.REGIA_PROGETTO).toBe(`\${{ inputs.progetto != 'drinkpos-demo' && (inputs.ambiente == 'test' && 'drink-regia-test' || 'drink-regia') || '' }}`)
-    expect(p.run).toMatch(/^if \[ -z "\$REGIA_PROGETTO" \]; then[^\n]*exit 0; fi\n/)
+    // La demo (REGIA_PROGETTO vuoto) riceve solo il nome, come prima.
+    expect(p.run).toMatch(/\nif \[ -z "\$REGIA_PROGETTO" \]; then printf 'VENUE_NAME=%s\\n' "\$NOME" > "app\/functions\/\.env\.\$PROGETTO"; exit 0; fi\n/)
+    // E la riga si aggiunge solo con una regia da scrivere.
+    expect(p.run).toContain('if [ -n "$REGIA_PROGETTO" ]; then')
   })
 })

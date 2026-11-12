@@ -4038,7 +4038,7 @@ requirements:
       Resta fuori, per un lavoro a parte: la Chiave AI vera si crea dal
       backoffice, ma va scritta a mano nel segreto REGIA_AI_KEY del
       locale, e serve un aggiornamento perché le Functions la leggano.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [flotta, regia, ai]
     priority: P2

@@ -114,7 +114,9 @@ env:
   PROGETTO: drinkpos-${{ inputs.slug }}
   # I segreti che le Functions dell'app di tana-drink dichiarano
   # (defineSecret): contratto con tana-drink, docs/handover.md §7.
-  SEGRETI_APP: SUMUP_API_KEY
+  # REGIA_AI_KEY è la «Chiave AI» del locale (REQ-FLOTTA-075): col
+  # segnaposto l'AI del locale resta spenta.
+  SEGRETI_APP: SUMUP_API_KEY,REGIA_AI_KEY
 
 jobs:
   # 1. I CONTROLLI, senza credenziali: fermarsi qui non costa niente, nessun
@@ -404,8 +406,12 @@ jobs:
           GIT_COMMIT: ${{ needs.controlla.outputs.commit }}
         run: npm run build
 
+      # REGIA_PROGETTO (REQ-FLOTTA-075): la regia che l'AI del locale chiama,
+      # dall'ambiente del workflow e mai da un input libero.
       - name: Functions .env del progetto
-        run: printf 'VENUE_NAME=%s\n' "$NOME" > "app/functions/.env.$PROGETTO"
+        env:
+          REGIA_PROGETTO: ${{ inputs.ambiente == 'test' && 'drink-regia-test' || 'drink-regia' }}
+        run: printf 'VENUE_NAME=%s\nREGIA_PROGETTO=%s\n' "$NOME" "$REGIA_PROGETTO" > "app/functions/.env.$PROGETTO"
 
       # Tutto quello che il deploy chiede: dist/, regole, indici, firebase.json,
       # functions/ con i suoi node_modules (firebase-tools li carica per
