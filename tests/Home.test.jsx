@@ -333,8 +333,11 @@ describe('la prima pagina', () => {
     const magazzino = MODULI.find((m) => m.id === 'magazzino')
     expect(within(document.querySelector('.moduli-elenco')).getByRole('button', { name: new RegExp(`^${magazzino.nome}`) })).toBeInTheDocument()
     // I terminali oltre quelli del piano si pagano, e il prezzo viene dal
-    // listino (revisione PR #20).
-    expect(screen.getByText(`Altri terminali a ${euro(TERMINALE_IN_PIU)} + IVA al mese`)).toBeInTheDocument()
+    // listino (revisione PR #20). Sta nei prezzi, non fra i punti di una
+    // funzione (REQ-FLOTTA-068, Daniele, 12/11/2026: «si»).
+    expect(sezione).not.toHaveTextContent(/terminal/i)
+    const terminale = within(document.querySelector('.moduli-elenco')).getByRole('button', { name: /^Terminale in più/ })
+    expect(terminale).toHaveTextContent(`${euro(TERMINALE_IN_PIU)} + IVA`)
   })
 
   it('le azioni: attivare il locale, la demo in una scheda nuova, scriverci', () => {
