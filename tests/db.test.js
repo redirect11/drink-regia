@@ -45,6 +45,12 @@ vi.mock('firebase/firestore', () => ({
   orderBy: () => null,
   limit: () => null,
   getDocs: async (c) => ({ docs: (fb.documenti[c] || []).map(([id, d]) => ({ id, data: () => d })) }),
+  // La lettura dal solo server (REQ-FLOTTA-064): fallisce se non risponde.
+  getDocsFromServer: async (c) => {
+    fb.dalServer.push(c)
+    if (fb.serverGiu) throw Object.assign(new Error('Failed to get documents from server.'), { code: 'unavailable' })
+    return { docs: (fb.documenti[c] || []).map(([id, d]) => ({ id, data: () => d })) }
+  },
   getDoc: async (p) => ({ exists: () => fb.documenti[p] !== undefined, data: () => fb.documenti[p] }),
   onSnapshot: (percorso, cb, errore) => {
     if (fb.documenti[percorso] === 'errore') {
@@ -101,6 +107,8 @@ beforeEach(() => {
   fb.chiamate = []
   fb.risposte = {}
   fb.documenti = {}
+  fb.dalServer = []
+  fb.serverGiu = false
   fb.scritti = []
   tracciati.length = 0
   fb.auth = { currentUser: { uid: 'u1', email: 'admin@example.com', emailVerified: true, reload: async () => {}, getIdToken: async () => 't' } }
@@ -422,6 +430,27 @@ describe('i documenti della regia', () => {
     db.osservaTemiSuMisura('u1', (t) => visti.push(t))
     expect(visti[3]).toEqual([])
     await expect(db.elencoTemiSuMisura('u1')).rejects.toThrow()
+  })
+
+  // REQ-FLOTTA-064: il collaudo del 11/11/2026 ha trovato il backoffice
+  // con «Nessun cliente.» durante un inciampo di rete. `getDocs`, senza
+  // rete, risponde con la memoria del browser, cioè niente: per un admin
+  // i clienti sembrano spariti. I tre elenchi si chiedono al server.
+  it('clienti, istanze e richieste si leggono dal server, mai dalla memoria del browser', async () => {
+    fb.documenti.clienti = [['u1', { uid: 'u1' }]]
+    fb.documenti.istanze = [['bar', { stato: 'attiva' }]]
+    fb.documenti.richieste = [['bar', { stato: 'in coda' }]]
+    expect(await db.elencoClienti()).toEqual([{ uid: 'u1' }])
+    expect(await db.elencoIstanze()).toEqual({ bar: { stato: 'attiva' } })
+    expect(await db.elencoRichieste()).toEqual({ bar: { stato: 'in coda' } })
+    expect(fb.dalServer).toEqual(['clienti', 'istanze', 'richieste'])
+  })
+
+  it('se il server non risponde la lettura fallisce, e lo dice in italiano', async () => {
+    fb.serverGiu = true
+    for (const elenco of [db.elencoClienti, db.elencoIstanze, db.elencoRichieste]) {
+      await expect(elenco()).rejects.toThrow('Non riesco a leggere dal server: controlla la connessione e riprova.')
+    }
   })
 
   it('gli elenchi del backoffice: clienti, istanze, richieste, rilasci dal più recente', async () => {
