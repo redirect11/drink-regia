@@ -3998,7 +3998,7 @@ requirements:
       dissolvenze né animazioni, come prima. (6) Pausa, frecce, punti e le
       regole su mouse e fuoco (REQ-FLOTTA-069) restano come sono, col passo
       nuovo.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [prodotto, regia, home]
     priority: P2

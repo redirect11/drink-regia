@@ -196,10 +196,13 @@ const GESTI = [
   { id: 'numeri', moduli: ['statistiche', 'staff'], base: false },
   { id: 'scorta', moduli: ['magazzino'], base: false },
 ]
-// Ogni quanto il carosello passa al gesto dopo, da solo. Erano sei secondi;
-// Daniele, visto sul sito di test (11/11/2026): «i filmati dovrebbero
-// durare di meno». Quattro bastano a leggere una parola e una frase corta.
-const PASSO_CAROSELLO_MS = 4000
+// Ogni quanto il carosello passa al gesto dopo, da solo, e quanto dura la
+// dissolvenza (REQ-FLOTTA-074). I filmati durano 8 secondi: il passo più
+// la dissolvenza fanno 8, così ognuno si vede per intero, da capo alla
+// fine. Prima erano 4 secondi di scorrimento laterale; Daniele, 12/11/2026:
+// «troppo veloce, e la transizione proprio tra un video e l'altro».
+const PASSO_CAROSELLO_MS = 6500
+const DISSOLVENZA_MS = 1500
 
 // UN PEZZO CHE SI APRE (REQ-FLOTTA-063): il confronto fra i piani e ogni
 // modulo dell'elenco. Daniele, 11/11/2026: i moduli a pagamento «nascosti,
@@ -323,6 +326,18 @@ export default function Home({ utente, lingua = 'it' }) {
     return () => clearTimeout(giro)
   }, [scorre, quanti, indice])
   const gesto = gesti[indice]
+  // LA DISSOLVENZA (REQ-FLOTTA-074): per un secondo e mezzo la diapositiva
+  // di prima resta sotto, ferma e col suo filmato, mentre la nuova compare
+  // sopra. Poi si spegne.
+  const [uscente, setUscente] = useState(null)
+  const ultimoIndice = useRef(indice)
+  useEffect(() => {
+    if (ultimoIndice.current === indice) return undefined
+    setUscente(ultimoIndice.current)
+    ultimoIndice.current = indice
+    const fine = setTimeout(() => setUscente(null), DISSOLVENZA_MS)
+    return () => clearTimeout(fine)
+  }, [indice])
   const { base, completo } = PIANI
   const inclusiNelBase = new Set(base.include)
   const inclusiNelCompleto = new Set(completo.include)
@@ -419,7 +434,7 @@ export default function Home({ utente, lingua = 'it' }) {
       {proposta && <AvvisoLingua lingua={lingua} proposta={proposta} chiudi={() => setProposta(null)} />}
 
       {/* LA PRIMA SCHERMATA È UN CAROSELLO. Sotto, i cinque filmati in fila,
-          che scorrono in orizzontale uno alla volta; sopra un velo scuro;
+          che passano uno all'altro in dissolvenza; sopra un velo scuro;
           davanti, ferme, le cose che non cambiano: cosa è, cosa fare e la
           scheda coi fatti. In basso la parola del gesto che si vede, la
           sua riga, e i comandi: indietro, avanti, i cinque
@@ -430,10 +445,10 @@ export default function Home({ utente, lingua = 'it' }) {
           solo quando si cambia a mano, non a ogni giro. */}
       <section className="hero" aria-labelledby="hero-titolo">
         <div className="carosello" aria-hidden="true">
-          <ol className="diapositive" style={{ transform: `translateX(-${indice * 100}%)` }}>
+          <ol className="diapositive">
             {gesti.map((g, i) => (
-              <li key={g.id} className="diapositiva" data-gesto={g.id} data-visibile={i === indice}>
-                <Filmato nome={g.id} className="hero-sfondo" gira={filmati.girano && i === indice} />
+              <li key={g.id} className="diapositiva" data-gesto={g.id} data-visibile={i === indice} data-uscente={i === uscente}>
+                <Filmato nome={g.id} className="hero-sfondo" gira={filmati.girano && (i === indice || i === uscente)} />
               </li>
             ))}
           </ol>
@@ -489,8 +504,12 @@ export default function Home({ utente, lingua = 'it' }) {
             onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && setFuocoDentro(false)}
           >
             <div className="gesto-testo" aria-live={scorre ? 'off' : 'polite'} aria-atomic="true">
-              <p className="gesto-parola">{t.gesti.voci[gesto.id].parola}</p>
-              <p className="gesto-riga">{rigaGesto(gesto)}</p>
+              {/* La chiave rifà nascere solo il contenuto, che compare in
+                  dissolvenza: la regione che si annuncia resta la stessa. */}
+              <div className="gesto-entra" key={gesto.id}>
+                <p className="gesto-parola">{t.gesti.voci[gesto.id].parola}</p>
+                <p className="gesto-riga">{rigaGesto(gesto)}</p>
+              </div>
             </div>
             <div className="gesto-comandi">
               <button type="button" className="gesto-freccia" aria-label={t.gesti.precedente} onClick={() => vai(indice - 1)}>

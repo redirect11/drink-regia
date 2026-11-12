@@ -198,8 +198,11 @@ carosello sopra a tutto dove sta il primo video… invece di scorrerle in
 verticale le facciamo scorrere in automatico in orizzontale», e «i box
 cosa comprende dovrebbero essere sempre aperti».
 
-- **La prima schermata è il carosello.** I cinque filmati stanno in fila
-  dietro a tutto e scorrono in orizzontale, uno ogni quattro secondi (erano sei). Titolo,
+- **La prima schermata è il carosello.** I cinque filmati stanno uno sopra
+  l'altro dietro a tutto e passano in dissolvenza: ognuno si vede per
+  intero, 8 secondi, e a 6,5 il successivo comincia a comparire sopra in
+  un secondo e mezzo (REQ-FLOTTA-074, 12/11/2026; prima scorrevano di lato
+  ogni quattro secondi, e a Daniele sembrava «troppo veloce»). Titolo,
   sottotitolo, bottoni e scheda dei fatti restano fermi davanti.
 - **In basso** la parola del gesto che si vede, con l'iniziale lime, e una
   frase sola. Niente etichette di piani o moduli: chi guarda deve prima
