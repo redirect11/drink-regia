@@ -6,6 +6,8 @@ data.
 
 ## Prossima release (da decidere)
 
+- I tre passi della prima pagina si chiamano «Pronto in 3 passi»
+  (REQ-FLOTTA-070).
 - Le ventisei voci del registro scritte già fatte fra il 7 e l'11
   novembre hanno la loro issue, nata a posteriori con l'etichetta
   `a-posteriori` (REQ-DEV-015).

@@ -3796,7 +3796,7 @@ requirements:
       (infra/README.md, punto 4; provisiona-istanza.yml si ferma e lo
       dice). Resta da decidere con Daniele: l'Organizzazione, o un testo
       diverso per l'attivazione automatica.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [prodotto, regia, home]
     priority: P3

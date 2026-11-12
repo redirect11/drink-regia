@@ -169,8 +169,11 @@ export default {
       sumup: 'Il conto passa al lettore SumUp e torna già pagato.',
     },
   },
+  // «Pronto in 3 passi»: Daniele, 12/11/2026 (REQ-FLOTTA-070). Vero col
+  // terzo passo concordato; quello automatico aspetta l'Organizzazione
+  // Google Cloud, senza la quale il progetto del locale si crea a mano.
   passi: {
-    titolo: 'Dalla registrazione alla prima comanda',
+    titolo: 'Pronto in 3 passi',
     voci: [
       { titolo: 'Registra il tuo locale.', testo: 'Nome, dati di fatturazione e un referente, poi la conferma dell’email.' },
       { titolo: 'Scegli piano e moduli.', testo: 'Parti dal {base} e aggiungi i moduli quando ti servono, anche dopo.' },
