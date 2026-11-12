@@ -264,3 +264,30 @@ describe('il Free nel confronto anche fuori vendita, e nascosto a richiesta', ()
     expect(en.prezzi.confronto.inArrivo).toBeUndefined()
   })
 })
+
+// REQ-FLOTTA-080 (Daniele, 12/11/2026: «io intendevo gli stati di servizio.
+// Quello va tolto e anche la possibilità di stampare»).
+describe('il Free senza stati di servizio e senza stampa', () => {
+  const c = it_.prezzi.confronto
+  it('il listino porta stampa: false nei limiti del Free, e la descrizione lo dice', () => {
+    expect(PIANI.free.limiti.stampa).toBe(false)
+    expect(PIANI.free.limiti.comande).toBe(false)
+    expect(PIANI.free.descrizione).toContain('senza stati di servizio, senza stampa')
+    expect(PIANI.free.descrizione).not.toMatch(/[Ss]enza comande/)
+  })
+  it('il confronto dice gli stati di servizio e la stampa', () => {
+    stato.vendita = venditaPulita({})
+    mostra()
+    fireEvent.click(screen.getByRole('button', { name: c.apri }))
+    expect(c.righe.comande).toBe('Stati di servizio (in preparazione, pronto, servito)')
+    expect(c.righe.stampa).toBe('Stampa di comande e scontrino')
+    const riga = (id) => [...within(screen.getByRole('table')).getByRole('row', { name: new RegExp(`^${c.righe[id].replace(/[()]/g, '\\$&')}`) }).querySelectorAll('td')].map((td) => td.textContent)
+    expect(riga('comande')).toEqual(['No', 'Sì', 'Sì'])
+    expect(riga('stampa')).toEqual(['No', 'Sì', 'Sì'])
+    expect(en.prezzi.confronto.righe.stampa).toBe('Printing of orders and receipts')
+  })
+  it('la scheda del Free dice lo stesso', () => {
+    expect(it_.prezzi.piani.free.descrizione).toContain('senza stati di servizio, senza stampa')
+    expect(it_.prezzi.piani.free.descrizione).not.toContain('senza comande')
+  })
+})
