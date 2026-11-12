@@ -6,6 +6,9 @@ data.
 
 ## Prossima release (da decidere)
 
+- Via la «Chiave AI»: l'AI del locale passa solo dal gettone di Google
+  del suo account; il backoffice non la crea più e i workflow non creano
+  più il segreto REGIA_AI_KEY (REQ-FLOTTA-079).
 - Ogni locale completo riceve l'account dell'AI dalla regia a ogni
   aggiornamento, senza passi a mano; per un locale esistente come la Tana
   c'è il workflow «Prepara l'AI di un locale esistente», che dà anche il

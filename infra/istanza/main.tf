@@ -318,23 +318,6 @@ resource "google_service_account_iam_member" "regia_firma" {
   depends_on         = [google_firebase_project.firebase]
 }
 
-# LA CHIAVE AI DEL LOCALE (REQ-FLOTTA-076): quando l'admin crea la «Chiave
-# AI», la regia la scrive da sé nel segreto REGIA_AI_KEY di questo progetto.
-# Il permesso è il minimo: aggiungere versioni a QUEL segreto, non leggerle,
-# non toccare gli altri (SUMUP_API_KEY). Un locale attivo lo riceve al
-# prossimo «Aggiorna», che riapplica questo Terraform.
-resource "google_project_iam_member" "regia_chiave_ai" {
-  provider = google-beta
-  project  = google_project.istanza.project_id
-  role     = "roles/secretmanager.secretVersionAdder"
-  member   = "serviceAccount:${var.regia_sa_email}"
-  condition {
-    title       = "solo-regia-ai-key"
-    description = "Solo il segreto REGIA_AI_KEY del locale (REQ-FLOTTA-076)"
-    expression  = "resource.name.startsWith(\"projects/${google_project.istanza.number}/secrets/REGIA_AI_KEY\")"
-  }
-}
-
 # L'ACCOUNT DELL'AI DEL LOCALE (REQ-FLOTTA-077): la Function AI dell'app
 # gira con questo, e la regia la riconosce dal suo indirizzo, che porta il
 # nome del progetto. Niente chiavi: il gettone lo firma Google. Gli serve

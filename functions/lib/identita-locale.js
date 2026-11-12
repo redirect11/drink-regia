@@ -14,8 +14,8 @@
 
 const ACCOUNT = 'ai-locale'
 
-// Un gettone di Google ha tre parti; la «Chiave AI» di prima
-// (`<slug>.<segreto>`) due, e resta accettata solo per il passaggio.
+// Un gettone di Google ha tre parti. La «Chiave AI» di prima
+// (`<slug>.<segreto>`) non c'è più (REQ-FLOTTA-079).
 const GETTONE = /^Bearer ([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/
 const tokenDaBearer = (header) => {
   const m = GETTONE.exec(String(header || ''))

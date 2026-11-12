@@ -43,7 +43,6 @@ export function statoCredito(cassetto, adesso = new Date()) {
     credito: daMicro(cassetto.credito_microeuro),
     tetto,
     spesoMese,
-    collegata: Boolean(cassetto.chiave_creata_il),
   }
 }
 

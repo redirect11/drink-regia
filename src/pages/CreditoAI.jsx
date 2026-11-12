@@ -63,7 +63,6 @@ export default function CreditoAI({ slug, istanzaAttiva, vai = (url) => window.l
           </p>
           {!s.attivo && <p className="errore small">Le funzioni AI di questo locale sono spente: scrivici per riaccenderle.</p>}
           {s.attivo && s.credito <= 0 && <p className="errore small">Credito esaurito: le funzioni AI sono ferme finché non ricarichi.</p>}
-          {!s.collegata && <p className="muted small">L’app non è ancora collegata al credito: lo facciamo noi e ti avvisiamo.</p>}
         </>
       ) : (
         <p data-testid="credito-ai">Nessun credito ancora: con la prima ricarica le funzioni AI si possono usare.</p>

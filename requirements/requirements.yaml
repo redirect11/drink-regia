@@ -715,11 +715,11 @@ requirements:
       modello, token, costo, esito: mai il contenuto) e in
       `ai/{slug}/ricariche`. Lo scrivono solo le Functions; il titolare lo
       legge nella dashboard, l'admin lo governa dal backoffice (ricarica a
-      mano, tetto, acceso o spento, chiave).
+      mano, omaggio, tetto, acceso o spento).
       LA PORTA: `richiestaAI`, HTTP, chiamata dal server dell'installazione
-      con `Authorization: Bearer <slug>.<segreto>`; la regia tiene solo
-      l'impronta SHA-256 del segreto, in `ai/{slug}/riservato/chiave`, che
-      nessun client legge. Accetta due richieste sole, `descrizione`
+      col gettone d'identità di Google del suo account ai-locale
+      (REQ-FLOTTA-077; fino al 12/11/2026 era una chiave
+      `<slug>.<segreto>`, tolta con REQ-FLOTTA-079). Accetta due richieste sole, `descrizione`
       (REQ-AI-002 di tana-drink) e `fattura` (REQ-AI-001: foto o PDF in
       base64), mai testo libero. Prima di chiamare controlla che il caso
       peggiore (tutti i token d'uscita permessi) stia nel credito e nel
@@ -4037,13 +4037,15 @@ requirements:
       backoffice lo dice e ricorda di premere «Aggiorna»: le Functions del
       locale leggono la versione nuova al deploy dopo. (6) La regia non
       tiene la chiave intera: solo l'impronta, come prima.
-    status: implemented
+      SUPERATA (12/11/2026): la chiave non c'è più, l'AI del locale passa
+      dal gettone di Google (REQ-FLOTTA-077, REQ-FLOTTA-079). Lo script, la
+      sua azione e il permesso nel Terraform sono tolti.
+    status: deprecated
     generate_issue: true
     labels: [flotta, regia, ai, backoffice]
     priority: P2
     test_cases:
-      - tests/chiave-locale.test.js
-      - tests/Backoffice.test.jsx
+      - tests/identita-locale.test.js
 
   - id: REQ-FLOTTA-075
     title: "I workflow preparano l'AI del locale: il segreto REGIA_AI_KEY e REGIA_PROGETTO nel .env delle Functions"
@@ -4208,7 +4210,7 @@ requirements:
       Il contratto in docs/handover.md §7 dice solo il gettone. Le regole
       del database sulla vecchia impronta (`ai/{slug}/riservato`) restano:
       tengono chiuso un documento che può esserci ancora.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [flotta, regia, ai]
     priority: P2

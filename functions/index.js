@@ -20,7 +20,7 @@ const { onDocumentCreated, onDocumentUpdated, onDocumentWritten } = require('fir
 const { onRequest } = require('firebase-functions/v2/https')
 const { defineSecret } = require('firebase-functions/params')
 const eventiStripe = require('./lib/eventistripe.js')
-const { initializeApp, applicationDefault } = require('firebase-admin/app')
+const { initializeApp } = require('firebase-admin/app')
 const { getFirestore } = require('firebase-admin/firestore')
 const { simulazioneAmmessa, documentoSimulato, preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, eAggiornamento, documentoIstanza, documentoAggiornamento, vincoliEsito, bearerValido, segretoUsabile } = require('./lib/provisioning.js')
 const rilasci = require('./lib/rilasci.js')
@@ -38,7 +38,6 @@ const taglio = require('./lib/taglio.js')
 const { initializeApp: initializeAppCon, getApps } = require('firebase-admin/app')
 const { getAuth } = require('firebase-admin/auth')
 const ai = require('./lib/ai.js')
-const chiaveLocale = require('./lib/chiave-locale.js')
 const identita = require('./lib/identita-locale.js')
 const { OAuth2Client } = require('google-auth-library')
 const elim = require('./lib/eliminazione.js')
@@ -2295,27 +2294,18 @@ exports.richiestaAI = onRequest(
   { ...OPTS_AI, cors: false, maxInstances: 10 },
   async (req, res) => {
     if (req.method !== 'POST') return res.status(405).json({ errore: 'Solo POST.' })
-    const intestazione = req.get('authorization')
-    let slug = null
-    // IL GETTONE DI GOOGLE (REQ-FLOTTA-077), la strada di regime.
-    const gettone = identita.tokenDaBearer(intestazione)
-    if (gettone) {
-      slug = await identita
-        .localeDalGettone(gettone, { progettoRegia: PROGETTO_REGIA, verifica: verificaGettone, cercaPerProgetto: istanzePerProgetto })
-        .catch((e) => {
-          console.warn('[ai] gettone rifiutato:', identita.motivoBreve(e))
-          return null
-        })
-      if (!slug) return res.status(401).json({ errore: 'Locale non riconosciuto.' })
-    } else {
-      // LA CHIAVE (REQ-AI-003, REQ-FLOTTA-076), solo per il passaggio:
-      // finché tana-drink non pubblica il gettone, e per la Tana, che non ha
-      // il Terraform della flotta. Poi si toglie.
-      const chi = ai.leggiBearer(intestazione)
-      const riservato = chi ? (await db.doc(`ai/${chi.slug}/riservato/chiave`).get()).data() : null
-      if (!chi || !ai.chiaveGiusta(chi.segreto, riservato?.impronta)) return res.status(401).json({ errore: 'Chiave della regia non valida.' })
-      slug = chi.slug
-    }
+    // IL GETTONE DI GOOGLE (REQ-FLOTTA-077): l'unica strada. La «Chiave AI»
+    // di prima non c'è più (REQ-FLOTTA-079).
+    const gettone = identita.tokenDaBearer(req.get('authorization'))
+    const slug = gettone
+      ? await identita
+          .localeDalGettone(gettone, { progettoRegia: PROGETTO_REGIA, verifica: verificaGettone, cercaPerProgetto: istanzePerProgetto })
+          .catch((e) => {
+            console.warn('[ai] gettone rifiutato:', identita.motivoBreve(e))
+            return null
+          })
+      : null
+    if (!slug) return res.status(401).json({ errore: 'Locale non riconosciuto.' })
 
     let messaggio
     try {
@@ -2469,24 +2459,6 @@ exports.gestisciCassettoAI = onCall(OPTS, async (req) => {
   if (azione === 'accendi' || azione === 'spegni') {
     await ref.update({ attivo: azione === 'accendi', aggiornato_il: ora })
     return { ok: true }
-  }
-  if (azione === 'chiave') {
-    const { bearer, impronta } = ai.nuovaChiave(slug)
-    await db.doc(`ai/${slug}/riservato/chiave`).set({ impronta, creata_il: ora, da: req.auth.uid })
-    // LA CHIAVE NEL LOCALE (REQ-FLOTTA-076): la regia la scrive da sé nel
-    // segreto REGIA_AI_KEY del progetto del locale. Se non può, la chiave
-    // nasce lo stesso e il backoffice dice perché.
-    const ist = (await db.doc(`istanze/${slug}`).get()).data() || null
-    const dove = chiaveLocale.doveScrivere(ist)
-    let nelLocale = { scritta: false, perche: dove.perche }
-    if (dove.ok) {
-      nelLocale = await applicationDefault()
-        .getAccessToken()
-        .then(({ access_token: token }) => chiaveLocale.scriviChiave({ progetto: dove.progetto, chiave: bearer, token, fetch }))
-        .catch((e) => ({ scritta: false, perche: `Non sono riuscito a scriverla: ${String(e?.message || e).slice(0, 160)}` }))
-    }
-    await ref.update({ chiave_creata_il: ora, chiave_nel_locale_il: nelLocale.scritta ? ora : null })
-    return { ok: true, chiave: bearer, nel_locale: nelLocale, progetto: dove.progetto }
   }
   throw new HttpsError('invalid-argument', 'Azione sconosciuta.')
 })

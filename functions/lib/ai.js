@@ -12,7 +12,6 @@
 // sommare decimali a ogni chiamata con FieldValue.increment lascerebbe
 // resti che a fine anno non tornano col conto di Anthropic.
 
-const crypto = require('node:crypto')
 const listino = require('../piani.json')
 const temi = require('./temi.js')
 const stili = require('./stili.js')
@@ -443,31 +442,6 @@ function rigaConsumo({ tipo, risposta, costo, esito, adesso = new Date() }) {
   }
 }
 
-// ── la chiave di un'installazione ──
-// Il segreto lo genera la regia e lo vede una volta sola l'admin, che lo
-// mette tra i segreti dell'installazione; qui resta solo l'impronta. Il
-// bearer è «<slug>.<segreto>», così la Function sa quale cassetto aprire
-// senza cercare.
-function nuovaChiave(slug) {
-  if (!SLUG.test(slug || '')) throw new Error('Slug non valido')
-  const segreto = crypto.randomBytes(32).toString('base64url')
-  return { bearer: `${slug}.${segreto}`, impronta: impronta(segreto) }
-}
-
-const impronta = (segreto) => crypto.createHash('sha256').update(String(segreto)).digest('hex')
-
-function leggiBearer(header) {
-  const m = /^Bearer ([a-z][a-z0-9-]{4,28}[a-z0-9])\.([A-Za-z0-9_-]{20,})$/.exec(String(header || ''))
-  return m ? { slug: m[1], segreto: m[2] } : null
-}
-
-function chiaveGiusta(segreto, improntaSalvata) {
-  if (!segreto || !improntaSalvata) return false
-  const a = Buffer.from(impronta(segreto), 'hex')
-  const b = Buffer.from(String(improntaSalvata), 'hex')
-  return a.length === b.length && crypto.timingSafeEqual(a, b)
-}
-
 // ── la ricarica con Stripe ──
 // A PACCHETTI, per ora: un pagamento singolo di un importo fisso, che il
 // webhook trasforma in credito. È l'ipotesi presa il 24/10/2026 in attesa
@@ -546,9 +520,6 @@ module.exports = {
   addebito,
   leggiRisposta,
   rigaConsumo,
-  nuovaChiave,
-  leggiBearer,
-  chiaveGiusta,
   pacchetto,
   rigaRicarica,
   metadatiRicarica,

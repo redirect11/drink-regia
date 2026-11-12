@@ -130,8 +130,8 @@ describe('il credito AI coi pagamenti online spenti', () => {
 // REQ-FLOTTA-079: «collegata» contava la Chiave AI, che non c'è più.
 describe('niente più «non ancora collegata»', () => {
   it('un cassetto senza chiave non dice che l’app non è collegata', async () => {
-    const { statoCassetto } = await import('../src/lib/ai.js')
-    expect(statoCassetto({ credito_microeuro: 1_000_000 }).collegata).toBeUndefined()
+    const { statoCredito } = await import('../src/lib/ai.js')
+    expect(statoCredito({ credito_microeuro: 1_000_000 }).collegata).toBeUndefined()
     const { readFileSync } = await import('node:fs')
     expect(readFileSync('src/pages/CreditoAI.jsx', 'utf8')).not.toContain('non è ancora collegata')
   })
