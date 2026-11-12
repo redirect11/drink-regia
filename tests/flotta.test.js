@@ -918,3 +918,28 @@ describe('il .env delle Functions del locale dice qual è la sua regia', () => {
     expect(p.run).toContain('if [ -n "$REGIA_PROGETTO" ]; then')
   })
 })
+
+// REQ-FLOTTA-078 (Daniele, 12/11/2026: «noi dobbiamo deployare in
+// automatico tutto»). Un locale esistente non ha il Terraform della flotta:
+// l'account ai-locale glielo dà l'aggiornamento.
+describe('l’account dell’AI di un locale esistente', () => {
+  it('c’è un passo, solo per gli esistenti col profilo completo, prima del deploy, che non ferma il deploy', () => {
+    const p = passo(aggiorna, "L'account dell'AI del locale")
+    expect(p.if).toBe("env.PROFILO == 'completo' && env.ESISTENTE == 'true' && env.DEMO != 'true'")
+    expect(p.run).toContain('node scripts/account-ai-locale.mjs --project "$PROGETTO" || echo "::warning::')
+    const nomi = passi(aggiorna).map((s) => s.name)
+    expect(nomi.indexOf("L'account dell'AI del locale")).toBeGreaterThan(nomi.indexOf('Dipendenze della regia'))
+    expect(nomi.indexOf("L'account dell'AI del locale")).toBeLessThan(nomi.indexOf('Deploy regole, indici, Functions e hosting'))
+  })
+  it('lo script crea ai-locale e dà gli stessi ruoli del Terraform, aggiungendo e mai togliendo', () => {
+    const script = leggi('scripts/account-ai-locale.mjs')
+    const tf = leggi('infra/istanza/main.tf')
+    const blocco = tf.slice(tf.indexOf('resource "google_project_iam_member" "ai_locale"'))
+    const ruoliTf = [...blocco.slice(0, blocco.indexOf('\n}\n')).matchAll(/"(roles\/[a-zA-Z.]+)"/g)].map((m) => m[1]).sort()
+    const ruoliScript = [...script.slice(script.indexOf('const RUOLI'), script.indexOf(']', script.indexOf('const RUOLI'))).matchAll(/'(roles\/[a-zA-Z.]+)'/g)].map((m) => m[1]).sort()
+    expect(ruoliScript).toEqual(ruoliTf)
+    expect(script).toContain("accountId: 'ai-locale'")
+    expect(script).toContain("import { conIRuoli } from './lib-iam.js'")
+    expect(script).not.toMatch(/members\.filter|splice|delete /)
+  })
+})

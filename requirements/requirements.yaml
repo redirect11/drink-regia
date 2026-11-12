@@ -4130,6 +4130,38 @@ requirements:
     test_cases:
       - tests/identita-locale.test.js
 
+  - id: REQ-FLOTTA-078
+    title: "Anche un locale esistente (la Tana) riceve l'account ai-locale dalla regia, a ogni aggiornamento, senza passi a mano"
+    area: "scripts/account-ai-locale.mjs, .github/workflows/aggiorna-istanza.yml"
+    description: >
+      Il seguito di REQ-FLOTTA-077. L'account `ai-locale` lo crea il
+      Terraform dei locali della flotta; un locale esistente (la Tana,
+      REQ-AI-003, REQ-FLOTTA-018) non ha il Terraform della flotta, e
+      l'account sarebbe rimasto da creare a mano. Daniele, 12/11/2026: «noi
+      dobbiamo deployare in automatico tutto. Che significa che va fatto a
+      mano? Lo scopo di regia è quello che tutto questo venga
+      automatizzato».
+      CRITERI DI ACCETTAZIONE. (1) Nell'aggiornamento di un locale
+      esistente col profilo completo, prima del deploy, la regia crea
+      l'account `ai-locale` nel suo progetto se manca, e gli dà gli stessi
+      ruoli del Terraform (Firestore e log del progetto), aggiungendo e mai
+      togliendo. Se c'è già, non cambia niente. (2) La demo no: non ha
+      l'AI. I locali della flotta no: lo fa il Terraform. (3) Se la regia
+      non ha il permesso di farlo, il passo lo dice con un avviso e il
+      deploy continua: l'AI di quel locale resta spenta, il resto lavora.
+      (4) Lo script e il Terraform danno gli stessi ruoli: un test li
+      confronta.
+      Resta, una volta sola e solo se manca: l'account di provisioning
+      della regia deve poter gestire gli account del progetto della Tana
+      (come per i locali della flotta, dove è proprietario). [da
+      verificare] se lo ha già.
+    status: todo
+    generate_issue: true
+    labels: [flotta, regia, ai]
+    priority: P2
+    test_cases:
+      - tests/flotta.test.js
+
   - id: REQ-FLOTTA-059
     title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"
     area: "functions/lib/eliminazione-cliente.js, functions/index.js (eliminaCliente), src/lib/db.js (eliminaCliente), src/pages/Backoffice.jsx (Elimina cliente…)"
