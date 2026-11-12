@@ -3646,7 +3646,7 @@ requirements:
       coverage) non ce l'hanno: un loro fallimento fa ancora fallire il
       job. L'audit del sito resta non vincolante per la ragione scritta in
       REQ-DEV-006.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [metodo, regia]
     priority: P3

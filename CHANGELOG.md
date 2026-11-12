@@ -6,6 +6,9 @@ data.
 
 ## Prossima release (da decidere)
 
+- Il caricamento del rapporto di coverage non fa più fallire i controlli
+  di una PR: se GitHub non riesce a salvarlo, lint, test e build restano
+  verdi (REQ-DEV-014).
 - Nel backoffice, «Nuovo tema» e «Modifica» aprono il modulo subito sotto
   i temi, e non più in fondo alla scheda dopo gli stili. E le issue
   nascono dal registro anche sui rami di correzione (REQ-FLOTTA-066, #146;

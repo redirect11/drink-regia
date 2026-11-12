@@ -52,8 +52,12 @@ jobs:
       - name: Test con coverage
         if: github.event_name == 'pull_request'
         run: npm run test:coverage
+      # Un allegato per chi legge, non un controllo (REQ-DEV-014): l'11/11/2026
+      # un guasto di GitHub ne ha fatto fallire il caricamento, e la PR #136
+      # è diventata rossa a test e build passati.
       - name: Rapporto di coverage
         if: github.event_name == 'pull_request' && always()
+        continue-on-error: true
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: coverage-report
