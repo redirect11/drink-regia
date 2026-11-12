@@ -9,6 +9,9 @@ data.
 - La «Chiave AI» creata dal backoffice la regia la scrive da sé nel
   segreto del locale, col permesso minimo; se non può, dice perché e come
   farlo a mano (REQ-FLOTTA-076).
+- I workflow della flotta preparano l'AI del locale: il segreto
+  REGIA_AI_KEY, col segnaposto se manca, e la regia da chiamare nel .env
+  delle Functions (REQ-FLOTTA-075).
 - Il credito AI costa al locale il costo effettivo di Anthropic più il
   10% (REQ-AI-003).
 - Il carosello passa da un filmato all'altro in dissolvenza, senza

@@ -131,7 +131,8 @@ describe.each(WORKFLOW)('%s', (_, w, corpo) => {
   // Le Functions dell'app dichiarano dei segreti, e Firebase non le
   // pubblica se ne manca uno (la prima attivazione di prova, SUMUP_API_KEY).
   it('i segreti dichiarati dall’app si creano prima del deploy', () => {
-    expect(w.env.SEGRETI_APP).toBe('SUMUP_API_KEY')
+    // REQ-FLOTTA-075: la Chiave AI del locale (da tana-drink, 12/11/2026).
+    expect(w.env.SEGRETI_APP).toBe('SUMUP_API_KEY,REGIA_AI_KEY')
     const nomi = passi(w).map((s) => s.name)
     expect(passo(w, "I segreti dell'app").run).toBe('node scripts/segreti-istanza.mjs --project "$PROGETTO" --segreti "$SEGRETI_APP"')
     expect(nomi.indexOf("I segreti dell'app")).toBeGreaterThan(nomi.indexOf('Dipendenze della regia'))
@@ -284,10 +285,19 @@ describe('aggiorna-istanza.yml: un locale esistente, come la Tana', () => {
 
   // La Tana ha in tana-drink functions/.env.tana-drink con l'app id di
   // SumUp: riscritto col solo nome, SumUp si fermerebbe.
-  it('il .env delle Functions che tana-drink ha già non si riscrive', () => {
+  // REQ-FLOTTA-075: la riga REGIA_PROGETTO si aggiunge solo se manca, senza
+  // riscrivere il resto.
+  it('il .env delle Functions che tana-drink ha già non si riscrive: gli si aggiunge REGIA_PROGETTO se manca', () => {
     const run = passo(aggiorna, 'Functions .env del progetto').run
-    expect(run).toMatch(/^if \[ -f "app\/functions\/\.env\.\$PROGETTO" \]; then[^\n]*exit 0; fi\n/)
-    expect(run).toContain(`printf 'VENUE_NAME=%s\\n' "$NOME" > "app/functions/.env.$PROGETTO"`)
+    // Il file che c'è già si guarda per primo, per tutti, demo compresa.
+    expect(run).toMatch(/^if \[ -f "app\/functions\/\.env\.\$PROGETTO" \]; then\n/)
+    expect(run).toContain(`grep -q '^REGIA_PROGETTO=' "app/functions/.env.$PROGETTO" || printf 'REGIA_PROGETTO=%s\\n' "$REGIA_PROGETTO" >> "app/functions/.env.$PROGETTO"`)
+    expect(run).toContain(`printf 'VENUE_NAME=%s\\nREGIA_PROGETTO=%s\\n' "$NOME" "$REGIA_PROGETTO" > "app/functions/.env.$PROGETTO"`)
+    // Dentro quel ramo solo un'aggiunta, mai una riscrittura, e poi si esce.
+    const giaCe = run.slice(0, run.indexOf('\nfi\n'))
+    expect(giaCe).toContain('>> "app/functions/.env.$PROGETTO"')
+    expect(giaCe).not.toMatch(/[^>]> "app\/functions/)
+    expect(giaCe).toMatch(/exit 0$/)
   })
 })
 
@@ -887,5 +897,24 @@ if (a[0] === '--sa') { console.log(JSON.stringify({ 'tipo-locale': ['ristorante'
     const { stato, chiamate } = lancia('senzaBar')
     expect(stato).toBe(0)
     expect(chiamate.at(-1)).toEqual(['--slug', 'bar-mario', '--nome', 'Bar Mario'])
+  })
+})
+
+// REQ-FLOTTA-075 (da tana-drink, 12/11/2026): l'AI del locale chiama la sua
+// regia. REGIA_PROGETTO viene dall'ambiente del workflow, mai da un input.
+describe('il .env delle Functions del locale dice qual è la sua regia', () => {
+  const regia = "${{ inputs.ambiente == 'test' && 'drink-regia-test' || 'drink-regia' }}"
+  it('provisiona-istanza.yml: nome del locale e regia', () => {
+    const p = passo(provisiona, 'Functions .env del progetto')
+    expect(p.env.REGIA_PROGETTO).toBe(regia)
+    expect(p.run).toBe(`printf 'VENUE_NAME=%s\\nREGIA_PROGETTO=%s\\n' "$NOME" "$REGIA_PROGETTO" > "app/functions/.env.$PROGETTO"`)
+  })
+  it('aggiorna-istanza.yml: la stessa regia, e la demo no', () => {
+    const p = passo(aggiorna, 'Functions .env del progetto')
+    expect(p.env.REGIA_PROGETTO).toBe(`\${{ inputs.progetto != 'drinkpos-demo' && (inputs.ambiente == 'test' && 'drink-regia-test' || 'drink-regia') || '' }}`)
+    // La demo (REGIA_PROGETTO vuoto) riceve solo il nome, come prima.
+    expect(p.run).toMatch(/\nif \[ -z "\$REGIA_PROGETTO" \]; then printf 'VENUE_NAME=%s\\n' "\$NOME" > "app\/functions\/\.env\.\$PROGETTO"; exit 0; fi\n/)
+    // E la riga si aggiunge solo con una regia da scrivere.
+    expect(p.run).toContain('if [ -n "$REGIA_PROGETTO" ]; then')
   })
 })

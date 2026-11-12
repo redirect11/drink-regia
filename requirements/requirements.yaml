@@ -4045,6 +4045,41 @@ requirements:
       - tests/chiave-locale.test.js
       - tests/Backoffice.test.jsx
 
+  - id: REQ-FLOTTA-075
+    title: "I workflow preparano l'AI del locale: il segreto REGIA_AI_KEY e REGIA_PROGETTO nel .env delle Functions"
+    area: ".github/workflows/provisiona-istanza.yml, .github/workflows/aggiorna-istanza.yml"
+    description: >
+      Da tana-drink, 12/11/2026, sul cassetto AI (REQ-AI-003): la parte
+      dell'app è scritta (ramo feature/ai-dalla-regia). La Function
+      richiestaAI del locale chiama quella della regia con la «Chiave AI»
+      del locale. Prima che un aggiornamento con quella versione arrivi a
+      un locale servono due cose dalla regia: «1. Le Functions dell'app
+      dichiarano un segreto nuovo, REGIA_AI_KEY… Va aggiunto a SEGRETI_APP
+      in provisiona-istanza.yml e aggiorna-istanza.yml, col segnaposto
+      "non-configurato" se manca, come SUMUP_API_KEY. Senza, Firebase non
+      pubblica le Functions del locale. Col segnaposto l'AI resta spenta.
+      2. In functions/.env.<progetto> del locale va scritto anche
+      REGIA_PROGETTO=drink-regia (o drink-regia-test per i locali di
+      prova). Senza, l'AI del locale resta spenta».
+      CRITERI DI ACCETTAZIONE. (1) In tutti e due i workflow SEGRETI_APP è
+      «SUMUP_API_KEY,REGIA_AI_KEY»: lo script dei segreti crea quello che
+      manca col segnaposto e non tocca quello che c'è. (2) Il .env delle
+      Functions del locale porta REGIA_PROGETTO: drink-regia-test per un
+      locale della regia di test, drink-regia per uno di produzione, preso
+      dall'ambiente del workflow e mai da un input libero. (3) Se tana-drink
+      ha già il .env di quel progetto (la Tana), non si riscrive: si
+      aggiunge la riga REGIA_PROGETTO solo se manca. (4) La demo non la
+      riceve: non chiama la regia.
+      Resta fuori, per un lavoro a parte: la Chiave AI vera si crea dal
+      backoffice, ma va scritta a mano nel segreto REGIA_AI_KEY del
+      locale, e serve un aggiornamento perché le Functions la leggano.
+    status: implemented
+    generate_issue: true
+    labels: [flotta, regia, ai]
+    priority: P2
+    test_cases:
+      - tests/flotta.test.js
+
   - id: REQ-FLOTTA-059
     title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"
     area: "functions/lib/eliminazione-cliente.js, functions/index.js (eliminaCliente), src/lib/db.js (eliminaCliente), src/pages/Backoffice.jsx (Elimina cliente…)"
