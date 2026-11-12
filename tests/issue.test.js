@@ -107,3 +107,36 @@ describe('generate-issues.yml: parte su tutti i rami di lavoro', () => {
     expect(push.paths).toEqual(['requirements/requirements.yaml', 'requirements/bugs.yaml'])
   })
 })
+
+// LE ISSUE A POSTERIORI (REQ-DEV-015). Dal 07/11 all'11/11/2026 ventisei
+// voci sono nate già fatte, e la loro issue non è mai nata. Daniele,
+// 12/11/2026: «si», farle nascere. Il registro lo chiede voce per voce.
+describe('le issue a posteriori', () => {
+  const fatta = { status: 'implemented', generate_issue: true, issue_a_posteriori: true }
+  it('una voce fatta col segno, senza issue, ne fa nascere una', () => {
+    expect(deveNascere(fatta, false)).toBe(true)
+    expect(deveNascere({ ...fatta, status: 'fixed' }, false)).toBe(true)
+  })
+  it('se l’issue c’è già, o la voce è scartata, o manca il segno o generate_issue, no', () => {
+    expect(deveNascere(fatta, true)).toBe(false)
+    expect(deveNascere({ ...fatta, status: 'wontfix' }, false)).toBe(false)
+    expect(deveNascere({ ...fatta, status: 'deprecated' }, false)).toBe(false)
+    expect(deveNascere({ ...fatta, issue_a_posteriori: false }, false)).toBe(false)
+    expect(deveNascere({ ...fatta, generate_issue: false }, false)).toBe(false)
+  })
+  it('il registro legge il segno, e lo porta su voci fatte soltanto', () => {
+    const segnate = registro.filter((r) => r.issue_a_posteriori)
+    expect(segnate.length).toBeGreaterThan(0)
+    for (const r of segnate) {
+      expect(STATI_FATTI.has(r.status), r.id).toBe(true)
+      expect(r.generate_issue, r.id).toBe(true)
+    }
+  })
+  it('l’issue nata a posteriori ha l’etichetta e lo dice nel testo', async () => {
+    const { etichetteAPosteriori, rigaAPosteriori } = await import('../scripts/lib-requisiti.mjs')
+    expect(etichetteAPosteriori(fatta)).toEqual(['a-posteriori'])
+    expect(etichetteAPosteriori({ ...fatta, issue_a_posteriori: false })).toEqual([])
+    expect(rigaAPosteriori(fatta)).toMatch(/a posteriori/)
+    expect(rigaAPosteriori({ status: 'todo' })).toBe('')
+  })
+})

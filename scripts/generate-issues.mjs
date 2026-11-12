@@ -33,7 +33,7 @@
  */
 
 import { readFileSync } from 'node:fs'
-import { STATI_CHIUSI, STATI_SCARTATI, parseRequirementsYaml, etichetteClassificazione, riconciliaEtichette, corpoGenerato, IN_TEST, indicizzaPerId, prossimoStato, deveNascere, STATO_IMPLEMENTATA, STATO_IN_TEST, STATO_FATTO } from './lib-requisiti.mjs'
+import { STATI_CHIUSI, STATI_SCARTATI, etichetteAPosteriori, rigaAPosteriori, parseRequirementsYaml, etichetteClassificazione, riconciliaEtichette, corpoGenerato, IN_TEST, indicizzaPerId, prossimoStato, deveNascere, STATO_IMPLEMENTATA, STATO_IN_TEST, STATO_FATTO } from './lib-requisiti.mjs'
 import { bachecaAttiva, schedaDellaIssue, spostaScheda } from './bacheca.mjs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -194,7 +194,7 @@ function buildIssueBody(req) {
         : ''
 
   return `## ${req.id} — ${req.title}
-${dove}
+${dove}${rigaAPosteriori(req)}
 **Area**: \`${req.area}\`
 ${req.severity || req.priority ? `**Quanto fa male**: ${req.severity || '—'} · **Quando si fa**: ${req.priority || 'da decidere'}
 ` : ''}
@@ -269,12 +269,14 @@ async function main() {
     const issueTitle = `[${req.id}] ${req.title}`
     console.log(`▸ ${issueTitle}`)
 
-    const risolto = STATI_CHIUSI.has(String(req.status || '').toLowerCase())
-
-
     // Check idempotenza: esiste già un'issue con questo titolo?
     const trovata = indice.get(req.id)
     const existing = trovata ? [trovata] : []
+
+    // Una voce fatta che chiede la sua issue a posteriori (REQ-DEV-015), e
+    // non ne ha nessuna, va dritta alla nascita: le strade dei risolti
+    // lavorano su un'issue che c'è. Al giro dopo, nata, segue la loro.
+    const risolto = STATI_CHIUSI.has(String(req.status || '').toLowerCase()) && !deveNascere(req, existing.length > 0)
 
     // SU DEVELOP: la voce e' finita ma non provata. Non si chiude — in
     // produzione non c'e' ancora niente — si segna «in prova», che e' l'unica
@@ -433,7 +435,7 @@ ${req.description}`
     }
 
     if (DRY_RUN) {
-      console.log('  [DRY RUN] Nuova. Labels:', [...new Set([...req.labels, ...etichetteClassificazione(req)])].join(', ') || '(nessuna)')
+      console.log('  [DRY RUN] Nuova. Labels:', [...new Set([...req.labels, ...etichetteClassificazione(req), ...etichetteAPosteriori(req)])].join(', ') || '(nessuna)')
       created++
       continue
     }
@@ -441,7 +443,7 @@ ${req.description}`
     const { ok, status, body } = await createIssue({
       title: issueTitle,
       body: buildIssueBody(req),
-      labels: [...new Set([...req.labels, ...etichetteClassificazione(req)])],
+      labels: [...new Set([...req.labels, ...etichetteClassificazione(req), ...etichetteAPosteriori(req)])],
     })
 
     if (ok) {
