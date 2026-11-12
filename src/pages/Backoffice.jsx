@@ -42,6 +42,7 @@ import {
   gestisciTemiSuMisura,
 } from '../lib/db.js'
 import { venditaPulita } from '../lib/vendita.js'
+import { stampantiDette } from '../lib/stampanti.js'
 
 import { ESCLUSIVI, nomeStile, nomeImpaginazione, ORIGINI_DETTE, STATI_DETTI, temaVuoto } from '../lib/temi.js'
 import { statoIstanza, statoDetto, STATI, progettoDi, riduzioneDetta, hrefSicuro } from '../lib/istanze.js'
@@ -645,6 +646,7 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
               </div>
             )}
             {contattoDi(c) && <div className="muted small">{contattoDi(c)}</div>}
+            {stampantiDette(c.stampanti) && <div className="muted small">{stampantiDette(c.stampanti)}</div>}
           </dd>
         </div>
         <div>
@@ -1770,6 +1772,8 @@ function Contatti({ elenco, onSegna: segna }) {
               {c.stato === 'gestita' && c.gestita_il && ` · gestita il ${new Date(c.gestita_il).toLocaleDateString('it-IT')}`}
             </div>
             {c.nota && <div className="small">«{c.nota}»</div>}
+            {/* Le stampanti del locale (REQ-FLOTTA-081). */}
+            {stampantiDette(c.stampanti) && <div className="muted small">{stampantiDette(c.stampanti)}</div>}
             {c.codice && <div className="small">Codice sconto: {c.codice}</div>}
             <button type="button" className="btn ghost small" onClick={() => segna(c, c.stato === 'aperta' ? 'gestita' : 'aperta')}>
               {c.stato === 'aperta' ? 'Segna gestita' : 'Riapri'}

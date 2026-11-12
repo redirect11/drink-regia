@@ -4250,6 +4250,51 @@ requirements:
       - tests/Backoffice.test.jsx
       - tests/CreditoAI.test.jsx
 
+  - id: REQ-FLOTTA-081
+    title: "Nella richiesta di informazioni e in quella d'acquisto il titolare dice la sua stampante non fiscale e il suo registratore telematico"
+    area: "functions/stampanti.json, functions/lib/stampanti.js, functions/lib/contatti.js, functions/index.js (creaCheckout), src/lib/stampanti.js, src/pages/SceltaPiano.jsx, src/pages/Backoffice.jsx"
+    description: >
+      Daniele, 12/11/2026: «va detto che il supporto alla stampante al
+      momento è limitato solo ad alcuni modelli e che nella richiesta di
+      acquisto va specificato quale stampante non fiscale usano. Dovremmo
+      mettere anche un elenco di stampanti da dove può scegliere o
+      scriverne una se non è presente nell'elenco. Ci serve a noi per
+      implementare il supporto». Poi il campo: «un elenco da cui scegliere,
+      più "Altra" con marca e modello scritti a mano, più "Non ho ancora una
+      stampante". La scelta va salvata con la richiesta e si deve vedere nel
+      backoffice», l'elenco in tre gruppi (supportata: Epson TM-m30II e
+      TM-m30III; compatibile, da provare sul posto: le altre Epson con ePOS;
+      non ancora supportata: ad aghi, Star, Custom, Bixolon, economiche
+      ESC/POS, terminali con stampante dentro) e il testo vicino al campo.
+      E: «nella richiesta di informazioni mettiamo anche quale stampante rt
+      hanno … anche nella richiesta d'acquisto anche se non le supportiamo
+      ancora».
+      CRITERI DI ACCETTAZIONE. (1) L'elenco sta in un file solo,
+      functions/stampanti.json, letto dalla pagina e dalle Functions. (2)
+      Nella scelta del piano, quando si chiede di essere contattati
+      (richiesta di informazioni) o si va al pagamento (richiesta
+      d'acquisto), ci sono due campi obbligatori: «Stampante non fiscale»
+      coi tre gruppi, «Altra» con marca e modello e «Non ho ancora una
+      stampante»; «Registratore telematico (RT)» con le marche, «Altra» con
+      marca e modello e «Non lo so». Vicino al primo il testo di Daniele;
+      vicino al secondo che l'RT è quello fiscale e che oggi l'app non lo
+      comanda. Senza le due scelte la richiesta non parte. (3) Le Functions
+      accettano solo una voce dell'elenco, «altra» con un testo da 2 a 80
+      caratteri, o la voce «nessuna»/«non lo so». (4) La scelta si salva:
+      con la richiesta di contatto nel suo documento, con l'acquisto nella
+      scheda del cliente. (5) Il backoffice la mostra nella richiesta di
+      contatto e nella scheda del cliente.
+      [da verificare con Daniele] L'elenco degli RT: oggi solo marche
+      (Epson, Custom, RCH, Olivetti, Ditron, Micrelec), più «Altra».
+    status: implemented
+    generate_issue: true
+    labels: [prodotto, regia, vendita]
+    priority: P2
+    test_cases:
+      - tests/stampanti.test.js
+      - tests/SceltaPiano.test.jsx
+      - tests/Backoffice.test.jsx
+
   - id: REQ-FLOTTA-059
     title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"
     area: "functions/lib/eliminazione-cliente.js, functions/index.js (eliminaCliente), src/lib/db.js (eliminaCliente), src/pages/Backoffice.jsx (Elimina cliente…)"

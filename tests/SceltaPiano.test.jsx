@@ -5,7 +5,7 @@
 // mentre si sceglie, e «Vai al pagamento» chiama la Function del Checkout.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, within, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import '@testing-library/jest-dom/vitest'
 
@@ -27,6 +27,14 @@ const db = vi.hoisted(() => ({
   }),
 }))
 vi.mock('../src/lib/db.js', () => db)
+
+// Le stampanti del locale (REQ-FLOTTA-081): obbligatorie nella richiesta di
+// informazioni e in quella d'acquisto.
+const STAMPANTI = { non_fiscale: { scelta: 'Epson TM-m30III', altra: null }, fiscale: { scelta: 'Epson', altra: null } }
+const conStampanti = async (user) => {
+  await user.selectOptions(screen.getByLabelText(/Stampante non fiscale/), 'Epson TM-m30III')
+  await user.selectOptions(screen.getByLabelText(/Registratore telematico/), 'Epson')
+}
 
 import SceltaPiano from '../src/pages/SceltaPiano.jsx'
 import { PIANI, MODULI, TERMINALE_IN_PIU, FONDATORI, ANNUALE, PROVA_GIORNI, ATTIVAZIONE, conIva, prezzoAnnuale, euro } from '../src/lib/piani.js'
@@ -90,8 +98,9 @@ describe('la scelta del piano', () => {
     const assign = vi.fn()
     db.avviaPagamento.mockResolvedValueOnce({ url: 'https://checkout.stripe.com/x' })
     render(<SceltaPiano cliente={{ uid: 'u1', moduli: ['staff'] }} vai={assign} />)
+    await conStampanti(user)
     await user.click(screen.getByRole('button', { name: /Vai al pagamento/ }))
-    expect(db.avviaPagamento).toHaveBeenCalledWith({ piano: 'base', moduli: ['staff'], terminali: 1, intervallo: 'mese' })
+    expect(db.avviaPagamento).toHaveBeenCalledWith({ piano: 'base', moduli: ['staff'], terminali: 1, intervallo: 'mese', stampanti: STAMPANTI })
     expect(assign).toHaveBeenCalledWith('https://checkout.stripe.com/x')
   })
 
@@ -131,8 +140,9 @@ describe('la scelta del piano', () => {
     expect(screen.getByTestId('prezzo-scelta')).toHaveTextContent(`${euro(anno)} + IVA all’anno`)
     expect(screen.getByTestId('prezzo-dettaglio')).toHaveTextContent(`${euro(conIva(anno))} IVA inclusa`)
     expect(screen.getByTestId('prezzo-dettaglio')).toHaveTextContent(`pari a ${ANNUALE.mensilita} mensilità da ${euro(PIANI.base.prezzo)} + IVA`)
+    await conStampanti(user)
     await user.click(screen.getByRole('button', { name: /Vai al pagamento/ }))
-    expect(db.avviaPagamento).toHaveBeenCalledWith({ piano: 'base', moduli: [], terminali: 1, intervallo: 'anno' })
+    expect(db.avviaPagamento).toHaveBeenCalledWith({ piano: 'base', moduli: [], terminali: 1, intervallo: 'anno', stampanti: STAMPANTI })
   })
 
   it('chi paga già l’anno riparte dall’anno', () => {
@@ -171,6 +181,7 @@ describe('la scelta del piano', () => {
     const user = userEvent.setup()
     db.avviaPagamento.mockRejectedValueOnce(new Error('Il pagamento online non è ancora attivo'))
     render(<SceltaPiano cliente={{ uid: 'u1' }} vai={vi.fn()} />)
+    await conStampanti(user)
     await user.click(screen.getByRole('button', { name: /Vai al pagamento/ }))
     expect(await screen.findByText(/non è ancora attivo/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Vai al pagamento/ })).toBeEnabled()
@@ -242,8 +253,9 @@ describe('coi pagamenti online spenti', () => {
     expect(screen.getByTestId('contatto')).toHaveTextContent('I pagamenti online non sono ancora attivi')
     await user.type(screen.getByLabelText(/Telefono/), '+39 333 1234567')
     await user.type(screen.getByLabelText(/nota/), 'Meglio di mattina')
+    await conStampanti(user)
     await user.click(screen.getByRole('button', { name: 'Chiedi di essere contattato' }))
-    expect(db.chiediContatto).toHaveBeenCalledWith({ piano: 'base', moduli: [], terminali: 1, intervallo: 'mese', telefono: '+39 333 1234567', nota: 'Meglio di mattina' })
+    expect(db.chiediContatto).toHaveBeenCalledWith({ piano: 'base', moduli: [], terminali: 1, intervallo: 'mese', telefono: '+39 333 1234567', nota: 'Meglio di mattina', stampanti: STAMPANTI })
     // Senza pagamento online, l'offerta Fondatori la confermiamo noi.
     expect(screen.getByTestId('fondatori')).toHaveTextContent('te lo confermiamo quando ti contattiamo')
     expect(db.avviaPagamento).not.toHaveBeenCalled()
@@ -281,8 +293,9 @@ describe('il codice sconto', () => {
     await user.click(screen.getByRole('button', { name: 'Applica' }))
     expect(db.verificaCodiceSconto).toHaveBeenCalledWith({ piano: 'base', moduli: [], terminali: 1, intervallo: 'mese' }, 'PROVA20')
     expect(await screen.findByTestId('esito-codice')).toHaveTextContent('Codice PROVA20: 20% di sconto, per 3 mesi, applicato nel pagamento.')
+    await conStampanti(user)
     await user.click(screen.getByRole('button', { name: 'Vai al pagamento' }))
-    expect(db.avviaPagamento).toHaveBeenCalledWith({ piano: 'base', moduli: [], terminali: 1, intervallo: 'mese', codice: 'PROVA20' })
+    expect(db.avviaPagamento).toHaveBeenCalledWith({ piano: 'base', moduli: [], terminali: 1, intervallo: 'mese', codice: 'PROVA20', stampanti: STAMPANTI })
   })
 
   it('se l’offerta Fondatori conviene di più lo dice prima del pagamento', async () => {
@@ -326,6 +339,7 @@ describe('il codice sconto', () => {
     await user.type(screen.getByLabelText(/Codice sconto/), 'PROVA20')
     await user.click(screen.getByRole('button', { name: 'Applica' }))
     expect(await screen.findByTestId('esito-codice')).toHaveTextContent(/Lo applichiamo noi/)
+    await conStampanti(user)
     await user.click(screen.getByRole('button', { name: 'Chiedi di essere contattato' }))
     expect(db.chiediContatto).toHaveBeenCalledWith(expect.objectContaining({ piano: 'base', codice: 'PROVA20' }))
     await user.click(screen.getByLabelText(new RegExp(`^${PIANI.free.nome}`)))
@@ -333,5 +347,35 @@ describe('il codice sconto', () => {
     unmount()
     render(<SceltaPiano cliente={{ uid: 'u1', piano: 'base' }} modifica />)
     expect(screen.queryByTestId('codice-sconto')).not.toBeInTheDocument()
+  })
+})
+
+// REQ-FLOTTA-081 (Daniele, 12/11/2026).
+describe('le stampanti del locale nella richiesta', () => {
+  it('nella richiesta d’acquisto: i tre gruppi, «Altra» e «Non ho ancora una stampante», l’RT, e i testi', () => {
+    stato.vendita = venditaPulita({ pagamenti_online: true })
+    render(<SceltaPiano cliente={{ uid: 'u1' }} />)
+    const nonFiscale = screen.getByLabelText(/Stampante non fiscale/)
+    const gruppi = [...nonFiscale.querySelectorAll('optgroup')].map((g) => g.label)
+    expect(gruppi).toEqual(['Supportata', 'Compatibile, da provare sul posto (Epson con ePOS)', 'Non ancora supportata (la scelta ci serve per decidere)'])
+    expect(within(nonFiscale).getByRole('option', { name: 'Altra (scrivi marca e modello)' })).toBeInTheDocument()
+    expect(within(nonFiscale).getByRole('option', { name: 'Non ho ancora una stampante' })).toBeInTheDocument()
+    expect(screen.getByText(/La stampa di comande e scontrini non fiscali oggi funziona con le stampanti Epson che hanno ePOS/)).toBeInTheDocument()
+    const rt = screen.getByLabelText(/Registratore telematico/)
+    expect(within(rt).getByRole('option', { name: 'Non lo so' })).toBeInTheDocument()
+    expect(screen.getByText(/oggi l’app non lo comanda/)).toBeInTheDocument()
+  })
+  it('senza le due scelte la richiesta non parte; con «Altra» si scrive marca e modello', async () => {
+    const user = userEvent.setup()
+    stato.vendita = venditaPulita({ pagamenti_online: false })
+    render(<SceltaPiano cliente={{ uid: 'u1', email: 'bar@example.com' }} />)
+    await user.click(screen.getByRole('button', { name: 'Chiedi di essere contattato' }))
+    expect(db.chiediContatto).not.toHaveBeenCalled()
+    expect(screen.getByText('Indica la stampante non fiscale e il registratore telematico (anche «non ancora» o «non lo so»).')).toBeInTheDocument()
+    await user.selectOptions(screen.getByLabelText(/Stampante non fiscale/), 'altra')
+    await user.type(screen.getByLabelText('Marca e modello della stampante'), 'Epson TM-T70II')
+    await user.selectOptions(screen.getByLabelText(/Registratore telematico/), 'non_so')
+    await user.click(screen.getByRole('button', { name: 'Chiedi di essere contattato' }))
+    expect(db.chiediContatto).toHaveBeenCalledWith(expect.objectContaining({ stampanti: { non_fiscale: { scelta: 'altra', altra: 'Epson TM-T70II' }, fiscale: { scelta: 'non_so', altra: null } } }))
   })
 })

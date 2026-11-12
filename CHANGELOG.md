@@ -6,6 +6,9 @@ data.
 
 ## Prossima release (da decidere)
 
+- Nella richiesta di informazioni e in quella d'acquisto il titolare dice
+  la sua stampante non fiscale e il suo registratore telematico, da un
+  elenco o scritti a mano; il backoffice li mostra (REQ-FLOTTA-081).
 - Il Free è una cassa semplice: il confronto dice «Stati di servizio» e
   «Stampa di comande e scontrino», tutti e due assenti nel Free, e la
   licenza porta anche `stampa: false` (REQ-FLOTTA-080).

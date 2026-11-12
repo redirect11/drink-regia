@@ -34,6 +34,8 @@ describe('la richiesta di contatto', () => {
       uid: 'u1', email: 'bar@example.com', nome_locale: 'Bar Mario', slug: 'bar-mario',
       scelta: { piano: 'base', moduli: ['staff'], terminali: 2, intervallo: 'mese' },
       telefono: '+39 333 1234567', nota: 'Di mattina', codice: null, stato: 'aperta', chiesta_il: ADESSO.toISOString(),
+      // REQ-FLOTTA-081: senza stampanti nella richiesta, nessuna.
+      stampanti: null,
     })
   })
 

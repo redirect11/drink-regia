@@ -1,0 +1,49 @@
+{
+  "_nota": "Le stampanti del locale nella richiesta di informazioni e in quella d'acquisto (REQ-FLOTTA-081). Le non fiscali in tre gruppi, come le ha dette Daniele il 12/11/2026 (da tana-drink, docs/stampanti-e-livelli.md). Gli RT come marche: l'app oggi non li comanda, la scelta ci serve per decidere. Letto dalla pagina (src/lib/stampanti.js) e dalle Functions (functions/lib/stampanti.js).",
+  "non_fiscali": [
+    {
+      "gruppo": "supportata",
+      "etichetta": "Supportata",
+      "modelli": [
+        "Epson TM-m30II",
+        "Epson TM-m30III"
+      ]
+    },
+    {
+      "gruppo": "da_provare",
+      "etichetta": "Compatibile, da provare sul posto (Epson con ePOS)",
+      "modelli": [
+        "Epson TM-m10",
+        "Epson TM-m50",
+        "Epson TM-T88VI",
+        "Epson TM-T88VII",
+        "Epson TM-T20III Ethernet",
+        "Epson TM-T82III Ethernet"
+      ]
+    },
+    {
+      "gruppo": "non_supportata",
+      "etichetta": "Non ancora supportata (la scelta ci serve per decidere)",
+      "modelli": [
+        "Epson TM-U220 (ad aghi, da cucina)",
+        "Star TSP100IV",
+        "Star mC-Print3",
+        "Star TSP650II",
+        "Star SP700",
+        "Custom KUBE II",
+        "Bixolon SRP-350plusIII",
+        "Bixolon SRP-Q300",
+        "Xprinter, Rongta, HPRT (economiche ESC/POS)",
+        "Sunmi T2 o un altro terminale con stampante dentro"
+      ]
+    }
+  ],
+  "fiscali": [
+    "Epson",
+    "Custom",
+    "RCH",
+    "Olivetti",
+    "Ditron",
+    "Micrelec"
+  ]
+}

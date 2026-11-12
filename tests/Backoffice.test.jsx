@@ -1538,3 +1538,16 @@ describe('un locale simulato nel backoffice', () => {
     expect(codice.indexOf('const PRODUZIONE')).toBeGreaterThan(ultimoImport)
   })
 })
+
+// REQ-FLOTTA-081: le stampanti del locale si vedono nel backoffice.
+describe('le stampanti del locale nel backoffice', () => {
+  it('nella richiesta di contatto e nella scheda del cliente', async () => {
+    const stampanti = { non_fiscale: { scelta: 'Epson TM-m30III', altra: null }, fiscale: { scelta: 'altra', altra: 'Olivetti X' } }
+    regia.contatti = [{ uid: 'c1', email: 'nuovo@example.com', nome_locale: 'Bar Nuovo', slug: 'bar-nuovo', scelta: { piano: 'base', moduli: [], terminali: 1 }, stato: 'aperta', chiesta_il: '2026-11-12T10:00:00Z', stampanti }]
+    mostra('/backoffice/richieste')
+    expect(await screen.findByText('Stampante: Epson TM-m30III · RT: Olivetti X')).toBeInTheDocument()
+    const codice = (await import('node:fs')).readFileSync('src/pages/Backoffice.jsx', 'utf8')
+    expect(codice).toContain('stampantiDette(c.stampanti)')
+    expect((codice.match(/stampantiDette\(c\.stampanti\)/g) || []).length).toBeGreaterThanOrEqual(2)
+  })
+})
