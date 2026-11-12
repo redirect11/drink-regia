@@ -455,6 +455,11 @@ requirements:
       Severity, Size, collegato al repository. Le schede si muovono da sole
       solo col segreto PROJECT_TOKEN (token personale con scope project,
       lo mette l'utente); senza, le issue si aggiornano lo stesso.
+      I RAMI fix/ (12/11/2026): dalla decisione di Daniele di quel giorno
+      ogni lavoro ha il suo ramo, e le correzioni stanno su fix/**. Il
+      workflow partiva su feature/**, hotfix/** e release/**, non su
+      fix/**: la voce «da fare» di una correzione (REQ-FLOTTA-066) non
+      aveva la sua issue. Aggiunto, con un test che fissa i rami.
     status: implemented
     generate_issue: true
     labels: [metodo, regia]
