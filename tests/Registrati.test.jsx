@@ -253,3 +253,12 @@ describe('completare la registrazione con l’account che c’è già', () => {
     expect(db.esci).toHaveBeenCalledTimes(1)
   })
 })
+
+// REQ-FLOTTA-083: se la regia dice che l'email ha già un account, lo si
+// legge accanto alla casella dell'email.
+describe('l’email che ha già un account', () => {
+  it('il messaggio della regia arriva come tale', async () => {
+    const { messaggio } = await import('../src/pages/Registrati.jsx')
+    expect(messaggio({ code: 'functions/already-exists', message: 'Esiste già un account con questa email: entra con quello.', details: { campo: 'email' } })).toBe('Esiste già un account con questa email: entra con quello.')
+  })
+})
