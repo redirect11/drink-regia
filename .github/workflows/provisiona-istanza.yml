@@ -372,9 +372,17 @@ jobs:
           # tipo da mandare, la chiamata lo porta. Un'app che non lo sa (la
           # 1.10 di oggi esce con 1, perché manca --slug) si lancia come prima.
           SA=$(node scripts/genera-cliente.mjs --sa tipo-locale 2>/dev/null) || SA=''
-          if [ -n "$SA" ] && node -e 'process.exit((JSON.parse(process.argv[1])["tipo-locale"] || []).includes(process.argv[2]) ? 0 : 1)' "$SA" "$TIPO_LOCALE" 2>/dev/null; then
+          # `--` prima degli argomenti: senza, node leggerebbe come sue le
+          # opzioni (una risposta «--version» darebbe un sì). E si vuole un
+          # elenco: dentro un testo, `includes` troverebbe «bar» in «barista».
+          if [ -n "$SA" ] && node -e 'const v = JSON.parse(process.argv[1])?.["tipo-locale"]; process.exit(Array.isArray(v) && v.includes(process.argv[2]) ? 0 : 1)' -- "$SA" "$TIPO_LOCALE" 2>/dev/null; then
             node scripts/genera-cliente.mjs --slug "$SLUG" --nome "$NOME" --tipo-locale "$TIPO_LOCALE"
           else
+            # Una risposta che c'è ma non è l'elenco atteso è un errore di
+            # formato dell'app: si ricade sulla chiamata di prima, ma lo si
+            # dice, sennò il giorno che tana-drink lo implementa nessuno lo
+            # vede. La risposta non si stampa: viene dal codice dell'app.
+            if [ -n "$SA" ]; then echo "::warning::L'app risponde a --sa tipo-locale, ma non con l'elenco atteso: la cartella si crea come prima."; fi
             echo "L'app non legge il tipo di locale «$TIPO_LOCALE»: la cartella si crea come prima."
             node scripts/genera-cliente.mjs --slug "$SLUG" --nome "$NOME"
           fi

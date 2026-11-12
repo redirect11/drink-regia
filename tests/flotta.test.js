@@ -772,7 +772,7 @@ describe('elimina-istanza.yml', () => {
 // lancia come prima. Il passo si prova davvero: si esegue il suo script con
 // un genera-cliente.mjs finto, vecchio (come quello di oggi, che a `--sa`
 // risponde con l'uso e uscita 1) e nuovo.
-describe.each(WORKFLOW)('%s: il tipo di locale arriva all’app solo se l’app lo sa leggere', (_, w) => {
+describe.each(WORKFLOW)('%s: il tipo di locale arriva all’app solo se l’app lo sa leggere', (file, w) => {
   const run = () => passo(w, 'La cartella del cliente').run
 
   it('il tipo è scritto una volta sola, nel workflow, ed è «bar»', () => {
@@ -798,6 +798,20 @@ const a = process.argv.slice(2)
 appendFileSync('chiamate.log', JSON.stringify(a) + '\\n')
 if (a[0] === '--sa') { if (a[1] === 'tipo-locale') { console.log(JSON.stringify({ 'tipo-locale': ['bar'] })); process.exit(0) } process.exit(1) }`,
     // Risponde di sì, ma non accetta «bar»: la regia non deve mandarlo.
+    // Risposte fuori contratto (revisore, 12/11/2026): una riga di log prima
+    // del JSON, un testo invece di un elenco, un'opzione di node.
+    sporco: `import { appendFileSync } from 'node:fs'
+const a = process.argv.slice(2)
+appendFileSync('chiamate.log', JSON.stringify(a) + '\\n')
+if (a[0] === '--sa') { console.log('avviso: qualcosa'); console.log(JSON.stringify({ 'tipo-locale': ['bar'] })); process.exit(0) }`,
+    testo: `import { appendFileSync } from 'node:fs'
+const a = process.argv.slice(2)
+appendFileSync('chiamate.log', JSON.stringify(a) + '\\n')
+if (a[0] === '--sa') { console.log(JSON.stringify({ 'tipo-locale': 'barista' })); process.exit(0) }`,
+    opzione: `import { appendFileSync } from 'node:fs'
+const a = process.argv.slice(2)
+appendFileSync('chiamate.log', JSON.stringify(a) + '\\n')
+if (a[0] === '--sa') { console.log('--version'); process.exit(0) }`,
     senzaBar: `import { appendFileSync } from 'node:fs'
 const a = process.argv.slice(2)
 appendFileSync('chiamate.log', JSON.stringify(a) + '\\n')
@@ -817,13 +831,14 @@ if (a[0] === '--sa') { console.log(JSON.stringify({ 'tipo-locale': ['ristorante'
         mkdirSync(join(cartella, 'clienti', 'bar-mario'), { recursive: true })
         writeFileSync(join(cartella, 'clienti', 'bar-mario', 'venue.json'), '{}')
       }
-      const esito = spawnSync(BASH, ['-e', '-c', run()], {
+      // Le stesse opzioni con cui GitHub Actions lancia un passo `run`.
+      const esito = spawnSync(BASH, ['--noprofile', '--norc', '-eo', 'pipefail', '-c', run()], {
         cwd: cartella,
         encoding: 'utf8',
         env: { ...process.env, SLUG: 'bar-mario', CLIENTE_APP: 'bar-mario', NOME: 'Bar Mario', TIPO_LOCALE: w.env.TIPO_LOCALE },
       })
       const log = existsSync(join(cartella, 'chiamate.log')) ? readFileSync(join(cartella, 'chiamate.log'), 'utf8') : ''
-      return { stato: esito.status, errore: esito.stderr, chiamate: log.split('\n').filter(Boolean).map((r) => JSON.parse(r)) }
+      return { stato: esito.status, uscita: esito.stdout, errore: esito.stderr, chiamate: log.split('\n').filter(Boolean).map((r) => JSON.parse(r)) }
     } finally {
       // Su Windows bash tiene la cartella ancora un attimo: si riprova, e
       // una pulizia mancata in una cartella temporanea non fa fallire il test.
@@ -850,16 +865,27 @@ if (a[0] === '--sa') { console.log(JSON.stringify({ 'tipo-locale': ['ristorante'
     expect(chiamate).toEqual([['--sa', 'tipo-locale'], ['--slug', 'bar-mario', '--nome', 'Bar Mario']])
   })
 
+  it.each(['sporco', 'testo', 'opzione'])('con una risposta fuori contratto («%s») la lancia come prima, e lo segnala', (versione) => {
+    const { stato, uscita, chiamate } = lancia(versione)
+    expect(stato).toBe(0)
+    expect(chiamate.at(-1)).toEqual(['--slug', 'bar-mario', '--nome', 'Bar Mario'])
+    expect(uscita).toContain("::warning::L'app risponde a --sa tipo-locale, ma non con l'elenco atteso")
+  })
+
+  it('con l’app di oggi la ricaduta non dà avvisi: è il caso normale', () => {
+    expect(lancia('vecchio').uscita).not.toContain('::warning::')
+  })
+
+  // Criterio 5: in aggiorna-istanza un cliente curato a mano resta com'è.
+  it.runIf(file === 'aggiorna-istanza.yml')('un cliente curato a mano resta com’è: nessuna chiamata, nemmeno la domanda', () => {
+    const { stato, chiamate } = lancia('nuovo', { curato: true })
+    expect(stato).toBe(0)
+    expect(chiamate).toEqual([])
+  })
+
   it('con un’app che non accetta «bar» la lancia come prima', () => {
     const { stato, chiamate } = lancia('senzaBar')
     expect(stato).toBe(0)
     expect(chiamate.at(-1)).toEqual(['--slug', 'bar-mario', '--nome', 'Bar Mario'])
   })
-})
-
-it('aggiorna-istanza.yml: un cliente curato a mano resta com’è, nemmeno la domanda', () => {
-  const run = passo(aggiorna, 'La cartella del cliente').run
-  const primaRiga = run.split('\n')[0]
-  expect(primaRiga).toMatch(/^if \[ -f "clienti\/\$CLIENTE_APP\/venue\.json" \]; then[^\n]*exit 0; fi$/)
-  expect(run.indexOf('--sa tipo-locale')).toBeGreaterThan(run.indexOf(primaRiga) + primaRiga.length)
 })
