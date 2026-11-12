@@ -4302,6 +4302,26 @@ requirements:
       - tests/SceltaPiano.test.jsx
       - tests/Backoffice.test.jsx
 
+  - id: REQ-FLOTTA-082
+    title: "Il segno che gira dell'aggiornamento resta tondo anche accanto a un testo lungo"
+    area: "src/index.css (.spinner)"
+    description: >
+      Daniele, 12/11/2026, nella scheda di un locale del backoffice di
+      test, con l'aggiornamento in corso: «l'icona di loading
+      dell'aggiornamento dell'istanza è ovale». Il segno sta in una riga
+      flessibile (.avanzamento) col testo «aggiornamento a … in corso da …»:
+      quando il testo è lungo la riga lo restringe in larghezza e non in
+      altezza.
+      CRITERI DI ACCETTAZIONE. (1) Il segno non si restringe: resta di 12
+      pixel per 12, tondo, qualunque sia il testo accanto. (2) Chi chiede
+      meno movimento lo vede fermo, come prima.
+    status: todo
+    generate_issue: true
+    labels: [backoffice, regia]
+    priority: P3
+    test_cases:
+      - tests/Backoffice.test.jsx
+
   - id: REQ-FLOTTA-059
     title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"
     area: "functions/lib/eliminazione-cliente.js, functions/index.js (eliminaCliente), src/lib/db.js (eliminaCliente), src/pages/Backoffice.jsx (Elimina cliente…)"

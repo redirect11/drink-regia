@@ -1551,3 +1551,16 @@ describe('le stampanti del locale nel backoffice', () => {
     expect((codice.match(/stampantiDette\(c\.stampanti\)/g) || []).length).toBeGreaterThanOrEqual(2)
   })
 })
+
+// REQ-FLOTTA-082 (Daniele, 12/11/2026: «l'icona di loading
+// dell'aggiornamento dell'istanza è ovale»). happy-dom non disegna: la
+// regola si tiene nel foglio di stile.
+describe('il segno che gira dell’aggiornamento', () => {
+  it('non si restringe accanto a un testo lungo: resta tondo', async () => {
+    const { readFileSync } = await import('node:fs')
+    const css = readFileSync('src/index.css', 'utf8').replace(/
+/g, '
+')
+    expect(css).toMatch(/\.spinner \{[^}]*flex: none;[^}]*width: 12px; height: 12px;[^}]*border-radius: 50%;/)
+  })
+})
