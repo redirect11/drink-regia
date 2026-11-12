@@ -198,10 +198,11 @@ verticale le facciamo scorrere in automatico in orizzontale», e «i box
 cosa comprende dovrebbero essere sempre aperti».
 
 - **La prima schermata è il carosello.** I cinque filmati stanno in fila
-  dietro a tutto e scorrono in orizzontale, uno ogni sei secondi. Titolo,
+  dietro a tutto e scorrono in orizzontale, uno ogni quattro secondi (erano sei). Titolo,
   sottotitolo, bottoni e scheda dei fatti restano fermi davanti.
-- **In basso** la parola del gesto che si vede, con l'iniziale lime, una
-  frase sola e i moduli; accanto i comandi: indietro, avanti, cinque punti
+- **In basso** la parola del gesto che si vede, con l'iniziale lime, e una
+  frase sola. Niente etichette di piani o moduli: chi guarda deve prima
+  capire di cosa si parla. Accanto i comandi: indietro, avanti, cinque punti
   (quello acceso è una lineetta lime) e «Ferma i filmati».
 - **Lo scorrimento aspetta** quando il puntatore o il fuoco sono sulla
   prima schermata, e si ferma del tutto con «Ferma i filmati». Chi ha

@@ -45,19 +45,18 @@ describe('la vendita nella prima pagina', () => {
 
   // REQ-FLOTTA-061 (e prima REQ-FLOTTA-060): i gesti del carosello seguono
   // la vendita come le funzioni. Un gesto che vive solo di moduli sparisce
-  // coi suoi; uno del piano Base resta, senza l'etichetta del modulo che
-  // non si può comprare.
+  // coi suoi; uno del piano Base resta.
   const parole = () => [...document.querySelectorAll('.gesto-punto')].map((p) => p.getAttribute('aria-label').split(' ')[0])
   const vaiAlGesto = (parola) => fireEvent.click([...document.querySelectorAll('.gesto-punto')].find((p) => p.getAttribute('aria-label').startsWith(parola)))
-  const moduliDelGesto = () => [...document.querySelectorAll('.gesto-moduli li')].map((e) => e.textContent)
 
   it('i gesti seguono la vendita: senza magazzino non c’è «Riordina.», senza SumUp «Incassa.» resta nel piano Base', () => {
     stato.vendita = venditaPulita({ moduli: { magazzino: false, sumup: false } })
     mostra()
     expect(parole()).toEqual(['Ordina.', 'Prepara.', 'Incassa.', 'Conta.'])
     expect(document.querySelectorAll('.diapositiva')).toHaveLength(4)
+    // «Incassa.» resta: il conto si chiude anche senza il lettore di carte.
     vaiAlGesto('Incassa.')
-    expect(moduliDelGesto()).toEqual(['Nel piano Base'])
+    expect(document.querySelector('.gesto-riga')).toHaveTextContent(it_.gesti.voci.conto.testo)
   })
 
   // Rilievo del revisore (11/11/2026): «Conta» ha due moduli e una frase
@@ -68,7 +67,6 @@ describe('la vendita nella prima pagina', () => {
     vaiAlGesto('Conta.')
     const riga = document.querySelector('.gesto-riga').textContent
     expect(riga).toBe(it_.gesti.voci.numeri.frasi.staff)
-    expect(moduliDelGesto()).toEqual(['Modulo Personale e ore'])
   })
 
   it('senza statistiche né personale non c’è «Conta.»', () => {
@@ -95,10 +93,11 @@ describe('la vendita nella prima pagina', () => {
     expect(tabella.queryByText('Pagamenti con lettore SumUp')).toBeNull()
     expect(tabella.getByText('Magazzino e fornitori')).toBeInTheDocument()
     expect(screen.queryByRole('article', { name: 'Piano Free' })).toBeNull()
-    // Sparisce anche fra le funzioni raccontate: niente etichetta di un
-    // modulo che non si può comprare (DESIGN.md §5.4).
-    expect(screen.queryByText('Modulo Pagamenti con lettore SumUp')).toBeNull()
-    expect(within(document.getElementById('funzioni')).getByText('Modulo Magazzino e fornitori')).toBeInTheDocument()
+    // Sparisce anche fra le funzioni raccontate: la riga del lettore di
+    // carte non c'è, quella del magazzino sì.
+    const funzioni = document.getElementById('funzioni')
+    expect(funzioni).not.toHaveTextContent(it_.funzioni.minori.sumup)
+    expect(within(funzioni).getByRole('heading', { name: it_.funzioni.voci.magazzino.titolo })).toBeInTheDocument()
   })
 
   it('col Free in vendita la prima schermata lo dice', () => {

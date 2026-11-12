@@ -48,8 +48,10 @@ import { TESTI, testi } from '../i18n/index.js'
 
 // Le funzioni e i moduli che le portano: la struttura, uguale nelle due
 // lingue. Una funzione senza moduli sta nel piano Base; una con moduli si
-// vede se almeno uno è in vendita (REQ-FLOTTA-015), e porta l'etichetta di
-// ognuno: niente sorprese al momento del prezzo (DESIGN.md §5.4).
+// vede se almeno uno è in vendita (REQ-FLOTTA-015). Fino all'11/11/2026
+// ognuna portava l'etichetta del suo piano o modulo; Daniele: «pure sotto
+// le funzioni non mettere i moduli o piano base. Quello viene dopo». Qui
+// si spiega cosa fa il prodotto; cosa si compra lo dicono i prezzi.
 const FUNZIONI = [
   { id: 'conti', moduli: [] },
   { id: 'menu', moduli: ['menu_tavoli', 'ordini_cliente'] },
@@ -176,9 +178,12 @@ function Filmato({ nome, className, gira }) {
 // e titolo, bottoni e scheda dei fatti restano fermi davanti.
 //
 // I MODULI DI OGNI GESTO seguono la vendita decisa dall'admin, come le
-// funzioni più sotto (REQ-FLOTTA-015): un modulo non in vendita non
-// compare fra le etichette, e un gesto che vive solo di moduli (i numeri,
-// la scorta) non si vede se nessuno dei suoi è in vendita. Per questo la
+// funzioni più sotto (REQ-FLOTTA-015): un gesto che vive solo di moduli
+// (i numeri, la scorta) non si vede se nessuno dei suoi è in vendita.
+// Le etichette dei moduli sotto la frase («Nel piano Base», «Modulo…»)
+// non ci sono più: Daniele, 11/11/2026, «non hanno senso lì: l'utente
+// deve prima capire di che si parla». Piani e moduli li dicono l'elenco
+// delle funzioni e la tabella dei prezzi, più sotto. Per questo la
 // riga di «Ordina» e «Incassa» non promette il menù con QR o il lettore
 // di carte, e «Conta», che ha due moduli, ha una frase per modulo: si
 // legge quella del primo in vendita.
@@ -189,8 +194,10 @@ const GESTI = [
   { id: 'numeri', moduli: ['statistiche', 'staff'], base: false },
   { id: 'scorta', moduli: ['magazzino'], base: false },
 ]
-// Ogni quanto il carosello passa al gesto dopo, da solo.
-const PASSO_CAROSELLO_MS = 6000
+// Ogni quanto il carosello passa al gesto dopo, da solo. Erano sei secondi;
+// Daniele, visto sul sito di test (11/11/2026): «i filmati dovrebbero
+// durare di meno». Quattro bastano a leggere una parola e una frase corta.
+const PASSO_CAROSELLO_MS = 4000
 
 // L'aliquota del listino, scritta una volta («IVA esclusa, al 22%»).
 const IVA_PERCENTO = `${IVA}%`
@@ -271,7 +278,7 @@ export default function Home({ utente, lingua = 'it' }) {
   useEffect(() => {
     if (!scorre) return undefined
     // Riparte a ogni cambio di diapositiva (per questo `indice` è fra le
-    // dipendenze): chi ne ha scelta una a mano la vede per sei secondi
+    // dipendenze): chi ne ha scelta una a mano la vede per quattro secondi
     // interi, non per quel che restava del giro.
     const giro = setTimeout(() => setScelto((i) => (Math.min(i, quanti - 1) + 1) % quanti), PASSO_CAROSELLO_MS)
     return () => clearTimeout(giro)
@@ -316,24 +323,6 @@ export default function Home({ utente, lingua = 'it' }) {
   const colonnaBase = interpola(t.prezzi.tabella.sulBase, { base: nomeBase })
   const colonnaCompleto = interpola(t.prezzi.tabella.nelCompleto, { completo: nomeCompleto })
 
-  // Un modulo compreso nel Base (il menù digitale) si dice «Nel piano
-  // Base», come le funzioni senza moduli: non è una cosa da comprare.
-  const nelBase = interpola(t.funzioni.nelPiano, { piano: nomeBase })
-  const etichetteModuli = (ids) => {
-    const etichette = MODULI.filter((m) => ids.includes(m.id) && moduloVisibile(vendita, m.id)).map((m) =>
-      inclusiNelBase.has(m.id) ? nelBase : interpola(t.funzioni.modulo, { nome: nomeModulo(t, m) })
-    )
-    return etichette.length ? [...new Set(etichette)] : [nelBase]
-  }
-
-  // Le etichette di un gesto: «Nel piano Base» se il gesto si fa già col
-  // piano di partenza, poi i suoi moduli in vendita.
-  const etichetteGesto = (g) => {
-    const moduli = MODULI.filter((m) => g.moduli.includes(m.id) && moduloVisibile(vendita, m.id)).map((m) =>
-      inclusiNelBase.has(m.id) ? nelBase : interpola(t.funzioni.modulo, { nome: nomeModulo(t, m) })
-    )
-    return [...new Set([...(g.base ? [nelBase] : []), ...moduli])]
-  }
 
   // Un'azione principale per schermata (DESIGN.md §2): chi è già dentro va
   // alla sua dashboard, gli altri all'attivazione.
@@ -356,7 +345,7 @@ export default function Home({ utente, lingua = 'it' }) {
           che scorrono in orizzontale uno alla volta; sopra un velo scuro;
           davanti, ferme, le cose che non cambiano: cosa è, cosa fare e la
           scheda coi fatti. In basso la parola del gesto che si vede, la
-          sua riga, i moduli, e i comandi: indietro, avanti, i cinque
+          sua riga, e i comandi: indietro, avanti, i cinque
           punti, e «Ferma i filmati» che ferma anche lo scorrimento.
           Gira solo il filmato della diapositiva che si vede: gli altri
           sono fermi immagine, così non si scaricano cinque filmati
@@ -417,11 +406,6 @@ export default function Home({ utente, lingua = 'it' }) {
             <div className="gesto-testo" aria-live={scorre ? 'off' : 'polite'} aria-atomic="true">
               <p className="gesto-parola">{t.gesti.voci[gesto.id].parola}</p>
               <p className="gesto-riga">{rigaGesto(gesto)}</p>
-              <ul className="gesto-moduli">
-                {etichetteGesto(gesto).map((e) => (
-                  <li key={e}>{e}</li>
-                ))}
-              </ul>
             </div>
             <div className="gesto-comandi">
               <button type="button" className="gesto-freccia" aria-label={t.gesti.precedente} onClick={() => vai(indice - 1)}>
@@ -478,11 +462,6 @@ export default function Home({ utente, lingua = 'it' }) {
                     </p>
                     <h3 id={`funzione-${f.id}`}>{v.titolo}</h3>
                     <p>{v.testo}</p>
-                    <ul className="etichette-moduli">
-                      {etichetteModuli(f.moduli).map((e) => (
-                        <li key={e}>{e}</li>
-                      ))}
-                    </ul>
                   </div>
                   {/* Sempre aperto (Daniele, 11/11/2026: «i box cosa comprende
                       dovrebbero essere sempre aperti»): per un pomeriggio
@@ -507,11 +486,6 @@ export default function Home({ utente, lingua = 'it' }) {
               {minori.map((f) => (
                 <li key={f.id} className="minore">
                   <p className="minore-testo">{t.funzioni.minori[f.id]}</p>
-                  <ul className="etichette-moduli">
-                    {etichetteModuli([f.id]).map((e) => (
-                      <li key={e}>{e}</li>
-                    ))}
-                  </ul>
                 </li>
               ))}
             </ul>

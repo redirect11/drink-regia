@@ -3330,7 +3330,8 @@ requirements:
       CRITERI DI ACCETTAZIONE. (1) La prima schermata ha cinque
       diapositive nell'ordine del servizio, una sola visibile alla
       volta; la parola e la riga di quella visibile si leggono. (2)
-      Avanza da sola ogni sei secondi circa, in orizzontale. (3) Ci sono
+      Avanza da sola ogni quattro secondi, in orizzontale (erano sei:
+      Daniele, 11/11/2026, «i filmati dovrebbero durare di meno»). (3) Ci sono
       «precedente» e «successiva», e un indicatore che dice quale delle
       cinque si vede; si usano da tastiera. (4) Un bottone ferma tutto,
       scorrimento e filmati, e li fa ripartire; quando il puntatore o il
@@ -3352,6 +3353,32 @@ requirements:
       stampa.», «L'incasso della serata è già fatto, senza rifare i
       conti.» (o, senza le statistiche, «Le ore di chi ha lavorato sono
       già segnate.»), «Sai cosa sta finendo prima che finisca.».
+      VIA LE ETICHETTE DEI MODULI, LE FRASI AL MARKETING (Daniele,
+      11/11/2026, visto il carosello sul sito di test): «le frasi sotto i
+      filmati sono ancora molto banali e scontate. E poi i sottotitoli
+      che dicono "nel piano base" e poi "altro modulo" non hanno senso
+      lì: l'utente deve prima capire di che si parla. Il marketing
+      dovrebbe saperlo. Di' al marketing di studiarsi per bene la cosa».
+      (12) Sotto la frase non ci sono etichette di piani o moduli: quelle
+      stanno nell'elenco delle funzioni e nella tabella dei prezzi. Le
+      frasi di oggi restano finché il marketing non manda le sue: la
+      richiesta, coi fatti sul prodotto e l'elenco di quello che è stato
+      scartato, è docs/brief/BRF-2026-11-11-frasi-del-carosello.md.
+      Lo stesso giorno, sulla sezione «Funzioni»: «Ogni funzione è entrata
+      perché serviva al banco: questa cosa non si può leggere. Ogni
+      funzione al massimo è frutto dell'esperienza dietro al banco. Devi
+      usare questo tipo di frasi», e sulla descrizione di «Comande e
+      conti»: «veramente quanta banalità». La frase di Daniele è in
+      pagina com'è; il resto dei testi delle funzioni è nella stessa
+      richiesta al marketing.
+      E ancora: «pure sotto le funzioni non mettere i moduli o piano
+      base. Quello viene dopo». (13) Nemmeno la sezione «Funzioni» ha
+      etichette di piani o moduli, e il suo paragrafo in testa è la sola
+      frase di Daniele: cosa si compra lo dicono i prezzi, più sotto.
+      Supera, per le etichette, quanto scritto in REQ-FLOTTA-015 e in
+      DESIGN.md §5.4 («ogni funzione dice a quale modulo appartiene»);
+      resta la regola che una funzione senza moduli in vendita non si
+      vede.
       RESTA: i filmati definitivi di Incassa, Conta e Riordina; il
       bottone «Prova la demo», che porta a un sito non pubblicato.
     status: implemented
