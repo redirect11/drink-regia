@@ -28,9 +28,19 @@ test.beforeEach(({ page }) => {
 })
 
 // La scheda del locale di prova, aperta dall'indirizzo.
+// Se il backoffice dice che non è riuscito a leggere (REQ-FLOTTA-064: un
+// inciampo di rete del runner, come nel collaudo del v0.3.0-beta.10), si
+// preme «Riprova» fino a tre volte: una lettura mancata non è un difetto
+// del rilascio. Se dopo tre volte non legge, il test fallisce, e fa bene.
 async function scheda(page) {
   await page.goto(`/backoffice/locali?locale=${LOCALE}`)
   const articolo = page.getByRole('article').filter({ hasText: LOCALE }).first()
+  const riprova = page.getByRole('button', { name: 'Riprova' })
+  for (let giri = 0; giri < 3; giri++) {
+    await expect(articolo.or(riprova)).toBeVisible()
+    if (await articolo.isVisible()) break
+    await riprova.click()
+  }
   await expect(articolo).toBeVisible()
   return articolo
 }

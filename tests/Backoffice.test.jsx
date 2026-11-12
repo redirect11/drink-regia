@@ -1038,6 +1038,37 @@ describe('cercare e filtrare i locali', () => {
     mostra()
     expect(await screen.findByText('Nessun cliente.')).toBeInTheDocument()
   })
+
+  // REQ-FLOTTA-064: una lettura fallita non è un elenco vuoto. Prima il
+  // backoffice, se non riusciva a leggere, diceva «Nessun cliente.».
+  it('se non riesce a leggere lo dice e fa riprovare: «Nessun cliente.» è solo per quando non ce ne sono', async () => {
+    const user = userEvent.setup()
+    db.elencoClienti.mockRejectedValueOnce(new Error('Non riesco a leggere dal server: controlla la connessione e riprova.'))
+    mostra()
+    const avviso = await screen.findByRole('alert')
+    expect(avviso).toHaveTextContent('Non riesco a leggere dal server: controlla la connessione e riprova.')
+    expect(screen.queryByText('Nessun cliente.')).toBeNull()
+    expect(screen.queryByRole('table', { name: 'Locali' })).toBeNull()
+    // «Riprova» rilegge: stavolta il server risponde.
+    await user.click(screen.getByRole('button', { name: 'Riprova' }))
+    await righeLocali()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  // «Rilancia» rilegge l'elenco dopo l'azione: se quella rilettura fallisce,
+  // l'elenco che c'era resta a schermo.
+  it('se la lettura fallisce a pagina già caricata, l’elenco di prima resta e compare il messaggio', async () => {
+    const user = userEvent.setup()
+    mostra()
+    const prima = (await nomiLocali()).length
+    const scheda = await apri('Bar Rotto')
+    db.elencoClienti.mockRejectedValueOnce(new Error('Non riesco a leggere dal server: controlla la connessione e riprova.'))
+    await user.click(within(scheda).getByRole('button', { name: 'Rilancia' }))
+    expect(await screen.findByText('Non riesco a leggere dal server: controlla la connessione e riprova.')).toBeInTheDocument()
+    expect(await nomiLocali()).toHaveLength(prima)
+    expect(screen.queryByText('Nessun cliente.')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Riprova' })).toBeNull()
+  })
 })
 
 // «AGGIORNA» DICE COSA FA (l'utente, 30/10/2026: oggi non dice cosa fa).

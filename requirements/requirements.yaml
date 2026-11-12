@@ -3469,6 +3469,41 @@ requirements:
       - tests/HomeVendita.test.jsx
       - tests/HomeLingua.test.jsx
 
+  - id: REQ-FLOTTA-064
+    title: "Il backoffice non dice «Nessun cliente» quando non riesce a leggere: lo dice, e fa riprovare"
+    area: "src/lib/db.js (elencoClienti, elencoIstanze, elencoRichieste), src/pages/Backoffice.jsx, e2e/collaudo-licenza.spec.js"
+    description: >
+      Trovato dal collaudo del tag v0.3.0-beta.10 (run 43107447096,
+      11/11/2026): mentre aspettava la fine di un aggiornamento, il test
+      ha ricaricato il backoffice e ha trovato «Nessun cliente.», senza
+      nessun messaggio di errore. Al secondo giro, stesso codice, è
+      passato. [ipotesi] Per qualche secondo il browser non ha raggiunto
+      Firestore: in quel caso `getDocs` non fallisce, risponde con quello
+      che ha in memoria, cioè niente. Il comportamento della pagina
+      invece è certo, letto nel codice: un elenco che non arriva dal
+      server viene mostrato come elenco vuoto. Per un admin è fuorviante:
+      sembra che i clienti siano spariti. Daniele, 12/11/2026, ha ridato
+      l'elenco delle cose aperte con questa dentro.
+      CRITERI DI ACCETTAZIONE. (1) I tre elenchi del backoffice (clienti,
+      istanze, richieste) si leggono sempre dal server, mai dalla
+      memoria del browser. (2) Se il server non risponde, la lettura
+      fallisce con un messaggio in italiano che dice di controllare la
+      connessione, non con quello tecnico di Firebase. (3) Il backoffice
+      che non è riuscito a leggere non mostra «Nessun cliente.»: mostra
+      il messaggio e un bottone «Riprova», che rilegge. (4) «Nessun
+      cliente.» si legge solo quando il server ha risposto che non ce
+      ne sono. (5) Se la lettura fallisce a pagina già caricata (dopo
+      un'azione), l'elenco di prima resta e compare il messaggio. (6) Il
+      collaudo, se trova il messaggio di lettura fallita mentre aspetta
+      un aggiornamento, riprova invece di fallire.
+    status: implemented
+    generate_issue: true
+    labels: [prodotto, regia, backoffice]
+    priority: P1
+    test_cases:
+      - tests/db.test.js
+      - tests/Backoffice.test.jsx
+
   - id: REQ-FLOTTA-059
     title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"
     area: "functions/lib/eliminazione-cliente.js, functions/index.js (eliminaCliente), src/lib/db.js (eliminaCliente), src/pages/Backoffice.jsx (Elimina cliente…)"

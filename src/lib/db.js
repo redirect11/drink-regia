@@ -13,7 +13,7 @@ import {
   signInWithPopup,
   GoogleAuthProvider,
 } from 'firebase/auth'
-import { doc, setDoc, getDoc, onSnapshot, collection, getDocs, orderBy, query, updateDoc, limit, addDoc } from 'firebase/firestore'
+import { doc, setDoc, getDoc, onSnapshot, collection, getDocs, getDocsFromServer, orderBy, query, updateDoc, limit, addDoc } from 'firebase/firestore'
 import { getFunctions, httpsCallable } from 'firebase/functions'
 import { auth, db, configurata, app } from './firebase.js'
 import { STATI } from './istanze.js'
@@ -430,21 +430,38 @@ export async function sceltaAggiornamento(tag, scelta) {
 }
 
 // ── backoffice ──
+// I TRE ELENCHI SI CHIEDONO AL SERVER (REQ-FLOTTA-064). `getDocs`, quando
+// la rete manca, non fallisce: risponde con quello che il browser ha in
+// memoria, che per questi elenchi è niente. Il backoffice mostrava allora
+// «Nessun cliente.», e per un admin i clienti sembravano spariti (trovato
+// dal collaudo del tag v0.3.0-beta.10, 11/11/2026). `getDocsFromServer`
+// fallisce se il server non risponde, e l'errore si dice in italiano.
+export const LETTURA_FALLITA = 'Non riesco a leggere dal server: controlla la connessione e riprova.'
+async function dalServer(q) {
+  try {
+    return await getDocsFromServer(q)
+  } catch (e) {
+    // Un permesso negato resta com'è: è un altro problema, e va visto.
+    if (e?.code === 'permission-denied') throw e
+    throw new Error(LETTURA_FALLITA, { cause: e })
+  }
+}
+
 export async function elencoClienti() {
   serve()
-  const snap = await getDocs(query(collection(db, 'clienti'), orderBy('creato_il', 'desc')))
+  const snap = await dalServer(query(collection(db, 'clienti'), orderBy('creato_il', 'desc')))
   return snap.docs.map((d) => d.data())
 }
 
 export async function elencoIstanze() {
   serve()
-  const snap = await getDocs(collection(db, 'istanze'))
+  const snap = await dalServer(collection(db, 'istanze'))
   return Object.fromEntries(snap.docs.map((d) => [d.id, d.data()]))
 }
 
 export async function elencoRichieste() {
   serve()
-  const snap = await getDocs(collection(db, 'richieste'))
+  const snap = await dalServer(collection(db, 'richieste'))
   return Object.fromEntries(snap.docs.map((d) => [d.id, d.data()]))
 }
 

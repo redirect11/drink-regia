@@ -6,6 +6,9 @@ data.
 
 ## Prossima release (da decidere)
 
+- Il backoffice, se non riesce a leggere i clienti dal server, lo dice e
+  fa riprovare. Prima, con la rete che cadeva un attimo, mostrava «Nessun
+  cliente.» come se fossero spariti (REQ-FLOTTA-064).
 - Nei prezzi c'è il confronto fra i piani, che si apre con un comando
   sotto le schede: una colonna per piano, «Incluso» dove un modulo è
   compreso e il prezzo dove si compra a parte; col Free in vendita, anche
