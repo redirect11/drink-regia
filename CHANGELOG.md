@@ -6,6 +6,9 @@ data.
 
 ## Prossima release (da decidere)
 
+- Il caricamento del rapporto di coverage non fa più fallire i controlli
+  di una PR: se GitHub non riesce a salvarlo, lint, test e build restano
+  verdi (REQ-DEV-014).
 - Anche rilasci, commerciale, temi e stili, nel backoffice, si leggono
   sempre dal server: con la rete che cade non sembrano più vuoti, e la
   pagina dice di controllare la connessione (REQ-FLOTTA-067, #148).

@@ -3629,6 +3629,30 @@ requirements:
     test_cases:
       - tests/CatalogoTemi.test.jsx
 
+  - id: REQ-DEV-014
+    title: "Il rapporto di coverage è un allegato: se GitHub non lo salva, i controlli della PR restano verdi"
+    area: ".github/workflows/test.yml"
+    description: >
+      L'11/11/2026, durante un guasto di GitHub, il passo che carica il
+      rapporto di coverage come allegato del run ha ricevuto cinque volte
+      una pagina di errore invece dei dati ed è fallito. Lint, test e
+      build nello stesso run erano passati, ma il controllo «Lint, test e
+      build» della PR #136 è diventato rosso. Il rapporto è un di più per
+      chi legge: il suo caricamento non deve decidere se una PR è buona.
+      Daniele, 12/11/2026, sulla proposta: «procedi».
+      CRITERI DI ACCETTAZIONE. (1) Il passo «Rapporto di coverage» ha
+      `continue-on-error: true`: se fallisce, il job resta verde. (2) I
+      passi che contano (lint, test, build, audit delle Functions, test con
+      coverage) non ce l'hanno: un loro fallimento fa ancora fallire il
+      job. L'audit del sito resta non vincolante per la ragione scritta in
+      REQ-DEV-006.
+    status: implemented
+    generate_issue: true
+    labels: [metodo, regia]
+    priority: P3
+    test_cases:
+      - tests/ci.test.js
+
   - id: REQ-FLOTTA-067
     title: "Anche rilasci, commerciale, temi, stili e cassetti AI si leggono dal server: senza rete non sembrano vuoti"
     area: "src/lib/db.js (elencoRilasci, elencoMovimenti, elencoTraffico, elencoTemi, elencoStili, elencoCassettiAI)"
