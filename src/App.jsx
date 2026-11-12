@@ -170,7 +170,8 @@ export default function App() {
         {/* Il passaggio dall'app del locale (REQ-FLOTTA-030): sempre qui, anche già entrati. */}
         <Route path="/accesso" element={dopoLAccesso(<Accesso />)} />
         {/* Col sito chiuso la dashboard non fa completare una registrazione (audit del 09/11/2026, finding 26). */}
-        <Route path="/dashboard" element={dopoLAccesso(utente ? <Dashboard utente={utente} chiuso={chiuso} /> : <Navigate to="/accedi" replace />)} />
+        {/* Le sezioni dell'area del titolare (REQ-FLOTTA-084) sono sotto-rotte, come nel backoffice: «/*» le porta tutte a Dashboard, con lo stesso controllo dell'accesso. */}
+        <Route path="/dashboard/*" element={dopoLAccesso(utente ? <Dashboard utente={utente} chiuso={chiuso} /> : <Navigate to="/accedi" replace />)} />
         {/* Le sezioni del backoffice (REQ-FLOTTA-005, 30/10/2026) sono sotto-rotte: «/*» le porta tutte a Backoffice, e il controllo del claim admin vale per ognuna. */}
         <Route path="/backoffice/*" element={dopoLAccesso(utente?.admin ? <Backoffice /> : <Navigate to="/" replace />)} />
         <Route path="/termini" element={dopoLAccesso(<Termini />)} />

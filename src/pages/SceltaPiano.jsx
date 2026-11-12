@@ -68,7 +68,16 @@ const testoFondatori = (p, prezzo) =>
 export default function SceltaPiano({ cliente, modifica = false, vai = (url) => window.location.assign(url) }) {
   const [vendita, setVendita] = useState(() => venditaPulita(null))
   useEffect(() => osservaVendita((v) => setVendita(venditaPulita(v))), [])
-  const [piano, setPiano] = useState(cliente.piano && !eGratuito(cliente.piano) ? cliente.piano : 'base')
+  // IL PIANO ATTUALE (REQ-FLOTTA-084). Daniele, 12/11/2026: «prova free,
+  // nella sua dashboard ha come piano selezionato il base ma invece è il
+  // free che non c'è nelle opzioni». Prima il Free del cliente spariva
+  // dalle opzioni e la scelta partiva dal Base: sembrava il suo piano. Ora
+  // il piano che ha (abbonamento attivo, o quello che cambia in
+  // `modifica`) sta fra le opzioni come «Il tuo piano», ed è scelto
+  // all'inizio. Un piano con l'abbonamento fermo non è attuale: chi lo
+  // rinnova lo ritrova scelto e il tasto acceso, come prima.
+  const attuale = cliente.piano && PIANI[cliente.piano] && (modifica || cliente.abbonamento?.stato === 'attivo') ? cliente.piano : null
+  const [piano, setPiano] = useState(attuale || (cliente.piano && !eGratuito(cliente.piano) ? cliente.piano : 'base'))
   const [moduli, setModuli] = useState(cliente.moduli || [])
   const [terminali, setTerminali] = useState(cliente.terminali || 1)
   const [periodo, setPeriodo] = useState(cliente.abbonamento?.intervallo === 'anno' ? 'anno' : 'mese')
@@ -103,7 +112,20 @@ export default function SceltaPiano({ cliente, modifica = false, vai = (url) => 
   const p = PIANI[piano]
   const inclusi = new Set(p.include)
   const giaSuoi = cliente.moduli || []
-  const piani = pianiInVendita(vendita).filter((x) => !(x.gratuito && (modifica || cliente.piano === x.id)))
+  // Il Free non si propone a chi cambia un abbonamento a pagamento; il
+  // piano attuale c'è sempre, anche il Free tolto dalla vendita.
+  const inVendita = new Set(pianiInVendita(vendita).filter((x) => !(x.gratuito && modifica)).map((x) => x.id))
+  const piani = Object.values(PIANI).filter((x) => x.id === attuale || inVendita.has(x.id))
+  // Il tasto si accende solo per un cambio: un altro piano o, restando sul
+  // piano a pagamento che si ha, moduli, terminali o pagamento diversi.
+  const stessi = (a, b) => [...new Set(a)].sort().join() === [...new Set(b)].sort().join()
+  const invariata =
+    attuale !== null &&
+    piano === attuale &&
+    (gratuito ||
+      (stessi(moduli, cliente.moduli || []) &&
+        terminali === (cliente.terminali || 1) &&
+        periodo === (cliente.abbonamento?.intervallo === 'anno' ? 'anno' : 'mese')))
   const conCodice = !gratuito && !modifica
   const codiceScritto = conCodice ? codice.trim().toUpperCase() : ''
   const gratisColCodice = Boolean(esitoCodice?.gratis) && esitoCodice.codice === codiceScritto
@@ -131,6 +153,8 @@ export default function SceltaPiano({ cliente, modifica = false, vai = (url) => 
     setInCorso(false)
   }
   const conferma = async () => {
+    // Il tasto è spento, ma la regola resta qui: niente richieste per non cambiare niente.
+    if (invariata) return
     setErrore(null)
     setFatto(null)
     setInCorso(true)
@@ -180,6 +204,12 @@ export default function SceltaPiano({ cliente, modifica = false, vai = (url) => 
             <input type="radio" name="piano" value={x.id} checked={piano === x.id} onChange={() => setPiano(x.id)} />
             <strong>{x.nome}</strong> ·{' '}
             {x.gratuito ? `${euro(0)} / mese` : `${piuIva(x.prezzo)} / mese (${ivaInclusa(x.prezzo)})`}
+            {x.id === attuale && (
+              <>
+                {' '}
+                <span className="stato stato-ok">Il tuo piano</span>
+              </>
+            )}
             <div className="muted small">{x.descrizione}</div>
           </label>
         ))}
@@ -347,18 +377,25 @@ export default function SceltaPiano({ cliente, modifica = false, vai = (url) => 
       )}
       {errore && <p className="errore">{errore}</p>}
       {fatto && <p className="muted small">{fatto}</p>}
-      <button type="button" className="btn" disabled={inCorso} onClick={conferma}>
+      {invariata && (
+        <p className="muted small" data-testid="scelta-invariata">
+          {modifica ? 'Cambia piano, moduli, terminali o pagamento per aggiornarlo.' : 'È il piano che hai: scegline un altro per cambiarlo.'}
+        </p>
+      )}
+      <button type="button" className="btn" disabled={inCorso || invariata} onClick={conferma}>
         {inCorso
           ? 'Un momento…'
-          : gratuito
-            ? 'Attiva il Free'
-            : modifica
-              ? 'Aggiorna il piano'
-              : gratisColCodice
-                ? 'Attiva con il codice'
-                : daContattare
-                  ? 'Chiedi di essere contattato'
-                  : 'Vai al pagamento'}
+          : invariata && !modifica
+            ? 'È il tuo piano'
+            : gratuito
+              ? 'Attiva il Free'
+              : modifica
+                ? 'Aggiorna il piano'
+                : gratisColCodice
+                  ? 'Attiva con il codice'
+                  : daContattare
+                    ? 'Chiedi di essere contattato'
+                    : 'Vai al pagamento'}
       </button>
     </section>
   )

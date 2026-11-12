@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import '@testing-library/jest-dom/vitest'
@@ -72,12 +72,18 @@ vi.mock('../src/lib/db.js', () => ({
 
 import Dashboard from '../src/pages/Dashboard.jsx'
 
-const mostra = () =>
+// Montata come in App.jsx: dal 12/11/2026 la dashboard è un'area con le
+// sue sezioni sotto /dashboard (REQ-FLOTTA-084). Il piano, il suo prezzo e
+// la scelta stanno in «Piano e moduli» (/dashboard/piano).
+const mostra = (percorso = '/dashboard', utente = { uid: 'u1', email: 'mario@example.it' }) =>
   render(
-    <MemoryRouter>
-      <Dashboard utente={{ uid: 'u1', email: 'mario@example.it' }} />
+    <MemoryRouter initialEntries={[percorso]}>
+      <Routes>
+        <Route path="/dashboard/*" element={<Dashboard utente={utente} />} />
+      </Routes>
     </MemoryRouter>
   )
+const PIANO = '/dashboard/piano'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -137,7 +143,7 @@ describe('la dashboard', () => {
   it('con Stripe c’è «Gestisci l’abbonamento», che apre il portale', async () => {
     const user = userEvent.setup()
     stato.cliente = { ...stato.cliente, abbonamento: { stato: 'attivo', origine: 'stripe', stripe_customer: 'cus_1' } }
-    mostra()
+    mostra(PIANO)
     await user.click(screen.getByRole('button', { name: 'Gestisci l’abbonamento' }))
     expect(db.apriPortaleAbbonamento).toHaveBeenCalledTimes(1)
     expect(screen.queryByTestId('pagato-fino-al')).toBeNull()
@@ -145,7 +151,7 @@ describe('la dashboard', () => {
 
   it('a mano dice fino a quando è pagato, e niente portale', () => {
     stato.cliente = { ...stato.cliente, abbonamento: { stato: 'attivo', origine: 'manuale', pagato_fino_al: '2026-11-30' } }
-    mostra()
+    mostra(PIANO)
     expect(screen.getByTestId('pagato-fino-al')).toHaveTextContent('Pagato fino al 30 novembre 2026. Per rinnovare o disdire scrivici.')
     expect(screen.queryByRole('button', { name: 'Gestisci l’abbonamento' })).toBeNull()
   })
@@ -153,7 +159,7 @@ describe('la dashboard', () => {
   // REQ-FLOTTA-039: i temi in licenza si vedono col piano, come i moduli.
   it('i temi in licenza stanno accanto al piano, col loro nome', () => {
     stato.cliente = { ...stato.cliente, temi: ['notte', 'meraviglie'] }
-    mostra()
+    mostra(PIANO)
     expect(screen.getByText(/temi: Notte, Meraviglie/)).toBeInTheDocument()
   })
 
@@ -161,23 +167,28 @@ describe('la dashboard', () => {
     const user = userEvent.setup()
     db.apriPortaleAbbonamento.mockRejectedValueOnce(new Error('La gestione dell’abbonamento non è disponibile al momento: scrivici.'))
     stato.cliente = { ...stato.cliente, abbonamento: { stato: 'attivo', origine: 'stripe', stripe_customer: 'cus_1' } }
-    mostra()
+    mostra(PIANO)
     await user.click(screen.getByRole('button', { name: 'Gestisci l’abbonamento' }))
     expect(await screen.findByText(/non è disponibile al momento/)).toBeInTheDocument()
   })
 
   it('dice locale, piano col prezzo del mese e stato dell’istanza', () => {
-    mostra()
+    const { unmount } = mostra()
+    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Bar Mario')
+    expect(screen.getByTestId('stato-istanza')).toHaveTextContent('Non ancora attivata')
+    // Nella panoramica il riepilogo dice lo stesso prezzo del riquadro del piano.
+    expect(screen.getByTestId('riepilogo-piano')).toHaveTextContent('42,70 € + IVA al mese (52,09 € IVA inclusa)')
+    unmount()
+    mostra(PIANO)
     expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Bar Mario')
     // 32,70 + 10 (staff); il secondo terminale è fra i 3 inclusi (DEC-0005).
     // Coi centesimi e «+ IVA», e il totale IVA inclusa accanto.
     expect(screen.getByTestId('prezzo-piano')).toHaveTextContent('42,70 € + IVA al mese (52,09 € IVA inclusa)')
-    expect(screen.getByTestId('stato-istanza')).toHaveTextContent('Non ancora attivata')
   })
 
   it('chi paga l’anno vede il prezzo dell’anno', () => {
     stato.cliente = { ...stato.cliente, moduli: [], terminali: 1, abbonamento: { stato: 'attivo', intervallo: 'anno' } }
-    mostra()
+    mostra(PIANO)
     // 10 mensilità da 32,70 €: 327 € + IVA, 398,94 € IVA inclusa.
     expect(screen.getByTestId('prezzo-piano')).toHaveTextContent('327 € + IVA all’anno (398,94 € IVA inclusa)')
   })
@@ -187,22 +198,22 @@ describe('la dashboard', () => {
   it('un Fondatore vede 25 € finché l’offerta vale, poi il listino', () => {
     const fondatore = (fino_al) => ({ stato: 'attivo', intervallo: 'mese', fondatore: { numero: 1, dal: '2026-11-01T00:00:00Z', fino_al } })
     stato.cliente = { ...stato.cliente, moduli: [], terminali: 1, abbonamento: fondatore('2999-01-01T00:00:00Z') }
-    const { unmount } = mostra()
+    const { unmount } = mostra(PIANO)
     expect(screen.getByTestId('prezzo-piano')).toHaveTextContent('25 € + IVA al mese (30,50 € IVA inclusa)')
     unmount()
     stato.cliente = { ...stato.cliente, abbonamento: fondatore('2000-01-01T00:00:00Z') }
-    mostra()
+    mostra(PIANO)
     expect(screen.getByTestId('prezzo-piano')).toHaveTextContent('32,70 € + IVA al mese (39,89 € IVA inclusa)')
   })
 
   // REQ-FLOTTA-024: quello che il piano nuovo toglie arriva al taglio.
   it('dice quando arriva una riduzione del piano, e niente se non ce n’è', () => {
     stato.istanza = { stato: 'attiva', riduzione_al_taglio: { dal: '2026-11-02T04:00:00.000Z', cosa: ['il modulo staff'] } }
-    const { unmount } = mostra()
+    const { unmount } = mostra(PIANO)
     expect(screen.getByTestId('riduzione-al-taglio')).toHaveTextContent(/Dal taglio della giornata .*: il modulo staff. Fino ad allora l’app resta com’è./)
     unmount()
     stato.istanza = { stato: 'attiva', riduzione_al_taglio: null }
-    mostra()
+    mostra(PIANO)
     expect(screen.queryByTestId('riduzione-al-taglio')).toBeNull()
   })
 
@@ -224,7 +235,7 @@ describe('la dashboard', () => {
 
   // REQ-FLOTTA-010: con l'abbonamento attivo si cambia piano o moduli.
   it('con l’abbonamento attivo c’è «Cambia piano o moduli», non la scelta iniziale', () => {
-    mostra()
+    mostra(PIANO)
     expect(screen.getByRole('heading', { name: 'Cambia piano o moduli' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Aggiorna il piano' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Vai al pagamento/ })).toBeNull()
@@ -249,11 +260,14 @@ describe('la dashboard', () => {
     expect(await screen.findByText('L’abbonamento non risulta attivo.')).toBeInTheDocument()
   })
 
-  it('senza piano il tasto è spento, dice cosa manca, e sotto c’è la scelta del piano', () => {
+  it('senza piano il tasto è spento, dice cosa manca, e in «Piano e moduli» c’è la scelta del piano', () => {
     stato.cliente = { ...stato.cliente, piano: null, abbonamento: null }
-    mostra()
+    const { unmount } = mostra()
     expect(screen.getByRole('button', { name: /Attiva l’istanza/ })).toBeDisabled()
     expect(screen.getByText(/Serve un piano/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Scegli il piano in «Piano e moduli»' })).toHaveAttribute('href', PIANO)
+    unmount()
+    mostra(PIANO)
     expect(screen.getByRole('region', { name: 'Scelta del piano' })).toBeInTheDocument()
   })
 
@@ -293,7 +307,9 @@ describe('la dashboard su due colonne', () => {
   const pile = () => [...document.querySelectorAll('.dashboard-colonne > .pila')]
   const nomi = (pila) => [...pila.querySelectorAll(':scope > .card')].map((c) => c.getAttribute('aria-label'))
 
-  it('con l’app attiva: a sinistra app, piano, aggiornamenti e temi su misura, in quest’ordine; a destra il credito AI', async () => {
+  // REQ-FLOTTA-084: il piano e il credito AI hanno ora la loro sezione; a
+  // destra della panoramica resta il riepilogo del piano.
+  it('con l’app attiva: a sinistra app, aggiornamenti e temi su misura, in quest’ordine; a destra il riepilogo del piano', async () => {
     stato.istanza = {
       stato: 'attiva',
       progetto: 'drinkpos-bar-mario',
@@ -301,35 +317,36 @@ describe('la dashboard su due colonne', () => {
       avviso_aggiornamenti: 'Dal 1° dicembre gli aggiornamenti cambiano.',
     }
     mostra()
-    await screen.findByRole('region', { name: 'Credito AI' })
+    await screen.findByRole('region', { name: 'Temi su misura' })
     expect(pile().map((p) => p.className)).toEqual(['pila principale', 'pila accanto'])
-    expect(nomi(pile()[0])).toEqual(['L’app', 'Piano', 'Aggiornamenti', 'Temi su misura'])
-    expect(nomi(pile()[1])).toEqual(['Credito AI'])
+    expect(nomi(pile()[0])).toEqual(['L’app', 'Aggiornamenti', 'Temi su misura'])
+    expect(nomi(pile()[1])).toEqual(['Il tuo piano'])
     // Ogni riquadro sta in una pila: nessuno direttamente fra le colonne.
     expect(document.querySelectorAll('.dashboard-colonne > .card')).toHaveLength(0)
     expect(document.querySelector('main.dashboard .riquadri')).toBeNull()
   })
 
-  // Rilievo del revisore: senza app attiva il credito AI non c'è. La pila
-  // di destra resta senza riquadri, e il foglio di stile la toglie: non
-  // deve restare una colonna vuota accanto ad «app» e «piano».
-  it('senza app attiva: solo app e piano, e la pila di destra è vuota (e quindi sparisce)', async () => {
+  // Rilievo del revisore (REQ-FLOTTA-062): una pila senza riquadri il
+  // foglio di stile la toglie, perché non resti una colonna vuota. Senza app
+  // attiva a sinistra c'è solo l'app.
+  it('senza app attiva: a sinistra solo l’app, a destra il riepilogo; una pila vuota sparisce', async () => {
     mostra()
     await screen.findByRole('heading', { level: 2 })
-    expect(nomi(pile()[0])).toEqual(['L’app', 'Piano'])
-    expect(pile()[1].childNodes).toHaveLength(0)
+    expect(nomi(pile()[0])).toEqual(['L’app'])
+    expect(nomi(pile()[1])).toEqual(['Il tuo piano'])
     const css = readFileSync(join(import.meta.dirname, '..', 'src', 'index.css'), 'utf8').replace(/\r\n/g, '\n')
     expect(css).toContain('.pila:empty { display: none; }')
   })
 
-  it('la scelta del piano sta sotto le due colonne, fuori da esse', async () => {
-    mostra()
+  it('in «Piano e moduli» la scelta del piano sta sotto il riquadro del piano, larga quanto la pagina', async () => {
+    mostra(PIANO)
     await screen.findByRole('heading', { level: 2 })
-    const colonne = document.querySelector('.dashboard-colonne')
+    const riquadro = screen.getByRole('region', { name: 'Piano' })
     const piano = document.querySelector('.dashboard-piano')
     expect(piano.querySelectorAll(':scope > .card')).toHaveLength(1)
-    expect(colonne.contains(piano)).toBe(false)
-    expect(colonne.compareDocumentPosition(piano) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(piano.contains(riquadro)).toBe(false)
+    expect(riquadro.compareDocumentPosition(piano) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(document.querySelector('.dashboard-colonne')).toBeNull()
   })
 
   it('sotto i 900px le pile stanno una sotto l’altra; sopra, affiancate, tre parti a due', () => {
@@ -348,11 +365,7 @@ describe('la dashboard su due colonne', () => {
   // L'unico punto dove il markup cambia: l'avviso dell'email ha il testo
   // in un paragrafo e i bottoni accanto. Dice e fa le stesse cose.
   it('l’avviso dell’email da confermare dice le stesse cose, coi suoi due bottoni', async () => {
-    render(
-      <MemoryRouter>
-        <Dashboard utente={{ uid: 'u1', email: 'mario@example.it', emailVerificata: false }} />
-      </MemoryRouter>
-    )
+    mostra('/dashboard', { uid: 'u1', email: 'mario@example.it', emailVerificata: false })
     const avviso = (await screen.findByText('Conferma la tua email.')).closest('section')
     expect(avviso).toHaveAttribute('role', 'status')
     expect(avviso).toHaveTextContent('Ti abbiamo scritto a mario@example.it: apri il link nel messaggio. Senza, l’app non si attiva.')
@@ -363,14 +376,19 @@ describe('la dashboard su due colonne', () => {
 
 // REQ-FLOTTA-015: un cliente Free vede i limiti del suo piano, e sotto la
 // scelta per passare a pagamento, col Checkout e non con «modifica».
+// REQ-FLOTTA-084: il suo Free sta fra le opzioni, scelto; il pagamento si
+// accende scegliendo un piano a pagamento.
 describe('la dashboard di un cliente Free', () => {
-  it('dice i limiti del Free e propone i piani a pagamento', () => {
+  it('dice i limiti del Free e propone i piani a pagamento', async () => {
+    const user = userEvent.setup()
     stato.cliente = { ...stato.cliente, piano: 'free', moduli: [], terminali: 1, abbonamento: { stato: 'attivo', origine: 'gratuito' } }
-    mostra()
+    mostra(PIANO)
     expect(screen.getByTestId('limiti-piano')).toHaveTextContent('fino a 10 prodotti nel menù e 5 conti aperti insieme, solo il titolare, senza sconti')
     expect(screen.getByRole('heading', { name: 'Scegli il piano' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Cambia piano o moduli' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Vai al pagamento' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /^Free/ })).toBeChecked()
+    await user.click(screen.getByRole('radio', { name: /^Base/ }))
+    expect(screen.getByRole('button', { name: 'Vai al pagamento' })).toBeEnabled()
   })
 })
 

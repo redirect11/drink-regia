@@ -4324,7 +4324,7 @@ requirements:
 
   - id: REQ-FLOTTA-084
     title: "L'area del titolare in sezioni col sotto-menù, e il cliente Free vede il suo piano fra le opzioni"
-    area: "src/App.jsx (/dashboard/*), src/lib/areaTitolare.js, src/pages/Dashboard.jsx, src/pages/IlLocale.jsx, src/pages/SceltaPiano.jsx, src/index.css"
+    area: "src/App.jsx (/dashboard/*), src/lib/areaTitolare.js, src/pages/Dashboard.jsx, src/pages/IlLocale.jsx, src/pages/SceltaPiano.jsx, src/pages/CreditoAI.jsx (senza), src/index.css, e2e/dashboard.spec.js, e2e/collaudo-registrazione.spec.js, e2e/aiuto.js (sezione)"
     description: >
       Daniele, 12/11/2026, dopo aver provato un locale Free: «prova free,
       nella sua dashboard ha come piano selezionato il base ma invece è il
@@ -4369,7 +4369,7 @@ requirements:
       chiusura e cancellazione di prima (REQ-FLOTTA-014).
       COSA NON C'È: la modifica dei dati del locale dal sito; la versione
       inglese, perché l'area del titolare è solo in italiano (DESIGN.md §6).
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [prodotto, regia, dashboard]
     priority: P2
