@@ -1,8 +1,10 @@
 // LA DASHBOARD DEL TITOLARE (REQ-DEV-004, REQ-FLOTTA-004): ogni persona
 // seminata vede la sua situazione: il piano, i moduli, l'abbonamento, la
 // prova in corso, la scelta del piano per chi non ce l'ha.
+// Dal 12/11/2026 l'area è in sezioni (REQ-FLOTTA-084): lo stato dell'app
+// nella panoramica, il piano in «Piano e moduli», il credito in «Credito AI».
 import { test, expect } from '@playwright/test'
-import { PIANI, MODULI, euro, prezzoMensile, entra, nomeDiCaso, menu, PASSWORD } from './aiuto.js'
+import { PIANI, MODULI, euro, prezzoMensile, entra, nomeDiCaso, menu, sezione, PASSWORD } from './aiuto.js'
 
 test.beforeEach(() => {
   test.skip(!PASSWORD, 'manca E2E_PASSWORD')
@@ -12,22 +14,31 @@ test.describe('la dashboard', () => {
   test('il Free: piano a zero coi suoi limiti, app attiva', async ({ page }) => {
     await entra(page, 'free')
     await expect(page.getByTestId('stato-istanza')).toHaveText('Attiva')
+    await expect(page.getByRole('region', { name: 'Il tuo piano' })).toContainText(PIANI.free.nome)
+    await sezione(page, 'Piano e moduli')
     await expect(page.getByTestId('prezzo-piano')).toContainText('0 € al mese')
     await expect(page.getByTestId('limiti-piano')).toContainText(`fino a ${PIANI.free.limiti.prodotti_max} prodotti`)
+    // Il suo Free fra le opzioni, scelto (REQ-FLOTTA-084), e il tasto spento finché non si cambia.
+    const scelta = page.getByRole('region', { name: 'Scelta del piano' })
+    await expect(scelta.getByRole('radio', { name: /^Free/ })).toBeChecked()
+    await expect(scelta.getByTestId('scelta-invariata')).toBeVisible()
   })
 
   test('il Completo con Stripe: il prezzo IVA inclusa, i moduli compresi, il portale e il credito AI', async ({ page }) => {
     await entra(page, 'completo-stripe')
     await expect(page.getByRole('heading', { level: 2, name: nomeDiCaso('completo-stripe') })).toBeVisible()
+    await sezione(page, 'Piano e moduli')
     await expect(page.getByRole('region', { name: 'Piano', exact: true })).toContainText(PIANI.completo.nome)
     await expect(page.getByTestId('prezzo-piano')).toContainText(`${euro(PIANI.completo.prezzo)} + IVA al mese`)
     await expect(page.getByRole('button', { name: 'Gestisci l’abbonamento' })).toBeVisible()
+    await sezione(page, 'Credito AI')
     await expect(page.getByTestId('credito-ai').first()).toBeVisible()
     await expect(page.getByTestId('ricariche-ai')).toContainText('in omaggio')
   })
 
   test('il Base coi moduli in più, pagato all’anno', async ({ page }) => {
     await entra(page, 'base-moduli')
+    await sezione(page, 'Piano e moduli')
     const nomi = ['magazzino', 'statistiche'].map((id) => MODULI.find((m) => m.id === id).nome)
     await expect(page.getByRole('region', { name: 'Piano', exact: true })).toContainText(`moduli: ${nomi.join(', ')}`)
     await expect(page.getByTestId('prezzo-piano')).toContainText('all’anno')
@@ -35,6 +46,7 @@ test.describe('la dashboard', () => {
 
   test('un pagamento a mano dice fino a quando è pagato; un moroso vede l’abbonamento non pagato', async ({ page }) => {
     await entra(page, 'base-manuale')
+    await sezione(page, 'Piano e moduli')
     await expect(page.getByTestId('pagato-fino-al')).toContainText('Pagato fino al')
     await expect(page.getByRole('region', { name: 'Piano', exact: true })).toContainText('4 terminali')
     await page.getByRole('button', { name: 'Esci' }).click()
@@ -43,11 +55,13 @@ test.describe('la dashboard', () => {
     // test a volte rosso al primo tentativo, 07/11/2026).
     await expect(menu(page).getByRole('link', { name: 'Accedi' })).toBeVisible()
     await entra(page, 'moroso')
+    await sezione(page, 'Piano e moduli')
     await expect(page.getByRole('region', { name: 'Piano', exact: true })).toContainText('Abbonamento non pagato.')
   })
 
   test('un modulo in prova si vede con la sua scadenza', async ({ page }) => {
     await entra(page, 'prova-modulo')
+    await sezione(page, 'Piano e moduli')
     const prova = page.getByRole('region', { name: 'Prova un modulo' })
     await expect(prova).toContainText(`${MODULI.find((m) => m.id === 'magazzino').nome} è in prova fino al`)
   })
@@ -55,6 +69,7 @@ test.describe('la dashboard', () => {
   test('senza piano si sceglie: i moduli cambiano il totale, l’app non è attivata', async ({ page }) => {
     await entra(page, 'senza-piano')
     await expect(page.getByTestId('stato-istanza')).toHaveText('Non ancora attivata')
+    await sezione(page, 'Piano e moduli')
     const scelta = page.getByRole('region', { name: 'Scelta del piano' })
     await expect(scelta.getByTestId('prezzo-scelta')).toContainText(euro(PIANI.base.prezzo))
     const magazzino = MODULI.find((m) => m.id === 'magazzino')

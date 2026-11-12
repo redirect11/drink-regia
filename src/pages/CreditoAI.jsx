@@ -10,7 +10,11 @@ import { PACCHETTI_AI, statoCredito, euroCent, daMicro, tipoDetto, esitoDetto, o
 // dell'app: cassa e comande lavorano come sempre, e qui lo si dice.
 // `vai` è la navigazione verso Stripe: nei test si passa una funzione
 // (window.location non si spia).
-export default function CreditoAI({ slug, istanzaAttiva, vai = (url) => window.location.assign(url) }) {
+// `senza`: cosa mostrare quando non c'è niente da dire (di suo, niente).
+// Da quando il credito ha una sezione sua nell'area del titolare
+// (REQ-FLOTTA-084), una sezione vuota non spiegherebbe nulla: lì si dice
+// perché.
+export default function CreditoAI({ slug, istanzaAttiva, vai = (url) => window.location.assign(url), senza = null }) {
   const [cassetto, setCassetto] = useState(undefined)
   const [consumi, setConsumi] = useState([])
   const [ricariche, setRicariche] = useState([])
@@ -33,7 +37,8 @@ export default function CreditoAI({ slug, istanzaAttiva, vai = (url) => window.l
 
   // Senza cassetto e senza istanza attiva non c'è niente da dire: l'AI
   // lavora sull'app installata.
-  if (cassetto === undefined || (!cassetto && !istanzaAttiva)) return null
+  if (cassetto === undefined) return null
+  if (!cassetto && !istanzaAttiva) return senza
   const s = statoCredito(cassetto)
 
   const ricarica = async (id) => {

@@ -53,5 +53,12 @@ export async function entra(page, caso) {
   await expect(page).toHaveURL(/\/dashboard/)
 }
 
+// L'area del titolare è in sezioni (REQ-FLOTTA-084): ci si va dal suo
+// sotto-menù, come farebbe il titolare. `exact`: «Il locale» è anche
+// dentro «Chiudi il locale».
+export async function sezione(page, nome) {
+  await page.getByRole('navigation', { name: 'Sezioni dell’area del titolare' }).getByRole('link', { name: nome, exact: true }).click()
+}
+
 // Il menù principale: sul telefono sta dietro il tasto, sul desktop è aperto.
 export const menu = (page) => page.getByRole('navigation', { name: 'Principale' })
