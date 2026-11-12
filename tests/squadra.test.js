@@ -57,12 +57,14 @@ describe('la squadra di Stonebit', () => {
     // manuale: tre testi che non devono dividersi.
     expect(regole).toContain('un ramo per ogni lavoro, staccato da `develop`: `feature/<nome>` per una cosa nuova')
     expect(regole).toContain('- **GitFlow**: un ramo per ogni lavoro, staccato da `develop` (`feature/`,')
-    expect(regole).toContain('Un worktree per ramo')
+    // Il worktree serve per più rami insieme (Daniele, 12/11/2026: «rilassa»).
+    expect(regole).toContain('Un worktree a parte serve quando si lavora su più rami insieme')
+    expect(regole).not.toContain('Un worktree per ramo')
     expect(regole).not.toContain('il lavoro normale va su `release/x.y.z`')
     expect(regole).not.toContain('`hotfix/<nome>` nasce da `main`')
     const manuale = leggi('docs/handover.md')
     expect(manuale).toContain('**Un ramo per ogni lavoro, staccato da `develop`**')
-    expect(manuale).toContain('**Un worktree per ramo**')
+    expect(manuale).toContain('**Un worktree quando servono più rami insieme**')
     expect(manuale).not.toContain('`release/x.y.z`: il ramo di lavoro, staccato da `develop`')
     // I tag sul test li mette l'agente quando Daniele lo chiede; la produzione no.
     expect(regole).toContain("pubblicano sul test li mette l'agente quando Daniele lo chiede in chat")

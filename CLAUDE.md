@@ -49,8 +49,9 @@ verso clienti o esterni; scelte fiscali, legali, privacy; cancellazione di rami,
 - **Rami**: un ramo per ogni lavoro, staccato da `develop`: `feature/<nome>` per una cosa nuova,
   `fix/<nome>` per una correzione, `hotfix/<nome>` per una correzione urgente. Ognuno ha la sua
   pull request verso `develop`. Mai commit diretti su `develop` o `main`: ci si arriva solo con
-  una pull request. Un worktree per ramo: non si cambia ramo nella cartella principale
-  (`docs/handover.md`, «I rami»).
+  una pull request. Un worktree a parte serve quando si lavora su più rami insieme; per un lavoro
+  alla volta si cambia ramo nella cartella principale, con l'albero pulito (`docs/handover.md`,
+  «I rami»).
 - **Merge e tag**: i merge su `develop` e `main` li fa Daniele, dalla pull request. I tag che
   pubblicano sul test li mette l'agente quando Daniele lo chiede in chat, dopo il suo merge. Il tag
   o il rilascio che manda in produzione solo col via libera esplicito di Daniele.

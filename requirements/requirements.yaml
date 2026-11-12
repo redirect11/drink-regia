@@ -3207,6 +3207,12 @@ requirements:
       I rami restano quelli decisi da Daniele il 12/11/2026: la quarta
       versione riportava ancora release/x.y.z, ma dice lei stessa che
       vincono le regole del repository.
+      IL WORKTREE (12/11/2026). Alla domanda se tenere «un worktree per
+      ramo», scritta ma non seguita in questi giorni, Daniele: «rilassa».
+      Un worktree a parte serve quando si lavora su più rami insieme; per
+      un lavoro alla volta si cambia ramo nella cartella principale, con
+      l'albero pulito. Scritto nella sezione, in docs/handover.md e nei
+      tre developer.
     status: implemented
     generate_issue: true
     labels: [metodo, regia]

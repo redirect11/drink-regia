@@ -120,8 +120,12 @@ produzione su `drink-regia`. Si prova in locale e sui test automatici.
   DA DECIDERE AL PRIMO RILASCIO IN PRODUZIONE: da dove parte la PR verso
   `main` (i passi più sotto dicono «dal ramo di release») e da dove
   nasce un hotfix quando `main` e `develop` saranno diversi.
-- **Un worktree per ramo**: non si cambia ramo nella cartella
-  principale, si fa `git worktree add ../drink-regia-<nome> -b feature/<nome> origin/develop`.
+- **Un worktree quando servono più rami insieme** (Daniele, 12/11/2026:
+  «rilassa»; prima la regola era un worktree per ogni ramo). Per un
+  lavoro alla volta si cambia ramo nella cartella principale, con
+  l'albero pulito. Per lavori in parallelo, o per non toccare una
+  cartella dove gira qualcosa, si fa `git worktree add
+  ../drink-regia-<nome> -b feature/<nome> origin/develop`.
   In un worktree nuovo mancano `.env` e `node_modules`
   (`npm install` e `npm install --prefix functions`).
 
