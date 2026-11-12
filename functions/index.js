@@ -2333,6 +2333,13 @@ exports.richiestaAI = onRequest(
       : null
     if (!slug) return res.status(401).json({ errore: 'Locale non riconosciuto.' })
 
+    // IL CREDITO (REQ-FLOTTA-085): una lettura del cassetto, niente modello
+    // e niente addebito.
+    if (req.body?.tipo === 'credito') {
+      const { ok, http, ...corpo } = ai.rispostaCredito((await db.doc(`ai/${slug}`).get()).data())
+      return res.status(ok ? 200 : http).json(ok ? { ok, ...corpo } : corpo)
+    }
+
     let messaggio
     try {
       messaggio = ai.preparaMessaggio(req.body)
@@ -2342,7 +2349,7 @@ exports.richiestaAI = onRequest(
     }
     // Il tema dal mockup (REQ-FLOTTA-040) si chiede dal sito, col suo
     // account: da qui le due richieste dell'app e basta.
-    if (!ai.TIPI_INSTALLAZIONE.includes(messaggio.tipo)) return res.status(400).json({ errore: 'Da un’installazione si chiedono «descrizione» e «fattura».' })
+    if (!ai.TIPI_INSTALLAZIONE.includes(messaggio.tipo)) return res.status(400).json({ errore: 'Da un’installazione si chiedono «descrizione», «fattura» e «credito».' })
 
     const esito = await interrogaClaude(slug, messaggio)
     if (!esito.ok) {

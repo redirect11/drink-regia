@@ -1170,6 +1170,14 @@ moduli, la licenza nell'istanza e la Tana.
   imponibile, iva, totale, da_verificare: [] }`, con `null` per i dati
   assenti. Tutto è una **proposta da rivedere** prima di pubblicarla o
   registrarla. Gli schemi stanno in `functions/lib/ai.js`.
+  **Il credito senza il modello** (REQ-FLOTTA-085, dal 13/11/2026):
+  `{ "tipo": "credito" }` con lo stesso gettone → `200 { ok, tipo:
+  "credito", credito_eur, tetto_mensile_eur, speso_mese_eur, attivo,
+  motivo }`, gratis e senza riga di consumo. `attivo` dice se una
+  richiesta può partire adesso; `motivo` è `null`, `"credito"` o
+  `"tetto"`. Senza cassetto o spento, il `402 { codice: senza-cassetto |
+  spento }` di sempre. Va chiesto all'apertura delle Impostazioni e della
+  chat, non a ogni pagina.
   **Dal 12/11/2026 senza chiave** (REQ-FLOTTA-077, Daniele: «niente
   chiave»). Ogni locale della flotta ha un account Google dedicato,
   `ai-locale@<progetto>.iam.gserviceaccount.com`, creato dal suo

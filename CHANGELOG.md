@@ -6,6 +6,9 @@ data.
 
 ## Prossima release (da decidere)
 
+- Il gestionale chiede il credito AI senza chiamare il modello e senza
+  pagarlo: saldo, tetto, speso del mese e se l'AI può partire
+  (REQ-FLOTTA-085).
 - L'area del titolare ha un sotto-menù, come il backoffice: Panoramica,
   Piano e moduli, Credito AI, Il locale (i dati della registrazione e le
   stampanti, in sola lettura) e Chiudi il locale, ognuna col suo

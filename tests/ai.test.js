@@ -164,6 +164,46 @@ describe('le richieste che un’installazione può fare', () => {
   })
 })
 
+// IL CREDITO SENZA IL MODELLO (REQ-FLOTTA-085; tana-drink, 13/11/2026:
+// «Serve a sapere il credito senza chiamare il modello»).
+describe('il credito chiesto dall’installazione', () => {
+  const pieno = { attivo: true, credito_microeuro: 12_340_000, mese: '2026-10', speso_mese_microeuro: 2_500_000, tetto_mensile_microeuro: 20_000_000 }
+
+  it('risponde saldo, tetto, speso del mese e se una richiesta può partire', () => {
+    expect(ai.rispostaCredito(pieno, ADESSO)).toEqual({
+      ok: true,
+      tipo: 'credito',
+      credito_eur: 12.34,
+      tetto_mensile_eur: 20,
+      speso_mese_eur: 2.5,
+      attivo: true,
+      motivo: null,
+    })
+  })
+
+  it('credito finito, tetto raggiunto, mese nuovo', () => {
+    expect(ai.rispostaCredito({ ...pieno, credito_microeuro: 0 }, ADESSO)).toMatchObject({ attivo: false, motivo: 'credito' })
+    expect(ai.rispostaCredito({ ...pieno, speso_mese_microeuro: 20_000_000 }, ADESSO)).toMatchObject({ attivo: false, motivo: 'tetto' })
+    expect(ai.rispostaCredito({ ...pieno, mese: '2026-09', speso_mese_microeuro: 20_000_000 }, ADESSO)).toMatchObject({ attivo: true, speso_mese_eur: 0 })
+  })
+
+  it('senza cassetto o col cassetto spento è il 402 di sempre', () => {
+    expect(ai.rispostaCredito(null, ADESSO)).toEqual({ ok: false, http: 402, codice: 'senza-cassetto', errore: 'Il credito AI di questa installazione non è attivo.' })
+    expect(ai.rispostaCredito({ ...pieno, attivo: false }, ADESSO)).toMatchObject({ ok: false, http: 402, codice: 'spento' })
+  })
+
+  it('richiestaAI lo dà dopo il gettone, prima del modello, senza addebito', () => {
+    const codice = readFileSync('functions/index.js', 'utf8').replace(/\r\n/g, '\n')
+    const porta = codice.slice(codice.indexOf('exports.richiestaAI = '), codice.indexOf('async function interrogaClaude('))
+    const gettone = porta.indexOf("res.status(401)")
+    const credito = porta.indexOf("req.body?.tipo === 'credito'")
+    expect(gettone).toBeGreaterThan(0)
+    expect(credito).toBeGreaterThan(gettone)
+    expect(credito).toBeLessThan(porta.indexOf('ai.preparaMessaggio('))
+    expect(porta).toContain('ai.rispostaCredito(')
+  })
+})
+
 describe('si può partire?', () => {
   const pieno = { attivo: true, credito_microeuro: 10_000_000, mese: '2026-10', speso_mese_microeuro: 0, tetto_mensile_microeuro: 20_000_000 }
 
