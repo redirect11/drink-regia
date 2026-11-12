@@ -96,11 +96,19 @@ describe('il locale dal gettone, con gettoni veri', () => {
 describe('nella regia e nel Terraform', () => {
   const codice = readFileSync('functions/index.js', 'utf8').replace(/\r\n/g, '\n')
   const porta = codice.slice(codice.indexOf('exports.richiestaAI = onRequest('), codice.indexOf('const esito = await interrogaClaude(', codice.indexOf('exports.richiestaAI = onRequest(')))
-  it('la porta prova il gettone prima, e non ricade sulla chiave se il gettone non va', () => {
-    expect(porta.indexOf('identita.tokenDaBearer(')).toBeGreaterThan(0)
-    expect(porta.indexOf('identita.tokenDaBearer(')).toBeLessThan(porta.indexOf('ai.leggiBearer('))
+  // REQ-FLOTTA-079: la chiave non c'è più; un'intestazione che non è un
+  // gettone è un locale non riconosciuto.
+  it('la porta accetta solo il gettone: niente chiave, e senza gettone 401', () => {
+    expect(porta).toContain('identita.tokenDaBearer(')
+    expect(porta).not.toContain('leggiBearer')
+    expect(porta).not.toContain('riservato/chiave')
     expect(porta).toContain("if (!slug) return res.status(401).json({ errore: 'Locale non riconosciuto.' })")
     expect(porta).toContain('identita.motivoBreve(e)')
+  })
+  it('la regia non crea chiavi e non scrive nei segreti dei locali', () => {
+    expect(codice).not.toContain("azione === 'chiave'")
+    expect(codice).not.toContain('chiave-locale')
+    expect(readFileSync('infra/istanza/main.tf', 'utf8')).not.toContain('regia_chiave_ai')
   })
   it('il controllo è quello di Google, e le istanze si cercano per progetto, al più due', () => {
     expect(codice).toContain('(await oauthGoogle.verifyIdToken({ idToken: gettone, audience })).getPayload()')

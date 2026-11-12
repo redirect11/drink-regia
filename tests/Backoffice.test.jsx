@@ -410,39 +410,15 @@ describe('il backoffice e il credito AI', () => {
     expect(db.gestisciCassettoAI).toHaveBeenCalledWith('bar-attivo', 'omaggio', { importo: 5, nota: 'benvenuto' })
   })
 
-  it('la chiave nuova si vede una volta sola, e prima di sostituirne una si chiede', async () => {
-    const user = userEvent.setup()
-    db.elencoCassettiAI.mockResolvedValue({ 'bar-attivo': { credito_microeuro: 0, chiave_creata_il: '2026-10-20' } })
-    db.gestisciCassettoAI.mockResolvedValueOnce({ ok: true, chiave: 'bar-attivo.segretolungo' })
-    const conferma = vi.spyOn(window, 'confirm').mockReturnValue(true)
-    mostra()
-    const attivo = await apri('Bar Attivo')
-    await user.click(within(attivo).getByRole('button', { name: 'Chiave AI' }))
-    expect(conferma).toHaveBeenCalled()
-    expect(db.gestisciCassettoAI).toHaveBeenCalledWith('bar-attivo', 'chiave', {})
-    expect(await screen.findByTestId('chiave-ai')).toHaveTextContent('bar-attivo.segretolungo')
-    await user.click(screen.getByRole('button', { name: 'L’ho copiata' }))
-    expect(screen.queryByTestId('chiave-ai')).toBeNull()
-  })
-
-  // REQ-FLOTTA-076: la regia la scrive da sé nel locale, o dice perché no.
-  it('scritta nel locale, lo dice e ricorda «Aggiorna»; non scritta, dice perché e il comando', async () => {
-    const user = userEvent.setup()
+  // REQ-FLOTTA-079: niente più «Chiave AI»: l'AI del locale si fa
+  // riconoscere col gettone di Google.
+  it('fra le azioni dell’AI non c’è più «Chiave AI»', async () => {
     db.elencoCassettiAI.mockResolvedValue({ 'bar-attivo': { credito_microeuro: 0 } })
-    db.gestisciCassettoAI.mockResolvedValueOnce({ ok: true, chiave: 'bar-attivo.uno', progetto: 'drinkpos-bar-attivo', nel_locale: { scritta: true, perche: null } })
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     mostra()
     const attivo = await apri('Bar Attivo')
-    await user.click(within(attivo).getByRole('button', { name: 'Chiave AI' }))
-    const avviso = await screen.findByRole('region', { name: 'Chiave AI nuova' })
-    expect(avviso).toHaveTextContent('Scritta nel segreto REGIA_AI_KEY di drinkpos-bar-attivo')
-    expect(avviso).toHaveTextContent('premi «Aggiorna»')
-    await user.click(within(avviso).getByRole('button', { name: 'L’ho copiata' }))
-    db.gestisciCassettoAI.mockResolvedValueOnce({ ok: true, chiave: 'bar-attivo.due', progetto: 'drinkpos-bar-attivo', nel_locale: { scritta: false, perche: 'La regia non ha ancora il permesso.' } })
-    await user.click(within(attivo).getByRole('button', { name: 'Chiave AI' }))
-    const secondo = await screen.findByRole('region', { name: 'Chiave AI nuova' })
-    expect(secondo).toHaveTextContent('Non l’ho scritta nel locale: La regia non ha ancora il permesso.')
-    expect(secondo).toHaveTextContent('firebase functions:secrets:set REGIA_AI_KEY --project drinkpos-bar-attivo')
+    expect(within(attivo).getByRole('button', { name: 'Regala AI' })).toBeInTheDocument()
+    expect(within(attivo).queryByRole('button', { name: 'Chiave AI' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Chiave AI nuova' })).toBeNull()
   })
 
   it('«Locale esistente» registra la Tana senza provisioning', async () => {

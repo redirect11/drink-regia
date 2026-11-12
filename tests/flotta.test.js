@@ -131,8 +131,9 @@ describe.each(WORKFLOW)('%s', (_, w, corpo) => {
   // Le Functions dell'app dichiarano dei segreti, e Firebase non le
   // pubblica se ne manca uno (la prima attivazione di prova, SUMUP_API_KEY).
   it('i segreti dichiarati dall’app si creano prima del deploy', () => {
-    // REQ-FLOTTA-075: la Chiave AI del locale (da tana-drink, 12/11/2026).
-    expect(w.env.SEGRETI_APP).toBe('SUMUP_API_KEY,REGIA_AI_KEY')
+    // REQ-FLOTTA-079: la Chiave AI del locale non c'è più (da tana-drink,
+    // 12/11/2026: «la versione con la chiave non è mai uscita»).
+    expect(w.env.SEGRETI_APP).toBe('SUMUP_API_KEY')
     const nomi = passi(w).map((s) => s.name)
     expect(passo(w, "I segreti dell'app").run).toBe('node scripts/segreti-istanza.mjs --project "$PROGETTO" --segreti "$SEGRETI_APP"')
     expect(nomi.indexOf("I segreti dell'app")).toBeGreaterThan(nomi.indexOf('Dipendenze della regia'))
