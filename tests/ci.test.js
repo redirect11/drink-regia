@@ -250,3 +250,21 @@ describe('le Functions pubblicate hanno tutto quello che leggono', () => {
     }
   })
 })
+
+// REQ-DEV-014: il rapporto di coverage è un allegato. L'11/11/2026 un guasto
+// di GitHub ha fatto fallire il suo caricamento, e con lui il controllo
+// della PR, a test e build passati.
+describe('test.yml: il rapporto di coverage non decide se una PR è buona', () => {
+  const passi = test.jobs[Object.keys(test.jobs)[0]].steps
+  it('il caricamento del rapporto può fallire senza far fallire il job', () => {
+    const rapporto = passi.find((p) => p.name === 'Rapporto di coverage')
+    expect(rapporto['continue-on-error']).toBe(true)
+  })
+  // L'audit del sito ha già `continue-on-error`, per una ragione sua scritta
+  // nel workflow (REQ-DEV-006): resta fuori da questo elenco.
+  it('lint, test, build, audit delle Functions e coverage no: un loro fallimento fa ancora fallire il job', () => {
+    const vincolanti = passi.filter((p) => ['npm run lint', 'npm test', 'npm run build'].includes(p.run) || ['Audit delle dipendenze delle Functions', 'Test con coverage'].includes(p.name))
+    expect(vincolanti).toHaveLength(5)
+    for (const p of vincolanti) expect(p['continue-on-error'], p.name || p.run).toBeUndefined()
+  })
+})
