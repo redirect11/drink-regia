@@ -4195,9 +4195,9 @@ requirements:
       Daniele, 12/11/2026, sulla riga «Comande: No» del Free nel
       confronto: «io intendevo gli stati di servizio. Quello va tolto e
       anche la possibilità di stampare». In tana-drink il limite
-      `comande: false` (REQ-LIC-005) toglie già gli stati di servizio (in
-      preparazione, pronto, servito) e la stampa della comanda, ma lascia
-      lo scontrino.
+      `comande: false` (REQ-LIC-005) era deciso dal 31/10/2026 ma non
+      ancora fatto: l'app non leggeva la voce, e nel Free gli stati di
+      servizio c'erano (correzione di tana-drink, 12/11/2026).
       CRITERI DI ACCETTAZIONE. (1) Nel listino i limiti del Free hanno
       anche `stampa: false`: la licenza lo porta all'app, che spegne tutta
       la stampa, comanda e scontrino, quando lo sa leggere; finché non lo
@@ -4207,8 +4207,15 @@ requirements:
       nei piani a pagamento. (3) La descrizione del Free, nel listino e
       nella pagina, dice «senza stati di servizio, senza stampa» al posto
       di «senza comande». (4) Italiano e inglese hanno le stesse voci.
-      DA DIRE A TANA-DRINK: la chiave `stampa: false` nei limiti del Free,
-      che spegne anche lo scontrino.
+      DETTO A TANA-DRINK, E FATTO (12/11/2026, sulla loro release 1.10.x,
+      al test con la loro prossima beta): REQ-LIC-016, con `stampa: false`
+      non esce niente dalla stampante e spariscono tasti e impostazioni
+      della stampa; REQ-LIC-005, con `comande: false` il servizio è spento
+      qualunque cosa dica l'impostazione del locale: niente stati, tempi,
+      stima ai clienti, stampa della comanda, e tutto risulta servito
+      all'incasso. Senza le voci non cambia niente. Fino a quando la 1.10.x
+      non arriva a un locale Free, il confronto della pagina dice già
+      quello che l'app di quel locale non fa ancora.
     status: implemented
     generate_issue: true
     labels: [prodotto, regia, home]
