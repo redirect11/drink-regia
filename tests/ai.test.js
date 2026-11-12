@@ -229,24 +229,11 @@ describe('la risposta del modello', () => {
   })
 })
 
-describe('la chiave di un’installazione', () => {
-  it('il bearer porta lo slug; la regia tiene solo l’impronta e la confronta a tempo costante', () => {
-    const { bearer, impronta } = ai.nuovaChiave('tana-drink')
-    expect(bearer).toMatch(/^tana-drink\.[A-Za-z0-9_-]{40,}$/)
-    expect(impronta).toMatch(/^[0-9a-f]{64}$/)
-    expect(bearer).not.toContain(impronta)
-    const letto = ai.leggiBearer(`Bearer ${bearer}`)
-    expect(letto.slug).toBe('tana-drink')
-    expect(ai.chiaveGiusta(letto.segreto, impronta)).toBe(true)
-    expect(ai.chiaveGiusta(`${letto.segreto}x`, impronta)).toBe(false)
-    expect(ai.chiaveGiusta(letto.segreto, null)).toBe(false)
-  })
-
-  it('un header storto non apre niente', () => {
-    expect(ai.leggiBearer('Bearer solo-segreto')).toBeNull()
-    expect(ai.leggiBearer('tana-drink.abcdefghijklmnopqrstuvwxyz')).toBeNull()
-    expect(ai.leggiBearer('Bearer X.abcdefghijklmnopqrstuvwxyz')).toBeNull()
-    expect(() => ai.nuovaChiave('X')).toThrow(/Slug/)
+// REQ-FLOTTA-079: la «Chiave AI» non c'è più; l'installazione si fa
+// riconoscere col gettone di Google (lib/identita-locale.js).
+describe('niente più chiave di un’installazione', () => {
+  it('la libreria dell’AI non crea né legge chiavi', () => {
+    for (const nome of ['nuovaChiave', 'leggiBearer', 'chiaveGiusta']) expect(ai[nome], nome).toBeUndefined()
   })
 })
 
