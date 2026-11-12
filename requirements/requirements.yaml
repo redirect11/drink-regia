@@ -4037,7 +4037,7 @@ requirements:
       backoffice lo dice e ricorda di premere «Aggiorna»: le Functions del
       locale leggono la versione nuova al deploy dopo. (6) La regia non
       tiene la chiave intera: solo l'impronta, come prima.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [flotta, regia, ai, backoffice]
     priority: P2

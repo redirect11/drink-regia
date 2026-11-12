@@ -270,7 +270,7 @@ export default function Backoffice() {
     setErrore(null)
     try {
       const esito = await gestisciCassettoAI(c.slug, azione, extra)
-      if (esito?.chiave) setChiaveNuova({ nome: c.nome_locale, chiave: esito.chiave })
+      if (esito?.chiave) setChiaveNuova({ nome: c.nome_locale, chiave: esito.chiave, nelLocale: esito.nel_locale || null, progetto: esito.progetto || null })
     } catch (e) {
       setErrore(e.message)
     }
@@ -371,10 +371,26 @@ export default function Backoffice() {
       {chiaveNuova && (
         <section className="card avviso" aria-label="Chiave AI nuova">
           <h3>Chiave AI di {chiaveNuova.nome}</h3>
-          <p className="small">
-            Copiala adesso: non si vede più. Va tra i segreti dell’installazione, che la usa per chiamare la regia; la chiave precedente non
-            funziona più.
-          </p>
+          {/* REQ-FLOTTA-076: la regia la scrive da sé nel locale, o dice perché no. */}
+          {chiaveNuova.nelLocale?.scritta ? (
+            <p className="small">
+              Scritta nel segreto REGIA_AI_KEY di {chiaveNuova.progetto}: ora premi «Aggiorna» sul locale, perché le sue Functions la leggano.
+              La chiave precedente non funziona più.
+            </p>
+          ) : (
+            <>
+              <p className="small">
+                {chiaveNuova.nelLocale?.perche ? `Non l’ho scritta nel locale: ${chiaveNuova.nelLocale.perche} ` : ''}
+                Copiala adesso: non si vede più. Va tra i segreti dell’installazione, che la usa per chiamare la regia; la chiave precedente non
+                funziona più.
+              </p>
+              {chiaveNuova.progetto && (
+                <p className="small">
+                  A mano: <code>{`firebase functions:secrets:set REGIA_AI_KEY --project ${chiaveNuova.progetto}`}</code>, poi «Aggiorna» sul locale.
+                </p>
+              )}
+            </>
+          )}
           <code className="chiave" data-testid="chiave-ai">
             {chiaveNuova.chiave}
           </code>
