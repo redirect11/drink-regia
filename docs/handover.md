@@ -1151,15 +1151,15 @@ moduli, la licenza nell'istanza e la Tana.
   **dell'installazione** (mai il browser: i clienti del locale hanno
   account sullo stesso progetto) fa
   `POST https://europe-west1-drink-regia.cloudfunctions.net/richiestaAI`
-  con `Authorization: Bearer <slug>.<segreto>` (la chiave della regia,
-  creata dal backoffice con «Chiave AI», nei segreti dell'installazione)
+  con `Authorization: Bearer <gettone>`, il gettone d'identità di Google
+  del suo account ai-locale (sotto: «Dal 12/11/2026 senza chiave»)
   e uno di questi corpi JSON:
   `{ "tipo": "descrizione", "nome", "produttore"?, "categoria"?, "note"? }`
   oppure `{ "tipo": "fattura", "file": <base64>, "media_type":
   "application/pdf" | "image/jpeg" | "image/png" | "image/webp" |
   "image/gif" }` (foto fino a 5 MB, PDF fino a 20 MB). Risposte:
   `200 { ok, tipo, risultato, costo_eur, credito_eur }`; `400` richiesta
-  sbagliata; `401` chiave non valida; `402 { codice: credito | tetto |
+  sbagliata; `401` locale non riconosciuto; `402 { codice: credito | tetto |
   spento | senza-cassetto }` credito o tetto non bastano: **si ferma solo
   l'AI**; `422 { codice, costo_eur, credito_eur }` il modello non ha dato
   un risultato usabile (il costo resta); `503` servizio occupato, si
@@ -1182,9 +1182,11 @@ moduli, la licenza nell'istanza e la Tana.
   sue `getRequestHeaders()`. La regia ne fa controllare a Google firma,
   emittente, scadenza e destinatario, e riconosce il locale dal nome del
   progetto nell'indirizzo dell'account. Nessun altro account vale, nemmeno
-  quello predefinito del progetto. Niente segreto da tenere: `REGIA_AI_KEY`
-  serve solo per il passaggio e per la Tana, che non ha il Terraform della
-  flotta; poi si toglie. Risposte e corpi restano quelli di sopra.
+  quello predefinito del progetto. Niente segreto da tenere: la «Chiave AI»
+  di prima (`REGIA_AI_KEY`) è tolta dal 12/11/2026 (REQ-FLOTTA-079). Per
+  un locale esistente come la Tana, l'account e il permesso del suo deploy
+  li dà il workflow «Prepara l'AI di un locale esistente»
+  (REQ-FLOTTA-078). Risposte e corpi restano quelli di sopra.
   **Come la regia si presenta ad Anthropic** (dal 06/11/2026): con la
   **federazione delle identità**, non con una chiave. L'emittente
   `google-cloud` nella Console (`accounts.google.com`, creato il

@@ -114,9 +114,9 @@ env:
   PROGETTO: drinkpos-${{ inputs.slug }}
   # I segreti che le Functions dell'app di tana-drink dichiarano
   # (defineSecret): contratto con tana-drink, docs/handover.md §7.
-  # REGIA_AI_KEY è la «Chiave AI» del locale (REQ-FLOTTA-075): col
-  # segnaposto l'AI del locale resta spenta.
-  SEGRETI_APP: SUMUP_API_KEY,REGIA_AI_KEY
+  # La «Chiave AI» (REGIA_AI_KEY) non c'è più: l'AI del locale passa dal
+  # gettone di Google del suo account ai-locale (REQ-FLOTTA-079).
+  SEGRETI_APP: SUMUP_API_KEY
 
 jobs:
   # 1. I CONTROLLI, senza credenziali: fermarsi qui non costa niente, nessun

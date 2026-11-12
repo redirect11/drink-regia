@@ -78,7 +78,6 @@ export default function Backoffice() {
   const [errore, setErrore] = useState(null)
   const [impostazioni, setImpostazioni] = useState({})
   // La chiave AI appena creata: si vede una volta sola, qui (REQ-AI-003).
-  const [chiaveNuova, setChiaveNuova] = useState(null)
   const [rilasci, setRilasci] = useState([])
   // Le richieste di contatto (REQ-FLOTTA-017): lette qui e non nella loro
   // sezione, perché il contatore di «Richieste» le conta da ogni sezione.
@@ -265,12 +264,11 @@ export default function Backoffice() {
       .catch((e) => setErrore(e.message))
 
   // Il cassetto AI di un locale (REQ-AI-003): ricarica a mano (la Tana la
-  // ricarichiamo noi), tetto del mese, acceso o spento, chiave.
+  // ricarichiamo noi), omaggio, tetto del mese, acceso o spento.
   const azioneAI = async (c, azione, extra = {}) => {
     setErrore(null)
     try {
-      const esito = await gestisciCassettoAI(c.slug, azione, extra)
-      if (esito?.chiave) setChiaveNuova({ nome: c.nome_locale, chiave: esito.chiave, nelLocale: esito.nel_locale || null, progetto: esito.progetto || null })
+      await gestisciCassettoAI(c.slug, azione, extra)
     } catch (e) {
       setErrore(e.message)
     }
@@ -294,10 +292,6 @@ export default function Backoffice() {
     const importo = window.prompt(`Tetto mensile del credito AI di ${c.nome_locale}, in euro:`, String(attuale ?? ''))
     if (importo == null) return
     azioneAI(c, 'tetto', { importo: Number(String(importo).replace(',', '.')) })
-  }
-  const chiaveAI = (c, cassetto) => {
-    if (cassetto?.chiave_creata_il && !window.confirm(`La chiave attuale di ${c.nome_locale} smette di funzionare subito. Continuare?`)) return
-    azioneAI(c, 'chiave')
   }
 
   if (righe === undefined) return <main className="pagina muted">Carico…</main>
@@ -355,7 +349,7 @@ export default function Backoffice() {
     }
     carica()
   }
-  const az = { carica, cambiaStato, annullaEliminazione, eliminaCliente: eliminaClienteDaAdmin, aggiorna, azioneRilascio, riprova, indietro, azioneAI, ricaricaAI, regalaAI, tettoAI, chiaveAI, registraPagamento: pagamento, sconto, onErrore: setErrore }
+  const az = { carica, cambiaStato, annullaEliminazione, eliminaCliente: eliminaClienteDaAdmin, aggiorna, azioneRilascio, riprova, indietro, azioneAI, ricaricaAI, regalaAI, tettoAI, registraPagamento: pagamento, sconto, onErrore: setErrore }
   // Dopo «Crea il locale» o «Registra il locale» si va a vederlo in elenco.
   const creato = () => {
     carica()
@@ -367,40 +361,6 @@ export default function Backoffice() {
       <h2>Backoffice</h2>
       <SottoMenu conti={contiDelBackoffice(righe, contatti)} />
       {errore && <p className="errore">{errore}</p>}
-
-      {chiaveNuova && (
-        <section className="card avviso" aria-label="Chiave AI nuova">
-          <h3>Chiave AI di {chiaveNuova.nome}</h3>
-          {/* REQ-FLOTTA-076: la regia la scrive da sé nel locale, o dice perché no. */}
-          {chiaveNuova.nelLocale?.scritta ? (
-            <p className="small">
-              Scritta nel segreto REGIA_AI_KEY di {chiaveNuova.progetto}: ora premi «Aggiorna» sul locale, perché le sue Functions la leggano.
-              La chiave precedente non funziona più.
-            </p>
-          ) : (
-            <>
-              <p className="small">
-                {chiaveNuova.nelLocale?.perche ? `Non l’ho scritta nel locale: ${chiaveNuova.nelLocale.perche} ` : ''}
-                Copiala adesso: non si vede più. Va tra i segreti dell’installazione, che la usa per chiamare la regia; la chiave precedente non
-                funziona più.
-              </p>
-              {chiaveNuova.progetto && (
-                <p className="small">
-                  A mano: <code>{`firebase functions:secrets:set REGIA_AI_KEY --project ${chiaveNuova.progetto}`}</code>, poi «Aggiorna» sul locale.
-                </p>
-              )}
-            </>
-          )}
-          <code className="chiave" data-testid="chiave-ai">
-            {chiaveNuova.chiave}
-          </code>
-          <div className="azioni">
-            <button type="button" className="btn small" onClick={() => setChiaveNuova(null)}>
-              L’ho copiata
-            </button>
-          </div>
-        </section>
-      )}
 
       <div className="bo-sezione">
         <Routes>
@@ -924,9 +884,6 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
             </button>
             <button type="button" className="btn ghost small" onClick={() => az.tettoAI(c, credito?.tetto)}>
               Tetto AI
-            </button>
-            <button type="button" className="btn ghost small" onClick={() => az.chiaveAI(c, cassetto)}>
-              Chiave AI
             </button>
             {credito && (
               <button type="button" className="btn ghost small" onClick={() => az.azioneAI(c, credito.attivo ? 'spegni' : 'accendi')}>

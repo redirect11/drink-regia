@@ -126,3 +126,13 @@ describe('il credito AI coi pagamenti online spenti', () => {
     expect(screen.queryByRole('button', { name: /Ricarica/ })).not.toBeInTheDocument()
   })
 })
+
+// REQ-FLOTTA-079: «collegata» contava la Chiave AI, che non c'è più.
+describe('niente più «non ancora collegata»', () => {
+  it('un cassetto senza chiave non dice che l’app non è collegata', async () => {
+    const { statoCredito } = await import('../src/lib/ai.js')
+    expect(statoCredito({ credito_microeuro: 1_000_000 }).collegata).toBeUndefined()
+    const { readFileSync } = await import('node:fs')
+    expect(readFileSync('src/pages/CreditoAI.jsx', 'utf8')).not.toContain('non è ancora collegata')
+  })
+})
