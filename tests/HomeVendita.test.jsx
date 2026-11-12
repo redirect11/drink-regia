@@ -98,7 +98,7 @@ describe('la vendita nella prima pagina', () => {
     const tabella = within(screen.getByRole('table'))
     expect(tabella.getAllByRole('columnheader').map((c) => c.textContent)).toEqual(['Free', 'Base', 'Completo'])
     const c = it_.prezzi.confronto
-    const riga = (id) => [...tabella.getByRole('row', { name: new RegExp(`^${c.righe[id]}`) }).querySelectorAll('td')].map((td) => td.textContent)
+    const riga = (id) => [...tabella.getByRole('row', { name: new RegExp(`^${c.righe[id].replace(/[()]/g, '\\$&')}`) }).querySelectorAll('td')].map((td) => td.textContent)
     const limiti = PIANI.free.limiti
     expect(riga('comande')).toEqual(['No', 'Sì', 'Sì'])
     expect(riga('prodotti')).toEqual([`Fino a ${limiti.prodotti_max}`, 'Senza limite', 'Senza limite'])
@@ -217,7 +217,7 @@ describe('la vendita nella prima pagina', () => {
 describe('il Free nel confronto anche fuori vendita, e nascosto a richiesta', () => {
   const c = it_.prezzi.confronto
   const intestazioni = () => within(screen.getByRole('table')).getAllByRole('columnheader').map((h) => h.textContent)
-  const riga = (id) => [...within(screen.getByRole('table')).getByRole('row', { name: new RegExp(`^${c.righe[id]}`) }).querySelectorAll('td')].map((td) => td.textContent)
+  const riga = (id) => [...within(screen.getByRole('table')).getByRole('row', { name: new RegExp(`^${c.righe[id].replace(/[()]/g, '\\$&')}`) }).querySelectorAll('td')].map((td) => td.textContent)
 
   it('l’interruttore per nasconderlo è spento finché l’admin non lo accende', () => {
     expect(venditaPulita(null).nascondi_free).toBe(false)
@@ -262,5 +262,32 @@ describe('il Free nel confronto anche fuori vendita, e nascosto a richiesta', ()
   it('nessuna etichetta «in arrivo», in nessuna lingua', () => {
     expect(c.inArrivo).toBeUndefined()
     expect(en.prezzi.confronto.inArrivo).toBeUndefined()
+  })
+})
+
+// REQ-FLOTTA-080 (Daniele, 12/11/2026: «io intendevo gli stati di servizio.
+// Quello va tolto e anche la possibilità di stampare»).
+describe('il Free senza stati di servizio e senza stampa', () => {
+  const c = it_.prezzi.confronto
+  it('il listino porta stampa: false nei limiti del Free, e la descrizione lo dice', () => {
+    expect(PIANI.free.limiti.stampa).toBe(false)
+    expect(PIANI.free.limiti.comande).toBe(false)
+    expect(PIANI.free.descrizione).toContain('senza stati di servizio, senza stampa')
+    expect(PIANI.free.descrizione).not.toMatch(/[Ss]enza comande/)
+  })
+  it('il confronto dice gli stati di servizio e la stampa', () => {
+    stato.vendita = venditaPulita({})
+    mostra()
+    fireEvent.click(screen.getByRole('button', { name: c.apri }))
+    expect(c.righe.comande).toBe('Stati di servizio (in preparazione, pronto, servito)')
+    expect(c.righe.stampa).toBe('Stampa di comande e scontrino')
+    const riga = (id) => [...within(screen.getByRole('table')).getByRole('row', { name: new RegExp(`^${c.righe[id].replace(/[()]/g, '\\$&')}`) }).querySelectorAll('td')].map((td) => td.textContent)
+    expect(riga('comande')).toEqual(['No', 'Sì', 'Sì'])
+    expect(riga('stampa')).toEqual(['No', 'Sì', 'Sì'])
+    expect(en.prezzi.confronto.righe.stampa).toBe('Printing of orders and receipts')
+  })
+  it('la scheda del Free dice lo stesso', () => {
+    expect(it_.prezzi.piani.free.descrizione).toContain('senza stati di servizio, senza stampa')
+    expect(it_.prezzi.piani.free.descrizione).not.toContain('senza comande')
   })
 })

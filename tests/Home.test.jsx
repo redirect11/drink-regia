@@ -173,8 +173,8 @@ describe('la prima pagina', () => {
       expect(tabella.getByRole('row', { name: new RegExp(`^${c.righe.terminali}`) })).toHaveTextContent(
         `${c.righe.terminali}${PIANI.free.terminali}${PIANI.base.terminali}${PIANI.completo.terminali}`,
       )
-      for (const id of ['comande', 'prodotti', 'conti', 'utenti', 'sconti', 'storico']) {
-        expect(tabella.getByRole('row', { name: new RegExp(`^${c.righe[id]}`) })).toBeInTheDocument()
+      for (const id of ['comande', 'stampa', 'prodotti', 'conti', 'utenti', 'sconti', 'storico']) {
+        expect(tabella.getByRole('row', { name: new RegExp(`^${c.righe[id].replace(/[()]/g, '\\$&')}`) })).toBeInTheDocument()
       }
       expect(tabella.getAllByText(c.nonDisponibile).length).toBeGreaterThan(0)
     })

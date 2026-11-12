@@ -382,7 +382,11 @@ export default function Home({ utente, lingua = 'it' }) {
   const c = t.prezzi.confronto
   const limite = (p, chiave) => p.limiti?.[chiave]
   const righeLavoro = [
+    // Gli stati di servizio (in preparazione, pronto, servito) e la stampa:
+    // il Free non li ha (REQ-FLOTTA-080). `comande: false` per l'app vuol
+    // dire proprio niente stati di servizio (tana-drink, REQ-LIC-005).
     { id: 'comande', valore: (p) => (limite(p, 'comande') === false ? c.no : c.si) },
+    { id: 'stampa', valore: (p) => (limite(p, 'stampa') === false ? c.no : c.si) },
     { id: 'prodotti', valore: (p) => (limite(p, 'prodotti_max') ? interpola(c.finoA, { n: limite(p, 'prodotti_max') }) : c.senzaLimite) },
     { id: 'conti', valore: (p) => (limite(p, 'conti_aperti_max') ? interpola(c.finoA, { n: limite(p, 'conti_aperti_max') }) : c.senzaLimite) },
     { id: 'utenti', valore: (p) => (limite(p, 'utenti_max') === 1 ? c.soloTitolare : limite(p, 'utenti_max') ? interpola(c.finoA, { n: limite(p, 'utenti_max') }) : c.senzaLimite) },

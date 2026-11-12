@@ -179,7 +179,7 @@ export default {
       free: {
         nome: PIANI.free.nome,
         descrizione:
-          'To try the service: the till, up to {prodotti} items on the menu and {conti} open bills at a time, no orders and no modules. {terminali}.',
+          'To try the service: the till, up to {prodotti} items on the menu and {conti} open bills at a time, no service states, no printing and no modules. {terminali}.',
       },
       base: {
         nome: PIANI.base.nome,
@@ -196,7 +196,8 @@ export default {
       gruppoLavoro: 'Everyday work',
       gruppoModuli: 'Modules',
       righe: {
-        comande: 'Orders',
+        comande: 'Service states (preparing, ready, served)',
+        stampa: 'Printing of orders and receipts',
         prodotti: 'Products on the menu',
         conti: 'Bills open at once',
         utenti: 'Users',

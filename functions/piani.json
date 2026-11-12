@@ -63,7 +63,7 @@
       "nome": "Free",
       "prezzo": 0,
       "gratuito": true,
-      "descrizione": "Per provare il servizio: la cassa con un terminale, fino a 10 prodotti nel menù e 5 conti aperti insieme. Lo usa solo il titolare, senza account per lo staff. Senza comande, senza sconti e senza moduli; storico delle vendite degli ultimi 7 giorni.",
+      "descrizione": "Per provare il servizio: la cassa con un terminale, fino a 10 prodotti nel menù e 5 conti aperti insieme. Lo usa solo il titolare, senza account per lo staff. È una cassa semplice: senza stati di servizio, senza stampa, senza sconti e senza moduli; storico delle vendite degli ultimi 7 giorni.",
       "include": [],
       "terminali": 1,
       "profilo": "leggero",
@@ -74,7 +74,8 @@
         "storico_giorni": 7,
         "utenti_max": 1,
         "marchio": true,
-        "comande": false
+        "comande": false,
+        "stampa": false
       }
     },
     "base": {
