@@ -139,7 +139,7 @@ export default {
     },
   },
   passi: {
-    titolo: 'From sign-up to the first order',
+    titolo: 'Ready in 3 steps',
     voci: [
       { titolo: 'Register your venue.', testo: 'Name, billing details and a contact person, then confirm your email.' },
       { titolo: 'Choose your plan and modules.', testo: 'Start with {base} and add modules whenever you need them.' },
