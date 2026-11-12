@@ -4175,10 +4175,14 @@ requirements:
       ai-locale@drinkpos-prova-bar coi suoi ruoli, e ha pubblicato
       richiestaAI con `serviceAccount: 'ai-locale@'` («Successful create
       operation»).
-      Resta, una volta sola e solo se manca: l'account di provisioning
-      della regia deve poter gestire gli account dei progetti della Tana
-      (come per i locali della flotta, dove è proprietario). [da
-      verificare] se lo ha già: lo dice il primo giro del workflow.
+      UNA VOLTA PER PROGETTO DELLA TANA: l'account di provisioning della
+      regia non aveva permessi sui progetti della Tana (non li ha creati la
+      regia), e non se li può dare da sé. Daniele, 12/11/2026, su
+      tana-drink-test: roles/iam.serviceAccountAdmin e
+      roles/resourcemanager.projectIamAdmin all'account di provisioning.
+      Poi il workflow (run 43292808376): account ai-locale@tana-drink-test,
+      ruoli dati, e il deploy di tana-drink può pubblicare come ai-locale.
+      Per la produzione (tana-drink) lo stesso, quando lo decide Daniele.
     status: implemented
     generate_issue: true
     labels: [flotta, regia, ai]
