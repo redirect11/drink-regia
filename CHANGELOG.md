@@ -6,6 +6,11 @@ data.
 
 ## Prossima release (da decidere)
 
+- Quando costruisce l'app di un locale, la regia le chiede se sa leggere
+  il tipo di locale e, se sì, le passa «bar». Oggi nessuna app lo sa
+  ancora (lo farà tana-drink), quindi per i locali non cambia niente. Il
+  tipo scelto alla registrazione resta salvato com'è (REQ-FLOTTA-065,
+  #144).
 - Le regole di Stonebit nel `CLAUDE.md` sono alla quarta versione (la
   sessione sul repository lavora come ha sempre fatto ed è il Tech Lead;
   il PM è un ruolo di solo controllo): stanno

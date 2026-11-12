@@ -94,6 +94,11 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  # IL TIPO DI LOCALE che arriva all'app (REQ-FLOTTA-065, tana-drink
+  # REQ-VENUE-007). Per ora sempre «bar», a tutti: Daniele, 12/11/2026,
+  # «tutti i tipi vanno a bar finché non decido altrimenti». Il tipo
+  # scelto alla registrazione resta salvato nella scheda del cliente com'è.
+  TIPO_LOCALE: bar
   SLUG: ${{ inputs.slug }}
   NOME: ${{ inputs.nome_locale || inputs.slug }}
   REF_APP: ${{ inputs.ref }}
@@ -392,7 +397,17 @@ jobs:
         working-directory: app
         run: |
           if [ -f "clienti/$CLIENTE_APP/venue.json" ]; then echo "clienti/$CLIENTE_APP c'è già: non la tocco."; exit 0; fi
-          node scripts/genera-cliente.mjs --slug "$CLIENTE_APP" --nome "$NOME"
+          # Si chiede all'app se sa leggere il tipo di locale, e quali valori
+          # accetta (REQ-FLOTTA-065): solo se risponde di sì ed elenca il
+          # tipo da mandare, la chiamata lo porta. Un'app che non lo sa (la
+          # 1.10 di oggi esce con 1, perché manca --slug) si lancia come prima.
+          SA=$(node scripts/genera-cliente.mjs --sa tipo-locale 2>/dev/null) || SA=''
+          if [ -n "$SA" ] && node -e 'process.exit((JSON.parse(process.argv[1])["tipo-locale"] || []).includes(process.argv[2]) ? 0 : 1)' "$SA" "$TIPO_LOCALE" 2>/dev/null; then
+            node scripts/genera-cliente.mjs --slug "$CLIENTE_APP" --nome "$NOME" --tipo-locale "$TIPO_LOCALE"
+          else
+            echo "L'app non legge il tipo di locale «$TIPO_LOCALE»: la cartella si crea come prima."
+            node scripts/genera-cliente.mjs --slug "$CLIENTE_APP" --nome "$NOME"
+          fi
 
       # LA DEMO SI RICONOSCE DAL SEGNO, NON DAL NOME (B5): è `"demo": true`
       # nel venue.json a fare la build della demo. Una seconda cartella con

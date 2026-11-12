@@ -3583,7 +3583,13 @@ requirements:
       nella scheda del cliente com'è, anche «pizzeria» o «ristorante».
       (7) Il comportamento si prova lanciando il passo del workflow con
       un genera-cliente.mjs finto, vecchio e nuovo.
-    status: todo
+      VERIFICATO il 12/11/2026 sulla versione vera di oggi:
+      genera-cliente.mjs di tana-drink develop, alla domanda `--sa
+      tipo-locale`, esce con 1 (manca --slug), quindi la regia lo lancia
+      come prima. Su main di tana-drink lo script non c'è ancora: lì la
+      regia si ferma prima, come oggi. Finché tana-drink non fa
+      REQ-VENUE-007 nessuna app riceve il tipo, e nessuna cambia.
+    status: implemented
     generate_issue: true
     labels: [prodotto, flotta, regia]
     priority: P2

@@ -72,7 +72,9 @@ tana-drink non riceve più lanci e non manda più esiti. Restano:
 - **i tag**: un tag `vX.Y.Z` ha `package.json` a `X.Y.Z` (i rilasci a
   ondate confrontano le due cose);
 - **la build di un locale**: `npm ci` nella radice e in `functions/`,
-  `node scripts/genera-cliente.mjs --slug … --nome …`, `npm run build` con
+  `node scripts/genera-cliente.mjs --slug … --nome …` (dal 12/11/2026 con
+  `--tipo-locale bar` se l'app risponde di sì a `--sa tipo-locale`:
+  REQ-FLOTTA-065, tana-drink REQ-VENUE-007), `npm run build` con
   `BASE_PATH=/`, `CLIENTE=<slug>`, `VITE_APP_ENV=production` e il `.env`
   con i `VITE_FIREBASE_*`; `functions/.env.<progetto>` con `VENUE_NAME`;
   `firebase deploy --only firestore,storage,functions,hosting`;

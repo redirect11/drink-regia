@@ -788,16 +788,19 @@ describe.each(WORKFLOW)('%s: il tipo di locale arriva all’app solo se l’app 
   const FINTO = {
     // Come la versione di oggi: ignora gli argomenti che non conosce, e
     // senza --slug esce con 1.
-    vecchio: `const a = process.argv.slice(2)
-require('fs').appendFileSync('chiamate.log', JSON.stringify(a) + '\\n')
+    vecchio: `import { appendFileSync } from 'node:fs'
+const a = process.argv.slice(2)
+appendFileSync('chiamate.log', JSON.stringify(a) + '\\n')
 if (!a.includes('--slug')) { console.error('Uso: …'); process.exit(1) }`,
     // Come la versione chiesta a tana-drink.
-    nuovo: `const a = process.argv.slice(2)
-require('fs').appendFileSync('chiamate.log', JSON.stringify(a) + '\\n')
+    nuovo: `import { appendFileSync } from 'node:fs'
+const a = process.argv.slice(2)
+appendFileSync('chiamate.log', JSON.stringify(a) + '\\n')
 if (a[0] === '--sa') { if (a[1] === 'tipo-locale') { console.log(JSON.stringify({ 'tipo-locale': ['bar'] })); process.exit(0) } process.exit(1) }`,
     // Risponde di sì, ma non accetta «bar»: la regia non deve mandarlo.
-    senzaBar: `const a = process.argv.slice(2)
-require('fs').appendFileSync('chiamate.log', JSON.stringify(a) + '\\n')
+    senzaBar: `import { appendFileSync } from 'node:fs'
+const a = process.argv.slice(2)
+appendFileSync('chiamate.log', JSON.stringify(a) + '\\n')
 if (a[0] === '--sa') { console.log(JSON.stringify({ 'tipo-locale': ['ristorante'] })); process.exit(0) }`,
   }
 
@@ -809,7 +812,7 @@ if (a[0] === '--sa') { console.log(JSON.stringify({ 'tipo-locale': ['ristorante'
     const cartella = mkdtempSync(join(tmpdir(), 'tipo-locale-'))
     try {
       mkdirSync(join(cartella, 'scripts'))
-      writeFileSync(join(cartella, 'scripts', 'genera-cliente.mjs'), FINTO[versione].replace(/require\('fs'\)/g, "process.getBuiltinModule('fs')"))
+      writeFileSync(join(cartella, 'scripts', 'genera-cliente.mjs'), FINTO[versione])
       if (curato) {
         mkdirSync(join(cartella, 'clienti', 'bar-mario'), { recursive: true })
         writeFileSync(join(cartella, 'clienti', 'bar-mario', 'venue.json'), '{}')
