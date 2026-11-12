@@ -393,6 +393,26 @@ function puoChiedere(cassetto, stima, adesso = new Date()) {
   return { ok: true, codice: null, perche: null }
 }
 
+// IL CREDITO SENZA IL MODELLO (REQ-FLOTTA-085): il gestionale lo chiede
+// per le Impostazioni e per nascondere i tasti AI quando non servono. Una
+// lettura del cassetto, niente addebito. `attivo` dice se una richiesta
+// potrebbe partire adesso; `motivo` è il codice di puoChiedere quando no.
+// Senza cassetto o spento: il 402 di sempre, non c'è niente da mostrare.
+function rispostaCredito(cassetto, adesso = new Date()) {
+  const via = puoChiedere(cassetto, 1, adesso)
+  if (via.codice === 'senza-cassetto' || via.codice === 'spento') return { ok: false, http: 402, codice: via.codice, errore: via.perche }
+  const s = statoCassetto(cassetto, adesso)
+  return {
+    ok: true,
+    tipo: 'credito',
+    credito_eur: inEuro(s.credito),
+    tetto_mensile_eur: inEuro(s.tetto),
+    speso_mese_eur: inEuro(s.spesoMese),
+    attivo: via.ok,
+    motivo: via.codice,
+  }
+}
+
 // La patch del cassetto dopo una chiamata: credito giù, speso del mese su
 // (da zero se il mese è cambiato). Gli incrementi li fa index.js in una
 // transazione, qui si decide cosa scrivere.
@@ -517,6 +537,7 @@ module.exports = {
   parametriClaude,
   stimaMassimaMicroeuro,
   puoChiedere,
+  rispostaCredito,
   addebito,
   leggiRisposta,
   rigaConsumo,

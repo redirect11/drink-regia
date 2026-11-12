@@ -6,6 +6,9 @@ data.
 
 ## Prossima release (da decidere)
 
+- Il gestionale chiede il credito AI senza chiamare il modello e senza
+  pagarlo: saldo, tetto, speso del mese e se l'AI può partire
+  (REQ-FLOTTA-085).
 - Un account per persona: chi si registra non usa un'email col «+», né
   una variante di un'email che ha già un account (REQ-FLOTTA-083).
 - Nel backoffice il segno che gira dell'aggiornamento resta tondo anche

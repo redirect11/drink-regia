@@ -4247,7 +4247,7 @@ requirements:
       cassetto 402 { codice: 'senza-cassetto' } e col cassetto spento 402 {
       codice: 'spento' }, come oggi per le altre richieste. (5) Il contratto
       in docs/handover.md §7 lo dice.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [regia, ai]
     priority: P2
