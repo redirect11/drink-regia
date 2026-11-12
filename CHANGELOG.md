@@ -6,6 +6,10 @@ data.
 
 ## Prossima release (da decidere)
 
+- Il carosello della prima pagina scorre da solo anche col mouse sulla
+  pagina: aspetta solo sopra i suoi comandi. «Ferma i filmati» diventa un
+  tasto di pausa e play, e la nota sui filmati generati è una postilla
+  piccola, in corsivo, con l'asterisco (REQ-FLOTTA-069).
 - Le ventisei voci del registro scritte già fatte fra il 7 e l'11
   novembre hanno la loro issue, nata a posteriori con l'etichetta
   `a-posteriori` (REQ-DEV-015).

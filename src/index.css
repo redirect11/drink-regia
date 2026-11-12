@@ -269,8 +269,11 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .gesto-punto::before { content: ''; position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: rgba(255, 255, 255, 0.45); transition: width 0.2s ease, margin 0.2s ease, background-color 0.2s ease; }
 .gesto-punto:hover::before { background: #fff; }
 .gesto-punto[aria-current='true']::before { width: 24px; margin-left: -12px; border-radius: 999px; background: var(--lime); }
-.ferma-filmati { margin-left: 8px; background: none; border: none; padding: 12px 0; min-height: 44px; font: inherit; font-size: 0.875rem; color: var(--scuro-testo); text-decoration: underline; cursor: pointer; }
-.nota-filmati { color: var(--scuro-muted); margin: 12px 0 0; max-width: none; }
+/* Pausa e play (REQ-FLOTTA-069): un tasto tondo come le frecce, con l'icona. */
+.gesto-pausa { display: inline-grid; place-items: center; margin-left: 8px; }
+.gesto-pausa .icona { width: 18px; height: 18px; }
+/* Una postilla, non una nota: più piccola delle altre e in corsivo. */
+.nota-filmati { color: var(--scuro-muted); margin: 12px 0 0; max-width: none; font-size: 0.75rem; font-style: italic; }
 @media (min-width: 900px) {
   .gesti { grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 32px; margin-top: 32px; }
   .gesto-testo { min-height: 7rem; }
