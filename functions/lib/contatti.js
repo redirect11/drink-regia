@@ -19,6 +19,7 @@ const TELEFONO = /^\+?[0-9][0-9 .-]{5,19}$/
 
 // Toglie i caratteri di controllo (tranne l'a capo) e taglia alla lunghezza.
 const { CODICE } = require('./sconti.js')
+const { stampantiPulite } = require('./stampanti.js')
 const testo = (s, max) =>
   [...String(s ?? '')]
     .filter((c) => c === '\n' || (c.charCodeAt(0) >= 32 && c.charCodeAt(0) !== 127))
@@ -43,6 +44,10 @@ function richiestaContatto(cliente, dati, vendita, adesso = new Date()) {
   if (basi) return { ok: false, perche: basi }
   const telefono = testo(dati?.telefono, 20)
   if (telefono && !TELEFONO.test(telefono)) return { ok: false, perche: 'Il numero di telefono non sembra valido.' }
+  // Le stampanti del locale (REQ-FLOTTA-081): la pagina le chiede sempre;
+  // se arrivano, devono essere giuste.
+  const st = dati?.stampanti ? stampantiPulite(dati.stampanti) : null
+  if (st && !st.ok) return { ok: false, perche: st.perche }
   return {
     ok: true,
     perche: null,
@@ -54,6 +59,7 @@ function richiestaContatto(cliente, dati, vendita, adesso = new Date()) {
       scelta,
       telefono: telefono || null,
       nota: testo(dati?.nota, NOTA_MAX) || null,
+      stampanti: st?.stampanti || null,
       // Il codice sconto scritto nella scelta del piano (REQ-FLOTTA-028):
       // coi pagamenti spenti lo applica l'admin, quando attiva il piano.
       codice: CODICE.test(testo(dati?.codice, 24).toUpperCase()) ? testo(dati?.codice, 24).toUpperCase() : null,

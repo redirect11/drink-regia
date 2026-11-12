@@ -15,6 +15,7 @@ import {
   baseMancante,
   senzaOrfani,
 } from '../lib/piani.js'
+import { GRUPPI_NON_FISCALI, FISCALI, NESSUNA, NON_SO, ALTRA } from '../lib/stampanti.js'
 import { attivaConCodice, avviaPagamento, cambiaScelta, chiediContatto, osservaContatto, osservaVendita, scegliFree, verificaCodiceSconto } from '../lib/db.js'
 import { EMAIL_CONTATTI } from '../lib/prodotto.js'
 import { venditaPulita, pianiInVendita, moduloVisibile, eGratuito } from '../lib/vendita.js'
@@ -76,6 +77,12 @@ export default function SceltaPiano({ cliente, modifica = false, vai = (url) => 
   const [fatto, setFatto] = useState(null)
   const [telefono, setTelefono] = useState('')
   const [nota, setNota] = useState('')
+  // Le stampanti del locale (REQ-FLOTTA-081): obbligatorie nella richiesta
+  // di informazioni e in quella d'acquisto.
+  const [nonFiscale, setNonFiscale] = useState('')
+  const [nonFiscaleAltra, setNonFiscaleAltra] = useState('')
+  const [fiscale, setFiscale] = useState('')
+  const [fiscaleAltra, setFiscaleAltra] = useState('')
   const [contatto, setContatto] = useState(null)
   useEffect(() => osservaContatto(cliente.uid, setContatto), [cliente.uid])
   const [codice, setCodice] = useState('')
@@ -112,6 +119,17 @@ export default function SceltaPiano({ cliente, modifica = false, vai = (url) => 
     }
   }
 
+  // Le due scelte, o null se ne manca una (o «Altra» senza marca e modello).
+  const una = (scelta, altra) => (!scelta ? null : scelta === ALTRA ? (altra.trim().length >= 2 ? { scelta, altra: altra.trim() } : null) : { scelta, altra: null })
+  const stampanti = (() => {
+    const nf = una(nonFiscale, nonFiscaleAltra)
+    const rt = una(fiscale, fiscaleAltra)
+    return nf && rt ? { non_fiscale: nf, fiscale: rt } : null
+  })()
+  const mancanoStampanti = () => {
+    setErrore('Indica la stampante non fiscale e il registratore telematico (anche «non ancora» o «non lo so»).')
+    setInCorso(false)
+  }
   const conferma = async () => {
     setErrore(null)
     setFatto(null)
@@ -130,7 +148,8 @@ export default function SceltaPiano({ cliente, modifica = false, vai = (url) => 
         return
       }
       if (daContattare) {
-        await chiediContatto({ ...scelta, telefono, nota, ...(codiceScritto ? { codice: codiceScritto } : {}) })
+        if (!stampanti) return mancanoStampanti()
+        await chiediContatto({ ...scelta, telefono, nota, ...(codiceScritto ? { codice: codiceScritto } : {}), stampanti })
         setFatto(`Richiesta inviata: ti contattiamo a ${cliente.email || 'la tua email'}${telefono ? ` o al ${telefono}` : ''}.`)
         setInCorso(false)
         return
@@ -143,7 +162,8 @@ export default function SceltaPiano({ cliente, modifica = false, vai = (url) => 
         setInCorso(false)
         return
       }
-      const { url } = await avviaPagamento(codiceScritto ? { ...scelta, codice: codiceScritto } : scelta)
+      if (!stampanti) return mancanoStampanti()
+      const { url } = await avviaPagamento({ ...(codiceScritto ? { ...scelta, codice: codiceScritto } : scelta), stampanti })
       vai(url)
     } catch (e) {
       setErrore(e.message)
@@ -273,6 +293,57 @@ export default function SceltaPiano({ cliente, modifica = false, vai = (url) => 
           <label htmlFor="nota">Una nota (facoltativa: orari, domande)</label>
           <textarea id="nota" rows={2} maxLength={500} value={nota} onChange={(e) => setNota(e.target.value)} />
         </div>
+      )}
+      {/* LE STAMPANTI DEL LOCALE (REQ-FLOTTA-081): nella richiesta di
+          informazioni e in quella d'acquisto. Ci servono per decidere quali
+          stampanti supportare. */}
+      {!gratuito && !modifica && !gratisColCodice && (
+        <fieldset className="stampanti" data-testid="stampanti">
+          <legend>Le stampanti del locale</legend>
+          <label htmlFor="stampante-non-fiscale">Stampante non fiscale (comande e scontrini di cortesia)</label>
+          <select id="stampante-non-fiscale" value={nonFiscale} onChange={(e) => setNonFiscale(e.target.value)}>
+            <option value="">Scegli…</option>
+            {GRUPPI_NON_FISCALI.map((g) => (
+              <optgroup key={g.gruppo} label={g.etichetta}>
+                {g.modelli.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+            <option value={ALTRA}>Altra (scrivi marca e modello)</option>
+            <option value={NESSUNA}>Non ho ancora una stampante</option>
+          </select>
+          {nonFiscale === ALTRA && (
+            <>
+              <label htmlFor="stampante-altra">Marca e modello della stampante</label>
+              <input id="stampante-altra" value={nonFiscaleAltra} maxLength={80} onChange={(e) => setNonFiscaleAltra(e.target.value)} />
+            </>
+          )}
+          <p className="muted small">
+            La stampa di comande e scontrini non fiscali oggi funziona con le stampanti Epson che hanno ePOS. Indicare il modello in uso: se non è
+            ancora supportato, lo usiamo per decidere quali stampanti aggiungere.
+          </p>
+          <label htmlFor="stampante-fiscale">Registratore telematico (RT)</label>
+          <select id="stampante-fiscale" value={fiscale} onChange={(e) => setFiscale(e.target.value)}>
+            <option value="">Scegli…</option>
+            {FISCALI.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+            <option value={ALTRA}>Altra (scrivi marca e modello)</option>
+            <option value={NON_SO}>Non lo so</option>
+          </select>
+          {fiscale === ALTRA && (
+            <>
+              <label htmlFor="fiscale-altra">Marca e modello del registratore telematico</label>
+              <input id="fiscale-altra" value={fiscaleAltra} maxLength={80} onChange={(e) => setFiscaleAltra(e.target.value)} />
+            </>
+          )}
+          <p className="muted small">Il registratore telematico (RT) è quello fiscale: oggi l’app non lo comanda. Ci serve sapere quale usate per collegarlo in futuro.</p>
+        </fieldset>
       )}
       {errore && <p className="errore">{errore}</p>}
       {fatto && <p className="muted small">{fatto}</p>}

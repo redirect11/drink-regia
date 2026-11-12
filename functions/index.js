@@ -39,6 +39,7 @@ const { initializeApp: initializeAppCon, getApps } = require('firebase-admin/app
 const { getAuth } = require('firebase-admin/auth')
 const ai = require('./lib/ai.js')
 const identita = require('./lib/identita-locale.js')
+const stampanti = require('./lib/stampanti.js')
 const { OAuth2Client } = require('google-auth-library')
 const elim = require('./lib/eliminazione.js')
 const conserva = require('./lib/conservazione.js')
@@ -408,6 +409,13 @@ exports.creaCheckout = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
   // Un modulo senza la sua base non si compra (tana-drink REQ-LIC-015).
   const basi = prove.problemaBasi(scelta)
   if (basi) throw new HttpsError('failed-precondition', basi)
+  // Le stampanti del locale (REQ-FLOTTA-081): nella scheda del cliente,
+  // prima del Checkout, così le vediamo anche se il pagamento non finisce.
+  if (req.data?.stampanti) {
+    const st = stampanti.stampantiPulite(req.data.stampanti)
+    if (!st.ok) throw new HttpsError('invalid-argument', st.perche)
+    await db.doc(`clienti/${uid}`).set({ stampanti: st.stampanti, stampanti_il: new Date().toISOString() }, { merge: true })
+  }
   const ritorno = ritornoPulito(req.data?.ritorno)
   const adesso = new Date()
   // IL CODICE SCONTO (REQ-FLOTTA-028): quello scritto ora dal titolare, o

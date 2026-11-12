@@ -4257,7 +4257,7 @@ requirements:
       contatto e nella scheda del cliente.
       [da verificare con Daniele] L'elenco degli RT: oggi solo marche
       (Epson, Custom, RCH, Olivetti, Ditron, Micrelec), più «Altra».
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [prodotto, regia, vendita]
     priority: P2
