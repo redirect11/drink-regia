@@ -385,7 +385,8 @@ describe('la prima pagina', () => {
     const gruppo = () => screen.getByRole('group', { name: it_.gesti.titolo })
     const parola = () => gruppo().querySelector('.gesto-parola').textContent
     const visibile = () => document.querySelector('.diapositiva[data-visibile="true"]').dataset.gesto
-    const fila = () => document.querySelector('.diapositive').style.transform
+    // Il passo del carosello (REQ-FLOTTA-074): la dissolvenza comincia qui.
+    const PASSO = 6500
 
     it('cinque diapositive nell’ordine del servizio, una sola visibile; davanti titolo, bottoni e scheda dei fatti', () => {
       conMovimento(true)
@@ -408,18 +409,19 @@ describe('la prima pagina', () => {
       expect(screen.getByText(/generati con l’intelligenza artificiale/)).toBeInTheDocument()
     })
 
-    it('avanti e indietro scorrono in orizzontale, in tondo; i punti dicono quale si vede e ci portano', () => {
+    it('avanti e indietro cambiano diapositiva, in tondo; i punti dicono quale si vede e ci portano', () => {
       conMovimento(true)
       mostra()
-      expect(fila()).toBe('translateX(-0%)')
+      expect(visibile()).toBe('sala')
       fireEvent.click(screen.getByRole('button', { name: it_.gesti.successiva }))
       expect(parola()).toBe('Prepara.')
       expect(visibile()).toBe('banco')
-      expect(fila()).toBe('translateX(-100%)')
+      // Niente scorrimento laterale (REQ-FLOTTA-074).
+      expect(document.querySelector('.diapositive').style.transform).toBe('')
       fireEvent.click(screen.getByRole('button', { name: it_.gesti.precedente }))
       fireEvent.click(screen.getByRole('button', { name: it_.gesti.precedente }))
       expect(parola()).toBe('Riordina.')
-      expect(fila()).toBe('translateX(-400%)')
+      expect(visibile()).toBe('scorta')
       const punti = within(gruppo()).getAllByRole('button', { name: /Gesto \d di 5/ })
       expect(punti.map((p) => p.getAttribute('aria-label'))).toEqual(PAROLE.map((p, i) => `${p} Gesto ${i + 1} di 5`))
       expect(punti.filter((p) => p.getAttribute('aria-current') === 'true')).toEqual([punti[4]])
@@ -431,25 +433,25 @@ describe('la prima pagina', () => {
     // REQ-FLOTTA-069 (Daniele, 12/11/2026: «il carosello dovrebbe scorrere
     // da solo… metti un tasto play pausa»). Prima aspettava col mouse sopra
     // tutta la prima schermata, cioè quasi sempre.
-    it('avanza da solo ogni quattro secondi; il mouse sulla schermata non lo ferma, sui comandi sì; il tasto pausa e play', () => {
+    it('avanza da solo a ogni passo; il mouse sulla schermata non lo ferma, sui comandi sì; il tasto pausa e play', () => {
       vi.useFakeTimers()
       conMovimento(false)
       mostra()
       act(() => vi.advanceTimersByTime(0))
       expect(parola()).toBe('Ordina.')
-      act(() => vi.advanceTimersByTime(4000))
+      act(() => vi.advanceTimersByTime(PASSO))
       expect(parola()).toBe('Prepara.')
       // Il mouse sul titolo o sul filmato non lo ferma.
       const hero = document.querySelector('.hero')
       fireEvent.pointerEnter(hero, { pointerType: 'mouse' })
-      act(() => vi.advanceTimersByTime(4000))
+      act(() => vi.advanceTimersByTime(PASSO))
       expect(parola()).toBe('Incassa.')
       // Sopra la parola e i comandi sì: chi li usa non li vede cambiare.
       fireEvent.pointerEnter(gruppo(), { pointerType: 'mouse' })
       act(() => vi.advanceTimersByTime(20000))
       expect(parola()).toBe('Incassa.')
       fireEvent.pointerLeave(gruppo(), { pointerType: 'mouse' })
-      act(() => vi.advanceTimersByTime(4000))
+      act(() => vi.advanceTimersByTime(PASSO))
       expect(parola()).toBe('Conta.')
       // Il tasto: un'icona tonda, col nome che dice cosa fa, senza testo a schermo.
       const pausa = screen.getByRole('button', { name: it_.gesti.ferma })
@@ -475,7 +477,7 @@ describe('la prima pagina', () => {
       fireEvent.focus(play)
       fireEvent.click(play)
       expect(document.querySelector('video')).not.toBeNull()
-      act(() => vi.advanceTimersByTime(4000))
+      act(() => vi.advanceTimersByTime(PASSO))
       expect(parola()).toBe('Ordina.')
     })
 
@@ -484,7 +486,7 @@ describe('la prima pagina', () => {
     // ripartire se l'altro dura. Il fuoco conta solo da tastiera: quello che
     // un clic lascia sul bottone fermava lo scorrimento per sempre. Il tocco
     // non conta come puntatore sopra. E un cambio a mano riparte da capo.
-    it('puntatore e fuoco da tastiera contano ognuno per sé; il clic e il tocco non fermano; un cambio a mano riparte da quattro secondi', () => {
+    it('puntatore e fuoco da tastiera contano ognuno per sé; il clic e il tocco non fermano; un cambio a mano riparte da un passo intero', () => {
       vi.useFakeTimers()
       conMovimento(false)
       mostra()
@@ -511,7 +513,7 @@ describe('la prima pagina', () => {
       fireEvent.pointerLeave(comandi, { pointerType: 'mouse' })
       // Un dito sui comandi non è un puntatore che resta sopra.
       fireEvent.pointerEnter(comandi, { pointerType: 'touch' })
-      act(() => vi.advanceTimersByTime(4000))
+      act(() => vi.advanceTimersByTime(PASSO))
       expect(parola()).toBe('Prepara.')
       // A metà del giro un clic su un punto: il fuoco che il clic lascia non
       // ferma, e la nuova diapositiva resta quattro secondi interi.
@@ -521,7 +523,7 @@ describe('la prima pagina', () => {
       fireEvent.focus(punto)
       fireEvent.click(punto)
       expect(parola()).toBe('Conta.')
-      act(() => vi.advanceTimersByTime(3000))
+      act(() => vi.advanceTimersByTime(PASSO - 1000))
       expect(parola()).toBe('Conta.')
       act(() => vi.advanceTimersByTime(1000))
       expect(parola()).toBe('Riordina.')
@@ -568,9 +570,52 @@ describe('la prima pagina', () => {
         ['banco', 'conto', 'numeri', 'scorta'].map((n) => `/video/${n}.jpg`),
       )
       for (const i of document.querySelectorAll('.diapositiva img')) expect(i).toHaveAttribute('alt', '')
+      // In dissolvenza girano quello che entra e quello che esce; poi solo
+      // quello che si vede (REQ-FLOTTA-074).
       fireEvent.click(screen.getByRole('button', { name: it_.gesti.successiva }))
+      expect(video().map((v) => v.closest('.diapositiva').dataset.gesto).sort()).toEqual(['banco', 'sala'])
+      expect(document.querySelector('.diapositiva[data-uscente="true"]').dataset.gesto).toBe('sala')
+      act(() => vi.advanceTimersByTime(1500))
       expect(video()).toHaveLength(1)
       expect(video()[0].closest('.diapositiva').dataset.gesto).toBe('banco')
+      expect(document.querySelector('.diapositiva[data-uscente="true"]')).toBeNull()
+    })
+
+    // REQ-FLOTTA-074 (Daniele, 12/11/2026: «troppo veloce, e la transizione
+    // proprio tra un video e l'altro»). happy-dom non anima: si tengono
+    // ferme le regole nel foglio di stile e la durata dei filmati.
+    it('dissolvenza al posto dello scorrimento, e ogni filmato si vede per intero', () => {
+      const css = readFileSync(join(import.meta.dirname, '..', 'src', 'index.css'), 'utf8').replace(/\r\n/g, '\n')
+      expect(css).toMatch(/\.diapositiva \{[^}]*position: absolute;[^}]*opacity: 0;[^}]*transition: opacity 1\.5s ease;/)
+      expect(css).toMatch(/\.diapositiva\[data-visibile='true'\] \{ opacity: 1; z-index: 1; \}/)
+      expect(css).toMatch(/\.diapositiva\[data-uscente='true'\] \{ opacity: 1; \}/)
+      expect(css).not.toMatch(/transition: transform 0\.7s/)
+      expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\n {2}\.diapositiva, \.gesto-punto::before \{ transition: none; \}\n {2}\.gesto-entra \{ animation: none; \}/)
+      // Passo più dissolvenza = la durata di un filmato: nessuno si taglia.
+      const codice = readFileSync(join(import.meta.dirname, '..', 'src', 'pages', 'Home.jsx'), 'utf8')
+      expect(codice).toContain('const PASSO_CAROSELLO_MS = 6500')
+      expect(codice).toContain('const DISSOLVENZA_MS = 1500')
+      for (const nome of FILMATI) {
+        const dati = readFileSync(join(import.meta.dirname, '..', 'public', 'video', `${nome}.mp4`))
+        const i = dati.indexOf('mvhd')
+        const versione = dati[i + 4]
+        const scala = dati.readUInt32BE(i + (versione === 1 ? 24 : 16))
+        const durata = versione === 1 ? Number(dati.readBigUInt64BE(i + 28)) : dati.readUInt32BE(i + 20)
+        expect(durata / scala, nome).toBeGreaterThanOrEqual((6500 + 1500) / 1000)
+      }
+    })
+
+    it('parola e frase compaiono in dissolvenza, dentro la regione che si annuncia', () => {
+      conMovimento(true)
+      mostra()
+      const testo = gruppo().querySelector('.gesto-testo')
+      const entra = testo.querySelector('.gesto-entra')
+      expect(entra).not.toBeNull()
+      expect(entra.querySelector('.gesto-parola')).toHaveTextContent('Ordina.')
+      fireEvent.click(screen.getByRole('button', { name: it_.gesti.successiva }))
+      // La regione che si annuncia resta la stessa; cambia solo quello che c'è dentro.
+      expect(gruppo().querySelector('.gesto-testo')).toBe(testo)
+      expect(testo.querySelector('.gesto-entra .gesto-parola')).toHaveTextContent('Prepara.')
     })
 
     it('chi chiede meno movimento vede la prima ferma, senza video e senza «Ferma»: scorre solo a mano', () => {

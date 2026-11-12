@@ -3975,6 +3975,36 @@ requirements:
       - tests/HomeVendita.test.jsx
       - tests/Backoffice.test.jsx
 
+  - id: REQ-FLOTTA-074
+    title: "Il carosello passa da un filmato all'altro in dissolvenza, e ogni filmato si vede per intero"
+    area: "src/pages/Home.jsx, src/index.css, DESIGN.md"
+    description: >
+      Daniele, 12/11/2026, visto sul sito di test: «non mi piace
+      l'animazione di scroll automatico. troppo veloce, e la transizione
+      proprio tra un video e l'altro. Pensa a qualche altra cosa». I
+      filmati durano 8 secondi; il carosello li tagliava a 4 (REQ-FLOTTA-061,
+      dopo «i filmati dovrebbero durare di meno» dell'11/11) e li faceva
+      scorrere di lato in 0,7 secondi.
+      CRITERI DI ACCETTAZIONE. (1) Niente scorrimento laterale: il filmato
+      nuovo compare sopra quello di prima in dissolvenza, in un secondo e
+      mezzo, e quello di prima resta fermo sotto finché non è coperto.
+      (2) Ogni filmato si vede per intero: parte da capo, la dissolvenza
+      comincia a 6,5 secondi e finisce a 8, quando il filmato è finito. Un
+      test controlla che ogni filmato duri almeno 8 secondi. (3) Durante la
+      dissolvenza girano due filmati, quello che entra e quello che esce;
+      poi solo quello che si vede. (4) La parola e la frase del gesto
+      compaiono con una dissolvenza breve, senza togliere l'annuncio ai
+      lettori di schermo. (5) Chi chiede meno movimento non vede né
+      dissolvenze né animazioni, come prima. (6) Pausa, frecce, punti e le
+      regole su mouse e fuoco (REQ-FLOTTA-069) restano come sono, col passo
+      nuovo.
+    status: implemented
+    generate_issue: true
+    labels: [prodotto, regia, home]
+    priority: P2
+    test_cases:
+      - tests/Home.test.jsx
+
   - id: REQ-FLOTTA-059
     title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"
     area: "functions/lib/eliminazione-cliente.js, functions/index.js (eliminaCliente), src/lib/db.js (eliminaCliente), src/pages/Backoffice.jsx (Elimina cliente…)"

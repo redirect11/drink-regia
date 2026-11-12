@@ -6,6 +6,8 @@ data.
 
 ## Prossima release (da decidere)
 
+- Il carosello passa da un filmato all'altro in dissolvenza, senza
+  scorrimento laterale, e ogni filmato si vede per intero (REQ-FLOTTA-074).
 - Sul test, dal backoffice, l'attivazione simulata: il locale arriva ad
   attivo con un indirizzo finto, senza creare un progetto Google
   (REQ-FLOTTA-072).
