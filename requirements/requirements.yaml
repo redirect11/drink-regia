@@ -3694,8 +3694,9 @@ requirements:
       una funzione: lo sposto nei prezzi?»: «si».
       CRITERI DI ACCETTAZIONE. (1) Col Free in vendita il confronto ha
       una riga sulla scritta in fondo allo scontrino e al menù digitale:
-      nel Free «Creato con» e il nome del prodotto, negli altri piani
-      nessuna. La riga nasce da `marchio` nei limiti del listino, non da
+      nel Free «Creato con» e il nome del prodotto per esteso, come lo
+      stampa l'app (tana-drink, src/lib/limiti.js, rigaMarchio), negli
+      altri piani nessuna. La riga nasce da `marchio` nei limiti del listino, non da
       un nome di piano scritto a mano. (2) Senza il Free in vendita la
       riga non si mostra, come le altre righe uguali per tutti i piani
       (REQ-FLOTTA-063, criterio 12). (3) Fra i punti delle funzioni non
@@ -3704,9 +3705,11 @@ requirements:
       Italiano e inglese hanno le stesse voci. «Senza limite» per gli
       utenti di Base e Completo e «Non disponibile» per il terminale in
       più nel Free restano come sono: confermati.
-      [da verificare] Il testo inglese della scritta («Made with») è
-      quello che la regia mostra; quello che l'app stampa davvero sta in
-      tana-drink.
+      VERIFICATO in tana-drink (12/11/2026): l'app stampa «Creato con
+      Lime - SmartOrders», in italiano, e solo da develop: su main la riga
+      non c'è ancora. La pagina inglese la riporta in italiano, com'è.
+      La regia scrive il nome col trattino lungo, l'app col trattino
+      corto: Daniele, 12/11/2026, sul nome: «lasciamolo come è ora».
     status: implemented
     generate_issue: true
     labels: [prodotto, regia, home]

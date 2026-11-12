@@ -26,7 +26,7 @@ import Home from '../src/pages/Home.jsx'
 import { venditaPulita } from '../src/lib/vendita.js'
 import it_ from '../src/i18n/home.it.js'
 import { PIANI } from '../src/lib/piani.js'
-import { NOME_PRODOTTO } from '../src/lib/prodotto.js'
+import { NOME_ESTESO } from '../src/lib/prodotto.js'
 
 const mostra = () =>
   render(
@@ -109,7 +109,7 @@ describe('la vendita nella prima pagina', () => {
     // REQ-FLOTTA-068: il Free porta la scritta col nome del prodotto in
     // fondo allo scontrino e al menù (`marchio` nel listino), gli altri no.
     expect(limiti.marchio).toBe(true)
-    expect(riga('marchio')).toEqual([`«Creato con ${NOME_PRODOTTO}»`, 'Nessuna', 'Nessuna'])
+    expect(riga('marchio')).toEqual([`«Creato con ${NOME_ESTESO}»`, 'Nessuna', 'Nessuna'])
     // Un modulo a pagamento: non disponibile nel Free, a prezzo nel Base, compreso nel Completo.
     const magazzino = [...tabella.getByRole('row', { name: /^Magazzino e fornitori/ }).querySelectorAll('td')].map((td) => td.textContent)
     expect(magazzino[0]).toBe('Non disponibile')

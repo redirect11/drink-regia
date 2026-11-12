@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { NOME_PRODOTTO, URL_DEMO, EMAIL_CONTATTI } from '../lib/prodotto.js'
+import { NOME_PRODOTTO, NOME_ESTESO, URL_DEMO, EMAIL_CONTATTI } from '../lib/prodotto.js'
 import {
   MODULI,
   PIANI,
@@ -364,7 +364,9 @@ export default function Home({ utente, lingua = 'it' }) {
     { id: 'storico', valore: (p) => (limite(p, 'storico_giorni') ? interpola(c.giorni, { n: limite(p, 'storico_giorni') }) : c.tutto) },
     // La scritta col nome del prodotto in fondo allo scontrino e al menù
     // (REQ-FLOTTA-068): la porta chi ha `marchio` nel listino, oggi il Free.
-    { id: 'marchio', valore: (p) => (limite(p, 'marchio') ? interpola(c.marchio, { nome: NOME_PRODOTTO }) : c.nessuna) },
+    // Col nome per esteso, perché è quello che l'app stampa (tana-drink,
+    // src/lib/limiti.js, rigaMarchio).
+    { id: 'marchio', valore: (p) => (limite(p, 'marchio') ? interpola(c.marchio, { nome: NOME_ESTESO }) : c.nessuna) },
     { id: 'terminali', valore: (p) => String(p.terminali || 1) },
   ]
   // Una riga che dice la stessa cosa per tutti i piani in colonna non è un

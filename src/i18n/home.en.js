@@ -212,7 +212,8 @@ export default {
       soloTitolare: 'Owner only',
       giorni: 'Last {n} days',
       tutto: 'All of it',
-      marchio: '“Made with {nome}”',
+      // The app prints this line in Italian: quoted as it appears.
+      marchio: '“Creato con {nome}”',
       nessuna: 'None',
       nonDisponibile: 'Not available',
       nota: 'Where there is a price, it is per month and excludes VAT: below it, the total including VAT.',
