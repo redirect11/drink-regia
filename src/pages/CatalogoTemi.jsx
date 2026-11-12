@@ -108,6 +108,21 @@ export default function CatalogoTemi({ onErrore }) {
           </table>
         </div>
       )}
+      {/* Il modulo si apre dove lo si è chiesto, al posto del bottone e sotto
+          la tabella dei temi (REQ-FLOTTA-066): prima stava in fondo alla
+          scheda, dopo gli stili a ricetta, e chi premeva non lo vedeva. */}
+      {aperto && (
+        <EditorTema
+          key={aperto.id || 'nuovo'}
+          iniziale={aperto}
+          onChiudi={() => setAperto(null)}
+          onSalva={async (tema, pubblica) => {
+            const ok = await azione('salva', { tema, nuovo: aperto.nuovo })
+            if (ok && pubblica) await azione('pubblica', { id: tema.id })
+            if (ok) setAperto(null)
+          }}
+        />
+      )}
       {!aperto && (
         <div className="azioni">
           <button type="button" className="btn small" onClick={() => setAperto({ ...temaVuoto(), nuovo: true })}>
@@ -164,18 +179,6 @@ export default function CatalogoTemi({ onErrore }) {
           </tbody>
         </table>
       </div>
-      {aperto && (
-        <EditorTema
-          key={aperto.id || 'nuovo'}
-          iniziale={aperto}
-          onChiudi={() => setAperto(null)}
-          onSalva={async (tema, pubblica) => {
-            const ok = await azione('salva', { tema, nuovo: aperto.nuovo })
-            if (ok && pubblica) await azione('pubblica', { id: tema.id })
-            if (ok) setAperto(null)
-          }}
-        />
-      )}
     </section>
   )
 }

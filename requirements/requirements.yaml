@@ -3622,7 +3622,7 @@ requirements:
       functions/temi/stili.json, con un rilascio, e dal backoffice si
       pubblicano o si ritirano. Se crearli dal backoffice è una decisione
       sua.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [backoffice, regia]
     priority: P3
