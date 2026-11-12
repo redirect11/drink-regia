@@ -6,6 +6,9 @@ data.
 
 ## Prossima release (da decidere)
 
+- L'AI del locale si fa riconoscere dalla regia col gettone di Google del
+  suo progetto, senza chiavi da creare o rinnovare; i workflow mandano il
+  numero del progetto con l'esito (REQ-FLOTTA-077).
 - La «Chiave AI» creata dal backoffice la regia la scrive da sé nel
   segreto del locale, col permesso minimo; se non può, dice perché e come
   farlo a mano (REQ-FLOTTA-076).

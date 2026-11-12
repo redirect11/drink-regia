@@ -187,6 +187,8 @@ describe('esitoValido e documentoIstanza', () => {
       ref: 'main',
       commit: SHA,
       profilo: null,
+      // REQ-FLOTTA-077: senza numero nell'esito, nessun numero.
+      numero_progetto: null,
       errore: null,
       aggiornata_il: '2026-10-22T10:00:00.000Z',
     })

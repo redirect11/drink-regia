@@ -39,6 +39,8 @@ const { initializeApp: initializeAppCon, getApps } = require('firebase-admin/app
 const { getAuth } = require('firebase-admin/auth')
 const ai = require('./lib/ai.js')
 const chiaveLocale = require('./lib/chiave-locale.js')
+const identita = require('./lib/identita-locale.js')
+const { OAuth2Client } = require('google-auth-library')
 const elim = require('./lib/eliminazione.js')
 const conserva = require('./lib/conservazione.js')
 const presenta = require('./lib/presentazione.js')
@@ -2281,13 +2283,45 @@ async function cassettoDi(slug) {
 // un risultato usabile (il consumo resta addebitato), 503 se Claude non
 // risponde. È HTTP e non callable perché a chiamarla è il server
 // dell'installazione, non un utente di questo sito.
+// IL LOCALE DAL GETTONE DI GOOGLE (REQ-FLOTTA-077): firma e destinatario
+// li controlla Google; il locale si trova dal numero del progetto (che il
+// workflow manda con l'esito) o dal nome, e dev'essere uno solo.
+const oauthGoogle = new OAuth2Client()
+async function localeDalGettone(gettone) {
+  const audience = identita.audienceAI(PROGETTO_REGIA)
+  if (!audience) return null
+  const ticket = await oauthGoogle.verifyIdToken({ idToken: gettone, audience })
+  const chi = identita.chiDalGettone(ticket.getPayload())
+  if (!chi) return null
+  const [campo, valore] = chi.numero_progetto ? ['numero_progetto', chi.numero_progetto] : ['progetto', chi.progetto]
+  const trovate = await db.collection('istanze').where(campo, '==', valore).limit(2).get()
+  if (trovate.size !== 1) return null
+  const doc = trovate.docs[0]
+  return identita.puoChiedere(doc.data()) ? doc.id : null
+}
+
 exports.richiestaAI = onRequest(
   { ...OPTS_AI, cors: false, maxInstances: 10 },
   async (req, res) => {
     if (req.method !== 'POST') return res.status(405).json({ errore: 'Solo POST.' })
-    const chi = ai.leggiBearer(req.get('authorization'))
-    const riservato = chi ? (await db.doc(`ai/${chi.slug}/riservato/chiave`).get()).data() : null
-    if (!chi || !ai.chiaveGiusta(chi.segreto, riservato?.impronta)) return res.status(401).json({ errore: 'Chiave della regia non valida.' })
+    const intestazione = req.get('authorization')
+    let slug = null
+    // IL GETTONE DI GOOGLE (REQ-FLOTTA-077), la strada di regime.
+    const gettone = identita.tokenDaBearer(intestazione)
+    if (gettone) {
+      slug = await localeDalGettone(gettone).catch((e) => {
+        console.warn('[ai] gettone rifiutato:', e?.message || e)
+        return null
+      })
+      if (!slug) return res.status(401).json({ errore: 'Locale non riconosciuto.' })
+    } else {
+      // LA CHIAVE (REQ-AI-003, REQ-FLOTTA-076), solo per il passaggio:
+      // finché tana-drink non pubblica il gettone. Poi si toglie.
+      const chi = ai.leggiBearer(intestazione)
+      const riservato = chi ? (await db.doc(`ai/${chi.slug}/riservato/chiave`).get()).data() : null
+      if (!chi || !ai.chiaveGiusta(chi.segreto, riservato?.impronta)) return res.status(401).json({ errore: 'Chiave della regia non valida.' })
+      slug = chi.slug
+    }
 
     let messaggio
     try {
@@ -2300,7 +2334,7 @@ exports.richiestaAI = onRequest(
     // account: da qui le due richieste dell'app e basta.
     if (!ai.TIPI_INSTALLAZIONE.includes(messaggio.tipo)) return res.status(400).json({ errore: 'Da un’installazione si chiedono «descrizione» e «fattura».' })
 
-    const esito = await interrogaClaude(chi.slug, messaggio)
+    const esito = await interrogaClaude(slug, messaggio)
     if (!esito.ok) {
       const { ok: _no, http, ...corpo } = esito
       return res.status(http).json(corpo)

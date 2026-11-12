@@ -69,6 +69,7 @@ describe('nella porta dell’AI', () => {
   })
   it('il contratto lo dice', () => {
     const handover = readFileSync('docs/handover.md', 'utf8')
-    expect(handover).toContain('**Dal 12/11/2026 senza chiave** (REQ-FLOTTA-077)')
+    expect(handover).toContain('**Dal 12/11/2026 senza chiave** (REQ-FLOTTA-077')
+    expect(handover).toContain('getIdTokenClient(url)')
   })
 })

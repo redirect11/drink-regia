@@ -636,6 +636,9 @@ jobs:
           RUN_ID: ${{ github.run_id }}
         run: |
           if [ -z "$CALLBACK_URL" ]; then echo "Nessuna REGIA_CALLBACK_URL: esito non inviato."; exit 0; fi
+          # Il numero del progetto (REQ-FLOTTA-077): la regia riconosce da lì il
+          # locale che chiede l'AI. Se non si legge, l'esito parte senza.
+          export NUMERO_PROGETTO="$(node scripts/numero-progetto.mjs --project "$PROGETTO" 2>/dev/null || true)"
           if [ "$ESITO_JOB" = "success" ]; then STATO=attiva; ERR=""; else STATO=errore; ERR="Aggiornamento $ESITO_JOB: GitHub Actions run $RUN_ID"; fi
           node -e '
             const [url, secret, slug, stato, progetto, versione, errore] = process.argv.slice(1);
@@ -643,6 +646,7 @@ jobs:
               body: JSON.stringify({ slug, stato, progetto, versione: versione || null, errore: errore || null,
                 ambiente: "produzione", operazione: "aggiornamento", profilo: process.env.PROFILO || null, ref: process.env.REF_APP || null,
                 commit: process.env.COMMIT_APP || null,
+                numero_progetto: process.env.NUMERO_PROGETTO || null,
                 run_id: Number(process.env.RUN_ID), inviato_il: new Date().toISOString() }) })
               .then((r) => { console.log("regia:", r.status); if (r.status >= 300) process.exit(1); })
           ' "$CALLBACK_URL" "$CALLBACK_SECRET" "$SLUG" "$STATO" "$PROGETTO" "${VERSIONE:-}" "$ERR"
