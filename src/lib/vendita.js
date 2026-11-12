@@ -21,6 +21,9 @@ export function venditaPulita(doc) {
     // Il Free fuori vendita si mostra nel confronto, come un piano
     // normale, finché l'admin non lo nasconde (REQ-FLOTTA-071).
     nascondi_free: doc?.nascondi_free === true,
+    // Cosa promette la prima pagina sull'attivazione (REQ-FLOTTA-073): lo
+    // decide l'admin, non i pagamenti o il Free. Spento: «concordata».
+    mostra_attivazione_automatica: doc?.mostra_attivazione_automatica === true,
     // Spenti finché l'admin non li accende (REQ-FLOTTA-017).
     pagamenti_online: doc?.pagamenti_online === true,
     // Il sito aperto al pubblico (REQ-FLOTTA-043): true, false, o null se

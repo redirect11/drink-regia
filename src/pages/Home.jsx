@@ -267,11 +267,13 @@ export default function Home({ utente, lingua = 'it' }) {
   useEffect(() => osservaComparsa(radice.current), [])
 
   const piani = pianiInVendita(vendita)
-  // L'attivazione è automatica solo se si paga online o si parte dal Free.
-  // Con i pagamenti online spenti (così parte la produzione) chi sceglie un
-  // piano ci lascia un recapito e l'attivazione si concorda (REQ-FLOTTA-017):
-  // la pagina non promette quello che oggi non succede.
-  const automatica = vendita.pagamenti_online || vendita.free
+  // Cosa la pagina dice dell'attivazione lo decide l'admin dal backoffice
+  // (REQ-FLOTTA-073, Daniele, 12/11/2026: «sono io a decidere dal
+  // backoffice se si vede la cosa dell'attivazione automatica oppure no»).
+  // Prima la dicevano automatica i pagamenti online o il Free accesi
+  // (REQ-FLOTTA-017); se lo è davvero lo decidono il deploy automatico e,
+  // sul test, l'attivazione simulata.
+  const automatica = vendita.mostra_attivazione_automatica
   const daPrezzo = Math.min(...Object.values(PIANI).filter((p) => !p.gratuito).map((p) => p.prezzo))
   const moduliVisibili = MODULI.filter((m) => moduloVisibile(vendita, m.id))
   const funzioni = FUNZIONI.filter((f) => !f.moduli.length || f.moduli.some((id) => moduloVisibile(vendita, id)))

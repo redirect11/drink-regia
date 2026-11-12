@@ -1668,12 +1668,29 @@ function Vendita({ onErrore }) {
       </p>
       <label className="opzione interruttore">
         <input type="checkbox" checked={vendita.free} onChange={(e) => cambia({ free: e.target.checked })} />
-        Piano Free in vendita
+        Piano Free disponibile
       </label>
+      {/* «Disponibile», non «in vendita» (REQ-FLOTTA-073, Daniele: «è
+          free, non si vende»). */}
       <p className="muted small">
         {vendita.free
-          ? 'Il Free compare nei prezzi e chi si registra lo può attivare.'
-          : 'Il Free non compare e non si attiva; i locali Free che ci sono continuano a lavorare. Tienilo spento finché l’app non fa rispettare i suoi limiti.'}
+          ? 'Il Free ha la sua scheda nella prima pagina, con «Inizia con Free», e chi si registra lo può attivare. Se l’attivazione crea davvero il locale lo decidono «Deploy automatico» e, sul test, «Attivazione simulata», in «Richieste».'
+          : 'Il Free non ha la sua scheda e non si attiva; i locali Free che ci sono continuano a lavorare. Tienilo spento finché l’app non fa rispettare i suoi limiti.'}
+      </p>
+      {/* COSA PROMETTE LA PRIMA PAGINA SULL'ATTIVAZIONE (REQ-FLOTTA-073): lo
+          decide l'admin, staccato da pagamenti, Free e deploy. */}
+      <label className="opzione interruttore">
+        <input
+          type="checkbox"
+          checked={vendita.mostra_attivazione_automatica}
+          onChange={(e) => cambia({ mostra_attivazione_automatica: e.target.checked })}
+        />
+        Mostra «Attivazione automatica» nella prima pagina
+      </label>
+      <p className="muted small">
+        {vendita.mostra_attivazione_automatica
+          ? 'La prima pagina dice «Attivazione automatica» e che l’installazione nasce da sola. Cosa succede davvero lo decidono «Deploy automatico» e «Attivazione simulata».'
+          : 'La prima pagina dice «Attivazione concordata con noi»: ci accordiamo sul pagamento e attiviamo noi.'}
       </p>
       {/* IL FREE FUORI VENDITA (REQ-FLOTTA-071, Daniele, 12/11/2026:
           «mettimelo che posso mostrarlo oppure no… no proprio nascondere il

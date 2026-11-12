@@ -6,6 +6,9 @@ data.
 
 ## Prossima release (da decidere)
 
+- Cosa la prima pagina dice dell'attivazione, automatica o concordata, lo
+  decide un interruttore del backoffice; l'interruttore del Free si chiama
+  «Piano Free disponibile» (REQ-FLOTTA-073).
 - Il confronto fra i piani mostra il Free, con le sue differenze da Base
   e Completo, anche prima che sia in vendita; dal backoffice si nasconde
   (REQ-FLOTTA-071).
