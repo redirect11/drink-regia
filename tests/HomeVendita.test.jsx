@@ -161,8 +161,10 @@ describe('la vendita nella prima pagina', () => {
   })
 
   // Revisione PR #20: in produzione pagamenti online e Free partono spenti,
-  // e la richiesta passa dall'admin. «Automatica» lì non è vera.
-  it('con pagamenti online e Free spenti l’attivazione si concorda, non è automatica', () => {
+  // e la richiesta passa dall'admin. «Automatica» lì non è vera. Dal
+  // 12/11/2026 la frase la decide l'admin (REQ-FLOTTA-073), e di partenza
+  // è quella concordata.
+  it('di partenza l’attivazione si concorda, non è automatica', () => {
     stato.vendita = venditaPulita(null)
     mostra()
     const fatti = within(screen.getByRole('list', { name: 'In breve' }))
@@ -172,18 +174,26 @@ describe('la vendita nella prima pagina', () => {
     expect(screen.queryByText(it_.passi.voci[2].testo)).toBeNull()
   })
 
-  it('con i pagamenti online accesi l’attivazione è automatica', () => {
-    stato.vendita = venditaPulita({ pagamenti_online: true })
-    mostra()
-    expect(within(screen.getByRole('list', { name: 'In breve' })).getByText(it_.hero.automatica)).toBeInTheDocument()
-    expect(screen.getByText(it_.passi.voci[2].testo)).toBeInTheDocument()
+  // REQ-FLOTTA-073 (Daniele, 12/11/2026: «sono io a decidere dal
+  // backoffice se si vede la cosa dell'attivazione automatica oppure no»).
+  it('pagamenti online e Free non cambiano la frase sull’attivazione: la cambia solo l’admin', () => {
+    for (const v of [{ pagamenti_online: true }, { free: true }, { pagamenti_online: true, free: true }]) {
+      stato.vendita = venditaPulita(v)
+      const { unmount } = mostra()
+      expect(within(screen.getByRole('list', { name: 'In breve' })).getByText(it_.hero.concordata)).toBeInTheDocument()
+      expect(screen.getByText(it_.passi.voci[2].concordata)).toBeInTheDocument()
+      unmount()
+    }
   })
 
-  it('col Free in vendita l’attivazione è automatica', () => {
-    stato.vendita = venditaPulita({ free: true })
+  it('con «mostra l’attivazione automatica» acceso la pagina la dice automatica', () => {
+    expect(venditaPulita(null).mostra_attivazione_automatica).toBe(false)
+    expect(venditaPulita({ mostra_attivazione_automatica: 'sì' }).mostra_attivazione_automatica).toBe(false)
+    stato.vendita = venditaPulita({ mostra_attivazione_automatica: true })
     mostra()
     expect(within(screen.getByRole('list', { name: 'In breve' })).getByText(it_.hero.automatica)).toBeInTheDocument()
     expect(screen.getByText(it_.passi.voci[2].testo)).toBeInTheDocument()
+    expect(screen.queryByText(it_.passi.voci[2].concordata)).toBeNull()
   })
 
   // Revisione PR #20: un elemento montato dopo il primo giro restava a
