@@ -33,6 +33,7 @@ const db = vi.hoisted(() => ({
     return () => {}
   }),
   impostaDeployAutomatico: vi.fn(async () => {}),
+  impostaAttivazioneSimulata: vi.fn(async () => {}),
   autorizzaRichiesta: vi.fn(async () => {}),
   autorizzaProfiloCompleto: vi.fn(async () => ({ ok: true })),
   rifiutaRichiesta: vi.fn(async () => {}),
@@ -318,6 +319,18 @@ describe('il backoffice governa i deploy', () => {
     expect(screen.getByText(/aspettano la tua autorizzazione/)).toBeInTheDocument()
     await user.click(interruttore)
     expect(db.impostaDeployAutomatico).toHaveBeenCalledWith(true)
+  })
+
+  // REQ-FLOTTA-072 (Daniele, 12/11/2026: «facciamo l'attivazione finta»).
+  // Nei test VITE_APP_ENV manca, come sul sito di test: l'interruttore c'è.
+  it('sul test l’attivazione simulata ha il suo interruttore, spento, sotto il deploy automatico', async () => {
+    const user = userEvent.setup()
+    mostra('/backoffice/richieste')
+    const simulata = await screen.findByLabelText('Attivazione simulata')
+    expect(simulata).not.toBeChecked()
+    expect(screen.getByText(/nessun progetto Google/)).toBeInTheDocument()
+    await user.click(simulata)
+    expect(db.impostaAttivazioneSimulata).toHaveBeenCalledWith(true)
   })
 
   it('un locale Free che ha comprato aspetta l’admin: «Pubblica il piano» lancia il profilo completo', async () => {

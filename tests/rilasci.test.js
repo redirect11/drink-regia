@@ -290,3 +290,11 @@ describe('gli aggiornamenti a scelta nel rilascio', () => {
     expect(r.esitoDi(istanze['bar-mario'], rilascio, 'bar-mario')).toBe('in attesa')
   })
 })
+
+// REQ-FLOTTA-072: un locale simulato non ha un progetto da aggiornare.
+describe('un locale simulato non entra nei rilasci', () => {
+  it('attiva ma simulata: non partecipa', () => {
+    expect(r.partecipa({ stato: 'attiva' })).toBe(true)
+    expect(r.partecipa({ stato: 'attiva', simulata: true })).toBe(false)
+  })
+})

@@ -174,3 +174,22 @@ describe('l’esito del workflow', () => {
     expect(readFileSync('functions/.env.drink-regia-test', 'utf8')).toMatch(/^ARCHIVIO_BUCKET=drink-regia-test-archivio$/m)
   })
 })
+
+// REQ-FLOTTA-072: un locale simulato non ha un progetto. Si conferma con lo
+// slug, e l'eliminazione non lancia il workflow: niente da archiviare.
+describe('l’eliminazione di un locale simulato', () => {
+  it('si conferma con lo slug, non col progetto che non ha', () => {
+    const ist = { slug: 'bar-prova', simulata: true, progetto: null, stato: 'attiva' }
+    expect(e.confermaValida(ist, 'bar-prova')).toBe(true)
+    expect(e.confermaValida(ist, '')).toBe(false)
+    expect(e.confermaValida(ist, 'drinkpos-bar-prova')).toBe(false)
+    // Un locale vero si conferma ancora col progetto.
+    expect(e.confermaValida({ slug: 'bar-vero', progetto: 'drinkpos-bar-vero' }, 'bar-vero')).toBe(false)
+  })
+  it('diventa eliminata subito, senza archivio', () => {
+    const adesso = new Date('2026-11-12T10:00:00Z')
+    const d = e.eliminazioneSimulata({ eliminazione: { stato: 'in coda', quando: 'q' } }, adesso)
+    expect(d).toMatchObject({ stato: 'eliminata', eliminata_il: adesso.toISOString() })
+    expect(d.eliminazione).toMatchObject({ stato: 'eliminata', quando: 'q', archivio: null, errore: null, simulata: true })
+  })
+})
