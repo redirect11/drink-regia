@@ -99,8 +99,8 @@ describe('la pagina inglese', () => {
     await userEvent.click(screen.getByRole('button', { name: en.prezzi.confronto.apri }))
     const tabella = within(screen.getByRole('table'))
     for (const m of MODULI) expect(tabella.getByText(en.moduli[m.id].nome)).toBeInTheDocument()
-    // Il Free fuori vendita c'è, «in arrivo» (REQ-FLOTTA-071).
-    expect(tabella.getAllByRole('columnheader').map((c) => c.textContent)).toEqual([`${en.prezzi.piani.free.nome}${en.prezzi.confronto.inArrivo}`, en.prezzi.piani.base.nome, en.prezzi.piani.completo.nome])
+    // Il Free fuori vendita c'è, come un piano normale (REQ-FLOTTA-071).
+    expect(tabella.getAllByRole('columnheader').map((c) => c.textContent)).toEqual([en.prezzi.piani.free.nome, en.prezzi.piani.base.nome, en.prezzi.piani.completo.nome])
     expect(screen.getByText(en.prezzi.notaScontrino)).toBeInTheDocument()
   })
 

@@ -162,14 +162,14 @@ describe('la prima pagina', () => {
       expect(screen.queryByRole('table')).toBeNull()
     })
 
-    // Senza nessuna scelta dell'admin il Free fuori vendita c'è, «in
-    // arrivo» (REQ-FLOTTA-071): le righe in cui è diverso si mostrano.
-    it('senza il Free in vendita le colonne sono Free «in arrivo», Base e Completo, e si vedono le differenze', () => {
+    // Senza nessuna scelta dell'admin il Free fuori vendita c'è, come un
+    // piano normale (REQ-FLOTTA-071): le righe in cui è diverso si mostrano.
+    it('senza il Free in vendita le colonne sono Free, Base e Completo, e si vedono le differenze', () => {
       mostra()
       fireEvent.click(comando())
       const tabella = within(screen.getByRole('table'))
       const c = it_.prezzi.confronto
-      expect(tabella.getAllByRole('columnheader').map((h) => h.textContent)).toEqual([`${PIANI.free.nome}${c.inArrivo}`, PIANI.base.nome, PIANI.completo.nome])
+      expect(tabella.getAllByRole('columnheader').map((h) => h.textContent)).toEqual([PIANI.free.nome, PIANI.base.nome, PIANI.completo.nome])
       expect(tabella.getByRole('row', { name: new RegExp(`^${c.righe.terminali}`) })).toHaveTextContent(
         `${c.righe.terminali}${PIANI.free.terminali}${PIANI.base.terminali}${PIANI.completo.terminali}`,
       )

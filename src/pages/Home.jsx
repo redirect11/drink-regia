@@ -383,11 +383,12 @@ export default function Home({ utente, lingua = 'it' }) {
   // prodotti, conti, utenti, sconti e storico uguali, e sei righe identiche
   // nasconderebbero l'unica cosa che conta, i moduli. I terminali restano
   // sempre: sono un numero che chi compra vuole leggere.
-  // LE COLONNE DEL CONFRONTO: i piani in vendita, più il Free «in arrivo»
-  // finché l'admin non lo nasconde (REQ-FLOTTA-071, Daniele, 12/11/2026).
-  // Solo qui: non ha la sua scheda e non si sceglie.
-  const freeInArrivo = !vendita.free && !vendita.nascondi_free
-  const pianiConfronto = freeInArrivo ? Object.values(PIANI) : piani
+  // LE COLONNE DEL CONFRONTO: i piani in vendita, più il Free fuori
+  // vendita, come un piano normale, finché l'admin non lo nasconde
+  // (REQ-FLOTTA-071, Daniele, 12/11/2026). Solo qui: non ha la sua scheda
+  // e non si sceglie, perché non si può attivare.
+  const freeFuoriVendita = !vendita.free && !vendita.nascondi_free
+  const pianiConfronto = freeFuoriVendita ? Object.values(PIANI) : piani
   const righeDaMostrare = righeLavoro.filter((r) => r.id === 'terminali' || new Set(pianiConfronto.map((p) => r.valore(p))).size > 1)
   // Un modulo, in un piano: compreso, da comprare a parte, o (nel piano
   // gratuito, che non ha moduli) non disponibile.
@@ -694,7 +695,6 @@ export default function Home({ utente, lingua = 'it' }) {
                     {pianiConfronto.map((p) => (
                       <th scope="col" key={p.id} className={p.id === 'completo' ? 'in-evidenza' : undefined}>
                         {nomePiano(t, p)}
-                        {p.gratuito && freeInArrivo && <span className="etichetta in-arrivo">{c.inArrivo}</span>}
                       </th>
                     ))}
                   </tr>

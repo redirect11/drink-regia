@@ -768,7 +768,7 @@ describe('la vendita nel backoffice', () => {
     const vendita = await screen.findByRole('region', { name: 'Vendita' })
     const nascondi = within(vendita).getByLabelText('Nascondi il Free dal sito')
     expect(nascondi).not.toBeChecked()
-    expect(vendita).toHaveTextContent(/compare con «In arrivo»/)
+    expect(vendita).toHaveTextContent(/il Free compare con le sue differenze da Base e Completo/)
     await user.click(nascondi)
     expect(db.impostaVendita).toHaveBeenCalledWith({ nascondi_free: true })
   })

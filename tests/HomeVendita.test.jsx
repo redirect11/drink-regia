@@ -202,10 +202,9 @@ describe('la vendita nella prima pagina', () => {
   })
 })
 
-// REQ-FLOTTA-071 (Daniele, 12/11/2026: «mostrarlo nel confronto anche
-// spento… come "in arrivo"… mettimelo che posso mostrarlo oppure no… no
-// proprio nascondere il free»).
-describe('il Free «in arrivo» nel confronto, e nascosto a richiesta', () => {
+// REQ-FLOTTA-071 (Daniele, 12/11/2026: «Il Free nel confronto come un
+// piano normale, senza "In arrivo", più l'interruttore per nasconderlo»).
+describe('il Free nel confronto anche fuori vendita, e nascosto a richiesta', () => {
   const c = it_.prezzi.confronto
   const intestazioni = () => within(screen.getByRole('table')).getAllByRole('columnheader').map((h) => h.textContent)
   const riga = (id) => [...within(screen.getByRole('table')).getByRole('row', { name: new RegExp(`^${c.righe[id]}`) }).querySelectorAll('td')].map((td) => td.textContent)
@@ -216,12 +215,13 @@ describe('il Free «in arrivo» nel confronto, e nascosto a richiesta', () => {
     expect(venditaPulita({ nascondi_free: true }).nascondi_free).toBe(true)
   })
 
-  it('col Free non in vendita e non nascosto: la colonna del Free dice «In arrivo» e mostra le differenze', () => {
+  it('col Free non in vendita e non nascosto: la colonna del Free è come le altre, senza etichette, e mostra le differenze', () => {
     stato.vendita = venditaPulita({})
     mostra()
     fireEvent.click(screen.getByRole('button', { name: c.apri }))
-    expect(intestazioni()).toEqual([`Free${c.inArrivo}`, 'Base', 'Completo'])
-    expect(c.inArrivo).toBe('In arrivo')
+    expect(intestazioni()).toEqual(['Free', 'Base', 'Completo'])
+    expect(document.querySelector('.confronto-tabella thead .etichetta')).toBeNull()
+    expect(screen.queryByText(/In arrivo/i)).toBeNull()
     const limiti = PIANI.free.limiti
     expect(riga('comande')).toEqual(['No', 'Sì', 'Sì'])
     expect(riga('prodotti')).toEqual([`Fino a ${limiti.prodotti_max}`, 'Senza limite', 'Senza limite'])
@@ -237,7 +237,7 @@ describe('il Free «in arrivo» nel confronto, e nascosto a richiesta', () => {
     expect(screen.getByRole('list', { name: 'In breve' })).toHaveTextContent(it_.hero.concordata)
   })
 
-  it('col Free in vendita la colonna c’è senza «In arrivo», anche nascosto; nascosto e non in vendita non c’è', () => {
+  it('col Free in vendita la colonna c’è, anche nascosto; nascosto e non in vendita non c’è', () => {
     stato.vendita = venditaPulita({ free: true, nascondi_free: true })
     const { unmount } = mostra()
     fireEvent.click(screen.getByRole('button', { name: c.apri }))
@@ -247,10 +247,10 @@ describe('il Free «in arrivo» nel confronto, e nascosto a richiesta', () => {
     mostra()
     fireEvent.click(screen.getByRole('button', { name: c.apri }))
     expect(intestazioni()).toEqual(['Base', 'Completo'])
-    expect(screen.queryByText(c.inArrivo)).toBeNull()
   })
 
-  it('italiano e inglese hanno la voce', () => {
-    expect(en.prezzi.confronto.inArrivo).toBe('Coming soon')
+  it('nessuna etichetta «in arrivo», in nessuna lingua', () => {
+    expect(c.inArrivo).toBeUndefined()
+    expect(en.prezzi.confronto.inArrivo).toBeUndefined()
   })
 })

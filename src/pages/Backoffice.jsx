@@ -1677,7 +1677,8 @@ function Vendita({ onErrore }) {
       </p>
       {/* IL FREE FUORI VENDITA (REQ-FLOTTA-071, Daniele, 12/11/2026:
           «mettimelo che posso mostrarlo oppure no… no proprio nascondere il
-          free»): nel confronto si vede «in arrivo», a meno di nasconderlo. */}
+          free»): nel confronto si vede come un piano normale, a meno di
+          nasconderlo. */}
       <label className="opzione interruttore">
         <input type="checkbox" checked={vendita.nascondi_free} onChange={(e) => cambia({ nascondi_free: e.target.checked })} />
         Nascondi il Free dal sito
@@ -1687,7 +1688,7 @@ function Vendita({ onErrore }) {
           ? 'Il Free è in vendita: si vede comunque.'
           : vendita.nascondi_free
             ? 'Il Free non si vede da nessuna parte del sito: il confronto mostra solo Base e Completo.'
-            : 'Nel confronto della prima pagina il Free compare con «In arrivo» e le sue differenze da Base e Completo. Non ha la sua scheda: non si sceglie e non si attiva.'}
+            : 'Nel confronto della prima pagina il Free compare con le sue differenze da Base e Completo. Non ha la sua scheda: non si sceglie e non si attiva.'}
       </p>
       <h4>Moduli in vendita e in prova</h4>
       <div className="vendita-moduli">
