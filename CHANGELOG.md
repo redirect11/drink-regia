@@ -6,6 +6,9 @@ data.
 
 ## Prossima release (da decidere)
 
+- Nella prima pagina il confronto fra i piani dice che il Free porta
+  «Creato con Lime – SmartOrders» in fondo allo scontrino e al menù, e il prezzo dei
+  terminali in più sta solo nei prezzi (REQ-FLOTTA-068).
 - Il caricamento del rapporto di coverage non fa più fallire i controlli
   di una PR: se GitHub non riesce a salvarlo, lint, test e build restano
   verdi (REQ-DEV-014).

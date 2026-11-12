@@ -26,6 +26,7 @@ import Home from '../src/pages/Home.jsx'
 import { venditaPulita } from '../src/lib/vendita.js'
 import it_ from '../src/i18n/home.it.js'
 import { PIANI } from '../src/lib/piani.js'
+import { NOME_ESTESO } from '../src/lib/prodotto.js'
 
 const mostra = () =>
   render(
@@ -105,6 +106,10 @@ describe('la vendita nella prima pagina', () => {
     expect(riga('sconti')).toEqual(['No', 'Sì', 'Sì'])
     expect(riga('storico')).toEqual([`Ultimi ${limiti.storico_giorni} giorni`, 'Tutto', 'Tutto'])
     expect(riga('terminali')).toEqual([String(PIANI.free.terminali), String(PIANI.base.terminali), String(PIANI.completo.terminali)])
+    // REQ-FLOTTA-068: il Free porta la scritta col nome del prodotto in
+    // fondo allo scontrino e al menù (`marchio` nel listino), gli altri no.
+    expect(limiti.marchio).toBe(true)
+    expect(riga('marchio')).toEqual([`«Creato con ${NOME_ESTESO}»`, 'Nessuna', 'Nessuna'])
     // Un modulo a pagamento: non disponibile nel Free, a prezzo nel Base, compreso nel Completo.
     const magazzino = [...tabella.getByRole('row', { name: /^Magazzino e fornitori/ }).querySelectorAll('td')].map((td) => td.textContent)
     expect(magazzino[0]).toBe('Non disponibile')
@@ -125,6 +130,9 @@ describe('la vendita nella prima pagina', () => {
     const tabella = within(screen.getByRole('table'))
     expect(tabella.queryByText('Pagamenti con lettore SumUp')).toBeNull()
     expect(tabella.getByText('Magazzino e fornitori')).toBeInTheDocument()
+    // REQ-FLOTTA-068: senza il Free la riga della scritta è uguale per
+    // tutti, e non si mostra.
+    expect(tabella.queryByRole('row', { name: new RegExp(`^${it_.prezzi.confronto.righe.marchio}`) })).toBeNull()
     const elenco = within(document.querySelector('.moduli-elenco'))
     expect(elenco.queryByRole('button', { name: /^Pagamenti con lettore SumUp/ })).toBeNull()
     expect(elenco.getByRole('button', { name: /^Magazzino e fornitori/ })).toBeInTheDocument()

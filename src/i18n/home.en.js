@@ -112,7 +112,7 @@ export default {
         occhiello: 'Orders and bills',
         titolo: 'From the table to the bar, with nothing to call out.',
         testo: 'Take it at the table or at the bar: it arrives straight away and, if you choose, prints on its own. The bill already has everything on it and is settled in cash or by card; the courtesy bill prints on the thermal printer.',
-        punti: ['Orders printed at the bar', 'Cash and card', 'Extra devices at {terminale} a month'],
+        punti: ['Orders printed at the bar', 'Cash and card', 'Courtesy bill'],
       },
       menu: {
         occhiello: 'Digital menu and table ordering',
@@ -203,6 +203,7 @@ export default {
         sconti: 'Discounts',
         storico: 'History',
         terminali: 'Devices included',
+        marchio: 'Footer on receipts and menu',
       },
       si: 'Yes',
       no: 'No',
@@ -211,6 +212,9 @@ export default {
       soloTitolare: 'Owner only',
       giorni: 'Last {n} days',
       tutto: 'All of it',
+      // The app prints this line in Italian: quoted as it appears.
+      marchio: '“Creato con {nome}”',
+      nessuna: 'None',
       nonDisponibile: 'Not available',
       nota: 'Where there is a price, it is per month and excludes VAT: below it, the total including VAT.',
       nelPiano: 'In the {piano} plan',
