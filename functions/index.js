@@ -2181,6 +2181,9 @@ exports.creaCliente = onCall(OPTS, async (req) => {
     uid: utente.uid,
     versione_schema: 2,
     email: String(email).toLowerCase(),
+    // La forma base dell'email (REQ-FLOTTA-083), per i doppioni. Col «+»
+    // (le prove dell'admin) non si riserva.
+    ...(String(email).includes('+') ? {} : { email_norma: registrazione.emailNorma(email) }),
     nome_locale: nome,
     slug,
     locale: { tipo: 'altro', indirizzo: {}, telefono: '', sito: '' },

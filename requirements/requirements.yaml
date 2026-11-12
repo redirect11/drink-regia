@@ -4345,7 +4345,7 @@ requirements:
       senza «+».
       Il resto della richiesta di Daniele (più locali per un account a
       pagamento, un solo Free) è un lavoro a parte, da progettare.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [regia, sicurezza, registrazione]
     priority: P1
