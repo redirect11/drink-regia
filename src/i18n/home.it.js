@@ -258,6 +258,8 @@ export default {
       marchio: '«Creato con {nome}»',
       nessuna: 'Nessuna',
       nonDisponibile: 'Non disponibile',
+      // Il Free mostrato prima di essere in vendita (REQ-FLOTTA-071).
+      inArrivo: 'In arrivo',
       nota: 'Dove c’è un prezzo, è al mese e IVA esclusa: sotto, il totale IVA inclusa.',
       nelPiano: 'Nel piano {piano}',
       inclusoInTutti: 'Compreso nel {base} e nel {completo}.',

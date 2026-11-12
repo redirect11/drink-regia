@@ -216,6 +216,7 @@ export default {
       marchio: '“Creato con {nome}”',
       nessuna: 'None',
       nonDisponibile: 'Not available',
+      inArrivo: 'Coming soon',
       nota: 'Where there is a price, it is per month and excludes VAT: below it, the total including VAT.',
       nelPiano: 'In the {piano} plan',
       inclusoInTutti: 'Included in {base} and in {completo}.',

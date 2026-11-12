@@ -3840,7 +3840,7 @@ requirements:
       si mostra quando il Free è nel confronto, in vendita o «in arrivo».
       E cambia la prima pagina di oggi: senza toccare il backoffice, dopo
       il rilascio il Free compare «in arrivo».
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [prodotto, regia, home, backoffice]
     priority: P2

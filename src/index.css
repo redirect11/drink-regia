@@ -368,6 +368,8 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .confronto-tabella th, .confronto-tabella td { padding: 12px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
 .confronto-tabella thead th { font-family: var(--titoli); font-size: 1.125rem; }
 .confronto-tabella thead th.in-evidenza { color: var(--accent); }
+/* Il Free «in arrivo» (REQ-FLOTTA-071): l'etichetta sotto il nome della colonna. */
+.confronto-tabella .in-arrivo { display: block; width: fit-content; margin: 6px auto 0; font-weight: 500; }
 .confronto-tabella tbody th { font-weight: 500; color: var(--text); }
 .confronto-tabella td { color: var(--text); white-space: nowrap; }
 .confronto-tabella .gruppo th { padding-top: 22px; font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); border-bottom-color: var(--lime); }
