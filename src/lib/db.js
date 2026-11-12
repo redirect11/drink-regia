@@ -336,7 +336,7 @@ export async function aggiornaIstanza(slug, ref = null) {
 // I rilasci a ondate (REQ-FLOTTA-012): il più recente per primo.
 export async function elencoRilasci() {
   serve()
-  const snap = await getDocs(collection(db, 'rilasci'))
+  const snap = await dalServer(collection(db, 'rilasci'))
   return snap.docs.map((d) => d.data()).sort((a, b) => String(b.creato_il).localeCompare(String(a.creato_il)))
 }
 
@@ -394,7 +394,7 @@ export async function registraPagamento(slug, pagato_fino_al, importo = null) {
 // Il libro dei movimenti, i più recenti prima: lo scrivono le Functions.
 export async function elencoMovimenti(quanti = 1000) {
   serve()
-  const snap = await getDocs(query(collection(db, 'movimenti'), orderBy('il', 'desc'), limit(quanti)))
+  const snap = await dalServer(query(collection(db, 'movimenti'), orderBy('il', 'desc'), limit(quanti)))
   return snap.docs.map((d) => ({ ...d.data(), id: d.id }))
 }
 
@@ -402,7 +402,7 @@ export async function elencoMovimenti(quanti = 1000) {
 // almeno una vista): la dashboard riempie i giorni vuoti da sé.
 export async function elencoTraffico(giorni = 90) {
   serve()
-  const snap = await getDocs(query(collection(db, 'traffico'), orderBy('giorno', 'desc'), limit(giorni)))
+  const snap = await dalServer(query(collection(db, 'traffico'), orderBy('giorno', 'desc'), limit(giorni)))
   return snap.docs.map((d) => d.data())
 }
 
@@ -436,6 +436,8 @@ export async function sceltaAggiornamento(tag, scelta) {
 // «Nessun cliente.», e per un admin i clienti sembravano spariti (trovato
 // dal collaudo del tag v0.3.0-beta.10, 11/11/2026). `getDocsFromServer`
 // fallisce se il server non risponde, e l'errore si dice in italiano.
+// Dal 12/11/2026 (REQ-FLOTTA-067) leggono così anche rilasci, movimenti,
+// traffico, temi, stili e cassetti AI: tutti gli elenchi del backoffice.
 export const LETTURA_FALLITA = 'Non riesco a leggere dal server: controlla la connessione e riprova.'
 async function dalServer(q) {
   try {
@@ -514,7 +516,7 @@ export async function avviaRicaricaAI(pacchetto) {
 // acceso o spento, chiave dell'installazione).
 export async function elencoCassettiAI() {
   serve()
-  const snap = await getDocs(collection(db, 'ai'))
+  const snap = await dalServer(collection(db, 'ai'))
   return Object.fromEntries(snap.docs.map((d) => [d.id, d.data()]))
 }
 
@@ -539,7 +541,7 @@ export async function registraLocaleEsistente(dati) {
 // salvare, pubblicare e ritirare passa dalle Functions, che controllano.
 export async function elencoTemi() {
   serve()
-  const snap = await getDocs(query(collection(db, 'temi'), orderBy('aggiornato_il', 'desc')))
+  const snap = await dalServer(query(collection(db, 'temi'), orderBy('aggiornato_il', 'desc')))
   return snap.docs.map((d) => d.data())
 }
 
@@ -547,7 +549,7 @@ export async function elencoTemi() {
 // ritirano uno stile del repository), e pubblica o ritira.
 export async function elencoStili() {
   serve()
-  const snap = await getDocs(query(collection(db, 'stili'), orderBy('aggiornato_il', 'desc')))
+  const snap = await dalServer(query(collection(db, 'stili'), orderBy('aggiornato_il', 'desc')))
   return snap.docs.map((d) => d.data())
 }
 

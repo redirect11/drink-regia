@@ -3653,6 +3653,32 @@ requirements:
     test_cases:
       - tests/ci.test.js
 
+  - id: REQ-FLOTTA-067
+    title: "Anche rilasci, commerciale, temi, stili e cassetti AI si leggono dal server: senza rete non sembrano vuoti"
+    area: "src/lib/db.js (elencoRilasci, elencoMovimenti, elencoTraffico, elencoTemi, elencoStili, elencoCassettiAI)"
+    description: >
+      Il seguito di REQ-FLOTTA-064, che ha corretto clienti, istanze e
+      richieste: gli altri elenchi del backoffice avevano lo stesso
+      difetto. `getDocs`, senza rete, risponde con la memoria del
+      browser, cioè niente, e la pagina li mostra vuoti: nessun rilascio,
+      nessun movimento, nessun tema. Daniele, 12/11/2026, sulla proposta:
+      «procedi».
+      CRITERI DI ACCETTAZIONE. (1) Rilasci, movimenti, traffico, temi,
+      stili e cassetti AI si leggono dal server, mai dalla memoria del
+      browser. (2) Se il server non risponde la lettura fallisce col
+      messaggio di REQ-FLOTTA-064, che dice di controllare la
+      connessione. (3) Le pagine che già dicono l'errore di una lettura
+      (il commerciale coi movimenti, il catalogo dei temi) lo dicono anche
+      in questo caso. Gli elenchi che sono «un di più» (traffico, cassetti
+      AI, rilasci nel quadro dei locali) restano facoltativi come oggi: se
+      non arrivano, il resto della pagina lavora.
+    status: implemented
+    generate_issue: true
+    labels: [backoffice, regia]
+    priority: P2
+    test_cases:
+      - tests/db.test.js
+
   - id: REQ-FLOTTA-059
     title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"
     area: "functions/lib/eliminazione-cliente.js, functions/index.js (eliminaCliente), src/lib/db.js (eliminaCliente), src/pages/Backoffice.jsx (Elimina cliente…)"

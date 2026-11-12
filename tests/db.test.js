@@ -446,6 +446,21 @@ describe('i documenti della regia', () => {
     expect(fb.dalServer).toEqual(['clienti', 'istanze', 'richieste'])
   })
 
+  // REQ-FLOTTA-067: gli altri elenchi del backoffice, stesso difetto.
+  it('rilasci, movimenti, traffico, temi, stili e cassetti AI si leggono dal server', async () => {
+    await db.elencoRilasci()
+    await db.elencoMovimenti()
+    await db.elencoTraffico()
+    await db.elencoTemi()
+    await db.elencoStili()
+    await db.elencoCassettiAI()
+    expect(fb.dalServer).toEqual(['rilasci', 'movimenti', 'traffico', 'temi', 'stili', 'ai'])
+    fb.serverGiu = true
+    for (const elenco of [db.elencoRilasci, db.elencoMovimenti, db.elencoTraffico, db.elencoTemi, db.elencoStili, db.elencoCassettiAI]) {
+      await expect(elenco()).rejects.toThrow('Non riesco a leggere dal server: controlla la connessione e riprova.')
+    }
+  })
+
   it('se il server non risponde la lettura fallisce, e lo dice in italiano', async () => {
     fb.serverGiu = true
     for (const elenco of [db.elencoClienti, db.elencoIstanze, db.elencoRichieste]) {
