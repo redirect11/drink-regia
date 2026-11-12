@@ -13,8 +13,10 @@
 // e il codice di tana-drink gira solo in `compila`, che non ha la chiave.
 
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, existsSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
+import { tmpdir } from 'node:os'
+import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { load } from 'js-yaml'
 import { conIRuoli } from '../scripts/lib-iam.js'
@@ -762,4 +764,99 @@ describe('elimina-istanza.yml', () => {
     expect(esito.run).toContain('run_id: Number(process.env.RUN_ID)')
     expect(esito.run).toContain('inviato_il: new Date().toISOString()')
   })
+})
+
+// IL TIPO DI LOCALE (REQ-FLOTTA-065, tana-drink REQ-VENUE-007). Prima di
+// creare la cartella del cliente la regia chiede all'app se sa leggere il
+// tipo di locale; se sì e se accetta `bar`, glielo passa, altrimenti la
+// lancia come prima. Il passo si prova davvero: si esegue il suo script con
+// un genera-cliente.mjs finto, vecchio (come quello di oggi, che a `--sa`
+// risponde con l'uso e uscita 1) e nuovo.
+describe.each(WORKFLOW)('%s: il tipo di locale arriva all’app solo se l’app lo sa leggere', (_, w) => {
+  const run = () => passo(w, 'La cartella del cliente').run
+
+  it('il tipo è scritto una volta sola, nel workflow, ed è «bar»', () => {
+    expect(w.env.TIPO_LOCALE).toBe('bar')
+  })
+
+  it('la domanda e la chiamata stanno nel job senza chiavi', () => {
+    const delCompila = w.jobs.compila.steps.find((s) => s.name === 'La cartella del cliente')
+    expect(delCompila?.run).toContain('node scripts/genera-cliente.mjs --sa tipo-locale')
+    for (const j of ['controlla', 'prepara', 'pubblica']) expect(JSON.stringify(w.jobs[j])).not.toContain('--sa tipo-locale')
+  })
+
+  const FINTO = {
+    // Come la versione di oggi: ignora gli argomenti che non conosce, e
+    // senza --slug esce con 1.
+    vecchio: `const a = process.argv.slice(2)
+require('fs').appendFileSync('chiamate.log', JSON.stringify(a) + '\\n')
+if (!a.includes('--slug')) { console.error('Uso: …'); process.exit(1) }`,
+    // Come la versione chiesta a tana-drink.
+    nuovo: `const a = process.argv.slice(2)
+require('fs').appendFileSync('chiamate.log', JSON.stringify(a) + '\\n')
+if (a[0] === '--sa') { if (a[1] === 'tipo-locale') { console.log(JSON.stringify({ 'tipo-locale': ['bar'] })); process.exit(0) } process.exit(1) }`,
+    // Risponde di sì, ma non accetta «bar»: la regia non deve mandarlo.
+    senzaBar: `const a = process.argv.slice(2)
+require('fs').appendFileSync('chiamate.log', JSON.stringify(a) + '\\n')
+if (a[0] === '--sa') { console.log(JSON.stringify({ 'tipo-locale': ['ristorante'] })); process.exit(0) }`,
+  }
+
+  // Su Windows `bash` nel PATH può essere quello di WSL, che non vede node:
+  // si usa quello di Git. Sulla CI (Linux) è il bash del sistema.
+  const BASH = process.platform === 'win32' ? ['C:/Program Files/Git/bin/bash.exe'].find((b) => existsSync(b)) : 'bash'
+
+  const lancia = (versione, { curato = false } = {}) => {
+    const cartella = mkdtempSync(join(tmpdir(), 'tipo-locale-'))
+    try {
+      mkdirSync(join(cartella, 'scripts'))
+      writeFileSync(join(cartella, 'scripts', 'genera-cliente.mjs'), FINTO[versione].replace(/require\('fs'\)/g, "process.getBuiltinModule('fs')"))
+      if (curato) {
+        mkdirSync(join(cartella, 'clienti', 'bar-mario'), { recursive: true })
+        writeFileSync(join(cartella, 'clienti', 'bar-mario', 'venue.json'), '{}')
+      }
+      const esito = spawnSync(BASH, ['-e', '-c', run()], {
+        cwd: cartella,
+        encoding: 'utf8',
+        env: { ...process.env, SLUG: 'bar-mario', CLIENTE_APP: 'bar-mario', NOME: 'Bar Mario', TIPO_LOCALE: w.env.TIPO_LOCALE },
+      })
+      const log = existsSync(join(cartella, 'chiamate.log')) ? readFileSync(join(cartella, 'chiamate.log'), 'utf8') : ''
+      return { stato: esito.status, errore: esito.stderr, chiamate: log.split('\n').filter(Boolean).map((r) => JSON.parse(r)) }
+    } finally {
+      // Su Windows bash tiene la cartella ancora un attimo: si riprova, e
+      // una pulizia mancata in una cartella temporanea non fa fallire il test.
+      try {
+        rmSync(cartella, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+      } catch {
+        /* resta nella cartella temporanea del sistema */
+      }
+    }
+  }
+
+  it('con l’app nuova chiede e poi passa --tipo-locale bar', () => {
+    const { stato, chiamate } = lancia('nuovo')
+    expect(stato).toBe(0)
+    expect(chiamate).toEqual([
+      ['--sa', 'tipo-locale'],
+      ['--slug', 'bar-mario', '--nome', 'Bar Mario', '--tipo-locale', 'bar'],
+    ])
+  })
+
+  it('con l’app di oggi chiede, riceve un no, e la lancia come prima', () => {
+    const { stato, chiamate } = lancia('vecchio')
+    expect(stato).toBe(0)
+    expect(chiamate).toEqual([['--sa', 'tipo-locale'], ['--slug', 'bar-mario', '--nome', 'Bar Mario']])
+  })
+
+  it('con un’app che non accetta «bar» la lancia come prima', () => {
+    const { stato, chiamate } = lancia('senzaBar')
+    expect(stato).toBe(0)
+    expect(chiamate.at(-1)).toEqual(['--slug', 'bar-mario', '--nome', 'Bar Mario'])
+  })
+})
+
+it('aggiorna-istanza.yml: un cliente curato a mano resta com’è, nemmeno la domanda', () => {
+  const run = passo(aggiorna, 'La cartella del cliente').run
+  const primaRiga = run.split('\n')[0]
+  expect(primaRiga).toMatch(/^if \[ -f "clienti\/\$CLIENTE_APP\/venue\.json" \]; then[^\n]*exit 0; fi$/)
+  expect(run.indexOf('--sa tipo-locale')).toBeGreaterThan(run.indexOf(primaRiga) + primaRiga.length)
 })

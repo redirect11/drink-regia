@@ -81,6 +81,15 @@ describe('il documento del cliente, lato server', () => {
     expect(delServer.consensi).toEqual({ termini_il: ADESSO.toISOString(), privacy_il: ADESSO.toISOString(), marketing: false })
   })
 
+  // REQ-FLOTTA-065: all'app per ora va sempre «bar», ma il tipo scelto
+  // alla registrazione resta com'è, così il giorno che servirà è già lì.
+  it('il tipo di locale scelto resta com’è, anche quello che l’app oggi non usa', () => {
+    for (const tipo of ['pizzeria', 'ristorante', 'enoteca', 'cocktail bar']) {
+      expect(r.nuovoCliente({ uid: 'u1', email: 'm@x.it', ...DATI, locale: { ...DATI.locale, tipo } }).locale.tipo).toBe(tipo)
+    }
+    expect(r.nuovoCliente({ uid: 'u1', email: 'm@x.it', ...DATI, locale: { ...DATI.locale, tipo: 'discoteca' } }).locale.tipo).toBe('altro')
+  })
+
   it('con la sede legale diversa la tiene a parte, come il sito', () => {
     const fatturazione = { ...DATI.fatturazione, stessa_sede: false, via: 'Via Sede 2', cap: '80100', citta: 'Napoli', provincia: 'na' }
     expect(r.nuovoCliente({ uid: 'u1', email: 'm@x.it', ...DATI, fatturazione, adesso: ADESSO })).toEqual(nuovoClienteDelSito({ uid: 'u1', email: 'm@x.it', ...DATI, fatturazione, adesso: ADESSO }))
