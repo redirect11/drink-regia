@@ -335,6 +335,29 @@ resource "google_project_iam_member" "regia_chiave_ai" {
   }
 }
 
+# L'ACCOUNT DELL'AI DEL LOCALE (REQ-FLOTTA-077): la Function AI dell'app
+# gira con questo, e la regia la riconosce dal suo indirizzo, che porta il
+# nome del progetto. Niente chiavi: il gettone lo firma Google. Gli serve
+# quello che serve a una Function: Firestore e log del suo progetto. Il
+# deploy lo può già usare (roles/iam.serviceAccountUser, sopra).
+resource "google_service_account" "ai_locale" {
+  provider     = google-beta
+  project      = google_project.istanza.project_id
+  account_id   = "ai-locale"
+  display_name = "L'AI del locale verso la regia"
+}
+
+resource "google_project_iam_member" "ai_locale" {
+  provider = google-beta
+  for_each = toset([
+    "roles/datastore.user",
+    "roles/logging.logWriter",
+  ])
+  project = google_project.istanza.project_id
+  role    = each.value
+  member  = "serviceAccount:${google_service_account.ai_locale.email}"
+}
+
 # Quello che il workflow mette nel .env della build (VITE_FIREBASE_*).
 output "config_web" {
   value = {

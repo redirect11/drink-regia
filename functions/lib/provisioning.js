@@ -180,9 +180,6 @@ function esitoValido(body) {
     // Con quale profilo è stato pubblicato (REQ-FLOTTA-015).
     profilo: PROFILI.includes(body.profilo) ? body.profilo : null,
     errore: body.stato === 'errore' ? String(body.errore || (body.operazione === 'aggiornamento' ? 'Aggiornamento fallito' : 'Attivazione fallita')) : null,
-    // Il numero del progetto (REQ-FLOTTA-077): da lì la regia riconosce il
-    // locale che chiede l'AI col gettone di Google. Solo cifre.
-    numero_progetto: /^\d{6,20}$/.test(String(body.numero_progetto ?? '')) ? String(body.numero_progetto) : null,
   }
 }
 
@@ -218,7 +215,6 @@ function documentoAggiornamento(esito, prima = null, adesso = new Date()) {
     commit: riuscito ? esito.commit ?? prima?.commit ?? null : prima?.commit ?? null,
     ambiente: esito.ambiente ?? prima?.ambiente ?? null,
     profilo: riuscito ? esito.profilo ?? prima?.profilo ?? null : prima?.profilo ?? null,
-    numero_progetto: esito.numero_progetto ?? prima?.numero_progetto ?? null,
     aggiornamento: {
       ...agg,
       ref: agg.ref ?? esito.ref ?? null,
@@ -244,7 +240,6 @@ function documentoIstanza(esito, prima = null, adesso = new Date()) {
     ref: esito.ref ?? prima?.ref ?? null,
     commit: esito.commit ?? prima?.commit ?? null,
     profilo: esito.profilo ?? prima?.profilo ?? null,
-    numero_progetto: esito.numero_progetto ?? prima?.numero_progetto ?? null,
     errore: esito.errore,
     aggiornata_il: adesso.toISOString(),
   }

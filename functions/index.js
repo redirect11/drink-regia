@@ -2283,22 +2283,13 @@ async function cassettoDi(slug) {
 // un risultato usabile (il consumo resta addebitato), 503 se Claude non
 // risponde. È HTTP e non callable perché a chiamarla è il server
 // dell'installazione, non un utente di questo sito.
-// IL LOCALE DAL GETTONE DI GOOGLE (REQ-FLOTTA-077): firma e destinatario
-// li controlla Google; il locale si trova dal numero del progetto (che il
-// workflow manda con l'esito) o dal nome, e dev'essere uno solo.
+// IL LOCALE DAL GETTONE DI GOOGLE (REQ-FLOTTA-077): firma, emittente,
+// scadenza e destinatario li controlla Google; il locale lo trova
+// lib/identita-locale.js dal nome del progetto dell'account ai-locale.
 const oauthGoogle = new OAuth2Client()
-async function localeDalGettone(gettone) {
-  const audience = identita.audienceAI(PROGETTO_REGIA)
-  if (!audience) return null
-  const ticket = await oauthGoogle.verifyIdToken({ idToken: gettone, audience })
-  const chi = identita.chiDalGettone(ticket.getPayload())
-  if (!chi) return null
-  const [campo, valore] = chi.numero_progetto ? ['numero_progetto', chi.numero_progetto] : ['progetto', chi.progetto]
-  const trovate = await db.collection('istanze').where(campo, '==', valore).limit(2).get()
-  if (trovate.size !== 1) return null
-  const doc = trovate.docs[0]
-  return identita.puoChiedere(doc.data()) ? doc.id : null
-}
+const verificaGettone = async (gettone, audience) => (await oauthGoogle.verifyIdToken({ idToken: gettone, audience })).getPayload()
+const istanzePerProgetto = async (progetto) =>
+  (await db.collection('istanze').where('progetto', '==', progetto).limit(2).get()).docs.map((d) => ({ id: d.id, data: d.data() }))
 
 exports.richiestaAI = onRequest(
   { ...OPTS_AI, cors: false, maxInstances: 10 },
@@ -2309,14 +2300,17 @@ exports.richiestaAI = onRequest(
     // IL GETTONE DI GOOGLE (REQ-FLOTTA-077), la strada di regime.
     const gettone = identita.tokenDaBearer(intestazione)
     if (gettone) {
-      slug = await localeDalGettone(gettone).catch((e) => {
-        console.warn('[ai] gettone rifiutato:', e?.message || e)
-        return null
-      })
+      slug = await identita
+        .localeDalGettone(gettone, { progettoRegia: PROGETTO_REGIA, verifica: verificaGettone, cercaPerProgetto: istanzePerProgetto })
+        .catch((e) => {
+          console.warn('[ai] gettone rifiutato:', identita.motivoBreve(e))
+          return null
+        })
       if (!slug) return res.status(401).json({ errore: 'Locale non riconosciuto.' })
     } else {
       // LA CHIAVE (REQ-AI-003, REQ-FLOTTA-076), solo per il passaggio:
-      // finché tana-drink non pubblica il gettone. Poi si toglie.
+      // finché tana-drink non pubblica il gettone, e per la Tana, che non ha
+      // il Terraform della flotta. Poi si toglie.
       const chi = ai.leggiBearer(intestazione)
       const riservato = chi ? (await db.doc(`ai/${chi.slug}/riservato/chiave`).get()).data() : null
       if (!chi || !ai.chiaveGiusta(chi.segreto, riservato?.impronta)) return res.status(401).json({ errore: 'Chiave della regia non valida.' })
