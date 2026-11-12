@@ -3181,6 +3181,17 @@ requirements:
       sola sezione di Stonebit; «Precedenza» presente; i rami scritti
       come in docs/handover.md; nessuna regola di prima sparita; i sei
       agenti con nome e descrizione.
+      I RAMI, DECISI DA DANIELE (12/11/2026). La terza versione
+      riportava la regola scritta nel repository: lavoro su
+      release/x.y.z, feature solo per una funzione grossa, hotfix da
+      main. La pratica, da fine ottobre, era un'altra. Messo davanti
+      alla differenza, Daniele ha scelto la pratica: «usa questa: una
+      ventina di rami feature/, fix/ e hotfix/, tutti staccati da
+      develop, ognuno con la sua PR». La regola è riscritta così nella
+      sezione di Stonebit, nel punto «GitFlow» del CLAUDE.md e in
+      docs/handover.md («I rami»), e il test tiene uguali i tre testi.
+      Resta da decidere, al primo rilascio in produzione, da dove parte
+      la PR verso main e da dove nasce un hotfix.
     status: implemented
     generate_issue: true
     labels: [metodo, regia]

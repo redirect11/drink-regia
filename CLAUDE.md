@@ -43,9 +43,9 @@ verso clienti o esterni; scelte fiscali, legali, privacy; cancellazione di rami,
 
 ### Regole di lavoro
 - **Aggiorna prima**: `git fetch --all --prune` e `git pull --ff-only`. Se fallisce, fermati e dillo.
-- **Rami**: il lavoro normale va su `release/x.y.z`, staccato da `develop`; se ce n'è già uno aperto
-  si lavora lì. Un ramo `feature/<nome>` solo per una funzione grossa, o quando Daniele lo chiede.
-  `hotfix/<nome>` nasce da `main`. Mai commit diretti su `develop` o `main`: ci si arriva solo con
+- **Rami**: un ramo per ogni lavoro, staccato da `develop`: `feature/<nome>` per una cosa nuova,
+  `fix/<nome>` per una correzione, `hotfix/<nome>` per una correzione urgente. Ognuno ha la sua
+  pull request verso `develop`. Mai commit diretti su `develop` o `main`: ci si arriva solo con
   una pull request. Un worktree per ramo: non si cambia ramo nella cartella principale
   (`docs/handover.md`, «I rami»).
 - **Merge e tag**: i merge su `develop` e `main` li fa Daniele, dalla pull request. I tag che
@@ -95,8 +95,11 @@ computer e conosce solo quello che arriva nei rapporti.
   processo di rilascio, stato del progetto, lavori aperti e contratti
   condivisi con tana-drink. È il punto di partenza di ogni sessione.
 - **Tutto in italiano**: interfaccia, commenti, commit, PR.
-- **GitFlow**: si lavora su `release/x.y.z` da `develop`; mai commit diretti
-  su `develop` o `main`, merge solo via pull request. **A pubblicare è il
+- **GitFlow**: un ramo per ogni lavoro, staccato da `develop` (`feature/`,
+  `fix/`, `hotfix/`), ognuno con la sua pull request verso `develop`
+  (decisione dell'utente del 12/11/2026; prima si lavorava su
+  `release/x.y.z`); mai commit diretti su `develop` o `main`, merge solo
+  via pull request. **A pubblicare è il
   tag** (dal 09/11/2026): un tag fuori da `main` (`vX.Y.Z-beta` su
   `develop`) va sul sito di test (`drink-regia-test`) e poi passa il
   collaudo automatico; in produzione (`drink-regia`) va solo un tag su

@@ -43,15 +43,19 @@ describe('la squadra di Stonebit', () => {
     const regole = leggi('CLAUDE.md')
     expect(regole).toContain('### Precedenza')
     expect(regole).toMatch(/se\s+qualcosa qui le contraddice, vincono loro/)
-    // I rami come li vuole docs/handover.md: release/x.y.z, feature solo
-    // per una funzione grossa, hotfix da main, un worktree per ramo.
-    expect(regole).toContain('il lavoro normale va su `release/x.y.z`, staccato da `develop`')
-    expect(regole).toContain('`hotfix/<nome>` nasce da `main`')
+    // I rami (Daniele, 12/11/2026: «usa questa: una ventina di rami
+    // feature/, fix/ e hotfix/, tutti staccati da develop, ognuno con la
+    // sua PR»). Li dicono uguali la sezione, la regola del repository e il
+    // manuale: tre testi che non devono dividersi.
+    expect(regole).toContain('un ramo per ogni lavoro, staccato da `develop`: `feature/<nome>` per una cosa nuova')
+    expect(regole).toContain('- **GitFlow**: un ramo per ogni lavoro, staccato da `develop` (`feature/`,')
     expect(regole).toContain('Un worktree per ramo')
+    expect(regole).not.toContain('il lavoro normale va su `release/x.y.z`')
+    expect(regole).not.toContain('`hotfix/<nome>` nasce da `main`')
     const manuale = leggi('docs/handover.md')
-    expect(manuale).toContain('`release/x.y.z`: il ramo di lavoro, staccato da `develop`')
-    expect(manuale).toContain('`hotfix/<nome>`: nasce da `main`')
+    expect(manuale).toContain('**Un ramo per ogni lavoro, staccato da `develop`**')
     expect(manuale).toContain('**Un worktree per ramo**')
+    expect(manuale).not.toContain('`release/x.y.z`: il ramo di lavoro, staccato da `develop`')
     // I tag sul test li mette l'agente quando Daniele lo chiede; la produzione no.
     expect(regole).toContain("pubblicano sul test li mette l'agente quando Daniele lo chiede in chat")
     // Una sola sezione di Stonebit: quella «regole comuni» in fondo non c'è più.

@@ -9,8 +9,9 @@ data.
 - Le regole di Stonebit nel `CLAUDE.md` sono alla terza versione: stanno
   dopo la presentazione del repository, dicono che sulle regole di
   lavoro vince il repository, e descrivono i rami come li vuole
-  `docs/handover.md`. La seconda sezione di Stonebit, in fondo, è tolta
-  (REQ-DEV-012).
+  `docs/handover.md`. La seconda sezione di Stonebit, in fondo, è tolta.
+  La regola sui rami è riscritta com'è la pratica: un ramo per ogni
+  lavoro, staccato da `develop`, con la sua pull request (REQ-DEV-012).
 - Il backoffice, se non riesce a leggere i clienti dal server, lo dice e
   fa riprovare. Prima, con la rete che cadeva un attimo, mostrava «Nessun
   cliente.» come se fossero spariti (REQ-FLOTTA-064).
