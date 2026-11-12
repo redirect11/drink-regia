@@ -4132,7 +4132,7 @@ requirements:
 
   - id: REQ-FLOTTA-078
     title: "Ogni locale completo, anche esistente come la Tana, riceve l'account ai-locale dalla regia a ogni aggiornamento, senza passi a mano"
-    area: "scripts/account-ai-locale.mjs, .github/workflows/aggiorna-istanza.yml"
+    area: "scripts/account-ai-locale.mjs, .github/workflows/aggiorna-istanza.yml, .github/workflows/prepara-ai-locale.yml"
     description: >
       Il seguito di REQ-FLOTTA-077. L'account `ai-locale` lo crea il
       Terraform dei locali della flotta; un locale esistente (la Tana,
@@ -4156,10 +4156,29 @@ requirements:
       deploy continua: l'AI di quel locale resta spenta, il resto lavora.
       (4) Lo script e il Terraform danno gli stessi ruoli: un test li
       confronta.
+      LA TANA (da tana-drink, 12/11/2026): «Le Functions della Tana non le
+      pubblica la regia: le pubblica deploy.yml di tana-drink, al tag, con
+      il suo account (firebase-adminsdk-fbsvc@…). Dal 09/11 quell'account
+      può agire solo come gli account di runtime che conosce già … Se la
+      Function chiede ai-locale@ senza quel permesso, il deploy si ferma
+      con iam.serviceaccounts.actAs … per tutte le Functions della Tana».
+      E «REGIA_PROGETTO per la Tana lo scrivo io, e solo dopo» che account
+      e permesso ci sono. (5) Per un locale esistente lo script dà anche
+      `roles/iam.serviceAccountUser` sull'account `ai-locale` (non sul
+      progetto) all'account di deploy di tana-drink,
+      `firebase-adminsdk-fbsvc@<progetto>`. (6) La Tana non passa da
+      «Aggiorna» della regia: un workflow suo, «Prepara l'AI di un locale
+      esistente», fa account, ruoli e permesso su richiesta, sul test o in
+      produzione, e si può rilanciare senza cambiare niente.
+      PROVATO SUL TEST (12/11/2026, run 43286842706): l'aggiornamento di
+      prova-bar con l'app di tana-drink feature/ai-dalla-regia ha creato
+      ai-locale@drinkpos-prova-bar coi suoi ruoli, e ha pubblicato
+      richiestaAI con `serviceAccount: 'ai-locale@'` («Successful create
+      operation»).
       Resta, una volta sola e solo se manca: l'account di provisioning
-      della regia deve poter gestire gli account del progetto della Tana
+      della regia deve poter gestire gli account dei progetti della Tana
       (come per i locali della flotta, dove è proprietario). [da
-      verificare] se lo ha già.
+      verificare] se lo ha già: lo dice il primo giro del workflow.
     status: implemented
     generate_issue: true
     labels: [flotta, regia, ai]

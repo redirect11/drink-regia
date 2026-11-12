@@ -570,7 +570,9 @@ jobs:
       - name: L'account dell'AI del locale
         if: env.PROFILO == 'completo' && env.DEMO != 'true'
         run: |
-          node scripts/account-ai-locale.mjs --project "$PROGETTO" || echo "::warning::L'account ai-locale di $PROGETTO non si crea: l'AI di questo locale resta spenta finché l'account di provisioning non ha il permesso di gestire gli account del progetto."
+          DEPLOY=""
+          if [ "$ESISTENTE" = "true" ]; then DEPLOY="firebase-adminsdk-fbsvc@$PROGETTO.iam.gserviceaccount.com"; fi
+          node scripts/account-ai-locale.mjs --project "$PROGETTO" ${DEPLOY:+--deploy "$DEPLOY"} || echo "::warning::L'account ai-locale di $PROGETTO non si crea: l'AI di questo locale resta spenta finché l'account di provisioning non ha il permesso di gestire gli account del progetto."
 
       # LA DEMO (REQ-FLOTTA-019): il database chiuso a tutti, al posto delle
       # regole dell'app. Nella build della demo i dati sono di prova e quello
