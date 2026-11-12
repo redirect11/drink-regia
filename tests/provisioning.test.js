@@ -399,3 +399,23 @@ describe('l’attivazione simulata', () => {
     expect(codice).toContain('Questo locale è simulato, sul sito di test: non c’è un’app da aprire.')
   })
 })
+
+// REQ-FLOTTA-077: il numero del progetto arriva con l'esito, e la regia lo
+// tiene sull'istanza: è da lì che riconosce il locale che chiede l'AI.
+describe('il numero del progetto nell’esito', () => {
+  const p = require('../functions/lib/provisioning.js')
+  const corpo = { slug: 'bar-mario', stato: 'attiva', progetto: 'drinkpos-bar-mario', run_id: 1, inviato_il: new Date().toISOString() }
+  it('si accetta solo fatto di cifre', () => {
+    expect(p.esitoValido({ ...corpo, numero_progetto: '600871952552' }).numero_progetto).toBe('600871952552')
+    expect(p.esitoValido({ ...corpo, numero_progetto: 600871952552 }).numero_progetto).toBe('600871952552')
+    expect(p.esitoValido({ ...corpo, numero_progetto: 'drinkpos-x' }).numero_progetto).toBeNull()
+    expect(p.esitoValido(corpo).numero_progetto).toBeNull()
+  })
+  it('l’istanza lo tiene, e un esito senza numero non lo cancella', () => {
+    const esito = p.esitoValido({ ...corpo, numero_progetto: '600871952552' })
+    expect(p.documentoIstanza(esito, null).numero_progetto).toBe('600871952552')
+    expect(p.documentoIstanza(p.esitoValido(corpo), { numero_progetto: '600871952552' }).numero_progetto).toBe('600871952552')
+    expect(p.documentoAggiornamento({ ...esito, operazione: 'aggiornamento' }, { stato: 'attiva' }).numero_progetto).toBe('600871952552')
+    expect(p.documentoAggiornamento(p.esitoValido(corpo), { stato: 'attiva', numero_progetto: '9' }).numero_progetto).toBe('9')
+  })
+})

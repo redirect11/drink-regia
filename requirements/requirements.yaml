@@ -4080,6 +4080,47 @@ requirements:
     test_cases:
       - tests/flotta.test.js
 
+  - id: REQ-FLOTTA-077
+    title: "L'AI del locale senza chiave: il locale si fa riconoscere col gettone di Google del suo progetto"
+    area: "functions/lib/identita-locale.js, functions/index.js (richiestaAI), functions/lib/provisioning.js (esitoValido, documentoIstanza, documentoAggiornamento), scripts/numero-progetto.mjs, .github/workflows/provisiona-istanza.yml, .github/workflows/aggiorna-istanza.yml, functions/package.json, docs/handover.md §7"
+    description: >
+      Daniele, 12/11/2026, sulla «Chiave AI» (REQ-FLOTTA-076): «ma se la
+      chiave scade? … Dovrebbe essere tutto automatico e trasparente a
+      regime sia a noi sia al cliente». Fra la chiave gestita dalla regia e
+      il riconoscimento con Google: «B. Niente chiave: il locale si fa
+      riconoscere da Google. niente chiave e poi dammi anche le istruzioni
+      per tana».
+      COME FUNZIONA. Le Functions del locale chiedono a Google un gettone
+      d'identità (ID token) con destinatario la richiestaAI della loro
+      regia, e lo mandano come `Authorization: Bearer <gettone>`. La regia
+      ne controlla la firma di Google e il destinatario, e dall'indirizzo
+      dell'account che ha chiesto (l'account predefinito del progetto,
+      `<numero>-compute@developer.gserviceaccount.com`, o uno dedicato
+      `<nome>@<progetto>.iam.gserviceaccount.com`) risale al locale. Niente
+      da creare, salvare, scrivere o rinnovare: Google rinnova il gettone.
+      CRITERI DI ACCETTAZIONE. (1) richiestaAI accetta un gettone di Google
+      firmato, col destinatario esatto
+      `https://europe-west1-<regia>.cloudfunctions.net/richiestaAI`,
+      l'indirizzo verificato e l'emittente di Google; altrimenti 401. (2)
+      Il locale si trova dal numero del progetto (account predefinito) o
+      dal nome del progetto (account dedicato): una sola istanza, attiva,
+      non simulata; altrimenti 401. (3) Il numero del progetto lo manda il
+      workflow nell'esito, all'attivazione e a ogni aggiornamento, letto
+      con le sue credenziali (scripts/numero-progetto.mjs); la regia lo
+      salva sull'istanza (`numero_progetto`). Un numero che non si legge
+      non ferma l'esito. (4) La «Chiave AI» (REQ-AI-003, REQ-FLOTTA-076)
+      resta accettata solo per il passaggio, finché tana-drink non pubblica
+      la sua parte; poi si toglie con un lavoro a parte. (5) Il contratto
+      in docs/handover.md §7 lo dice.
+    status: todo
+    generate_issue: true
+    labels: [flotta, regia, ai]
+    priority: P2
+    test_cases:
+      - tests/identita-locale.test.js
+      - tests/provisioning.test.js
+      - tests/flotta.test.js
+
   - id: REQ-FLOTTA-059
     title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"
     area: "functions/lib/eliminazione-cliente.js, functions/index.js (eliminaCliente), src/lib/db.js (eliminaCliente), src/pages/Backoffice.jsx (Elimina cliente…)"

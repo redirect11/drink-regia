@@ -918,3 +918,22 @@ describe('il .env delle Functions del locale dice qual è la sua regia', () => {
     expect(p.run).toContain('if [ -n "$REGIA_PROGETTO" ]; then')
   })
 })
+
+// REQ-FLOTTA-077: l'esito porta il numero del progetto del locale, letto
+// con le credenziali del workflow. Un numero che non si legge non ferma
+// l'esito.
+describe('l’esito porta il numero del progetto', () => {
+  it.each([['provisiona-istanza.yml', provisiona], ['aggiorna-istanza.yml', aggiorna]])('%s', (_, w) => {
+    const run = passo(w, 'Esito alla regia').run
+    expect(run).toContain('export NUMERO_PROGETTO="$(node scripts/numero-progetto.mjs --project "$PROGETTO" 2>/dev/null || true)"')
+    expect(run).toContain('numero_progetto: process.env.NUMERO_PROGETTO || null')
+    const nomi = passi(w).map((s) => s.name)
+    expect(nomi.indexOf('Dipendenze della regia')).toBeLessThan(nomi.indexOf('Esito alla regia'))
+    expect(nomi.indexOf('Esito alla regia')).toBeLessThan(nomi.lastIndexOf('Pulizia credenziali'))
+  })
+  it('lo script legge il numero da Resource Manager e stampa solo cifre', () => {
+    const script = leggi('scripts/numero-progetto.mjs')
+    expect(script).toContain('https://cloudresourcemanager.googleapis.com/v3/projects/${PROGETTO}')
+    expect(script).toContain('/^\\d{6,20}$/')
+  })
+})
