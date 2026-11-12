@@ -755,9 +755,14 @@ requirements:
       `interna` ed `esistente` con `licenza_dalla_regia: false`: la
       sospensione dei morosi la salta, la regia non le scrive la licenza,
       e Aggiorna, Sospendi e Chiudi non la toccano.
-      DA DECIDERE CON L'UTENTE: pacchetti o consumo, il ricarico, il cambio,
-      gli importi dei pacchetti e il tetto predefinito (oggi segnaposto in
-      piani.json, ricarico 1 = al costo).
+      IL RICARICO (Daniele, 12/11/2026): «il ricarico è x1.1. Voglio il 10%
+      di guadagno sul costo effettivo dei crediti». In piani.json
+      `ai.ricarico` vale 1.1: ogni chiamata toglie al locale il costo
+      Anthropic in euro più il 10%. Il credito su Anthropic lo pre-acquista
+      Stonebit e lo ricarica a mano sotto una soglia sua; la parte di
+      Stonebit è il ricarico.
+      DA DECIDERE CON L'UTENTE: pacchetti o consumo, il cambio, gli importi
+      dei pacchetti e il tetto predefinito (oggi segnaposto in piani.json).
       LATO APP (tana-drink): una Function dell'installazione che chiama
       `richiestaAI` con la chiave nei suoi segreti; contratto in
       docs/handover.md §7.

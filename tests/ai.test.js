@@ -348,3 +348,20 @@ describe('la ricarica con Stripe', () => {
     })
   })
 })
+
+// IL RICARICO (REQ-AI-003, Daniele, 12/11/2026: «il ricarico è x1.1. Voglio
+// il 10% di guadagno sul costo effettivo dei crediti»).
+describe('il ricarico sul costo dell’AI', () => {
+  it('è il 10%: il locale paga il costo Anthropic in euro più un decimo', () => {
+    expect(AI.ricarico).toBe(1.1)
+    // Un milione di token d'uscita del modello del listino: il costo in
+    // dollari, al cambio del listino, più il 10%. Per eccesso, al più un
+    // micro-euro sopra il conto esatto.
+    const m = AI.modello
+    const usd = prezzo(m).output
+    const esatto = Math.round(usd * AI.cambio_eur_per_usd * 1.1 * 1_000_000)
+    const costo = ai.costoMicroeuro({ model: m, usage: { output_tokens: 1_000_000 } })
+    expect(costo - esatto).toBeGreaterThanOrEqual(0)
+    expect(costo - esatto).toBeLessThanOrEqual(1)
+  })
+})

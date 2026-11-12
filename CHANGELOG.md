@@ -6,6 +6,8 @@ data.
 
 ## Prossima release (da decidere)
 
+- Il credito AI costa al locale il costo effettivo di Anthropic più il
+  10% (REQ-AI-003).
 - Il carosello passa da un filmato all'altro in dissolvenza, senza
   scorrimento laterale, e ogni filmato si vede per intero (REQ-FLOTTA-074).
 - Sul test, dal backoffice, l'attivazione simulata: il locale arriva ad
