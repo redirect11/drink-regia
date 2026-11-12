@@ -18,6 +18,7 @@ import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import '@testing-library/jest-dom/vitest'
+import { readFileSync } from 'node:fs'
 
 const db = vi.hoisted(() => ({
   elencoClienti: vi.fn(),
@@ -1512,5 +1513,18 @@ describe('i codici sconto nel backoffice', () => {
     const scheda = await apri('Bar Mario')
     await user.click(within(scheda).getByRole('button', { name: 'Sconto…' }))
     expect(await screen.findByText('Codice sconosciuto o disattivato.')).toBeInTheDocument()
+  })
+})
+
+// REQ-FLOTTA-072, dalla revisione: un locale simulato non ha un progetto, e
+// la conferma dell'eliminazione è il suo slug.
+describe('un locale simulato nel backoffice', () => {
+  it('il codice dice «simulato» al posto del progetto e conferma con lo slug', () => {
+    const codice = readFileSync('src/pages/Backoffice.jsx', 'utf8')
+    expect(codice).toContain("istanza?.simulata ? 'simulato' : istanza?.progetto || progettoDi(c.slug)")
+    expect(codice).toContain('const progetto = istanza?.simulata ? cliente.slug : istanza?.progetto || progettoDi(cliente.slug)')
+    // Il nome della costante del sito di produzione dopo gli import.
+    const ultimoImport = codice.lastIndexOf('\nimport ')
+    expect(codice.indexOf('const PRODUZIONE')).toBeGreaterThan(ultimoImport)
   })
 })

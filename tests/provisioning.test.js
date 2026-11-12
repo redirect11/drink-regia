@@ -337,9 +337,11 @@ describe('esitoProvisioning nelle Functions', () => {
 // l'interruttore.
 describe('l’attivazione simulata', () => {
   const p = require('../functions/lib/provisioning.js')
-  it('si simula solo con l’interruttore acceso e fuori dalla regia di produzione', () => {
+  it('si simula solo con l’interruttore acceso e sulla regia di test', () => {
     expect(p.simulazioneAmmessa({ attivazione_simulata: true }, 'drink-regia-test')).toBe(true)
     expect(p.simulazioneAmmessa({ attivazione_simulata: true }, 'drink-regia')).toBe(false)
+    // Un elenco di chi può: un'altra regia, anche nuova, non simula.
+    expect(p.simulazioneAmmessa({ attivazione_simulata: true }, 'altro-prodotto-regia')).toBe(false)
     expect(p.simulazioneAmmessa({ attivazione_simulata: false }, 'drink-regia-test')).toBe(false)
     expect(p.simulazioneAmmessa({ attivazione_simulata: 'sì' }, 'drink-regia-test')).toBe(false)
     expect(p.simulazioneAmmessa({}, 'drink-regia-test')).toBe(false)
@@ -365,5 +367,35 @@ describe('l’attivazione simulata', () => {
     const elimina = codice.slice(codice.indexOf('async function lanciaEliminazione('), codice.indexOf('exports.gestisciEliminazione'))
     expect(elimina.indexOf('eliminazioneSimulata(')).toBeGreaterThan(0)
     expect(elimina.indexOf('eliminazioneSimulata(')).toBeLessThan(elimina.indexOf('dispatchGitHub('))
+  })
+
+  // Rilievi del revisore (12/11/2026).
+  it('non si simula sopra un locale che ha già un progetto: la richiesta va in errore', () => {
+    const codice = readFileSync('functions/index.js', 'utf8').replace(/\r\n/g, '\n')
+    const lancia = codice.slice(codice.indexOf('async function lancia(richiesta)'), codice.indexOf('exports.chiediAttivazione'))
+    const sopra = lancia.indexOf('prima?.progetto')
+    expect(sopra).toBeGreaterThan(lancia.indexOf('simulazioneAmmessa('))
+    expect(sopra).toBeLessThan(lancia.indexOf('documentoSimulato('))
+    expect(lancia).toMatch(/stato: 'errore'[^\n]*spegni l’attivazione simulata/)
+  })
+  it('un esito vero per un locale simulato si rifiuta, prima di scrivere qualunque cosa', () => {
+    const codice = readFileSync('functions/index.js', 'utf8').replace(/\r\n/g, '\n')
+    const esito = codice.slice(codice.indexOf('exports.esitoProvisioning'), codice.indexOf('// ── L\'ABBONAMENTO'))
+    const rifiuti = [...esito.matchAll(/return res\.status\(409\)\.json\(\{ errore: 'locale simulato' \}\)/g)]
+    // Uno per l'esito di un'eliminazione, uno per attivazione e aggiornamento.
+    expect(rifiuti).toHaveLength(2)
+    expect(rifiuti[1].index).toBeLessThan(esito.indexOf('vincoliEsito(esito'))
+  })
+  it('Sospendi, Riattiva e Chiudi su un locale simulato cambiano lo stato senza scrivere la licenza', () => {
+    const codice = readFileSync('functions/index.js', 'utf8').replace(/\r\n/g, '\n')
+    const stato = codice.slice(codice.indexOf('async function scriviStatoIstanza('), codice.indexOf('exports.impostaStatoIstanza'))
+    const simulato = stato.indexOf('ist?.simulata')
+    expect(simulato).toBeGreaterThan(0)
+    expect(simulato).toBeLessThan(stato.indexOf('Istanza senza progetto'))
+    expect(stato.slice(simulato, stato.indexOf('return', simulato))).not.toContain('scriviLicenza')
+  })
+  it('«Apri la tua app» su un locale simulato dice che non c’è un’app', () => {
+    const codice = readFileSync('functions/index.js', 'utf8')
+    expect(codice).toContain('Questo locale è simulato, sul sito di test: non c’è un’app da aprire.')
   })
 })

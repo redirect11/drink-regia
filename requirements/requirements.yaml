@@ -3858,9 +3858,9 @@ requirements:
       `attivazione_simulata`, spenta di partenza; l'admin la accende dal
       backoffice, in «Richieste», sotto «Deploy automatico». Sul sito di
       produzione l'interruttore non c'è. (2) Il server simula solo se
-      l'interruttore è acceso E la regia non è quella di produzione
-      (`drink-regia`): una configurazione sbagliata in produzione non
-      simula niente. (3) Un'attivazione simulata non chiama GitHub e non
+      l'interruttore è acceso E la regia è quella di test
+      (`drink-regia-test`): un elenco di chi può, non di chi non può, così
+      una seconda regia di produzione non simula per sbaglio. (3) Un'attivazione simulata non chiama GitHub e non
       crea progetti: il locale diventa «attiva» con un indirizzo che non
       porta da nessuna parte (dominio `.invalid`), senza progetto, col segno
       `simulata`; la richiesta diventa «attiva». (4) Un locale simulato non
@@ -3868,8 +3868,18 @@ requirements:
       «Aggiorna» lo dice invece di lanciare il workflow. (5) Si elimina
       confermando con lo slug, perché non ha un progetto da scrivere, e
       l'eliminazione non lancia il workflow: il locale diventa «eliminata»
-      senza archivio. (6) Il deploy automatico resta com'è: spento,
-      l'attivazione simulata aspetta l'autorizzazione come una vera.
+      senza archivio. Sospendi, Riattiva e Chiudi funzionano: cambiano lo
+      stato senza scrivere una licenza che non ha dove andare. (6) Il
+      deploy automatico resta com'è: spento, l'attivazione simulata aspetta
+      l'autorizzazione come una vera. (7) Non si simula sopra un locale
+      che ha già un progetto (una prima attivazione vera finita male): la
+      richiesta va in errore e dice di eliminarlo o spegnere la
+      simulazione. (8) Un esito vero del workflow per un locale simulato si
+      rifiuta (409), così il locale non diventa mezzo vero e mezzo
+      simulato. (9) La dashboard e il backoffice dicono «simulato» al
+      posto del progetto, e «Apri la tua app» dice che non c'è un'app.
+      DALLA REVISIONE (revisore, 12/11/2026): i criteri 5, 7, 8 e 9 e
+      l'elenco del criterio 2 nascono dai suoi rilievi.
     status: implemented
     generate_issue: true
     labels: [flotta, regia, backoffice]
@@ -3879,6 +3889,7 @@ requirements:
       - tests/rilasci.test.js
       - tests/eliminazione.test.js
       - tests/Backoffice.test.jsx
+      - tests/Dashboard.test.jsx
 
   - id: REQ-FLOTTA-071
     title: "Il Free nel confronto anche prima di essere in vendita, come un piano normale; dal backoffice si nasconde"

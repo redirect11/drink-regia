@@ -159,6 +159,13 @@ async function lancia(richiesta) {
   if (simulazioneAmmessa(impostazioni, PROGETTO_REGIA)) {
     const istRef = db.doc(`istanze/${richiesta.slug}`)
     const prima = (await istRef.get()).data() || null
+    // Mai sopra un progetto vero (revisore, 12/11/2026): una prima
+    // attivazione finita male lo ha già creato, e scrivendoci sopra
+    // resterebbe orfano, a consumare la quota.
+    if (prima?.progetto) {
+      await db.doc(`richieste/${richiesta.slug}`).set({ stato: 'errore', errore: `C’è già il progetto ${prima.progetto}: eliminalo o spegni l’attivazione simulata.`, aggiornata_il: adesso }, { merge: true })
+      return
+    }
     const condizioni = prima?.condizioni_aggiornamenti || (await regoleAggiornamenti().catch(() => null))
     await istRef.set({ ...documentoSimulato(richiesta.slug, prima), uid: richiesta.uid || null, ...(condizioni ? { condizioni_aggiornamenti: condizioni } : {}) }, { merge: true })
     await db.doc(`richieste/${richiesta.slug}`).set({ stato: 'attiva', simulata: true, lanciata_il: adesso, aggiornata_il: adesso }, { merge: true })
@@ -255,6 +262,8 @@ exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK
     if (!fine) return res.status(400).json({ errore: 'esito non valido' })
     const ref = db.doc(`istanze/${fine.slug}`)
     const prima = (await ref.get()).data() || null
+    // Un locale simulato non ha un workflow suo (REQ-FLOTTA-072).
+    if (prima?.simulata) return res.status(409).json({ errore: 'locale simulato' })
     const vincoli = vincoliEsito(fine, prima, { operazione: 'eliminazione' })
     if (!vincoli.ok) return res.status(400).json({ errore: vincoli.perche })
     await ref.set({ ...elim.documentoEliminazione(fine, prima), ultimo_esito: vincoli.ultimo_esito }, { merge: true })
@@ -264,6 +273,13 @@ exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK
   if (!esito) return res.status(400).json({ errore: 'esito non valido' })
   const ref = db.doc(`istanze/${esito.slug}`)
   const prima = (await ref.get()).data() || null
+  // Un esito vero per un locale simulato (REQ-FLOTTA-072, revisore,
+  // 12/11/2026): un run rilanciato a mano lo renderebbe mezzo vero e mezzo
+  // simulato. Si rifiuta e si scrive nel log.
+  if (prima?.simulata) {
+    console.warn(`[provisioning] ${esito.slug}: esito di un workflow per un locale simulato, rifiutato.`)
+    return res.status(409).json({ errore: 'locale simulato' })
+  }
   const aggiornamento = eAggiornamento(esito, prima)
   const vincoli = vincoliEsito(esito, prima, { operazione: aggiornamento ? 'aggiornamento' : 'attivazione' })
   if (!vincoli.ok) return res.status(400).json({ errore: vincoli.perche })
@@ -773,6 +789,12 @@ const firestoreDi = (progetto) => getFirestore(appDi(progetto))
 // (REQ-FLOTTA-023): una dell'admin la toglie l'admin.
 async function scriviStatoIstanza(slug, stato, motivo, { per = 'admin' } = {}) {
   const ist = (await db.doc(`istanze/${slug}`).get()).data()
+  // Un locale simulato (REQ-FLOTTA-072): lo stato cambia, la licenza non ha
+  // un progetto dove andare.
+  if (ist?.simulata) {
+    await db.doc(`istanze/${slug}`).set({ licenza_stato: stato, licenza_motivo: motivo || null, licenza_dal: new Date().toISOString(), licenza_per: stato === 'attiva' ? null : per }, { merge: true })
+    return
+  }
   if (!ist?.progetto) throw new HttpsError('failed-precondition', 'Istanza senza progetto: non è ancora attiva.')
   // Un locale registrato come esistente (la Tana, REQ-AI-003) non riceve
   // la licenza dalla regia finché non lo si collega: «senza rompere niente».
@@ -1613,6 +1635,7 @@ exports.passaggioVersoApp = onCall(OPTS, async (req) => {
   if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Prima conferma la tua email.')
   const cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data()
   const ist = cliente?.slug ? (await db.doc(`istanze/${cliente.slug}`).get()).data() : null
+  if (ist?.simulata) throw new HttpsError('failed-precondition', 'Questo locale è simulato, sul sito di test: non c’è un’app da aprire.')
   if (!ist?.progetto || ist.stato !== 'attiva' || !ist.url) throw new HttpsError('failed-precondition', 'La tua app non è ancora attiva.')
   // La demo non ha titolare né accessi veri (REQ-FLOTTA-019).
   if (eDemo(ist)) throw new HttpsError('failed-precondition', 'La demo si apre dal suo indirizzo, senza accesso.')

@@ -193,3 +193,19 @@ describe('l’eliminazione di un locale simulato', () => {
     expect(d.eliminazione).toMatchObject({ stato: 'eliminata', quando: 'q', archivio: null, errore: null, simulata: true })
   })
 })
+
+// Rilievo del revisore (12/11/2026): l'eliminazione di un simulato non si
+// raggiungeva, perché puoEliminare voleva un progetto.
+describe('un locale simulato si può chiudere ed eliminare', () => {
+  const simulato = { slug: 'bar-prova', simulata: true, progetto: null, stato: 'attiva' }
+  it('l’admin lo elimina dopo averlo chiuso', () => {
+    expect(e.puoEliminare({ ...simulato, licenza_stato: 'chiusa' })).toEqual({ ok: true, perche: null })
+    expect(e.puoEliminare(simulato).ok).toBe(false)
+  })
+  it('il titolare lo chiede da attivo', () => {
+    expect(e.puoChiedereTitolare(simulato)).toEqual({ ok: true, perche: null })
+  })
+  it('un locale vero senza progetto resta non eliminabile', () => {
+    expect(e.puoEliminare({ slug: 'bar-x', progetto: null, stato: 'attiva', licenza_stato: 'chiusa' }).ok).toBe(false)
+  })
+})

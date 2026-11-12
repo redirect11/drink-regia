@@ -332,9 +332,11 @@ function bearerValido(header, segreto) {
 // progetto Google: si prova tutto il giro senza consumare la quota. Mai
 // sulla regia di produzione, qualunque cosa dica l'interruttore: lo
 // decide il progetto in cui gira la Function, non un dato che si scrive.
-const REGIA_DI_PRODUZIONE = 'drink-regia'
+// Un elenco di chi PUÒ, non di chi non può (revisore, 12/11/2026): una
+// seconda regia di produzione, una per prodotto, non simula per sbaglio.
+const REGIE_DI_TEST = ['drink-regia-test']
 function simulazioneAmmessa(impostazioni, progettoRegia) {
-  return impostazioni?.attivazione_simulata === true && typeof progettoRegia === 'string' && progettoRegia !== '' && progettoRegia !== REGIA_DI_PRODUZIONE
+  return impostazioni?.attivazione_simulata === true && REGIE_DI_TEST.includes(progettoRegia)
 }
 
 // Il locale simulato: attivo, senza progetto (così niente prova a

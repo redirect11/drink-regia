@@ -22,7 +22,8 @@ const GIORNO = 24 * 60 * 60 * 1000
 
 // Si può chiedere l'eliminazione di quest'istanza? { ok, perche }
 function puoEliminare(ist) {
-  if (!ist?.progetto) return { ok: false, perche: 'L’istanza non ha un progetto.' }
+  // Un locale simulato (REQ-FLOTTA-072) non ha un progetto, e si elimina lo stesso.
+  if (!ist?.progetto && ist?.simulata !== true) return { ok: false, perche: 'L’istanza non ha un progetto.' }
   if (ist.origine === 'esistente') return { ok: false, perche: 'Un locale esistente si gestisce dal suo progetto, non dalla flotta.' }
   if (ist.interna) return { ok: false, perche: 'Un’installazione interna non si elimina dal backoffice.' }
   if (PROTETTI.includes(ist.progetto)) return { ok: false, perche: 'La demo non si elimina.' }

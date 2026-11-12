@@ -43,8 +43,6 @@ import {
 } from '../lib/db.js'
 import { venditaPulita } from '../lib/vendita.js'
 
-// Il sito di produzione: lo dice il deploy (deploy.yml), come in App.jsx.
-const PRODUZIONE = import.meta.env.VITE_APP_ENV === 'production'
 import { ESCLUSIVI, nomeStile, nomeImpaginazione, ORIGINI_DETTE, STATI_DETTI, temaVuoto } from '../lib/temi.js'
 import { statoIstanza, statoDetto, STATI, progettoDi, riduzioneDetta, hrefSicuro } from '../lib/istanze.js'
 import { PIANI, MODULI, prezzoMensile, euro, baseMancante, senzaOrfani } from '../lib/piani.js'
@@ -57,6 +55,9 @@ import { BASE, SEZIONI, VISTE, aggiornamentoFallito, aggiornaLaRegia, contiDelBa
 import Rilasci from './Rilasci.jsx'
 import Commerciale from './Commerciale.jsx'
 import { MODALITA, regolaDetta, propostaDetta } from '../lib/aggiornamenti.js'
+
+// Il sito di produzione: lo dice il deploy (deploy.yml), come in App.jsx.
+const PRODUZIONE = import.meta.env.VITE_APP_ENV === 'production'
 
 // IL BACKOFFICE (REQ-FLOTTA-005): tutti i clienti con piano, stato
 // dell'istanza, progetto, versione. Solo col claim admin (App.jsx non ci fa
@@ -691,7 +692,7 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
         <div>
           <dt>Progetto</dt>
           <dd>
-            <code>{istanza?.progetto || progettoDi(c.slug)}</code>
+            <code>{istanza?.simulata ? 'simulato' : istanza?.progetto || progettoDi(c.slug)}</code>
             {istanza?.profilo === 'leggero' && <div className="muted small">profilo leggero (Free)</div>}
             {/* Solo un https diventa un link (hrefSicuro, audit del 09/11/2026, finding 28). */}
             {hrefSicuro(istanza?.url) && (
@@ -1255,7 +1256,7 @@ function SezioneRichieste({ automatico, onAutomatico, simulata = null, onSimulat
             </label>
             <p className="muted small">
               {simulata
-                ? 'Attivazione simulata accesa: chi attiva arriva al locale attivo con un indirizzo finto, e nessun progetto Google viene creato. Il deploy automatico decide ancora se parte da solo o aspetta te.'
+                ? 'Attivazione simulata accesa: chi attiva arriva al locale attivo con un indirizzo finto, e nessun progetto Google viene creato. Non c’è un’app da aprire. Il deploy automatico decide ancora se parte da solo o aspetta te.'
                 : 'Attivazione simulata spenta: le attivazioni creano davvero il progetto del locale. Accendila per provare tutto il giro senza creare progetti: nessun progetto Google, nessuna quota consumata.'}
             </p>
           </>
@@ -2122,7 +2123,8 @@ function EliminaLocale({ cliente, istanza, onFatto, onErrore }) {
   const [subito, setSubito] = useState(false)
   const [conferma, setConferma] = useState('')
   const [inCorso, setInCorso] = useState(false)
-  const progetto = istanza?.progetto || progettoDi(cliente.slug)
+  // Un locale simulato (REQ-FLOTTA-072) non ha un progetto: si conferma con lo slug.
+  const progetto = istanza?.simulata ? cliente.slug : istanza?.progetto || progettoDi(cliente.slug)
   const invia = async (e) => {
     e.preventDefault()
     setInCorso(true)
