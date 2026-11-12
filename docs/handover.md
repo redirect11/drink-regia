@@ -1170,6 +1170,21 @@ moduli, la licenza nell'istanza e la Tana.
   imponibile, iva, totale, da_verificare: [] }`, con `null` per i dati
   assenti. Tutto è una **proposta da rivedere** prima di pubblicarla o
   registrarla. Gli schemi stanno in `functions/lib/ai.js`.
+  **Dal 12/11/2026 senza chiave** (REQ-FLOTTA-077, Daniele: «niente
+  chiave»). Ogni locale della flotta ha un account Google dedicato,
+  `ai-locale@<progetto>.iam.gserviceaccount.com`, creato dal suo
+  Terraform. La Function AI dell'installazione **gira con quell'account**
+  (in firebase-functions v2, `serviceAccount: 'ai-locale@'`), chiede a
+  Google un **gettone d'identità** (ID token) col destinatario
+  `regia-ai:<REGIA_PROGETTO>` e lo manda come
+  `Authorization: Bearer <gettone>`; con google-auth-library:
+  `new GoogleAuth().getIdTokenClient('regia-ai:' + REGIA_PROGETTO)` e le
+  sue `getRequestHeaders()`. La regia ne fa controllare a Google firma,
+  emittente, scadenza e destinatario, e riconosce il locale dal nome del
+  progetto nell'indirizzo dell'account. Nessun altro account vale, nemmeno
+  quello predefinito del progetto. Niente segreto da tenere: `REGIA_AI_KEY`
+  serve solo per il passaggio e per la Tana, che non ha il Terraform della
+  flotta; poi si toglie. Risposte e corpi restano quelli di sopra.
   **Come la regia si presenta ad Anthropic** (dal 06/11/2026): con la
   **federazione delle identità**, non con una chiave. L'emittente
   `google-cloud` nella Console (`accounts.google.com`, creato il

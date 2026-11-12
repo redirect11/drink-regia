@@ -4080,6 +4080,56 @@ requirements:
     test_cases:
       - tests/flotta.test.js
 
+  - id: REQ-FLOTTA-077
+    title: "L'AI del locale senza chiave: il locale si fa riconoscere col gettone di Google del suo account «ai-locale»"
+    area: "functions/lib/identita-locale.js, functions/index.js (richiestaAI), infra/istanza/main.tf (ai_locale), functions/package.json, docs/handover.md §7"
+    description: >
+      Daniele, 12/11/2026, sulla «Chiave AI» (REQ-FLOTTA-076): «ma se la
+      chiave scade? … Dovrebbe essere tutto automatico e trasparente a
+      regime sia a noi sia al cliente». Fra la chiave gestita dalla regia e
+      il riconoscimento con Google: «B. Niente chiave: il locale si fa
+      riconoscere da Google. niente chiave e poi dammi anche le istruzioni
+      per tana».
+      COME FUNZIONA. Ogni locale ha un account Google dedicato,
+      `ai-locale@<progetto>.iam.gserviceaccount.com`, creato dal suo
+      Terraform. La Function AI del locale gira con quell'account, chiede
+      a Google un gettone d'identità (ID token) col destinatario
+      `regia-ai:<progetto della regia>` e lo manda come
+      `Authorization: Bearer <gettone>`. La regia ne fa controllare a
+      Google firma, emittente, scadenza e destinatario, e dal nome del
+      progetto nell'indirizzo dell'account risale al locale. Niente da
+      creare, salvare o rinnovare: Google rinnova il gettone.
+      DALLA REVISIONE (revisore, 12/11/2026): la prima versione
+      riconosceva il locale dal numero del progetto, che arrivava col
+      callback del workflow senza vincoli: chi aveva il segreto del
+      callback poteva legare un progetto suo a un locale e spenderne il
+      credito (la stessa classe del finding 12 dell'audit del 09/11). Il
+      nome del progetto invece è già vincolato (progettoAtteso). Il
+      destinatario non è l'indirizzo della Function: Cloud Run potrebbe
+      togliere la firma ai gettoni destinati a sé [da verificare sul test].
+      CRITERI DI ACCETTAZIONE. (1) richiestaAI accetta un gettone di Google
+      firmato, col destinatario `regia-ai:<progetto della regia>`,
+      l'indirizzo verificato e l'emittente di Google; altrimenti 401, senza
+      ricadere sulla chiave. (2) Vale solo l'account
+      `ai-locale@<progetto>.iam.gserviceaccount.com`: l'account predefinito
+      del progetto o qualunque altro no. (3) Il locale è quello con quel
+      progetto, uno solo, attivo, non simulato, non chiuso, non la demo;
+      altrimenti 401. (4) Il Terraform del locale crea l'account e gli dà
+      quello che serve a una Function (Firestore e log del suo progetto);
+      il deploy, che può già usare gli account del progetto, lo pubblica.
+      I locali attivi lo ricevono al prossimo «Aggiorna». (5) Nel log un
+      gettone rifiutato lascia solo il motivo breve, mai il gettone. (6)
+      La «Chiave AI» (REQ-AI-003, REQ-FLOTTA-076) resta accettata solo per
+      il passaggio, finché tana-drink non pubblica la sua parte, e per la
+      Tana, che non ha il Terraform della flotta; poi si toglie con un
+      lavoro a parte. (7) Il contratto in docs/handover.md §7 lo dice.
+    status: implemented
+    generate_issue: true
+    labels: [flotta, regia, ai]
+    priority: P2
+    test_cases:
+      - tests/identita-locale.test.js
+
   - id: REQ-FLOTTA-059
     title: "L'admin elimina un cliente senza istanza: via l'account e i suoi dati nella regia"
     area: "functions/lib/eliminazione-cliente.js, functions/index.js (eliminaCliente), src/lib/db.js (eliminaCliente), src/pages/Backoffice.jsx (Elimina cliente…)"
