@@ -104,8 +104,12 @@ export default function Backoffice() {
           .sort((a, b) => peso(a.stato) - peso(b.stato))
       )
     } catch (e) {
+      // Una lettura fallita non è un elenco vuoto (REQ-FLOTTA-064): prima
+      // qui si mettevano zero righe, e la pagina diceva «Nessun cliente.».
+      // Alla prima lettura l'elenco resta «non letto» (null), e la pagina
+      // lo dice con «Riprova»; a pagina già caricata resta quello di prima.
       setErrore(e.message)
-      setRighe([])
+      setRighe((prima) => prima ?? null)
     }
   }
   const caricaContatti = useCallback(
@@ -290,6 +294,30 @@ export default function Backoffice() {
   }
 
   if (righe === undefined) return <main className="pagina muted">Carico…</main>
+  if (righe === null)
+    return (
+      <main className="pagina">
+        <p className="errore" role="alert">
+          {errore}
+        </p>
+        <div className="azioni">
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              // L'errore si toglie qui e non a ogni lettura riuscita: le azioni
+              // (rilancia, sospendi…) dicono il loro errore e poi rileggono, e
+              // una lettura andata bene non deve cancellarlo.
+              setErrore(null)
+              setRighe(undefined)
+              carica()
+            }}
+          >
+            Riprova
+          </button>
+        </div>
+      </main>
+    )
 
   const daApprovare = righe.filter((r) => r.stato === STATI.DA_APPROVARE)
   const profiliDaAutorizzare = righe.filter(profiloDaAutorizzare)

@@ -3496,7 +3496,7 @@ requirements:
       un'azione), l'elenco di prima resta e compare il messaggio. (6) Il
       collaudo, se trova il messaggio di lettura fallita mentre aspetta
       un aggiornamento, riprova invece di fallire.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [prodotto, regia, backoffice]
     priority: P1
