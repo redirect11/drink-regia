@@ -383,7 +383,13 @@ export default function Home({ utente, lingua = 'it' }) {
   // prodotti, conti, utenti, sconti e storico uguali, e sei righe identiche
   // nasconderebbero l'unica cosa che conta, i moduli. I terminali restano
   // sempre: sono un numero che chi compra vuole leggere.
-  const righeDaMostrare = righeLavoro.filter((r) => r.id === 'terminali' || new Set(piani.map((p) => r.valore(p))).size > 1)
+  // LE COLONNE DEL CONFRONTO: i piani in vendita, più il Free fuori
+  // vendita, come un piano normale, finché l'admin non lo nasconde
+  // (REQ-FLOTTA-071, Daniele, 12/11/2026). Solo qui: non ha la sua scheda
+  // e non si sceglie, perché non si può attivare.
+  const freeFuoriVendita = !vendita.free && !vendita.nascondi_free
+  const pianiConfronto = freeFuoriVendita ? Object.values(PIANI) : piani
+  const righeDaMostrare = righeLavoro.filter((r) => r.id === 'terminali' || new Set(pianiConfronto.map((p) => r.valore(p))).size > 1)
   // Un modulo, in un piano: compreso, da comprare a parte, o (nel piano
   // gratuito, che non ha moduli) non disponibile.
   const cellaModulo = (p, m) => {
@@ -686,7 +692,7 @@ export default function Home({ utente, lingua = 'it' }) {
                 <thead>
                   <tr>
                     <td />
-                    {piani.map((p) => (
+                    {pianiConfronto.map((p) => (
                       <th scope="col" key={p.id} className={p.id === 'completo' ? 'in-evidenza' : undefined}>
                         {nomePiano(t, p)}
                       </th>
@@ -695,14 +701,14 @@ export default function Home({ utente, lingua = 'it' }) {
                 </thead>
                 <tbody>
                   <tr className="gruppo">
-                    <th scope="rowgroup" colSpan={piani.length + 1}>
+                    <th scope="rowgroup" colSpan={pianiConfronto.length + 1}>
                       {c.gruppoLavoro}
                     </th>
                   </tr>
                   {righeDaMostrare.map((r) => (
                     <tr key={r.id}>
                       <th scope="row">{c.righe[r.id]}</th>
-                      {piani.map((p) => (
+                      {pianiConfronto.map((p) => (
                         <td key={p.id}>{r.valore(p)}</td>
                       ))}
                     </tr>
@@ -713,14 +719,14 @@ export default function Home({ utente, lingua = 'it' }) {
                     lavoro di ogni giorno» ai moduli. */}
                 <tbody>
                   <tr className="gruppo">
-                    <th scope="rowgroup" colSpan={piani.length + 1}>
+                    <th scope="rowgroup" colSpan={pianiConfronto.length + 1}>
                       {c.gruppoModuli}
                     </th>
                   </tr>
                   {moduliVisibili.map((m) => (
                     <tr key={m.id}>
                       <th scope="row">{nomeModulo(t, m)}</th>
-                      {piani.map((p) => {
+                      {pianiConfronto.map((p) => {
                         const cosa = cellaModulo(p, m)
                         return (
                           <td key={p.id}>
@@ -744,7 +750,7 @@ export default function Home({ utente, lingua = 'it' }) {
                   ))}
                   <tr>
                     <th scope="row">{t.prezzi.tabella.terminale}</th>
-                    {piani.map((p) => (
+                    {pianiConfronto.map((p) => (
                       <td key={p.id}>
                         {p.gratuito ? (
                           <span className="non-incluso">{c.nonDisponibile}</span>

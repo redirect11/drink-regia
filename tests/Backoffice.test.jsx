@@ -758,6 +758,20 @@ describe('la vendita nel backoffice', () => {
     await user.click(within(vendita).getByLabelText('Pagamenti con lettore SumUp'))
     expect(db.impostaVendita).toHaveBeenCalledWith({ moduli: { sumup: false } })
   })
+
+  // REQ-FLOTTA-071 (Daniele, 12/11/2026: «mettimelo che posso mostrarlo
+  // oppure no… no proprio nascondere il free»).
+  it('nascondere il Free ha il suo interruttore, spento, e un clic scrive la vendita', async () => {
+    const user = userEvent.setup()
+    regia.vendita = { free: false, moduli: {} }
+    mostra('/backoffice/vendita')
+    const vendita = await screen.findByRole('region', { name: 'Vendita' })
+    const nascondi = within(vendita).getByLabelText('Nascondi il Free dal sito')
+    expect(nascondi).not.toBeChecked()
+    expect(vendita).toHaveTextContent(/il Free compare con le sue differenze da Base e Completo/)
+    await user.click(nascondi)
+    expect(db.impostaVendita).toHaveBeenCalledWith({ nascondi_free: true })
+  })
 })
 
 // LE PROVE DEI MODULI (REQ-FLOTTA-016): nel riquadro «Vendita» l'admin dice

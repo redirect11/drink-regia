@@ -6,6 +6,9 @@ data.
 
 ## Prossima release (da decidere)
 
+- Il confronto fra i piani mostra il Free, con le sue differenze da Base
+  e Completo, anche prima che sia in vendita; dal backoffice si nasconde
+  (REQ-FLOTTA-071).
 - I tre passi della prima pagina si chiamano «Pronto in 3 passi»
   (REQ-FLOTTA-070).
 - Il carosello della prima pagina scorre da solo anche col mouse sulla
