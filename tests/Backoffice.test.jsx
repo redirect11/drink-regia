@@ -1573,3 +1573,27 @@ describe('il segno che gira dell’aggiornamento', () => {
     expect(css).toMatch(/\.spinner \{[^}]*flex: none;[^}]*width: 12px; height: 12px;[^}]*border-radius: 50%;/)
   })
 })
+
+// IL FREE NON HA L'AI (REQ-FLOTTA-087). Daniele, 13/11/2026: «I free non
+// hanno l'ai». L'admin non regala né ricarica credito che il locale non
+// potrebbe usare: niente tasti dell'AI e niente riga del credito.
+describe('il backoffice e un locale Free', () => {
+  it('niente «Ricarica AI», «Regala AI», «Tetto AI» né la riga del credito', async () => {
+    db.elencoClienti.mockResolvedValue([{ uid: 'f', slug: 'bar-free', nome_locale: 'Bar Free', email: 'f@x.it', piano: 'free', creato_il: '2026-10-01' }])
+    db.elencoIstanze.mockResolvedValue({ 'bar-free': { stato: 'attiva', progetto: 'drinkpos-bar-free', versione: 'v1.10.0' } })
+    db.elencoCassettiAI.mockResolvedValue({ 'bar-free': { credito_microeuro: 2_000_000 } })
+    mostra()
+    const free = await apri('Bar Free')
+    for (const nome of ['Ricarica AI', 'Regala AI', 'Tetto AI']) expect(within(free).queryByRole('button', { name: nome })).toBeNull()
+    expect(within(free).queryByTestId('credito-bar-free')).toBeNull()
+    expect(within(free).queryByText('Credito AI')).toBeNull()
+  })
+
+  it('un locale tornato al Free perché non paga è come un Free', async () => {
+    db.elencoClienti.mockResolvedValue([{ uid: 'r', slug: 'bar-ripiego', nome_locale: 'Bar Ripiego', email: 'r@x.it', piano: 'base', creato_il: '2026-10-01' }])
+    db.elencoIstanze.mockResolvedValue({ 'bar-ripiego': { stato: 'attiva', progetto: 'drinkpos-bar-ripiego', ripiego_free: { dal: '2026-11-01T00:00:00Z' }, licenza_piano: 'free' } })
+    mostra()
+    const locale = await apri('Bar Ripiego')
+    expect(within(locale).queryByRole('button', { name: 'Ricarica AI' })).toBeNull()
+  })
+})

@@ -217,10 +217,12 @@ describe('si può partire?', () => {
     expect(ai.puoChiedere({ ...pieno, mese: '2026-09', speso_mese_microeuro: 19_990_000 }, 50_000, ADESSO).ok).toBe(true)
   })
 
-  it('la stima massima è il caso peggiore: tutti i token d’uscita permessi', () => {
+  // REQ-FLOTTA-088: al prezzo più alto del listino, perché il fallback può
+  // rispondere con un modello più caro di quello chiesto.
+  it('la stima massima è il caso peggiore: tutti i token d’uscita permessi, al prezzo più alto', () => {
     const m = ai.preparaMessaggio({ tipo: 'descrizione', nome: 'Gin' })
-    const p = prezzo(AI.modello)
-    expect(ai.stimaMassimaMicroeuro(m)).toBe(atteso((m.stimaInputToken * p.input + m.max_tokens * p.output) / 1e6))
+    const usd = Math.max(...Object.keys(AI.prezzi_usd_per_milione).map((id) => (m.stimaInputToken * prezzo(id).input + m.max_tokens * prezzo(id).output) / 1e6))
+    expect(ai.stimaMassimaMicroeuro(m)).toBe(atteso(usd))
   })
 
   it('l’addebito scala il credito e somma al mese, che riparte se è cambiato', () => {
