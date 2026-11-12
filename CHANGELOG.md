@@ -6,7 +6,9 @@ data.
 
 ## Prossima release (da decidere)
 
-- Le regole di Stonebit nel `CLAUDE.md` sono alla terza versione: stanno
+- Le regole di Stonebit nel `CLAUDE.md` sono alla quarta versione (la
+  sessione sul repository lavora come ha sempre fatto ed è il Tech Lead;
+  il PM è un ruolo di solo controllo): stanno
   dopo la presentazione del repository, dicono che sulle regole di
   lavoro vince il repository, e descrivono i rami come li vuole
   `docs/handover.md`. La seconda sezione di Stonebit, in fondo, è tolta.

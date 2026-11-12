@@ -1,12 +1,13 @@
 // LA SQUADRA DI STONEBIT (REQ-DEV-012). Dal messaggio del CEO-agente
 // dell'11/11/2026 (seconda versione, lo schema del progetto Planner): la
-// sessione aperta su questo repository è il PM di Lime (regia) e passa il
-// lavoro a un Tech Lead, a tre developer e a un revisore. Chi sono e come
+// sessione aperta su questo repository lavora come ha sempre fatto, ed è
+// lei il Tech Lead (quarta versione, 12/11/2026); ha a disposizione tre
+// developer, un revisore e un PM di solo controllo. Chi sono e come
 // lavorano sta in file che gli strumenti leggono da soli (CLAUDE.md,
 // AGENTS.md, .claude/agents/): se uno sparisce o perde l'intestazione,
 // l'agente non esiste più e nessuno se ne accorge. Questo test lo dice.
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 
 const RADICE = join(import.meta.dirname, '..')
@@ -28,7 +29,14 @@ describe('la squadra di Stonebit', () => {
     expect(regole.slice(0, primaSezione)).toContain('Il sito del prodotto:')
     expect(righe.filter((r) => r.startsWith('## '))).toEqual(['## Stonebit — chi sei e come lavori qui', '## Le regole di questo repository'])
     expect(regole).toContain('### Regola zero: decide Daniele')
-    expect(regole).toContain('sei il **PM di Lime (regia)**')
+    // Quarta versione: la sessione non è il PM. Lavora come ha sempre
+    // fatto, ed è lei il Tech Lead (Daniele, 12/11/2026: «il tech lead sei
+    // tu»); il PM è un ruolo di controllo, non di comando.
+    expect(regole).toContain('lavora come ha sempre fatto')
+    expect(regole).toContain('È lei il **Tech Lead**')
+    expect(regole).toContain('Non è il PM e non è\nobbligata a delegare'.replace('\n', ' '))
+    expect(regole).toContain('un ruolo di **controllo**, non di comando')
+    expect(regole).toContain('non c\'è una catena obbligata fra i ruoli')
     // Le issue nascono dal registro, mai a mano: è la regola del processo.
     expect(regole).toContain('Le issue nascono dal registro')
     expect(regole).toContain('**mai a mano**')
@@ -68,7 +76,7 @@ describe('la squadra di Stonebit', () => {
     expect(agenti).toContain('`.claude/agents/`')
   })
 
-  it.each(['pm', 'tech-lead', 'frontend-developer', 'backend-developer', 'devops-flotta', 'revisore'])('%s ha il suo file, con nome e descrizione nell’intestazione', (nome) => {
+  it.each(['pm', 'frontend-developer', 'backend-developer', 'devops-flotta', 'revisore'])('%s ha il suo file, con nome e descrizione nell’intestazione', (nome) => {
     const agente = leggi(`.claude/agents/${nome}.md`)
     const intestazione = agente.match(/^---\n([\s\S]*?)\n---\n/)
     expect(intestazione).not.toBeNull()
@@ -77,12 +85,16 @@ describe('la squadra di Stonebit', () => {
     expect(agente).toContain('Stonebit')
   })
 
-  it('i developer e il Tech Lead non fanno merge, tag né deploy; il PM e il revisore non scrivono codice', () => {
+  it('i developer non fanno merge, tag né deploy; il PM e il revisore non scrivono codice; il Tech Lead non è un agente', () => {
     for (const nome of ['frontend-developer', 'backend-developer', 'devops-flotta']) {
       expect(leggi(`.claude/agents/${nome}.md`), nome).toContain('Non fai merge, tag, deploy')
+      // Rispondono alla sessione, non a un Tech Lead che non c'è.
+      expect(leggi(`.claude/agents/${nome}.md`), nome).toContain('Ricevi il lavoro dalla sessione principale')
     }
-    expect(leggi('.claude/agents/tech-lead.md')).toContain('Mai merge;')
     expect(leggi('.claude/agents/pm.md')).toContain('non scrivi codice')
+    expect(leggi('.claude/agents/pm.md')).toContain('non dirigi il lavoro, non assegni compiti')
     expect(leggi('.claude/agents/revisore.md')).toContain('Non scrivi codice')
+    // Il Tech Lead è la sessione: per quel ruolo non c'è un file.
+    expect(existsSync(join(RADICE, '.claude/agents/tech-lead.md'))).toBe(false)
   })
 })

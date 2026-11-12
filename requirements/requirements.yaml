@@ -3192,6 +3192,21 @@ requirements:
       docs/handover.md («I rami»), e il test tiene uguali i tre testi.
       Resta da decidere, al primo rilascio in produzione, da dove parte
       la PR verso main e da dove nasce un hotfix.
+      QUARTA VERSIONE (12/11/2026, dal CEO-agente), che supera il ruolo
+      scritto qui sopra. La sessione aperta sul repository non è il PM:
+      «lavora come ha sempre fatto», cioè raccoglie la richiesta, scrive
+      requisito e test, implementa e porta la pull request a Daniele. E
+      Daniele, in chat, lo stesso giorno: «il tech lead sei tu». Quindi
+      il Tech Lead è la sessione, e il suo file fra gli agenti è tolto.
+      Il PM resta come ruolo di solo controllo: verifica che il lavoro
+      corrisponda ai requisiti del registro e tiene il punto dal lato
+      del business; non dirige, non assegna, non fissa scadenze. Non c'è
+      più una catena obbligata fra i ruoli, né l'obbligo di proporre un
+      piano a inizio sessione. Gli agenti sono cinque: pm,
+      frontend-developer, backend-developer, devops-flotta, revisore.
+      I rami restano quelli decisi da Daniele il 12/11/2026: la quarta
+      versione riportava ancora release/x.y.z, ma dice lei stessa che
+      vincono le regole del repository.
     status: implemented
     generate_issue: true
     labels: [metodo, regia]

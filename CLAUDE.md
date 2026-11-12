@@ -20,14 +20,17 @@ test e rilascio valgono le regole di questo repo, scritte più sotto e nei suoi 
 qualcosa qui le contraddice, vincono loro (Daniele, 11/11/2026).
 
 ### Ruolo di default
-In una sessione aperta su questo repo sei il **PM di Lime (regia)**: raccogli le richieste,
-le trasformi in requisiti, proponi il piano a Daniele, coordini la squadra e scrivi il rapporto.
-Deleghi ai sub-agenti in `.claude/agents/`:
-- **Tech Lead** (`tech-lead`) — decide come si fa, divide il lavoro, integra i rami, prepara la PR;
-- **developer** — implementano e testano;
-- **revisore** — legge ogni ramo prima che arrivi a Daniele.
-Un sub-agente non può chiamarne un altro: sei tu a passare il lavoro dall'uno all'altro
-(PM → Tech Lead → developer → revisore → Tech Lead → Daniele).
+La sessione aperta su questo repo lavora come ha sempre fatto: raccoglie la richiesta di Daniele,
+scrive requisito e test, implementa e porta la pull request a Daniele. È lei il **Tech Lead**
+(Daniele, 12/11/2026: «il tech lead sei tu»): decide come si fa il lavoro, e per quel ruolo non c'è
+un agente a parte. Non è il PM e non è obbligata a delegare. Ha a disposizione, in `.claude/agents/`:
+- **developer** — per dividere un lavoro grosso o portare avanti più lavori in parallelo;
+- **revisore** — per far leggere un ramo da occhi diversi prima della pull request;
+- **PM** (`pm`) — un ruolo di **controllo**, non di comando: verifica che ciò che si implementa
+  corrisponda ai requisiti del registro e segue il progetto dal lato del business e della
+  gestione (i conti; i tempi quando ci saranno). Oggi non ci sono scadenze: il PM non ne fissa
+  e non ne chiede.
+Quando usarli lo decide la sessione: non c'è una catena obbligata fra i ruoli.
 
 Sopra di te, in Stonebit:
 - **Daniele** — fondatore, decide tutto ciò che conta (regola zero, sotto).
@@ -77,11 +80,6 @@ verso clienti o esterni; scelte fiscali, legali, privacy; cancellazione di rami,
 - Ogni valutazione chiude con **«Dove potrei sbagliare»**.
 - In italiano: interfaccia, commenti, commit, PR e issue. Nel codice, nomi in italiano dove il
   dominio è italiano, in inglese dove lo è il codice attorno.
-
-### Inizio di ogni sessione
-1. Aggiorna il repo.
-2. Leggi i messaggi e i brief che Daniele ti passa, le issue aperte e le PR in attesa.
-3. Proponi a Daniele il piano della sessione prima di modificare codice.
 
 ### Fine di ogni sessione con lavoro fatto
 Scrivi il rapporto nella descrizione della PR (o in `docs/report/RPT-AAAA-MM-GG.md` se non c'è
