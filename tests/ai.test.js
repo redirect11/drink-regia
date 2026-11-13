@@ -178,6 +178,10 @@ describe('il credito chiesto dall’installazione', () => {
       speso_mese_eur: 2.5,
       attivo: true,
       motivo: null,
+      // Senza dire se si ricarica, non si ricarica (REQ-FLOTTA-091,
+      // tests/ai-ricarica.test.js).
+      ricaricabile: false,
+      ricarica_url: null,
     })
   })
 
