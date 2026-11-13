@@ -170,7 +170,10 @@ describe('le Functions usano la prenotazione', () => {
     expect(prenota).toBeGreaterThan(0)
     expect(prenota).toBeLessThan(modello)
     expect(f.lastIndexOf('runTransaction', prenota)).toBeGreaterThan(-1)
-    expect(f.indexOf('ai.chiudiPrenotazione(', modello)).toBeGreaterThan(modello)
+    // La correzione è una transazione (chiudi), chiamata col costo vero dopo la risposta.
+    const chiudi = f.indexOf('ai.chiudiPrenotazione(')
+    expect(f.lastIndexOf('runTransaction', chiudi)).toBeGreaterThan(prenota)
+    expect(f.indexOf('chiudi(costo', modello)).toBeGreaterThan(modello)
     expect(f).toContain('ai.rigaInterrotta(')
     // Il vecchio controllo fuori transazione non c'è più.
     expect(f).not.toContain('ai.puoChiedere(')

@@ -4284,7 +4284,7 @@ requirements:
       panoramica) e il tema dal mockup dice che il Free non comprende le
       funzioni AI. (8) Il contratto in docs/handover.md §7 dice il 402
       piano e la licenza ai: false.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [regia, ai, sicurezza]
     priority: P1
@@ -4327,7 +4327,7 @@ requirements:
       dall'installazione (REQ-FLOTTA-085) `attivo` vuol dire che una
       descrizione può partire (la sua stima), non un micro-euro. (8) Il
       contratto in docs/handover.md §7 dice il 429 occupato.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [regia, ai, sicurezza]
     priority: P1

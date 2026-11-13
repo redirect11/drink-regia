@@ -23,7 +23,9 @@ export const leggiBase64 = (file) =>
     lettore.readAsDataURL(file)
   })
 
-export default function TemiSuMisura({ uid, slug }) {
+// `ai`: il piano comprende l'AI? Il Free no (REQ-FLOTTA-087): il tema dal
+// mockup non si chiede, quelli fatti da noi sì.
+export default function TemiSuMisura({ uid, slug, ai = true }) {
   const [temi, setTemi] = useState([])
   const [cassetto, setCassetto] = useState(null)
   const [errore, setErrore] = useState(null)
@@ -80,7 +82,14 @@ export default function TemiSuMisura({ uid, slug }) {
           ))}
         </ul>
       )}
-      <DalMockup credito={credito} onErrore={setErrore} onFatto={setAvviso} />
+      {ai ? (
+        <DalMockup credito={credito} onErrore={setErrore} onFatto={setAvviso} />
+      ) : (
+        <p className="muted small" data-testid="mockup-senza-ai">
+          Il piano Free non comprende le funzioni AI: il tema dal mockup si chiede con un piano a pagamento. Un tema fatto da noi si chiede
+          qui sotto.
+        </p>
+      )}
       <DalFornitore onErrore={setErrore} onFatto={setAvviso} />
       {avviso && <p className="muted small">{avviso}</p>}
       {errore && <p className="errore small">{errore}</p>}
