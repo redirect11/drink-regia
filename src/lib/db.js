@@ -576,6 +576,17 @@ export async function elencoCassettiAI() {
   return Object.fromEntries(snap.docs.map((d) => [d.id, d.data()]))
 }
 
+// Il modello AI di un tipo di richiesta (REQ-FLOTTA-092): passa dalla
+// Function, che accetta solo l'admin e solo i modelli del listino. Il
+// documento impostazioni/regia l'admin lo potrebbe scrivere da qui, ma la
+// scelta va controllata dal server.
+export async function impostaModelliAI(scelta) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'gestisciModelliAI')
+  const { data } = await fn({ ai_modelli: scelta })
+  return data
+}
+
 export async function gestisciCassettoAI(slug, azione, extra = {}) {
   serve()
   const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'gestisciCassettoAI')

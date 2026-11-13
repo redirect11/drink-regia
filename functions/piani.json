@@ -136,8 +136,14 @@
   },
   "ai": {
     "_nota": "Il credito AI (REQ-AI-003). I prezzi dei modelli sono quelli di Anthropic, in dollari per milione di token (ottobre 2026): si aggiornano quando Anthropic li cambia. Il ricarico è deciso: 1.1, il 10% sul costo effettivo (Daniele, 12/11/2026). Il cambio, i pacchetti di ricarica e il tetto mensile sono DA DECIDERE con l'utente: qui ci sono segnaposto. Importi in euro, IVA esclusa.",
-    "modello": "claude-opus-5-5",
+    "_nota_modello": "Il modello predefinito di ogni tipo di richiesta, quando l'admin non ne ha scelto un altro dal backoffice (impostazioni/regia.ai_modelli, REQ-FLOTTA-092). Daniele, 13/11/2026, su Sonnet: «Per tutto». Si sceglie solo fra i modelli di prezzi_usd_per_milione; il prezzo di claude-sonnet-5-5 è della documentazione Anthropic del 03/11/2026, da riverificare sulla pagina dei prezzi.",
+    "modello": "claude-sonnet-5-5",
     "prezzi_usd_per_milione": {
+      "claude-sonnet-5-5": {
+        "input": 2,
+        "output": 10,
+        "cache_lettura": 0.1
+      },
       "claude-opus-5-5": {
         "input": 4,
         "output": 20,

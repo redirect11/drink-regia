@@ -19,6 +19,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import '@testing-library/jest-dom/vitest'
 import { readFileSync } from 'node:fs'
+import listinoAI from '../functions/piani.json'
 
 const db = vi.hoisted(() => ({
   elencoClienti: vi.fn(),
@@ -35,6 +36,8 @@ const db = vi.hoisted(() => ({
   }),
   impostaDeployAutomatico: vi.fn(async () => {}),
   impostaAttivazioneSimulata: vi.fn(async () => {}),
+  // Il modello AI per tipo di richiesta (REQ-FLOTTA-092).
+  impostaModelliAI: vi.fn(async () => ({ ok: true })),
   autorizzaRichiesta: vi.fn(async () => {}),
   autorizzaProfiloCompleto: vi.fn(async () => ({ ok: true })),
   rifiutaRichiesta: vi.fn(async () => {}),
@@ -1742,6 +1745,62 @@ describe('il backoffice e un locale Free', () => {
     mostra()
     const locale = await apri('Bar Ripiego')
     expect(within(locale).queryByRole('button', { name: 'Ricarica AI' })).toBeNull()
+  })
+})
+
+// IL MODELLO AI PER TIPO DI RICHIESTA (REQ-FLOTTA-092). Daniele,
+// 13/11/2026, su Sonnet: «Per tutto». L'admin sceglie un modello per ogni
+// tipo, fra quelli che hanno un prezzo nel listino; la scelta sta in
+// impostazioni/regia.ai_modelli e passa dalla Function gestisciModelliAI.
+describe('il modello AI nel backoffice', () => {
+  const modelli = Object.keys(listinoAI.ai.prezzi_usd_per_milione)
+
+  it('in «Vendita» c’è una scelta per descrizione, fattura, tema e chat, coi soli modelli del listino', async () => {
+    mostra('/backoffice/vendita')
+    const sezione = await screen.findByRole('region', { name: 'Modelli AI' })
+    for (const tipo of ['Descrizione', 'Fattura', 'Tema', 'Chat']) {
+      const scelta = within(sezione).getByRole('combobox', { name: tipo })
+      expect([...scelta.querySelectorAll('option')].map((o) => o.value)).toEqual(modelli)
+    }
+  })
+
+  it('senza una scelta salvata mostra Sonnet; una scelta salvata si vede', async () => {
+    regia.impostazioni = { ai_modelli: { fattura: 'claude-opus-5-5' } }
+    mostra('/backoffice/vendita')
+    const sezione = await screen.findByRole('region', { name: 'Modelli AI' })
+    expect(within(sezione).getByRole('combobox', { name: 'Descrizione' })).toHaveValue('claude-sonnet-5-5')
+    expect(within(sezione).getByRole('combobox', { name: 'Fattura' })).toHaveValue('claude-opus-5-5')
+  })
+
+  it('cambiare il modello di un tipo lo salva passando dalla Function, solo per quel tipo', async () => {
+    const user = userEvent.setup()
+    mostra('/backoffice/vendita')
+    const sezione = await screen.findByRole('region', { name: 'Modelli AI' })
+    await user.selectOptions(within(sezione).getByRole('combobox', { name: 'Descrizione' }), 'claude-opus-5-5')
+    expect(db.impostaModelliAI).toHaveBeenCalledWith({ descrizione: 'claude-opus-5-5' })
+  })
+})
+
+// LO SFORAMENTO DEL CREDITO AI (REQ-FLOTTA-093). Daniele, 13/11/2026: il
+// credito non va mai sotto zero; se il costo vero supera lo stesso la stima
+// (un difetto), quello che manca si segna in da_recuperare_microeuro e
+// l'admin lo vede nella scheda del locale.
+describe('il credito AI da recuperare', () => {
+  it('nel blocco Credito AI un avviso con l’importo da recuperare', async () => {
+    db.elencoCassettiAI.mockResolvedValue({ 'bar-attivo': { credito_microeuro: 0, da_recuperare_microeuro: 1_234_567 } })
+    mostra()
+    const attivo = await apri('Bar Attivo')
+    const blocco = within(attivo).getByRole('region', { name: 'Credito AI' })
+    const avviso = within(blocco).getByTestId('da-recuperare-bar-attivo')
+    expect(avviso).toHaveTextContent('1,23 €')
+    expect(avviso).toHaveTextContent(/da recuperare/i)
+  })
+
+  it('senza niente da recuperare, nessun avviso', async () => {
+    db.elencoCassettiAI.mockResolvedValue({ 'bar-attivo': { credito_microeuro: 5_000_000, da_recuperare_microeuro: 0 } })
+    mostra()
+    const attivo = await apri('Bar Attivo')
+    expect(within(attivo).queryByTestId('da-recuperare-bar-attivo')).toBeNull()
   })
 })
 

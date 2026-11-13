@@ -17,6 +17,7 @@ import {
   creaClienteDaAdmin,
   elencoCassettiAI,
   gestisciCassettoAI,
+  impostaModelliAI,
   registraLocaleEsistente,
   elencoRilasci,
   gestisciRilascio,
@@ -51,7 +52,7 @@ import { PIANI, MODULI, prezzoMensile, euro, baseMancante, senzaOrfani } from '.
 import { prezzoConSconto, scontoDetto, usiDetti, CODICE_VALIDO, REGOLA_CODICE, LIMITE_PER_IL_CENTO, generaCodice } from '../lib/sconti.js'
 import CatalogoTemi, { EditorTema } from './CatalogoTemi.jsx'
 import { contattoDi } from '../lib/clienti.js'
-import { statoCredito, euroCent, aiNelPiano } from '../lib/ai.js'
+import { statoCredito, euroCent, aiNelPiano, MODELLI_AI, TIPI_MODELLO_DETTI, modelloScelto } from '../lib/ai.js'
 import { GRUPPI, TAG, aggiornamentoDetto, runNellErrore } from '../lib/rilasci.js'
 import { BASE, SEZIONI, VISTE, aggiornamentoFallito, aggiornaLaRegia, contiDelBackoffice, filtraLocali, profiloDaAutorizzare } from '../lib/backoffice.js'
 import Rilasci from './Rilasci.jsx'
@@ -407,6 +408,7 @@ export default function Backoffice() {
             element={
               <>
                 <Vendita onErrore={setErrore} />
+                <ModelliAI impostazioni={impostazioni} onErrore={setErrore} />
                 <CodiciSconto onErrore={setErrore} />
               </>
             }
@@ -938,6 +940,14 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
                   mese {euroCent(credito.spesoMese)} / {euroCent(credito.tetto)}
                   {!credito.attivo && ' · spento'}
                 </div>
+                {credito.daRecuperare > 0 && (
+                  // REQ-FLOTTA-093: un costo vero sopra la stima, che il
+                  // credito non copriva. È un difetto: il credito si è
+                  // fermato a zero e questo è il resto, da recuperare a mano.
+                  <p className="errore small" role="status" data-testid={`da-recuperare-${c.slug}`}>
+                    Da recuperare: {euroCent(credito.daRecuperare)} (una richiesta AI è costata più della sua stima: vedi «[ai] SFORAMENTO» nei log)
+                  </p>
+                )}
               </>
             ) : (
               <div className="muted">—</div>
@@ -1756,6 +1766,33 @@ function CodiciSconto({ onErrore }) {
           </button>
         </div>
       </form>
+    </section>
+  )
+}
+
+// IL MODELLO AI PER TIPO DI RICHIESTA (REQ-FLOTTA-092). Daniele,
+// 13/11/2026, su Sonnet: «Per tutto». Una scelta per tipo, fra i modelli
+// del listino; si salva un tipo alla volta, passando dalla Function
+// gestisciModelliAI, che ricontrolla tutto. Le richieste dopo usano la
+// scelta nuova.
+function ModelliAI({ impostazioni, onErrore }) {
+  const cambia = (tipo, modello) => impostaModelliAI({ [tipo]: modello }).catch((e) => onErrore(e.message))
+  return (
+    <section className="card vendita" aria-label="Modelli AI">
+      <h3>Modelli AI</h3>
+      <p className="muted small">Il modello che risponde a ogni tipo di richiesta AI dei locali. Il credito si scala ai prezzi del modello che risponde.</p>
+      {TIPI_MODELLO_DETTI.map(([tipo, nome]) => (
+        <div key={tipo} className="campo">
+          <label htmlFor={`bo-modello-${tipo}`}>{nome}</label>
+          <select id={`bo-modello-${tipo}`} value={modelloScelto(tipo, impostazioni)} onChange={(e) => cambia(tipo, e.target.value)}>
+            {MODELLI_AI.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </div>
+      ))}
     </section>
   )
 }
