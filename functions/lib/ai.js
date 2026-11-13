@@ -372,23 +372,24 @@ function parametriClaude(m, { modello = AI.modello } = {}) {
 }
 
 // Quanto può costare al massimo: i token d'ingresso stimati più tutti
-// quelli d'uscita che il tetto permette, al prezzo del modello chiesto.
-function stimaMassimaMicroeuro(m, { modello = AI.modello } = {}) {
-  return costoMicroeuro(
-    { model: modello, usage: { input_tokens: m.stimaInputToken, output_tokens: m.max_tokens } },
-    { modelloChiesto: modello }
-  )
+// quelli d'uscita che il tetto permette, al prezzo PIÙ ALTO del listino
+// (REQ-FLOTTA-088): il fallback di Anthropic può rispondere con un modello
+// più caro di quello chiesto, e la prenotazione deve coprire anche quello.
+function stimaMassimaMicroeuro(m) {
+  const usage = { input_tokens: m.stimaInputToken, output_tokens: m.max_tokens }
+  return Math.max(...Object.keys(AI.prezzi_usd_per_milione).map((modello) => costoMicroeuro({ model: modello, usage }, { modelloChiesto: modello })))
 }
 
 // Si può partire? Il cassetto deve essere acceso, il credito deve bastare
-// per il caso peggiore e il mese non deve sforare il tetto. Le chiamate
-// contemporanee della stessa installazione possono sforare di poco
-// (ciascuna ha visto lo stesso credito): con un bar, sono una o due.
+// per il caso peggiore e il mese non deve sforare il tetto. Il credito qui
+// è già al netto delle richieste in corso: la prenotazione (prenota, sotto)
+// lo scala prima della chiamata, così due richieste insieme non spendono lo
+// stesso euro.
 function puoChiedere(cassetto, stima, adesso = new Date()) {
   const s = statoCassetto(cassetto, adesso)
   if (!cassetto) return { ok: false, codice: 'senza-cassetto', perche: 'Il credito AI di questa installazione non è attivo.' }
   if (!s.attivo) return { ok: false, codice: 'spento', perche: 'Le funzioni AI di questa installazione sono spente.' }
-  if (s.credito < stima) return { ok: false, codice: 'credito', perche: 'Credito AI esaurito: si ricarica dal sito.' }
+  if (s.credito <= 0 || s.credito < stima) return { ok: false, codice: 'credito', perche: 'Credito AI esaurito: si ricarica dal sito.' }
   if (s.spesoMese + stima > s.tetto) return { ok: false, codice: 'tetto', perche: 'Raggiunto il tetto mensile del credito AI.' }
   return { ok: true, codice: null, perche: null }
 }
@@ -397,9 +398,13 @@ function puoChiedere(cassetto, stima, adesso = new Date()) {
 // per le Impostazioni e per nascondere i tasti AI quando non servono. Una
 // lettura del cassetto, niente addebito. `attivo` dice se una richiesta
 // potrebbe partire adesso; `motivo` è il codice di puoChiedere quando no.
+// La misura è la stima della richiesta più piccola, una descrizione
+// (REQ-FLOTTA-088): con un micro-euro l'app mostrava i tasti a un locale
+// che poi riceveva 402 a ogni richiesta.
 // Senza cassetto o spento: il 402 di sempre, non c'è niente da mostrare.
+const stimaDescrizione = () => stimaMassimaMicroeuro(preparaMessaggio({ tipo: 'descrizione', nome: 'Prodotto' }))
 function rispostaCredito(cassetto, adesso = new Date()) {
-  const via = puoChiedere(cassetto, 1, adesso)
+  const via = puoChiedere(cassetto, stimaDescrizione(), adesso)
   if (via.codice === 'senza-cassetto' || via.codice === 'spento') return { ok: false, http: 402, codice: via.codice, errore: via.perche }
   const s = statoCassetto(cassetto, adesso)
   return {
@@ -410,6 +415,146 @@ function rispostaCredito(cassetto, adesso = new Date()) {
     speso_mese_eur: inEuro(s.spesoMese),
     attivo: via.ok,
     motivo: via.codice,
+  }
+}
+
+// ── IL FREE NON HA L'AI (REQ-FLOTTA-087) ──
+// Daniele, 13/11/2026: «I free non hanno l'ai». Il piano vero è quello
+// della licenza che l'app riceve (licenza.js, licenzaProtetta): Free se il
+// locale è tornato al Free perché non paga (istanza.ripiego_free), se no il
+// piano del cliente. L'istanza ne tiene anche una copia (licenza_piano,
+// scritta da ripiegaAlFree e da licenzaSegueIlPiano): se le tre fonti non
+// dicono lo stesso vale la più restrittiva, perché concedere l'AI per
+// sbaglio spende credito, negarla per sbaglio si vede subito e si
+// corregge riscrivendo la licenza. Senza cliente la licenza non si calcola
+// (scriviLicenza) e l'AI non si concede. Si guarda il limite del listino
+// (limiti.ai === false), lo stesso che arriva all'app: una sola fonte.
+const SENZA_AI_NEL_PIANO = 'Il piano Free non comprende le funzioni AI.'
+const pianoSenzaAI = (id) => Boolean(id) && listino.piani[id]?.limiti?.ai === false
+function aiConcessa(istanza, cliente) {
+  if (!cliente) return false
+  const piani = [istanza?.ripiego_free ? 'free' : null, istanza?.licenza_piano, cliente.piano]
+  return !piani.some(pianoSenzaAI)
+}
+
+// ── LA PRENOTAZIONE DEL CREDITO (REQ-FLOTTA-088) ──
+// Audit del 13/11/2026: il credito si controllava fuori transazione e si
+// scalava dopo la risposta, quindi N richieste insieme vedevano lo stesso
+// credito e passavano tutte. Ora, in una transazione PRIMA della chiamata,
+// si prenota la stima massima (credito giù, speso del mese su) e la
+// richiesta si segna nel cassetto, in `prenotazioni: { id: { il, stima,
+// tipo, mese } }`; dopo la risposta, in un'altra transazione, si corregge
+// col costo vero (chiudiPrenotazione). Una mappa e non un contatore: ogni
+// prenotazione ha la sua ora, e una rimasta appesa si riconosce.
+
+// Il timeout delle Functions AI: index.js lo usa in OPTS_AI, e una
+// prenotazione più vecchia di così (più un minuto di margine per gli
+// orologi e la transazione finale) non può più chiudersi da sola.
+const TIMEOUT_AI_SECONDI = 300
+const SCADENZA_PRENOTAZIONE_MS = (TIMEOUT_AI_SECONDI + 60) * 1000
+// Le richieste AI insieme di un locale. Due: al banco una persona chiede
+// una descrizione mentre un'altra legge una fattura, e più di così da un
+// bar non arriva se non da un errore o da un abuso. Con richiestaAI a 10
+// istanze per 3 richieste ciascuna (index.js), un locale solo occupa al
+// massimo 2 posti su 30, e gli altri locali lavorano.
+const MAX_CONTEMPORANEE = 2
+const OCCUPATO = 'Troppe richieste AI insieme: riprova tra poco.'
+
+const scaduta = (p, adesso) => !(adesso.getTime() - Date.parse(p?.il) <= SCADENZA_PRENOTAZIONE_MS)
+
+// Le prenotazioni divise in vive e scadute. Una scaduta è una Function
+// morta fra la prenotazione e la correzione: non conta più fra le
+// contemporanee, e si considera CONSUMATA alla stima, non restituita,
+// perché Anthropic potrebbe averci già fatturato la risposta. Il locale
+// paga al massimo la stima, cioè il caso peggiore che gli era stato
+// riservato; la riga di consumo lo dice (rigaInterrotta).
+function dividiPrenotazioni(cassetto, adesso) {
+  const vive = {}
+  const scadute = []
+  for (const [id, p] of Object.entries(cassetto?.prenotazioni || {})) {
+    if (scaduta(p, adesso)) scadute.push({ id, ...p })
+    else vive[id] = p
+  }
+  return { vive, scadute }
+}
+
+// Prenota la stima di una richiesta, o dice perché no. → { ok, http,
+// codice, perche, credito, patch, scadute }: `patch` è quello da scrivere
+// nel cassetto (anche quando si rifiuta, per togliere le scadute: così le
+// loro righe «interrotta» si scrivono una volta sola), null se non c'è
+// niente da scrivere; `scadute` sono le prenotazioni da chiudere come
+// interrotte. Un rifiuto non tocca il credito.
+function prenota(cassetto, { id, stima, tipo, adesso = new Date() }) {
+  if (!cassetto) {
+    const via = puoChiedere(null, stima, adesso)
+    return { ok: false, http: 402, codice: via.codice, perche: via.perche, credito: 0, patch: null, scadute: [] }
+  }
+  const { vive, scadute } = dividiPrenotazioni(cassetto, adesso)
+  const pulizia = scadute.length ? { prenotazioni: vive } : null
+  const no = (http, codice, perche) => ({ ok: false, http, codice, perche, credito: Number(cassetto.credito_microeuro) || 0, patch: pulizia, scadute })
+  const via = puoChiedere(cassetto, stima, adesso)
+  // Il cassetto spento si dice prima di tutto: non è un problema di
+  // affollamento. Poi l'affollamento, poi i soldi.
+  if (via.codice === 'spento') return no(402, via.codice, via.perche)
+  if (Object.keys(vive).length >= MAX_CONTEMPORANEE) return no(429, 'occupato', OCCUPATO)
+  if (!via.ok) return no(402, via.codice, via.perche)
+  const s = statoCassetto(cassetto, adesso)
+  return {
+    ok: true,
+    http: 200,
+    codice: null,
+    perche: null,
+    credito: s.credito - stima,
+    patch: {
+      credito_microeuro: s.credito - stima,
+      speso_mese_microeuro: s.spesoMese + stima,
+      mese: s.mese,
+      prenotazioni: { ...vive, [id]: { il: adesso.toISOString(), stima, tipo, mese: s.mese } },
+      ultimo_uso_il: adesso.toISOString(),
+    },
+    scadute,
+  }
+}
+
+// La correzione dopo la risposta: la differenza fra stima e costo vero
+// torna nel credito ed esce dallo speso del mese, e la prenotazione si
+// toglie. Costo zero (la chiamata non è partita, 503): torna tutta la
+// stima. Se il mese è cambiato fra prenotazione e risposta la stima stava
+// nel mese vecchio, che non si tiene più: il mese nuovo porta il costo
+// vero. Una prenotazione che non c'è più è già stata chiusa come
+// interrotta, alla stima: non si corregge una seconda volta.
+function chiudiPrenotazione(cassetto, { id, costo, adesso = new Date() }) {
+  const p = cassetto?.prenotazioni?.[id]
+  if (!p) return { trovata: false, patch: null }
+  const s = statoCassetto(cassetto, adesso)
+  const resto = Object.fromEntries(Object.entries(cassetto.prenotazioni).filter(([k]) => k !== id))
+  const spesoMese = p.mese === s.mese ? s.spesoMese - p.stima + costo : s.spesoMese + costo
+  return {
+    trovata: true,
+    patch: {
+      credito_microeuro: s.credito + p.stima - costo,
+      speso_mese_microeuro: Math.max(0, spesoMese),
+      mese: s.mese,
+      prenotazioni: resto,
+      ultimo_uso_il: adesso.toISOString(),
+    },
+  }
+}
+
+// La riga dei consumi di una prenotazione scaduta: la stima come costo,
+// nel mese in cui era stata prenotata, con l'esito che lo dice.
+function rigaInterrotta(p, adesso = new Date()) {
+  return {
+    il: adesso.toISOString(),
+    mese: p.mese || meseDi(new Date(p.il)),
+    tipo: p.tipo || null,
+    modello: null,
+    token_input: 0,
+    token_output: 0,
+    fallback: false,
+    costo_microeuro: Number(p.stima) || 0,
+    esito: 'interrotta',
+    prenotata_il: p.il || null,
   }
 }
 
@@ -538,6 +683,14 @@ module.exports = {
   stimaMassimaMicroeuro,
   puoChiedere,
   rispostaCredito,
+  SENZA_AI_NEL_PIANO,
+  aiConcessa,
+  TIMEOUT_AI_SECONDI,
+  SCADENZA_PRENOTAZIONE_MS,
+  MAX_CONTEMPORANEE,
+  prenota,
+  chiudiPrenotazione,
+  rigaInterrotta,
   addebito,
   leggiRisposta,
   rigaConsumo,

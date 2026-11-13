@@ -51,7 +51,7 @@ import { PIANI, MODULI, prezzoMensile, euro, baseMancante, senzaOrfani } from '.
 import { prezzoConSconto, scontoDetto, usiDetti, CODICE_VALIDO, REGOLA_CODICE, LIMITE_PER_IL_CENTO, generaCodice } from '../lib/sconti.js'
 import CatalogoTemi, { EditorTema } from './CatalogoTemi.jsx'
 import { contattoDi } from '../lib/clienti.js'
-import { statoCredito, euroCent } from '../lib/ai.js'
+import { statoCredito, euroCent, aiNelPiano } from '../lib/ai.js'
 import { GRUPPI, TAG, aggiornamentoDetto, runNellErrore } from '../lib/rilasci.js'
 import { BASE, SEZIONI, VISTE, aggiornamentoFallito, aggiornaLaRegia, contiDelBackoffice, filtraLocali, profiloDaAutorizzare } from '../lib/backoffice.js'
 import Rilasci from './Rilasci.jsx'
@@ -622,7 +622,11 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
   const [gestioneAperta, setGestioneAperta] = useState(false)
   const licenza = istanza?.licenza_stato || 'attiva'
   const { tono, testo: statoTesto } = statoBreve(riga)
-  const aiVisibile = credito || stato === STATI.ATTIVA
+  // Il Free non ha l'AI (REQ-FLOTTA-087; Daniele, 13/11/2026: «I free non
+  // hanno l'ai»): niente riga del credito e niente tasti, o si regalerebbe
+  // un credito che la regia poi non lascia spendere.
+  const aiNelSuoPiano = aiNelPiano(c, istanza)
+  const aiVisibile = aiNelSuoPiano && (credito || stato === STATI.ATTIVA)
   return (
     <article className={`locale tono-${tono}`} aria-label={c.nome_locale}>
       <header className="locale-testa">
@@ -746,23 +750,25 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
             </dd>
           </div>
         )}
-        <div>
-          <dt>Credito AI</dt>
-          <dd>
-            {credito ? (
-              <>
-                <span data-testid={`credito-${c.slug}`}>{euroCent(credito.credito)}</span>
-                <div className="muted small">
-                  mese {euroCent(credito.spesoMese)} / {euroCent(credito.tetto)}
-                  {!credito.attivo && ' · spento'}
-                  {!credito.collegata && ' · senza chiave'}
-                </div>
-              </>
-            ) : (
-              <span className="muted">—</span>
-            )}
-          </dd>
-        </div>
+        {aiNelSuoPiano && (
+          <div>
+            <dt>Credito AI</dt>
+            <dd>
+              {credito ? (
+                <>
+                  <span data-testid={`credito-${c.slug}`}>{euroCent(credito.credito)}</span>
+                  <div className="muted small">
+                    mese {euroCent(credito.spesoMese)} / {euroCent(credito.tetto)}
+                    {!credito.attivo && ' · spento'}
+                    {!credito.collegata && ' · senza chiave'}
+                  </div>
+                </>
+              ) : (
+                <span className="muted">—</span>
+              )}
+            </dd>
+          </div>
+        )}
         {istanza?.licenza_protetta?.ok === false && (
           // BUG-125: con l'app nuova un locale senza licenza protetta si ferma.
           <div>
