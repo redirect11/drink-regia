@@ -4263,6 +4263,10 @@ requirements:
       ogni richiesta (functions/piani.json → ai.modello, claude-opus-5-5):
       da qui ogni tipo di richiesta ha il suo, lo sceglie l'admin dal
       backoffice, e il valore iniziale è claude-sonnet-5-5 per tutti.
+      Sulle scelte della prima stesura di questa voce (la sezione «Modelli
+      AI» in «Vendita», le etichette, il salvataggio di un tipo alla
+      volta), lo stesso giorno: «per tutti i 10 i punti facciamo come
+      dici».
       CRITERI DI ACCETTAZIONE. (1) Il listino (functions/piani.json →
       ai.prezzi_usd_per_milione) ha claude-sonnet-5-5 con input 2, output
       10, cache_lettura 0.10 dollari per milione di token, dalla
@@ -4313,78 +4317,89 @@ requirements:
 
   - id: REQ-FLOTTA-093
     title: "Il costo massimo si misura prima di prenotare: il credito non va mai sotto zero"
-    area: "functions/lib/ai.js (stimaMassimaMicroeuro, interrogaConPrenotazione, MARGINE_CONTEGGIO, TENTATIVI_MASSIMI), functions/index.js (interrogaClaude), docs/handover.md §7"
+    area: "functions/lib/ai.js (stimaMassimaMicroeuro, parametriConteggio, interrogaConPrenotazione, chiudiPrenotazione, MARGINE_CONTEGGIO, TENTATIVI_MASSIMI), functions/index.js (interrogaClaude), src/lib/ai.js (statoCredito), src/pages/Backoffice.jsx (blocco Credito AI), docs/handover.md §7"
     description: >
-      Daniele, 13/11/2026, in chat, sul credito che oggi può scendere di
-      poco sotto zero quando una fattura costa più della sua stima per
-      byte (REQ-FLOTTA-088, punto 9): «Non deve mai succedere». Se la
-      misura non copre la richiesta, la richiesta non parte. Questa voce
-      sostituisce il punto 9 di REQ-FLOTTA-088 per il credito; per il tetto
-      al cambio di mese resta com'è.
+      Daniele, 13/11/2026, in chat, sul credito che fino a qui poteva
+      scendere di poco sotto zero quando una fattura costava più della sua
+      stima per byte (REQ-FLOTTA-088, punto 9): «Non deve mai succedere».
+      Se la misura non copre la richiesta, la richiesta non parte. Sui
+      dubbi della prima stesura di questa voce (il rifiuto a metà risposta,
+      il conteggio che non risponde, lo sforamento che capita lo stesso),
+      lo stesso giorno: «per tutti i 10 i punti facciamo come dici».
+      Questa voce sostituisce il punto 9 di REQ-FLOTTA-088 per il credito;
+      per il tetto al cambio di mese resta com'è.
       Dalla documentazione ufficiale di Anthropic, verificata il
       13/11/2026: il conteggio dei token (client.messages.countTokens
       dell'SDK) accetta PDF e immagini in base64, le istruzioni di sistema
       e i tool; è gratuito, con un suo limite di richieste al minuto; il
-      numero «è una stima, può differire di poco».
+      numero «è una stima, può differire di poco». Dalla guida di Anthropic
+      sul ripiego: un rifiuto a metà risposta si paga (ingresso e uscita già
+      scritta), e il modello di ripiego riceve il testo già scritto come
+      contesto.
       CRITERI DI ACCETTAZIONE. (1) Prima della prenotazione, dopo aver
       creato il client, la regia conta i token d'ingresso con lo stesso
-      modello, le stesse istruzioni e lo stesso messaggio che partiranno.
-      Il conteggio si inietta in interrogaConPrenotazione come `conta`,
-      accanto a `crea` e `prenota`, per provarlo con un finto; senza `conta`
-      si usa client.messages.countTokens. (2) La stima nuova è: ingresso
-      contato × (1 + MARGINE_CONTEGGIO, 5%), arrotondato in su, ×
-      TENTATIVI_MASSIMI (2), più max_tokens della risposta, al prezzo più
-      alto del listino (stimaMassimaMicroeuro(m, { inputContati })). I
-      tentativi sono 2 perché il ripiego `fallbacks: 'default'` può rifare
-      la richiesta con un altro modello e far pagare l'ingresso due volte.
-      (3) Se il conteggio fallisce (errore, limite raggiunto, risposta
-      senza un numero valido) si torna alla stima per byte di oggi, e la
-      richiesta parte. (4) Se il credito non copre la stima: 402 credito,
-      come oggi, e il modello non si chiama. (5) L'INVARIANTE, provata per
-      ogni tipo, ogni coppia di modelli (anche uno che il listino non
-      conosce) e ogni divisione dell'uscita: per ogni usage che rispetta i
-      limiti (ingresso di ogni tentativo ≤ contato × (1 + margine), uscita
-      di tutti i tentativi insieme ≤ max_tokens, al massimo 2 tentativi)
-      costoMicroeuro ≤ stima; quindi, col credito che alla prenotazione
-      copriva la stima, dopo la chiusura il credito resta ≥ 0. (6) Un costo
-      vero sopra la stima è un difetto, e lascia nei log una riga cercabile
-      `[ai] SFORAMENTO` col locale. (7) Il contratto in docs/handover.md §7
-      non dice più che il credito può scendere di poco sotto zero, e dice
-      del conteggio.
-      DA DECIDERE (Daniele). Cosa fare del credito se lo sforamento capita
-      lo stesso: Daniele ha scartato sia «il credito si ferma a zero e
-      paga Stonebit» sia «il credito va sotto zero». Finché non decide,
-      l'implementazione registra la riga `[ai] SFORAMENTO` e non cambia la
-      correzione di chiudiPrenotazione.
-      [da verificare] Come Anthropic fattura un rifiuto prima di qualunque
-      risposta (la pagina «How refusals are billed»). E, dalla guida di
-      Anthropic: un rifiuto A METÀ RISPOSTA si paga (ingresso e uscita già
-      scritta) e il ripiego riceve il testo già scritto come contesto. In
-      quel caso l'uscita dei due tentativi insieme può superare max_tokens,
-      e l'ingresso del secondo può superare il contato: l'invariante del
-      criterio 5 non lo copre. Va chiarito prima dell'implementazione se la
-      stima deve contare anche quello (per esempio uscita × 2 e ingresso
-      del secondo tentativo più max_tokens).
-      PUNTI DEBOLI. (a) Col conteggio che fallisce si torna alla stima per
-      byte, che è proprio quella che può non bastare per un PDF
-      scansionato: lì lo sforamento resta possibile. Rifiutare la fattura
-      e il tema senza conteggio sarebbe più sicuro, ma ferma l'AI quando il
-      conteggio è al limite. (b) Il conteggio è «una stima, può differire
-      di poco»: il 5% di margine è una scelta, non un numero garantito da
-      Anthropic. (c) La stima è più alta di oggi per le richieste piccole
-      (l'ingresso conta due volte) e più bassa per i PDF grossi: un locale
-      col credito basso può vedersi rifiutare una richiesta che oggi
-      partiva. (d) Una chiamata in più a ogni richiesta: più tempo prima
-      della risposta e un limite al minuto da tenere d'occhio. (e) La
-      creazione della cache (1,25 volte il prezzo d'ingresso) non è nella
-      stima: oggi le richieste non chiedono la cache, se un giorno la
-      chiedono la stima va rivista.
+      modello, le stesse istruzioni, lo stesso messaggio e lo stesso
+      output_config che partiranno (ai.parametriConteggio), senza i
+      parametri del ripiego. Il conteggio si inietta in
+      interrogaConPrenotazione come `conta`, accanto a `crea` e `prenota`,
+      per provarlo con un finto; senza `conta` si usa
+      client.messages.countTokens. (2) LA STIMA mette da parte due
+      tentativi completi, perché il ripiego `fallbacks: 'default'` può
+      rifare la richiesta con un altro modello dopo un rifiuto a metà
+      risposta: uscita 2 × max_tokens; ingresso I per il primo tentativo
+      più (I + max_tokens) per il secondo, che riceve come contesto il
+      testo già scritto, con I = ingresso contato × (1 +
+      MARGINE_CONTEGGIO, 5%) arrotondato in su. Ogni voce (ingresso,
+      uscita) al prezzo più alto del listino
+      (stimaMassimaMicroeuro(m, { inputContati })). (3) SE IL CONTEGGIO
+      NON RISPONDE (errore, limite raggiunto, numero non valido): una
+      richiesta senza file (la descrizione) usa la stima per byte, con la
+      stessa forma a due tentativi e la stima d'ingresso della richiesta
+      (stimaInputToken) al posto del contato; una richiesta con un file
+      (fattura, tema, e qualunque richiesta con un file) risponde 503 {
+      codice: 'servizio', errore: 'Il servizio AI è occupato: riprova tra
+      poco.' }, senza prenotare e senza chiamare il modello. (4) Se il
+      credito non copre la stima: 402 credito, come oggi, e il modello non
+      si chiama. (5) L'INVARIANTE, provata per ogni tipo, ogni coppia di
+      modelli (anche uno che il listino non conosce) e ogni divisione
+      dell'uscita: per ogni usage che rispetta i limiti (al massimo 2
+      tentativi; ingresso del primo ≤ I, del secondo ≤ I + max_tokens;
+      uscita di ciascun tentativo ≤ max_tokens) costoMicroeuro ≤ stima;
+      quindi, col credito che alla prenotazione copriva la stima, dopo la
+      chiusura il credito resta ≥ 0. (6) SE LO SFORAMENTO CAPITA LO STESSO
+      (costo vero > stima: è un difetto): il credito si ferma a zero, mai
+      sotto; l'importo che manca si somma a `da_recuperare_microeuro` nel
+      cassetto ai/{slug}; nei log una riga cercabile `[ai] SFORAMENTO` col
+      locale, il costo e la stima; la riga dei consumi tiene il costo vero.
+      (7) Nel backoffice, nel blocco Credito AI della scheda del locale, un
+      avviso con l'importo da recuperare quando `da_recuperare_microeuro` è
+      sopra zero. (8) Il contratto in docs/handover.md §7 non dice più che
+      il credito può scendere di poco sotto zero, e dice del conteggio, del
+      503 per le richieste con un file e dell'importo da recuperare.
+      PUNTI DEBOLI. (a) Il conteggio è «una stima, può differire di poco»:
+      il 5% di margine è una scelta, non un numero garantito da Anthropic.
+      (b) La stima è più alta di oggi, anche per le descrizioni (due
+      tentativi completi): un locale col credito basso può vedersi
+      rifiutare una richiesta che prima partiva, e il credito che rende
+      `attivo` la risposta di { tipo: 'credito' } sale. (c) Quando il
+      conteggio è al limite, fatture e temi rispondono 503 finché non
+      torna. (d) Una chiamata in più a ogni richiesta: più tempo prima della
+      risposta. (e) La creazione della cache (1,25 volte il prezzo
+      d'ingresso) non è nella stima: oggi le richieste non chiedono la
+      cache, se un giorno la chiedono la stima va rivista. (f) Come
+      Anthropic fattura un rifiuto prima di qualunque risposta resta [da
+      verificare]: la stima lo copre comunque, perché conta due tentativi
+      interi. (g) L'importo da recuperare si mostra all'admin ma non si
+      recupera da solo: come recuperarlo (dal credito della prossima
+      ricarica, o a mano) non è deciso.
     status: todo
     generate_issue: true
     labels: [regia, ai, sicurezza]
     priority: P1
     test_cases:
       - tests/ai-conteggio.test.js
+      - tests/ai-prenotazione.test.js
+      - tests/Backoffice.test.jsx
 
   - id: REQ-FLOTTA-091
     title: "Il credito chiesto dall'app dice se il locale può ricaricare e dove: ricaricabile e ricarica_url"

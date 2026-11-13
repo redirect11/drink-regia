@@ -1778,3 +1778,26 @@ describe('il modello AI nel backoffice', () => {
     expect(db.impostaModelliAI).toHaveBeenCalledWith({ descrizione: 'claude-opus-5-5' })
   })
 })
+
+// LO SFORAMENTO DEL CREDITO AI (REQ-FLOTTA-093). Daniele, 13/11/2026: il
+// credito non va mai sotto zero; se il costo vero supera lo stesso la stima
+// (un difetto), quello che manca si segna in da_recuperare_microeuro e
+// l'admin lo vede nella scheda del locale.
+describe('il credito AI da recuperare', () => {
+  it('nel blocco Credito AI un avviso con l’importo da recuperare', async () => {
+    db.elencoCassettiAI.mockResolvedValue({ 'bar-attivo': { credito_microeuro: 0, da_recuperare_microeuro: 1_234_567 } })
+    mostra()
+    const attivo = await apri('Bar Attivo')
+    const blocco = within(attivo).getByRole('region', { name: 'Credito AI' })
+    const avviso = within(blocco).getByTestId('da-recuperare-bar-attivo')
+    expect(avviso).toHaveTextContent('1,23 €')
+    expect(avviso).toHaveTextContent(/da recuperare/i)
+  })
+
+  it('senza niente da recuperare, nessun avviso', async () => {
+    db.elencoCassettiAI.mockResolvedValue({ 'bar-attivo': { credito_microeuro: 5_000_000, da_recuperare_microeuro: 0 } })
+    mostra()
+    const attivo = await apri('Bar Attivo')
+    expect(within(attivo).queryByTestId('da-recuperare-bar-attivo')).toBeNull()
+  })
+})
