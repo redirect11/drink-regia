@@ -36,7 +36,9 @@ describe('la stima massima', () => {
     const usd = (pin, pout) => (ingresso * pin + uscita * pout) / 1e6
     const prezzi = Object.values(AI.prezzi_usd_per_milione)
     const piuCaro = usd(Math.max(...prezzi.map((p) => p.input)), Math.max(...prezzi.map((p) => p.output)))
-    expect(ai.stimaMassimaMicroeuro(m)).toBe(Math.ceil(piuCaro * AI.cambio_eur_per_usd * AI.ricarico * 1_000_000))
+    // Più un micro-euro per gli arrotondamenti in virgola mobile
+    // (revisione della PR #234).
+    expect(ai.stimaMassimaMicroeuro(m)).toBe(Math.ceil(piuCaro * AI.cambio_eur_per_usd * AI.ricarico * 1_000_000) + 1)
     // Con il listino di oggi il modello chiesto non è il più caro.
     const chiesto = AI.prezzi_usd_per_milione[AI.modello]
     expect(ai.stimaMassimaMicroeuro(m)).toBeGreaterThan(Math.ceil(usd(chiesto.input, chiesto.output) * AI.cambio_eur_per_usd * AI.ricarico * 1_000_000))

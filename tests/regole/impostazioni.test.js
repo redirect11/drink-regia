@@ -56,6 +56,39 @@ describe('impostazioni/{doc}: la scrittura', () => {
     await assertSucceeds(deleteDoc(doc(db, 'impostazioni/aggiornamenti')))
   })
 
+  // REQ-FLOTTA-092, Daniele, 13/11/2026: «il modo più sicuro». Il modello
+  // AI per tipo e i limiti della chat passano solo dalle Functions
+  // (gestisciModelliAI, gestisciLimitiChat), che ricontrollano i valori.
+  it('nemmeno l’admin scrive ai_modelli o limiti_chat direttamente', async () => {
+    const db = CHI.admin(env)
+    await assertFails(setDoc(doc(db, 'impostazioni/regia'), { ai_modelli: { fattura: 'claude-opus-5-5' } }, { merge: true }))
+    await assertFails(updateDoc(doc(db, 'impostazioni/regia'), { 'ai_modelli.descrizione': 'claude-inventato-9' }))
+    await assertFails(setDoc(doc(db, 'impostazioni/regia'), { limiti_chat: { messaggi_al_giorno: 1000 } }, { merge: true }))
+    // Nemmeno insieme a una chiave permessa.
+    await assertFails(setDoc(doc(db, 'impostazioni/regia'), { deploy_automatico: true, ai_modelli: { chat: 'claude-opus-5-5' } }, { merge: true }))
+  })
+
+  it('nemmeno creando il documento, riscrivendolo intero o cancellandolo quando le porta', async () => {
+    const db = CHI.admin(env)
+    await assertSucceeds(deleteDoc(doc(db, 'impostazioni/regia')))
+    await assertFails(setDoc(doc(db, 'impostazioni/regia'), { deploy_automatico: false, ai_modelli: { fattura: 'claude-opus-5-5' } }))
+    await semina(env, 'impostazioni/regia', { ...REGIA, ai_modelli: { fattura: 'claude-opus-5-5' }, limiti_chat: { messaggi_al_giorno: 50 } })
+    // Riscriverlo intero senza le due chiavi le toglierebbe.
+    await assertFails(setDoc(doc(db, 'impostazioni/regia'), { deploy_automatico: false }))
+    await assertFails(deleteDoc(doc(db, 'impostazioni/regia')))
+  })
+
+  it('le altre chiavi l’admin le scrive come prima, anche quando il documento porta ai_modelli e limiti_chat', async () => {
+    const db = CHI.admin(env)
+    await semina(env, 'impostazioni/regia', { ...REGIA, ai_modelli: { fattura: 'claude-opus-5-5' }, limiti_chat: { messaggi_al_giorno: 50 } })
+    await assertSucceeds(setDoc(doc(db, 'impostazioni/regia'), { deploy_automatico: false, aggiornate_il: '2026-11-13T10:00:00.000Z' }, { merge: true }))
+    await assertSucceeds(setDoc(doc(db, 'impostazioni/regia'), { attivazione_simulata: true, aggiornate_il: '2026-11-13T10:01:00.000Z' }, { merge: true }))
+    // Lo stesso valore riscritto non cambia la chiave: passa.
+    await assertSucceeds(setDoc(doc(db, 'impostazioni/regia'), { deploy_automatico: true, ai_modelli: { fattura: 'claude-opus-5-5' } }, { merge: true }))
+    // Le altre impostazioni non hanno chiavi chiuse.
+    await assertSucceeds(setDoc(doc(db, 'impostazioni/aggiornamenti'), { ...AGGIORNAMENTI, ai_modelli: 'qui non conta' }))
+  })
+
   it('un titolare non le scrive, e nemmeno chi non ha fatto l’accesso', async () => {
     await assertFails(updateDoc(doc(CHI.clienteA(env), 'impostazioni/regia'), { deploy_automatico: false }))
     await assertFails(updateDoc(doc(CHI.clienteA(env), 'impostazioni/regia'), { giorni_grazia: 365 }))

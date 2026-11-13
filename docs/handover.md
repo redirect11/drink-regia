@@ -1238,8 +1238,11 @@ moduli, la licenza nell'istanza e la Tana.
   codice: "servizio" }` senza prenotare niente, da riprovare come gli
   altri 503. Se una richiesta costasse lo stesso più della stima (un
   difetto), il credito si ferma a zero e il resto la regia lo segna in
-  `da_recuperare_microeuro` nel cassetto, per l'admin: per l'app il
-  credito è zero e la richiesta dopo riceve `402 credito`. `risultato` per la descrizione è `{ descrizione, da_verificare:
+  `sforato_microeuro` nel cassetto, per l'admin: è un costo che Stonebit
+  si accolla (Daniele, 13/11/2026: «gestisco io a mano. In realtà è un
+  costo che ci accolliamo»), non un debito del locale. Per l'app il
+  credito è zero e la richiesta dopo riceve `402 credito`. Il conteggio
+  ha un tempo massimo di 10 secondi, poi vale come non riuscito. `risultato` per la descrizione è `{ descrizione, da_verificare:
   [] }`; per la fattura `{ fornitore: { ragione_sociale, partita_iva },
   numero, data, righe: [{ descrizione, codice, quantita, unita,
   prezzo_unitario, sconto_percentuale, aliquota_iva, importo }],
