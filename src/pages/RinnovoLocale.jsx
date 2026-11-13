@@ -72,9 +72,12 @@ export default function RinnovoLocale({ cliente, istanza, vai = (url) => window.
     <section className="card avviso" aria-label="Rinnovo del locale">
       {s.tipo === 'chiuso' && (
         <>
-          <h3>Il locale è chiuso</h3>
+          {/* La chiusura per pagamento che aspetta il suo momento fuori
+              servizio (REQ-FLOTTA-095): l'app lavora ancora, e lo si dice. */}
+          <h3>{s.siFerma ? 'Il locale sta per essere chiuso' : 'Il locale è chiuso'}</h3>
           <p>
-            Il tuo locale è chiuso{s.dal ? ` dal ${giorno(s.dal)}` : ''}. Per qualsiasi domanda scrivici a <Contatti email={s.email} />.
+            {s.siFerma ? `L’abbonamento è disdetto: l’app del tuo locale si ferma ${momento(s.siFerma)}.` : `Il tuo locale è chiuso${s.dal ? ` dal ${giorno(s.dal)}` : ''}.`} Per
+            qualsiasi domanda scrivici a <Contatti email={s.email} />.
           </p>
           <p className="muted small">
             {s.cancellazione
@@ -86,7 +89,7 @@ export default function RinnovoLocale({ cliente, istanza, vai = (url) => window.
 
       {s.tipo === 'sospeso' && s.paga && (
         <>
-          <h3>Il locale è sospeso</h3>
+          <h3>{s.siFerma ? 'Il locale sta per essere sospeso' : 'Il locale è sospeso'}</h3>
           <p>
             {s.siFerma
               ? `L’abbonamento non risulta pagato: l’app del tuo locale si ferma ${momento(s.siFerma)}.`
@@ -107,13 +110,23 @@ export default function RinnovoLocale({ cliente, istanza, vai = (url) => window.
 
       {s.tipo === 'sospeso' && !s.paga && (
         <>
-          <h3>Il locale è sospeso</h3>
+          <h3>{s.siFerma ? 'Il locale sta per essere sospeso' : 'Il locale è sospeso'}</h3>
           {/* La frase di Daniele (13/11/2026): coi pagamenti spenti, per una
-              sospensione dell'admin o un abbonamento a mano, solo i contatti. */}
-          <p>
-            Il tuo locale è sospeso: per riattivarlo scrivici a <Contatti email={s.email} />.
-          </p>
-          {s.dal && <p className="muted small">Sospeso dal {giorno(s.dal)}.</p>}
+              sospensione dell'admin o un abbonamento a mano, solo i contatti.
+              Una per pagamento che aspetta il suo momento dice quando. */}
+          {s.siFerma ? (
+            <p>
+              L’abbonamento non risulta pagato: l’app del tuo locale si ferma {momento(s.siFerma)}. Per evitarlo scrivici a{' '}
+              <Contatti email={s.email} />.
+            </p>
+          ) : (
+            <>
+              <p>
+                Il tuo locale è sospeso: per riattivarlo scrivici a <Contatti email={s.email} />.
+              </p>
+              {s.dal && <p className="muted small">Sospeso dal {giorno(s.dal)}.</p>}
+            </>
+          )}
         </>
       )}
 

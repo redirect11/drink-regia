@@ -268,6 +268,48 @@ describe('il backoffice', () => {
     expect(db.impostaStatoIstanza).toHaveBeenLastCalledWith('bar-attivo', 'attiva', null)
   })
 
+  // REQ-FLOTTA-095, revisione del 13/11/2026. Una sospensione per pagamento
+  // che aspetta il suo momento fuori servizio: la riga dice quando, con
+  // l'ora (ora di Roma), e la scheda ha «Sospendi subito», cioè una
+  // sospensione dell'admin, immediata (D6).
+  it('una sospensione per pagamento che aspetta: «sospensione il …» con l’ora, e «Sospendi subito»', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(window, 'prompt').mockReturnValue('sospeso subito dall’amministratore')
+    db.elencoIstanze.mockResolvedValue({
+      'bar-attivo': {
+        stato: 'attiva',
+        progetto: 'drinkpos-bar-attivo',
+        versione: 'v1.10.0',
+        licenza_stato: 'sospesa',
+        licenza_per: 'pagamento',
+        licenza_motivo: 'pagamento non ricevuto',
+        sospensione_al: { dal: '2026-12-23T09:16:00.000Z', stato: 'sospesa' },
+      },
+    })
+    mostra()
+    expect((await righeLocali()).find((r) => r.textContent.includes('Bar Attivo'))).toHaveTextContent(/sospensione il 23\/12\/2026,? 10:16/)
+    const scheda = await apri('Bar Attivo')
+    const fondo = scheda.querySelector('.locale-fondo')
+    expect(within(fondo).queryAllByRole('button').map((b) => b.textContent)).toEqual(['Sospendi subito', 'Riattiva'])
+    await user.click(within(fondo).getByRole('button', { name: 'Sospendi subito' }))
+    expect(db.impostaStatoIstanza).toHaveBeenLastCalledWith('bar-attivo', 'sospesa', 'sospeso subito dall’amministratore')
+  })
+
+  it('«Sospendi subito» c’è solo mentre la sospensione aspetta, e si può annullare dal motivo', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(window, 'prompt').mockReturnValue(null)
+    db.elencoIstanze.mockResolvedValue({
+      'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', versione: 'v1.10.0', licenza_stato: 'sospesa', licenza_per: 'pagamento', licenza_motivo: 'pagamento non ricevuto', sospensione_al: { dal: '2026-12-23T09:16:00.000Z', stato: 'sospesa' } },
+      'bar-rotto': { stato: 'attiva', progetto: 'drinkpos-bar-rotto', versione: 'v1.10.0', licenza_stato: 'sospesa', licenza_per: 'pagamento', licenza_motivo: 'pagamento non ricevuto' },
+    })
+    mostra()
+    const fermo = await apri('Bar Rotto')
+    expect(within(fermo).queryByRole('button', { name: 'Sospendi subito' })).toBeNull()
+    const inAttesa = await apri('Bar Attivo')
+    await user.click(within(inAttesa).getByRole('button', { name: 'Sospendi subito' }))
+    expect(db.impostaStatoIstanza).not.toHaveBeenCalled()
+  })
+
   // REQ-FLOTTA-009: l'app di base è tana-drink; un aggiornamento si porta
   // a un locale solo con «Aggiorna». A tutti ci arriva a ondate
   // (REQ-FLOTTA-012): «Aggiorna tutte» non c'è più. Dal 30/10/2026 il

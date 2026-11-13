@@ -1086,7 +1086,11 @@ moduli, la licenza nell'istanza e la Tana.
   ore, meno di un'ora fra chiusura e apertura) all'ora dell'attivazione
   anche in servizio; senza orari, al taglio della giornata. Fino ad allora
   la licenza tiene lo stato di prima (`attiva`), e il locale lavora fino a
-  circa un giorno dopo il «non pagato». Gli orari restano nella regia
+  quasi due giorni dopo il «non pagato» (Daniele, 13/11/2026: «Tenere la
+  regola così e accettare fino a quasi due giorni … ok»): per esempio 28,5
+  ore con un servizio 18:00–02:00 e l'abbonamento attivato alle 21:30, e
+  circa 46 ore con un servizio dalle 10 alle 08 del giorno dopo. Un giorno
+  aperto 24 ore si scrive 00:00–24:00. Gli orari restano nella regia
   (`clienti/{uid}.orari_servizio`): la licenza non li porta. Le sospensioni
   e le chiusure dell'admin o del titolare valgono subito. **Per l'app**:
   lo stato arriva quando arriva, e l'app lo applica appena lo legge, anche

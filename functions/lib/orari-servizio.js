@@ -22,9 +22,11 @@
 // gli lascia locale, fatturazione, referente e consensi).
 
 const { prossimoTaglio, ORA_DEL_TAGLIO } = require('./taglio.js')
+const { scadenzaPagamento, GIORNI_DI_GRAZIA } = require('./scadenze.js')
 
 const TZ = 'Europe/Rome'
 const GIORNI = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom']
+const NOMI_GIORNI = { lun: 'Lunedì', mar: 'Martedì', mer: 'Mercoledì', gio: 'Giovedì', ven: 'Venerdì', sab: 'Sabato', dom: 'Domenica' }
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
 const ORA = 3600000
 const GIORNO = 24 * ORA
@@ -50,11 +52,24 @@ class OrariRifiutati extends Error {
 
 const minuti = (hhmm) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3))
 const chiuso = (g) => g?.chiuso === true
+// APERTO 24 ORE (Daniele, 13/11/2026: «se è h24 fai 0 - 24»): apertura
+// 00:00 e chiusura 24:00. «24:00» vale solo come chiusura di un giorno che
+// apre alle 00:00; apertura e chiusura alla stessa ora non sono più 24 ore.
+const H24 = { apre: '00:00', chiude: '24:00' }
+const h24 = (g) => g?.apre === H24.apre && g?.chiude === H24.chiude
 // Quanti minuti dura il servizio di un giorno: la chiusura prima
-// dell'apertura è il giorno dopo, alla stessa ora sono 24 ore.
+// dell'apertura è il giorno dopo; 00:00–24:00 sono 24 ore.
 const durata = (g) => {
   const d = minuti(g.chiude) - minuti(g.apre)
   return d > 0 ? d : d + 1440
+}
+
+// Un giorno a parole, come nel sito: «18:00–02:00 (fino al giorno dopo)»,
+// «aperto 24 ore (00:00–24:00)», «chiuso». Serve all'email all'admin.
+function giornoDetto(g) {
+  if (!g || chiuso(g)) return 'chiuso'
+  if (h24(g)) return 'aperto 24 ore (00:00–24:00)'
+  return minuti(g.chiude) < minuti(g.apre) ? `${g.apre}–${g.chiude} (fino al giorno dopo)` : `${g.apre}–${g.chiude}`
 }
 
 // Perché gli orari non vanno, giorno per giorno ({ lun: '…', orari: '…' });
@@ -65,7 +80,10 @@ function problemiOrari(giorni) {
     const g = giorni?.[id]
     if (chiuso(g)) continue
     if (!g || g.apre == null || g.chiude == null || g.apre === '' || g.chiude === '') problemi[id] = 'Scrivi apertura e chiusura, o segna il giorno come chiuso.'
+    else if (h24(g)) continue
+    else if (g.chiude === '24:00') problemi[id] = 'La chiusura 24:00 vale solo con l’apertura 00:00 (aperto 24 ore).'
     else if (!HHMM.test(String(g.apre)) || !HHMM.test(String(g.chiude)) || typeof g.apre !== 'string' || typeof g.chiude !== 'string') problemi[id] = 'Orario non valido: scrivi HH:MM, per esempio 18:30.'
+    else if (g.apre === g.chiude) problemi[id] = 'Apertura e chiusura coincidono: per un giorno aperto 24 ore scrivi 00:00–24:00.'
   }
   if (!Object.keys(problemi).length && GIORNI.every((id) => chiuso(giorni[id]))) problemi.orari = 'Almeno un giorno deve essere aperto.'
   return problemi
@@ -97,9 +115,19 @@ function giorniSenzaPausa(giorni) {
 // ── I 7 GIORNI E LE RICHIESTE ─────────────────────────────────────────
 
 // Fino a quando il titolare li corregge da solo: 7 giorni da quando sono
-// stati scritti la prima volta. Null se non ci sono ancora.
+// stati scritti la prima volta. Null se non ci sono ancora, o se la data
+// non è valida: allora gli orari sono correggibili, e il primo salvataggio
+// fa partire i 7 giorni (revisione del 13/11/2026, D8: il sito e la regia
+// la pensano uguale).
+// `correggibili_fino`, se c'è, vale da sé: la mette l'admin quando scrive
+// gli orari di un locale che non li aveva (Daniele, 13/11/2026), così i 7
+// giorni del titolare non partono.
+const istante = (iso) => Date.parse(typeof iso === 'string' ? iso : '')
 function correggibiliFino(cliente) {
-  const dal = Date.parse(cliente?.orari_servizio?.impostati_il || '')
+  const os = cliente?.orari_servizio
+  const fissata = istante(os?.correggibili_fino)
+  if (Number.isFinite(fissata)) return new Date(fissata).toISOString()
+  const dal = istante(os?.impostati_il)
   return Number.isFinite(dal) ? new Date(dal + GIORNI_DI_CORREZIONE * GIORNO).toISOString() : null
 }
 
@@ -137,7 +165,8 @@ function correzioneDelTitolare(cliente, giorni, { uid, adesso = new Date() }) {
       richiesta: null,
       ...(os || {}),
       giorni: nuovi,
-      impostati_il: os?.giorni && os.impostati_il ? os.impostati_il : quando,
+      // Una data non valida non conta (D8): i 7 giorni partono adesso.
+      impostati_il: os?.giorni && Number.isFinite(istante(os.impostati_il)) ? os.impostati_il : quando,
       storia: conTraccia(os?.storia, traccia),
     },
   }
@@ -162,6 +191,34 @@ function richiestaDiCambio(cliente, giorni, motivo, { uid, adesso = new Date() }
 // LA DECISIONE DELL'ADMIN dal backoffice: approvata, valgono gli orari
 // nuovi; rifiutata, restano quelli di prima. In tutti e due i casi la
 // richiesta si chiude e resta la traccia.
+// GLI ORARI SCRITTI DALL'ADMIN (Daniele, 13/11/2026: «si»): in qualunque
+// momento, per qualunque locale, anche uno creato da lui che non ne ha. La
+// stessa validazione, e la traccia (chi è l'admin, prima, dopo, la nota).
+// Una richiesta in attesa resta: l'admin la decide a parte.
+// Se gli orari non avevano una data valida, la scrittura dell'admin NON
+// apre i 7 giorni del titolare: impostati_il è adesso (sono stati scritti
+// adesso) e correggibili_fino è adesso, quindi da sé il titolare non li
+// corregge, e per cambiarli chiede. Scelto un campo a parte invece di
+// spostare indietro impostati_il: la data resta vera, e la traccia pure.
+// Con una data, i 7 giorni restano quelli che erano.
+function scritturaDellAdmin(cliente, giorni, { admin, nota = null, adesso = new Date() }) {
+  const os = cliente?.orari_servizio
+  const nuovi = controllati(giorni)
+  const quando = adesso.toISOString()
+  const conData = Number.isFinite(istante(os?.impostati_il))
+  const traccia = { tipo: 'admin', chi: admin, quando, prima: os?.giorni || null, dopo: nuovi, motivo: null, nota: String(nota ?? '').trim().slice(0, TESTO_MASSIMO) || null }
+  return {
+    orari_servizio: {
+      richiesta: null,
+      ...(os || {}),
+      giorni: nuovi,
+      impostati_il: conData ? os.impostati_il : quando,
+      ...(conData ? {} : { correggibili_fino: quando }),
+      storia: conTraccia(os?.storia, traccia),
+    },
+  }
+}
+
 function decisioneSullaRichiesta(cliente, { esito, admin, adesso = new Date(), nota = null }) {
   const os = cliente?.orari_servizio
   const r = os?.richiesta
@@ -283,8 +340,22 @@ function quandoSospendere(cliente, { adesso = new Date(), oraTaglio = ORA_DEL_TA
 // decidiCambioOrari) rileggono il cliente dentro una transazione e ci
 // scrivono il blocco intero: due richieste insieme non si sovrascrivono a
 // metà, e una decisione dell'admin vede la richiesta com'è adesso.
+// L'uid arriva dal browser solo per l'admin (decidiCambioOrari): si
+// controlla prima di farne un percorso (revisione del 13/11/2026).
+const UID_VALIDO = /^[A-Za-z0-9_-]{1,128}$/
+
+// LA CALLABLE DEGLI ORARI SCRITTI DALL'ADMIN (scriviOrariAdmin in
+// index.js): solo col claim admin; l'uid del cliente arriva dal browser e
+// cambiaOrari lo controlla. Qui e non in index.js perché si prova da sola.
+async function orariDellAdmin(db, auth, dati, { adesso = new Date() } = {}) {
+  if (auth?.token?.admin !== true) throw new OrariRifiutati('permission-denied', 'Solo l’amministratore.')
+  const admin = auth.token.email || auth.uid
+  return cambiaOrari(db, String(dati?.uid || ''), (c) => scritturaDellAdmin(c, dati?.giorni, { admin, nota: dati?.nota, adesso }))
+}
+
 async function cambiaOrari(db, uid, cambio) {
   if (!uid) throw new OrariRifiutati('invalid-argument', 'Manca il cliente.')
+  if (!UID_VALIDO.test(uid)) throw new OrariRifiutati('invalid-argument', 'Cliente non valido.')
   const ref = db.doc(`clienti/${uid}`)
   return db.runTransaction(async (t) => {
     const snap = await t.get(ref)
@@ -295,9 +366,73 @@ async function cambiaOrari(db, uid, cambio) {
   })
 }
 
+// ── LA SOSPENSIONE PER PAGAMENTO, DALLA PARTE DELL'ISTANZA ────────────
+// (revisione del 13/11/2026, D1 e D3: logica pura, provata da sola)
+
+const ferma = (stato) => stato === 'sospesa' || stato === 'chiusa'
+// Entro quanto dalla scadenza una decisione si conta «presa alla scadenza».
+// Il compito del pagamento arriva alla scadenza e la regia decide qualche
+// secondo dopo (o dopo aver chiesto a Stripe): partire dalla decisione
+// spostava il momento al giorno dopo rispetto a valida_fino, che parte
+// dalla scadenza. Oltre l'ora (un compito fallito, rilanciato giorni dopo)
+// si parte dalla decisione: altrimenti il momento sarebbe già passato da
+// un pezzo e la sospensione arriverebbe subito, magari in servizio.
+const FINESTRA_SCADENZA = 60 * 60 * 1000
+
+// IL MOMENTO DELLO STATO PER IL PAGAMENTO: null se lo stato non è una
+// sospensione o una chiusura voluta dal pagamento (quelle dell'admin e del
+// titolare valgono subito, REQ-FLOTTA-090). Si parte da quando la regia
+// l'ha decisa (licenza_dal), così riscrivere la licenza più tardi non lo
+// sposta; o dalla scadenza del pagamento, se la decisione è arrivata entro
+// un'ora da quella: così coincide con valida_fino.
+function momentoDelloStato(ist, cliente, { oraTaglio = ORA_DEL_TAGLIO, giorniGrazia = GIORNI_DI_GRAZIA } = {}) {
+  if (ist?.licenza_per !== 'pagamento' || !ferma(ist.licenza_stato)) return null
+  const deciso = Date.parse(ist.licenza_dal || '')
+  if (!Number.isFinite(deciso)) return null
+  const scadenza = Date.parse(scadenzaPagamento(cliente, giorniGrazia) || '')
+  const da = Number.isFinite(scadenza) && scadenza <= deciso && deciso - scadenza <= FINESTRA_SCADENZA ? scadenza : deciso
+  return quandoSospendere(cliente, { adesso: new Date(da), oraTaglio }).toISOString()
+}
+
+// È arrivato il compito «sospensione»: vale ancora? Solo se l'istanza
+// aspetta proprio quel momento e lo stato è ancora fermo per il pagamento.
+// Chi ha pagato nel frattempo («riattiva») ha sospensione_al vuoto; un
+// compito vecchio, di un momento diverso, non fa niente; uno ripetuto dopo
+// la scrittura trova sospensione_al vuoto.
+function compitoSospensioneValido(ist, quando) {
+  const atteso = ist?.sospensione_al?.dal
+  if (!atteso || !Number.isFinite(Date.parse(quando || ''))) return false
+  return atteso === new Date(quando).toISOString() && ist.licenza_per === 'pagamento' && ferma(ist.licenza_stato)
+}
+
+// Lo stato dell'istanza è cambiato fra la lettura e la scrittura della
+// licenza (D7: il compito e «riattiva» insieme)? Allora la licenza si
+// ricalcola, invece di scrivere quella letta prima. Conta anche il momento
+// atteso (sospensione_al.dal): un'altra scrittura della licenza l'ha
+// spostato o vuotato nel frattempo.
+function statoCambiato(prima, dopo) {
+  const cambiato = ['licenza_stato', 'licenza_per', 'licenza_dal'].some((k) => (prima?.[k] ?? null) !== (dopo?.[k] ?? null))
+  return cambiato || (prima?.sospensione_al?.dal ?? null) !== (dopo?.sospensione_al?.dal ?? null)
+}
+
+// Il locale si è fermato davvero? No se la sospensione per pagamento
+// aspettava ancora il suo momento: il locale non ha mai smesso di lavorare,
+// e l'email «è di nuovo attivo» non deve partire.
+const fermoDavvero = (ist) => ferma(ist?.licenza_stato) && !ist?.sospensione_al?.dal
+
 module.exports = {
   cambiaOrari,
+  orariDellAdmin,
+  scritturaDellAdmin,
+  momentoDelloStato,
+  H24,
+  compitoSospensioneValido,
+  statoCambiato,
+  fermoDavvero,
+  FINESTRA_SCADENZA,
   GIORNI,
+  NOMI_GIORNI,
+  giornoDetto,
   GIORNI_DI_CORREZIONE,
   MOTIVO_MINIMO,
   STORIA_MASSIMA,

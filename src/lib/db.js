@@ -212,6 +212,8 @@ async function chiama(nome, dati) {
 export const correggiOrari = (giorni) => chiama('correggiOrari', { giorni })
 export const chiediCambioOrari = (giorni, motivo) => chiama('chiediCambioOrari', { giorni, motivo })
 export const decidiCambioOrari = (uid, esito, nota = null) => chiama('decidiCambioOrari', { uid, esito, nota })
+// L'admin scrive o corregge gli orari di un locale (Daniele, 13/11/2026: «si»).
+export const scriviOrariAdmin = (uid, giorni, nota = null) => chiama('scriviOrariAdmin', { uid, giorni, nota })
 
 // Quando la query dell'istanza è vuota: la regia dice se un'app c'è ed è
 // legata a un altro account ('scollegata'), se non c'è ('nessuna') o se è

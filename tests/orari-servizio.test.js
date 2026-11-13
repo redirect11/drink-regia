@@ -80,14 +80,31 @@ describe('gli orari di servizio: uno per giorno', () => {
 
   // Daniele, 13/11/2026 («per tutti i 10 i punti facciamo come dici»): i
   // locali aperti 24 ore, o con meno di un'ora fra la chiusura e l'apertura
-  // dopo, si possono registrare. Apertura e chiusura alla stessa ora vuol
-  // dire aperto 24 ore, fino alla stessa ora del giorno dopo.
-  it('aperto 24 ore (apertura e chiusura alla stessa ora) e senza pausa fra un giorno e l’altro si registrano', () => {
-    const { problemiOrari } = orari()
-    expect(problemiOrari(tutti(aperto('00:00', '00:00')))).toEqual({})
-    expect(problemiOrari({ ...SERA, gio: aperto('18:00', '18:00') })).toEqual({})
+  // dopo, si possono registrare. Un giorno aperto 24 ore si scrive
+  // 00:00–24:00 (Daniele, 13/11/2026: «se è h24 fai 0 - 24»).
+  it('aperto 24 ore (00:00–24:00) e senza pausa fra un giorno e l’altro si registrano', () => {
+    const { problemiOrari, H24 } = orari()
+    expect(H24).toEqual({ apre: '00:00', chiude: '24:00' })
+    expect(problemiOrari(tutti(aperto('00:00', '24:00')))).toEqual({})
+    expect(problemiOrari({ ...SERA, gio: aperto('00:00', '24:00') })).toEqual({})
     expect(problemiOrari(tutti(aperto('08:00', '07:30')))).toEqual({})
     expect(problemiOrari({ ...tutti(CHIUSO), dom: aperto('20:00', '09:00'), lun: aperto('08:00', '12:00') })).toEqual({})
+  })
+
+  // Apertura uguale alla chiusura non vuol più dire 24 ore: era ambiguo
+  // (aperto 24 ore o un errore di battitura?). L'errore suggerisce la
+  // forma giusta; 24:00 vale solo come chiusura di un giorno che apre alle
+  // 00:00.
+  it('apertura uguale alla chiusura non è valida, e l’errore suggerisce 00:00–24:00', () => {
+    const { problemiOrari } = orari()
+    for (const ora of ['00:00', '18:00', '10:30']) {
+      const p = problemiOrari({ ...SERA, gio: aperto(ora, ora) })
+      expect(p, ora).toHaveProperty('gio')
+      expect(p.gio, ora).toContain('00:00–24:00')
+    }
+    expect(problemiOrari({ ...SERA, gio: aperto('18:00', '24:00') }).gio).toMatch(/24:00 vale solo con l’apertura 00:00/)
+    expect(problemiOrari({ ...SERA, gio: aperto('24:00', '24:00') })).toHaveProperty('gio')
+    expect(problemiOrari({ ...SERA, gio: aperto('24:00', '00:00') })).toHaveProperty('gio')
   })
 
   // Il segno per l'avviso al titolare: dopo quali giorni la chiusura non
@@ -97,14 +114,16 @@ describe('gli orari di servizio: uno per giorno', () => {
     const { giorniSenzaPausa } = orari()
     expect(giorniSenzaPausa(SERA)).toEqual([])
     expect(giorniSenzaPausa(tutti(aperto('08:00', '07:30')))).toEqual(['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'])
-    expect(giorniSenzaPausa(tutti(aperto('00:00', '00:00')))).toEqual(['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'])
+    expect(giorniSenzaPausa(tutti(aperto('00:00', '24:00')))).toEqual(['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'])
+    // Aperto 24 ore il sabato, la domenica apre alle 18: c'è pausa.
+    expect(giorniSenzaPausa({ ...SERA, sab: aperto('00:00', '24:00') })).toEqual(['ven'])
     expect(giorniSenzaPausa({ ...tutti(CHIUSO), dom: aperto('20:00', '07:30'), lun: aperto('08:00', '12:00') })).toEqual(['dom'])
     // Un'ora esatta basta.
     expect(giorniSenzaPausa({ ...tutti(CHIUSO), mar: aperto('20:00', '07:00'), mer: aperto('08:00', '12:00') })).toEqual([])
     // Il giorno dopo chiuso: la chiusura può arrivare a qualunque ora.
     expect(giorniSenzaPausa({ ...tutti(CHIUSO), mar: aperto('20:00', '11:00') })).toEqual([])
     // Aperto 24 ore un giorno solo, col giorno dopo chiuso: c'è pausa.
-    expect(giorniSenzaPausa({ ...tutti(CHIUSO), sab: aperto('10:00', '10:00') })).toEqual([])
+    expect(giorniSenzaPausa({ ...tutti(CHIUSO), sab: aperto('00:00', '24:00') })).toEqual([])
     expect(giorniSenzaPausa(null)).toEqual([])
   })
 
@@ -252,6 +271,81 @@ describe('per 7 giorni li corregge il titolare, dopo serve l’approvazione', ()
       expect(rifiuto(() => decisioneSullaRichiesta(conRichiesta(), { esito: 'forse', admin: 'admin@example.it', adesso: deciso }))?.codice).toBe('invalid-argument')
     })
   })
+
+  // Revisione del 13/11/2026, D8: con gli orari ma senza una data valida
+  // (impostati_il mancante o rotto) il sito e la regia applicano la stessa
+  // regola: gli orari sono correggibili, e il primo salvataggio fa partire
+  // i 7 giorni.
+  it('D8: con gli orari ma senza una data valida, gli orari sono correggibili', () => {
+    const { correzioneDelTitolare, correggibiliFino } = orari()
+    const adesso = new Date('2026-12-01T09:00:00.000Z')
+    for (const impostati_il of [undefined, null, '', 'ieri']) {
+      const senzaData = { uid: 'u1', orari_servizio: { giorni: SERA, impostati_il, richiesta: null, storia: [] } }
+      expect(correggibiliFino(senzaData), String(impostati_il)).toBeNull()
+      expect(sito.correggibiliFino(senzaData), String(impostati_il)).toBeNull()
+      const { orari_servizio: dopo } = correzioneDelTitolare(senzaData, PRANZO, { uid: 'u1', adesso })
+      expect(dopo.giorni).toEqual(PRANZO)
+      expect(dopo.impostati_il).toBe(adesso.toISOString())
+    }
+  })
+
+  // Daniele, 13/11/2026, sugli orari scritti dall'admin: «si». In qualunque
+  // momento, per qualunque locale, con la stessa validazione e la traccia.
+  describe('l’admin scrive gli orari dal backoffice', () => {
+    const adesso = new Date('2026-12-05T15:00:00.000Z')
+    const PRANZO_E_SERA = { ...SERA, lun: aperto('12:00', '15:00'), dom: aperto('00:00', '24:00') }
+
+    it('a un locale che non ne ha: gli orari, la traccia (chi è l’admin, prima, dopo, nota) e i 7 giorni del titolare NON partono', () => {
+      const { scritturaDellAdmin, correggibiliFino, correzioneDelTitolare, richiestaDiCambio } = orari()
+      const { orari_servizio: dopo } = scritturaDellAdmin({ uid: 'u2', slug: 'pub-vecchio' }, PRANZO_E_SERA, { admin: 'admin@example.it', nota: '  Dal sito del locale.  ', adesso })
+      expect(dopo.giorni).toEqual(PRANZO_E_SERA)
+      expect(dopo.richiesta).toBeNull()
+      expect(dopo.impostati_il).toBe(adesso.toISOString())
+      expect(dopo.correggibili_fino).toBe(adesso.toISOString())
+      expect(dopo.storia).toEqual([{ tipo: 'admin', chi: 'admin@example.it', quando: adesso.toISOString(), prima: null, dopo: PRANZO_E_SERA, motivo: null, nota: 'Dal sito del locale.' }])
+      // Il titolare non li corregge da sé: chiede il cambio.
+      const scritto = { uid: 'u2', orari_servizio: dopo }
+      expect(correggibiliFino(scritto)).toBe(adesso.toISOString())
+      expect(sito.correggibiliFino(scritto)).toBe(adesso.toISOString())
+      expect(rifiuto(() => correzioneDelTitolare(scritto, SERA, { uid: 'u2', adesso: new Date(adesso.getTime() + 1000) }))?.codice).toBe('failed-precondition')
+      expect(() => richiestaDiCambio(scritto, SERA, 'Il lunedì a pranzo non apriamo più.', { uid: 'u2', adesso: new Date(adesso.getTime() + 1000) })).not.toThrow()
+    })
+
+    it('con gli orari senza data (D8) vale lo stesso: la scrittura dell’admin non apre i 7 giorni', () => {
+      const { scritturaDellAdmin, correggibiliFino } = orari()
+      const { orari_servizio: dopo } = scritturaDellAdmin({ orari_servizio: { giorni: SERA } }, PRANZO_E_SERA, { admin: 'admin@example.it', adesso })
+      expect(correggibiliFino({ orari_servizio: dopo })).toBe(adesso.toISOString())
+      expect(dopo.storia.at(-1)).toMatchObject({ tipo: 'admin', prima: SERA, nota: null })
+    })
+
+    it('a un locale con la sua data: i 7 giorni del titolare restano quelli che erano', () => {
+      const { scritturaDellAdmin, correggibiliFino, correzioneDelTitolare } = orari()
+      const nei7 = new Date('2026-11-15T10:00:00.000Z')
+      const { orari_servizio: dopo } = scritturaDellAdmin(cliente, PRANZO_E_SERA, { admin: 'admin@example.it', adesso: nei7 })
+      expect(dopo.impostati_il).toBe(IMPOSTATI)
+      expect(dopo).not.toHaveProperty('correggibili_fino')
+      expect(correggibiliFino({ orari_servizio: dopo })).toBe(FINO)
+      expect(() => correzioneDelTitolare({ orari_servizio: dopo }, SERA, { uid: 'u1', adesso: nei7 })).not.toThrow()
+    })
+
+    it('in qualunque momento, anche dopo i 7 giorni; una richiesta in attesa resta, e l’admin la decide a parte', () => {
+      const { scritturaDellAdmin, richiestaDiCambio } = orari()
+      const conRichiesta = { ...cliente, ...richiestaDiCambio(cliente, PRANZO, 'Da dicembre apriamo anche il lunedì a pranzo.', { uid: 'u1', adesso: new Date('2026-12-01T09:00:00.000Z') }) }
+      const { orari_servizio: dopo } = scritturaDellAdmin(conRichiesta, PRANZO_E_SERA, { admin: 'admin@example.it', adesso })
+      expect(dopo.giorni).toEqual(PRANZO_E_SERA)
+      expect(dopo.richiesta).toEqual(conRichiesta.orari_servizio.richiesta)
+      expect(dopo.storia.at(-1)).toMatchObject({ tipo: 'admin', prima: SERA, dopo: PRANZO_E_SERA })
+    })
+
+    it('la stessa validazione: orari sbagliati si rifiutano, e la nota ha il suo tetto', () => {
+      const { scritturaDellAdmin, TESTO_MASSIMO } = orari()
+      expect(rifiuto(() => scritturaDellAdmin(cliente, tutti(CHIUSO), { admin: 'admin@example.it', adesso }))?.codice).toBe('invalid-argument')
+      expect(rifiuto(() => scritturaDellAdmin(cliente, { ...SERA, mar: aperto('18:00', '18:00') }, { admin: 'admin@example.it', adesso }))?.codice).toBe('invalid-argument')
+      expect(rifiuto(() => scritturaDellAdmin(cliente, null, { admin: 'admin@example.it', adesso }))?.codice).toBe('invalid-argument')
+      const { orari_servizio: dopo } = scritturaDellAdmin(cliente, SERA, { admin: 'admin@example.it', nota: 'x'.repeat(TESTO_MASSIMO + 10), adesso })
+      expect(dopo.storia.at(-1).nota).toHaveLength(TESTO_MASSIMO)
+    })
+  })
 })
 
 describe('il momento della sospensione per pagamento', () => {
@@ -326,8 +420,8 @@ describe('il momento della sospensione per pagamento', () => {
   // prossima apertura), la sospensione cade all'ora dell'attivazione anche
   // in servizio. Il titolare lo sa dall'avviso (giorniSenzaPausa).
   it('senza un momento adatto fuori servizio, all’ora dell’attivazione anche in servizio', () => {
-    // Aperto 24 ore tutti i giorni.
-    expect(momento(ALLE_21, '2026-11-18T09:00:00Z', tutti(aperto('00:00', '00:00')))).toBe('2026-11-18T20:00:00.000Z')
+    // Aperto 24 ore (00:00–24:00) tutti i giorni.
+    expect(momento(ALLE_21, '2026-11-18T09:00:00Z', tutti(aperto('00:00', '24:00')))).toBe('2026-11-18T20:00:00.000Z')
     // Dalle 8 alle 7:30 del giorno dopo: la chiusura cade nell'ora prima
     // dell'apertura dopo, quindi non va bene.
     const SENZA_PAUSA = tutti(aperto('08:00', '07:30'))
@@ -338,6 +432,40 @@ describe('il momento della sospensione per pagamento', () => {
     // Un giorno con la pausa basta per quel giorno: il sabato chiude alle 2
     // e la domenica apre alle 8.
     expect(momento(ALLE_21, '2026-11-21T09:00:00Z', { ...SENZA_PAUSA, sab: aperto('08:00', '02:00') })).toBe('2026-11-22T01:00:00.000Z')
+  })
+
+  // Daniele, 13/11/2026: «se è h24 fai 0 - 24». Il servizio di un giorno
+  // aperto 24 ore finisce alla mezzanotte del giorno dopo.
+  it('un giorno aperto 24 ore (00:00–24:00): in servizio si va alla mezzanotte, se il giorno dopo lascia la pausa', () => {
+    // Sabato 21/11 aperto 24 ore, domenica e lunedì chiusi: le 21 di sabato
+    // sono in servizio, la chiusura è la mezzanotte (le 23 UTC).
+    const SAB_H24 = { ...SERA, sab: aperto('00:00', '24:00'), dom: CHIUSO }
+    expect(momento(ALLE_21, '2026-11-21T09:00:00Z', SAB_H24)).toBe('2026-11-21T23:00:00.000Z')
+    // La domenica apre alle 18: la mezzanotte va bene lo stesso.
+    expect(momento(ALLE_21, '2026-11-21T09:00:00Z', { ...SERA, sab: aperto('00:00', '24:00') })).toBe('2026-11-21T23:00:00.000Z')
+    // Domenica aperta dalle 00:00 (24 ore anche lei): niente pausa alla
+    // mezzanotte, si resta all'ora dell'attivazione.
+    expect(momento(ALLE_21, '2026-11-21T09:00:00Z', { ...SERA, sab: aperto('00:00', '24:00'), dom: aperto('00:00', '24:00') })).toBe('2026-11-21T20:00:00.000Z')
+    // Il venerdì sera (18–02) finisce dentro il sabato aperto 24 ore.
+    expect(momento(ALLE_21, '2026-11-20T09:00:00Z', { ...SERA, sab: aperto('00:00', '24:00') })).toBe('2026-11-20T20:00:00.000Z')
+    // Col cambio dell'ora d'autunno: sabato 24/10 aperto 24 ore, domenica
+    // chiusa; la mezzanotte è ancora quella dell'ora legale (22:00 UTC).
+    expect(momento('2026-09-01T19:00:00.000Z', '2026-10-24T09:00:00Z', { ...tutti(CHIUSO), sab: aperto('00:00', '24:00') })).toBe('2026-10-24T22:00:00.000Z')
+  })
+
+  // Revisione del 13/11/2026, D4: la regola non cambia, e fra «non
+  // pagato» e la sospensione il locale lavora ancora fino a quasi due
+  // giorni. Daniele: «Tenere la regola così e accettare fino a quasi due
+  // giorni … ok». I due esempi della voce, coi loro numeri.
+  it('D4: fra la decisione e la sospensione fino a quasi due giorni (28,5 ore; circa 46 ore con un servizio dalle 10 alle 08)', () => {
+    const ore = (attivazione, adesso, giorni) => (Date.parse(momento(attivazione, adesso, giorni)) - Date.parse(adesso)) / 3600000
+    // Servizio 18–02, attivato alle 21:30, deciso alle 21:31 di mercoledì:
+    // le 21:30 di giovedì sono in servizio, la chiusura è venerdì alle 2.
+    expect(ore('2026-09-01T19:30:00.000Z', '2026-11-18T20:31:00.000Z')).toBeCloseTo(28.48, 2)
+    // Servizio dalle 10 alle 08 del giorno dopo, attivato alle 10:01, deciso
+    // alle 10:02: le 10:01 di domani sono in servizio, la chiusura è alle 8
+    // del giorno dopo ancora.
+    expect(ore('2026-11-02T09:01:00.000Z', '2026-11-18T09:02:00.000Z', tutti(aperto('10:00', '08:00')))).toBeCloseTo(45.97, 2)
   })
 
   // Criterio 5: i locali di prima.
@@ -381,8 +509,8 @@ describe('il momento della sospensione per pagamento', () => {
       orari_servizio: { giorni: SERA, impostati_il: '2026-09-01T19:00:00.000Z' },
     }
     // Pagato fino al 10/11, più 7 giorni di grazia: martedì 17/11 alle
-    // 23:59:59 UTC, cioè mercoledì all'1 di Roma. Le 21 di mercoledì sono
-    // in servizio: giovedì alle 2.
+    // 23:59:59 UTC, cioè mercoledì alle 00:59:59 di Roma. Le 21 di
+    // mercoledì sono in servizio: giovedì alle 2.
     const lic = licenzaProtetta({ stato: 'attiva' }, cliente, { adesso: new Date('2026-11-13T10:00:00Z'), oraTaglio: 5 })
     expect(lic.valida_fino).toBe('2026-11-19T01:00:00.000Z')
     // Senza orari resta com'era: il taglio dopo la scadenza.
@@ -400,6 +528,11 @@ describe('il sito e la regia dicono le stesse cose sugli orari', () => {
     SERA,
     tutti(CHIUSO),
     tutti(aperto('00:00', '00:00')),
+    tutti(aperto('00:00', '24:00')),
+    { ...SERA, sab: aperto('00:00', '24:00') },
+    { ...SERA, sab: aperto('18:00', '24:00') },
+    { ...SERA, sab: aperto('24:00', '24:00') },
+    { ...SERA, gio: aperto('10:00', '10:00') },
     tutti(aperto('08:00', '07:30')),
     { ...SERA, mar: aperto('18:00', '25:00') },
     { ...SERA, mer: {} },
@@ -410,14 +543,16 @@ describe('il sito e la regia dicono le stesse cose sugli orari', () => {
 
   it('problemiOrari, giorniSenzaPausa, orariPuliti e correggibiliFino', () => {
     for (const caso of CASI) {
-      expect(Object.keys(sito.problemiOrari(caso)), JSON.stringify(caso)).toEqual(Object.keys(orari().problemiOrari(caso)))
+      expect(sito.problemiOrari(caso), JSON.stringify(caso)).toEqual(orari().problemiOrari(caso))
       expect(sito.giorniSenzaPausa(caso), JSON.stringify(caso)).toEqual(orari().giorniSenzaPausa(caso))
     }
     const conOre = { ...SERA, lun: { chiuso: true, apre: '1', chiude: '2' } }
     expect(sito.orariPuliti(conOre)).toEqual(orari().orariPuliti(conOre))
+    for (const g of [CHIUSO, aperto('18:00', '02:00'), aperto('07:00', '15:00'), aperto('00:00', '24:00'), null]) expect(sito.giornoDetto(g)).toBe(orari().giornoDetto(g))
+    expect(sito.NOMI_GIORNI).toEqual(orari().NOMI_GIORNI)
     const c = { orari_servizio: { impostati_il: '2026-11-13T10:00:00.000Z' } }
     expect(sito.correggibiliFino(c)).toBe(orari().correggibiliFino(c))
-    expect([sito.GIORNI, sito.GIORNI_DI_CORREZIONE, sito.MOTIVO_MINIMO]).toEqual([orari().GIORNI, orari().GIORNI_DI_CORREZIONE, orari().MOTIVO_MINIMO])
+    expect([sito.GIORNI, sito.GIORNI_DI_CORREZIONE, sito.MOTIVO_MINIMO, sito.H24]).toEqual([orari().GIORNI, orari().GIORNI_DI_CORREZIONE, orari().MOTIVO_MINIMO, orari().H24])
   })
 })
 
@@ -475,6 +610,132 @@ describe('cambiaOrari: in transazione sul documento del cliente', () => {
   })
 })
 
+// La callable degli orari scritti dall'admin (scriviOrariAdmin in
+// index.js) è questa funzione: solo col claim admin, e l'uid che arriva dal
+// browser si controlla prima di farne un percorso.
+describe('orariDellAdmin: la callable degli orari scritti dall’admin', () => {
+  const cliente = { uid: 'u1', slug: 'bar-mario', orari_servizio: { giorni: SERA, impostati_il: '2026-11-13T10:00:00.000Z', richiesta: null, storia: [] } }
+  const PRANZO = { ...SERA, lun: aperto('12:00', '15:00') }
+  const ADMIN = { uid: 'a1', token: { admin: true, email: 'admin@example.it' } }
+  const adesso = new Date('2026-12-05T15:00:00.000Z')
+
+  it('l’admin scrive gli orari di un locale, con la traccia a suo nome', async () => {
+    const db = firestoreFinto({ 'clienti/u1': cliente, 'clienti/u2': { uid: 'u2', slug: 'pub-vecchio' } })
+    const scritto = await orari().orariDellAdmin(db, ADMIN, { uid: 'u1', giorni: PRANZO, nota: 'Al telefono.' }, { adesso })
+    expect(db.dati['clienti/u1'].orari_servizio).toEqual(scritto)
+    expect(scritto.giorni).toEqual(PRANZO)
+    expect(scritto.storia.at(-1)).toMatchObject({ tipo: 'admin', chi: 'admin@example.it', nota: 'Al telefono.' })
+    // Anche a un locale che non ne ha; senza email nel token, l'uid.
+    const nuovo = await orari().orariDellAdmin(db, { uid: 'a1', token: { admin: true } }, { uid: 'u2', giorni: SERA }, { adesso })
+    expect(nuovo).toMatchObject({ giorni: SERA, correggibili_fino: adesso.toISOString() })
+    expect(nuovo.storia.at(-1).chi).toBe('a1')
+  })
+
+  it('il titolare no, nemmeno sul suo locale; senza accesso nemmeno', async () => {
+    const db = firestoreFinto({ 'clienti/u1': cliente })
+    for (const auth of [{ uid: 'u1', token: {} }, { uid: 'u1', token: { admin: 'true' } }, null, undefined]) {
+      await expect(orari().orariDellAdmin(db, auth, { uid: 'u1', giorni: PRANZO }, { adesso }), JSON.stringify(auth)).rejects.toMatchObject({ codice: 'permission-denied' })
+    }
+    expect(db.scritture).toEqual([])
+  })
+
+  it('l’uid si controlla: niente percorsi costruiti dal browser, e un cliente che non c’è non si crea', async () => {
+    const db = firestoreFinto({ 'clienti/u1': cliente })
+    for (const uid of ['', undefined, '../impostazioni/regia', 'u1/altro', 'a'.repeat(129)]) {
+      await expect(orari().orariDellAdmin(db, ADMIN, { uid, giorni: PRANZO }, { adesso }), String(uid)).rejects.toMatchObject({ codice: 'invalid-argument' })
+    }
+    await expect(orari().orariDellAdmin(db, ADMIN, { uid: 'nessuno', giorni: PRANZO }, { adesso })).rejects.toMatchObject({ codice: 'not-found' })
+    await expect(orari().orariDellAdmin(db, ADMIN, { uid: 'u1', giorni: tutti(CHIUSO) }, { adesso })).rejects.toMatchObject({ codice: 'invalid-argument' })
+    expect(db.scritture).toEqual([])
+  })
+})
+
+// Daniele, 13/11/2026, sull'email: «A me arriva solo la richiesta, poi
+// rispondo io a mano al momento». Una email all'admin per richiesta, col
+// locale, gli orari di prima e dopo e il motivo; al titolare niente.
+describe('l’email all’admin per una richiesta di cambio', () => {
+  const comunica = () => require('../functions/lib/comunicazioni.js')
+  const PRANZO = { ...SERA, lun: aperto('12:00', '15:00'), dom: aperto('00:00', '24:00') }
+  const cliente = { uid: 'u1', slug: 'bar-mario', nome_locale: 'Bar Mario', email: 'titolare@example.it', orari_servizio: { giorni: SERA, impostati_il: '2026-11-13T10:00:00.000Z', richiesta: null, storia: [] } }
+  const richiesta = () => orari().richiestaDiCambio(cliente, PRANZO, 'Da dicembre apriamo anche il lunedì a pranzo.', { uid: 'u1', adesso: new Date('2026-12-01T09:30:00.000Z') }).orari_servizio.richiesta
+
+  it('il contenuto: il locale, il titolare, quando, il motivo, gli orari di prima e dopo giorno per giorno', () => {
+    const posta = comunica().emailRichiestaOrari(cliente, richiesta(), ['admin@example.it'])
+    expect(posta.to).toEqual(['admin@example.it'])
+    expect(posta.message.subject).toBe('Bar Mario chiede di cambiare gli orari di servizio')
+    const testo = posta.message.text
+    expect(testo).toContain('Bar Mario (bar-mario)')
+    expect(testo).toContain('titolare@example.it')
+    // Le 10:30 di Roma.
+    expect(testo).toContain('1 dicembre 2026, 10:30')
+    expect(testo).toContain('«Da dicembre apriamo anche il lunedì a pranzo.»')
+    expect(testo).toContain('Lunedì: chiuso → 12:00–15:00')
+    expect(testo).toContain('Martedì: 18:00–02:00 (fino al giorno dopo) (uguale)')
+    expect(testo).toContain('Domenica: 18:00–02:00 (fino al giorno dopo) → aperto 24 ore (00:00–24:00)')
+    expect(testo).toMatch(/backoffice/)
+  })
+
+  it('senza destinatari o senza richiesta, nessuna email', () => {
+    expect(comunica().emailRichiestaOrari(cliente, richiesta(), [])).toBeNull()
+    expect(comunica().emailRichiestaOrari(cliente, null, ['admin@example.it'])).toBeNull()
+  })
+
+  // L'indirizzo dell'admin è quello dell'account con cui entra nel
+  // backoffice (il claim admin): nessun indirizzo scritto nel codice.
+  it('i destinatari sono gli account col claim admin, attivi e con l’email', () => {
+    const utenti = [
+      { uid: 'a1', email: 'admin@example.it', customClaims: { admin: true } },
+      { uid: 'a2', email: 'spento@example.it', customClaims: { admin: true }, disabled: true },
+      { uid: 'a3', customClaims: { admin: true } },
+      { uid: 'u1', email: 'titolare@example.it', customClaims: {} },
+      { uid: 'u2', email: 'altro@example.it' },
+      { uid: 'a4', email: 'ADMIN@example.it', customClaims: { admin: true } },
+      { uid: 'a5', email: 'falso@example.it', customClaims: { admin: 'true' } },
+    ]
+    expect(comunica().indirizziAdmin(utenti)).toEqual(['admin@example.it'])
+    expect(comunica().indirizziAdmin(undefined)).toEqual([])
+  })
+
+  it('l’id dell’email viene dalla richiesta: lo stesso per la stessa, un altro per la successiva', () => {
+    const { idEmailRichiestaOrari } = comunica()
+    const r = richiesta()
+    expect(idEmailRichiestaOrari('u1', r)).toBe(idEmailRichiestaOrari('u1', { ...r }))
+    expect(idEmailRichiestaOrari('u1', r)).toMatch(/^orari_u1_\d+$/)
+    expect(idEmailRichiestaOrari('u1', { ...r, chiesta_il: '2027-01-10T09:00:00.000Z' })).not.toBe(idEmailRichiestaOrari('u1', r))
+    expect(idEmailRichiestaOrari('u1', { ...r, chiesta_il: 'ieri' })).toBeNull()
+  })
+
+  // Una richiesta ripetuta (la callable rilanciata dal browser, un ritento)
+  // non manda due email: il documento della coda ha l'id della richiesta e
+  // si crea solo se non c'è.
+  it('parte una volta sola per richiesta', async () => {
+    const { accodaUnaVolta } = comunica()
+    const coda = {}
+    const db = {
+      collection: (nome) => ({
+        doc: (id) => ({
+          async create(dati) {
+            if (coda[`${nome}/${id}`]) throw Object.assign(new Error('6 ALREADY_EXISTS: Document already exists'), { code: 6 })
+            coda[`${nome}/${id}`] = dati
+          },
+        }),
+      }),
+    }
+    const posta = comunica().emailRichiestaOrari(cliente, richiesta(), ['admin@example.it'])
+    const id = comunica().idEmailRichiestaOrari('u1', richiesta())
+    expect(await accodaUnaVolta(db, id, { ...posta, motivo: 'richiesta_orari' })).toBe(true)
+    expect(await accodaUnaVolta(db, id, { ...posta, motivo: 'richiesta_orari' })).toBe(false)
+    expect(Object.keys(coda)).toEqual([`mail/${id}`])
+    expect(coda[`mail/${id}`].to).toEqual(['admin@example.it'])
+    // Senza email o senza id, niente.
+    expect(await accodaUnaVolta(db, id, null)).toBe(false)
+    expect(await accodaUnaVolta(db, null, posta)).toBe(false)
+    // Un altro errore non si nasconde.
+    const rotto = { collection: () => ({ doc: () => ({ create: async () => Promise.reject(new Error('permesso negato')) }) }) }
+    await expect(accodaUnaVolta(rotto, id, posta)).rejects.toThrow('permesso negato')
+  })
+})
+
 describe('il compito della sospensione', () => {
   it('«sospensione» è un tipo di compito delle scadenze', () => {
     expect(require('../functions/lib/scadenze.js').TIPI).toContain('sospensione')
@@ -507,10 +768,37 @@ describe('functions/index.js', () => {
     expect(corpo('chiediCambioOrari')).toContain('orari.richiestaDiCambio(c, req.data?.giorni, req.data?.motivo, { uid })')
   })
 
+  // L'email all'admin parte dopo che la richiesta è salvata, una volta
+  // sola (accodaUnaVolta con l'id della richiesta); se non parte, la
+  // richiesta resta e l'admin la trova nel backoffice.
+  it('chiediCambioOrari avvisa l’admin per email dopo aver salvato la richiesta; la correzione e la decisione no', () => {
+    const fn = corpo('chiediCambioOrari')
+    expect(fn).toContain('await avvisaAdminDellaRichiesta(uid, os.richiesta).catch(')
+    expect(fn.indexOf('orari.cambiaOrari(')).toBeLessThan(fn.indexOf('avvisaAdminDellaRichiesta('))
+    const avvisa = funzione('avvisaAdminDellaRichiesta')
+    expect(avvisa).toContain('comunica.indirizziAdmin(')
+    expect(avvisa).toContain('comunica.emailRichiestaOrari(')
+    expect(avvisa).toContain('comunica.accodaUnaVolta(db, comunica.idEmailRichiestaOrari(uid, richiesta),')
+    expect(corpo('correggiOrari')).not.toContain('avvisaAdmin')
+    expect(corpo('decidiCambioOrari')).not.toContain('accodaEmail')
+    expect(corpo('scriviOrariAdmin')).not.toContain('accodaEmail')
+  })
+
   it('decidiCambioOrari: solo l’admin', () => {
     const fn = corpo('decidiCambioOrari')
     expect(fn).toContain("if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied'")
     expect(fn).toContain('orari.decisioneSullaRichiesta(c, scelta)')
+  })
+
+  // Daniele, 13/11/2026: «si». Il controllo dell'admin e dell'uid sta in
+  // orariDellAdmin, provata sopra; la callable la chiama e basta. Le
+  // scadenze si ricalcolano da licenzaSegueIlPiano, come per ogni cambio
+  // degli orari (momentoSpostato).
+  it('scriviOrariAdmin: passa da orariDellAdmin con l’accesso di chi chiama', () => {
+    const fn = corpo('scriviOrariAdmin')
+    expect(fn).toContain('return { orari_servizio: await orari.orariDellAdmin(db, req.auth, req.data) }')
+    expect(fn).toContain('throw erroreOrari(e)')
+    expect(corpo('licenzaSegueIlPiano')).toContain("JSON.stringify(prima?.orari_servizio?.giorni ?? null) !== JSON.stringify(dopo.orari_servizio?.giorni ?? null)")
   })
 
   it('i rifiuti degli orari diventano HttpsError col loro codice', () => {
@@ -518,14 +806,35 @@ describe('functions/index.js', () => {
   })
 
   it('scriviLicenza trattiene lo stato per pagamento fino al suo momento e programma il compito; il compito riscrive solo se aspetta quel momento', () => {
-    expect(funzione('scriviLicenza')).toContain('const statoDal = momentoDelloStato(ist, cliente, bar.data())')
+    // Il momento e il controllo del compito sono le funzioni pure provate
+    // sopra («il flusso della sospensione per pagamento»).
+    expect(funzione('scriviLicenza')).toContain('const statoDal = orari.momentoDelloStato(ist, cliente, { oraTaglio: taglio.oraDelTaglio(bar.data()), giorniGrazia: opzioni.giorniGrazia })')
     expect(funzione('scriviLicenza')).toContain("await programma('sospensione', slug, sospensione)")
     expect(funzione('scriviLicenza')).toContain('sospensione_al: sospensioneAl')
-    expect(funzione('verificaLicenza')).toContain('const statoDal = momentoDelloStato(ist, cliente, bar.data())')
-    expect(index).toContain("if (ist.sospensione_al?.dal !== new Date(quando).toISOString()) return")
-    const momento = funzione('momentoDelloStato')
-    expect(momento).toContain("if (ist?.licenza_per !== 'pagamento'")
-    expect(momento).toContain('orari.quandoSospendere(cliente, { adesso: new Date(deciso)')
+    expect(funzione('verificaLicenza')).toContain('const statoDal = orari.momentoDelloStato(ist, cliente,')
+    expect(index).toContain('if (!orari.compitoSospensioneValido(ist, quando)) return')
+    expect(index).not.toContain('function momentoDelloStato(')
+  })
+
+  // Revisione del 13/11/2026, D7: il compito e «riattiva» insieme.
+  it('scriviLicenza rilegge l’istanza prima di scrivere e, se lo stato è cambiato, ricalcola (al massimo tre giri)', () => {
+    const fn = funzione('scriviLicenza')
+    expect(fn).toContain('if (orari.statoCambiato(ist, (await ref.get()).data()) && tentativo < 3) return scriviLicenza(slug, { subito, tentativo: tentativo + 1 })')
+    // La rilettura sta prima della scrittura della licenza.
+    expect(fn.indexOf('orari.statoCambiato(')).toBeLessThan(fn.indexOf('istanza.doc(LICENZA_PROTETTA).set('))
+  })
+
+  // D5: «programmaScadenze» rimette in coda anche la sospensione che aspetta.
+  it('programmaScadenze riprogramma il compito della sospensione', () => {
+    expect(corpo('programmaScadenze')).toContain("if (ist.sospensione_al?.dal) await prova(`${slug} sospensione`, () => programma('sospensione', slug, ist.sospensione_al.dal))")
+  })
+
+  // Nota della revisione: niente «è di nuovo attivo» a chi non si è mai fermato.
+  it('«riattiva» manda l’email solo se il locale si era fermato davvero', () => {
+    const fn = funzione('eseguiAzionePagamento')
+    expect(fn).toContain('const fermo = orari.fermoDavvero(')
+    expect(fn.indexOf('const fermo = orari.fermoDavvero(')).toBeLessThan(fn.indexOf("await scriviStatoIstanza(cliente.slug, 'attiva', null)"))
+    expect(fn).toContain('if (!fermo) return null')
   })
 
   it('la licenza si riscrive quando cambiano gli orari o l’ora dell’attivazione (valida_fino)', () => {
@@ -551,5 +860,137 @@ describe('i tetti al documento del cliente', () => {
     const deciso = decisioneSullaRichiesta(conRichiesta, { esito: 'rifiutata', admin: 'admin', adesso: dopo, nota: lungo })
     expect(deciso.orari_servizio.storia.at(-1).nota).toHaveLength(TESTO_MASSIMO)
     expect(deciso.orari_servizio.storia).toHaveLength(STORIA_MASSIMA)
+  })
+})
+
+// ── IL FLUSSO DELLA SOSPENSIONE PER PAGAMENTO (revisione del 13/11/2026) ──
+// D1: valida_fino e il momento della sospensione non devono differire di
+// un giorno. D3: il momento e il controllo del compito sono funzioni pure,
+// provate col flusso intero: decisione, attesa, compito, pagamento nel
+// mezzo, sospensione dell'admin, compito vecchio o ripetuto.
+describe('il flusso della sospensione per pagamento', () => {
+  const { licenzaDaScrivere } = require('../functions/lib/taglio.js')
+  // Una subscription ancorata alle 09:15:59 UTC, l'abbonamento attivato alle
+  // 09:16:02 UTC (le 10:16 di Roma). Il periodo pagato finisce il 16/12:
+  // con 7 giorni di grazia la scadenza è il 23/12 alle 09:15:59 UTC.
+  const STRIPE = {
+    slug: 'bar-mario',
+    piano: 'base',
+    moduli: [],
+    terminali: 1,
+    abbonamento: { origine: 'stripe', stato: 'non pagato', pagato_fino: '2026-12-16T09:15:59.000Z', dal: '2026-11-16T09:16:02.000Z' },
+    orari_servizio: { giorni: SERA, impostati_il: '2026-11-16T09:16:02.000Z' },
+  }
+  // La regia decide qualche secondo dopo la scadenza (il compito del
+  // pagamento, poi la domanda a Stripe).
+  const DECISA = { stato: 'attiva', licenza_stato: 'sospesa', licenza_per: 'pagamento', licenza_motivo: 'pagamento non ricevuto', licenza_dal: '2026-12-23T09:16:03.000Z' }
+
+  it('D1: decisa pochi secondi dopo la scadenza, la sospensione cade dove cade valida_fino, non il giorno dopo', () => {
+    const { momentoDelloStato, quandoSospendere } = orari()
+    const validaFino = licenzaProtetta({ stato: 'attiva' }, STRIPE, { oraTaglio: 5 }).valida_fino
+    // Le 10:16 di Roma del 23/12, fuori servizio (il locale apre alle 18).
+    expect(validaFino).toBe('2026-12-23T09:16:00.000Z')
+    expect(momentoDelloStato(DECISA, STRIPE, { oraTaglio: 5 })).toBe(validaFino)
+    // Partendo dalla decisione sarebbe stato il 24/12: il difetto trovato.
+    expect(quandoSospendere(STRIPE, { adesso: new Date(DECISA.licenza_dal), oraTaglio: 5 }).toISOString()).toBe('2026-12-24T09:16:00.000Z')
+    // Il momento è già passato: la licenza sospesa si scrive subito, come
+    // l'app senza rete, che si è fermata a valida_fino.
+    const attiva = { stato: 'attiva', motivo: null, dal: null, piano: 'base' }
+    const sospesa = { ...attiva, stato: 'sospesa', motivo: 'pagamento non ricevuto' }
+    expect(licenzaDaScrivere(attiva, sospesa, { statoDal: validaFino, adesso: new Date(DECISA.licenza_dal) })).toMatchObject({ licenza: { stato: 'sospesa' }, sospensione: null })
+  })
+
+  it('D1: decisa oltre un’ora dopo la scadenza (un compito rilanciato), si parte dalla decisione', () => {
+    const { momentoDelloStato, FINESTRA_SCADENZA } = orari()
+    expect(FINESTRA_SCADENZA).toBe(60 * 60 * 1000)
+    const tardi = { ...DECISA, licenza_dal: '2026-12-25T15:00:00.000Z' }
+    // Venerdì 25/12 alle 16 di Roma: le 10:16 di sabato 26.
+    expect(momentoDelloStato(tardi, STRIPE, { oraTaglio: 5 })).toBe('2026-12-26T09:16:00.000Z')
+    // Decisa prima della scadenza (Stripe ha finito i tentativi prima): dalla decisione.
+    const prima = { ...DECISA, licenza_dal: '2026-12-20T15:00:00.000Z' }
+    expect(momentoDelloStato(prima, STRIPE, { oraTaglio: 5 })).toBe('2026-12-21T09:16:00.000Z')
+  })
+
+  it('D3: nessun momento per uno stato che non è fermo per il pagamento: attivo, o dell’admin (immediato)', () => {
+    const { momentoDelloStato } = orari()
+    expect(momentoDelloStato({ ...DECISA, licenza_stato: 'attiva', licenza_per: null }, STRIPE)).toBeNull()
+    expect(momentoDelloStato({ ...DECISA, licenza_per: 'admin' }, STRIPE)).toBeNull()
+    expect(momentoDelloStato({ ...DECISA, licenza_per: 'titolare', licenza_stato: 'chiusa' }, STRIPE)).toBeNull()
+    expect(momentoDelloStato({ ...DECISA, licenza_dal: null }, STRIPE)).toBeNull()
+    // La chiusura per pagamento (la disdetta) segue la stessa strada.
+    expect(momentoDelloStato({ ...DECISA, licenza_stato: 'chiusa', licenza_motivo: 'abbonamento disdetto' }, STRIPE, { oraTaglio: 5 })).toBe('2026-12-23T09:16:00.000Z')
+  })
+
+  it('D3: il compito vale solo per il momento atteso e lo stato ancora fermo; vecchio o dopo «riattiva» non scrive; ripetuto dà lo stesso esito', () => {
+    const { compitoSospensioneValido } = orari()
+    const quando = '2026-11-19T01:00:00.000Z'
+    const inAttesa = { ...DECISA, licenza_dal: '2026-11-18T09:00:00.000Z', sospensione_al: { dal: quando, stato: 'sospesa' } }
+    expect(compitoSospensioneValido(inAttesa, quando)).toBe(true)
+    // Ripetuto (Cloud Tasks ritenta): stesso esito finché nulla cambia.
+    expect(compitoSospensioneValido(inAttesa, new Date(quando))).toBe(true)
+    // Un compito vecchio, per un altro momento.
+    expect(compitoSospensioneValido(inAttesa, '2026-11-18T01:00:00.000Z')).toBe(false)
+    // Dopo «riattiva» (pagato nel mezzo): stato attivo e sospensione_al vuoto.
+    expect(compitoSospensioneValido({ ...inAttesa, licenza_stato: 'attiva', licenza_per: null, sospensione_al: null }, quando)).toBe(false)
+    // Già scritta: scriviLicenza ha vuotato sospensione_al, il compito ripetuto non fa niente.
+    expect(compitoSospensioneValido({ ...inAttesa, sospensione_al: null }, quando)).toBe(false)
+    // Diventata dell'admin nel frattempo («Sospendi subito»).
+    expect(compitoSospensioneValido({ ...inAttesa, licenza_per: 'admin' }, quando)).toBe(false)
+    expect(compitoSospensioneValido(inAttesa, 'domani')).toBe(false)
+  })
+
+  it('D3: dall’inizio alla fine, con «riattiva» nel mezzo', () => {
+    const { momentoDelloStato } = orari()
+    const attiva = { stato: 'attiva', motivo: null, dal: null, piano: 'base' }
+    const sospesa = { ...attiva, stato: 'sospesa', motivo: 'pagamento non ricevuto', dal: '2026-11-18T09:00:00.000Z' }
+    const ist = { ...DECISA, licenza_dal: '2026-11-18T09:00:00.000Z' }
+    const cliente = { ...STRIPE, abbonamento: { ...STRIPE.abbonamento, pagato_fino: '2026-11-11T09:00:00.000Z', dal: '2026-09-01T19:00:00.000Z' } }
+    // Decisa mercoledì 18/11 alle 10 di Roma; attivato alle 21: in servizio,
+    // quindi giovedì alle 2.
+    const statoDal = momentoDelloStato(ist, cliente, { oraTaglio: 5 })
+    expect(statoDal).toBe('2026-11-19T01:00:00.000Z')
+    // Alla decisione: trattenuta, e il compito si programma.
+    expect(licenzaDaScrivere(attiva, sospesa, { statoDal, adesso: new Date('2026-11-18T09:00:05Z') })).toMatchObject({ licenza: { stato: 'attiva' }, sospensione: statoDal })
+    // Riscritta più tardi (un altro cambio): il momento non si sposta.
+    expect(momentoDelloStato(ist, cliente, { oraTaglio: 5 })).toBe(statoDal)
+    // Al compito: arriva.
+    expect(licenzaDaScrivere(attiva, sospesa, { statoDal, adesso: new Date(statoDal) })).toMatchObject({ licenza: { stato: 'sospesa' }, sospensione: null })
+    // Pagato nel mezzo: «riattiva» rimette l'istanza attiva, nessun momento,
+    // la licenza resta attiva e sospensione_al torna vuoto.
+    const riattivata = { ...ist, licenza_stato: 'attiva', licenza_per: null }
+    expect(momentoDelloStato(riattivata, cliente, { oraTaglio: 5 })).toBeNull()
+    expect(licenzaDaScrivere(attiva, attiva, { statoDal: null, adesso: new Date('2026-11-18T20:00:00Z') })).toMatchObject({ licenza: { stato: 'attiva' }, sospensione: null })
+  })
+
+  it('D7: lo stato cambiato fra la lettura e la scrittura si riconosce', () => {
+    const { statoCambiato } = orari()
+    expect(statoCambiato(DECISA, { ...DECISA })).toBe(false)
+    // Il momento atteso spostato o vuotato da un'altra scrittura (D7).
+    expect(statoCambiato(DECISA, { ...DECISA, sospensione_al: { dal: 'x' } })).toBe(true)
+    const inAttesa = { ...DECISA, sospensione_al: { dal: '2026-12-24T09:16:00.000Z', stato: 'sospesa' } }
+    expect(statoCambiato(inAttesa, { ...inAttesa, sospensione_al: { ...inAttesa.sospensione_al } })).toBe(false)
+    expect(statoCambiato(inAttesa, { ...inAttesa, sospensione_al: null })).toBe(true)
+    expect(statoCambiato(DECISA, { ...DECISA, licenza_stato: 'attiva' })).toBe(true)
+    expect(statoCambiato(DECISA, { ...DECISA, licenza_per: 'admin' })).toBe(true)
+    expect(statoCambiato(DECISA, { ...DECISA, licenza_dal: '2026-12-24T00:00:00.000Z' })).toBe(true)
+    expect(statoCambiato(null, undefined)).toBe(false)
+  })
+
+  it('l’email «di nuovo attivo» solo per un locale che si era fermato davvero', () => {
+    const { fermoDavvero } = orari()
+    expect(fermoDavvero({ ...DECISA, sospensione_al: null })).toBe(true)
+    expect(fermoDavvero({ ...DECISA, licenza_stato: 'chiusa' })).toBe(true)
+    // La sospensione aspettava ancora il suo momento: mai fermo.
+    expect(fermoDavvero({ ...DECISA, sospensione_al: { dal: '2026-12-24T09:16:00.000Z', stato: 'sospesa' } })).toBe(false)
+    expect(fermoDavvero({ ...DECISA, licenza_stato: 'attiva' })).toBe(false)
+    expect(fermoDavvero(undefined)).toBe(false)
+  })
+
+  it('l’uid che arriva dal browser (l’admin) si controlla prima di farne un percorso', async () => {
+    const { cambiaOrari } = orari()
+    const db = { doc: () => ({}), runTransaction: async () => ({}) }
+    for (const uid of ['../impostazioni/regia', 'u1/altro', 'a'.repeat(129), 'uid con spazi']) {
+      await expect(cambiaOrari(db, uid, (c) => c), uid).rejects.toMatchObject({ codice: 'invalid-argument' })
+    }
   })
 })

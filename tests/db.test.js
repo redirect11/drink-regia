@@ -176,6 +176,8 @@ const FUNCTIONS = [
   ['chiediCambioOrari', [{ lun: { chiuso: true } }, 'Da dicembre chiudiamo il lunedì.'], 'chiediCambioOrari', { giorni: { lun: { chiuso: true } }, motivo: 'Da dicembre chiudiamo il lunedì.' }],
   ['decidiCambioOrari', ['u1', 'approvata', 'Visto il cartello.'], 'decidiCambioOrari', { uid: 'u1', esito: 'approvata', nota: 'Visto il cartello.' }],
   ['decidiCambioOrari', ['u1', 'rifiutata'], 'decidiCambioOrari', { uid: 'u1', esito: 'rifiutata', nota: null }],
+  ['scriviOrariAdmin', ['u1', { lun: { chiuso: true } }, 'Al telefono.'], 'scriviOrariAdmin', { uid: 'u1', giorni: { lun: { chiuso: true } }, nota: 'Al telefono.' }],
+  ['scriviOrariAdmin', ['u1', { lun: { chiuso: true } }], 'scriviOrariAdmin', { uid: 'u1', giorni: { lun: { chiuso: true } }, nota: null }],
 ]
 
 describe('le chiamate alle Functions', () => {

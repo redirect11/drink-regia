@@ -179,7 +179,7 @@ export default function Registrati({ completa = null }) {
             <legend>Orari di servizio</legend>
             <p className="muted small">
               Gli orari in cui il locale lavora, giorno per giorno. Una chiusura prima dell’apertura è il giorno dopo (per esempio 18:00–02:00);
-              apertura e chiusura alla stessa ora vogliono dire aperto 24 ore. Servono a non fermare il locale mentre lavora, se un pagamento
+              per un giorno aperto 24 ore segna «24 ore» (00:00–24:00). Servono a non fermare il locale mentre lavora, se un pagamento
               non arriva.
             </p>
             <p className="muted small">

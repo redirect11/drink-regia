@@ -1010,6 +1010,15 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
                 </>
               ) : (
                 <>
+                  {/* La sospensione per pagamento che aspetta il suo momento
+                      (REQ-FLOTTA-095, revisione del 13/11/2026, D6): l'admin
+                      la rende sua e immediata. Da lì è una sospensione
+                      dell'admin: il pagamento non la toglie da solo. */}
+                  {istanza?.sospensione_al?.dal && (
+                    <button type="button" className="btn ghost small" onClick={() => az.cambiaStato(c, 'sospesa')}>
+                      Sospendi subito
+                    </button>
+                  )}
                   <button type="button" className="btn ghost small" onClick={() => az.cambiaStato(c, 'attiva')}>
                     Riattiva
                   </button>
@@ -1654,8 +1663,10 @@ function licenzaBreve(istanza) {
   if (!istanza?.progetto) return { tono: 'neutro', testo: '—' }
   if (istanza.licenza_dalla_regia === false) return { tono: 'neutro', testo: 'del suo progetto' }
   if (istanza.licenza_protetta?.ok === false) return { tono: 'errore', testo: 'da allineare' }
-  // La sospensione per pagamento che aspetta il suo momento fuori servizio (REQ-FLOTTA-095).
-  if (istanza.sospensione_al?.dal) return { tono: 'attesa', testo: `sospensione il ${giorno(istanza.sospensione_al.dal)}` }
+  // La sospensione per pagamento che aspetta il suo momento fuori servizio
+  // (REQ-FLOTTA-095): con l'ora, perché il momento è un'ora precisa del
+  // giorno (revisione del 13/11/2026).
+  if (istanza.sospensione_al?.dal) return { tono: 'attesa', testo: `sospensione il ${giornoEOra(istanza.sospensione_al.dal)}` }
   if (istanza.riduzione_al_taglio?.dal) return { tono: 'neutro', testo: 'riduzione al taglio' }
   if (istanza.eliminazione?.stato === 'programmata') return { tono: 'errore', testo: `cancellazione il ${giorno(istanza.eliminazione.quando)}` }
   return { tono: 'neutro', testo: istanza.licenza_protetta?.ok ? 'verificata' : 'dalla regia' }
@@ -2340,6 +2351,8 @@ function InstallatiDallApp({ cliente: c }) {
 
 // A che punto è l'eliminazione di un locale (REQ-FLOTTA-014), in una riga.
 const giorno = (iso) => new Date(iso).toLocaleDateString('it-IT')
+// Giorno e ora di Roma, come li vede il locale: «23/12/2026, 10:16».
+const giornoEOra = (iso) => new Date(iso).toLocaleString('it-IT', { timeZone: 'Europe/Rome', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 function eliminazioneDetta(istanza) {
   const e = istanza?.eliminazione
   if (!e || e.stato === 'annullata') return null
