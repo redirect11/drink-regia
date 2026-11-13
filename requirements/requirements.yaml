@@ -4284,7 +4284,7 @@ requirements:
       configurata (richiestaAI non ha quel segreto, e non glielo diamo per
       un controllo): con i pagamenti online accesi e Stripe non
       configurato, l'app manda al sito e lì la ricarica dice di scriverci.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [regia, ai]
     priority: P2

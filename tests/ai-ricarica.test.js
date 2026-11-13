@@ -45,7 +45,7 @@ describe('la risposta del credito porta i due campi', () => {
   it('nella risposta 200 ci sono ricaricabile e ricarica_url, accanto a quelli di prima', () => {
     const r = ai.rispostaCredito(cassetto, ADESSO, ai.ricaricaDelLocale(aperto))
     expect(r).toMatchObject({ ok: true, tipo: 'credito', credito_eur: 5, ricaricabile: true, ricarica_url: 'https://regia.example.it/dashboard/credito-ai' })
-    expect(Object.keys(r).sort()).toEqual(['attivo', 'credito_eur', 'motivo', 'ok', 'ricaricabile', 'ricarica_url', 'speso_mese_eur', 'tetto_mensile_eur', 'tipo'])
+    expect(Object.keys(r).sort()).toEqual(['attivo', 'credito_eur', 'motivo', 'ok', 'ricarica_url', 'ricaricabile', 'speso_mese_eur', 'tetto_mensile_eur', 'tipo'])
   })
 
   it('anche col credito finito, che è quando serve', () => {

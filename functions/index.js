@@ -2466,9 +2466,17 @@ exports.richiestaAI = onRequest(
     if (!(await aiDelLocale(slug))) return res.status(402).json({ codice: 'piano', errore: ai.SENZA_AI_NEL_PIANO })
 
     // IL CREDITO (REQ-FLOTTA-085): una lettura del cassetto, niente modello
-    // e niente addebito.
+    // e niente addebito. Con se e dove si ricarica (REQ-FLOTTA-091), letto
+    // qui sul server con le stesse condizioni di creaRicaricaAI.
     if (req.body?.tipo === 'credito') {
-      const { ok, http, ...corpo } = ai.rispostaCredito((await db.doc(`ai/${slug}`).get()).data())
+      const [cassetto, istanza, listino, sitoChiuso] = await Promise.all([
+        db.doc(`ai/${slug}`).get(),
+        db.doc(`istanze/${slug}`).get(),
+        vendita(),
+        sitoChiusoOra(),
+      ])
+      const ricarica = ai.ricaricaDelLocale({ istanza: istanza.data() || null, vendita: listino, sitoChiuso, regiaUrl: REGIA_URL })
+      const { ok, http, ...corpo } = ai.rispostaCredito(cassetto.data(), new Date(), ricarica)
       return res.status(ok ? 200 : http).json(ok ? { ok, ...corpo } : corpo)
     }
 
