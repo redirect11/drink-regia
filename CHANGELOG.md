@@ -6,6 +6,11 @@ data.
 
 ## Prossima release (da decidere)
 
+- Un'app legata a un altro account non è più «Non ancora attivata» nella
+  dashboard del titolare: la dashboard la cerca col suo uid e, se non la
+  trova, chiede alla regia; se c'è ma non è sua dice di scriverci, senza il
+  tasto «Attiva». Nel backoffice la scheda del locale lo segnala e ha
+  «Collega l'app al titolare», solo in quel caso (REQ-FLOTTA-086).
 - Nel backoffice la scheda di un locale è ordinata: in testa nome, stato,
   piano e versione, poi gli avvisi da trattare coi loro tasti, poi sei
   blocchi sempre nello stesso ordine (Titolare, Piano, App, Aggiornamenti,

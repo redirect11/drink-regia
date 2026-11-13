@@ -22,14 +22,16 @@ const db = vi.hoisted(() => ({
     cb(stato.cliente)
     return () => {}
   }),
-  osservaIstanza: vi.fn((slug, cb) => {
+  // Dalla query sul suo uid (REQ-FLOTTA-086), coi test in Dashboard.test.jsx.
+  osservaMiaIstanza: vi.fn((uid, slug, cb) => {
     cb(stato.istanza)
     return () => {}
   }),
-  osservaRichiesta: vi.fn((slug, cb) => {
+  osservaMiaRichiesta: vi.fn((uid, slug, cb) => {
     cb(stato.richiesta)
     return () => {}
   }),
+  statoMiaApp: vi.fn(async () => ({ app: 'nessuna' })),
   osservaVendita: vi.fn((cb) => {
     cb(stato.vendita)
     return () => {}

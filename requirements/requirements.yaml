@@ -4254,6 +4254,85 @@ requirements:
     test_cases:
       - tests/ai.test.js
 
+  - id: REQ-FLOTTA-086
+    title: "Istanza e titolare scollegati: il backoffice lo dice e li ricollega, la dashboard non finge «Non ancora attivata»"
+    area: "functions/lib/collegamento.js, functions/index.js (collegaIstanza, statoMiaApp, avviaProvisioning), src/lib/db.js, src/lib/istanze.js, src/pages/CollegaIstanza.jsx, src/pages/Backoffice.jsx (scheda del locale), src/pages/Dashboard.jsx"
+    description: >
+      Sul test il titolare di prova-free vedeva «L'app: Non ancora
+      attivata» col tasto «Attiva l'istanza», mentre il backoffice la
+      mostrava «Attiva». Causa probabile: istanze/prova-free.uid non è
+      l'uid dell'account del titolare (app nata prima di M7, o account
+      ricreato), le regole negano la lettura e la dashboard, che non
+      ascoltava gli errori, la trattava come un'istanza che non c'è. Il
+      backoffice accoppia cliente e istanza per slug e non lo vedeva.
+      Daniele, 13/11/2026: «fai il tasto di collegamento nel backoffice, ma
+      deve apparire solo se per qualche motivo istanza e regia risultano
+      scollegati».
+      PERCHÉ LA DASHBOARD NON LEGGE PIÙ PER SLUG. Provato sull'emulatore
+      il 13/11/2026: un titolare che legge istanze/{slug} o
+      richieste/{slug} che non esistono ancora riceve «permission-denied»,
+      come per un documento di un altro; l'errore non distingue un cliente
+      nuovo da uno scollegato, e l'ascolto aperto prima dell'attivazione si
+      ferma. Aprire le regole ai documenti che non ci sono è stato
+      scartato. Daniele, 13/11/2026: «non va bene serve una soluzione piu
+      sicura e piu robusta». Le regole restano come sono: la dashboard
+      ascolta le query `where('uid', '==', <il suo uid>)`, che le regole di
+      oggi permettono, che tornano vuote senza errore e restano vive; solo
+      con la query dell'istanza vuota chiede alla regia statoMiaApp, che
+      risponde per il locale dell'account che chiama e per nessun altro.
+      Così nessuno impara niente di locali che non sono suoi: la query
+      vede solo documenti col proprio uid, e la Function non accetta uno
+      slug, lo prende dal documento del cliente, che il titolare non può
+      cambiare.
+      CRITERI DI ACCETTAZIONE. (1) Nella scheda del locale del backoffice,
+      se c'è un'istanza non eliminata e il suo uid non è quello del
+      cliente (diverso o vuoto), in cima un avviso: «L'app è legata a un
+      altro account: il titolare non la vede nella sua area», con l'uid a
+      cui è legata e l'email e l'uid del titolare, e il tasto «Collega
+      l'app al titolare». Con istanza e cliente collegati, senza istanza o
+      con l'istanza eliminata, né avviso né tasto. (2) Il tasto chiede
+      conferma mostrando nome del locale, email del titolare e uid vecchio
+      → nuovo; annullato non fa niente; l'esito, riuscito o no, si legge
+      sulla scheda. (3) La Function collegaIstanza({ slug }) risponde solo
+      all'admin (permission-denied altrimenti); rilegge sul server, in una
+      transazione, il cliente con quello slug (esattamente uno: nessuno o
+      più di uno è un errore chiaro), l'istanza, la richiesta e il
+      cassetto AI. Rifiuta se l'istanza non c'è, se è eliminata o se è già
+      collegata. Scrive istanze/{slug}.uid = uid del cliente con la traccia
+      (quando, chi, l'uid di prima) e nient'altro dell'istanza; allinea
+      richieste/{slug}.uid e ai/{slug}.uid solo se oggi sono l'uid vecchio
+      o vuoti; un uid già giusto resta com'è; un uid di un terzo, diverso
+      dal vecchio, ferma tutto con un errore chiaro e non scrive niente.
+      Risponde con l'uid vecchio e il nuovo. (4) Al prossimo «Aggiorna» il
+      passo del titolare nel locale (pianoTitolare) non chiude fuori
+      l'account già usato con l'uid vecchio: lo tiene, admin, con un
+      avviso. (5) La dashboard ascolta istanze e richieste con la query
+      sul suo uid. Sulle regole vere: per un cliente nuovo la query torna
+      vuota senza errore; un documento creato dopo arriva all'ascolto; il
+      documento di un altro uid non compare. (6) Solo con la query
+      dell'istanza vuota, la dashboard chiama statoMiaApp: solo con
+      l'accesso, senza argomenti, risponde { app: 'nessuna' | 'collegata'
+      | 'scollegata' } e nient'altro, per il locale del documento
+      clienti/{uid} di chi chiama. Un'istanza senza uid e senza progetto
+      (un lancio fallito prima di creare il progetto) vale 'nessuna': il
+      titolare vede l'attivazione fallita e la rilancia. Da qui in poi
+      anche il lancio fallito scrive l'uid sull'istanza. (7) Con
+      'scollegata', o con la lettura che fallisce, niente «Non ancora
+      attivata» e niente «Attiva l'istanza»: «Non riesco a leggere lo stato
+      della tua app: scrivici a <email del prodotto>». Con 'nessuna',
+      «Non ancora attivata» col tasto, come prima.
+    status: implemented
+    generate_issue: true
+    labels: [regia, backoffice]
+    priority: P1
+    test_cases:
+      - tests/collegamento.test.js
+      - tests/CollegaIstanza.test.jsx
+      - tests/istanze.test.js
+      - tests/Dashboard.test.jsx
+      - tests/db.test.js
+      - tests/regole/istanze.test.js
+
   - id: REQ-FLOTTA-089
     title: "La scheda del locale nel backoffice in sei blocchi: in testa stato e avvisi, ogni blocco coi suoi tasti, Sospendi e Chiudi a parte"
     area: "src/pages/Backoffice.jsx (SchedaLocale), src/index.css, e2e/collaudo-licenza.spec.js"
