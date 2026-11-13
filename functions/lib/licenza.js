@@ -9,7 +9,8 @@
 const listino = require('../piani.json')
 const { proveAttive } = require('./prove.js')
 const { licenzaAggiornamenti, ripiegaInveceDiSospendere } = require('./aggiornamenti.js')
-const { prossimoTaglio, ORA_DEL_TAGLIO } = require('./taglio.js')
+const { ORA_DEL_TAGLIO } = require('./taglio.js')
+const { quandoSospendere } = require('./orari-servizio.js')
 const { cancellazioneDellaLicenza } = require('./conservazione.js')
 const { scadenzaPagamento, GIORNI_DI_GRAZIA } = require('./scadenze.js')
 const { temiPuliti, temiSuMisuraPerLicenza } = require('./temi.js')
@@ -142,13 +143,15 @@ function sceltaCambiata(prima, dopo) {
 // 02/11/2026, la fine del periodo pagato più la stessa grazia. Null se non
 // scade: il Free, un omaggio, le interne.
 //
-// La data cade al taglio della giornata del locale dopo la scadenza
-// (REQ-FLOTTA-024): è lì che la regia lo ferma davvero, e un'app senza
-// rete che si fermasse a mezzanotte lo farebbe in pieno servizio.
+// La data cade dove la regia lo ferma davvero: dal 13/11/2026
+// (REQ-FLOTTA-095) al momento della sospensione per pagamento calcolato
+// sulla scadenza, fuori dall'orario di servizio del locale; senza orari,
+// al taglio della giornata dopo la scadenza come prima (REQ-FLOTTA-024).
+// Un'app senza rete che si fermasse a mezzanotte lo farebbe in servizio.
 function validaFino(ist, cliente, giorniGrazia = GIORNI_DI_GRAZIA, oraTaglio = ORA_DEL_TAGLIO) {
   if (ist?.interna === true || ist?.ripiego_free) return null
   const scadenza = scadenzaPagamento(cliente, giorniGrazia)
-  return scadenza ? prossimoTaglio(new Date(scadenza), oraTaglio).toISOString() : null
+  return scadenza ? quandoSospendere(cliente, { adesso: new Date(scadenza), oraTaglio }).toISOString() : null
 }
 
 // COSA SUCCEDE ALLA SCADENZA (l'utente, 02/11/2026: «se non c'è nessuna

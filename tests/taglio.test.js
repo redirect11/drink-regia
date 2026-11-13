@@ -55,18 +55,19 @@ describe('cosa toglie una licenza nuova', () => {
     expect(cosaRiduce(null, free)).toEqual([])
   })
 
-  it('uno stato che ferma il locale conta solo se lo vuole il pagamento', () => {
+  // Dal 13/11/2026 (REQ-FLOTTA-095) lo stato per il pagamento ha il suo
+  // momento, fuori dall'orario di servizio: non è più una riduzione.
+  it('uno stato che ferma il locale non è una riduzione del taglio', () => {
     const sospesa = { ...completo, stato: 'sospesa', motivo: 'pagamento non ricevuto' }
     expect(cosaRiduce(completo, sospesa)).toEqual([])
-    expect(cosaRiduce(completo, sospesa, { statoAlTaglio: true })).toEqual(['lo stato sospesa'])
-    expect(cosaRiduce(sospesa, completo, { statoAlTaglio: true })).toEqual([])
+    expect(cosaRiduce(sospesa, completo)).toEqual([])
   })
 })
 
 describe('la licenza da scrivere adesso', () => {
   it('senza riduzioni, o al taglio, la nuova', () => {
-    expect(licenzaDaScrivere(base, completo)).toEqual({ licenza: completo, riduzioni: [] })
-    expect(licenzaDaScrivere(completo, free, { subito: true })).toEqual({ licenza: free, riduzioni: [] })
+    expect(licenzaDaScrivere(base, completo)).toEqual({ licenza: completo, riduzioni: [], sospensione: null })
+    expect(licenzaDaScrivere(completo, free, { subito: true })).toEqual({ licenza: free, riduzioni: [], sospensione: null })
     expect(licenzaDaScrivere(null, free).licenza).toBe(free)
   })
 
@@ -90,11 +91,33 @@ describe('la licenza da scrivere adesso', () => {
     expect(licenzaDaScrivere(base, free, { subito: true }).licenza.limiti).toEqual(free.limiti)
   })
 
-  it('una sospensione per il pagamento aspetta il taglio; una dell’admin no', () => {
+  // REQ-FLOTTA-095: la sospensione per il pagamento aspetta il suo momento
+  // (statoDal, fuori dall'orario di servizio), anche col taglio arrivato;
+  // una dell'admin (senza statoDal) vale subito.
+  it('una sospensione per il pagamento aspetta il suo momento, anche al taglio; una dell’admin no', () => {
     const sospesa = { ...completo, stato: 'sospesa', motivo: 'pagamento non ricevuto', dal: '2026-11-01T15:00:00.000Z' }
-    expect(licenzaDaScrivere(completo, sospesa, { statoAlTaglio: true }).licenza).toMatchObject({ stato: 'attiva', motivo: null, dal: null })
+    const statoDal = '2026-11-02T01:00:00.000Z'
+    const prima = { adesso: new Date('2026-11-01T15:00:00Z'), statoDal }
+    expect(licenzaDaScrivere(completo, sospesa, prima)).toMatchObject({ licenza: { stato: 'attiva', motivo: null, dal: null }, sospensione: statoDal })
+    expect(licenzaDaScrivere(completo, sospesa, { ...prima, subito: true }).licenza.stato).toBe('attiva')
+    // Al momento (con un minuto di tolleranza) o dopo, lo stato arriva.
+    expect(licenzaDaScrivere(completo, sospesa, { statoDal, adesso: new Date('2026-11-02T00:59:30Z') })).toMatchObject({ licenza: { stato: 'sospesa' }, sospensione: null })
+    expect(licenzaDaScrivere(completo, sospesa, { statoDal, adesso: new Date('2026-11-02T03:00:00Z') }).licenza.stato).toBe('sospesa')
+    // Senza statoDal (l'admin, il titolare): subito.
     expect(licenzaDaScrivere(completo, sospesa).licenza.stato).toBe('sospesa')
-    expect(licenzaDaScrivere(completo, sospesa, { statoAlTaglio: true, subito: true }).licenza.stato).toBe('sospesa')
+    // Già sospesa, o tornata attiva: niente da trattenere.
+    expect(licenzaDaScrivere(sospesa, sospesa, prima).sospensione).toBeNull()
+    expect(licenzaDaScrivere(sospesa, completo, prima).licenza.stato).toBe('attiva')
+  })
+
+  it('con una riduzione e la sospensione insieme: la riduzione al taglio, lo stato al suo momento', () => {
+    const sospesaBase = { ...base, stato: 'sospesa', motivo: 'pagamento non ricevuto' }
+    const statoDal = '2026-11-02T01:00:00.000Z'
+    const { licenza, riduzioni, sospensione } = licenzaDaScrivere(completo, sospesaBase, { statoDal, adesso: new Date('2026-11-01T15:00:00Z') })
+    expect(riduzioni.length).toBeGreaterThan(0)
+    expect(licenza).toMatchObject({ piano: 'completo', stato: 'attiva' })
+    expect(sospensione).toBe(statoDal)
+    expect(licenzaDaScrivere(completo, sospesaBase, { statoDal, subito: true, adesso: new Date('2026-11-01T15:00:00Z') }).licenza).toMatchObject({ piano: 'base', stato: 'attiva' })
   })
 
   it('riscriverla mentre aspetta dà la stessa licenza (la verifica la riconosce)', () => {

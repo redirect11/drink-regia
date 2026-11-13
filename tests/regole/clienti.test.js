@@ -142,6 +142,17 @@ describe('clienti/{uid}: le modifiche del titolare (H1)', () => {
     },
   )
 
+  // Gli orari di servizio (REQ-FLOTTA-095) stanno in cima al documento,
+  // fuori dai blocchi che il titolare cambia: dopo 7 giorni si cambiano solo
+  // con l'approvazione dell'admin, e le Functions sono le sole a scriverli.
+  it('non tocca gli orari di servizio, né in parte né interi', async () => {
+    const titolare = doc(CHI.clienteA(env), `clienti/${UID.a}`)
+    await assertFails(updateDoc(titolare, { orari_servizio: { giorni: {}, impostati_il: '2030-01-01T00:00:00.000Z', richiesta: null, storia: [] } }))
+    await assertFails(updateDoc(titolare, { 'orari_servizio.giorni.lun': { chiuso: true } }))
+    await assertFails(updateDoc(titolare, { 'orari_servizio.impostati_il': '2030-01-01T00:00:00.000Z' }))
+    await assertFails(updateDoc(titolare, { 'orari_servizio.richiesta': { stato: 'approvata' } }))
+  })
+
   it('cambia la partita IVA solo con un’altra di 11 cifre', async () => {
     await assertSucceeds(updateDoc(doc(CHI.clienteA(env), `clienti/${UID.a}`), { 'fatturazione.partita_iva': '09876543210' }))
     await assertFails(updateDoc(doc(CHI.clienteA(env), `clienti/${UID.a}`), { 'fatturazione.partita_iva': '123' }))

@@ -47,9 +47,11 @@ export const osservaAccesso = (cb) => (configurata ? onAuthStateChanged(auth, cb
 // era preso; uid ed email li prende dall'account. Poi l'email di verifica
 // se l'email non lo è ancora (Google la dà verificata). Se l'email non
 // parte la registrazione resta valida: si rimanda dalla dashboard.
-async function creaCliente(u, { locale, fatturazione, referente, slug = null }) {
+// Gli orari di servizio (REQ-FLOTTA-095) vanno con gli altri dati: la
+// Function li ricontrolla e senza rifiuta.
+async function creaCliente(u, { locale, orari, fatturazione, referente, slug = null }) {
   const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'registraCliente')
-  const { data } = await fn({ locale, fatturazione, referente, ...(slug ? { slug } : {}) })
+  const { data } = await fn({ locale, ...(orari ? { orari } : {}), fatturazione, referente, ...(slug ? { slug } : {}) })
   if (!u.emailVerified) await sendEmailVerification(u).catch(() => {})
   return data.cliente
 }
@@ -196,6 +198,20 @@ function osservaDelTitolare(collezione, uid, slug, cb, errore) {
 }
 export const osservaMiaIstanza = (uid, slug, cb, errore) => osservaDelTitolare('istanze', uid, slug, cb, errore)
 export const osservaMiaRichiesta = (uid, slug, cb, errore) => osservaDelTitolare('richieste', uid, slug, cb, errore)
+
+// ── GLI ORARI DI SERVIZIO (REQ-FLOTTA-095) ──
+// Il browser non scrive mai orari_servizio (firestore.rules): li cambiano
+// le Functions, che sanno dei 7 giorni e delle richieste. Il titolare li
+// corregge nei 7 giorni o chiede il cambio col motivo; l'admin decide.
+async function chiama(nome, dati) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), nome)
+  const { data } = await fn(dati)
+  return data
+}
+export const correggiOrari = (giorni) => chiama('correggiOrari', { giorni })
+export const chiediCambioOrari = (giorni, motivo) => chiama('chiediCambioOrari', { giorni, motivo })
+export const decidiCambioOrari = (uid, esito, nota = null) => chiama('decidiCambioOrari', { uid, esito, nota })
 
 // Quando la query dell'istanza è vuota: la regia dice se un'app c'è ed è
 // legata a un altro account ('scollegata'), se non c'è ('nessuna') o se è

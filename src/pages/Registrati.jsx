@@ -5,6 +5,8 @@ import EntraConGoogle from './EntraConGoogle.jsx'
 import { slugDi, problemaSlug } from '../lib/clienti.js'
 import { urlDi } from '../lib/istanze.js'
 import { TIPI_LOCALE, problemiAccount, problemiLocale, problemiFatturazione, problemiReferente } from '../lib/validazione.js'
+import { orariVuoti, problemiOrari, orariPuliti, GIORNI_DI_CORREZIONE } from '../lib/orari.js'
+import OrariSettimana from './OrariSettimana.jsx'
 
 // LA REGISTRAZIONE DEL TITOLARE (REQ-FLOTTA-003), in quattro passi: account,
 // locale, fatturazione, referente e consensi. Ogni passo si controlla prima
@@ -21,8 +23,14 @@ import { TIPI_LOCALE, problemiAccount, problemiLocale, problemiFatturazione, pro
 // passo del locale con la casella dell'identificativo, prima nascosta, da
 // cui il titolare ne sceglie un altro; chi non ha questo problema non la
 // vede mai e tiene lo slug derivato dal nome, come sempre.
+//
+// GLI ORARI DI SERVIZIO (REQ-FLOTTA-095). Daniele, 13/11/2026: «quando un
+// cliente si registra deve specificare gli orari di servizio
+// dell'esercizio». Un passo loro, dopo il locale: decidono quando arriva
+// una sospensione per mancato pagamento, e dopo 7 giorni si cambiano solo
+// con una richiesta che approviamo noi. Il passo lo dice subito.
 
-const PASSI = ['Account', 'Il locale', 'Fatturazione', 'Referente']
+const PASSI = ['Account', 'Il locale', 'Orari', 'Fatturazione', 'Referente']
 const SLUG_IN_USO = 'Questo identificativo è già in uso: scegline un altro.'
 
 export default function Registrati({ completa = null }) {
@@ -31,6 +39,7 @@ export default function Registrati({ completa = null }) {
   const [passo, setPasso] = useState(primo)
   const [account, setAccount] = useState({ email: '', password: '', conferma: '' })
   const [locale, setLocale] = useState({ nome: '', tipo: '', via: '', cap: '', citta: '', provincia: '', telefono: '', sito: '' })
+  const [orari, setOrari] = useState(orariVuoti)
   const [fatturazione, setFatturazione] = useState({ ragione_sociale: '', partita_iva: '', codice_fiscale: '', pec: '', sdi: '', stessa_sede: true, via: '', cap: '', citta: '', provincia: '' })
   const [referente, setReferente] = useState({ nome: '', cognome: '', ruolo: '', telefono: '', termini: false, privacy: false, marketing: false })
   const [errori, setErrori] = useState({})
@@ -49,6 +58,7 @@ export default function Registrati({ completa = null }) {
   const controlli = [
     () => problemiAccount(account),
     () => ({ ...problemiLocale(locale), ...(problemaNome ? { [casellaSlug]: problemaNome } : {}) }),
+    () => problemiOrari(orari),
     () => problemiFatturazione(fatturazione),
     () => problemiReferente(referente),
   ]
@@ -67,7 +77,7 @@ export default function Registrati({ completa = null }) {
     setErrore(null)
     setInCorso(true)
     try {
-      const dati = { locale, fatturazione, referente, ...(slugScelto ? { slug: slugScelto } : {}) }
+      const dati = { locale, orari: orariPuliti(orari), fatturazione, referente, ...(slugScelto ? { slug: slugScelto } : {}) }
       // Completata, la dashboard vede il cliente da sé (osservaCliente).
       if (completa) await completaRegistrazione(dati)
       else {
@@ -166,6 +176,22 @@ export default function Registrati({ completa = null }) {
 
         {passo === 2 && (
           <fieldset>
+            <legend>Orari di servizio</legend>
+            <p className="muted small">
+              Gli orari in cui il locale lavora, giorno per giorno. Una chiusura prima dell’apertura è il giorno dopo (per esempio 18:00–02:00);
+              apertura e chiusura alla stessa ora vogliono dire aperto 24 ore. Servono a non fermare il locale mentre lavora, se un pagamento
+              non arriva.
+            </p>
+            <p className="muted small">
+              Per {GIORNI_DI_CORREZIONE} giorni li puoi correggere dalla tua area; dopo si cambiano solo con una richiesta, col motivo, che
+              approviamo noi.
+            </p>
+            <OrariSettimana valore={orari} onChange={setOrari} errori={errori} />
+          </fieldset>
+        )}
+
+        {passo === 3 && (
+          <fieldset>
             <legend>Dati di fatturazione</legend>
             {campo('ragione_sociale', 'Ragione sociale', fatturazione.ragione_sociale, (v) => setFatturazione({ ...fatturazione, ragione_sociale: v }), { autoComplete: 'organization' })}
             {campo('partita_iva', 'Partita IVA', fatturazione.partita_iva, (v) => setFatturazione({ ...fatturazione, partita_iva: v }), { inputMode: 'numeric' })}
@@ -190,7 +216,7 @@ export default function Registrati({ completa = null }) {
           </fieldset>
         )}
 
-        {passo === 3 && (
+        {passo === 4 && (
           <fieldset>
             <legend>Referente e consensi</legend>
             <div className="grid-2">

@@ -19,6 +19,7 @@
 // aperto e la traduzione in HttpsError.
 
 const { slugDaNome } = require('./esistente.js')
+const { orariIniziali, OrariRifiutati } = require('./orari-servizio.js')
 
 const SLUG_VALIDO = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/
 // Gli stessi del sito (src/lib/clienti.js): i nomi che il prodotto usa per sé.
@@ -126,7 +127,17 @@ function documentoRegistrazione({ uid, email, dati, adesso = new Date() }) {
   }
   const cliente = nuovoCliente({ uid, email: mail, locale: dati?.locale, fatturazione: dati?.fatturazione, referente: dati?.referente, slug: dati?.slug, adesso })
   if (!PARTITA_IVA.test(cliente.fatturazione.partita_iva)) throw new RegistrazioneRifiutata('invalid-argument', 'Partita IVA non valida (11 cifre).', { campo: 'partita_iva' })
-  return cliente
+  // GLI ORARI DI SERVIZIO (REQ-FLOTTA-095, Daniele, 13/11/2026: «quando un
+  // cliente si registra deve specificare gli orari di servizio
+  // dell'esercizio»): obbligatori, ricontrollati qui. Stanno in cima al
+  // documento e non dentro `locale`, che il titolare può riscrivere da sé
+  // (firestore.rules): li cambiano solo le Functions.
+  try {
+    return { ...cliente, orari_servizio: orariIniziali(dati?.orari, adesso) }
+  } catch (e) {
+    if (e instanceof OrariRifiutati) throw new RegistrazioneRifiutata('invalid-argument', `Orari di servizio: ${e.message}`, { campo: 'orari', problemi: e.dettagli?.problemi || null })
+    throw e
+  }
 }
 
 // UN CLIENTE PER SLUG, O NESSUNO. Prima era `where('slug', '==').limit(1)`

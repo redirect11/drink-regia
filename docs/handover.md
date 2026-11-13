@@ -606,7 +606,10 @@ ma l'ordine aggiornato è quello del 09/11.
    e programma un compito «taglio» (la stessa coda delle scadenze). L'ora
    è `settings/bar.business_day_cutoff_hour` del locale, 5 se manca, ora
    di Roma. Quello che aggiunge, e gli stati voluti dall'admin o dal
-   titolare, valgono subito. Un locale che nasce scrive subito. Nello
+   titolare, valgono subito. Dal 13/11/2026 (REQ-FLOTTA-095) la
+   sospensione per il pagamento non sta più qui: ha il suo momento fuori
+   dall'orario di servizio, `istanze/<slug>.sospensione_al` = `{ dal,
+   stato }` e un compito «sospensione». Un locale che nasce scrive subito. Nello
    stesso ramo: l'attivazione scrive la licenza **prima** del deploy, e lo
    script parte da `licenza/attuale`, non più da `settings/bar.licenza`.
 26. **Senza licenza valida non si parte, e i dati di un locale fermo
@@ -1033,10 +1036,14 @@ moduli, la licenza nell'istanza e la Tana.
   disegna col motore, senza usa lo stile.
   `valida_fino` (dal 31/10/2026, per tana-drink) è il momento in cui la
   regia fermerebbe il locale se nessuno paga: per un piano pagato a mano
-  «pagato fino al» più i giorni di grazia, portato al taglio della giornata
-  dopo (REQ-FLOTTA-024: mai a mezzanotte in servizio); `null` se non
-  scade (Free, omaggi, interne, Stripe, dove decide lo stato
-  dell'abbonamento). Nel database c'è anche `valida_fino_ts`, lo stesso
+  «pagato fino al» più i giorni di grazia, con Stripe (dal 02/11/2026) la
+  fine del periodo pagato più la stessa grazia; `null` se non scade (Free,
+  omaggi, interne, Stripe senza ancora una fattura pagata). Dal 13/11/2026
+  (REQ-FLOTTA-095) la data cade al **momento della sospensione per
+  pagamento** calcolato su quella scadenza, fuori dall'orario di servizio
+  del locale (sotto, regola 4); per un locale senza orari di servizio al
+  taglio della giornata dopo, come prima (REQ-FLOTTA-024: mai a mezzanotte
+  in servizio). Nel database c'è anche `valida_fino_ts`, lo stesso
   istante come Timestamp di Firestore (`null` se non scade): tana-drink,
   02/11/2026, «le regole leggono la scadenza solo da valida_fino_ts […].
   Senza quel campo, lato server la licenza non scade mai». La verifica
@@ -1066,10 +1073,26 @@ moduli, la licenza nell'istanza e la Tana.
   (3) gli sconti si spengono solo con `limiti.sconti: false`, un
   booleano: ogni altro valore, o la voce assente, vuol dire permessi;
   (4) quello che **toglie** (un piano più piccolo, un modulo, un
-  terminale, il passaggio al Free, una sospensione per il pagamento)
-  arriva al **taglio della giornata** del locale (REQ-FLOTTA-024): fino
-  ad allora la licenza è quella di prima più le aggiunte. Le sospensioni e
-  le chiusure dell'admin o del titolare valgono subito.
+  terminale, il passaggio al Free) arriva al **taglio della giornata** del
+  locale (REQ-FLOTTA-024): fino ad allora la licenza è quella di prima più
+  le aggiunte. Lo **stato `sospesa` o `chiusa` voluto dal pagamento**
+  (`motivo: 'pagamento non ricevuto'` o `'abbonamento disdetto'`), dal
+  13/11/2026 (REQ-FLOTTA-095; Daniele: «Decidiamo la sospensione per
+  Stripe fuori dall'orario di servizio quindi di sicuro non subito»),
+  arriva **fuori dall'orario di servizio** del locale: all'ora del giorno
+  in cui è stato attivato l'abbonamento; se cade in servizio, alla
+  chiusura; se cade nell'ora prima dell'apertura, un'ora prima
+  dell'apertura. Se gli orari non lasciano un momento adatto (aperto 24
+  ore, meno di un'ora fra chiusura e apertura) all'ora dell'attivazione
+  anche in servizio; senza orari, al taglio della giornata. Fino ad allora
+  la licenza tiene lo stato di prima (`attiva`), e il locale lavora fino a
+  circa un giorno dopo il «non pagato». Gli orari restano nella regia
+  (`clienti/{uid}.orari_servizio`): la licenza non li porta. Le sospensioni
+  e le chiusure dell'admin o del titolare valgono subito. **Per l'app**:
+  lo stato arriva quando arriva, e l'app lo applica appena lo legge, anche
+  all'avvio; al momento della sospensione si ferma tutto così com'è
+  (Daniele: «Alla riattivazione del servizio non si è mosso nulla e così
+  deve essere»).
 - **Il passaggio fra la regia e l'app** (REQ-FLOTTA-030, dal 02/11/2026).
   Dalla regia: l'app si apre a `<url del locale>/#accesso-regia=<codice>`;
   l'app toglie subito il codice dall'indirizzo e fa `POST
@@ -1215,8 +1238,11 @@ moduli, la licenza nell'istanza e la Tana.
   codice: "servizio" }` senza prenotare niente, da riprovare come gli
   altri 503. Se una richiesta costasse lo stesso più della stima (un
   difetto), il credito si ferma a zero e il resto la regia lo segna in
-  `da_recuperare_microeuro` nel cassetto, per l'admin: per l'app il
-  credito è zero e la richiesta dopo riceve `402 credito`. `risultato` per la descrizione è `{ descrizione, da_verificare:
+  `sforato_microeuro` nel cassetto, per l'admin: è un costo che Stonebit
+  si accolla (Daniele, 13/11/2026: «gestisco io a mano. In realtà è un
+  costo che ci accolliamo»), non un debito del locale. Per l'app il
+  credito è zero e la richiesta dopo riceve `402 credito`. Il conteggio
+  ha un tempo massimo di 10 secondi, poi vale come non riuscito. `risultato` per la descrizione è `{ descrizione, da_verificare:
   [] }`; per la fattura `{ fornitore: { ragione_sociale, partita_iva },
   numero, data, righe: [{ descrizione, codice, quantita, unita,
   prezzo_unitario, sconto_percentuale, aliquota_iva, importo }],
@@ -1282,7 +1308,7 @@ moduli, la licenza nell'istanza e la Tana.
   conteggio non parte) o il segreto della firma non è configurato. Il
   credito passa dalla stessa prenotazione delle altre richieste, con la
   stessa stima e la stessa regola dello sforamento
-  (`da_recuperare_microeuro`), con la scrittura in cache dentro la stima:
+  (`sforato_microeuro`, a carico di Stonebit), con la scrittura in cache dentro la stima:
   la chat usa la cache del prompt (Daniele: «Considera che una chat che
   cresce e la rimanda tutta il costo delle richieste aumenta»), coi segni
   sulle istruzioni e sull'ultimo blocco della conversazione. Ogni

@@ -494,6 +494,16 @@ legend { font-weight: 600; margin: 10px 0 4px; }
 .campo { margin-bottom: 4px; }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .grid-3 { display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 10px; }
+/* Gli orari di servizio (REQ-FLOTTA-095): un giorno per riga, nome, «chiuso» e le due ore. */
+.orari-settimana { display: grid; gap: 6px; margin: 8px 0; }
+.orari-giorno { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.orari-giorno .orari-nome { min-width: 6.5rem; font-weight: 600; }
+.orari-giorno .opzione { display: inline-flex; align-items: center; margin: 0; padding: 6px 10px; font-size: 0.9rem; }
+.orari-giorno input[type="time"] { width: auto; min-width: 7.5rem; }
+.orari-giorno .errore { flex-basis: 100%; margin: 0; }
+.avviso { padding: 8px 12px; border-radius: 10px; background: var(--attesa-soft); border: 1px solid var(--attesa); color: var(--text); }
+.orari-elenco { list-style: none; padding: 0; margin: 4px 0; }
+.riquadro-richiesta { margin-top: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
 .passi { display: flex; gap: 6px; list-style: none; padding: 0; margin: 0 0 8px; font-size: 0.85rem; color: var(--muted); }
 .passi li { padding: 4px 8px; border-radius: 999px; border: 1px solid var(--line); }
 .passi li.corrente { color: var(--text); border-color: var(--accent); }
@@ -591,6 +601,7 @@ input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--
 .blocco { display: grid; gap: 4px; align-content: start; min-width: 0; overflow-wrap: anywhere; }
 .blocco h4 { margin: 0 0 4px; font-family: inherit; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
 .blocco > .btn { justify-self: start; }
+.blocco h5.blocco-sotto { margin: 8px 0 0; font-size: 0.8rem; font-weight: 600; color: var(--muted); }
 .blocco > .gruppo-azioni { margin-top: 6px; }
 .blocco select { padding: 6px 8px; max-width: 100%; }
 .campo-blocco { display: grid; gap: 2px; margin-top: 4px; }

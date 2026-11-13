@@ -18,6 +18,20 @@ data.
   scrittura; lo storico dei consumi dice quanti token sono stati letti e
   scritti in cache, e i log i tempi del conteggio e della chiamata.
   Serve il segreto `AI_CHAT_SECRET` (REQ-FLOTTA-094).
+- Gli orari di servizio del locale: alla registrazione sono obbligatori,
+  un giorno per riga, con apertura e chiusura (anche dopo la mezzanotte,
+  o 24 ore) oppure «chiuso». Per 7 giorni il titolare li corregge dalla
+  sua area («Il locale»); dopo li cambia solo con una richiesta col
+  motivo, che l'amministratore approva o rifiuta dalla scheda del locale,
+  con la traccia di ogni cambio. Un locale che non li ha ancora li scrive
+  la prima volta dalla sua area, e la panoramica glieli chiede. La
+  sospensione per mancato pagamento non arriva più al taglio della
+  giornata ma fuori dall'orario di servizio: all'ora in cui era stato
+  attivato l'abbonamento, spostata alla chiusura se cade in servizio, o a
+  un'ora prima dell'apertura. Con orari senza un'ora di pausa può
+  arrivare in servizio, e un avviso lo dice. La data in cui l'app si
+  ferma da sola (`valida_fino`) segue la stessa regola; senza orari resta
+  il taglio della giornata (REQ-FLOTTA-095).
 - Le richieste AI dei locali vanno a Claude Sonnet 5.5, per tutti i tipi
   (descrizione, fattura, tema): nel backoffice, in «Vendita», la sezione
   «Modelli AI» sceglie il modello di ogni tipo fra quelli che hanno un
@@ -28,7 +42,14 @@ data.
   completi; se il conteggio non risponde una fattura o un tema rispondono
   «riprova tra poco», senza addebiti. Se una richiesta costasse lo stesso
   più della stima il credito si ferma a zero, e la scheda del locale nel
-  backoffice mostra l'importo da recuperare (REQ-FLOTTA-093).
+  backoffice mostra l'importo che Stonebit si accolla (REQ-FLOTTA-093).
+- Ritocchi del credito AI dopo la revisione: la stima tiene un
+  micro-euro in più per gli arrotondamenti, così il costo vero non la
+  supera mai; il conteggio dei token si arrende dopo 10 secondi invece di
+  tenere ferma la richiesta; lo sforamento si dice «assorbito da
+  Stonebit», non «da recuperare» (REQ-FLOTTA-093). Il modello AI e i
+  limiti della chat in impostazioni/regia si cambiano solo dalle
+  Functions: nemmeno l'admin li scrive dal browser (REQ-FLOTTA-092).
 - Il credito AI chiesto dall'app dice anche se il locale può ricaricare
   dal sito e dove (`ricaricabile`, `ricarica_url`): coi pagamenti online
   spenti, il sito chiuso o un locale interno l'app rimanda all'assistenza

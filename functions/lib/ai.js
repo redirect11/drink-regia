@@ -461,6 +461,25 @@ function parametriConteggio(m, { modello = AI.modello } = {}) {
 const MARGINE_CONTEGGIO = 0.05
 const TENTATIVI_MASSIMI = 2
 const contoValido = (n) => Number.isSafeInteger(n) && n > 0
+// Il tempo massimo del conteggio (revisione della PR #234): coi valori
+// predefiniti dell'SDK (10 minuti, 2 nuovi tentativi anche sui 429) un
+// conteggio lento consumava il tempo della Function (TIMEOUT_AI_SECONDI)
+// prima della chiamata al modello, e la prenotazione scadeva alla stima.
+// Dopo 10 secondi il conteggio vale come fallito.
+const TEMPO_CONTEGGIO_MS = 10_000
+// Il conteggio, entro il tempo massimo: anche uno iniettato, o un SDK che
+// non rispettasse le sue opzioni, non tiene ferma la richiesta.
+async function contaEntroIlTempo(conta) {
+  let timer
+  const scaduto = new Promise((_, no) => {
+    timer = setTimeout(() => no(new Error(`il conteggio non ha risposto in ${TEMPO_CONTEGGIO_MS / 1000} secondi`)), TEMPO_CONTEGGIO_MS)
+  })
+  try {
+    return await Promise.race([Promise.resolve().then(conta), scaduto])
+  } finally {
+    clearTimeout(timer)
+  }
+}
 
 // CON LA CACHE IN SCRITTURA (REQ-FLOTTA-094, la chat): ogni token
 // d'ingresso di ciascun tentativo può finire scritto in cache, a
@@ -474,7 +493,13 @@ function stimaMassimaMicroeuro(m, { inputContati, scritturaCache = false } = {})
   const ingresso = base + (base + m.max_tokens)
   const uscita = TENTATIVI_MASSIMI * m.max_tokens
   const usd = (ingresso * pin * (scritturaCache ? SCRITTURA_CACHE : 1) + uscita * pout) / 1_000_000
-  return Math.ceil(usd * AI.cambio_eur_per_usd * AI.ricarico * MICRO)
+  // Più UN micro-euro (revisione della PR #234, 13/11/2026): la stima
+  // moltiplica i totali, costoMicroeuro somma i tentativi uno per uno, e
+  // in virgola mobile i due conti possono cadere da parti diverse del
+  // Math.ceil (24 casi su 72.369: costo 971.356 µ€ contro una stima di
+  // 971.355). L'errore di arrotondamento è molto sotto il micro-euro, e un
+  // micro-euro intero dopo il ceil lo copre sempre.
+  return Math.ceil(usd * AI.cambio_eur_per_usd * AI.ricarico * MICRO) + 1
 }
 
 // Una richiesta con un file (una fattura, un mockup): senza conteggio la
@@ -707,9 +732,10 @@ function prenota(cassetto, { id, stima, tipo, adesso = new Date() }) {
 // punti facciamo come dici»): un costo vero sopra la stima non dovrebbe
 // esistere (la stima conta due tentativi completi), ed è un difetto. Se il
 // credito non basta a coprirlo, il credito si ferma a ZERO e quello che
-// manca si somma a `da_recuperare_microeuro`, che l'admin vede nella
+// manca si somma a `sforato_microeuro`, che l'admin vede nella
 // scheda del locale; lo speso del mese e la riga dei consumi tengono il
-// costo vero.
+// costo vero. Lo sforato non si chiede al locale: Daniele, 13/11/2026,
+// «gestisco io a mano. In realtà è un costo che ci accolliamo».
 function chiudiPrenotazione(cassetto, { id, costo, adesso = new Date() }) {
   const p = cassetto?.prenotazioni?.[id]
   if (!p) return { trovata: false, patch: null }
@@ -727,7 +753,7 @@ function chiudiPrenotazione(cassetto, { id, costo, adesso = new Date() }) {
       mese: s.mese,
       prenotazioni: resto,
       ultimo_uso_il: adesso.toISOString(),
-      ...(manca ? { da_recuperare_microeuro: (Number(cassetto.da_recuperare_microeuro) || 0) + manca } : {}),
+      ...(manca ? { sforato_microeuro: (Number(cassetto.sforato_microeuro) || 0) + manca } : {}),
     },
   }
 }
@@ -850,7 +876,7 @@ async function interrogaConPrenotazione({ slug, messaggio, modello = modelloPer(
   let inputContati = null
   try {
     const parametri = parametriConteggio(messaggio, { modello })
-    const contato = await (conta ? conta(parametri) : client.messages.countTokens(parametri))
+    const contato = await contaEntroIlTempo(() => (conta ? conta(parametri) : client.messages.countTokens(parametri, { timeout: TEMPO_CONTEGGIO_MS, maxRetries: 0 })))
     inputContati = contato?.input_tokens
     if (!contoValido(inputContati)) throw new Error(`conteggio non valido: ${inputContati}`)
   } catch (e) {
@@ -1046,6 +1072,7 @@ module.exports = {
   parametriConteggio,
   MARGINE_CONTEGGIO,
   TENTATIVI_MASSIMI,
+  TEMPO_CONTEGGIO_MS,
   TIPI_MODELLO,
   modelliDelListino,
   modelloPer,

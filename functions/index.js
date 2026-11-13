@@ -39,6 +39,7 @@ const { getFunctions: funzioniAdmin } = require('firebase-admin/functions')
 const { STATI: STATI_LICENZA } = require('./lib/sospensione.js')
 const scadenze = require('./lib/scadenze.js')
 const taglio = require('./lib/taglio.js')
+const orari = require('./lib/orari-servizio.js')
 const { initializeApp: initializeAppCon, getApps } = require('firebase-admin/app')
 const { getAuth } = require('firebase-admin/auth')
 const ai = require('./lib/ai.js')
@@ -1111,6 +1112,15 @@ exports.scadenza = onTaskDispatched(
       console.log(`[taglio] ${chiave}: ${scritta.ok ? 'licenza scritta' : scritta.perche}`)
       return
     }
+    // La sospensione per pagamento al suo momento, fuori dall'orario di
+    // servizio (REQ-FLOTTA-095): solo se aspetta ancora questo momento. Chi
+    // ha pagato nel frattempo ha la licenza attiva e sospensione_al vuoto.
+    if (tipo === 'sospensione') {
+      if (ist.sospensione_al?.dal !== new Date(quando).toISOString()) return
+      const scritta = await scriviLicenza(chiave)
+      console.log(`[sospensione] ${chiave}: ${scritta.ok ? 'licenza scritta' : scritta.perche}`)
+      return
+    }
     // Un avviso prima della cancellazione dei dati (REQ-FLOTTA-025).
     if (tipo === 'avviso_dati') {
       const giorni = conserva.avvisoDelCompito(ist, new Date(quando).toISOString())
@@ -1490,11 +1500,22 @@ async function scriviLicenza(slug, { subito = false } = {}) {
   if (!cliente) return { ok: false, perche: 'Nessun cliente per questo locale: la licenza non si calcola.' }
   const istanza = firestoreDi(ist.progetto)
   const [scritta, bar] = await Promise.all([istanza.doc(LICENZA_PROTETTA).get(), istanza.doc('settings/bar').get()])
-  // valida_fino cade al taglio della giornata del locale (REQ-FLOTTA-024).
+  // valida_fino cade al momento della sospensione per pagamento, fuori
+  // dall'orario di servizio (REQ-FLOTTA-095); senza orari al taglio della
+  // giornata del locale (REQ-FLOTTA-024).
   const lic = licenzaProtetta(ist, cliente, { ...opzioni, oraTaglio: taglio.oraDelTaglio(bar.data()) })
-  const { licenza, riduzioni } = taglio.licenzaDaScrivere(scritta.exists ? scritta.data() : null, lic, { subito, statoAlTaglio: ist.licenza_per === 'pagamento' })
+  const statoDal = momentoDelloStato(ist, cliente, bar.data())
+  const { licenza, riduzioni, sospensione } = taglio.licenzaDaScrivere(scritta.exists ? scritta.data() : null, lic, { subito, statoDal })
   let alTaglio = null
   let perche = null
+  // Lo stato che ferma il locale per il pagamento aspetta il suo momento,
+  // fuori dall'orario di servizio (REQ-FLOTTA-095): un compito suo.
+  const sospensioneAl = sospensione ? { dal: sospensione, stato: lic.stato } : null
+  if (sospensione) {
+    await programma('sospensione', slug, sospensione).catch((e) => {
+      perche = `La sospensione al suo momento non si è programmata: ${String(e?.message || e).slice(0, 160)}`
+    })
+  }
   if (riduzioni.length) {
     alTaglio = { dal: taglio.prossimoTaglio(new Date(), taglio.oraDelTaglio(bar.data())).toISOString(), cosa: riduzioni }
     // Senza il compito la riduzione non arriverebbe mai: la licenza di
@@ -1510,8 +1531,20 @@ async function scriviLicenza(slug, { subito = false } = {}) {
   // mergeFields: il campo licenza si sostituisce intero, il resto di
   // settings/bar (le impostazioni del locale) non si tocca.
   await istanza.doc('settings/bar').set({ licenza: doc }, { mergeFields: ['licenza'] })
-  await ref.update({ licenza_protetta: { ok: !perche, perche, controllata_il: lic.scritta_il }, riduzione_al_taglio: alTaglio })
+  await ref.update({ licenza_protetta: { ok: !perche, perche, controllata_il: lic.scritta_il }, riduzione_al_taglio: alTaglio, sospensione_al: sospensioneAl })
   return { ok: true, scritta: true }
+}
+
+// IL MOMENTO DELLO STATO PER IL PAGAMENTO (REQ-FLOTTA-095): solo per una
+// sospensione o una chiusura voluta dal pagamento; null per quelle
+// dell'admin e del titolare, che valgono subito. Si calcola da quando la
+// regia l'ha decisa (licenza_dal): riscrivere la licenza più tardi non lo
+// sposta in avanti.
+function momentoDelloStato(ist, cliente, bar) {
+  if (ist?.licenza_per !== 'pagamento' || !['sospesa', 'chiusa'].includes(ist.licenza_stato)) return null
+  const deciso = Date.parse(ist.licenza_dal || '')
+  if (!Number.isFinite(deciso)) return null
+  return orari.quandoSospendere(cliente, { adesso: new Date(deciso), oraTaglio: taglio.oraDelTaglio(bar) }).toISOString()
 }
 
 // La verifica di un locale: licenza/attuale c'è, è uguale a
@@ -1525,7 +1558,10 @@ async function verificaLicenza(slug) {
   const calcolata = licenzaProtetta(ist, cliente, { slug, regiaUrl: REGIA_URL, sceltaUrl: SCELTA_URL, giorniGrazia: await giorniDiGrazia(), oraTaglio: taglio.oraDelTaglio(bar.data()), ...(await temiSuMisuraDi(cliente)) })
   // Con una riduzione che aspetta il taglio, quella giusta è la licenza di
   // prima più le aggiunte (REQ-FLOTTA-024).
-  const attesa = ist.riduzione_al_taglio && protetta.exists ? taglio.licenzaDaScrivere(protetta.data(), calcolata, { statoAlTaglio: ist.licenza_per === 'pagamento' }).licenza : calcolata
+  // E con la sospensione per pagamento che aspetta il suo momento, lo
+  // stato di prima (REQ-FLOTTA-095).
+  const statoDal = momentoDelloStato(ist, cliente, bar.data())
+  const attesa = (ist.riduzione_al_taglio || statoDal) && protetta.exists ? taglio.licenzaDaScrivere(protetta.data(), calcolata, { subito: !ist.riduzione_al_taglio, statoDal }).licenza : calcolata
   let perche = null
   if (!protetta.exists) perche = 'Manca licenza/attuale: con l’app nuova il locale si ferma.'
   else if (!stessaLicenza(protetta.data(), bar.data()?.licenza)) perche = 'licenza/attuale è diversa da settings/bar.licenza.'
@@ -2173,7 +2209,11 @@ exports.licenzaSegueIlPiano = onDocumentUpdated({ ...OPTS, document: 'clienti/{u
   // Lo stato o la scadenza del pagamento sono cambiati: la licenza (stato,
   // valida_fino) si riscrive anche se piano e moduli sono quelli di prima.
   const scadenzaSpostata = scadenze.scadenzaPagamento(prima, grazia) !== scadenze.scadenzaPagamento(dopo, grazia)
-  if ((prima?.abbonamento?.stato !== dopo.abbonamento?.stato || scadenzaSpostata) && !sceltaCambiata(prima, dopo)) {
+  // Gli orari di servizio e l'ora dell'attivazione decidono valida_fino
+  // (REQ-FLOTTA-095): cambiati, la licenza si riscrive.
+  const momentoSpostato =
+    JSON.stringify(prima?.orari_servizio?.giorni ?? null) !== JSON.stringify(dopo.orari_servizio?.giorni ?? null) || orari.oraDiAttivazione(prima) !== orari.oraDiAttivazione(dopo)
+  if ((prima?.abbonamento?.stato !== dopo.abbonamento?.stato || scadenzaSpostata || momentoSpostato) && !sceltaCambiata(prima, dopo)) {
     await scriviLicenza(dopo.slug).catch((e) => console.error(`[aggiornamenti] ${dopo.slug}:`, e?.message || e))
     return
   }
@@ -2265,6 +2305,49 @@ exports.scegliFree = onCall(OPTS, async (req) => {
   if (!puo.ok) throw new HttpsError('failed-precondition', puo.perche)
   await db.doc(`clienti/${req.auth.uid}`).set(free.sceltaFree(), { merge: true })
   return { ok: true }
+})
+
+// ── GLI ORARI DI SERVIZIO (REQ-FLOTTA-095) ─────────────────────────────
+// Daniele, 13/11/2026: «Orario di servizio che non può cambiare se non
+// previa approvazione nostra [...]. Se invece è semplicemente sbagliato,
+// possiamo dare una settimana di tempo per cambiarlo». Il titolare li
+// corregge da sé nei 7 giorni (correggiOrari), dopo chiede il cambio con un
+// motivo (chiediCambioOrari) e l'admin decide (decidiCambioOrari). Il
+// browser non scrive mai orari_servizio: le regole non glielo lasciano.
+function erroreOrari(e) {
+  if (e instanceof orari.OrariRifiutati) return new HttpsError(e.codice, e.message, e.dettagli || undefined)
+  return e
+}
+
+exports.correggiOrari = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  const uid = req.auth.uid
+  try {
+    return { orari_servizio: await orari.cambiaOrari(db, uid, (c) => orari.correzioneDelTitolare(c, req.data?.giorni, { uid })) }
+  } catch (e) {
+    throw erroreOrari(e)
+  }
+})
+
+exports.chiediCambioOrari = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  const uid = req.auth.uid
+  try {
+    return { orari_servizio: await orari.cambiaOrari(db, uid, (c) => orari.richiestaDiCambio(c, req.data?.giorni, req.data?.motivo, { uid })) }
+  } catch (e) {
+    throw erroreOrari(e)
+  }
+})
+
+exports.decidiCambioOrari = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const admin = req.auth.token.email || req.auth.uid
+  try {
+    const scelta = { esito: req.data?.esito, admin, nota: req.data?.nota }
+    return { orari_servizio: await orari.cambiaOrari(db, String(req.data?.uid || ''), (c) => orari.decisioneSullaRichiesta(c, scelta)) }
+  } catch (e) {
+    throw erroreOrari(e)
+  }
 })
 
 // ── LA REGISTRAZIONE DEL TITOLARE (REQ-FLOTTA-045) ────────────────────
@@ -2640,10 +2723,6 @@ exports.creaRicaricaAI = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async
   return { url: sessione.url }
 })
 
-// Dal backoffice, sul cassetto di un'installazione: ricarica a mano (la
-// Tana la ricarichiamo noi), tetto mensile, acceso o spento, e la chiave
-// che l'installazione usa per chiamare `richiestaAI`. La chiave si vede
-// una volta sola, qui: la regia ne tiene solo l'impronta.
 // IL MODELLO AI PER TIPO DI RICHIESTA (REQ-FLOTTA-092). Daniele,
 // 13/11/2026, su Sonnet: «Per tutto». L'admin sceglie dal backoffice il
 // modello di un tipo, fra quelli che hanno un prezzo nel listino; si
@@ -2680,6 +2759,10 @@ exports.gestisciLimitiChat = onCall(OPTS, async (req) => {
   return { ok: true, limiti_chat: scelta }
 })
 
+// Dal backoffice, sul cassetto di un'installazione: ricarica a mano (la
+// Tana la ricarichiamo noi), tetto mensile, acceso o spento, e la chiave
+// che l'installazione usa per chiamare `richiestaAI`. La chiave si vede
+// una volta sola, qui: la regia ne tiene solo l'impronta.
 exports.gestisciCassettoAI = onCall(OPTS, async (req) => {
   if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
   const { slug, azione } = req.data || {}

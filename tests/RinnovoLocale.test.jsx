@@ -136,6 +136,14 @@ describe('sospeso per il pagamento, coi pagamenti online', () => {
     expect(riquadro()).toHaveTextContent(/si ferma al taglio della giornata/)
   })
 
+  // REQ-FLOTTA-095: al suo momento, fuori dall'orario di servizio.
+  it('se la sospensione aspetta il suo momento fuori servizio, dice quando l’app si ferma', () => {
+    stato.istanza.sospensione_al = { dal: '2026-11-11T01:00:00.000Z', stato: 'sospesa' }
+    mostra()
+    expect(riquadro()).toHaveTextContent(/l’app del tuo locale si ferma mercoledì 11 novembre/)
+    expect(riquadro()).not.toHaveTextContent(/taglio della giornata/)
+  })
+
   it('nella panoramica, in cima, un avviso che porta al riquadro', async () => {
     mostra('/dashboard')
     const avviso = screen.getByRole('region', { name: 'Avviso sul locale' })

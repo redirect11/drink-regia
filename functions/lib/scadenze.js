@@ -37,7 +37,9 @@ const GIORNI_DI_GRAZIA = 7
 // (REQ-FLOTTA-025, lib/conservazione.js).
 // «promemoria»: un promemoria di un pagamento a mano (REQ-FLOTTA-027,
 // lib/comunicazioni.js).
-const TIPI = ['pagamento', 'prova', 'eliminazione', 'condizioni', 'taglio', 'avviso_dati', 'promemoria']
+// «sospensione»: lo stato che ferma il locale per il pagamento, al suo
+// momento fuori dall'orario di servizio (REQ-FLOTTA-095, lib/orari-servizio.js).
+const TIPI = ['pagamento', 'prova', 'eliminazione', 'condizioni', 'taglio', 'avviso_dati', 'promemoria', 'sospensione']
 
 const ms = (iso) => Date.parse(iso || '')
 

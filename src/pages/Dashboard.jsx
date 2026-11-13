@@ -15,6 +15,7 @@ import ChiudiLocale from './ChiudiLocale.jsx'
 import ProveModuli from './ProveModuli.jsx'
 import AggiornamentiLocale from './AggiornamentiLocale.jsx'
 import IlLocale from './IlLocale.jsx'
+import OrariServizio, { AvvisoOrari } from './OrariServizio.jsx'
 import Registrati from './Registrati.jsx'
 import Anteprima from './Anteprima.jsx'
 import RinnovoLocale, { AvvisoRinnovo } from './RinnovoLocale.jsx'
@@ -119,6 +120,8 @@ export default function Dashboard({ utente, chiuso = false }) {
       {inPanoramica && cancellazione && <ChiudiLocale istanza={istanza} />}
       {/* Il locale sospeso o chiuso, o il pagamento che non va (REQ-FLOTTA-090): l'avviso porta al riquadro in «Piano e moduli». */}
       {inPanoramica && <AvvisoRinnovo cliente={cliente} istanza={istanza} />}
+      {/* Gli orari di servizio che mancano (REQ-FLOTTA-095): un locale di prima, o creato dall'admin. */}
+      {inPanoramica && <AvvisoOrari cliente={cliente} />}
       <header className="dashboard-testa">
         <h2>{cliente.nome_locale}</h2>
         <p className="muted small">
@@ -151,7 +154,16 @@ export default function Dashboard({ utente, chiuso = false }) {
             )
           }
         />
-        <Route path="locale" element={<IlLocale cliente={cliente} />} />
+        {/* Gli orari di servizio stanno coi dati del locale (REQ-FLOTTA-095). */}
+        <Route
+          path="locale"
+          element={
+            <>
+              <IlLocale cliente={cliente} />
+              <OrariServizio cliente={cliente} />
+            </>
+          }
+        />
         <Route path="chiudi" element={<ChiudiLocale istanza={istanza} />} />
         {/* Un indirizzo che non c'è (un link vecchio) porta alla panoramica, non a una pagina vuota. */}
         <Route path="*" element={<Navigate to={BASE_TITOLARE} replace />} />
