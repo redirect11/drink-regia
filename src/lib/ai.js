@@ -43,7 +43,27 @@ export function statoCredito(cassetto, adesso = new Date()) {
     credito: daMicro(cassetto.credito_microeuro),
     tetto,
     spesoMese,
+    // Lo sforamento che il credito non copriva (REQ-FLOTTA-093): il credito
+    // si è fermato a zero, e questo resta da recuperare.
+    daRecuperare: Math.max(0, daMicro(cassetto.da_recuperare_microeuro)),
   }
+}
+
+// ── IL MODELLO PER TIPO DI RICHIESTA (REQ-FLOTTA-092) ──
+// Come lo sceglie l'admin nel backoffice: i modelli sono quelli che hanno
+// un prezzo nel listino; senza scelta, o con un valore fuori listino, vale
+// il predefinito, come sul server (functions/lib/ai.js, modelloPer).
+export const MODELLI_AI = Object.keys(listino.ai.prezzi_usd_per_milione)
+export const MODELLO_PREDEFINITO = listino.ai.modello
+export const TIPI_MODELLO_DETTI = [
+  ['descrizione', 'Descrizione'],
+  ['fattura', 'Fattura'],
+  ['tema', 'Tema'],
+  ['chat', 'Chat'],
+]
+export function modelloScelto(tipo, impostazioni) {
+  const scelto = impostazioni?.ai_modelli?.[tipo]
+  return MODELLI_AI.includes(scelto) ? scelto : MODELLO_PREDEFINITO
 }
 
 const TIPI = { descrizione: 'Descrizione di un prodotto', fattura: 'Lettura di una fattura', tema: 'Tema dal mockup' }
