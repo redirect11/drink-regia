@@ -4256,7 +4256,7 @@ requirements:
 
   - id: REQ-FLOTTA-095
     title: "Gli orari di servizio del locale e la sospensione per pagamento fuori servizio"
-    area: "functions/lib/orari-servizio.js (nuovo), functions/lib/registrazione.js (documentoRegistrazione), src/lib/clienti.js (nuovoCliente), functions/lib/licenza.js (validaFino), functions/lib/taglio.js, functions/lib/scadenze.js (TIPI), functions/index.js (registraCliente, scriviLicenza, il compito delle scadenze, le callable degli orari), src/pages/Registrati.jsx, l'area del titolare (src/pages/Dashboard.jsx), src/pages/Backoffice.jsx (scheda del locale), docs/handover.md §7"
+    area: "functions/lib/orari-servizio.js, functions/lib/registrazione.js (documentoRegistrazione), functions/lib/licenza.js (validaFino), functions/lib/taglio.js (licenzaDaScrivere, statoDal), functions/lib/scadenze.js (TIPI), functions/index.js (correggiOrari, chiediCambioOrari, decidiCambioOrari, scriviLicenza, verificaLicenza, momentoDelloStato, il compito «sospensione», licenzaSegueIlPiano), src/lib/orari.js, src/lib/db.js, src/lib/rinnovo.js, src/pages/OrariSettimana.jsx, src/pages/OrariServizio.jsx, src/pages/Registrati.jsx, src/pages/Dashboard.jsx, src/pages/Backoffice.jsx (blocco Titolare), src/pages/RinnovoLocale.jsx, e2e/collaudo-registrazione.spec.js, docs/handover.md §7"
     description: >
       Daniele, 13/11/2026, in chat: «quando un cliente si registra deve
       specificare gli orari di servizio dell'esercizio. Decidiamo la
@@ -4385,23 +4385,49 @@ requirements:
       `valida_fino` è quello stesso momento; quelli dell'admin e del
       titolare subito. Gli orari restano nella regia: la licenza non li
       porta (se tana-drink li vuole, un campo nuovo è una decisione a
-      parte). I test dell'integrazione (scriviLicenza, il compito, le
-      callable, l'area del titolare, il backoffice) si aggiungono con
-      l'implementazione e la voce li cita.
+      parte).
+      FATTO IL 13/11/2026 (ramo feature/orari-di-servizio, #233). La logica
+      in functions/lib/orari-servizio.js, con la copia per il sito in
+      src/lib/orari.js (un test le confronta). Le callable correggiOrari,
+      chiediCambioOrari (il cliente di chi chiama) e decidiCambioOrari
+      (solo l'admin) scrivono in transazione (cambiaOrari). scriviLicenza
+      calcola il momento dello stato per pagamento da `licenza_dal` (così
+      riscrivere la licenza non lo sposta), trattiene lo stato fino ad
+      allora anche al taglio (taglio.licenzaDaScrivere, `statoDal`),
+      programma il compito «sospensione» e segna
+      `istanze/{slug}.sospensione_al` = `{ dal, stato }`; verificaLicenza
+      lo sa. La licenza si riscrive anche quando cambiano gli orari o
+      `abbonamento.dal` (valida_fino). Nell'area del titolare gli orari
+      stanno sotto «Il locale», e la panoramica li chiede finché mancano;
+      nel backoffice stanno nel blocco Titolare della scheda (i blocchi
+      restano sei, REQ-FLOTTA-089), con un avviso in testa quando c'è una
+      richiesta. Il riquadro del rinnovo (REQ-FLOTTA-090) dice quando
+      arriva la sospensione (`siFerma`). Le regole Firestore non cambiano:
+      un test sull'emulatore prova che il titolare non scrive
+      `orari_servizio`.
       CONSEGUENZA NOTA (punto 8): fra «non pagato» e la sospensione il
       locale lavora ancora fino a circa un giorno. PUNTI DEBOLI. L'ora di
       `abbonamento.dal` con Stripe è quella in cui la regia lavora
       l'evento, non quella del pagamento (di solito pochi secondi).
       «Adatto» guarda solo la chiusura del servizio in cui cade l'ora: un
       locale con la pausa solo in certi giorni può essere sospeso in
-      servizio negli altri, e l'avviso lo dice per quei giorni.
-    status: todo
+      servizio negli altri, e l'avviso lo dice per quei giorni. Il
+      «dal» della licenza sospesa resta l'istante in cui la regia l'ha
+      decisa, non quello in cui arriva all'app.
+    status: implemented
     generate_issue: true
     labels: [regia, flotta, registrazione]
     priority: P1
     test_cases:
       - tests/orari-servizio.test.js
       - tests/RegistratiOrari.test.jsx
+      - tests/OrariServizio.test.jsx
+      - tests/Registrati.test.jsx
+      - tests/registrazione.test.js
+      - tests/taglio.test.js
+      - tests/rinnovo.test.js
+      - tests/RinnovoLocale.test.jsx
+      - tests/regole/clienti.test.js
 
   - id: REQ-FLOTTA-091
     title: "Il credito chiesto dall'app dice se il locale può ricaricare e dove: ricaricabile e ricarica_url"

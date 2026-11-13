@@ -168,6 +168,20 @@ describe('cosa dice l’area del titolare', () => {
     expect(senza.alTaglio).toBeNull()
   })
 
+  // REQ-FLOTTA-095: la sospensione per pagamento arriva al suo momento, fuori
+  // dall'orario di servizio; istanze/{slug}.sospensione_al dice quando.
+  it('la sospensione per il pagamento che aspetta il suo momento fuori servizio: si dice quando arriva', () => {
+    const s = situazioneRinnovo({
+      cliente: cliente({ stato: 'non pagato' }),
+      istanza: istanza({ licenza_stato: 'sospesa', licenza_per: 'pagamento', licenza_dal: DAL, sospensione_al: { dal: '2026-11-11T01:00:00.000Z', stato: 'sospesa' } }),
+      vendita: ONLINE,
+    })
+    expect(s).toMatchObject({ tipo: 'sospeso', siFerma: '2026-11-11T01:00:00.000Z', alTaglio: null })
+    // Una dell'admin non aspetta niente.
+    const admin = situazioneRinnovo({ cliente: cliente(), istanza: istanza({ licenza_stato: 'sospesa', licenza_per: 'admin', sospensione_al: { dal: '2026-11-11T01:00:00.000Z' } }), vendita: ONLINE })
+    expect(admin.siFerma).toBeNull()
+  })
+
   it('i contatti sono quelli del prodotto', () => {
     expect(situazioneRinnovo({ cliente: cliente(), istanza: istanza({ licenza_stato: 'sospesa' }), vendita: ONLINE }).email).toBe(EMAIL_CONTATTI)
   })

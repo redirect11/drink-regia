@@ -17,6 +17,8 @@
 
 import { describe, it, expect } from 'vitest'
 import { createRequire } from 'node:module'
+import { readFileSync } from 'node:fs'
+import * as sito from '../src/lib/orari.js'
 
 const require = createRequire(import.meta.url)
 // Il modulo si carica dentro ogni test: finché non c'è, ogni test fallisce
@@ -386,5 +388,168 @@ describe('il momento della sospensione per pagamento', () => {
     // Senza orari resta com'era: il taglio dopo la scadenza.
     const { orari_servizio: _, ...senza } = cliente
     expect(licenzaProtetta({ stato: 'attiva' }, senza, { adesso: new Date('2026-11-13T10:00:00Z'), oraTaglio: 5 }).valida_fino).toBe('2026-11-18T04:00:00.000Z')
+  })
+})
+
+// ── L'INTEGRAZIONE (REQ-FLOTTA-095) ──────────────────────────────────
+
+// Le regole degli orari stanno anche nel sito, per l'errore accanto al
+// giorno prima di mandare: devono dire le stesse cose del server.
+describe('il sito e la regia dicono le stesse cose sugli orari', () => {
+  const CASI = [
+    SERA,
+    tutti(CHIUSO),
+    tutti(aperto('00:00', '00:00')),
+    tutti(aperto('08:00', '07:30')),
+    { ...SERA, mar: aperto('18:00', '25:00') },
+    { ...SERA, mer: {} },
+    { ...SERA, gio: aperto('9:00', '02:00') },
+    { ...tutti(CHIUSO), dom: aperto('20:00', '07:30'), lun: aperto('08:00', '12:00') },
+    null,
+  ]
+
+  it('problemiOrari, giorniSenzaPausa, orariPuliti e correggibiliFino', () => {
+    for (const caso of CASI) {
+      expect(Object.keys(sito.problemiOrari(caso)), JSON.stringify(caso)).toEqual(Object.keys(orari().problemiOrari(caso)))
+      expect(sito.giorniSenzaPausa(caso), JSON.stringify(caso)).toEqual(orari().giorniSenzaPausa(caso))
+    }
+    const conOre = { ...SERA, lun: { chiuso: true, apre: '1', chiude: '2' } }
+    expect(sito.orariPuliti(conOre)).toEqual(orari().orariPuliti(conOre))
+    const c = { orari_servizio: { impostati_il: '2026-11-13T10:00:00.000Z' } }
+    expect(sito.correggibiliFino(c)).toBe(orari().correggibiliFino(c))
+    expect([sito.GIORNI, sito.GIORNI_DI_CORREZIONE, sito.MOTIVO_MINIMO]).toEqual([orari().GIORNI, orari().GIORNI_DI_CORREZIONE, orari().MOTIVO_MINIMO])
+  })
+})
+
+// UN FIRESTORE FINTO, quanto basta alla transazione di cambiaOrari: legge
+// il documento e scrive solo alla fine, come quella vera.
+function firestoreFinto(documenti = {}) {
+  const dati = { ...documenti }
+  const scritture = []
+  return {
+    dati,
+    scritture,
+    doc: (percorso) => ({ percorso }),
+    async runTransaction(fn) {
+      const inAttesa = []
+      const t = {
+        async get(ref) {
+          return { exists: dati[ref.percorso] !== undefined, data: () => dati[ref.percorso] }
+        },
+        update(ref, patch) {
+          inAttesa.push([ref.percorso, patch])
+        },
+      }
+      const esito = await fn(t)
+      for (const [p, patch] of inAttesa) {
+        dati[p] = { ...dati[p], ...patch }
+        scritture.push(p)
+      }
+      return esito
+    },
+  }
+}
+
+describe('cambiaOrari: in transazione sul documento del cliente', () => {
+  const cliente = { uid: 'u1', slug: 'bar-mario', orari_servizio: { giorni: SERA, impostati_il: '2026-11-13T10:00:00.000Z', richiesta: null, storia: [] } }
+  const PRANZO = { ...SERA, lun: aperto('12:00', '15:00') }
+
+  it('rilegge il cliente, applica il cambio e scrive il blocco intero', async () => {
+    const db = firestoreFinto({ 'clienti/u1': cliente })
+    const adesso = new Date('2026-11-14T10:00:00Z')
+    const scritto = await orari().cambiaOrari(db, 'u1', (c) => orari().correzioneDelTitolare(c, PRANZO, { uid: 'u1', adesso }))
+    expect(db.scritture).toEqual(['clienti/u1'])
+    expect(db.dati['clienti/u1'].orari_servizio).toEqual(scritto)
+    expect(scritto.giorni).toEqual(PRANZO)
+    // Il resto del cliente non si tocca.
+    expect(db.dati['clienti/u1'].slug).toBe('bar-mario')
+  })
+
+  it('senza cliente o con un cambio rifiutato non scrive niente', async () => {
+    const db = firestoreFinto({ 'clienti/u1': cliente })
+    await expect(orari().cambiaOrari(db, 'nessuno', (c) => c)).rejects.toMatchObject({ codice: 'not-found' })
+    await expect(orari().cambiaOrari(db, '', (c) => c)).rejects.toMatchObject({ codice: 'invalid-argument' })
+    const dopo = new Date('2026-12-01T10:00:00Z')
+    await expect(orari().cambiaOrari(db, 'u1', (c) => orari().correzioneDelTitolare(c, PRANZO, { uid: 'u1', adesso: dopo }))).rejects.toMatchObject({ codice: 'failed-precondition' })
+    expect(db.scritture).toEqual([])
+  })
+})
+
+describe('il compito della sospensione', () => {
+  it('«sospensione» è un tipo di compito delle scadenze', () => {
+    expect(require('../functions/lib/scadenze.js').TIPI).toContain('sospensione')
+  })
+})
+
+// Le Functions, provate sul testo come il resto di index.js
+// (tests/registrazione.test.js): senza le dipendenze delle Functions il
+// file non si carica.
+describe('functions/index.js', () => {
+  const index = readFileSync('functions/index.js', 'utf8').replace(/\r\n/g, '\n')
+  const corpo = (nome) => {
+    const da = index.slice(index.indexOf(`exports.${nome} =`))
+    return da.slice(0, da.indexOf('\n})'))
+  }
+  const funzione = (nome) => {
+    const da = index.slice(index.indexOf(`function ${nome}(`))
+    return da.slice(0, da.indexOf('\n}'))
+  }
+
+  it('correggiOrari e chiediCambioOrari: solo con l’accesso, e sempre sul cliente di chi chiama', () => {
+    for (const nome of ['correggiOrari', 'chiediCambioOrari']) {
+      const fn = corpo(nome)
+      expect(fn, nome).toContain("if (!req.auth?.uid) throw new HttpsError('unauthenticated'")
+      expect(fn, nome).toContain('const uid = req.auth.uid')
+      expect(fn, nome).toContain('orari.cambiaOrari(db, uid,')
+      expect(fn, nome).toContain('throw erroreOrari(e)')
+    }
+    expect(corpo('correggiOrari')).toContain('orari.correzioneDelTitolare(c, req.data?.giorni, { uid })')
+    expect(corpo('chiediCambioOrari')).toContain('orari.richiestaDiCambio(c, req.data?.giorni, req.data?.motivo, { uid })')
+  })
+
+  it('decidiCambioOrari: solo l’admin', () => {
+    const fn = corpo('decidiCambioOrari')
+    expect(fn).toContain("if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied'")
+    expect(fn).toContain('orari.decisioneSullaRichiesta(c, scelta)')
+  })
+
+  it('i rifiuti degli orari diventano HttpsError col loro codice', () => {
+    expect(funzione('erroreOrari')).toContain('if (e instanceof orari.OrariRifiutati) return new HttpsError(e.codice, e.message, e.dettagli || undefined)')
+  })
+
+  it('scriviLicenza trattiene lo stato per pagamento fino al suo momento e programma il compito; il compito riscrive solo se aspetta quel momento', () => {
+    expect(funzione('scriviLicenza')).toContain('const statoDal = momentoDelloStato(ist, cliente, bar.data())')
+    expect(funzione('scriviLicenza')).toContain("await programma('sospensione', slug, sospensione)")
+    expect(funzione('scriviLicenza')).toContain('sospensione_al: sospensioneAl')
+    expect(funzione('verificaLicenza')).toContain('const statoDal = momentoDelloStato(ist, cliente, bar.data())')
+    expect(index).toContain("if (ist.sospensione_al?.dal !== new Date(quando).toISOString()) return")
+    const momento = funzione('momentoDelloStato')
+    expect(momento).toContain("if (ist?.licenza_per !== 'pagamento'")
+    expect(momento).toContain('orari.quandoSospendere(cliente, { adesso: new Date(deciso)')
+  })
+
+  it('la licenza si riscrive quando cambiano gli orari o l’ora dell’attivazione (valida_fino)', () => {
+    expect(corpo('licenzaSegueIlPiano')).toContain('momentoSpostato')
+  })
+})
+
+// Il documento del cliente non cresce senza fine: la traccia tiene gli
+// ultimi cambi, e motivo e nota hanno un tetto.
+describe('i tetti al documento del cliente', () => {
+  it('la traccia tiene gli ultimi cambi; motivo e nota si accorciano', () => {
+    const { STORIA_MASSIMA, TESTO_MASSIMO, correzioneDelTitolare, richiestaDiCambio, decisioneSullaRichiesta } = orari()
+    const vecchia = Array.from({ length: STORIA_MASSIMA }, (_, i) => ({ tipo: 'correzione', quando: String(i) }))
+    const cliente = { orari_servizio: { giorni: SERA, impostati_il: '2026-11-13T10:00:00.000Z', richiesta: null, storia: vecchia } }
+    const { orari_servizio: corretto } = correzioneDelTitolare(cliente, tutti(aperto('07:00', '15:00')), { uid: 'u1', adesso: new Date('2026-11-14T10:00:00Z') })
+    expect(corretto.storia).toHaveLength(STORIA_MASSIMA)
+    expect(corretto.storia[0].quando).toBe('1')
+    expect(corretto.storia.at(-1).tipo).toBe('correzione')
+    const dopo = new Date('2026-12-01T10:00:00Z')
+    const lungo = 'x'.repeat(TESTO_MASSIMO + 500)
+    const conRichiesta = { ...cliente, ...richiestaDiCambio(cliente, tutti(aperto('07:00', '15:00')), lungo, { uid: 'u1', adesso: dopo }) }
+    expect(conRichiesta.orari_servizio.richiesta.motivo).toHaveLength(TESTO_MASSIMO)
+    const deciso = decisioneSullaRichiesta(conRichiesta, { esito: 'rifiutata', admin: 'admin', adesso: dopo, nota: lungo })
+    expect(deciso.orari_servizio.storia.at(-1).nota).toHaveLength(TESTO_MASSIMO)
+    expect(deciso.orari_servizio.storia).toHaveLength(STORIA_MASSIMA)
   })
 })

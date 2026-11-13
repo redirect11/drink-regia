@@ -1,13 +1,15 @@
 // @vitest-environment happy-dom
 'use strict'
 
-// LA REGISTRAZIONE IN QUATTRO PASSI (REQ-FLOTTA-003): ogni passo si
-// controlla prima di andare avanti, l'errore sta accanto alla casella, lo
-// slug si vede mentre si scrive il nome, e alla fine si crea l'account con
-// tutti i blocchi.
+// LA REGISTRAZIONE A PASSI (REQ-FLOTTA-003): ogni passo si controlla
+// prima di andare avanti, l'errore sta accanto alla casella, lo slug si
+// vede mentre si scrive il nome, e alla fine si crea l'account con tutti i
+// blocchi. Dal 13/11/2026 dopo il locale c'è il passo degli orari di
+// servizio (REQ-FLOTTA-095, i suoi test in RegistratiOrari.test.jsx): qui
+// passoLocale lo attraversa con orari validi.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import '@testing-library/jest-dom/vitest'
@@ -51,6 +53,16 @@ async function passoLocale(user) {
   await user.type(screen.getByLabelText('Città'), 'Nola')
   await user.type(screen.getByLabelText('Provincia'), 'na')
   await user.type(screen.getByLabelText('Telefono del locale'), '081 1234567')
+  await user.click(screen.getByRole('button', { name: 'Avanti' }))
+  await passoOrari(user)
+}
+
+// Tutti i giorni dalle 18 alle 2 di notte.
+async function passoOrari(user) {
+  for (const g of ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica']) {
+    fireEvent.change(screen.getByLabelText(`${g}, apertura`), { target: { value: '18:00' } })
+    fireEvent.change(screen.getByLabelText(`${g}, chiusura`), { target: { value: '02:00' } })
+  }
   await user.click(screen.getByRole('button', { name: 'Avanti' }))
 }
 
@@ -149,6 +161,8 @@ describe('registrarsi', () => {
     await user.clear(casella)
     await user.type(casella, 'Bar-Mario-Nola')
     expect(screen.getByText(/bar-mario-nola\./)).toBeInTheDocument()
+    // Locale, orari (già scritti), fatturazione: tre «Avanti».
+    await user.click(screen.getByRole('button', { name: 'Avanti' }))
     await user.click(screen.getByRole('button', { name: 'Avanti' }))
     await user.click(screen.getByRole('button', { name: 'Avanti' }))
     await user.click(screen.getByRole('button', { name: /Crea l’account/ }))
@@ -240,6 +254,7 @@ describe('completare la registrazione con l’account che c’è già', () => {
     await user.click(screen.getByRole('button', { name: 'Salva i dati del locale' }))
     expect(db.completaRegistrazione).toHaveBeenCalledWith({
       locale: expect.objectContaining({ nome: 'Bar Mario', provincia: 'NA' }),
+      orari: expect.objectContaining({ lun: { apre: '18:00', chiude: '02:00' } }),
       fatturazione: expect.objectContaining({ partita_iva: '01234567897' }),
       referente: expect.objectContaining({ nome: 'Mario', termini: true, privacy: true }),
     })

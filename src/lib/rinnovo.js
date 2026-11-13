@@ -45,8 +45,16 @@ export const abbonamentoDetto = (stato) => ABBONAMENTO_DETTO[stato] || 'da verif
 // compito programmaScadenze.
 const perIlPagamento = (istanza) => istanza?.licenza_per === 'pagamento' || (!istanza?.licenza_per && /pagamento non ricevuto/.test(istanza?.licenza_motivo || ''))
 
-// La sospensione per il pagamento arriva all'app al taglio della giornata
-// (REQ-FLOTTA-024): finché non è arrivata, la riduzione in attesa la nomina.
+// Dal 13/11/2026 (REQ-FLOTTA-095) la sospensione per il pagamento arriva
+// all'app al suo momento, fuori dall'orario di servizio: finché non è
+// arrivata, istanze/{slug}.sospensione_al dice quando.
+function sospensioneAlMomento(istanza) {
+  const dal = istanza?.sospensione_al?.dal
+  return dal && Number.isFinite(Date.parse(dal)) ? dal : null
+}
+
+// Prima arrivava al taglio della giornata (REQ-FLOTTA-024), nominata dalla
+// riduzione in attesa: resta per le sospensioni decise prima del cambio.
 function sospensioneAlTaglio(istanza) {
   const r = istanza?.riduzione_al_taglio
   if (!r?.dal || !Array.isArray(r.cosa)) return null
@@ -54,7 +62,8 @@ function sospensioneAlTaglio(istanza) {
 }
 
 // Cosa dire al titolare: null se non c'è niente da dire, altrimenti
-// { tipo, perPagamento, paga, dal, alTaglio, cancellazione, email }.
+// { tipo, perPagamento, paga, dal, siFerma, alTaglio, cancellazione, email }.
+// `siFerma`: quando la sospensione per pagamento arriva all'app.
 // `tipo`: 'sospeso', 'chiuso', 'in ritardo', 'non pagato' (il locale lavora
 // ancora). `paga`: si mostra il tasto per pagare con Stripe, cioè pagamenti
 // online accesi e un abbonamento Stripe; per un sospeso, solo se fermo per
@@ -64,7 +73,7 @@ export function situazioneRinnovo({ cliente, istanza, vendita }) {
   const ab = cliente?.abbonamento || {}
   const conStripe = ab.origine === 'stripe' && Boolean(ab.stripe_customer)
   const online = vendita?.pagamenti_online === true
-  const base = { dal: istanza?.licenza_dal || null, alTaglio: null, cancellazione: null, email: EMAIL_CONTATTI }
+  const base = { dal: istanza?.licenza_dal || null, siFerma: null, alTaglio: null, cancellazione: null, email: EMAIL_CONTATTI }
   const licenza = istanza?.stato === 'attiva' ? istanza.licenza_stato || 'attiva' : null
   if (licenza === 'chiusa') {
     const e = istanza.eliminazione
@@ -73,7 +82,14 @@ export function situazioneRinnovo({ cliente, istanza, vendita }) {
   }
   if (licenza === 'sospesa') {
     const perPagamento = perIlPagamento(istanza)
-    return { ...base, tipo: 'sospeso', perPagamento, paga: perPagamento && online && conStripe, alTaglio: perPagamento ? sospensioneAlTaglio(istanza) : null }
+    return {
+      ...base,
+      tipo: 'sospeso',
+      perPagamento,
+      paga: perPagamento && online && conStripe,
+      siFerma: perPagamento ? sospensioneAlMomento(istanza) : null,
+      alTaglio: perPagamento ? sospensioneAlTaglio(istanza) : null,
+    }
   }
   // Il locale lavora, ma il pagamento non va: si avvisa prima che si fermi.
   const detto = abbonamentoDetto(ab.stato)
