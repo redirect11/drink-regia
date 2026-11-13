@@ -37,7 +37,8 @@ test.beforeEach(() => {
   test.skip(!PASSWORD, 'manca E2E_PASSWORD')
 })
 
-// La registrazione in quattro passi, come la farebbe un titolare.
+// La registrazione a passi, come la farebbe un titolare. Gli orari di
+// servizio (REQ-FLOTTA-095): lunedì chiuso, gli altri giorni 18–02.
 async function registra(page, { email, nome }) {
   await page.goto('/registrati')
   await page.getByLabel('Email').fill(email)
@@ -51,6 +52,12 @@ async function registra(page, { email, nome }) {
   await page.getByLabel('Città').fill('Roma')
   await page.getByLabel('Provincia').fill('RM')
   await page.getByLabel('Telefono del locale').fill('06 0000000')
+  await page.getByRole('button', { name: 'Avanti' }).click()
+  await page.getByLabel('Lunedì chiuso').check()
+  for (const g of ['Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica']) {
+    await page.getByLabel(`${g}, apertura`).fill('18:00')
+    await page.getByLabel(`${g}, chiusura`).fill('02:00')
+  }
   await page.getByRole('button', { name: 'Avanti' }).click()
   await page.getByLabel('Ragione sociale').fill(`${nome} srl`)
   // `exact`: c'è anche «Codice fiscale (se diverso dalla partita IVA)».
@@ -113,6 +120,8 @@ test('un secondo titolare con lo stesso nome del locale si ferma sullo slug, ne 
   const identificativo = page.getByLabel(/Identificativo dell’app/)
   await expect(identificativo).toBeVisible()
   await identificativo.fill(`${SLUG}-bis`)
+  // Locale, orari (già scritti), fatturazione.
+  await page.getByRole('button', { name: 'Avanti' }).click()
   await page.getByRole('button', { name: 'Avanti' }).click()
   await page.getByRole('button', { name: 'Avanti' }).click()
   // Arrivati al referente si è ancora sulla registrazione: il primo

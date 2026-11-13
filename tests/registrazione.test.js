@@ -20,6 +20,8 @@ const DATI = {
   locale: { nome: ' Bar Mario ', tipo: 'bar', via: 'Via Roma 1', cap: '80035', citta: 'Nola', provincia: 'na', telefono: '081 1234567', sito: '' },
   fatturazione: { ragione_sociale: 'Bar Mario srl', partita_iva: 'IT01234567897', codice_fiscale: '', pec: 'Bar@PEC.it', sdi: '', stessa_sede: true },
   referente: { nome: 'Mario', cognome: 'Rossi', ruolo: 'titolare', telefono: '', termini: true, privacy: true, marketing: false },
+  // Gli orari di servizio, obbligatori dal 13/11/2026 (REQ-FLOTTA-095).
+  orari: Object.fromEntries(['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'].map((g) => [g, g === 'lun' ? { chiuso: true } : { apre: '18:00', chiude: '02:00' }])),
 }
 
 // UN FIRESTORE FINTO, quanto basta: documenti per percorso, la query per
@@ -144,8 +146,9 @@ describe('registraCliente, in transazione', () => {
     const scritto = await r.registraCliente(db, { uid: 'u1', email: 'Mario@Example.IT', dati: { ...DATI, uid: 'furbo', email: 'altro@x.it' }, adesso: ADESSO })
     expect(db.scritture).toEqual(['clienti/u1'])
     expect(db.dati['clienti/u1']).toEqual(scritto)
-    // Il documento del sito, più la forma base dell'email (REQ-FLOTTA-083).
-    expect(scritto).toEqual({ ...nuovoClienteDelSito({ uid: 'u1', email: 'mario@example.it', ...DATI, adesso: ADESSO }), email_norma: 'mario@example.it' })
+    // Il documento del sito, più la forma base dell'email (REQ-FLOTTA-083)
+    // e gli orari di servizio (REQ-FLOTTA-095).
+    expect(scritto).toEqual({ ...nuovoClienteDelSito({ uid: 'u1', email: 'mario@example.it', ...DATI, adesso: ADESSO }), email_norma: 'mario@example.it', orari_servizio: { giorni: DATI.orari, impostati_il: ADESSO.toISOString(), richiesta: null, storia: [] } })
     expect(db.letture).toEqual(['clienti dove slug == bar-mario (2)', 'istanze/bar-mario', 'clienti/u1', 'clienti dove email_norma == mario@example.it (2)'])
   })
 

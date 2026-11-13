@@ -88,7 +88,9 @@ export default function RinnovoLocale({ cliente, istanza, vai = (url) => window.
         <>
           <h3>Il locale è sospeso</h3>
           <p>
-            {s.alTaglio
+            {s.siFerma
+              ? `L’abbonamento non risulta pagato: l’app del tuo locale si ferma ${momento(s.siFerma)}.`
+              : s.alTaglio
               ? `L’abbonamento non risulta pagato: l’app del tuo locale si ferma al taglio della giornata, ${momento(s.alTaglio)}.`
               : `Il tuo locale è sospeso${s.dal ? ` dal ${giorno(s.dal)}` : ''} perché l’abbonamento non risulta pagato.`}
           </p>

@@ -58,6 +58,7 @@ import { BASE, SEZIONI, VISTE, aggiornamentoFallito, aggiornaLaRegia, contiDelBa
 import Rilasci from './Rilasci.jsx'
 import Commerciale from './Commerciale.jsx'
 import CollegaIstanza from './CollegaIstanza.jsx'
+import { OrariNelBackoffice } from './OrariServizio.jsx'
 import { MODALITA, regolaDetta, propostaDetta } from '../lib/aggiornamenti.js'
 
 // Il sito di produzione: lo dice il deploy (deploy.yml), come in App.jsx.
@@ -690,6 +691,8 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
     ),
     // L'app legata a un altro account, col tasto per ricollegarla
     // (REQ-FLOTTA-086): solo quando è scollegata.
+    // Un cambio degli orari di servizio chiesto dal titolare (REQ-FLOTTA-095).
+    c.orari_servizio?.richiesta && <li key="orari">Il titolare chiede di cambiare gli orari di servizio: si decide nel blocco Titolare.</li>,
     istanzaScollegata(c, istanza) && (
       <li key="account">
         <CollegaIstanza cliente={c} istanza={istanza} onFatto={az.carica} />
@@ -742,6 +745,9 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
               account dell’app: {account}
             </div>
           )}
+          {/* Gli orari di servizio del locale (REQ-FLOTTA-095): stanno col titolare, che li dichiara; i blocchi restano sei (REQ-FLOTTA-089). */}
+          <h5 className="blocco-sotto">Orari di servizio</h5>
+          <OrariNelBackoffice cliente={c} onFatto={az.carica} onErrore={az.onErrore} />
         </Blocco>
 
         <Blocco id={id('piano')} titolo="Piano">
@@ -1644,6 +1650,8 @@ function licenzaBreve(istanza) {
   if (!istanza?.progetto) return { tono: 'neutro', testo: '—' }
   if (istanza.licenza_dalla_regia === false) return { tono: 'neutro', testo: 'del suo progetto' }
   if (istanza.licenza_protetta?.ok === false) return { tono: 'errore', testo: 'da allineare' }
+  // La sospensione per pagamento che aspetta il suo momento fuori servizio (REQ-FLOTTA-095).
+  if (istanza.sospensione_al?.dal) return { tono: 'attesa', testo: `sospensione il ${giorno(istanza.sospensione_al.dal)}` }
   if (istanza.riduzione_al_taglio?.dal) return { tono: 'neutro', testo: 'riduzione al taglio' }
   if (istanza.eliminazione?.stato === 'programmata') return { tono: 'errore', testo: `cancellazione il ${giorno(istanza.eliminazione.quando)}` }
   return { tono: 'neutro', testo: istanza.licenza_protetta?.ok ? 'verificata' : 'dalla regia' }
