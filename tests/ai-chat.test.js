@@ -39,12 +39,57 @@ const MODELLO = 'modello-della-chat'
 const TUTTI = ['giacenza', 'vendite', 'cerca_prodotti', 'proponi_descrizione', 'proponi_voce_menu', 'leggi_fattura']
 
 const opzioni = (altro = {}) => ({ slug: SLUG, segreto: SEGRETO, versione: chat.VERSIONE_CHAT, ...altro })
+// Un turno firmato da solo, fuori da una conversazione: per le prove della
+// firma in sé (contesto e posizione vuoti).
 const firmato = (content, altro = {}) => chat.firmaTurno({ role: 'assistant', content }, opzioni(altro))
 const utente = (testo) => ({ role: 'user', content: testo })
 const esiti = (...r) => ({ role: 'user', content: r.map(([id, testo]) => ({ type: 'tool_result', tool_use_id: id, content: testo })) })
-const richiesta = (messaggi, altro = {}) => ({ tipo: 'chat', messaggi, strumenti: ['giacenza', 'vendite'], ...altro })
+
+// LA FIRMA LEGA IL TURNO AL SUO POSTO (revisione della PR #237): contesto
+// (istruzioni e strumenti) e messaggi precedenti. Nelle conversazioni di
+// prova un turno del modello si scrive come segnaposto, e richiesta() lo
+// firma dove sta, come avrebbe fatto la regia rispondendo a quel punto.
+const DA_FIRMARE = Symbol('turno del modello da firmare')
+const turnoModello = (content) => ({ role: 'assistant', content, [DA_FIRMARE]: true })
+const STRUMENTI_DI_PROVA = ['giacenza', 'vendite']
+function firmaInOrdine(messaggi, { strumenti = STRUMENTI_DI_PROVA, limiti = chat.limitiChat({}), ...altro } = {}) {
+  const fatti = []
+  for (const m of messaggi) {
+    if (!m?.[DA_FIRMARE]) {
+      fatti.push(m)
+      continue
+    }
+    fatti.push(chat.firmaTurno(m, opzioni({ contesto: chat.improntaContesto(strumenti, limiti), prima: chat.improntaPrima(fatti), ...altro })))
+  }
+  return fatti
+}
+// `firmaCon` dice con quali strumenti e limiti la regia aveva firmato, se
+// non sono quelli della richiesta di adesso.
+const richiesta = (messaggi, { firmaCon, ...altro } = {}) => {
+  const corpo = { tipo: 'chat', messaggi, strumenti: STRUMENTI_DI_PROVA, ...altro }
+  const strumenti = Array.isArray(corpo.strumenti) && corpo.strumenti.every((s) => TUTTI.includes(s)) ? corpo.strumenti : STRUMENTI_DI_PROVA
+  return { ...corpo, messaggi: Array.isArray(messaggi) ? firmaInOrdine(messaggi, { strumenti, ...firmaCon }) : messaggi }
+}
+// Le opzioni con cui verificare la risposta a una conversazione: il turno
+// nuovo sta dopo tutti i suoi messaggi.
+const dopo = (messaggi, { strumenti = STRUMENTI_DI_PROVA, limiti = chat.limitiChat({}) } = {}) =>
+  opzioni({ contesto: chat.improntaContesto(strumenti, limiti), prima: chat.improntaPrima(messaggi) })
 const prepara = (corpo, altro = {}) => chat.preparaChat(corpo, { ...opzioni(), limiti: chat.limitiChat({}), modello: MODELLO, ...altro })
-const chiamaGiacenza = (id = 'toolu_1') => firmato([{ type: 'tool_use', id, name: 'giacenza', input: { prodotto: 'Gin' } }])
+const chiamaGiacenza = (id = 'toolu_1') => turnoModello([{ type: 'tool_use', id, name: 'giacenza', input: { prodotto: 'Gin' } }])
+
+// Gli errori dell'SDK di Anthropic, finti ma con la stessa forma: un
+// APIError con lo stato e il tipo, e un BadRequestError per i 400.
+class APIErrorFinto extends Error {
+  constructor(status, type, message) {
+    super(message)
+    this.status = status
+    this.type = type
+  }
+}
+class BadRequestErrorFinto extends APIErrorFinto {}
+const AnthropicFinto = { APIError: APIErrorFinto, BadRequestError: BadRequestErrorFinto }
+// Un 400 il cui messaggio ripete la conversazione, come può fare Anthropic.
+const unQuattrocento = () => new BadRequestErrorFinto(400, 'invalid_request_error', '400 messages.1: «Quanto Gin ho?» non va bene')
 
 // Un modello finto che risponde quello che gli si dà e ricorda cosa gli è
 // stato chiesto, qualunque sia la strada del client (create o stream, con
@@ -60,7 +105,7 @@ function modelloFinto(risposta, { errore } = {}) {
     create: async (p) => rispondi(p),
     stream: (p) => ({ finalMessage: async () => rispondi(p) }),
   }
-  return { chiamate, crea: () => ({ Anthropic: {}, client: { messages: messaggi, beta: { messages: messaggi } } }) }
+  return { chiamate, crea: () => ({ Anthropic: AnthropicFinto, client: { messages: messaggi, beta: { messages: messaggi } } }) }
 }
 
 // Il cassetto finto: prenota e chiude come farebbero le transazioni di
@@ -91,7 +136,7 @@ const rispostaModello = (content, altro = {}) => ({ model: MODELLO, stop_reason:
 const stimaChat = (contati, maxTokens) => ai.stimaMassimaMicroeuro({ tipo: 'chat', stimaInputToken: contati, max_tokens: maxTokens }, { inputContati: contati, scritturaCache: true })
 const silenzioso = { error: () => {}, warn: () => {}, log: () => {} }
 
-async function interroga(corpo, { risposta = rispostaModello([{ type: 'text', text: 'Ci sono 4 bottiglie di Gin.' }]), token = 12_345, cassetto = cassettoFinto(), modello, impostazioni = {}, segreto = SEGRETO } = {}) {
+async function interroga(corpo, { risposta = rispostaModello([{ type: 'text', text: 'Ci sono 4 bottiglie di Gin.' }]), token = 12_345, cassetto = cassettoFinto(), modello, impostazioni = {}, segreto = SEGRETO, leggiCassetto, log = silenzioso } = {}) {
   const m = modello || modelloFinto(risposta)
   const contati = []
   const esito = await chat.interrogaChat({
@@ -109,9 +154,10 @@ async function interroga(corpo, { risposta = rispostaModello([{ type: 'text', te
       return { input_tokens: token }
     },
     crea: m.crea,
+    leggiCassetto,
     prenota: cassetto.prenota,
     chiudi: cassetto.chiudi,
-    log: silenzioso,
+    log,
   })
   return { esito, modello: m, cassetto, contati }
 }
@@ -202,7 +248,7 @@ describe('la firma del turno: niente memoria, ma un turno ritoccato si riconosce
   })
 
   it('le chiavi in un altro ordine non contano: la firma è sulla forma canonica', () => {
-    const t = chiamaGiacenza()
+    const t = firmato([{ type: 'tool_use', id: 'toolu_1', name: 'giacenza', input: { prodotto: 'Gin' } }])
     const rimescolato = { firma: t.firma, content: t.content.map((b) => ({ input: b.input, name: b.name, id: b.id, type: b.type })), role: 'assistant' }
     expect(chat.turnoIntatto(rimescolato, opzioni())).toBe(true)
   })
@@ -248,11 +294,12 @@ describe('la richiesta della chat: la regia la controlla prima di spendere', () 
   })
 
   it('un turno del modello senza firma o ritoccato è un 400', () => {
-    const t = chiamaGiacenza()
+    const [domanda, t, esito] = richiesta([utente('Quanto Gin ho?'), chiamaGiacenza(), esiti(['toolu_1', '4'])]).messaggi
+    expect(() => prepara(richiesta([domanda, t, esito]))).not.toThrow()
     const senzaFirma = { role: 'assistant', content: t.content }
     const ritoccato = { ...t, content: [{ ...t.content[0], input: { prodotto: 'Vodka' } }] }
     for (const turno of [senzaFirma, ritoccato]) {
-      expect(() => prepara(richiesta([utente('Quanto Gin ho?'), turno, esiti(['toolu_1', '4'])]))).toThrow(ai.RichiestaNonValida)
+      expect(() => prepara(richiesta([domanda, turno, esito]))).toThrow(ai.RichiestaNonValida)
     }
   })
 
@@ -278,16 +325,18 @@ describe('la richiesta della chat: la regia la controlla prima di spendere', () 
 
   // Le tre cose che l'API di Anthropic rifiuterebbe dopo la prenotazione:
   // meglio un 400 subito che un 503 col credito tenuto in sospeso.
-  it('ogni strumento chiesto ha il suo esito, e uno strumento chiesto prima deve essere ancora fra quelli dati', () => {
-    const due = firmato([
+  it('ogni strumento chiesto ha il suo esito, e uno strumento usato dev’essere fra quelli dati', () => {
+    const due = turnoModello([
       { type: 'tool_use', id: 'toolu_1', name: 'giacenza', input: { prodotto: 'Gin' } },
       { type: 'tool_use', id: 'toolu_2', name: 'vendite', input: { dal: '2026-11-01' } },
     ])
     expect(() => prepara(richiesta([utente('Gin e vendite?'), due, esiti(['toolu_1', '4'])]))).toThrow(ai.RichiestaNonValida)
     expect(prepara(richiesta([utente('Gin e vendite?'), due, esiti(['toolu_1', '4'], ['toolu_2', '{}'])])).parametri.messages).toHaveLength(3)
+    // Un nome che il modello si fosse inventato, firmato con l'elenco di
+    // adesso: il contesto torna, il nome no.
     expect(() => prepara(richiesta([utente('Quanto Gin ho?'), chiamaGiacenza(), esiti(['toolu_1', '4'])], { strumenti: ['vendite'] }))).toThrow(ai.RichiestaNonValida)
     // Due turni del modello di fila non vengono dalla regia.
-    expect(() => prepara(richiesta([utente('Ciao'), firmato([{ type: 'text', text: 'Ciao' }]), firmato([{ type: 'text', text: 'Ancora' }]), utente('?')]))).toThrow(ai.RichiestaNonValida)
+    expect(() => prepara(richiesta([utente('Ciao'), turnoModello([{ type: 'text', text: 'Ciao' }]), turnoModello([{ type: 'text', text: 'Ancora' }]), utente('?')]))).toThrow(ai.RichiestaNonValida)
   })
 
   it('due turni di chi scrive di fila vanno bene: dopo un errore si riscrive senza risposta in mezzo', () => {
@@ -349,7 +398,7 @@ describe('gli strumenti: le definizioni le dà la regia, coi limiti dell’admin
     }
     expect(chat.strumentiUsati(giro(3))).toBe(3)
     // Un messaggio nuovo di chi scrive riapre il conto.
-    expect(chat.strumentiUsati([...giro(5), firmato([{ type: 'text', text: 'Fatto.' }]), utente('E il rum?')])).toBe(0)
+    expect(chat.strumentiUsati([...giro(5), turnoModello([{ type: 'text', text: 'Fatto.' }]), utente('E il rum?')])).toBe(0)
     const sotto = prepara(richiesta(giro(4)))
     expect(sotto.parametri.tool_choice).toMatchObject({ type: 'auto', disable_parallel_tool_use: true })
     const sopra = prepara(richiesta(giro(5)))
@@ -430,7 +479,7 @@ describe('da capo a fondo: la chat passa dalla prenotazione del credito', () => 
       costo_eur: ai.inEuro(costo),
       credito_eur: ai.inEuro(5_000_000 - costo),
     })
-    expect(chat.turnoIntatto(esito.turno, opzioni())).toBe(true)
+    expect(chat.turnoIntatto(esito.turno, dopo([utente('Quanto Gin ho?')]))).toBe(true)
   })
 
   it('la riga dei consumi dice «chat» e i numeri, mai il contenuto: la regia non tiene i dati dei locali', async () => {
@@ -619,6 +668,343 @@ describe('la cache del prompt della chat', () => {
   })
 })
 
+// ── LA REVISIONE DELLA PR #237 (13/11/2026) ──
+// Un rilievo per blocco, col suo numero. Il vincolo di contratto con
+// tana-drink: nessun codice nuovo. L'app conosce già 409 versione, 409
+// troppo-lunga (in tutti e due i casi apre una conversazione nuova), 503
+// (riprova) e limiti_strumenti.
+describe('revisione #237, rilievo 1: un 400 di Anthropic apre una conversazione nuova, non un «riprova» per sempre', () => {
+  it('un 400 del conteggio è un 409 versione, senza prenotare né chiamare il modello', async () => {
+    const { esito, cassetto, modello } = await interroga(richiesta([utente('Quanto Gin ho?')]), { token: unQuattrocento() })
+    expect(esito).toMatchObject({ ok: false, http: 409, codice: 'versione' })
+    expect(esito.errore).toMatch(/conversazione nuova/i)
+    expect(cassetto.prenotate).toEqual([])
+    expect(modello.chiamate).toEqual([])
+  })
+
+  it('un 400 della chiamata è un 409 versione, e la prenotazione si chiude a zero', async () => {
+    const modello = modelloFinto(null, { errore: unQuattrocento() })
+    const { esito, cassetto } = await interroga(richiesta([utente('Quanto Gin ho?')]), { modello })
+    expect(esito).toMatchObject({ ok: false, http: 409, codice: 'versione' })
+    expect(cassetto.chiuse).toEqual([{ costo: 0, riga: null }])
+  })
+
+  it('un errore che non è un 400 resta un 503: rete e sovraccarico passano riprovando', async () => {
+    const modello = modelloFinto(null, { errore: new APIErrorFinto(529, 'overloaded_error', 'sovraccarico') })
+    const { esito } = await interroga(richiesta([utente('Ciao')]), { modello })
+    expect(esito).toMatchObject({ ok: false, http: 503, codice: 'servizio' })
+  })
+
+  it('fattura e tema restano come sono: un 400 è ancora un 503 (punto debole scritto nella voce)', async () => {
+    const m = modelloFinto(null, { errore: unQuattrocento() })
+    const cassetto = cassettoFinto()
+    const esito = await ai.interrogaConPrenotazione({
+      slug: SLUG,
+      messaggio: ai.preparaMessaggio({ tipo: 'descrizione', nome: 'Gin Tonic' }),
+      modello: MODELLO,
+      crea: m.crea,
+      conta: async () => ({ input_tokens: 300 }),
+      prenota: cassetto.prenota,
+      chiudi: cassetto.chiudi,
+      log: silenzioso,
+    })
+    expect(esito).toMatchObject({ ok: false, http: 503 })
+  })
+})
+
+describe('revisione #237, rilievo 2: istruzioni e strumenti cambiati a metà conversazione sono un 409 versione', () => {
+  const conversazione = [utente('Quanto Gin ho?'), chiamaGiacenza(), esiti(['toolu_1', '4'])]
+
+  it('le righe di uno strumento cambiate dall’admin a metà: 409 versione, prima di prenotare', async () => {
+    const corpo = richiesta(conversazione)
+    let errore
+    try {
+      prepara(corpo, { limiti: chat.limitiChat({ limiti_chat: { righe: { giacenza: 7 } } }) })
+    } catch (e) {
+      errore = e
+    }
+    expect(errore).toBeInstanceOf(chat.ConversazioneDaRifare)
+    expect(errore.codice).toBe('versione')
+    const { esito, cassetto, contati } = await interroga(corpo, { impostazioni: { limiti_chat: { righe: { giacenza: 7 } } } })
+    expect(esito).toMatchObject({ ok: false, http: 409, codice: 'versione' })
+    expect(contati).toEqual([])
+    expect(cassetto.prenotate).toEqual([])
+  })
+
+  it('l’elenco degli strumenti cambiato dall’app a metà: 409 versione', () => {
+    const corpo = richiesta(conversazione, { strumenti: ['giacenza', 'vendite', 'cerca_prodotti'], firmaCon: { strumenti: ['giacenza', 'vendite'] } })
+    expect(() => prepara(corpo)).toThrow(chat.ConversazioneDaRifare)
+    const tolto = richiesta(conversazione, { strumenti: ['giacenza'], firmaCon: { strumenti: ['giacenza', 'vendite'] } })
+    expect(() => prepara(tolto)).toThrow(chat.ConversazioneDaRifare)
+  })
+
+  it('un limite che non sta nelle istruzioni (strumenti per messaggio, token) non cambia il contesto', () => {
+    const corpo = richiesta(conversazione)
+    expect(() => prepara(corpo, { limiti: chat.limitiChat({ limiti_chat: { max_strumenti_per_messaggio: 3, max_token_risposta: 2000 } }) })).not.toThrow()
+  })
+
+  it('l’impronta del contesto sta in chiaro davanti alla firma, e la firma la copre', () => {
+    const [, t] = richiesta(conversazione).messaggi
+    const contesto = chat.improntaContesto(STRUMENTI_DI_PROVA, chat.limitiChat({}))
+    expect(chat.contestoDellaFirma(t.firma)).toBe(contesto)
+    expect(chat.contestoDellaFirma('senza-punto')).toBeNull()
+    // Un contesto ricopiato davanti a una firma d'altro non basta: 400.
+    const altro = chat.firmaTurno({ content: t.content }, opzioni({ contesto: 'un-altro-contesto', prima: chat.improntaPrima(conversazione.slice(0, 1)) }))
+    const truccato = { ...t, firma: `${contesto}.${altro.firma.split('.')[1]}` }
+    expect(() => prepara({ ...richiesta(conversazione), messaggi: [conversazione[0], truccato, conversazione[2]] })).toThrow(ai.RichiestaNonValida)
+  })
+})
+
+describe('revisione #237, rilievo 3: il ripiego a metà risposta, come lo vuole la documentazione', () => {
+  const ripiego = { type: 'fallback', from: { model: 'claude-sonnet-5-5' }, to: { model: 'claude-sonnet-5' } }
+
+  it('[thinking, text, fallback, text]: via il ragionamento prima del confine, il fallback resta dov’è, il testo si unisce senza a capo', () => {
+    const content = [{ type: 'thinking', thinking: '', signature: 'firma-del-ragionamento' }, { type: 'text', text: 'Di Gin ce ne sono ' }, ripiego, { type: 'text', text: '4 bottiglie.' }]
+    const r = chat.rispostaChat(rispostaModello(content), opzioni())
+    expect(r.ok).toBe(true)
+    expect(r.turno.content).toEqual([{ type: 'text', text: 'Di Gin ce ne sono ' }, ripiego, { type: 'text', text: '4 bottiglie.' }])
+    expect(r.testo).toBe('Di Gin ce ne sono 4 bottiglie.')
+    expect(chat.turnoIntatto(r.turno, opzioni())).toBe(true)
+  })
+
+  it('prima dell’ULTIMO fallback escono anche redacted_thinking e tool_use; dopo il confine resta tutto', () => {
+    const content = [
+      { type: 'redacted_thinking', data: 'cifrato' },
+      { type: 'tool_use', id: 'toolu_a', name: 'giacenza', input: {} },
+      ripiego,
+      { type: 'thinking', thinking: '', signature: 'prima-del-secondo' },
+      ripiego,
+      { type: 'thinking', thinking: '', signature: 'dopo' },
+      { type: 'tool_use', id: 'toolu_b', name: 'giacenza', input: { prodotto: 'Gin' } },
+    ]
+    const r = chat.rispostaChat(rispostaModello(content, { stop_reason: 'tool_use' }), opzioni())
+    expect(r.turno.content.map((b) => b.type)).toEqual(['fallback', 'thinking', 'tool_use'])
+    expect(r.turno.content[1].signature).toBe('dopo')
+    expect(r.strumenti_richiesti).toEqual([{ id: 'toolu_b', nome: 'giacenza', input: { prodotto: 'Gin' } }])
+  })
+
+  it('senza fallback il contenuto non cambia, ragionamento compreso', () => {
+    const content = [{ type: 'thinking', thinking: '', signature: 's' }, { type: 'text', text: 'Ciao.' }]
+    expect(chat.rispostaChat(rispostaModello(content), opzioni()).turno.content).toEqual(content)
+  })
+})
+
+describe('revisione #237, rilievo 4: un testo accanto agli esiti non azzera il conto degli strumenti', () => {
+  it('8 strumenti col tetto a 5 e un testo accanto a ogni esito: al sesto tool_choice è none', () => {
+    const giro = (n) => {
+      const m = [utente('Fammi il punto del magazzino')]
+      for (let i = 1; i <= n; i += 1) {
+        m.push(chiamaGiacenza(`toolu_${i}`), { role: 'user', content: [{ type: 'tool_result', tool_use_id: `toolu_${i}`, content: `${i}` }, { type: 'text', text: 'E poi?' }] })
+      }
+      return m
+    }
+    expect(chat.strumentiUsati(giro(8))).toBe(8)
+    expect(prepara(richiesta(giro(4))).parametri.tool_choice).toMatchObject({ type: 'auto' })
+    expect(prepara(richiesta(giro(5))).parametri.tool_choice).toEqual({ type: 'none' })
+    expect(prepara(richiesta(giro(8))).parametri.tool_choice).toEqual({ type: 'none' })
+  })
+})
+
+describe('revisione #237, rilievo 5: lo sforzo «low», alla chiamata e al conteggio', () => {
+  it('chiamata e conteggio portano output_config: { effort: "low" }, e la versione è cambiata', async () => {
+    expect(prepara(richiesta([utente('Ciao')])).parametri.output_config).toEqual({ effort: 'low' })
+    const { modello, contati } = await interroga(richiesta([utente('Quanto Gin ho?')]))
+    expect(modello.chiamate[0].output_config).toEqual({ effort: 'low' })
+    expect(contati[0].output_config).toEqual({ effort: 'low' })
+    expect(chat.VERSIONE_CHAT).not.toBe('chat-2026-11-13.1')
+  })
+
+  it('le altre richieste non cambiano: la descrizione conta col suo sforzo e il suo schema', () => {
+    const m = ai.preparaMessaggio({ tipo: 'descrizione', nome: 'Gin Tonic' })
+    expect(ai.parametriConteggio(m, { modello: MODELLO }).output_config.format.type).toBe('json_schema')
+  })
+})
+
+describe('revisione #237, rilievo 6: i blocchi nell’ordine che Anthropic accetta', () => {
+  it('nel turno di chi scrive gli esiti vengono prima del testo', () => {
+    const domanda = [utente('Quanto Gin ho?'), chiamaGiacenza()]
+    const esito = { type: 'tool_result', tool_use_id: 'toolu_1', content: '4' }
+    const nota = { type: 'text', text: 'Controlla anche il rum.' }
+    expect(() => prepara(richiesta([...domanda, { role: 'user', content: [esito, nota] }]))).not.toThrow()
+    expect(() => prepara(richiesta([...domanda, { role: 'user', content: [nota, esito] }]))).toThrow(ai.RichiestaNonValida)
+  })
+
+  it('i testi vuoti escono dal turno prima della firma; una risposta di soli testi vuoti è vuota', () => {
+    const content = [{ type: 'text', text: '' }, { type: 'tool_use', id: 'toolu_3', name: 'giacenza', input: { prodotto: 'Gin' } }, { type: 'text', text: '  ' }]
+    const r = chat.rispostaChat(rispostaModello(content, { stop_reason: 'tool_use' }), opzioni())
+    expect(r.turno.content).toEqual([content[1]])
+    expect(r.testo).toBeNull()
+    expect(chat.rispostaChat(rispostaModello([{ type: 'text', text: '' }]), opzioni())).toMatchObject({ ok: false, codice: 'vuota' })
+  })
+})
+
+describe('revisione #237, rilievo 7: un ingresso annidato all’infinito è un 400, non un 500', () => {
+  const annidato = (livelli) => {
+    const radice = {}
+    let qui = radice
+    for (let i = 0; i < livelli; i += 1) {
+      qui.a = {}
+      qui = qui.a
+    }
+    return radice
+  }
+
+  it('20.000 livelli dentro un turno del modello: 400, niente prenotato', async () => {
+    const turno = { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_1', name: 'giacenza', input: annidato(20_000) }], firma: 'x.y' }
+    const corpo = { tipo: 'chat', messaggi: [utente('Quanto Gin ho?'), turno, esiti(['toolu_1', '4'])], strumenti: STRUMENTI_DI_PROVA }
+    const { esito, cassetto, contati } = await interroga(corpo)
+    expect(esito).toMatchObject({ ok: false, http: 400 })
+    expect(cassetto.prenotate).toEqual([])
+    expect(contati).toEqual([])
+  })
+
+  it('la forma canonica ha un limite di profondità, sotto quello dello stack', () => {
+    expect(() => chat.canonico(annidato(chat.MAX_PROFONDITA - 1))).not.toThrow()
+    expect(() => chat.canonico(annidato(chat.MAX_PROFONDITA + 1))).toThrow(ai.RichiestaNonValida)
+    // Un turno annidato oltre il limite ma non oltre lo stack: lo ferma la
+    // forma canonica, durante la verifica della firma.
+    const contesto = chat.improntaContesto(STRUMENTI_DI_PROVA, chat.limitiChat({}))
+    const turno = { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_1', name: 'giacenza', input: annidato(100) }], firma: `${contesto}.qualcosa` }
+    expect(() => prepara({ tipo: 'chat', messaggi: [utente('Quanto Gin ho?'), turno, esiti(['toolu_1', '4'])], strumenti: STRUMENTI_DI_PROVA })).toThrow(ai.RichiestaNonValida)
+  })
+
+  it('qualunque errore nel preparare la chat è un 400', async () => {
+    const corpo = richiesta([utente('Ciao')])
+    Object.defineProperty(corpo.messaggi[0], 'content', {
+      enumerable: true,
+      get() {
+        throw new TypeError('un getter costruito apposta')
+      },
+    })
+    const { esito } = await interroga(corpo)
+    expect(esito).toMatchObject({ ok: false, http: 400 })
+  })
+})
+
+describe('revisione #237, rilievo 8: la firma lega il turno al suo posto nella conversazione', () => {
+  it('un turno firmato spostato in un’altra conversazione è un 400', () => {
+    const [, turno, esito] = richiesta([utente('Quanto Gin ho?'), chiamaGiacenza(), esiti(['toolu_1', '4'])]).messaggi
+    expect(() => prepara(richiesta([utente('Quanto Gin ho?'), turno, esito]))).not.toThrow()
+    expect(() => prepara(richiesta([utente('Quanto rum ho?'), turno, esito]))).toThrow(ai.RichiestaNonValida)
+  })
+
+  it('anche spostato più avanti nella stessa conversazione', () => {
+    const conv = richiesta([utente('Ciao'), turnoModello([{ type: 'text', text: 'Ciao, dimmi.' }]), utente('Quanto Gin ho?')]).messaggi
+    expect(() => prepara(richiesta(conv))).not.toThrow()
+    expect(() => prepara(richiesta([conv[0], conv[1], conv[2], conv[1], utente('Ancora?')]))).toThrow(ai.RichiestaNonValida)
+    expect(() => prepara(richiesta([utente('Ciao'), utente('Ci sei?'), conv[1], conv[2]]))).toThrow(ai.RichiestaNonValida)
+  })
+
+  it('la risposta si firma dopo tutta la conversazione mandata', async () => {
+    const conv = richiesta([utente('Quanto Gin ho?'), chiamaGiacenza(), esiti(['toolu_1', '4'])]).messaggi
+    const { esito } = await interroga(richiesta(conv))
+    expect(chat.turnoIntatto(esito.turno, dopo(conv))).toBe(true)
+    expect(chat.turnoIntatto(esito.turno, dopo(conv.slice(0, 1)))).toBe(false)
+    // E torna buono nel giro dopo.
+    expect(() => prepara(richiesta([...conv, esito.turno, utente('Grazie')]))).not.toThrow()
+  })
+})
+
+describe('revisione #237, rilievo 9: si firma quello che arriva all’app, passato da JSON', () => {
+  it('andata e ritorno in JSON: il turno resta intatto, anche con un campo undefined', () => {
+    const content = [{ type: 'text', text: 'Ci sono 4 bottiglie.', citations: undefined }, { type: 'tool_use', id: 'toolu_5', name: 'giacenza', input: { prodotto: 'Gin', scorta: undefined } }]
+    const r = chat.rispostaChat(rispostaModello(content, { stop_reason: 'tool_use' }), opzioni())
+    const tornato = JSON.parse(JSON.stringify(r.turno))
+    expect(tornato).toEqual(r.turno)
+    expect(chat.turnoIntatto(tornato, opzioni())).toBe(true)
+    expect(r.strumenti_richiesti[0].input).toEqual({ prodotto: 'Gin' })
+  })
+
+  it('undefined e null non si confondono: null è un valore, e cambia la firma', () => {
+    const t = firmato([{ type: 'tool_use', id: 'toolu_6', name: 'giacenza', input: { prodotto: 'Gin', scorta: undefined } }])
+    expect('scorta' in t.content[0].input).toBe(false)
+    const conNull = { ...t, content: [{ ...t.content[0], input: { prodotto: 'Gin', scorta: null } }] }
+    expect(chat.turnoIntatto(conNull, opzioni())).toBe(false)
+  })
+})
+
+describe('revisione #237, rilievo 10: il cassetto si legge prima di contare, per ogni tipo', () => {
+  it('AI spenta o credito a zero: la risposta di sempre, senza conteggio e senza prenotazione', async () => {
+    for (const [cassetto, codice] of [
+      [{ attivo: false, credito_microeuro: 5_000_000 }, 'spento'],
+      [{ attivo: true, credito_microeuro: 0 }, 'credito'],
+      [null, 'senza-cassetto'],
+    ]) {
+      const { esito, contati, cassetto: c, modello } = await interroga(richiesta([utente('Ciao')]), { leggiCassetto: async () => cassetto })
+      expect(esito).toMatchObject({ ok: false, http: 402, codice })
+      expect(contati).toEqual([])
+      expect(c.prenotate).toEqual([])
+      expect(modello.chiamate).toEqual([])
+    }
+  })
+
+  it('un cassetto che va, o che non si legge, lascia decidere la prenotazione', async () => {
+    const buono = await interroga(richiesta([utente('Ciao')]), { leggiCassetto: async () => ({ attivo: true, credito_microeuro: 5_000_000 }) })
+    expect(buono.esito.ok).toBe(true)
+    const rotto = await interroga(richiesta([utente('Ciao')]), {
+      leggiCassetto: async () => {
+        throw new Error('Firestore non risponde')
+      },
+    })
+    expect(rotto.esito.ok).toBe(true)
+    expect(rotto.contati).toHaveLength(1)
+  })
+
+  it('vale anche per la descrizione: nessun conteggio con l’AI spenta', async () => {
+    const m = modelloFinto(rispostaModello([{ type: 'text', text: '{}' }]))
+    const cassetto = cassettoFinto()
+    let contati = 0
+    const esito = await ai.interrogaConPrenotazione({
+      slug: SLUG,
+      messaggio: ai.preparaMessaggio({ tipo: 'descrizione', nome: 'Gin Tonic' }),
+      modello: MODELLO,
+      crea: m.crea,
+      conta: async () => {
+        contati += 1
+        return { input_tokens: 300 }
+      },
+      leggiCassetto: async () => ({ attivo: false }),
+      prenota: cassetto.prenota,
+      chiudi: cassetto.chiudi,
+      log: silenzioso,
+    })
+    expect(esito).toMatchObject({ ok: false, http: 402, codice: 'spento' })
+    expect(contati).toBe(0)
+  })
+
+  it('il controllo leggero è quello della prenotazione, con la richiesta più piccola', () => {
+    expect(ai.fermoPrimaDiContare({ attivo: true, credito_microeuro: 1, tetto_mensile_microeuro: 10_000_000 })).toBeNull()
+    expect(ai.fermoPrimaDiContare({ attivo: true, credito_microeuro: 5_000_000, tetto_mensile_microeuro: 0 })).toMatchObject({ http: 402, codice: 'tetto' })
+  })
+})
+
+describe('revisione #237, rilievo 12: nei log degli errori solo tipo e stato, mai il messaggio', () => {
+  const registra = () => {
+    const righe = []
+    const scrivi = (...x) => righe.push(x.join(' '))
+    return { righe, log: { error: scrivi, warn: scrivi, info: () => {}, log: scrivi } }
+  }
+
+  it('un errore della chiamata: il tipo e lo stato, non la conversazione che il messaggio ripete', async () => {
+    for (const errore of [unQuattrocento(), new APIErrorFinto(402, 'billing_error', 'credito finito: «Quanto Gin ho?»'), new TypeError('fetch failed per «Quanto Gin ho?»')]) {
+      const { righe, log } = registra()
+      await interroga(richiesta([utente('Quanto Gin ho?')]), { modello: modelloFinto(null, { errore }), log })
+      expect(righe.length).toBeGreaterThan(0)
+      expect(righe.join('\n')).not.toMatch(/Gin/)
+    }
+    const { righe, log } = registra()
+    await interroga(richiesta([utente('Quanto Gin ho?')]), { modello: modelloFinto(null, { errore: unQuattrocento() }), log })
+    expect(righe.join('\n')).toMatch(/invalid_request_error 400/)
+  })
+
+  it('lo stesso per un errore del conteggio', async () => {
+    const { righe, log } = registra()
+    await interroga(richiesta([utente('Quanto Gin ho?')]), { token: new APIErrorFinto(500, 'api_error', 'errore su «Quanto Gin ho?»'), log })
+    expect(righe.join('\n')).toMatch(/api_error 500/)
+    expect(righe.join('\n')).not.toMatch(/Gin/)
+  })
+})
+
 describe('la porta: richiestaAI e il contratto', () => {
   const codice = readFileSync('functions/index.js', 'utf8').replace(/\r\n/g, '\n')
   const porta = codice.slice(codice.indexOf('exports.richiestaAI'), codice.indexOf('async function interrogaClaude'))
@@ -631,6 +1017,12 @@ describe('la porta: richiestaAI e il contratto', () => {
     // I limiti si leggono dalle impostazioni della regia a ogni richiesta,
     // non da una costante: li cambia l'admin.
     expect(codice).toMatch(/limitiChat\(/)
+  })
+
+  it('ogni richiesta col credito legge il cassetto prima del conteggio (revisione #237, rilievo 10)', () => {
+    const inizio = codice.indexOf('async function interrogaClaude')
+    const funzione = codice.slice(inizio, codice.indexOf('\nexports.', inizio))
+    expect(funzione).toMatch(/leggiCassetto: \(\) => cassettoRef\.get\(\)/)
   })
 
   it('i limiti si salvano da una Function dell’admin che li controlla, come i modelli di REQ-FLOTTA-092', () => {

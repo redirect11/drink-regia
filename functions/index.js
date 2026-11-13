@@ -2657,6 +2657,10 @@ async function interrogaClaude(slug, messaggio, { impostazioni: giaLette } = {})
     messaggio,
     modello: ai.modelloPer(messaggio.tipo, impostazioni),
     crea: claude,
+    // Una lettura del cassetto prima del conteggio (revisione della PR
+    // #237): spento o senza credito, niente conteggio. Decide comunque la
+    // transazione della prenotazione.
+    leggiCassetto: () => cassettoRef.get().then((s) => (s.exists ? s.data() : null)),
     prenota: (stima) =>
       db.runTransaction(async (t) => {
         const adesso = new Date()

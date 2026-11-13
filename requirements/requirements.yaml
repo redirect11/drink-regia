@@ -4652,7 +4652,7 @@ requirements:
 
   - id: REQ-FLOTTA-094
     title: "La chat del gestionale passa dalla regia: richiesta chat con turni firmati, versione, limiti dell'admin e la stessa prenotazione del credito"
-    area: "functions/lib/ai-chat.js (preparaChat, firmaTurno, turnoIntatto, limitiChat, TETTI_LIMITI_CHAT, validaLimitiChat, definizioniStrumenti, strumentiUsati, controllaLunghezza, rispostaChat, interrogaChat), functions/lib/ai.js (parametriConteggio, parametriClaude, stimaMassimaMicroeuro con scritturaCache, SCRITTURA_CACHE, rigaConsumo, interrogaConPrenotazione: parametri, conteggio obbligatorio, rifiutaIngresso, leggi, la riga dei tempi), functions/index.js (richiestaAI, interrogaClaude, gestisciLimitiChat, AI_CHAT_SECRET), impostazioni/regia.limiti_chat, src/lib/ai.js (LIMITI_CHAT), src/lib/db.js (impostaLimitiChat), src/pages/Backoffice.jsx (Vendita, LimitiChat), docs/handover.md §5 e §7, CHANGELOG.md"
+    area: "functions/lib/ai-chat.js (preparaChat, firmaTurno, turnoIntatto, canonico e MAX_PROFONDITA, improntaContesto, contestoDellaFirma, improntaPrima, limitiChat, TETTI_LIMITI_CHAT, validaLimitiChat, definizioniStrumenti, strumentiUsati, controllaLunghezza, rispostaChat e il ripiego, interrogaChat), functions/lib/ai.js (parametriConteggio, parametriClaude, stimaMassimaMicroeuro con scritturaCache, SCRITTURA_CACHE, rigaConsumo, fermoPrimaDiContare, interrogaConPrenotazione: parametri, leggiCassetto, conteggio obbligatorio, rifiutaIngresso, richiestaRifiutata, leggi, la riga dei tempi, i log degli errori), functions/index.js (richiestaAI, interrogaClaude, gestisciLimitiChat, AI_CHAT_SECRET), impostazioni/regia.limiti_chat, src/lib/ai.js (LIMITI_CHAT), src/lib/db.js (impostaLimitiChat), src/pages/Backoffice.jsx (Vendita, LimitiChat), docs/handover.md §5 e §7, CHANGELOG.md"
     description: >
       Il contratto viene da tana-drink, REQ-AI-006 (ramo feature/chat-ai,
       13/11/2026, «IL CONTRATTO CON LA REGIA» e «GLI STRUMENTI»;
@@ -4688,7 +4688,9 @@ requirements:
       comincia e finisce con un turno di chi scrive; i turni di chi scrive
       sono un testo non vuoto o blocchi `text` e `tool_result` di solo
       testo: immagini e documenti sono un 400 (il file di una fattura passa
-      dalla richiesta `fattura`). Ogni `tool_result` risponde a un
+      dalla richiesta `fattura`); i `tool_result` vengono prima di
+      qualunque `text` dello stesso turno, sennò è un 400 (Anthropic lo
+      rifiuterebbe). Ogni `tool_result` risponde a un
       `tool_use` del turno del modello subito prima, e ogni `tool_use` ha
       il suo esito; due turni di chi scrive di fila vanno bene (dopo un
       errore si riscrive), due del modello no; uno strumento usato nella
@@ -4698,9 +4700,19 @@ requirements:
       un 400. Il controllo dei ruoli (`leggi_fattura` solo dell'admin) lo
       fa l'app. (2) LA FIRMA. Ogni turno che la regia dà (`turno`) è `{
       role: 'assistant', content, firma }`: `content` com'è tornato dal
-      modello, `firma` un HMAC-SHA256 sulla forma canonica (chiavi in
-      ordine) di slug, versione e content, col segreto delle Functions
-      `AI_CHAT_SECRET` (defineSecret, legato solo a richiestaAI). Il
+      modello, passato da JSON prima di firmarlo (un campo `undefined`
+      sparisce, `null` resta), e `firma` è `<impronta del contesto>.<HMAC>`:
+      l'impronta del contesto (22 caratteri, sha256 di istruzioni e
+      definizioni degli strumenti, righe comprese) in chiaro, e un
+      HMAC-SHA256 sulla forma canonica (chiavi in ordine) di slug,
+      versione, impronta del contesto, impronta dei messaggi precedenti
+      (`prima`, a catena: un anello per messaggio, ruolo e contenuto) e
+      content, col segreto delle Functions
+      `AI_CHAT_SECRET` (defineSecret, legato solo a richiestaAI). Un turno
+      spostato in un'altra conversazione o in un altro punto della stessa
+      è un 400. La forma canonica si ferma a 32 livelli
+      (MAX_PROFONDITA): oltre, e per qualunque altro errore nel preparare
+      la chat (un oggetto annidato oltre lo stack), un 400, mai un 500. Il
       segreto lo crea il coordinatore sul progetto drink-regia-test prima
       del primo tag beta che porta la chat; in produzione solo col via
       libera di Daniele, prima del deploy, che senza si ferma. La verifica è a tempo
@@ -4713,7 +4725,17 @@ requirements:
       caratteri) cambia quando cambiano le istruzioni o le definizioni degli
       strumenti, e torna in ogni risposta. Una richiesta con un'altra
       versione è un 409 `{ codice: 'versione' }`, controllato prima della
-      firma; senza versione (il primo messaggio) vale quella di adesso. (4)
+      firma; senza versione (il primo messaggio) vale quella di adesso.
+      Dalla revisione della PR #237 è `chat-2026-11-13.2`. Lo stesso 409
+      versione arriva quando un turno del modello è stato firmato con un
+      altro contesto (l'admin ha cambiato le righe, o l'app manda un altro
+      elenco di `strumenti`): col ragionamento di Sonnet 5.5, `system` o
+      `tools` diversi a metà conversazione fanno perdere i blocchi di
+      ragionamento o danno un 400. Gli altri limiti (token, strumenti per
+      messaggio) non stanno nelle istruzioni e non cambiano il contesto. E
+      arriva quando Anthropic risponde 400 (BadRequestError) al conteggio
+      o alla chiamata della chat: la stessa conversazione darebbe sempre
+      lo stesso 400; la prenotazione si chiude a zero. (4)
       IL MODELLO E GLI STRUMENTI. La chat usa il modello scelto per il tipo
       `chat` in `impostazioni/regia.ai_modelli` (ai.modelloPer,
       REQ-FLOTTA-092); istruzioni e definizioni degli strumenti (nome,
@@ -4741,7 +4763,18 @@ requirements:
       positivo non si salva e la sezione dice il tetto («al massimo
       16.000»). (6) LA RISPOSTA OLTRE IL TETTO si tronca: 200 col testo
       arrivato, senza strumenti a metà (i `tool_use` di una risposta
-      troncata escono dal turno e da `strumenti_richiesti`). (7) LA
+      troncata escono dal turno e da `strumenti_richiesti`). I blocchi
+      `text` vuoti escono dal turno prima della firma. LO SFORZO: chiamata e
+      conteggio portano `output_config: { effort: 'low' }`, quello che
+      Anthropic consiglia per una chat: allo sforzo predefinito di Sonnet
+      5.5 («high») i token della risposta potevano finire tutti nel
+      ragionamento. IL RIPIEGO A METÀ RISPOSTA: con un blocco `{ type:
+      'fallback', from: { model }, to: { model } }` nel contenuto, prima
+      dell'ultimo `fallback` restano solo i blocchi `text` (escono
+      `thinking`, `redacted_thinking`, `tool_use` e ogni altro tipo), il
+      `fallback` resta dov'è e dopo resta tutto, come vuole la
+      documentazione del ripiego; il `testo` per l'app unisce i pezzi
+      senza separatori. (7) LA
       CONVERSAZIONE TROPPO LUNGA. I token d'ingresso si contano prima di
       prenotare, col conteggio di REQ-FLOTTA-093 (`conta`, o
       client.messages.countTokens), sugli stessi parametri della chiamata:
@@ -4756,7 +4789,8 @@ requirements:
       risponde 503 `{ codice: 'servizio' }` «riprova tra poco», senza
       prenotare né chiamare il modello. (8) GLI STRUMENTI PER MESSAGGIO.
       Uno per turno del modello (`disable_parallel_tool_use`), contati
-      dall'ultimo turno di chi scrive che ha un testo: raggiunto
+      dall'ultimo turno di chi scrive che ha un testo e NESSUN
+      `tool_result` (un testo accanto agli esiti non riapre il conto): raggiunto
       `max_strumenti_per_messaggio` la chiamata va con `tool_choice: none`,
       e il modello risponde con quello che ha. Il conto regge perché i
       turni del modello sono firmati. (8b) LA CACHE DEL PROMPT. La
@@ -4783,7 +4817,14 @@ requirements:
       la stima di REQ-FLOTTA-093 (stimaMassimaMicroeuro(m, { inputContati
       }): ingresso contato col margine, TENTATIVI_MASSIMI tentativi) e
       `max_token_risposta` come `max_tokens`: 402 credito, tetto,
-      spento, senza-cassetto e 429 occupato prima del modello; il modello
+      spento, senza-cassetto e 429 occupato prima del modello. Prima del
+      conteggio, per OGNI tipo (non solo la chat), una lettura del
+      cassetto fuori dalla transazione (`leggiCassetto`,
+      fermoPrimaDiContare): AI spenta, nessun cassetto, credito sotto il
+      micro-euro o tetto raggiunto rispondono il 402 di sempre senza
+      contare, perché il limite di countTokens è unico per tutta
+      l'organizzazione; una lettura che fallisce lascia decidere la
+      prenotazione. Il modello
       che non risponde è un 503 e la stima torna tutta; un rifiuto (422
       rifiuto) o una risposta vuota (422 vuota) costano. Uno sforamento
       segue la regola della 093: il credito non va mai sotto zero e
@@ -4792,7 +4833,11 @@ requirements:
       passa i suoi parametri, il tetto dell'ingresso e il modo di leggere la
       risposta a interrogaConPrenotazione, così le correzioni della 093
       valgono anche per lei. La riga dei consumi dice
-      `tipo: 'chat'` e i numeri, mai il contenuto. (10) LA RISPOSTA 200 è
+      `tipo: 'chat'` e i numeri, mai il contenuto. Nemmeno i log: un errore
+      di Anthropic, al conteggio o alla chiamata e per ogni tipo, si
+      scrive col suo tipo e il suo stato (`invalid_request_error 400`),
+      mai col messaggio, che può ripetere la conversazione; un errore di
+      rete col suo nome. (10) LA RISPOSTA 200 è
       `{ ok, tipo: 'chat', turno, testo, strumenti_richiesti: [{ id, nome,
       input }], versione, limiti_strumenti: { giacenza, vendite,
       cerca_prodotti }, costo_eur, credito_eur }`. `limiti_strumenti` sono
@@ -4818,6 +4863,25 @@ requirements:
       Le definizioni degli ingressi degli strumenti seguono il codice di
       tana-drink del 13/11/2026 (PannelloChat.jsx, strumentiChat.js): se
       l'app li cambia, cambia VERSIONE_CHAT.
+      Dalla revisione della PR #237: un 400 di Anthropic su FATTURA e TEMA
+      resta un 503 «non disponibile», e l'app riprova invano con lo stesso
+      documento (solo la chat sa ripartire da capo). Un 409 versione dopo
+      un 400 di Anthropic dice «conversazione nuova» anche quando la colpa
+      è della regia (una forma della richiesta sbagliata): lo si vede solo
+      dai log, dove resta tipo e stato. Ogni cambio delle righe
+      dall'admin chiude le conversazioni aperte di tutti i locali. La
+      lettura del cassetto prima del conteggio è una lettura in più per
+      ogni richiesta. La catena dei messaggi precedenti vuole la
+      conversazione in sola aggiunta: se l'app accorcia o ritocca un
+      messaggio vecchio di chi scrive, il turno dopo è un 400 (lo
+      vorrebbe comunque il ragionamento conservato di Anthropic). Togliere
+      un testo vuoto dal turno prima di firmarlo cambia il turno rispetto
+      a quello scritto dal modello: [da verificare] che il controllo di
+      Anthropic sulla storia lo accetti accanto a un blocco di
+      ragionamento. [da verificare] (rilievo 11 della revisione, non
+      corretto per decisione del coordinatore): dopo un ripiego il
+      conteggio e la stima contano i token del modello chiesto, mentre il
+      ripiego risponde con un altro modello e può contarli diversamente.
       FATTO (13/11/2026, ramo feature/ai-chat): tutti i criteri, provati da
       tests/ai-chat.test.js (logica pura, il percorso intero con un modello
       e un cassetto finti, il collegamento in index.js, il contratto) e da
@@ -4825,6 +4889,20 @@ requirements:
       Anthropic vero: che countTokens accetti tools e tool_choice, e che il
       ripiego `fallbacks: 'default'` funzioni con gli strumenti e la cache,
       e che la cache legga davvero (si vede da `token_cache_lettura`).
+      REVISIONE DELLA PR #237 (13/11/2026, ramo fix/ai-chat-revisione, issue
+      #232): i rilievi 1-10 e 12 corretti, provati in tests/ai-chat.test.js
+      nei blocchi «revisione #237, rilievo N» (un `conta` e una chiamata
+      finti che lanciano un 400; limiti e strumenti cambiati a metà; il
+      contenuto [thinking, text, fallback, text]; 8 strumenti col tetto a
+      5 e un testo accanto agli esiti; lo sforzo nei parametri; l'ordine
+      dei blocchi e i testi vuoti; 20.000 livelli; un turno spostato;
+      l'andata e ritorno in JSON; il cassetto prima del conteggio, anche
+      per la descrizione; i log). La forma del blocco `fallback` e la
+      regola sui blocchi prima del confine vengono dalla documentazione
+      di Anthropic sul ripiego; che count_tokens accetti `output_config`
+      dal suo riferimento API. NON PROVATO con Anthropic vero: lo sforzo
+      «low» con il ripiego e gli strumenti, e la risposta a un turno
+      rimandato dopo un ripiego.
     status: implemented
     generate_issue: true
     labels: [flotta, regia, ai]

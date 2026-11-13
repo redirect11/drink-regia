@@ -6,6 +6,18 @@ data.
 
 ## Prossima release (da decidere)
 
+- La chat del gestionale, dopo la revisione: un rifiuto di Anthropic per
+  una conversazione che non può passare, o istruzioni e strumenti cambiati
+  a metà, aprono una conversazione nuova (409 versione) invece di far
+  riprovare per sempre; un turno del modello non si sposta in un'altra
+  conversazione; il ripiego su un altro modello a metà risposta si rimanda
+  come vuole Anthropic; il modello ragiona poco (sforzo «low») e non
+  consuma la risposta nel ragionamento; un testo accanto agli esiti non
+  riapre il conto degli strumenti. Per tutte le richieste AI, un locale
+  con l'AI spenta o senza credito riceve il 402 senza consumare il
+  conteggio dei token, e i log degli errori di Anthropic dicono tipo e
+  stato, mai il contenuto. La versione della chat diventa
+  `chat-2026-11-13.2` (REQ-FLOTTA-094).
 - La chat del gestionale passa dalla regia: `richiestaAI` accetta
   `{ tipo: 'chat', messaggi, strumenti, versione }` col credito del locale,
   senza conservare le conversazioni; i turni del modello tornano firmati
