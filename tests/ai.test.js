@@ -233,7 +233,9 @@ describe('si può partire?', () => {
     const pin = Math.max(...ids.map((id) => prezzo(id).input))
     const pout = Math.max(...ids.map((id) => prezzo(id).output))
     const usd = ((m.stimaInputToken + m.stimaInputToken + m.max_tokens) * pin + 2 * m.max_tokens * pout) / 1e6
-    expect(ai.stimaMassimaMicroeuro(m)).toBe(atteso(usd))
+    // Più un micro-euro per gli arrotondamenti in virgola mobile
+    // (revisione della PR #234).
+    expect(ai.stimaMassimaMicroeuro(m)).toBe(atteso(usd) + 1)
   })
 
   // Revisione del 13/11/2026 (B4): l'addebito dopo la risposta è stato
@@ -269,6 +271,9 @@ describe('la risposta del modello', () => {
       tipo: 'fattura',
       modello: 'claude-opus-5-5',
       token_input: 150,
+      // La cache letta e scritta (REQ-FLOTTA-094).
+      token_cache_lettura: 50,
+      token_cache_scrittura: 0,
       token_output: 20,
       fallback: true,
       costo_microeuro: 999,

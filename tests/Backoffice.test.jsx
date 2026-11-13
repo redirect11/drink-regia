@@ -85,6 +85,8 @@ const db = vi.hoisted(() => ({
   elencoMovimenti: vi.fn(async () => []),
   elencoTraffico: vi.fn(async () => []),
   statoFondatori: vi.fn(async () => null),
+  // I limiti della chat AI (REQ-FLOTTA-094).
+  impostaLimitiChat: vi.fn(async () => ({ ok: true })),
 }))
 const regia = vi.hoisted(() => ({ impostazioni: {}, vendita: { free: false, moduli: {} }, contatti: [], aggiornamenti: {}, licenze: null }))
 vi.mock('../src/lib/db.js', () => db)
@@ -1781,23 +1783,97 @@ describe('il modello AI nel backoffice', () => {
 
 // LO SFORAMENTO DEL CREDITO AI (REQ-FLOTTA-093). Daniele, 13/11/2026: il
 // credito non va mai sotto zero; se il costo vero supera lo stesso la stima
-// (un difetto), quello che manca si segna in da_recuperare_microeuro e
+// (un difetto), quello che manca si segna in sforato_microeuro. Daniele,
+// 13/11/2026: «gestisco io a mano. In realtà è un costo che ci
+// accolliamo»: l'avviso informa, non chiede un recupero al locale, e
 // l'admin lo vede nella scheda del locale.
-describe('il credito AI da recuperare', () => {
-  it('nel blocco Credito AI un avviso con l’importo da recuperare', async () => {
-    db.elencoCassettiAI.mockResolvedValue({ 'bar-attivo': { credito_microeuro: 0, da_recuperare_microeuro: 1_234_567 } })
+describe('lo sforamento del credito AI', () => {
+  it('nel blocco Credito AI un avviso con l’importo assorbito da Stonebit', async () => {
+    db.elencoCassettiAI.mockResolvedValue({ 'bar-attivo': { credito_microeuro: 0, sforato_microeuro: 1_234_567 } })
     mostra()
     const attivo = await apri('Bar Attivo')
     const blocco = within(attivo).getByRole('region', { name: 'Credito AI' })
-    const avviso = within(blocco).getByTestId('da-recuperare-bar-attivo')
-    expect(avviso).toHaveTextContent('1,23 €')
-    expect(avviso).toHaveTextContent(/da recuperare/i)
+    const avviso = within(blocco).getByTestId('sforato-bar-attivo')
+    expect(avviso).toHaveTextContent('Sforamento assorbito da Stonebit: 1,23 €')
+    expect(avviso).not.toHaveTextContent(/recuper/i)
   })
 
-  it('senza niente da recuperare, nessun avviso', async () => {
-    db.elencoCassettiAI.mockResolvedValue({ 'bar-attivo': { credito_microeuro: 5_000_000, da_recuperare_microeuro: 0 } })
+  it('senza sforamenti, nessun avviso', async () => {
+    db.elencoCassettiAI.mockResolvedValue({ 'bar-attivo': { credito_microeuro: 5_000_000, sforato_microeuro: 0 } })
     mostra()
     const attivo = await apri('Bar Attivo')
-    expect(within(attivo).queryByTestId('da-recuperare-bar-attivo')).toBeNull()
+    expect(within(attivo).queryByTestId('sforato-bar-attivo')).toBeNull()
+  })
+})
+
+// I LIMITI DELLA CHAT AI (REQ-FLOTTA-094). Daniele, 13/11/2026: «rendi
+// questi parametri configurabili da backoffice di admin». Stanno in
+// «Vendita», accanto ai modelli AI di REQ-FLOTTA-092, e come quelli si
+// salvano da una Function (impostaLimitiChat di src/lib/db.js), che
+// controlla i tetti: il backoffice non scrive il documento da sé.
+describe('i limiti della chat AI nel backoffice', () => {
+  const campi = [
+    ['Token della risposta', 'max_token_risposta', 4000, 16000],
+    ['Token della conversazione', 'max_token_conversazione', 50000, 200000],
+    ['Strumenti per messaggio', 'max_strumenti_per_messaggio', 5, 20],
+  ]
+  const righe = [
+    ['Righe di Giacenza', 'giacenza', 5],
+    ['Righe di Vendite', 'vendite', 20],
+    ['Righe di Cerca prodotti', 'cerca_prodotti', 15],
+  ]
+
+  it('in «Vendita» ci sono i sei limiti, coi valori iniziali quando l’admin non ne ha scelti', async () => {
+    mostra('/backoffice/vendita')
+    const sezione = await screen.findByRole('region', { name: 'Limiti della chat AI' })
+    for (const [etichetta, , iniziale] of [...campi, ...righe]) {
+      expect(within(sezione).getByLabelText(etichetta)).toHaveValue(iniziale)
+    }
+  })
+
+  it('un limite salvato si vede al posto del valore iniziale', async () => {
+    regia.impostazioni = { limiti_chat: { max_token_risposta: 3000, righe: { vendite: 30 } } }
+    mostra('/backoffice/vendita')
+    const sezione = await screen.findByRole('region', { name: 'Limiti della chat AI' })
+    expect(within(sezione).getByLabelText('Token della risposta')).toHaveValue(3000)
+    expect(within(sezione).getByLabelText('Righe di Vendite')).toHaveValue(30)
+    expect(within(sezione).getByLabelText('Righe di Giacenza')).toHaveValue(5)
+  })
+
+  it('un limite cambiato si salva uscendo dal campo, solo quello, passando dalla Function', async () => {
+    const user = userEvent.setup()
+    mostra('/backoffice/vendita')
+    const sezione = await screen.findByRole('region', { name: 'Limiti della chat AI' })
+    const risposta = within(sezione).getByLabelText('Token della risposta')
+    await user.clear(risposta)
+    await user.type(risposta, '3000')
+    expect(db.impostaLimitiChat).not.toHaveBeenCalled()
+    await user.tab()
+    expect(db.impostaLimitiChat).toHaveBeenCalledWith({ max_token_risposta: 3000 })
+    const vendite = within(sezione).getByLabelText('Righe di Vendite')
+    await user.clear(vendite)
+    await user.type(vendite, '30')
+    await user.tab()
+    expect(db.impostaLimitiChat).toHaveBeenLastCalledWith({ righe: { vendite: 30 } })
+  })
+
+  it('ogni campo dice il suo tetto, e un valore oltre il tetto o non intero non si salva', async () => {
+    const user = userEvent.setup()
+    mostra('/backoffice/vendita')
+    const sezione = await screen.findByRole('region', { name: 'Limiti della chat AI' })
+    for (const [etichetta, , , tetto] of campi) {
+      expect(within(sezione).getByLabelText(etichetta)).toHaveAttribute('max', String(tetto))
+    }
+    for (const [etichetta] of righe) expect(within(sezione).getByLabelText(etichetta)).toHaveAttribute('max', '100')
+    const risposta = within(sezione).getByLabelText('Token della risposta')
+    await user.clear(risposta)
+    await user.type(risposta, '16001')
+    await user.tab()
+    expect(db.impostaLimitiChat).not.toHaveBeenCalled()
+    expect(sezione).toHaveTextContent(/al massimo 16\.000/)
+    await user.clear(risposta)
+    await user.type(risposta, '0')
+    await user.tab()
+    expect(db.impostaLimitiChat).not.toHaveBeenCalled()
   })
 })

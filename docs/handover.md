@@ -355,7 +355,7 @@ canale di anteprima col via libera.
 |---|---|
 | Hosting `drink-regia.web.app` | pubblicato una volta (hosting + regole), **senza la landing page nuova né il fix C2** |
 | Functions | **nessuna pubblicata** |
-| Progetto di test `drink-regia-test` | **creato il 29/10/2026**, su Blaze col secondo account di fatturazione («Il mio account di fatturazione 2», solo prove). API, Firestore `europe-west1`, Auth email, SA del deploy con i ruoli di docs/actions-come-tana-drink.md §3. Sito, regole e 17 Functions pubblicati dal tag `v0.1.0-prova.3` (ramo `feature/rilasci-a-ondate`). Segreti delle Functions: `PROVISIONING_CALLBACK_SECRET` (lo stesso della produzione: tana-drink ne conosce uno), Stripe **sandbox**; `ANTHROPIC_API_KEY` e `GITHUB_DISPATCH_TOKEN` **segnaposto** (il cassetto AI e le attivazioni vere non partono finché non si mettono quelli veri). |
+| Progetto di test `drink-regia-test` | **creato il 29/10/2026**, su Blaze col secondo account di fatturazione («Il mio account di fatturazione 2», solo prove). API, Firestore `europe-west1`, Auth email, SA del deploy con i ruoli di docs/actions-come-tana-drink.md §3. Sito, regole e 17 Functions pubblicati dal tag `v0.1.0-prova.3` (ramo `feature/rilasci-a-ondate`). Segreti delle Functions: `PROVISIONING_CALLBACK_SECRET` (lo stesso della produzione: tana-drink ne conosce uno), Stripe **sandbox**; `ANTHROPIC_API_KEY` e `GITHUB_DISPATCH_TOKEN` **segnaposto** (il cassetto AI e le attivazioni vere non partono finché non si mettono quelli veri). Dal ramo `feature/ai-chat` (REQ-FLOTTA-094) `richiestaAI` lega anche **`AI_CHAT_SECRET`** (la firma dei turni della chat, almeno 32 caratteri casuali): va creato prima del primo tag beta che lo porta, se no il deploy di `richiestaAI` si ferma; in produzione solo col via libera di Daniele. |
 | Environment GitHub `test` | **creato il 29/10/2026**: i quattro `VITE_FIREBASE_*` e `FIREBASE_SERVICE_ACCOUNT` |
 | Approvazione sulla produzione | **non disponibile**: GitHub Free non dà i «Required reviewers» a un repository privato (provato il 29/10/2026, errore 422). Oggi protegge solo il job «Dove va» (un tag fuori da `main` va sul test). Decisione dell'utente: GitHub Pro, o accettare il controllo del workflow |
 | Segreto `PROJECT_TOKEN` (bacheca) | **manca**: lo mette l'utente |
@@ -363,7 +363,7 @@ canale di anteprima col via libera.
 | Firestore | `europe-west1`, regole pubblicate |
 | Blaze | attivo |
 | Environment GitHub `production` | segreti `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID` e, dal 07/11/2026, `FIREBASE_SERVICE_ACCOUNT` (chiave del SA di deploy, messa da `scripts/ruoli-deploy.mjs` col via libera dell'utente; lo stesso script ha dato al SA i ruoli di docs/actions-come-tana-drink.md §3 e acceso Cloud Tasks, Scheduler ed Extensions) |
-| Segreti delle Functions | `PROVISIONING_CALLBACK_SECRET` presente; **mancano `GITHUB_DISPATCH_TOKEN`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`** e, dal ramo `feature/cassetto-ai` (24/10), **`ANTHROPIC_API_KEY`**: senza, il deploy delle Functions si ferma |
+| Segreti delle Functions | `PROVISIONING_CALLBACK_SECRET` presente; **mancano `GITHUB_DISPATCH_TOKEN`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`** e, dal ramo `feature/cassetto-ai` (24/10), **`ANTHROPIC_API_KEY`**; dal ramo `feature/ai-chat` (13/11, REQ-FLOTTA-094) anche **`AI_CHAT_SECRET`**: senza, il deploy delle Functions si ferma |
 | Cassetto AI (REQ-AI-003) | Functions pubblicate sul test; `ANTHROPIC_API_KEY` è un segnaposto. Dal 06/11/2026 la strada è la **federazione** (§7, «Cassetto AI»): sul test è pronta (account `ai-regia@drink-regia-test`, regola `gcp-drink-regia-test` nell'area di lavoro «drink», i quattro id in `functions/.env.drink-regia-test`), entra col primo deploy sul test e la verifica nella Console della regola si chiude al primo scambio di token. In produzione pronta allo stesso modo (account `ai-regia@drink-regia`, regola `gcp-drink-regia`, stessa area, i valori in `functions/.env.drink-regia`): entra col primo tag su main, e lì va tolto il segnaposto `ANTHROPIC_API_KEY` dai segreti solo quando il log della regola mostra lo scambio riuscito. La ricarica automatica del credito Anthropic va impostata nella Console |
 | `functions/.env` | `GITHUB_REPO=redirect11/drink-regia`, `FLOTTA_REF=main`, `APP_REF=main`: in produzione solo quello che è su `main` di tana-drink, quindi niente attivazioni finché la 1.10 non ci arriva. Il test usa `develop` (`functions/.env.drink-regia-test`) |
 | Segnaposto da decidere (utente) | prezzi, email `info@drink.app`, dominio `drink.app`, dati della società in `Legali.jsx`. Il nome del prodotto è deciso il 09/11/2026: «Lime – SmartOrders», logo a fetta di lime (`src/lib/prodotto.js`, `src/components/Logo.jsx`); gli slug tecnici `drink`/`drinkpos` e i nomi dei repository restano |
@@ -1238,8 +1238,11 @@ moduli, la licenza nell'istanza e la Tana.
   codice: "servizio" }` senza prenotare niente, da riprovare come gli
   altri 503. Se una richiesta costasse lo stesso più della stima (un
   difetto), il credito si ferma a zero e il resto la regia lo segna in
-  `da_recuperare_microeuro` nel cassetto, per l'admin: per l'app il
-  credito è zero e la richiesta dopo riceve `402 credito`. `risultato` per la descrizione è `{ descrizione, da_verificare:
+  `sforato_microeuro` nel cassetto, per l'admin: è un costo che Stonebit
+  si accolla (Daniele, 13/11/2026: «gestisco io a mano. In realtà è un
+  costo che ci accolliamo»), non un debito del locale. Per l'app il
+  credito è zero e la richiesta dopo riceve `402 credito`. Il conteggio
+  ha un tempo massimo di 10 secondi, poi vale come non riuscito. `risultato` per la descrizione è `{ descrizione, da_verificare:
   [] }`; per la fattura `{ fornitore: { ragione_sociale, partita_iva },
   numero, data, righe: [{ descrizione, codice, quantita, unita,
   prezzo_unitario, sconto_percentuale, aliquota_iva, importo }],
@@ -1262,6 +1265,64 @@ moduli, la licenza nell'istanza e la Tana.
   Un locale Free riceve `402 piano`. Senza cassetto o spento, il `402 { codice: senza-cassetto |
   spento }` di sempre. Va chiesto all'apertura delle Impostazioni e della
   chat, non a ogni pagina.
+  **La chat del gestionale** (REQ-FLOTTA-094, dal 13/11/2026, per
+  REQ-AI-006 di tana-drink; Daniele: «rendi questi parametri configurabili
+  da backoffice di admin» e, sui dubbi, «per tutti i 10 i punti facciamo
+  come dici»). Lo stesso gettone, il corpo
+  `{ "tipo": "chat", "messaggi", "strumenti", "versione" }`: `messaggi` è la
+  conversazione intera nel formato di Anthropic, perché la regia **non la
+  conserva**; i turni di chi scrive sono un testo o blocchi `text` e
+  `tool_result` di solo testo (immagini e documenti `400`: il file di una
+  fattura passa dalla richiesta `fattura`); ogni `tool_result` risponde a
+  un `tool_use` del turno del modello subito prima, e ogni `tool_use` ha
+  il suo esito; due turni di chi scrive di fila vanno bene, due del modello
+  no. I turni del modello si rimettono **esattamente** come la regia li ha
+  dati: `{ role: "assistant", content, firma }`, dove `firma` è un
+  HMAC-SHA256 della regia (segreto `AI_CHAT_SECRET`) su locale, versione e
+  contenuto; un turno senza firma o ritoccato è un `400`. `strumenti` sono
+  solo identificativi, fra `giacenza`, `vendite`, `cerca_prodotti`,
+  `proponi_descrizione`, `proponi_voce_menu`, `leggi_fattura` (il ruolo
+  lo controlla l'app); uno strumento già usato nella conversazione deve
+  esserci ancora. `versione` è quella della prima risposta (assente al
+  primo messaggio). Istruzioni, definizioni degli strumenti, modello
+  (`impostazioni/regia.ai_modelli.chat`, REQ-FLOTTA-092) e limiti sono
+  della regia. Risposta `200 { ok, tipo: "chat", turno, testo,
+  strumenti_richiesti: [{ id, nome, input }], versione, limiti_strumenti: {
+  giacenza, vendite, cerca_prodotti }, costo_eur, credito_eur }`:
+  `limiti_strumenti` sono le righe che l'app restituisce al massimo per
+  ogni strumento di lettura. Gli ingressi degli strumenti: `giacenza {
+  prodotto }`, `vendite { dal, al?, prodotto? }` (AAAA-MM-GG),
+  `cerca_prodotti { testo }`, `proponi_descrizione { prodotto }`,
+  `proponi_voce_menu { prodotto, prezzo_eur? }`, `leggi_fattura {}`. Il
+  modello chiede uno strumento per turno; dall'ultimo messaggio scritto da
+  una persona, al massimo `max_strumenti_per_messaggio`, poi risponde con
+  quello che ha. Una risposta oltre `max_token_risposta` si tronca: arriva
+  il testo, senza strumenti a metà. Codici: `400` richiesta sbagliata o
+  turno ritoccato; `401`; `402` come sopra; **`409 { codice: "versione" }`**
+  istruzioni o strumenti cambiati, e **`409 { codice: "troppo-lunga" }`**
+  la conversazione supera `max_token_conversazione` token d'ingresso
+  (contati con `countTokens` prima di prenotare): in tutti e due i casi
+  l'app apre una conversazione nuova, con due messaggi diversi; `422 {
+  codice: rifiuto | vuota }` col costo; `429 occupato`; `503` servizio,
+  anche quando il conteggio dei token non risponde (la chat senza
+  conteggio non parte) o il segreto della firma non è configurato. Il
+  credito passa dalla stessa prenotazione delle altre richieste, con la
+  stessa stima e la stessa regola dello sforamento
+  (`sforato_microeuro`, a carico di Stonebit), con la scrittura in cache dentro la stima:
+  la chat usa la cache del prompt (Daniele: «Considera che una chat che
+  cresce e la rimanda tutta il costo delle richieste aumenta»), coi segni
+  sulle istruzioni e sull'ultimo blocco della conversazione. Ogni
+  richiesta AI scrive nei log una riga «[ai] TEMPI» (conteggio e chiamata
+  in millisecondi, token contati, letti e scritti in cache), e la riga dei
+  consumi tiene `token_cache_lettura` e `token_cache_scrittura`. I limiti, in `impostazioni/regia.limiti_chat`,
+  li cambia l'admin dal backoffice («Vendita» → «Limiti della chat AI»,
+  Function `gestisciLimitiChat`): `max_token_risposta` 4.000 (al massimo
+  16.000), `max_token_conversazione` 50.000 (al massimo 200.000),
+  `max_strumenti_per_messaggio` 5 (al massimo 20), `righe` `{ giacenza: 5,
+  vendite: 20, cerca_prodotti: 15 }` (al massimo 100). **Da chiedere a
+  tana-drink**: distinguere il `409 troppo-lunga` dal `409 versione`
+  (oggi `interpreta` li tratta tutti come versione) e leggere
+  `limiti_strumenti` (oggi `LIMITI_RIGHE` è fisso nell'app).
   **Dal 12/11/2026 senza chiave** (REQ-FLOTTA-077, Daniele: «niente
   chiave»). Ogni locale della flotta ha un account Google dedicato,
   `ai-locale@<progetto>.iam.gserviceaccount.com`, creato dal suo

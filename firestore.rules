@@ -213,9 +213,23 @@ service cloud.firestore {
     // osservaRegoleAggiornamenti, chiamate solo da Backoffice.jsx): prima
     // le leggeva ogni autenticato, e sono informazioni interne (audit del
     // 09/11/2026, finding 28). Le Functions le rileggono da sé.
+    // LE CHIAVI CHE PASSANO SOLO DA UNA FUNCTION (REQ-FLOTTA-092,
+    // Daniele, 13/11/2026: «il modo più sicuro»): `ai_modelli` (il modello
+    // AI per tipo di richiesta, gestisciModelliAI) e `limiti_chat` (i limiti
+    // della chat, gestisciLimitiChat, REQ-FLOTTA-094, chiusa già prima che
+    // arrivi). Nessuno le scrive da qui, nemmeno l'admin: le Functions
+    // ricontrollano i valori e scrivono con l'Admin SDK, che le regole non
+    // le guarda. Il resto di impostazioni/regia (deploy_automatico,
+    // attivazione_simulata, aggiornate_il) l'admin lo scrive come prima.
+    // Il documento non si cancella mentre le porta: le azzererebbe.
+    function chiaviSoloFunction() {
+      return ['ai_modelli', 'limiti_chat'];
+    }
     match /impostazioni/{doc} {
       allow read: if admin();
-      allow write: if admin();
+      allow create: if admin() && !(doc == 'regia' && request.resource.data.keys().hasAny(chiaviSoloFunction()));
+      allow update: if admin() && !(doc == 'regia' && request.resource.data.diff(resource.data).affectedKeys().hasAny(chiaviSoloFunction()));
+      allow delete: if admin() && !(doc == 'regia' && resource.data.keys().hasAny(chiaviSoloFunction()));
     }
   }
 }

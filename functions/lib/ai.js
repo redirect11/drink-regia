@@ -106,6 +106,11 @@ function validaModelliAI(dati) {
 // Si contano tutti i tentativi riportati, anche quelli rifiutati prima di
 // scrivere: se Anthropic non li fattura il locale paga qualche token in
 // più, mai in meno di quello che paghiamo noi.
+// La scrittura in cache costa 1,25 volte l'ingresso (durata di 5 minuti,
+// la predefinita; quella di un'ora costerebbe il doppio, e la regia non la
+// chiede). La stessa cifra nel costo e nella stima della chat.
+const SCRITTURA_CACHE = 1.25
+
 function costoMicroeuro(risposta, { modelloChiesto = AI.modello } = {}) {
   const usage = risposta?.usage || {}
   const tentativi = Array.isArray(usage.iterations) && usage.iterations.length
@@ -120,7 +125,7 @@ function costoMicroeuro(risposta, { modelloChiesto = AI.modello } = {}) {
     const lettura = p.cache_lettura ?? p.input * 0.1
     usd +=
       ((Number(t.input_tokens) || 0) * p.input +
-        (Number(t.cache_creation_input_tokens) || 0) * p.input * 1.25 +
+        (Number(t.cache_creation_input_tokens) || 0) * p.input * SCRITTURA_CACHE +
         (Number(t.cache_read_input_tokens) || 0) * lettura +
         (Number(t.output_tokens) || 0) * p.output) /
       1_000_000
@@ -397,8 +402,13 @@ function preparaMessaggio(corpo) {
 // PDF possono incappare in un falso positivo); il costo segue il modello
 // che ha risposto (costoMicroeuro).
 function parametriClaude(m, { modello = AI.modello } = {}) {
+  // LA CACHE DELLA CHAT (REQ-FLOTTA-094): il segno sulle istruzioni (che
+  // coprono anche gli strumenti, che vengono prima) e quello in cima alla
+  // richiesta, che Anthropic mette sull'ultimo blocco della conversazione.
+  const cache = m.parametri ? { system: m.parametri.system, ...(m.parametri.cache_control ? { cache_control: m.parametri.cache_control } : {}) } : {}
   return {
     ...parametriConteggio(m, { modello }),
+    ...cache,
     max_tokens: m.max_tokens,
     betas: ['server-side-fallback-2026-07-01'],
     fallbacks: 'default',
@@ -409,7 +419,21 @@ function parametriClaude(m, { modello = AI.modello } = {}) {
 // modello, le stesse istruzioni, lo stesso messaggio e lo stesso formato
 // della richiesta che parte (lo schema della risposta pesa sull'ingresso),
 // senza i parametri del ripiego, che il conteggio non conosce.
+// LA CHAT (REQ-FLOTTA-094) porta i suoi parametri già fatti (lib/ai-chat.js:
+// istruzioni, conversazione, strumenti): qui si mette solo il modello, lo
+// stesso per il conteggio e per la chiamata.
+const senzaCache = (b) => {
+  const copia = { ...b }
+  delete copia.cache_control
+  return copia
+}
 function parametriConteggio(m, { modello = AI.modello } = {}) {
+  if (m.parametri) {
+    const { system, messages, tools, tool_choice } = m.parametri
+    // I segni della cache non cambiano i token: al conteggio non servono.
+    const sistema = Array.isArray(system) ? system.map(senzaCache) : system
+    return { model: modello, system: sistema, messages, ...(tools?.length ? { tools, tool_choice } : {}) }
+  }
   return {
     model: modello,
     system: m.system,
@@ -437,22 +461,55 @@ function parametriConteggio(m, { modello = AI.modello } = {}) {
 const MARGINE_CONTEGGIO = 0.05
 const TENTATIVI_MASSIMI = 2
 const contoValido = (n) => Number.isSafeInteger(n) && n > 0
+// Il tempo massimo del conteggio (revisione della PR #234): coi valori
+// predefiniti dell'SDK (10 minuti, 2 nuovi tentativi anche sui 429) un
+// conteggio lento consumava il tempo della Function (TIMEOUT_AI_SECONDI)
+// prima della chiamata al modello, e la prenotazione scadeva alla stima.
+// Dopo 10 secondi il conteggio vale come fallito.
+const TEMPO_CONTEGGIO_MS = 10_000
+// Il conteggio, entro il tempo massimo: anche uno iniettato, o un SDK che
+// non rispettasse le sue opzioni, non tiene ferma la richiesta.
+async function contaEntroIlTempo(conta) {
+  let timer
+  const scaduto = new Promise((_, no) => {
+    timer = setTimeout(() => no(new Error(`il conteggio non ha risposto in ${TEMPO_CONTEGGIO_MS / 1000} secondi`)), TEMPO_CONTEGGIO_MS)
+  })
+  try {
+    return await Promise.race([Promise.resolve().then(conta), scaduto])
+  } finally {
+    clearTimeout(timer)
+  }
+}
 
-function stimaMassimaMicroeuro(m, { inputContati } = {}) {
+// CON LA CACHE IN SCRITTURA (REQ-FLOTTA-094, la chat): ogni token
+// d'ingresso di ciascun tentativo può finire scritto in cache, a
+// SCRITTURA_CACHE volte il suo prezzo. L'opzione la chiede solo chi usa la
+// cache; le altre richieste restano come erano.
+function stimaMassimaMicroeuro(m, { inputContati, scritturaCache = false } = {}) {
   const base = contoValido(inputContati) ? Math.ceil(inputContati * (1 + MARGINE_CONTEGGIO)) : m.stimaInputToken
   const prezzi = Object.values(AI.prezzi_usd_per_milione)
   const pin = Math.max(...prezzi.map((p) => p.input))
   const pout = Math.max(...prezzi.map((p) => p.output))
   const ingresso = base + (base + m.max_tokens)
   const uscita = TENTATIVI_MASSIMI * m.max_tokens
-  const usd = (ingresso * pin + uscita * pout) / 1_000_000
-  return Math.ceil(usd * AI.cambio_eur_per_usd * AI.ricarico * MICRO)
+  const usd = (ingresso * pin * (scritturaCache ? SCRITTURA_CACHE : 1) + uscita * pout) / 1_000_000
+  // Più UN micro-euro (revisione della PR #234, 13/11/2026): la stima
+  // moltiplica i totali, costoMicroeuro somma i tentativi uno per uno, e
+  // in virgola mobile i due conti possono cadere da parti diverse del
+  // Math.ceil (24 casi su 72.369: costo 971.356 µ€ contro una stima di
+  // 971.355). L'errore di arrotondamento è molto sotto il micro-euro, e un
+  // micro-euro intero dopo il ceil lo copre sempre.
+  return Math.ceil(usd * AI.cambio_eur_per_usd * AI.ricarico * MICRO) + 1
 }
 
 // Una richiesta con un file (una fattura, un mockup): senza conteggio la
 // sua stima per byte non è sicura (un PDF scansionato pesa pochi byte e
 // molti token), e non parte.
 const conFile = (m) => (m.content || []).some((b) => b?.type !== 'text')
+// La chat (REQ-FLOTTA-094) senza conteggio non parte: deve sapere se la
+// conversazione sta nel limite dell'admin (Daniele, 13/11/2026: «per tutti
+// i 10 i punti facciamo come dici»).
+const contoObbligatorio = (m) => m.conteggio_obbligatorio === true || conFile(m)
 
 // Si può partire? Il cassetto deve essere acceso, il credito deve bastare
 // per il caso peggiore e il mese non deve sforare il tetto. Il credito qui
@@ -675,9 +732,10 @@ function prenota(cassetto, { id, stima, tipo, adesso = new Date() }) {
 // punti facciamo come dici»): un costo vero sopra la stima non dovrebbe
 // esistere (la stima conta due tentativi completi), ed è un difetto. Se il
 // credito non basta a coprirlo, il credito si ferma a ZERO e quello che
-// manca si somma a `da_recuperare_microeuro`, che l'admin vede nella
+// manca si somma a `sforato_microeuro`, che l'admin vede nella
 // scheda del locale; lo speso del mese e la riga dei consumi tengono il
-// costo vero.
+// costo vero. Lo sforato non si chiede al locale: Daniele, 13/11/2026,
+// «gestisco io a mano. In realtà è un costo che ci accolliamo».
 function chiudiPrenotazione(cassetto, { id, costo, adesso = new Date() }) {
   const p = cassetto?.prenotazioni?.[id]
   if (!p) return { trovata: false, patch: null }
@@ -695,7 +753,7 @@ function chiudiPrenotazione(cassetto, { id, costo, adesso = new Date() }) {
       mese: s.mese,
       prenotazioni: resto,
       ultimo_uso_il: adesso.toISOString(),
-      ...(manca ? { da_recuperare_microeuro: (Number(cassetto.da_recuperare_microeuro) || 0) + manca } : {}),
+      ...(manca ? { sforato_microeuro: (Number(cassetto.sforato_microeuro) || 0) + manca } : {}),
     },
   }
 }
@@ -750,6 +808,10 @@ function rigaConsumo({ tipo, risposta, costo, esito, adesso = new Date() }) {
     tipo,
     modello: risposta?.model || null,
     token_input: (Number(u.input_tokens) || 0) + (Number(u.cache_read_input_tokens) || 0) + (Number(u.cache_creation_input_tokens) || 0),
+    // Quanto dell'ingresso è stato letto dalla cache e quanto scritto
+    // (REQ-FLOTTA-094): dice se la cache della chat lavora.
+    token_cache_lettura: Number(u.cache_read_input_tokens) || 0,
+    token_cache_scrittura: Number(u.cache_creation_input_tokens) || 0,
     token_output: Number(u.output_tokens) || 0,
     fallback: Array.isArray(u.iterations) && u.iterations.some((t) => t?.type === 'fallback_message'),
     costo_microeuro: costo,
@@ -807,21 +869,30 @@ async function interrogaConPrenotazione({ slug, messaggio, modello = modelloPer(
   // limite di richieste al minuto. Se non risponde, una descrizione usa la
   // stima per byte (il suo ingresso è testo corto, ben sotto la stima);
   // una richiesta con un file no: 503, senza prenotare niente.
+  // I TEMPI (REQ-FLOTTA-094): quanto aspetta chi chiede, fra conteggio e
+  // chiamata. Si misurano sul test con la riga «[ai] TEMPI» dei log: solo
+  // numeri, mai il contenuto.
+  const inizio = Date.now()
   let inputContati = null
   try {
     const parametri = parametriConteggio(messaggio, { modello })
-    const contato = await (conta ? conta(parametri) : client.messages.countTokens(parametri))
+    const contato = await contaEntroIlTempo(() => (conta ? conta(parametri) : client.messages.countTokens(parametri, { timeout: TEMPO_CONTEGGIO_MS, maxRetries: 0 })))
     inputContati = contato?.input_tokens
     if (!contoValido(inputContati)) throw new Error(`conteggio non valido: ${inputContati}`)
   } catch (e) {
     inputContati = null
-    if (conFile(messaggio)) {
+    if (contoObbligatorio(messaggio)) {
       log.warn(`[ai] ${slug} ${messaggio.tipo}: il conteggio dei token non risponde, la richiesta non parte:`, breve(e))
       return { ok: false, http: 503, errore: RIPROVA, codice: 'servizio' }
     }
     log.warn(`[ai] ${slug} ${messaggio.tipo}: il conteggio dei token non risponde, si usa la stima per byte:`, breve(e))
   }
-  const stima = stimaMassimaMicroeuro(messaggio, { inputContati })
+  // Un tetto sull'ingresso (la conversazione della chat troppo lunga,
+  // REQ-FLOTTA-094): si rifiuta prima di prenotare, senza spendere niente.
+  const troppo = inputContati != null && typeof messaggio.rifiutaIngresso === 'function' ? messaggio.rifiutaIngresso(inputContati) : null
+  if (troppo) return { ok: false, ...troppo }
+  const conteggioMs = Date.now() - inizio
+  const stima = stimaMassimaMicroeuro(messaggio, { inputContati, scritturaCache: messaggio.scritturaCache === true })
 
   let prenotata
   try {
@@ -841,6 +912,7 @@ async function interrogaConPrenotazione({ slug, messaggio, modello = modelloPer(
   if (!prenotata.ok) return { ok: false, http: prenotata.http, errore: prenotata.perche, codice: prenotata.codice, credito_eur: inEuro(prenotata.credito) }
 
   let risposta
+  const partenza = Date.now()
   try {
     risposta = await client.beta.messages.stream(parametriClaude(messaggio, { modello })).finalMessage()
   } catch (e) {
@@ -866,6 +938,17 @@ async function interrogaConPrenotazione({ slug, messaggio, modello = modelloPer(
     return { ok: false, http: 503, errore: riprova ? RIPROVA : NON_DISPONIBILE, codice: 'servizio' }
   }
 
+  // Una riga di log non deve mai fermare la risposta: una usage che non si
+  // legge qui la gestiscono i conti di sotto.
+  try {
+    const u = risposta?.usage || {}
+    log.info?.(
+      `[ai] TEMPI ${slug} ${messaggio.tipo}: conteggio ${conteggioMs} ms, chiamata ${Date.now() - partenza} ms, ingresso ${inputContati ?? 'non contato'} token, dalla cache ${Number(u.cache_read_input_tokens) || 0}, in cache ${Number(u.cache_creation_input_tokens) || 0}`
+    )
+  } catch {
+    // niente da fare: è solo una misura
+  }
+
   // I conti della risposta, ognuno col suo ripiego: un'eccezione qui
   // lascerebbe la stima appesa e il locale senza risposta.
   let costo
@@ -884,7 +967,8 @@ async function interrogaConPrenotazione({ slug, messaggio, modello = modelloPer(
   }
   let letta
   try {
-    letta = leggiRisposta(risposta)
+    // La chat legge la sua risposta da sé (un turno firmato, non uno schema).
+    letta = (typeof messaggio.leggi === 'function' ? messaggio.leggi : leggiRisposta)(risposta)
   } catch (e) {
     log.error(`[ai] ${slug}: la risposta non si legge:`, breve(e))
     letta = { ok: false, codice: 'illeggibile', perche: 'La risposta del modello non era leggibile.' }
@@ -972,6 +1056,7 @@ function nuovoCassetto({ slug, uid, interna = false, adesso = new Date() }) {
 }
 
 module.exports = {
+  SCRITTURA_CACHE,
   MICRO,
   TIPI_INSTALLAZIONE,
   daEuro,
@@ -987,6 +1072,7 @@ module.exports = {
   parametriConteggio,
   MARGINE_CONTEGGIO,
   TENTATIVI_MASSIMI,
+  TEMPO_CONTEGGIO_MS,
   TIPI_MODELLO,
   modelliDelListino,
   modelloPer,

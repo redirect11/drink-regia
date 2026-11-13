@@ -6,6 +6,18 @@ data.
 
 ## Prossima release (da decidere)
 
+- La chat del gestionale passa dalla regia: `richiestaAI` accetta
+  `{ tipo: 'chat', messaggi, strumenti, versione }` col credito del locale,
+  senza conservare le conversazioni; i turni del modello tornano firmati
+  e un turno ritoccato si rifiuta. Una conversazione troppo lunga o nata
+  con istruzioni vecchie riceve 409, e l'app ne apre una nuova. Nel
+  backoffice, in «Vendita», la sezione «Limiti della chat AI» sceglie i
+  token di una risposta e della conversazione, gli strumenti per
+  messaggio e le righe degli strumenti di lettura, ognuno col suo tetto.
+  La chat usa la cache del prompt, e la stima del credito ne copre la
+  scrittura; lo storico dei consumi dice quanti token sono stati letti e
+  scritti in cache, e i log i tempi del conteggio e della chiamata.
+  Serve il segreto `AI_CHAT_SECRET` (REQ-FLOTTA-094).
 - Gli orari di servizio del locale: alla registrazione sono obbligatori,
   un giorno per riga, con apertura e chiusura (anche dopo la mezzanotte,
   o 24 ore) oppure «chiuso». Per 7 giorni il titolare li corregge dalla
@@ -30,7 +42,14 @@ data.
   completi; se il conteggio non risponde una fattura o un tema rispondono
   «riprova tra poco», senza addebiti. Se una richiesta costasse lo stesso
   più della stima il credito si ferma a zero, e la scheda del locale nel
-  backoffice mostra l'importo da recuperare (REQ-FLOTTA-093).
+  backoffice mostra l'importo che Stonebit si accolla (REQ-FLOTTA-093).
+- Ritocchi del credito AI dopo la revisione: la stima tiene un
+  micro-euro in più per gli arrotondamenti, così il costo vero non la
+  supera mai; il conteggio dei token si arrende dopo 10 secondi invece di
+  tenere ferma la richiesta; lo sforamento si dice «assorbito da
+  Stonebit», non «da recuperare» (REQ-FLOTTA-093). Il modello AI e i
+  limiti della chat in impostazioni/regia si cambiano solo dalle
+  Functions: nemmeno l'admin li scrive dal browser (REQ-FLOTTA-092).
 - Il credito AI chiesto dall'app dice anche se il locale può ricaricare
   dal sito e dove (`ricaricabile`, `ricarica_url`): coi pagamenti online
   spenti, il sito chiuso o un locale interno l'app rimanda all'assistenza

@@ -9,6 +9,9 @@
 //   PROVISIONING_CALLBACK_SECRET  il bearer che il workflow usa per l'esito
 //   ANTHROPIC_API_KEY             la nostra chiave di Claude (REQ-AI-003): sta
 //                                 solo qui, mai in un'installazione
+//   AI_CHAT_SECRET                la chiave con cui la regia firma i turni
+//                                 della chat (REQ-FLOTTA-094): almeno 32
+//                                 caratteri casuali, mai fuori dalla regia
 // Configurazione non segreta (.env): GITHUB_REPO (il repository con i
 // workflow della flotta, dal 29/10/2026 la regia stessa), FLOTTA_REF (il
 // suo ramo con i workflow), APP_REF (la versione di tana-drink da
@@ -40,6 +43,7 @@ const orari = require('./lib/orari-servizio.js')
 const { initializeApp: initializeAppCon, getApps } = require('firebase-admin/app')
 const { getAuth } = require('firebase-admin/auth')
 const ai = require('./lib/ai.js')
+const aiChat = require('./lib/ai-chat.js')
 const identita = require('./lib/identita-locale.js')
 const stampanti = require('./lib/stampanti.js')
 const { OAuth2Client } = require('google-auth-library')
@@ -83,6 +87,11 @@ const PROVISIONING_CALLBACK_SECRET = defineSecret('PROVISIONING_CALLBACK_SECRET'
 const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY')
 const STRIPE_WEBHOOK_SECRET = defineSecret('STRIPE_WEBHOOK_SECRET')
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY')
+// LA FIRMA DEI TURNI DELLA CHAT (REQ-FLOTTA-094): la regia non conserva le
+// conversazioni, e riconosce un turno del modello ritoccato dalla firma.
+// Solo richiestaAI lo lega: senza il segreto nel progetto il deploy di
+// richiestaAI si ferma, e con il segnaposto la chat risponde 503.
+const AI_CHAT_SECRET = defineSecret('AI_CHAT_SECRET')
 // Le Functions che chiamano Claude (REQ-AI-003, REQ-FLOTTA-040): con la
 // federazione girano con l'account di servizio dedicato (AI_SERVICE_ACCOUNT
 // in functions/.env.<progetto>, docs/handover.md §7 «Cassetto AI»), che ha
@@ -2525,7 +2534,7 @@ const istanzePerProgetto = async (progetto) =>
 // il massimo prudente. Le descrizioni sono piccole, ma non si sa prima chi
 // arriva.
 exports.richiestaAI = onRequest(
-  { ...OPTS_AI, cors: false, maxInstances: 10, concurrency: 3 },
+  { ...OPTS_AI, secrets: [...OPTS_AI.secrets, AI_CHAT_SECRET], cors: false, maxInstances: 10, concurrency: 3 },
   async (req, res) => {
     if (req.method !== 'POST') return res.status(405).json({ errore: 'Solo POST.' })
     // IL GETTONE DI GOOGLE (REQ-FLOTTA-077): l'unica strada. La «Chiave AI»
@@ -2559,6 +2568,32 @@ exports.richiestaAI = onRequest(
       const ricarica = ai.ricaricaDelLocale({ istanza: istanza.data() || null, vendita: listino, sitoChiuso, regiaUrl: REGIA_URL })
       const { ok, http, ...corpo } = ai.rispostaCredito(cassetto.data(), new Date(), ricarica)
       return res.status(ok ? 200 : http).json(ok ? { ok, ...corpo } : corpo)
+    }
+
+    // LA CHAT DEL GESTIONALE (REQ-FLOTTA-094): la conversazione intera a
+    // ogni giro, coi turni del modello firmati dalla regia. Limiti e modello
+    // sono dell'admin (impostazioni/regia, letti a ogni richiesta), il
+    // credito passa da interrogaClaude come per le altre richieste. Se le
+    // impostazioni non si leggono valgono i predefiniti: non è un motivo per
+    // fermare la chat.
+    if (req.body?.tipo === 'chat') {
+      const impostazioni = await db
+        .doc('impostazioni/regia')
+        .get()
+        .then((s) => s.data() || {})
+        .catch((e) => {
+          console.warn(`[ai] ${slug} chat: le impostazioni della regia non si leggono, valgono i predefiniti:`, e?.message || e)
+          return {}
+        })
+      const { ok, http, ...corpo } = await aiChat.interrogaChat({
+        slug,
+        corpo: req.body,
+        segreto: AI_CHAT_SECRET.value(),
+        limiti: aiChat.limitiChat(impostazioni),
+        modello: ai.modelloPer('chat', impostazioni),
+        interroga: (messaggio) => interrogaClaude(slug, messaggio, { impostazioni }),
+      })
+      return res.status(http).json(ok ? { ok, ...corpo } : corpo)
     }
 
     let messaggio
@@ -2595,7 +2630,7 @@ exports.richiestaAI = onRequest(
 // costo vero. Qui solo Firestore e il client: l'ordine delle cose e cosa
 // succede quando un passo fallisce stanno in lib/ai.js
 // (interrogaConPrenotazione, revisione del 13/11/2026), dove si provano.
-async function interrogaClaude(slug, messaggio) {
+async function interrogaClaude(slug, messaggio, { impostazioni: giaLette } = {}) {
   const cassettoRef = db.doc(`ai/${slug}`)
   // L'id della prenotazione: uno casuale di Firestore, fissato fuori dalla
   // transazione perché un nuovo tentativo della transazione usi lo stesso.
@@ -2603,15 +2638,18 @@ async function interrogaClaude(slug, messaggio) {
   // IL MODELLO DEL TIPO (REQ-FLOTTA-092): si rilegge a ogni richiesta, così
   // una scelta dell'admin vale dalla richiesta dopo. Se le impostazioni non
   // si leggono vale il predefinito del listino: non è un motivo per
-  // fermare l'AI dei locali.
+  // fermare l'AI dei locali. La chat le ha già lette per i suoi limiti:
+  // le passa, e valgono le stesse (REQ-FLOTTA-094).
   const regia = db.doc('impostazioni/regia')
-  const impostazioni = await regia
-    .get()
-    .then((s) => s.data() || {})
-    .catch((e) => {
-      console.warn(`[ai] ${slug}: le impostazioni della regia non si leggono, vale il modello predefinito:`, e?.message || e)
-      return {}
-    })
+  const impostazioni =
+    giaLette ||
+    (await regia
+      .get()
+      .then((s) => s.data() || {})
+      .catch((e) => {
+        console.warn(`[ai] ${slug}: le impostazioni della regia non si leggono, vale il modello predefinito:`, e?.message || e)
+        return {}
+      }))
   return ai.interrogaConPrenotazione({
     slug,
     messaggio,
@@ -2683,10 +2721,6 @@ exports.creaRicaricaAI = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async
   return { url: sessione.url }
 })
 
-// Dal backoffice, sul cassetto di un'installazione: ricarica a mano (la
-// Tana la ricarichiamo noi), tetto mensile, acceso o spento, e la chiave
-// che l'installazione usa per chiamare `richiestaAI`. La chiave si vede
-// una volta sola, qui: la regia ne tiene solo l'impronta.
 // IL MODELLO AI PER TIPO DI RICHIESTA (REQ-FLOTTA-092). Daniele,
 // 13/11/2026, su Sonnet: «Per tutto». L'admin sceglie dal backoffice il
 // modello di un tipo, fra quelli che hanno un prezzo nel listino; si
@@ -2705,6 +2739,28 @@ exports.gestisciModelliAI = onCall(OPTS, async (req) => {
   return { ok: true, ai_modelli: scelta }
 })
 
+// I LIMITI DELLA CHAT AI (REQ-FLOTTA-094). Daniele, 13/11/2026: «rendi
+// questi parametri configurabili da backoffice di admin». Come i modelli
+// (REQ-FLOTTA-092): solo l'admin, solo voci conosciute dentro i loro
+// tetti, e si scrive con merge solo quello che cambia. richiestaAI li
+// rilegge a ogni chat e li ricontrolla (aiChat.limitiChat).
+exports.gestisciLimitiChat = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  let scelta
+  try {
+    scelta = aiChat.validaLimitiChat(req.data?.limiti_chat)
+  } catch (e) {
+    if (e instanceof ai.RichiestaNonValida) throw new HttpsError('invalid-argument', e.message)
+    throw e
+  }
+  await db.doc('impostazioni/regia').set({ limiti_chat: scelta, aggiornate_il: new Date().toISOString() }, { merge: true })
+  return { ok: true, limiti_chat: scelta }
+})
+
+// Dal backoffice, sul cassetto di un'installazione: ricarica a mano (la
+// Tana la ricarichiamo noi), tetto mensile, acceso o spento, e la chiave
+// che l'installazione usa per chiamare `richiestaAI`. La chiave si vede
+// una volta sola, qui: la regia ne tiene solo l'impronta.
 exports.gestisciCassettoAI = onCall(OPTS, async (req) => {
   if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
   const { slug, azione } = req.data || {}
