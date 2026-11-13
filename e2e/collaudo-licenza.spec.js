@@ -45,7 +45,10 @@ async function scheda(page) {
   return articolo
 }
 const stato = (articolo) => articolo.locator('.locale-testa .stato')
-const versione = (articolo) => articolo.locator('dl.locale-dati > div').filter({ has: articolo.page().getByText('Versione', { exact: true }) }).locator('dd')
+// La versione installata, nel blocco App della scheda (REQ-FLOTTA-089): solo
+// il numero, o «—». L'aggiornamento in corso sta nello stesso blocco; quello
+// fallito negli avvisi in testa: per tutti e due si legge la scheda intera.
+const versione = (articolo) => articolo.getByTestId(`versione-${LOCALE}`)
 
 test('«Sospendi» scrive la licenza nel locale e l’app lo dice; «Riattiva» la rimette', async ({ page, context }) => {
   const articolo = await scheda(page)
@@ -83,10 +86,11 @@ test('«Aggiorna subito» porta il locale all’ultima versione dell’app: il w
   do {
     await page.waitForTimeout(30_000)
     articolo = await scheda(page)
-    testo = (await versione(articolo).textContent()).trim()
+    testo = (await articolo.textContent()).trim()
     expect(testo, `l’aggiornamento di ${LOCALE} è fallito`).not.toMatch(/fallito/)
   } while (/in corso/.test(testo) && Date.now() < scadenza)
   expect(testo, `l’aggiornamento di ${LOCALE} non è finito in venti minuti`).not.toMatch(/in corso/)
-  expect(testo).not.toBe('—')
-  console.log(`[collaudo] ${LOCALE}: versione prima «${prima}», dopo «${testo}»`)
+  const dopo = (await versione(articolo).textContent()).trim()
+  expect(dopo).not.toBe('—')
+  console.log(`[collaudo] ${LOCALE}: versione prima «${prima}», dopo «${dopo}»`)
 })

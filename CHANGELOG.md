@@ -6,6 +6,13 @@ data.
 
 ## Prossima release (da decidere)
 
+- Nel backoffice la scheda di un locale è ordinata: in testa nome, stato,
+  piano e versione, poi gli avvisi da trattare coi loro tasti, poi sei
+  blocchi sempre nello stesso ordine (Titolare, Piano, App, Aggiornamenti,
+  Aspetto, Credito AI), ciascuno coi suoi tasti; Sospendi e Chiudi stanno
+  da soli in fondo. Il Free non ha il blocco Credito AI, la spiegazione di
+  «Aggiorna subito» è un aiuto che si apre e sul telefono i blocchi vanno
+  in colonna (REQ-FLOTTA-089).
 - Il Free non ha l'AI: la regia rifiuta le richieste AI di un locale Free
   (anche tornato al Free perché non paga) con `402 piano`, non gli vende
   né gli regala credito, e la licenza del Free porta `ai: false`; nel

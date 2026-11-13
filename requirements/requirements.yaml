@@ -4254,6 +4254,54 @@ requirements:
     test_cases:
       - tests/ai.test.js
 
+  - id: REQ-FLOTTA-089
+    title: "La scheda del locale nel backoffice in sei blocchi: in testa stato e avvisi, ogni blocco coi suoi tasti, Sospendi e Chiudi a parte"
+    area: "src/pages/Backoffice.jsx (SchedaLocale), src/index.css, e2e/collaudo-licenza.spec.js"
+    description: >
+      Daniele, 13/11/2026, sulla scheda di un locale aperta nel backoffice
+      (Titolare, Piano, Progetto, Versione, Aggiornamenti, Credito AI,
+      Riduzione, Dall'app, Gruppo di rilascio, Moduli, Temi, Installati, un
+      «Aggiorna subito» con una spiegazione lunga e tutti i tasti in fondo):
+      «è tutto troppo caotico e formattato male andrebbe fatto meglio».
+      Davanti alla struttura proposta (testa con nome, stato, piano e
+      versione; gli avvisi; sei blocchi Titolare, Piano, App, Aggiornamenti,
+      Aspetto, Credito AI; Sospendi e Chiudi sotto una riga) ha detto
+      «sistema la scheda come dicevi». Il Free non ha l'AI (decisione di
+      Daniele del 13/11/2026).
+      CRITERI DI ACCETTAZIONE. (1) In testa alla scheda il nome del locale
+      col suo identificativo, lo stato breve colorato, il piano e la
+      versione installata. (2) Subito sotto, se ce ne sono, gli avvisi che
+      chiedono di intervenire, ciascuno col suo tasto: attivazione non
+      riuscita (Rilancia), aggiornamento fallito (Riprova, Torna a…),
+      licenza da allineare, eliminazione non riuscita, piano fuori da
+      Stripe non pagato, app legata a un account diverso da quello del
+      titolare. (3) Poi i blocchi, sempre in quest'ordine e ciascuno col
+      suo titolo: Titolare, Piano, App, Aggiornamenti, Aspetto, Credito AI;
+      ogni tasto sta nel blocco della cosa che cambia (Cambia piano,
+      Registra pagamento e Sconto in Piano; Aggiorna subito, la modalità e
+      il gruppo di rilascio in Aggiornamenti; Temi e temi su misura in
+      Aspetto; Ricarica, Regala, Tetto, Spegni o Accendi l'AI in Credito
+      AI), e i moduli che si aprono si aprono nel loro blocco. (4) Il
+      blocco Titolare dice anche se l'app è legata al suo account
+      (collegato) o a un altro (diverso), confrontando l'account
+      dell'istanza con quello del cliente: è un'indicazione, non cambia
+      niente. (5) Sospendi e Chiudi (o Riattiva, Elimina, Annulla
+      eliminazione, ed Elimina cliente) stanno da soli in fondo, sotto una
+      riga, lontani dagli altri tasti. (6) Un locale Free non ha il blocco
+      Credito AI. (7) La spiegazione di «Aggiorna subito» è un aiuto che si
+      apre (un `<details>`, quindi anche da tastiera e da telefono) e resta
+      la descrizione del tasto per chi usa un lettore di schermo. (8) Sul
+      telefono i blocchi stanno uno sotto l'altro, in una colonna; più
+      larghi al massimo tre per riga. (9) Nessuna funzione della scheda di
+      prima sparisce: i test di prima passano, cambiati solo dove cercavano
+      una posizione o un testo che si è spostato.
+    status: implemented
+    generate_issue: true
+    labels: [regia, backoffice]
+    priority: P2
+    test_cases:
+      - tests/Backoffice.test.jsx
+
   - id: REQ-FLOTTA-087
     title: "Il Free non ha l'AI: la regia rifiuta le richieste AI, le ricariche e gli omaggi di un locale Free, e la licenza lo dice"
     area: "functions/lib/ai.js (aiConcessa), functions/index.js (richiestaAI, temaDaMockup, creaRicaricaAI, gestisciCassettoAI), functions/piani.json (piani.free.limiti.ai), src/lib/ai.js, src/lib/areaTitolare.js, src/pages/Dashboard.jsx, src/pages/TemiSuMisura.jsx, src/pages/Backoffice.jsx, docs/handover.md §7"
