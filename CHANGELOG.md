@@ -14,6 +14,14 @@ data.
   volta sola; una prenotazione rovinata non blocca più l'AI del locale, e
   una prenotazione ripetuta dalla transazione dopo una conferma persa non
   scala la stima due volte (REQ-FLOTTA-088).
+- Un locale sospeso o chiuso lo dice in cima a «Piano e moduli», con un
+  avviso nella panoramica: sospeso per il pagamento, coi pagamenti online
+  accesi, c'è il tasto per pagare la fattura aperta di Stripe (il locale
+  si riattiva da solo); altrimenti, o se l'ha sospeso l'amministratore,
+  l'email a cui scriverci; chiuso, i contatti e la data della
+  cancellazione dei dati. La licenza porta `rinnovo_url`, l'indirizzo che
+  l'app apre col tasto «Riattiva il locale». Lo stato dell'abbonamento si
+  legge in italiano, mai «past_due» (REQ-FLOTTA-090).
 - Un'app legata a un altro account non è più «Non ancora attivata» nella
   dashboard del titolare: la dashboard la cerca col suo uid e, se non la
   trova, chiede alla regia; se c'è ma non è sua dice di scriverci, senza il

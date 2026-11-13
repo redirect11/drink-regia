@@ -251,6 +251,19 @@ describe('le chiamate alle Functions', () => {
     fb.risposte.portaleAbbonamento = {}
     await expect(db.apriPortaleAbbonamento()).rejects.toThrow(/scrivici/)
   })
+
+  // REQ-FLOTTA-090: il pagamento del rinnovo di un locale sospeso. Il
+  // browser non manda niente: la fattura la cerca il server per il cliente
+  // che chiama.
+  it('il pagamento del rinnovo chiama pagamentoRinnovo senza dati e torna col suo url; senza url dice di scriverci', async () => {
+    fb.risposte.pagamentoRinnovo = { url: 'https://invoice.stripe.com/i/x', via: 'fattura' }
+    expect(await db.apriPagamentoRinnovo()).toEqual({ url: 'https://invoice.stripe.com/i/x', via: 'fattura' })
+    expect(fb.chiamate[0]).toEqual({ nome: 'pagamentoRinnovo', dati: {} })
+    fb.risposte.pagamentoRinnovo = {}
+    await expect(db.apriPagamentoRinnovo()).rejects.toThrow(/scrivici/)
+    fb.configurata = false
+    await expect(db.apriPagamentoRinnovo()).rejects.toThrow(/VITE_FIREBASE/)
+  })
 })
 
 describe('l’accesso', () => {

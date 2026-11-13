@@ -124,9 +124,9 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
   .pila.principale { flex: 3 1 0; }
   .pila.accanto { flex: 2 1 0; }
 }
-/* L'avviso dell'email: testo e bottoni sulla stessa riga quando c'è spazio. */
-.avviso-email { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; }
-.avviso-email > p { flex: 1 1 22rem; margin: 0; }
+/* L'avviso dell'email, e quello del locale fermo (REQ-FLOTTA-090): testo e bottoni sulla stessa riga quando c'è spazio. */
+.avviso-email, .avviso-rinnovo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; }
+.avviso-email > p, .avviso-rinnovo > p { flex: 1 1 22rem; margin: 0; }
 .avviso-email .azioni { margin: 0; }
 .avviso-email > .muted { flex-basis: 100%; margin: 0; }
 .pagina.dashboard { max-width: 1120px; }
