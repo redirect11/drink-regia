@@ -4295,7 +4295,7 @@ requirements:
       larghi al massimo tre per riga. (9) Nessuna funzione della scheda di
       prima sparisce: i test di prima passano, cambiati solo dove cercavano
       una posizione o un testo che si è spostato.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [regia, backoffice]
     priority: P2

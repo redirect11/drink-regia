@@ -608,8 +608,16 @@ function AzioniAggiornamento({ cliente: c, istanza, az }) {
   )
 }
 
-// UN LOCALE PER SCHEDA (29/10/2026): nome e stato breve colorato in alto,
-// i dati in una griglia, le azioni a gruppi in fondo.
+// LA SCHEDA DEL LOCALE (REQ-FLOTTA-089). Fino al 13/11/2026 era una griglia
+// di dati che andavano a capo come capitava e una fila di tasti in fondo;
+// Daniele: «è tutto troppo caotico e formattato male andrebbe fatto
+// meglio». Ora: in testa chi è, lo stato, il piano e la versione; sotto,
+// quello che chiede di intervenire, ognuno col suo tasto; poi sei blocchi
+// sempre nello stesso ordine (Titolare, Piano, App, Aggiornamenti, Aspetto,
+// Credito AI), ciascuno coi tasti della cosa che cambia, così l'occhio
+// trova le cose sempre allo stesso posto; in fondo, sotto una riga, i gesti
+// che fermano o cancellano il locale, lontani da quelli di tutti i giorni
+// (tana-drink, DESIGN.md, guardrail 2).
 function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCambia, eliminaAperto, onElimina, onFatto }) {
   const { cliente: c, istanza, stato, cassetto } = riga
   const credito = statoCredito(cassetto)
@@ -622,7 +630,67 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
   const [gestioneAperta, setGestioneAperta] = useState(false)
   const licenza = istanza?.licenza_stato || 'attiva'
   const { tono, testo: statoTesto } = statoBreve(riga)
-  const aiVisibile = credito || stato === STATI.ATTIVA
+  const attiva = stato === STATI.ATTIVA
+  const piano = PIANI[c.piano]
+  // Il Free non ha l'AI (Daniele, 13/11/2026): niente blocco Credito AI.
+  const conAI = piano?.gratuito !== true
+  const aiVisibile = credito || attiva
+  // Un locale pubblicato fuori dalla regia (la Tana, da GitHub) non manda
+  // l'esito del deploy: la versione la dice l'app stessa quando si
+  // presenta (REQ-FLOTTA-026).
+  const versione = istanza?.versione || istanza?.presentazione?.versione
+  const agg = istanza?.aggiornamento
+  const inCorso = agg?.stato === 'in corso'
+  const id = (nome) => `${nome}-${c.slug}`
+  // L'account a cui è legata l'app, confrontato con quello del titolare: è
+  // solo un'indicazione (collegare l'app al titolare è un lavoro a parte,
+  // REQ-FLOTTA-086). Un locale esistente non ha un account legato.
+  const account = istanza?.uid ? (istanza.uid === c.uid ? 'collegato' : 'diverso') : null
+  const manuale = c.abbonamento?.origine === 'manuale'
+  const eliminazione = eliminazioneDetta(istanza)
+  const eliminazioneFallita = istanza?.eliminazione?.stato === 'fallita'
+
+  // Gli avvisi: solo quello che chiede all'admin di fare qualcosa, col
+  // tasto per farlo quando c'è.
+  const avvisi = [
+    stato === STATI.ERRORE && (
+      <li key="attivazione">
+        <span>Attivazione non riuscita{istanza?.errore ? `: ${istanza.errore}` : ''}.</span>
+        <button type="button" className="btn small" onClick={() => rilanciaAttivazione(c.slug).then(az.carica)}>
+          Rilancia
+        </button>
+      </li>
+    ),
+    agg?.stato === 'fallito' && (
+      <li key="aggiornamento">
+        <span>
+          {aggiornamentoDetto(agg)}
+          {runNellErrore(agg.errore) && (
+            <>
+              {' · '}
+              <a href={runNellErrore(agg.errore)} target="_blank" rel="noreferrer">
+                vedi il run ↗
+              </a>
+            </>
+          )}
+        </span>
+        {aggiornabile && <AzioniAggiornamento cliente={c} istanza={istanza} az={az} />}
+      </li>
+    ),
+    // BUG-125: con l'app nuova un locale senza licenza protetta si ferma.
+    istanza?.licenza_protetta?.ok === false && <li key="licenza">Licenza da allineare: {istanza.licenza_protetta.perche}</li>,
+    eliminazioneFallita && <li key="eliminazione">Eliminazione: {eliminazione}</li>,
+    manuale && c.abbonamento.stato === 'non pagato' && (
+      <li key="pagamento">Piano fuori da Stripe non pagato: si registra un pagamento dal blocco Piano.</li>
+    ),
+    account === 'diverso' && <li key="account">L’app è legata a un altro account, non a quello del titolare.</li>,
+  ].filter(Boolean)
+
+  // Il fondo: i gesti che fermano o cancellano.
+  const eliminaCliente = (!istanza?.progetto || stato === STATI.ELIMINATA) && ![STATI.IN_CODA, STATI.IN_CORSO].includes(stato)
+  const gestisciLicenza = daFlotta && attiva
+  const conFondo = eliminaCliente || gestisciLicenza || (eliminazione && !eliminazioneFallita) || eliminaAperto
+
   return (
     <article className={`locale tono-${tono}`} aria-label={c.nome_locale}>
       <header className="locale-testa">
@@ -634,103 +702,144 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
             {!daFlotta && ' · esistente'}
           </div>
         </div>
-        <span className={`stato stato-${tono}`}>{statoTesto}</span>
+        <div className="locale-sintesi">
+          <span className={`stato stato-${tono}`}>{statoTesto}</span>
+          <span className="muted small">{[piano?.nome || c.piano, versione].filter(Boolean).join(' · ')}</span>
+        </div>
       </header>
 
-      <dl className="locale-dati">
-        <div>
-          <dt>Titolare</dt>
-          <dd>
-            {c.email}
-            {c.fatturazione?.ragione_sociale && (
-              <div className="muted small">
-                {c.fatturazione.ragione_sociale} · P.IVA {c.fatturazione.partita_iva}
-              </div>
+      {avvisi.length > 0 && (
+        <ul className="locale-avvisi" aria-label="Da trattare">
+          {avvisi}
+        </ul>
+      )}
+
+      <div className="locale-blocchi">
+        <Blocco id={id('titolare')} titolo="Titolare">
+          <div>{c.email}</div>
+          {c.fatturazione?.ragione_sociale && (
+            <div className="muted small">
+              {c.fatturazione.ragione_sociale} · P.IVA {c.fatturazione.partita_iva}
+            </div>
+          )}
+          {contattoDi(c) && <div className="muted small">{contattoDi(c)}</div>}
+          {stampantiDette(c.stampanti) && <div className="muted small">{stampantiDette(c.stampanti)}</div>}
+          {account && (
+            // Il segno accanto alla parola: l'informazione non sta nel solo colore.
+            <div className={account === 'collegato' ? 'segno-ok small' : 'errore small'}>
+              <span aria-hidden="true">{account === 'collegato' ? '✓ ' : '⚠ '}</span>
+              account dell’app: {account}
+            </div>
+          )}
+        </Blocco>
+
+        <Blocco id={id('piano')} titolo="Piano">
+          <div>{c.piano ? `${piano?.nome || c.piano} · ${euro(prezzoConSconto(prezzoMensile(c), c))}` : <span className="muted">—</span>}</div>
+          {scontoDetto(c) && (
+            <div className="muted small" data-testid={`sconto-${c.slug}`}>
+              sconto {scontoDetto(c)}
+            </div>
+          )}
+          {/* Un piano pagato fuori da Stripe (REQ-FLOTTA-023): fino a quando. */}
+          {manuale && (
+            <div className={c.abbonamento.stato === 'non pagato' ? 'errore small' : 'muted small'} data-testid={`pagato-${c.slug}`}>
+              {c.abbonamento.pagato_fino_al ? `pagato fino al ${giorno(c.abbonamento.pagato_fino_al)}` : 'fuori da Stripe, senza scadenza'}
+              {c.abbonamento.stato === 'non pagato' && ' · non pagato'}
+            </div>
+          )}
+          <ModuliDelPiano cliente={c} />
+          {riduzioneDetta(istanza) && (
+            // REQ-FLOTTA-024: quello che la licenza toglie arriva al taglio.
+            <div className="small">
+              <span className="muted">riduzione: </span>
+              <span data-testid="riduzione-al-taglio">{riduzioneDetta(istanza)}</span>
+            </div>
+          )}
+          <div className="gruppo-azioni">
+            <button type="button" className="btn ghost small" onClick={onCambia}>
+              Cambia piano…
+            </button>
+            {manuale && (
+              <button type="button" className="btn ghost small" onClick={() => az.registraPagamento(c)}>
+                Registra pagamento…
+              </button>
             )}
-            {contattoDi(c) && <div className="muted small">{contattoDi(c)}</div>}
-            {stampantiDette(c.stampanti) && <div className="muted small">{stampantiDette(c.stampanti)}</div>}
-          </dd>
-        </div>
-        <div>
-          <dt>Piano</dt>
-          <dd>
-            {c.piano ? `${PIANI[c.piano]?.nome || c.piano} · ${euro(prezzoConSconto(prezzoMensile(c), c))}` : <span className="muted">—</span>}
-            {scontoDetto(c) && (
-              <div className="muted small" data-testid={`sconto-${c.slug}`}>
-                sconto {scontoDetto(c)}
-              </div>
-            )}
-            {/* Un piano pagato fuori da Stripe (REQ-FLOTTA-023): fino a quando. */}
-            {c.abbonamento?.origine === 'manuale' && (
-              <div className={c.abbonamento.stato === 'non pagato' ? 'errore small' : 'muted small'} data-testid={`pagato-${c.slug}`}>
-                {c.abbonamento.pagato_fino_al ? `pagato fino al ${giorno(c.abbonamento.pagato_fino_al)}` : 'fuori da Stripe, senza scadenza'}
-                {c.abbonamento.stato === 'non pagato' && ' · non pagato'}
-              </div>
-            )}
-          </dd>
-        </div>
-        <div>
-          <dt>Progetto</dt>
-          <dd>
-            <code>{istanza?.simulata ? 'simulato' : istanza?.progetto || progettoDi(c.slug)}</code>
-            {istanza?.profilo === 'leggero' && <div className="muted small">profilo leggero (Free)</div>}
-            {/* Solo un https diventa un link (hrefSicuro, audit del 09/11/2026, finding 28). */}
-            {hrefSicuro(istanza?.url) && (
-              <div className="small">
-                <a href={hrefSicuro(istanza.url)} target="_blank" rel="noreferrer">
-                  Apri l’app ↗
-                </a>
-              </div>
-            )}
-          </dd>
-        </div>
-        <div>
-          <dt>Versione</dt>
-          <dd>
-            {/* Un locale pubblicato fuori dalla regia (la Tana, da GitHub) non
-                manda l'esito del deploy: la versione la dice l'app stessa
-                quando si presenta (REQ-FLOTTA-026). */}
-            {istanza?.versione || istanza?.presentazione?.versione || <span className="muted">—</span>}
-            {!istanza?.versione && istanza?.presentazione?.versione && <div className="muted small">detta dall’app</div>}
-            {istanza?.ref && istanza.ref !== 'main' && <div className="muted small">da {istanza.ref}</div>}
-            {/* L'aggiornamento: in corso con un segno che gira e da quanto (la
-                pagina si ricarica da sola), fallito col perché e il link al run
-                di GitHub, riuscito con la versione a cui è arrivato. */}
-            {istanza?.aggiornamento?.stato === 'in corso' && (
-              <p className="avanzamento small" role="status">
-                <span className="spinner" aria-hidden="true" />
-                {aggiornamentoDetto(istanza.aggiornamento)} ·{' '}
-                <a href="https://github.com/redirect11/drink-regia/actions/workflows/aggiorna-istanza.yml" target="_blank" rel="noreferrer">
-                  segui su GitHub ↗
-                </a>
-              </p>
-            )}
-            {istanza?.aggiornamento?.stato !== 'in corso' && aggiornamentoDetto(istanza?.aggiornamento) && (
-              <div className={istanza.aggiornamento.stato === 'fallito' ? 'errore small' : 'muted small'}>
-                {aggiornamentoDetto(istanza.aggiornamento)}
-                {istanza.aggiornamento.stato === 'fallito' && runNellErrore(istanza.aggiornamento.errore) && (
-                  <>
-                    {' · '}
-                    <a href={runNellErrore(istanza.aggiornamento.errore)} target="_blank" rel="noreferrer">
-                      vedi il run ↗
-                    </a>
-                  </>
-                )}
-              </div>
-            )}
-            {propostaDetta(istanza?.proposta_aggiornamento) && <div className="muted small">{propostaDetta(istanza.proposta_aggiornamento)}</div>}
-          </dd>
-        </div>
-        {aggiornabile && stato === STATI.ATTIVA && (
-          // Come si aggiorna questo locale (REQ-FLOTTA-020): di norma come
-          // dicono le regole; l'admin lo può fissare, per esempio la Tana.
+            <button type="button" className="btn ghost small" onClick={() => az.sconto(c)}>
+              Sconto…
+            </button>
+          </div>
+          {cambiaAperto && <CambiaPiano cliente={c} onFatto={onFatto} onErrore={az.onErrore} />}
+        </Blocco>
+
+        <Blocco id={id('app')} titolo="App">
           <div>
-            <dt>
-              <label htmlFor={`modalita-${c.slug}`}>Aggiornamenti</label>
-            </dt>
-            <dd>
+            <code>{istanza?.simulata ? 'simulato' : istanza?.progetto || progettoDi(c.slug)}</code>
+          </div>
+          {istanza?.profilo === 'leggero' && <div className="muted small">profilo leggero (Free)</div>}
+          {/* Solo un https diventa un link (hrefSicuro, audit del 09/11/2026, finding 28). */}
+          {hrefSicuro(istanza?.url) && (
+            <div className="small">
+              <a href={hrefSicuro(istanza.url)} target="_blank" rel="noreferrer">
+                Apri l’app ↗
+              </a>
+            </div>
+          )}
+          <div className="small">
+            <span className="muted">installata </span>
+            <span data-testid={`versione-${c.slug}`}>{versione || '—'}</span>
+            {!istanza?.versione && istanza?.presentazione?.versione && <span className="muted"> · detta dall’app</span>}
+            {istanza?.ref && istanza.ref !== 'main' && <span className="muted"> · da {istanza.ref}</span>}
+          </div>
+          {/* L'aggiornamento: in corso con un segno che gira e da quanto (la
+              pagina si ricarica da sola), riuscito con la versione a cui è
+              arrivato. Quello fallito sta negli avvisi, col suo tasto. */}
+          {inCorso && (
+            <p className="avanzamento small" role="status">
+              <span className="spinner" aria-hidden="true" />
+              {aggiornamentoDetto(agg)} ·{' '}
+              <a href="https://github.com/redirect11/drink-regia/actions/workflows/aggiorna-istanza.yml" target="_blank" rel="noreferrer">
+                segui su GitHub ↗
+              </a>
+            </p>
+          )}
+          {agg?.stato === 'riuscito' && <div className="muted small">{aggiornamentoDetto(agg)}</div>}
+          {istanza?.presentazione?.versione && (
+            // REQ-FLOTTA-026: la versione che l'app stessa ha detto alla regia,
+            // da qualunque deploy sia arrivata (anche da GitHub, come la Tana).
+            <div className="small">
+              <span className="muted">ultimo contatto: </span>
+              <span data-testid="presentazione">
+                {istanza.presentazione.versione} · dal {giorno(istanza.presentazione.prima_il)} · ultima volta il {giorno(istanza.presentazione.il)}
+              </span>
+            </div>
+          )}
+          {!daFlotta && (
+            <div className="gruppo-azioni">
+              <button type="button" className="btn ghost small" aria-expanded={gestioneAperta} onClick={() => setGestioneAperta((v) => !v)}>
+                Pubblicazione e licenza…
+              </button>
+            </div>
+          )}
+          {!daFlotta && gestioneAperta && (
+            <GestioneEsistente
+              cliente={c}
+              istanza={istanza}
+              onErrore={az.onErrore}
+              onFatto={() => {
+                setGestioneAperta(false)
+                az.carica()
+              }}
+            />
+          )}
+        </Blocco>
+
+        <Blocco id={id('aggiornamenti')} titolo="Aggiornamenti">
+          {aggiornabile && attiva && (
+            // Come si aggiorna questo locale (REQ-FLOTTA-020): di norma come
+            // dicono le regole; l'admin lo può fissare, per esempio la Tana.
+            // Il titolo del blocco fa da etichetta a vista.
+            <div>
               <select
-                id={`modalita-${c.slug}`}
                 aria-label={`Aggiornamenti di ${c.nome_locale}`}
                 value={istanza?.modalita_aggiornamenti || ''}
                 onChange={(e) => az.azioneRilascio('modalita', { slug: c.slug, modalita: e.target.value || null })}
@@ -743,65 +852,16 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
                 ))}
               </select>
               {regolaDetta(istanza?.regola_aggiornamenti) && <div className="muted small">ora: {regolaDetta(istanza.regola_aggiornamenti)}</div>}
-            </dd>
-          </div>
-        )}
-        <div>
-          <dt>Credito AI</dt>
-          <dd>
-            {credito ? (
-              <>
-                <span data-testid={`credito-${c.slug}`}>{euroCent(credito.credito)}</span>
-                <div className="muted small">
-                  mese {euroCent(credito.spesoMese)} / {euroCent(credito.tetto)}
-                  {!credito.attivo && ' · spento'}
-                  {!credito.collegata && ' · senza chiave'}
-                </div>
-              </>
-            ) : (
-              <span className="muted">—</span>
-            )}
-          </dd>
-        </div>
-        {istanza?.licenza_protetta?.ok === false && (
-          // BUG-125: con l'app nuova un locale senza licenza protetta si ferma.
-          <div>
-            <dt>Licenza</dt>
-            <dd className="errore">{istanza.licenza_protetta.perche}</dd>
-          </div>
-        )}
-        {riduzioneDetta(istanza) && (
-          // REQ-FLOTTA-024: quello che la licenza toglie arriva al taglio.
-          <div>
-            <dt>Riduzione</dt>
-            <dd data-testid="riduzione-al-taglio">{riduzioneDetta(istanza)}</dd>
-          </div>
-        )}
-        {istanza?.presentazione?.versione && (
-          // REQ-FLOTTA-026: la versione che l'app stessa ha detto alla regia,
-          // da qualunque deploy sia arrivata (anche da GitHub, come la Tana).
-          <div>
-            <dt>Dall’app</dt>
-            <dd data-testid="presentazione">
-              {istanza.presentazione.versione} · dal {giorno(istanza.presentazione.prima_il)} · ultima volta il{' '}
-              {giorno(istanza.presentazione.il)}
-            </dd>
-          </div>
-        )}
-        {eliminazioneDetta(istanza) && (
-          <div>
-            <dt>Eliminazione</dt>
-            <dd className={istanza.eliminazione.stato === 'fallita' ? 'errore' : ''}>{eliminazioneDetta(istanza)}</dd>
-          </div>
-        )}
-        {daFlotta && stato === STATI.ATTIVA && !istanza?.interna && (
-          <div>
-            <dt>
-              <label htmlFor={`gruppo-${c.slug}`}>Gruppo di rilascio</label>
-            </dt>
-            <dd>
+            </div>
+          )}
+          {propostaDetta(istanza?.proposta_aggiornamento) && <div className="muted small">{propostaDetta(istanza.proposta_aggiornamento)}</div>}
+          {daFlotta && attiva && !istanza?.interna && (
+            <div className="campo-blocco">
+              <label htmlFor={id('gruppo')} className="muted small">
+                Gruppo di rilascio
+              </label>
               <select
-                id={`gruppo-${c.slug}`}
+                id={id('gruppo')}
                 aria-label={`Gruppo di rilascio di ${c.nome_locale}`}
                 value={istanza?.gruppo_rilascio || 'generale'}
                 onChange={(e) => az.azioneRilascio('gruppo', { slug: c.slug, gruppo: e.target.value })}
@@ -812,147 +872,161 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
                   </option>
                 ))}
               </select>
-            </dd>
-          </div>
-        )}
-      </dl>
-
-      <ModuliETemi cliente={c} istanza={istanza} stato={stato} onErrore={az.onErrore} onFatto={az.carica} />
-
-      <footer className="locale-azioni">
-        <div className="gruppo-azioni" aria-label="Istanza">
-          {stato === STATI.ERRORE && (
-            <button type="button" className="btn small" onClick={() => rilanciaAttivazione(c.slug).then(az.carica)}>
-              Rilancia
-            </button>
+            </div>
           )}
-          {aggiornabile && stato === STATI.ATTIVA && (
-            // «Aggiorna» da solo non diceva cosa fa (l'utente, 30/10/2026):
-            // il testo accanto lo dice sempre, non solo al passaggio del mouse,
-            // e il lettore di schermo lo legge col bottone (aria-describedby).
-            <>
+          {aggiornabile && attiva && (
+            // «Aggiorna» da solo non diceva cosa fa (l'utente, 30/10/2026). Dal
+            // 13/11/2026 (REQ-FLOTTA-089) la spiegazione è un aiuto che si apre:
+            // sempre scritta accanto allungava la scheda. Il lettore di
+            // schermo la legge col tasto (aria-describedby), chiusa o aperta.
+            <div className="gruppo-azioni">
               <button
                 type="button"
                 className="btn ghost small"
-                aria-describedby={`aggiorna-${c.slug}`}
-                disabled={inAvvio || istanza?.aggiornamento?.stato === 'in corso'}
+                aria-describedby={id('aggiorna')}
+                disabled={inAvvio || inCorso}
                 onClick={() => az.aggiorna(c)}
               >
-                {inAvvio ? 'Avvio…' : istanza?.aggiornamento?.stato === 'in corso' ? 'Aggiornamento in corso…' : 'Aggiorna subito'}
+                {inAvvio ? 'Avvio…' : inCorso ? 'Aggiornamento in corso…' : 'Aggiorna subito'}
               </button>
-              <span id={`aggiorna-${c.slug}`} className="muted small spiega-azione">
-                solo questo locale, all’ultima versione dell’app, per una correzione urgente. A tutti i locali la porta un rilascio, a ondate (
+              <Aiuto id={id('aggiorna')} titolo="Cosa fa «Aggiorna subito»">
+                Solo questo locale, all’ultima versione dell’app, per una correzione urgente. A tutti i locali la porta un rilascio, a ondate (
                 <Link to={`${BASE}/rilasci`}>Rilasci</Link>).
-              </span>
-            </>
+              </Aiuto>
+            </div>
           )}
-          {aggiornabile && istanza?.aggiornamento?.stato === 'fallito' && <AzioniAggiornamento cliente={c} istanza={istanza} az={az} />}
-          <button type="button" className="btn ghost small" onClick={onCambia}>
-            Cambia piano…
-          </button>
-          {c.abbonamento?.origine === 'manuale' && (
-            <button type="button" className="btn ghost small" onClick={() => az.registraPagamento(c)}>
-              Registra pagamento…
-            </button>
+          {lanciato !== undefined && !inCorso && (
+            // L'esito della chiamata: il workflow è partito, non è finito. Appena
+            // il documento dell'istanza lo dice, al suo posto c'è l'avanzamento
+            // nel blocco App, che si aggiorna da solo.
+            <p className="small" role="status">
+              Aggiornamento {lanciato ? `a ${lanciato} ` : ''}partito: la scheda si aggiorna da sola quando il workflow finisce.
+            </p>
           )}
-          <button type="button" className="btn ghost small" onClick={() => az.sconto(c)}>
-            Sconto…
-          </button>
-          {!daFlotta && (
-            <button type="button" className="btn ghost small" aria-expanded={gestioneAperta} onClick={() => setGestioneAperta((v) => !v)}>
-              Pubblicazione e licenza…
-            </button>
-          )}
-        </div>
+          {!attiva && <div className="muted small">Dopo l’attivazione.</div>}
+          {attiva && !aggiornabile && <div className="muted small">Li porta il suo repository, non la regia.</div>}
+        </Blocco>
 
-        {!daFlotta && gestioneAperta && (
-          <GestioneEsistente
-            cliente={c}
-            istanza={istanza}
-            onErrore={az.onErrore}
-            onFatto={() => {
-              setGestioneAperta(false)
-              az.carica()
-            }}
-          />
-        )}
-
-        {aiVisibile && (
-          <div className="gruppo-azioni" aria-label="Credito AI">
-            <span className="gruppo-nome muted small">AI</span>
-            <button type="button" className="btn ghost small" onClick={() => az.ricaricaAI(c)}>
-              Ricarica AI
-            </button>
-            <button type="button" className="btn ghost small" onClick={() => az.regalaAI(c)}>
-              Regala AI
-            </button>
-            <button type="button" className="btn ghost small" onClick={() => az.tettoAI(c, credito?.tetto)}>
-              Tetto AI
-            </button>
-            {credito && (
-              <button type="button" className="btn ghost small" onClick={() => az.azioneAI(c, credito.attivo ? 'spegni' : 'accendi')}>
-                {credito.attivo ? 'Spegni AI' : 'Accendi AI'}
-              </button>
-            )}
+        <Blocco id={id('aspetto')} titolo="Aspetto">
+          <div className="small">
+            <span className="muted">temi in licenza: </span>
+            <span data-testid={`temi-${c.slug}`}>{(c.temi || []).length ? c.temi.map(nomeStile).join(', ') : 'nessuno'}</span>
           </div>
-        )}
+          <TemiInLicenza cliente={c} onErrore={az.onErrore} onFatto={az.carica} />
+          <TemiSuMisuraLocale cliente={c} onErrore={az.onErrore} />
+          {istanza?.progetto && attiva && <InstallatiDallApp cliente={c} />}
+        </Blocco>
 
-        {(!istanza?.progetto || stato === STATI.ELIMINATA) && ![STATI.IN_CODA, STATI.IN_CORSO].includes(stato) && (
-          // Un cliente senza istanza (mai attivata, o già eliminata col suo
-          // progetto) si elimina da qui, con l'account (REQ-FLOTTA-059).
-          // Con un'attivazione in coda o in corso si aspetta.
-          <div className="gruppo-azioni pericolo" aria-label="Cliente">
-            <button type="button" className="btn ghost small" onClick={() => az.eliminaCliente(c)}>
-              Elimina cliente…
-            </button>
-          </div>
-        )}
-
-        {daFlotta && stato === STATI.ATTIVA && (
-          // Sospendere e chiudere stanno a parte, lontano dalle
-          // azioni di tutti i giorni (tana-drink, DESIGN.md,
-          // guardrail 2: le azioni distruttive lontane dalle frequenti).
-          <div className="gruppo-azioni pericolo" aria-label="Licenza">
-            {licenza === 'attiva' ? (
+        {conAI && (
+          <Blocco id={id('ai')} titolo="Credito AI">
+            {credito ? (
               <>
-                <button type="button" className="btn ghost small" onClick={() => az.cambiaStato(c, 'sospesa')}>
-                  Sospendi
-                </button>
-                <button type="button" className="btn ghost small" onClick={() => az.cambiaStato(c, 'chiusa')}>
-                  Chiudi
-                </button>
+                <div>
+                  <span data-testid={`credito-${c.slug}`}>{euroCent(credito.credito)}</span>
+                  <span className="muted small"> di credito</span>
+                </div>
+                <div className="muted small">
+                  mese {euroCent(credito.spesoMese)} / {euroCent(credito.tetto)}
+                  {!credito.attivo && ' · spento'}
+                </div>
               </>
             ) : (
-              <>
-                <button type="button" className="btn ghost small" onClick={() => az.cambiaStato(c, 'attiva')}>
-                  Riattiva
-                </button>
-                {licenza === 'chiusa' && !['programmata', 'in coda', 'in corso'].includes(istanza?.eliminazione?.stato) && (
-                  <button type="button" className="btn ghost small" onClick={onElimina}>
-                    Elimina…
-                  </button>
-                )}
-                {istanza?.eliminazione?.stato === 'programmata' && (
-                  <button type="button" className="btn ghost small" onClick={() => az.annullaEliminazione(c)}>
-                    Annulla eliminazione
-                  </button>
-                )}
-              </>
+              <div className="muted">—</div>
             )}
-          </div>
+            {aiVisibile && (
+              <div className="gruppo-azioni">
+                <button type="button" className="btn ghost small" onClick={() => az.ricaricaAI(c)}>
+                  Ricarica AI
+                </button>
+                <button type="button" className="btn ghost small" onClick={() => az.regalaAI(c)}>
+                  Regala AI
+                </button>
+                <button type="button" className="btn ghost small" onClick={() => az.tettoAI(c, credito?.tetto)}>
+                  Tetto AI
+                </button>
+                {credito && (
+                  <button type="button" className="btn ghost small" onClick={() => az.azioneAI(c, credito.attivo ? 'spegni' : 'accendi')}>
+                    {credito.attivo ? 'Spegni AI' : 'Accendi AI'}
+                  </button>
+                )}
+              </div>
+            )}
+          </Blocco>
         )}
-      </footer>
-      {lanciato !== undefined && istanza?.aggiornamento?.stato !== 'in corso' && (
-        // L'esito della chiamata: il workflow è partito, non è finito. Appena
-        // il documento dell'istanza lo dice, al suo posto c'è l'avanzamento
-        // in «Versione», che si aggiorna da solo.
-        <p className="small" role="status">
-          Aggiornamento {lanciato ? `a ${lanciato} ` : ''}partito: la scheda si aggiorna da sola quando il workflow finisce.
-        </p>
+      </div>
+
+      {conFondo && (
+        <footer className="locale-fondo">
+          {eliminazione && !eliminazioneFallita && <p className="muted small locale-eliminazione">Eliminazione: {eliminazione}</p>}
+          {eliminaCliente && (
+            // Un cliente senza istanza (mai attivata, o già eliminata col suo
+            // progetto) si elimina da qui, con l'account (REQ-FLOTTA-059).
+            // Con un'attivazione in coda o in corso si aspetta.
+            <div className="gruppo-azioni pericolo" aria-label="Cliente">
+              <button type="button" className="btn ghost small" onClick={() => az.eliminaCliente(c)}>
+                Elimina cliente…
+              </button>
+            </div>
+          )}
+          {gestisciLicenza && (
+            <div className="gruppo-azioni pericolo" aria-label="Licenza">
+              {licenza === 'attiva' ? (
+                <>
+                  <button type="button" className="btn ghost small" onClick={() => az.cambiaStato(c, 'sospesa')}>
+                    Sospendi
+                  </button>
+                  <button type="button" className="btn ghost small" onClick={() => az.cambiaStato(c, 'chiusa')}>
+                    Chiudi
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button type="button" className="btn ghost small" onClick={() => az.cambiaStato(c, 'attiva')}>
+                    Riattiva
+                  </button>
+                  {licenza === 'chiusa' && !['programmata', 'in coda', 'in corso'].includes(istanza?.eliminazione?.stato) && (
+                    <button type="button" className="btn ghost small" onClick={onElimina}>
+                      Elimina…
+                    </button>
+                  )}
+                  {istanza?.eliminazione?.stato === 'programmata' && (
+                    <button type="button" className="btn ghost small" onClick={() => az.annullaEliminazione(c)}>
+                      Annulla eliminazione
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+          {eliminaAperto && <EliminaLocale cliente={c} istanza={istanza} onFatto={onFatto} onErrore={az.onErrore} />}
+        </footer>
       )}
-      {cambiaAperto && <CambiaPiano cliente={c} onFatto={onFatto} onErrore={az.onErrore} />}
-      {eliminaAperto && <EliminaLocale cliente={c} istanza={istanza} onFatto={onFatto} onErrore={az.onErrore} />}
     </article>
+  )
+}
+
+// Un blocco della scheda: il titolo, che lo nomina anche per il lettore di
+// schermo, e sotto i suoi dati e i suoi tasti.
+function Blocco({ id, titolo, children }) {
+  return (
+    <section className="blocco" aria-labelledby={id}>
+      <h4 id={id}>{titolo}</h4>
+      {children}
+    </section>
+  )
+}
+
+// Una spiegazione lunga diventa un aiuto che si apre (REQ-FLOTTA-089): un
+// <details> si apre col clic, col dito e da tastiera (Invio o spazio sul
+// «?») senza codice, e non solo al passaggio del mouse come un title.
+function Aiuto({ id, titolo, children }) {
+  return (
+    <details className="aiuto">
+      <summary aria-label={titolo}>?</summary>
+      <p id={id} className="muted small">
+        {children}
+      </p>
+    </details>
   )
 }
 
@@ -1947,29 +2021,25 @@ function CambiaPiano({ cliente, onFatto, onErrore }) {
 }
 
 // MODULI E TEMI DEL LOCALE (REQ-FLOTTA-039, richiesta da tana-drink: «la
-// regia deve sempre elencare moduli e temi acquistati in app»). Tre righe:
-// i moduli (compresi nel piano e comprati); i temi in licenza (gli
-// esclusivi, che assegna l'admin: clienti/{uid}.temi, e la licenza li
-// nomina); e quello che il locale ha installato dall'app, letto dal suo
-// progetto quando si apre la scheda e mai salvato qui.
-function ModuliETemi({ cliente: c, istanza, stato, onErrore, onFatto }) {
+// regia deve sempre elencare moduli e temi acquistati in app»). I moduli
+// (compresi nel piano e comprati) stanno nel blocco Piano; i temi in
+// licenza (gli esclusivi, che assegna l'admin: clienti/{uid}.temi, e la
+// licenza li nomina), quelli su misura e quello che il locale ha installato
+// dall'app (letto dal suo progetto quando si apre la scheda e mai salvato
+// qui) nel blocco Aspetto (REQ-FLOTTA-089). Accanto ai moduli i terminali,
+// quando la scelta del cliente li dice.
+function ModuliDelPiano({ cliente: c }) {
   const inclusi = PIANI[c.piano]?.include || []
   const moduli = [...new Set([...inclusi, ...(c.moduli || [])])].map((id) => MODULI.find((m) => m.id === id)?.nome || id)
-  const temi = c.temi || []
+  const terminali = Number(c.terminali) || 0
   return (
-    <section className="moduli-temi" aria-label={`Moduli e temi di ${c.nome_locale}`}>
-      <div>
-        <strong>Moduli</strong>
+    <>
+      <div className="small">
+        <span className="muted">moduli: </span>
         <span data-testid={`moduli-${c.slug}`}>{moduli.length ? moduli.join(', ') : 'nessuno'}</span>
       </div>
-      <div>
-        <strong>Temi in licenza</strong>
-        <span data-testid={`temi-${c.slug}`}>{temi.length ? temi.map(nomeStile).join(', ') : 'nessuno'}</span>
-        <TemiInLicenza cliente={c} onErrore={onErrore} onFatto={onFatto} />
-      </div>
-      <TemiSuMisuraLocale cliente={c} onErrore={onErrore} />
-      {istanza?.progetto && stato === STATI.ATTIVA && <InstallatiDallApp cliente={c} />}
-    </section>
+      {terminali > 0 && <div className="muted small">{terminali === 1 ? '1 terminale' : `${terminali} terminali`}</div>}
+    </>
   )
 }
 
@@ -2000,39 +2070,44 @@ function TemiSuMisuraLocale({ cliente: c, onErrore }) {
       return false
     }
   }
+  // Una riga col loro elenco, poi i tasti: uno per tema e «Nuovo…».
   return (
-    <div>
-      <strong>Temi su misura</strong>
-      <span data-testid={`su-misura-${c.slug}`}>
-        {temi.length
-          ? temi
-              .map((t) => `${t.nome} (${ORIGINI_DETTE[t.origine] || t.origine}${t.ricetta?.impaginazione ? `, ${nomeImpaginazione(t.ricetta.impaginazione)}` : `, stile ${nomeStile(t.stile)}`}, ${(STATI_DETTI[t.stato] || t.stato).toLowerCase()})`)
-              .join(' · ')
-          : 'nessuno'}
-      </span>
-      {temi.map((t) => (
-        <span key={t.id} className="gruppo-azioni">
-          {!aperto && (
-            <button type="button" className="btn ghost small" onClick={() => setAperto({ ...t, nuovo: false })}>
-              Modifica «{t.nome}»
-            </button>
-          )}
-          {t.stato === 'pubblicato' ? (
-            <button type="button" className="btn ghost small" onClick={() => azione('ritira', { id: t.id })}>
-              Ritira «{t.nome}»
-            </button>
-          ) : (
-            <button type="button" className="btn ghost small" onClick={() => azione('pubblica', { id: t.id })}>
-              Pubblica «{t.nome}»
-            </button>
-          )}
+    <>
+      <div className="small">
+        <span className="muted">su misura: </span>
+        <span data-testid={`su-misura-${c.slug}`}>
+          {temi.length
+            ? temi
+                .map((t) => `${t.nome} (${ORIGINI_DETTE[t.origine] || t.origine}${t.ricetta?.impaginazione ? `, ${nomeImpaginazione(t.ricetta.impaginazione)}` : `, stile ${nomeStile(t.stile)}`}, ${(STATI_DETTI[t.stato] || t.stato).toLowerCase()})`)
+                .join(' · ')
+            : 'nessuno'}
         </span>
-      ))}
-      {!aperto && (
-        <button type="button" className="btn ghost small" onClick={() => setAperto({ ...temaVuoto(), nuovo: true })}>
-          Nuovo tema su misura…
-        </button>
-      )}
+      </div>
+      <div className="gruppo-azioni">
+        {temi.map((t) => (
+          <Fragment key={t.id}>
+            {!aperto && (
+              <button type="button" className="btn ghost small" onClick={() => setAperto({ ...t, nuovo: false })}>
+                Modifica «{t.nome}»
+              </button>
+            )}
+            {t.stato === 'pubblicato' ? (
+              <button type="button" className="btn ghost small" onClick={() => azione('ritira', { id: t.id })}>
+                Ritira «{t.nome}»
+              </button>
+            ) : (
+              <button type="button" className="btn ghost small" onClick={() => azione('pubblica', { id: t.id })}>
+                Pubblica «{t.nome}»
+              </button>
+            )}
+          </Fragment>
+        ))}
+        {!aperto && (
+          <button type="button" className="btn ghost small" onClick={() => setAperto({ ...temaVuoto(), nuovo: true })}>
+            Nuovo tema su misura…
+          </button>
+        )}
+      </div>
       {aperto && (
         <EditorTema
           key={aperto.id || 'nuovo'}
@@ -2046,7 +2121,7 @@ function TemiSuMisuraLocale({ cliente: c, onErrore }) {
           }}
         />
       )}
-    </div>
+    </>
   )
 }
 
@@ -2121,10 +2196,10 @@ function InstallatiDallApp({ cliente: c }) {
   }, [c.slug])
   const d = esito?.dati
   return (
-    <div>
-      <strong>Installati nell’app</strong>
-      {!esito && <span className="muted small">leggo dal locale…</span>}
-      {esito?.errore && <span className="errore small">{esito.errore}</span>}
+    <div className="small">
+      <span className="muted">installati nell’app: </span>
+      {!esito && <span className="muted">leggo dal locale…</span>}
+      {esito?.errore && <span className="errore">{esito.errore}</span>}
       {d && (
         <span data-testid={`installati-${c.slug}`}>
           stili: {d.stili_installati.length ? d.stili_installati.map(nomeStile).join(', ') : 'nessuno'} · temi:{' '}

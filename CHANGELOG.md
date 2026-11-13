@@ -6,6 +6,13 @@ data.
 
 ## Prossima release (da decidere)
 
+- Nel backoffice la scheda di un locale è ordinata: in testa nome, stato,
+  piano e versione, poi gli avvisi da trattare coi loro tasti, poi sei
+  blocchi sempre nello stesso ordine (Titolare, Piano, App, Aggiornamenti,
+  Aspetto, Credito AI), ciascuno coi suoi tasti; Sospendi e Chiudi stanno
+  da soli in fondo. Il Free non ha il blocco Credito AI, la spiegazione di
+  «Aggiorna subito» è un aiuto che si apre e sul telefono i blocchi vanno
+  in colonna (REQ-FLOTTA-089).
 - Il gestionale chiede il credito AI senza chiamare il modello e senza
   pagarlo: saldo, tetto, speso del mese e se l'AI può partire
   (REQ-FLOTTA-085).

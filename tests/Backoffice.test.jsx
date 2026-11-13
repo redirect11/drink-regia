@@ -1120,7 +1120,9 @@ describe('il bottone Aggiorna dice cosa fa', () => {
     mostra()
     const attivo = await apri('Bar Attivo')
     const tasto = within(attivo).getByRole('button', { name: 'Aggiorna subito' })
-    expect(tasto).toHaveAccessibleDescription(/solo questo locale, all’ultima versione dell’app, per una correzione urgente/)
+    // Dal 13/11/2026 (REQ-FLOTTA-089) la frase sta da sola nell'aiuto che si
+    // apre, e comincia con la maiuscola.
+    expect(tasto).toHaveAccessibleDescription(/solo questo locale, all’ultima versione dell’app, per una correzione urgente/i)
     expect(tasto).toHaveAccessibleDescription(/A tutti i locali la porta un rilascio, a ondate/)
     expect(within(attivo).getByRole('link', { name: 'Rilasci' })).toHaveAttribute('href', '/backoffice/rilasci')
     // Il nome del ramo non è scritto nella pagina: lo decide la Function.
@@ -1315,8 +1317,10 @@ describe('le licenze protette nel backoffice', () => {
     const attivo = await apri('Bar Attivo')
     expect(within(attivo).getByTestId('presentazione')).toHaveTextContent(/^v1\.10\.4 · dal 0?2\/11\/2026 · ultima volta il 0?3\/11\/2026$/)
     // Senza l'esito di un deploy della regia (la Tana da GitHub), anche la
-    // colonna Versione dice quella dell'app, e lo dice.
-    expect(attivo).toHaveTextContent(/Versionev1\.10\.4detta dall’app/)
+    // versione installata è quella dell'app, e lo dice. Dal 13/11/2026 sta
+    // nel blocco App (REQ-FLOTTA-089), non più nella colonna «Versione».
+    expect(within(attivo).getByTestId('versione-bar-attivo')).toHaveTextContent(/^v1\.10\.4$/)
+    expect(within(attivo).getByRole('region', { name: 'App' })).toHaveTextContent(/installata v1\.10\.4 · detta dall’app/)
   })
 })
 
@@ -1584,6 +1588,8 @@ describe('la scheda del locale in blocchi', () => {
   const blocchi = (scheda) => [...scheda.querySelectorAll('section.blocco')].map((s) => s.querySelector('h4')?.textContent)
   const blocco = (scheda, nome) => within(scheda).getByRole('region', { name: nome })
   const nomiTasti = (el) => within(el).queryAllByRole('button').map((b) => b.textContent)
+  // Senza temi su misura: il mock di un test di prima resta acceso.
+  beforeEach(() => db.elencoTemiSuMisura.mockResolvedValue([]))
 
   it('in testa nome, stato, piano e versione; poi i sei blocchi, sempre in quest’ordine', async () => {
     db.elencoCassettiAI.mockResolvedValue({ 'bar-attivo': { credito_microeuro: 2_000_000 } })
@@ -1699,9 +1705,9 @@ describe('la scheda del locale in blocchi', () => {
     expect(aiuto).not.toBeNull()
     expect(aiuto.open).toBe(false)
     expect(aiuto.querySelector('summary')).toHaveAccessibleName('Cosa fa «Aggiorna subito»')
-    expect(aiuto).toHaveTextContent(/solo questo locale, all’ultima versione dell’app, per una correzione urgente/)
+    expect(aiuto).toHaveTextContent(/solo questo locale, all’ultima versione dell’app, per una correzione urgente/i)
     // Il lettore di schermo la legge col tasto, chiusa o aperta.
-    expect(tasto).toHaveAccessibleDescription(/solo questo locale, all’ultima versione dell’app/)
+    expect(tasto).toHaveAccessibleDescription(/solo questo locale, all’ultima versione dell’app/i)
   })
 
   it('sul telefono i blocchi vanno in una colonna; larghi, al massimo tre per riga', () => {
