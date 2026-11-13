@@ -289,6 +289,17 @@ export async function apriPortaleAbbonamento() {
   return data
 }
 
+// Il pagamento del rinnovo di un locale sospeso (REQ-FLOTTA-090): la
+// fattura aperta di Stripe, o il portale se non ce n'è. Non si manda
+// niente: il server cerca la fattura del cliente che chiama.
+export async function apriPagamentoRinnovo() {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'pagamentoRinnovo')
+  const { data } = await fn({})
+  if (!data?.url) throw new Error('Il pagamento non è disponibile al momento: scrivici.')
+  return data
+}
+
 // IL PASSAGGIO FRA LA REGIA E L'APP (REQ-FLOTTA-030). «Apri la tua app»:
 // la regia dà l'indirizzo dell'app con un codice monouso.
 export async function apriLaTuaApp() {

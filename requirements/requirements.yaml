@@ -4311,7 +4311,7 @@ requirements:
       parte. Altro punto debole: chi apre `rinnovo_url` senza sessione
       nella regia passa dall'accesso e arriva alla panoramica, non al
       riquadro: lì l'avviso lo porta al riquadro con un tocco.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [regia, flotta]
     priority: P1

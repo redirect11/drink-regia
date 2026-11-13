@@ -13,6 +13,7 @@ const { prossimoTaglio, ORA_DEL_TAGLIO } = require('./taglio.js')
 const { cancellazioneDellaLicenza } = require('./conservazione.js')
 const { scadenzaPagamento, GIORNI_DI_GRAZIA } = require('./scadenze.js')
 const { temiPuliti, temiSuMisuraPerLicenza } = require('./temi.js')
+const { rinnovoUrl } = require('./rinnovo.js')
 
 // I temi in licenza (REQ-FLOTTA-039): gli id degli stili esclusivi o
 // comprati, da clienti/{uid}.temi. Non dipendono dal piano: un esclusivo
@@ -99,6 +100,8 @@ function licenzaIniziale(attuale, { piano = 'base', moduli = [], temi = [], slug
       stato: attuale?.licenza?.stato || 'attiva',
       slug,
       regia_url: regiaUrl,
+      // Dove il titolare rinnova un locale sospeso (REQ-FLOTTA-090).
+      rinnovo_url: rinnovoUrl(regiaUrl),
       scritta_il: adesso.toISOString(),
     },
   }
@@ -126,7 +129,7 @@ function sceltaCambiata(prima, dopo) {
 // Si CALCOLA dai dati della regia, non si copia da settings/bar: quella
 // copia potrebbe essere già stata manomessa. Stesso contenuto di oggi:
 // piano, moduli, terminali, limiti, prove, stato col motivo e la data, slug,
-// regia_url, aggiornamenti.
+// regia_url, rinnovo_url (REQ-FLOTTA-090), aggiornamenti.
 //
 // Attenzione (BUG-125): con l'app nuova un locale SENZA licenza/attuale
 // mostra «Installazione non attivata». La copia va fatta per tutti i locali
@@ -174,6 +177,11 @@ function licenzaProtetta(ist, cliente, { slug, regiaUrl = null, sceltaUrl = null
     dal: ist?.licenza_dal || null,
     slug: slug || cliente?.slug || null,
     regia_url: regiaUrl,
+    // REQ-FLOTTA-090 (Daniele, 13/11/2026: «dobbiamo portare l'utente alla
+    // schermata di pagamento per il rinnovo»): dove l'app manda il titolare
+    // di un locale sospeso o chiuso. Un campo in più, contratto con
+    // tana-drink (handover §7); null senza indirizzo della regia.
+    rinnovo_url: rinnovoUrl(regiaUrl),
     aggiornamenti: licenzaAggiornamenti(ist, cliente, adesso, { sceltaUrl }),
     valida_fino: validaFino(ist, cliente, giorniGrazia, oraTaglio),
     alla_scadenza: allaScadenza(ist, adesso),
@@ -185,7 +193,9 @@ function licenzaProtetta(ist, cliente, { slug, regiaUrl = null, sceltaUrl = null
 }
 
 // Due licenze dicono la stessa cosa? La data di scrittura non conta.
-const CHIAVI_PROTETTA = ['piano', 'moduli', 'terminali', 'temi', 'temi_su_misura', 'limiti', 'prove', 'stato', 'motivo', 'slug', 'regia_url', 'aggiornamenti', 'valida_fino', 'alla_scadenza', 'cancellazione']
+// rinnovo_url (REQ-FLOTTA-090) conta: una licenza scritta prima, senza,
+// per la verifica è diversa, e «Allinea» la riscrive col campo.
+const CHIAVI_PROTETTA = ['piano', 'moduli', 'terminali', 'temi', 'temi_su_misura', 'limiti', 'prove', 'stato', 'motivo', 'slug', 'regia_url', 'rinnovo_url', 'aggiornamenti', 'valida_fino', 'alla_scadenza', 'cancellazione']
 function ordinato(v) {
   if (Array.isArray(v)) return v.map(ordinato)
   if (v && typeof v === 'object') return Object.fromEntries(Object.keys(v).sort().map((k) => [k, ordinato(v[k])]))

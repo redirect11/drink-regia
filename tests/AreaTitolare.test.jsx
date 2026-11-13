@@ -51,6 +51,8 @@ const db = vi.hoisted(() => ({
   avviaRicaricaAI: vi.fn(),
   chiediAttivazione: vi.fn(async () => {}),
   apriPortaleAbbonamento: vi.fn(),
+  // Il rinnovo del locale sospeso (REQ-FLOTTA-090) ha i suoi test in RinnovoLocale.test.jsx.
+  apriPagamentoRinnovo: vi.fn(),
   apriLaTuaApp: vi.fn(async () => ({ url: 'about:blank#app' })),
   inviaVerificaEmail: vi.fn(),
   rileggiUtente: vi.fn(),

@@ -56,7 +56,9 @@ describe('la fattura da pagare per il rinnovo', () => {
 })
 
 describe('la callable pagamentoRinnovo, sul sorgente', () => {
-  const index = readFileSync('functions/index.js', 'utf8')
+  // I fine riga come li lascia git sulla macchina (CRLF su Windows): la
+  // fine della callable si cerca coi soli \n.
+  const index = readFileSync('functions/index.js', 'utf8').replace(/\r\n/g, '\n')
   const inizio = index.indexOf('exports.pagamentoRinnovo')
   const corpo = index.slice(inizio, index.indexOf('\n})\n', inizio))
 

@@ -28,6 +28,8 @@ const db = vi.hoisted(() => ({
   }),
   chiediAttivazione: vi.fn(async () => {}),
   apriPortaleAbbonamento: vi.fn(async () => ({ url: 'about:blank#portale' })),
+  // Il rinnovo del locale sospeso (REQ-FLOTTA-090) ha i suoi test in RinnovoLocale.test.jsx.
+  apriPagamentoRinnovo: vi.fn(),
   apriLaTuaApp: vi.fn(async () => ({ url: 'about:blank#app' })),
 }))
 vi.mock('../src/lib/db.js', () => ({

@@ -6,6 +6,14 @@ data.
 
 ## Prossima release (da decidere)
 
+- Un locale sospeso o chiuso lo dice in cima a «Piano e moduli», con un
+  avviso nella panoramica: sospeso per il pagamento, coi pagamenti online
+  accesi, c'è il tasto per pagare la fattura aperta di Stripe (il locale
+  si riattiva da solo); altrimenti, o se l'ha sospeso l'amministratore,
+  l'email a cui scriverci; chiuso, i contatti e la data della
+  cancellazione dei dati. La licenza porta `rinnovo_url`, l'indirizzo che
+  l'app apre col tasto «Riattiva il locale». Lo stato dell'abbonamento si
+  legge in italiano, mai «past_due» (REQ-FLOTTA-090).
 - Il gestionale chiede il credito AI senza chiamare il modello e senza
   pagarlo: saldo, tetto, speso del mese e se l'AI può partire
   (REQ-FLOTTA-085).
