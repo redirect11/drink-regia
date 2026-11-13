@@ -15,7 +15,9 @@
 // accesso libero al modello (un locale che si inventa i turni del modello
 // gli fa dire quello che vuole), ogni turno che la regia dà è FIRMATO con
 // un segreto suo, e un turno che non torna si rifiuta. La firma lega il
-// turno al locale e alla versione di istruzioni e strumenti.
+// turno al locale, alla versione, all'impronta di istruzioni e strumenti
+// com'erano quando il modello l'ha scritto, e ai messaggi che lo precedono
+// (revisione della PR #237).
 //
 // Qui la logica pura; il credito passa da interrogaConPrenotazione di
 // lib/ai.js, la stessa delle altre richieste (prenotazione, conteggio,
@@ -32,7 +34,10 @@ const { RichiestaNonValida } = ai
 // versione riceve 409 { codice: 'versione' } e l'app ne apre una nuova:
 // i suoi turni sono firmati con la versione vecchia, e il modello li ha
 // scritti con istruzioni che non ci sono più.
-const VERSIONE_CHAT = 'chat-2026-11-13.1'
+// .2 (revisione della PR #237): la firma ha un'altra forma (impronta del
+// contesto e posizione) e la chiamata va con lo sforzo «low»; i turni
+// firmati con la .1 non si verificherebbero più.
+const VERSIONE_CHAT = 'chat-2026-11-13.2'
 
 // Gli strumenti che l'app sa eseguire (tana-drink, REQ-AI-006). La regia
 // li descrive al modello; l'app li esegue coi dati che chi scrive vede già
@@ -102,28 +107,62 @@ function validaLimitiChat(dati) {
 }
 
 // ── LA FIRMA DEL TURNO ──
-// HMAC-SHA256 sulla forma canonica (chiavi in ordine) di locale, versione
-// e contenuto: l'app passa la conversazione da JSON a oggetti e indietro,
-// e l'ordine delle chiavi non deve contare; un carattere diverso sì.
-function canonico(v) {
-  if (Array.isArray(v)) return `[${v.map(canonico).join(',')}]`
-  if (mappa(v)) return `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${canonico(v[k])}`).join(',')}}`
+// HMAC-SHA256 sulla forma canonica (chiavi in ordine): l'app passa la
+// conversazione da JSON a oggetti e indietro, e l'ordine delle chiavi non
+// deve contare; un carattere diverso sì.
+// LA PROFONDITÀ (revisione della PR #237): la forma canonica è ricorsiva,
+// e un `input` annidato per 20.000 livelli finiva in un RangeError, cioè
+// in un 500. I blocchi veri stanno in pochi livelli (turno, blocco,
+// ingresso di uno strumento): oltre MAX_PROFONDITA la richiesta è un 400.
+const MAX_PROFONDITA = 32
+const TROPPO_ANNIDATA = 'Un messaggio della conversazione è annidato troppo in profondità.'
+function canonico(v, profondita = 0) {
+  if (profondita > MAX_PROFONDITA) throw new RichiestaNonValida(TROPPO_ANNIDATA)
+  if (Array.isArray(v)) return `[${v.map((x) => canonico(x, profondita + 1)).join(',')}]`
+  if (mappa(v)) return `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${canonico(v[k], profondita + 1)}`).join(',')}}`
   return JSON.stringify(v ?? null)
 }
-const impronta = (content, { slug, versione, segreto }) =>
-  crypto.createHmac('sha256', segreto).update(canonico({ slug, versione, content })).digest('base64url')
+const sha = (testo) => crypto.createHash('sha256').update(testo).digest('base64url')
 
-function firmaTurno(turno, { slug, versione, segreto }) {
+// L'IMPRONTA DEL CONTESTO (revisione della PR #237): istruzioni e
+// definizioni degli strumenti, che contengono le righe decise dall'admin e
+// dipendono dall'elenco che manda l'app. Col ragionamento di Sonnet 5.5,
+// `system` o `tools` diversi a metà conversazione fanno perdere i blocchi
+// di ragionamento già scritti, o danno un 400: la conversazione è da
+// rifare, e la regia lo dice prima (409 versione). Sta in chiaro davanti
+// alla firma, così la regia distingue «il contesto è cambiato» (409) da
+// «il turno è stato ritoccato» (400) senza un campo nuovo nel turno.
+const improntaContesto = (strumenti, limiti) => sha(canonico({ system: SISTEMA_CHAT, tools: definizioniStrumenti(strumenti, limiti) })).slice(0, 22)
+const contestoDellaFirma = (firma) => (typeof firma === 'string' && firma.includes('.') ? firma.slice(0, firma.indexOf('.')) : null)
+
+// LA POSIZIONE (revisione della PR #237): la firma copre anche i messaggi
+// che vengono prima del turno, così un turno firmato non si sposta in
+// un'altra conversazione o in un altro punto della stessa. Un'impronta a
+// catena, un anello per messaggio (ruolo e contenuto, senza la firma):
+// lineare anche su 200 messaggi, dove rifare la forma canonica di tutto il
+// prefisso a ogni turno sarebbe quadratico.
+const anello = (prima, m) => sha(`${prima}\n${canonico({ role: m.role, content: m.content })}`)
+const improntaPrima = (messaggi) => messaggi.reduce(anello, '')
+
+const hmac = (content, { slug, versione, segreto, contesto = '', prima = '' }) =>
+  crypto.createHmac('sha256', segreto).update(canonico({ slug, versione, contesto, prima, content })).digest('base64url')
+
+// Si firma e si restituisce la copia passata da JSON (revisione della PR
+// #237): un campo `undefined` sparisce nel viaggio verso l'app, e la firma
+// deve essere su quello che l'app rimanderà, non su un oggetto che in JSON
+// non esiste.
+function firmaTurno(turno, { slug, versione, segreto, contesto = '', prima = '' }) {
   if (!segretoUsabile(segreto)) throw new Error('Il segreto della firma della chat non è configurato.')
-  return { role: 'assistant', content: turno.content, firma: impronta(turno.content, { slug, versione, segreto }) }
+  const content = JSON.parse(JSON.stringify(turno.content))
+  return { role: 'assistant', content, firma: `${contesto}.${hmac(content, { slug, versione, segreto, contesto, prima })}` }
 }
 
 // Confronto a tempo costante: la firma non si indovina un carattere alla
 // volta misurando i tempi di risposta.
-function turnoIntatto(turno, { slug, versione, segreto }) {
+function turnoIntatto(turno, { slug, versione, segreto, contesto = '', prima = '' }) {
   if (!segretoUsabile(segreto) || !mappa(turno) || turno.role !== 'assistant' || typeof turno.firma !== 'string') return false
   if (!Array.isArray(turno.content)) return false
-  const atteso = Buffer.from(impronta(turno.content, { slug, versione, segreto }))
+  const atteso = Buffer.from(`${contesto}.${hmac(turno.content, { slug, versione, segreto, contesto, prima })}`)
   const dato = Buffer.from(turno.firma)
   return atteso.length === dato.length && crypto.timingSafeEqual(atteso, dato)
 }
@@ -209,13 +248,19 @@ class ConversazioneDaRifare extends Error {
 }
 const TROPPO_LUNGA = 'La conversazione è troppo lunga: apri una conversazione nuova.'
 const VERSIONE_VECCHIA = 'La chat è stata aggiornata: apri una conversazione nuova.'
+const CONTESTO_CAMBIATO = 'Le impostazioni della chat sono cambiate: apri una conversazione nuova.'
+const NON_CONTINUABILE = 'Questa conversazione non si può continuare: apri una conversazione nuova.'
 
 const no = (perche) => {
   throw new RichiestaNonValida(perche)
 }
 const soloChiavi = (o, ammesse) => Object.keys(o).every((k) => ammesse.includes(k))
 const testoPieno = (t) => typeof t === 'string' && t.trim().length > 0
-const haTesto = (m) => m.role === 'user' && (typeof m.content === 'string' || m.content.some((b) => b.type === 'text'))
+// Un messaggio scritto da una persona: testo, e NESSUN esito di strumenti
+// (revisione della PR #237). Prima bastava un testo, e un testo messo
+// accanto agli esiti azzerava il conto degli strumenti a ogni giro.
+const haTesto = (m) =>
+  m.role === 'user' && (typeof m.content === 'string' || (m.content.some((b) => b.type === 'text') && !m.content.some((b) => b.type === 'tool_result')))
 const chiesti = (m) => (m?.role === 'assistant' ? m.content.filter((b) => b?.type === 'tool_use') : [])
 
 // Un turno di chi scrive: un testo, o blocchi di testo ed esiti degli
@@ -229,13 +274,19 @@ function turnoUtente(m, prima) {
   if (!Array.isArray(m.content) || !m.content.length) no('Un messaggio della conversazione è vuoto.')
   const attesi = new Set(chiesti(prima).map((b) => b.id))
   const dati = new Set()
+  let testoVisto = false
   for (const b of m.content) {
     if (!mappa(b)) no('Un blocco della conversazione non è valido.')
     if (b.type === 'text') {
       if (!soloChiavi(b, ['type', 'text']) || !testoPieno(b.text)) no('Un testo della conversazione non è valido.')
+      testoVisto = true
       continue
     }
     if (b.type !== 'tool_result') no('Nella conversazione vanno solo testi ed esiti degli strumenti: i file passano dalle loro richieste.')
+    // Gli esiti vengono prima di qualunque testo (revisione della PR #237):
+    // Anthropic rifiuta un turno con un testo prima di un tool_result, e il
+    // 400 diventerebbe una conversazione da buttare.
+    if (testoVisto) no('Gli esiti degli strumenti vanno prima del testo.')
     if (!soloChiavi(b, ['type', 'tool_use_id', 'content', 'is_error']) || typeof b.tool_use_id !== 'string') no('Un esito di uno strumento non è valido.')
     if (b.is_error != null && typeof b.is_error !== 'boolean') no('Un esito di uno strumento non è valido.')
     const solotesto = typeof b.content === 'string' || (Array.isArray(b.content) && b.content.every((c) => mappa(c) && c.type === 'text' && soloChiavi(c, ['type', 'text']) && typeof c.text === 'string'))
@@ -279,28 +330,48 @@ function preparaChat(corpo, { slug, segreto, limiti, modello }) {
 
   const messaggi = corpo.messaggi
   if (!Array.isArray(messaggi) || !messaggi.length) no('La conversazione è vuota.')
-  if (messaggi.length > MAX_MESSAGGI || JSON.stringify(messaggi).length > MAX_CARATTERI_CHAT) throw new ConversazioneDaRifare('troppo-lunga', TROPPO_LUNGA)
+  let caratteri
+  try {
+    caratteri = JSON.stringify(messaggi).length
+  } catch {
+    // Un oggetto annidato oltre lo stack (RangeError): mai una richiesta vera.
+    no(TROPPO_ANNIDATA)
+  }
+  if (messaggi.length > MAX_MESSAGGI || caratteri > MAX_CARATTERI_CHAT) throw new ConversazioneDaRifare('troppo-lunga', TROPPO_LUNGA)
 
+  const tools = definizioniStrumenti(strumenti, limiti)
+  const contesto = improntaContesto(strumenti, limiti)
   const pulita = []
+  // L'impronta dei messaggi già visti: la firma di ogni turno del modello la
+  // copre, e quella finale firma la risposta di adesso.
+  let prima = ''
   messaggi.forEach((m, i) => {
     if (!mappa(m) || !['user', 'assistant'].includes(m.role)) no('Un messaggio della conversazione non è valido.')
     if (m.role === 'user') {
       if (!soloChiavi(m, ['role', 'content'])) no('Un messaggio della conversazione non è valido.')
       turnoUtente(m, messaggi[i - 1])
-      pulita.push({ role: 'user', content: m.content })
-      return
+    } else {
+      // Un turno del modello: viene dalla regia, firmato, e mai due di fila.
+      if (i === 0 || messaggi[i - 1].role === 'assistant') no('La conversazione non è nell’ordine giusto.')
+      if (!soloChiavi(m, ['role', 'content', 'firma'])) no('Un turno del modello è stato modificato: apri una conversazione nuova.')
+      // Il contesto prima della firma: istruzioni, strumenti o righe
+      // cambiate sono «conversazione nuova», non un turno ritoccato. Copre
+      // anche uno strumento usato e poi tolto dall'elenco.
+      const suo = contestoDellaFirma(m.firma)
+      if (suo != null && suo !== contesto) throw new ConversazioneDaRifare('versione', CONTESTO_CAMBIATO)
+      if (!turnoIntatto(m, { slug, versione, segreto, contesto, prima })) no('Un turno del modello è stato modificato: apri una conversazione nuova.')
+      // Un nome che il modello si fosse inventato: Anthropic rifiuterebbe
+      // la conversazione dopo la prenotazione.
+      if (chiesti(m).some((b) => !strumenti.includes(b.name))) no('Uno strumento usato nella conversazione non è fra quelli dati.')
     }
-    // Un turno del modello: viene dalla regia, firmato, e mai due di fila.
-    if (i === 0 || messaggi[i - 1].role === 'assistant') no('La conversazione non è nell’ordine giusto.')
-    if (!soloChiavi(m, ['role', 'content', 'firma']) || !turnoIntatto(m, { slug, versione, segreto })) no('Un turno del modello è stato modificato: apri una conversazione nuova.')
-    if (chiesti(m).some((b) => !strumenti.includes(b.name))) no('Uno strumento usato nella conversazione non è più fra quelli dati.')
-    pulita.push({ role: 'assistant', content: m.content })
+    const pulito = { role: m.role, content: m.content }
+    pulita.push(pulito)
+    prima = anello(prima, pulito)
   })
   if (messaggi[0].role !== 'user' || messaggi[messaggi.length - 1].role !== 'user') no('La conversazione comincia e finisce con un messaggio di chi scrive.')
 
   // Uno strumento alla volta, e al tetto dell'admin nessuno: il modello
   // risponde con quello che ha.
-  const tools = definizioniStrumenti(strumenti, limiti)
   const usati = strumentiUsati(messaggi)
   const sceltaStrumenti = usati >= limiti.max_strumenti_per_messaggio ? { type: 'none' } : { type: 'auto', disable_parallel_tool_use: true }
   // LA CACHE DEL PROMPT (Daniele, 13/11/2026: «Considera che una chat che
@@ -312,16 +383,24 @@ function preparaChat(corpo, { slug, segreto, limiti, modello }) {
   // quello che c'era prima. La conversazione non si tocca, così resta
   // identica byte per byte a quella firmata. Sotto i 512 token Sonnet 5.5
   // non mette niente in cache, senza errori.
+  // LO SFORZO (revisione della PR #237): Sonnet 5.5 ragiona sempre, e allo
+  // sforzo predefinito («high») i token della risposta potevano finire
+  // tutti nel ragionamento: si pagava una risposta vuota. Per una chat la
+  // documentazione di Anthropic consiglia «low». Va anche al conteggio
+  // (parametriConteggio), che lo accetta.
   return {
     tipo: 'chat',
     versione,
     usati,
+    contesto,
+    prima,
     parametri: {
       model: modello,
       max_tokens: limiti.max_token_risposta,
       system: [{ type: 'text', text: SISTEMA_CHAT, cache_control: { type: 'ephemeral' } }],
       messages: pulita,
       ...(tools.length ? { tools, tool_choice: sceltaStrumenti } : {}),
+      output_config: { effort: 'low' },
       cache_control: { type: 'ephemeral' },
     },
   }
@@ -334,21 +413,44 @@ function controllaLunghezza(token, limiti) {
 }
 
 // ── LA RISPOSTA ──
+// IL RIPIEGO A METÀ RISPOSTA (revisione della PR #237). Con `fallbacks`, un
+// rifiuto a metà lascia nel contenuto il pezzo già scritto, un blocco
+// `{ type: 'fallback', from: { model }, to: { model } }` e la continuazione
+// dell'altro modello. Per rimandare il turno la documentazione di Anthropic
+// vuole: via i blocchi di ragionamento (`thinking`, `redacted_thinking`) e
+// gli strumenti a metà (`tool_use`) che stanno PRIMA dell'ultimo
+// `fallback`, che resta dov'è (la sua posizione serve a validare il
+// ragionamento intorno). Prima del confine si tengono solo i testi: la
+// chat non usa strumenti del server, e un tipo sconosciuto del modello va
+// tolto come gli altri.
+function dopoIlRipiego(content) {
+  const confine = content.map((b) => b?.type).lastIndexOf('fallback')
+  if (confine < 0) return content
+  return content.filter((b, i) => i >= confine || b?.type === 'text')
+}
+
 // Il turno firmato, il testo e gli strumenti chiesti. Oltre il tetto dei
 // token la risposta si tronca (Daniele, 13/11/2026): arriva il testo, e
 // uno strumento a metà esce dal turno, che sennò vorrebbe un esito.
-function rispostaChat(risposta, { slug, versione, segreto }) {
+// I blocchi `text` vuoti escono prima della firma (revisione della PR
+// #237): Anthropic rifiuta un testo vuoto nella conversazione che torna.
+// Il testo per l'app unisce i pezzi così come sono: dopo un ripiego la
+// continuazione riprende a metà frase, e un a capo in mezzo la spezzerebbe.
+function rispostaChat(risposta, { slug, versione, segreto, contesto = '', prima = '' }) {
   if (risposta?.stop_reason === 'refusal') return { ok: false, codice: 'rifiuto', perche: 'Il modello non ha risposto a questa richiesta. Riprova con parole diverse.' }
-  let content = Array.isArray(risposta?.content) ? risposta.content : []
+  let content = dopoIlRipiego(Array.isArray(risposta?.content) ? risposta.content : [])
   if (risposta?.stop_reason === 'max_tokens') content = content.filter((b) => b?.type !== 'tool_use')
-  const testi = content.filter((b) => b?.type === 'text' && typeof b.text === 'string').map((b) => b.text)
+  content = content.filter((b) => b?.type !== 'text' || testoPieno(b.text))
+  const testi = content.filter((b) => b?.type === 'text').map((b) => b.text)
   const strumenti = content.filter((b) => b?.type === 'tool_use')
-  if (!testi.some(testoPieno) && !strumenti.length) return { ok: false, codice: 'vuota', perche: 'Il modello non ha restituito niente.' }
+  if (!testi.length && !strumenti.length) return { ok: false, codice: 'vuota', perche: 'Il modello non ha restituito niente.' }
+  const turno = firmaTurno({ content }, { slug, versione, segreto, contesto, prima })
   return {
     ok: true,
-    turno: firmaTurno({ content }, { slug, versione, segreto }),
-    testo: testi.some(testoPieno) ? testi.join('\n\n') : null,
-    strumenti_richiesti: strumenti.map((b) => ({ id: b.id, nome: b.name, input: b.input ?? {} })),
+    turno,
+    testo: testi.length ? testi.join('') : null,
+    // Dalla copia firmata: gli ingressi sono quelli che l'app rimanderà.
+    strumenti_richiesti: turno.content.filter((b) => b?.type === 'tool_use').map((b) => ({ id: b.id, nome: b.name, input: b.input ?? {} })),
   }
 }
 
@@ -359,7 +461,7 @@ function rispostaChat(risposta, { slug, versione, segreto }) {
 // tetto dell'ingresso e il modo di leggere la risposta. `interroga` la
 // sostituisce in index.js, che ci mette le transazioni di Firestore.
 // → il corpo del contratto con `http`.
-async function interrogaChat({ slug, corpo, segreto, limiti, modello, crea, conta, prenota, chiudi, interroga, log = console }) {
+async function interrogaChat({ slug, corpo, segreto, limiti, modello, crea, conta, leggiCassetto, prenota, chiudi, interroga, log = console }) {
   // Senza il segreto non si firma la risposta, e un turno che non si può
   // verificare dopo non va venduto adesso: 503, niente prenotato.
   if (!segretoUsabile(segreto)) {
@@ -370,11 +472,13 @@ async function interrogaChat({ slug, corpo, segreto, limiti, modello, crea, cont
   try {
     preparata = preparaChat(corpo, { slug, segreto, limiti, modello })
   } catch (e) {
-    if (e instanceof RichiestaNonValida) return { ok: false, http: 400, errore: e.message }
     if (e instanceof ConversazioneDaRifare) return { ok: false, http: 409, codice: e.codice, errore: e.message }
-    throw e
+    // Qualunque altro errore nasce dalla richiesta, che è l'unica cosa che
+    // preparaChat legge (revisione della PR #237: un RangeError da una
+    // richiesta costruita apposta era un 500): un 400.
+    return { ok: false, http: 400, errore: e instanceof RichiestaNonValida ? e.message : 'Richiesta di chat non valida.' }
   }
-  const { versione, parametri } = preparata
+  const { versione, contesto, prima, parametri } = preparata
   const messaggio = {
     tipo: 'chat',
     parametri,
@@ -387,14 +491,19 @@ async function interrogaChat({ slug, corpo, segreto, limiti, modello, crea, cont
     // dei due tentativi: senza, il costo vero potrebbe superarla.
     scritturaCache: true,
     rifiutaIngresso: (token) => controllaLunghezza(token, limiti),
+    // Un 400 di Anthropic, al conteggio o alla chiamata (revisione della PR
+    // #237): l'app rimanda la stessa conversazione, che darebbe lo stesso
+    // 400 per sempre. Si risponde col 409 che l'app conosce già, e ne apre
+    // una nuova.
+    richiestaRifiutata: () => ({ http: 409, codice: 'versione', errore: NON_CONTINUABILE }),
     leggi: (risposta) => {
-      const r = rispostaChat(risposta, { slug, versione, segreto })
+      const r = rispostaChat(risposta, { slug, versione, segreto, contesto, prima })
       return r.ok ? { ok: true, risultato: r } : r
     },
   }
   const esito = interroga
     ? await interroga(messaggio)
-    : await ai.interrogaConPrenotazione({ slug, messaggio, modello, crea, conta, prenota, chiudi, log })
+    : await ai.interrogaConPrenotazione({ slug, messaggio, modello, crea, conta, leggiCassetto, prenota, chiudi, log })
   if (!esito.ok) return esito
   const { turno, testo, strumenti_richiesti } = esito.risultato
   return {
@@ -425,6 +534,11 @@ module.exports = {
   firmaTurno,
   turnoIntatto,
   definizioniStrumenti,
+  improntaContesto,
+  improntaPrima,
+  contestoDellaFirma,
+  canonico,
+  MAX_PROFONDITA,
   strumentiUsati,
   preparaChat,
   controllaLunghezza,

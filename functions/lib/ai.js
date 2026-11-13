@@ -429,10 +429,12 @@ const senzaCache = (b) => {
 }
 function parametriConteggio(m, { modello = AI.modello } = {}) {
   if (m.parametri) {
-    const { system, messages, tools, tool_choice } = m.parametri
+    const { system, messages, tools, tool_choice, output_config } = m.parametri
     // I segni della cache non cambiano i token: al conteggio non servono.
+    // Lo sforzo sì (revisione della PR #237): conteggio e chiamata parlano
+    // della stessa richiesta, e count_tokens accetta output_config.
     const sistema = Array.isArray(system) ? system.map(senzaCache) : system
-    return { model: modello, system: sistema, messages, ...(tools?.length ? { tools, tool_choice } : {}) }
+    return { model: modello, system: sistema, messages, ...(tools?.length ? { tools, tool_choice } : {}), ...(output_config ? { output_config } : {}) }
   }
   return {
     model: modello,
@@ -854,8 +856,31 @@ function rigaConsumo({ tipo, risposta, costo, esito, adesso = new Date() }) {
 const NON_DISPONIBILE = 'Il servizio AI non è disponibile in questo momento.'
 const RIPROVA = 'Il servizio AI è occupato: riprova tra poco.'
 const breve = (e) => e?.message || String(e)
+// UN ERRORE DI ANTHROPIC NEI LOG (revisione della PR #237): solo il tipo e
+// lo stato, mai il messaggio. Il messaggio di un 400 può ripetere un pezzo
+// della richiesta, cioè la conversazione del locale, e la regia non tiene i
+// dati dei locali nemmeno nei log. Un errore che non viene da Anthropic
+// (la rete) dice solo il suo nome.
+const erroreApi = (Anthropic, e) => Boolean(Anthropic?.APIError) && e instanceof Anthropic.APIError
+const descriviErrore = (Anthropic, e) => (erroreApi(Anthropic, e) ? `${e.type || 'errore'} ${e.status ?? 'senza stato'}` : `rete ${e?.name || 'Error'}`)
+// Un 400 di Anthropic: la stessa richiesta non passerà mai.
+const richiestaRifiutata = (Anthropic, e) => Boolean(Anthropic?.BadRequestError) && e instanceof Anthropic.BadRequestError
 
-async function interrogaConPrenotazione({ slug, messaggio, modello = modelloPer(messaggio?.tipo, null), crea, conta, prenota: prenotaInTransazione, chiudi, log = console }) {
+// IL CASSETTO, PRIMA DI CONTARE (revisione della PR #237): il conteggio ha un
+// limite di richieste al minuto unico per tutta l'organizzazione, e un
+// locale con l'AI spenta o senza credito lo consumava a ogni tentativo per
+// sentirsi dire 402 dopo. È una lettura fuori dalla transazione: il caso
+// che passa qui lo decide comunque prenota(). → la risposta che prenota()
+// darebbe, o null.
+function fermoPrimaDiContare(cassetto, adesso = new Date()) {
+  // Un micro-euro: la richiesta più piccola che si possa immaginare. Se
+  // non passa nemmeno quello, non passerà la stima vera.
+  const via = puoChiedere(cassetto, 1, adesso)
+  if (via.ok) return null
+  return { http: 402, codice: via.codice, perche: via.perche, credito: Number(cassetto?.credito_microeuro) || 0 }
+}
+
+async function interrogaConPrenotazione({ slug, messaggio, modello = modelloPer(messaggio?.tipo, null), crea, conta, leggiCassetto, prenota: prenotaInTransazione, chiudi, log = console }) {
   let Anthropic
   let client
   try {
@@ -863,6 +888,19 @@ async function interrogaConPrenotazione({ slug, messaggio, modello = modelloPer(
   } catch (e) {
     log.error(`[ai] ${slug}: il client del modello non si crea:`, breve(e))
     return { ok: false, http: 503, errore: NON_DISPONIBILE, codice: 'servizio' }
+  }
+
+  // Prima del conteggio, il cassetto: spento o senza credito si risponde
+  // come farebbe la prenotazione, senza contare. Una lettura che fallisce
+  // non ferma niente: decide la prenotazione.
+  if (typeof leggiCassetto === 'function') {
+    let fermo = null
+    try {
+      fermo = fermoPrimaDiContare(await leggiCassetto())
+    } catch (e) {
+      log.warn(`[ai] ${slug} ${messaggio.tipo}: il cassetto non si legge prima del conteggio, decide la prenotazione:`, breve(e))
+    }
+    if (fermo) return { ok: false, http: fermo.http, errore: fermo.perche, codice: fermo.codice, credito_eur: inEuro(fermo.credito) }
   }
 
   // IL CONTEGGIO PRIMA DI PRENOTARE (REQ-FLOTTA-093). Gratuito, con un suo
@@ -881,11 +919,22 @@ async function interrogaConPrenotazione({ slug, messaggio, modello = modelloPer(
     if (!contoValido(inputContati)) throw new Error(`conteggio non valido: ${inputContati}`)
   } catch (e) {
     inputContati = null
+    // Il messaggio di un errore di Anthropic non va nei log (descriviErrore);
+    // i nostri (il tempo scaduto, un numero non valido) sì.
+    const motivo = erroreApi(Anthropic, e) ? descriviErrore(Anthropic, e) : breve(e)
+    // UN 400 DEL CONTEGGIO (revisione della PR #237): la stessa richiesta
+    // darebbe lo stesso 400, e «riprova» non finirebbe mai. Chi sa
+    // ricominciare da capo (la chat: una conversazione nuova) lo dice con
+    // richiestaRifiutata; gli altri tipi restano come sono.
+    if (richiestaRifiutata(Anthropic, e) && typeof messaggio.richiestaRifiutata === 'function') {
+      log.warn(`[ai] ${slug} ${messaggio.tipo}: il conteggio rifiuta la richiesta (${motivo}), niente prenotato`)
+      return { ok: false, ...messaggio.richiestaRifiutata() }
+    }
     if (contoObbligatorio(messaggio)) {
-      log.warn(`[ai] ${slug} ${messaggio.tipo}: il conteggio dei token non risponde, la richiesta non parte:`, breve(e))
+      log.warn(`[ai] ${slug} ${messaggio.tipo}: il conteggio dei token non risponde, la richiesta non parte:`, motivo)
       return { ok: false, http: 503, errore: RIPROVA, codice: 'servizio' }
     }
-    log.warn(`[ai] ${slug} ${messaggio.tipo}: il conteggio dei token non risponde, si usa la stima per byte:`, breve(e))
+    log.warn(`[ai] ${slug} ${messaggio.tipo}: il conteggio dei token non risponde, si usa la stima per byte:`, motivo)
   }
   // Un tetto sull'ingresso (la conversazione della chat troppo lunga,
   // REQ-FLOTTA-094): si rifiuta prima di prenotare, senza spendere niente.
@@ -919,21 +968,25 @@ async function interrogaConPrenotazione({ slug, messaggio, modello = modelloPer(
     // Niente costo: se la chiamata non è arrivata in fondo non c'è una
     // usage da scalare, e la stima torna tutta. Il tipo dell'errore dice
     // di chi è il problema.
-    const apiError = Anthropic?.APIError && e instanceof Anthropic.APIError
-    const tipo = apiError ? e.type || e.status : 'rete'
-    if (tipo === 'billing_error') {
+    // Nei log solo tipo e stato (descriviErrore): il messaggio può
+    // contenere la conversazione.
+    if (erroreApi(Anthropic, e) && e.type === 'billing_error') {
       // IL NOSTRO credito presso Anthropic è finito: va ricaricato dalla
       // Console (o la ricarica automatica non è scattata). Riga cercabile
       // nei log: «[ai] CREDITO ANTHROPIC».
-      log.error('[ai] CREDITO ANTHROPIC esaurito o pagamento rifiutato:', breve(e))
+      log.error('[ai] CREDITO ANTHROPIC esaurito o pagamento rifiutato:', descriviErrore(Anthropic, e))
     } else {
-      log.error(`[ai] ${slug} ${messaggio.tipo}: ${tipo}`, breve(e))
+      log.error(`[ai] ${slug} ${messaggio.tipo}: la chiamata non è riuscita:`, descriviErrore(Anthropic, e))
     }
     // Se anche la restituzione fallisce, la prenotazione scade da sé e si
     // consuma alla stima: lo dice il log, per rimborsarla a mano.
     await Promise.resolve()
       .then(() => chiudi(0, null))
       .catch((x) => log.error(`[ai] ${slug}: la prenotazione non è tornata, si consumerà alla stima:`, breve(x)))
+    // Un 400: la stessa richiesta non passerà mai. La chat apre una
+    // conversazione nuova (richiestaRifiutata); fattura e tema restano col
+    // 503 di prima (punto debole in REQ-FLOTTA-094).
+    if (richiestaRifiutata(Anthropic, e) && typeof messaggio.richiestaRifiutata === 'function') return { ok: false, ...messaggio.richiestaRifiutata() }
     const riprova = [Anthropic?.RateLimitError, Anthropic?.InternalServerError, Anthropic?.APIConnectionError].some((C) => C && e instanceof C)
     return { ok: false, http: 503, errore: riprova ? RIPROVA : NON_DISPONIBILE, codice: 'servizio' }
   }
@@ -1088,6 +1141,7 @@ module.exports = {
   prenota,
   chiudiPrenotazione,
   rigaInterrotta,
+  fermoPrimaDiContare,
   interrogaConPrenotazione,
   leggiRisposta,
   rigaConsumo,

@@ -1277,18 +1277,30 @@ moduli, la licenza nell'istanza e la Tana.
   conversazione intera nel formato di Anthropic, perché la regia **non la
   conserva**; i turni di chi scrive sono un testo o blocchi `text` e
   `tool_result` di solo testo (immagini e documenti `400`: il file di una
-  fattura passa dalla richiesta `fattura`); ogni `tool_result` risponde a
+  fattura passa dalla richiesta `fattura`); in un turno di chi scrive i
+  `tool_result` vengono **prima** di qualunque `text` (sennò `400`); ogni `tool_result` risponde a
   un `tool_use` del turno del modello subito prima, e ogni `tool_use` ha
   il suo esito; due turni di chi scrive di fila vanno bene, due del modello
-  no. I turni del modello si rimettono **esattamente** come la regia li ha
-  dati: `{ role: "assistant", content, firma }`, dove `firma` è un
-  HMAC-SHA256 della regia (segreto `AI_CHAT_SECRET`) su locale, versione e
-  contenuto; un turno senza firma o ritoccato è un `400`. `strumenti` sono
+  no. La conversazione si rimanda **in sola aggiunta**: niente messaggi
+  vecchi tolti, accorciati o ritoccati. I turni del modello si rimettono **esattamente** come la regia li ha
+  dati: `{ role: "assistant", content, firma }`. `firma` è una stringa
+  opaca per l'app (dalla revisione della PR #237 è `<impronta del
+  contesto>.<HMAC>`): un HMAC-SHA256 della regia (segreto
+  `AI_CHAT_SECRET`) su locale, versione, istruzioni e strumenti di quel
+  momento, i messaggi che vengono prima del turno e il contenuto; un turno
+  senza firma, ritoccato o spostato (in un'altra conversazione o in un
+  altro punto) è un `400`. Il `content` di un turno può contenere blocchi
+  `thinking` (il ragionamento, spesso col testo vuoto) e, dopo un
+  ripiego su un altro modello, un blocco `fallback`: l'app li conserva
+  come sono e li rimanda; per lo schermo bastano `testo` e
+  `strumenti_richiesti`. `strumenti` sono
   solo identificativi, fra `giacenza`, `vendite`, `cerca_prodotti`,
   `proponi_descrizione`, `proponi_voce_menu`, `leggi_fattura` (il ruolo
-  lo controlla l'app); uno strumento già usato nella conversazione deve
-  esserci ancora. `versione` è quella della prima risposta (assente al
-  primo messaggio). Istruzioni, definizioni degli strumenti, modello
+  lo controlla l'app); l'elenco resta lo stesso per tutta la
+  conversazione. `versione` è quella della prima risposta (assente al
+  primo messaggio); dal 13/11/2026 (revisione della PR #237) è
+  `chat-2026-11-13.2`, e le conversazioni aperte con la `.1` ricevono il
+  `409 versione`. Istruzioni, definizioni degli strumenti, modello
   (`impostazioni/regia.ai_modelli.chat`, REQ-FLOTTA-092) e limiti sono
   della regia. Risposta `200 { ok, tipo: "chat", turno, testo,
   strumenti_richiesti: [{ id, nome, input }], versione, limiti_strumenti: {
@@ -1302,8 +1314,14 @@ moduli, la licenza nell'istanza e la Tana.
   una persona, al massimo `max_strumenti_per_messaggio`, poi risponde con
   quello che ha. Una risposta oltre `max_token_risposta` si tronca: arriva
   il testo, senza strumenti a metà. Codici: `400` richiesta sbagliata o
-  turno ritoccato; `401`; `402` come sopra; **`409 { codice: "versione" }`**
-  istruzioni o strumenti cambiati, e **`409 { codice: "troppo-lunga" }`**
+  turno ritoccato; `401`; `402` come sopra (dal 13/11/2026 anche prima
+  del conteggio: AI spenta o credito finito non consumano il conteggio);
+  **`409 { codice: "versione" }`**
+  quando cambia `VERSIONE_CHAT`, quando l'admin cambia le righe degli
+  strumenti o l'app manda un altro elenco di `strumenti` a metà
+  conversazione, e quando Anthropic rifiuta la conversazione con un 400
+  (al conteggio o alla chiamata: la stessa conversazione non passerebbe
+  mai, e la prenotazione torna intera), e **`409 { codice: "troppo-lunga" }`**
   la conversazione supera `max_token_conversazione` token d'ingresso
   (contati con `countTokens` prima di prenotare): in tutti e due i casi
   l'app apre una conversazione nuova, con due messaggi diversi; `422 {
