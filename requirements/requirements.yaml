@@ -4321,7 +4321,7 @@ requirements:
       attivata» e niente «Attiva l'istanza»: «Non riesco a leggere lo stato
       della tua app: scrivici a <email del prodotto>». Con 'nessuna',
       «Non ancora attivata» col tasto, come prima.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [regia, backoffice]
     priority: P1

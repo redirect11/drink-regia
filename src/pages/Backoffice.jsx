@@ -56,6 +56,7 @@ import { GRUPPI, TAG, aggiornamentoDetto, runNellErrore } from '../lib/rilasci.j
 import { BASE, SEZIONI, VISTE, aggiornamentoFallito, aggiornaLaRegia, contiDelBackoffice, filtraLocali, profiloDaAutorizzare } from '../lib/backoffice.js'
 import Rilasci from './Rilasci.jsx'
 import Commerciale from './Commerciale.jsx'
+import CollegaIstanza from './CollegaIstanza.jsx'
 import { MODALITA, regolaDetta, propostaDetta } from '../lib/aggiornamenti.js'
 
 // Il sito di produzione: lo dice il deploy (deploy.yml), come in App.jsx.
@@ -625,6 +626,8 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
   const aiVisibile = credito || stato === STATI.ATTIVA
   return (
     <article className={`locale tono-${tono}`} aria-label={c.nome_locale}>
+      {/* Istanza e titolare scollegati (REQ-FLOTTA-086): solo allora, e per primo. */}
+      <CollegaIstanza cliente={c} istanza={istanza} onFatto={az.carica} />
       <header className="locale-testa">
         <div>
           <h3>{c.nome_locale}</h3>
