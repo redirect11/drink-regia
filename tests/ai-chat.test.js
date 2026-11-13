@@ -82,6 +82,11 @@ function cassettoFinto({ esito = { ok: true, credito: 5_000_000, scadute: [] }, 
 }
 
 const rispostaModello = (content, altro = {}) => ({ model: MODELLO, stop_reason: 'end_turn', content, usage: { input_tokens: 1200, output_tokens: 80 }, ...altro })
+// La stima della prenotazione: stimaMassimaMicroeuro coi token contati,
+// come per le altre richieste (REQ-FLOTTA-093: `inputContati`). Oggi il
+// secondo argomento non c'è e vale la stima d'ingresso; dopo la 093 vale la
+// sua formula, e il test resta giusto.
+const stimaChat = (contati, maxTokens) => ai.stimaMassimaMicroeuro({ tipo: 'chat', stimaInputToken: contati, max_tokens: maxTokens }, { inputContati: contati })
 const silenzioso = { error: () => {}, warn: () => {}, log: () => {} }
 
 async function interroga(corpo, { risposta = rispostaModello([{ type: 'text', text: 'Ci sono 4 bottiglie di Gin.' }]), token = 12_345, cassetto = cassettoFinto(), modello, impostazioni = {}, segreto = SEGRETO } = {}) {
@@ -93,8 +98,12 @@ async function interroga(corpo, { risposta = rispostaModello([{ type: 'text', te
     segreto,
     limiti: chat.limitiChat(impostazioni),
     modello: MODELLO,
-    contaToken: async (p) => {
+    // Il conteggio si inietta come `conta`, lo stesso nome di
+    // interrogaConPrenotazione in REQ-FLOTTA-093. Un Error al posto del
+    // numero fa fallire il conteggio.
+    conta: async (p) => {
       contati.push(p)
+      if (token instanceof Error) throw token
       return token
     },
     crea: m.crea,
@@ -129,6 +138,46 @@ describe('i limiti della chat: li sceglie l’admin, con i valori iniziali di Da
       expect(l.max_token_risposta).toBe(4000)
       expect(l.max_strumenti_per_messaggio).toBe(5)
       expect(l.righe.giacenza).toBe(5)
+    }
+  })
+})
+
+describe('i tetti dei limiti: l’admin sceglie, ma dentro un intervallo sensato', () => {
+  // Daniele, 13/11/2026, sulla proposta di un tetto per ogni limite:
+  // «per tutti i 10 i punti facciamo come dici». Un milione di token per
+  // risposta, scritto per sbaglio, sarebbe una spesa vera per il locale.
+  it('i tetti sono 16.000 token di risposta, 200.000 di conversazione, 20 strumenti per messaggio e 100 righe per strumento', () => {
+    expect(chat.TETTI_LIMITI_CHAT).toEqual({
+      max_token_risposta: 16000,
+      max_token_conversazione: 200000,
+      max_strumenti_per_messaggio: 20,
+      righe: { giacenza: 100, vendite: 100, cerca_prodotti: 100 },
+    })
+  })
+
+  it('il tetto si può scegliere; oltre, il valore scritto a mano vale il predefinito', () => {
+    const al = chat.limitiChat({ limiti_chat: { max_token_risposta: 16000, max_token_conversazione: 200000, max_strumenti_per_messaggio: 20, righe: { vendite: 100 } } })
+    expect(al).toMatchObject({ max_token_risposta: 16000, max_token_conversazione: 200000, max_strumenti_per_messaggio: 20 })
+    expect(al.righe.vendite).toBe(100)
+    const oltre = chat.limitiChat({ limiti_chat: { max_token_risposta: 16001, max_token_conversazione: 1_000_000, max_strumenti_per_messaggio: 21, righe: { vendite: 101 } } })
+    expect(oltre).toEqual(chat.limitiChat({}))
+  })
+
+  it('al salvataggio dal backoffice un valore fuori dall’intervallo o una voce sconosciuta si rifiutano, e passa solo quello che si cambia', () => {
+    expect(chat.validaLimitiChat({ max_token_risposta: 3000 })).toEqual({ max_token_risposta: 3000 })
+    expect(chat.validaLimitiChat({ righe: { vendite: 30 } })).toEqual({ righe: { vendite: 30 } })
+    for (const sbagliato of [
+      {},
+      null,
+      { max_token_risposta: 16001 },
+      { max_token_conversazione: 0 },
+      { max_strumenti_per_messaggio: 2.5 },
+      { righe: { vendite: 101 } },
+      { righe: { scontrini: 10 } },
+      { modello: 'altro' },
+      { max_token_risposta: '3000' },
+    ]) {
+      expect(() => chat.validaLimitiChat(sbagliato)).toThrow(ai.RichiestaNonValida)
     }
   })
 })
@@ -325,7 +374,7 @@ describe('da capo a fondo: la chat passa dalla prenotazione del credito', () => 
     const { esito, modello, cassetto, contati } = await interroga(richiesta([utente('Quanto Gin ho?')]))
     expect(contati).toHaveLength(1)
     expect(contati[0].messages).toEqual([{ role: 'user', content: 'Quanto Gin ho?' }])
-    expect(cassetto.prenotate).toEqual([ai.stimaMassimaMicroeuro({ stimaInputToken: 12_345, max_tokens: 4000 })])
+    expect(cassetto.prenotate).toEqual([stimaChat(12_345, 4000)])
     expect(modello.chiamate).toHaveLength(1)
     expect(modello.chiamate[0].model).toBe(MODELLO)
     const costo = ai.costoMicroeuro(rispostaModello([]), { modelloChiesto: MODELLO })
@@ -371,6 +420,18 @@ describe('da capo a fondo: la chat passa dalla prenotazione del credito', () => 
     expect(lunga.modello.chiamate).toEqual([])
   })
 
+  it('il conteggio dei token che non risponde è un 503 «riprova tra poco», senza prenotare né chiamare il modello', async () => {
+    // Daniele, 13/11/2026 («per tutti i 10 i punti facciamo come dici»):
+    // senza conteggio la chat non sa se la conversazione sta nel limite.
+    for (const token of [new Error('limite del conteggio'), NaN, -1, 'tanti']) {
+      const { esito, cassetto, modello } = await interroga(richiesta([utente('Ciao')]), { token })
+      expect(esito).toMatchObject({ ok: false, http: 503, codice: 'servizio' })
+      expect(esito.errore).toMatch(/riprova tra poco/i)
+      expect(cassetto.prenotate).toEqual([])
+      expect(modello.chiamate).toEqual([])
+    }
+  })
+
   it('credito, tetto e occupato vengono dalla prenotazione di sempre, e il modello non parte', async () => {
     for (const [http, codice] of [[402, 'credito'], [402, 'tetto'], [429, 'occupato']]) {
       const cassetto = cassettoFinto({ esito: { ok: false, http, codice, perche: 'no', credito: 0, scadute: [] } })
@@ -404,7 +465,7 @@ describe('da capo a fondo: la chat passa dalla prenotazione del credito', () => 
     const impostazioni = { limiti_chat: { max_token_risposta: 2500, righe: { cerca_prodotti: 10 } } }
     const { esito, modello, cassetto } = await interroga(richiesta([utente('Ciao')]), { impostazioni })
     expect(modello.chiamate[0].max_tokens).toBe(2500)
-    expect(cassetto.prenotate).toEqual([ai.stimaMassimaMicroeuro({ stimaInputToken: 12_345, max_tokens: 2500 })])
+    expect(cassetto.prenotate).toEqual([stimaChat(12_345, 2500)])
     expect(esito.limiti_strumenti).toEqual({ giacenza: 5, vendite: 20, cerca_prodotti: 10 })
   })
 })
@@ -421,6 +482,15 @@ describe('la porta: richiestaAI e il contratto', () => {
     // I limiti si leggono dalle impostazioni della regia a ogni richiesta,
     // non da una costante: li cambia l'admin.
     expect(codice).toMatch(/limitiChat\(/)
+  })
+
+  it('i limiti si salvano da una Function dell’admin che li controlla, come i modelli di REQ-FLOTTA-092', () => {
+    const inizio = codice.indexOf('exports.gestisciLimitiChat')
+    expect(inizio).toBeGreaterThan(-1)
+    const funzione = codice.slice(inizio, codice.indexOf('\nexports.', inizio + 1))
+    expect(funzione).toMatch(/permission-denied/)
+    expect(funzione).toMatch(/validaLimitiChat\(/)
+    expect(funzione).toMatch(/limiti_chat/)
   })
 
   it('il contratto in docs/handover.md §7 dice la chat, la firma, i limiti e il 409 troppo-lunga', () => {
