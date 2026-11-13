@@ -6,6 +6,10 @@ data.
 
 ## Prossima release (da decidere)
 
+- Col sito chiuso al pubblico, anche i termini di servizio sono la
+  pagina di anteprima e il piè di pagina non ci porta: i termini citano i
+  prezzi dei Fondatori, e finché non si vende niente prezzi al pubblico.
+  La privacy resta (REQ-FLOTTA-096).
 - La chat del gestionale, dopo la revisione: un rifiuto di Anthropic per
   una conversazione che non può passare, o istruzioni e strumenti cambiati
   a metà, aprono una conversazione nuova (409 versione) invece di far

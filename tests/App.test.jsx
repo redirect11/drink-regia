@@ -247,6 +247,30 @@ describe('il sito chiuso', () => {
     }
   })
 
+  // REQ-FLOTTA-096 (Daniele, 13/11/2026: «Niente prezzi al pubblico»): i
+  // termini citano i prezzi dei Fondatori, e col sito chiuso non si vedono.
+  it('spento, anche i termini sono l’anteprima, senza prezzi, e il piè di pagina non ci porta; la privacy resta', () => {
+    venditaOsservata = { sito_aperto: false }
+    utenteOsservato = null
+    const { unmount } = mostra('/termini')
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Il sito apre a breve.')
+    expect(screen.queryByText(/€/)).toBeNull()
+    const piede = screen.getByRole('contentinfo')
+    expect(within(piede).queryByRole('link', { name: 'Termini di servizio' })).toBeNull()
+    expect(within(piede).getByRole('link', { name: 'Privacy' })).toHaveAttribute('href', '/privacy')
+    unmount()
+    mostra('/privacy')
+    expect(screen.getByRole('heading', { level: 1 })).not.toHaveTextContent('Il sito apre a breve.')
+  })
+
+  it('acceso, i termini e il loro collegamento sono quelli di sempre (REQ-FLOTTA-096)', () => {
+    venditaOsservata = { sito_aperto: true }
+    utenteOsservato = null
+    mostra('/termini')
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Termini di servizio')
+    expect(within(screen.getByRole('contentinfo')).getByRole('link', { name: 'Termini di servizio' })).toHaveAttribute('href', '/termini')
+  })
+
   it('acceso, o non deciso fuori dalla produzione: la prima pagina di sempre', () => {
     utenteOsservato = null
     for (const v of [{ sito_aperto: true }, null]) {

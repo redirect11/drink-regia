@@ -4509,6 +4509,31 @@ requirements:
       - tests/Backoffice.test.jsx
       - tests/db.test.js
 
+  - id: REQ-FLOTTA-096
+    title: "Col sito chiuso niente prezzi al pubblico: anche i termini di servizio sono l'anteprima"
+    area: "src/App.jsx (rotta /termini e piè di pagina col sito chiuso), src/pages/Legali.jsx"
+    description: >
+      Daniele, 13/11/2026, sul primo rilascio in produzione della 0.3.0:
+      «in produzione, mandiamo offline il sito, nel senso che il servizio
+      vendita non sarà attivo. Nemmeno registrazione, solo login e le info
+      sul prodotto. Niente prezzi al pubblico. Se manca questa parte va
+      fatta». Il sito chiuso c'è già (REQ-FLOTTA-043, REQ-FLOTTA-055): in
+      produzione, finché l'admin non lo apre, prima pagina e registrazione
+      sono l'anteprima e le porte della vendita rifiutano. Restava un buco:
+      i termini di servizio (/termini) citano i prezzi dei Fondatori, in
+      euro, e restavano raggiungibili dal piè di pagina.
+      CRITERI. (1) Col sito chiuso /termini mostra l'anteprima, senza
+      nessun prezzo, e il piè di pagina non porta ai termini. (2) La
+      privacy resta: si raccolgono comunque dati di accesso e di traffico.
+      (3) Col sito aperto (o non deciso fuori dalla produzione) i termini e
+      il loro collegamento sono quelli di sempre.
+    status: implemented
+    generate_issue: true
+    labels: [regia, produzione]
+    priority: P1
+    test_cases:
+      - tests/App.test.jsx
+
   - id: REQ-FLOTTA-092
     title: "Il modello AI si sceglie per tipo di richiesta dal backoffice: Sonnet per tutti, all'inizio"
     area: "functions/piani.json (ai.prezzi_usd_per_milione), functions/lib/ai.js (TIPI_MODELLO, modelliDelListino, modelloPer, validaModelliAI, interrogaConPrenotazione), functions/index.js (interrogaClaude, gestisciModelliAI), src/lib/db.js (impostaModelliAI), src/pages/Backoffice.jsx (Vendita), firestore.rules (impostazioni)"
