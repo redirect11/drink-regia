@@ -4,7 +4,7 @@
 // a una parola piana, e la regola di quando si può chiedere l'attivazione.
 
 import { describe, it, expect } from 'vitest'
-import { STATI, statoIstanza, statoDetto, puoAttivare, progettoDi, urlDi, riduzioneDetta } from '../src/lib/istanze.js'
+import { STATI, statoIstanza, statoDetto, puoAttivare, progettoDi, urlDi, riduzioneDetta, istanzaScollegata } from '../src/lib/istanze.js'
 
 describe('statoIstanza', () => {
   it('l’istanza vince sulla richiesta, e senza niente è «da attivare»', () => {
@@ -59,5 +59,44 @@ describe('riduzioneDetta', () => {
     expect(riduzioneDetta({ riduzione_al_taglio: { dal: '2026-11-02T04:00:00.000Z' } })).toMatch(/05:00\)\.$/)
     expect(riduzioneDetta({ riduzione_al_taglio: null })).toBeNull()
     expect(riduzioneDetta(null)).toBeNull()
+  })
+})
+
+// ISTANZA E TITOLARE SCOLLEGATI (REQ-FLOTTA-086). Quando la dashboard non
+// vede la sua istanza ma la regia dice che c'è (scollegata), o la lettura
+// fallisce, lo stato è «illeggibile»: niente «Non ancora attivata» e
+// niente «Attiva».
+describe('lo stato che non si legge', () => {
+  it('illeggibile: non «Non ancora attivata», e niente attivazione', () => {
+    const s = statoIstanza(null, null, { illeggibile: true })
+    expect(s).toBe(STATI.ILLEGGIBILE)
+    expect(statoDetto(s)).toBe('Non riesco a leggere lo stato della tua app')
+    expect(puoAttivare({ uid: 'u1', slug: 'bar-mario', piano: 'base' }, null, null, { illeggibile: true }).ok).toBe(false)
+  })
+
+  it('vince sulla richiesta (l’app non si vede, la richiesta da sola non basta), non sull’istanza che si legge', () => {
+    expect(statoIstanza(null, { stato: STATI.ATTIVA }, { illeggibile: true })).toBe(STATI.ILLEGGIBILE)
+    expect(statoIstanza({ stato: STATI.ATTIVA }, null, { illeggibile: true })).toBe(STATI.ATTIVA)
+  })
+
+  it('senza, come sempre', () => {
+    expect(statoIstanza(null, null, {})).toBe(STATI.DA_ATTIVARE)
+    expect(statoIstanza(null, null)).toBe(STATI.DA_ATTIVARE)
+  })
+})
+
+describe('istanzaScollegata (backoffice)', () => {
+  const c = { uid: 'NUOVO', slug: 'prova-free' }
+  it('un’istanza legata a un altro uid, o senza uid, è scollegata', () => {
+    expect(istanzaScollegata(c, { stato: 'attiva', uid: 'VECCHIO' })).toBe(true)
+    expect(istanzaScollegata(c, { stato: 'attiva', uid: '' })).toBe(true)
+    expect(istanzaScollegata(c, { stato: 'errore' })).toBe(true)
+  })
+
+  it('collegata, senza istanza, eliminata, o senza cliente: no', () => {
+    expect(istanzaScollegata(c, { stato: 'attiva', uid: 'NUOVO' })).toBe(false)
+    expect(istanzaScollegata(c, null)).toBe(false)
+    expect(istanzaScollegata(c, { stato: 'eliminata', uid: 'VECCHIO' })).toBe(false)
+    expect(istanzaScollegata(null, { stato: 'attiva', uid: 'VECCHIO' })).toBe(false)
   })
 })

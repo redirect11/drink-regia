@@ -44,6 +44,9 @@ vi.mock('firebase/firestore', () => ({
   query: (c) => c,
   orderBy: () => null,
   limit: () => null,
+  // I filtri si annotano (REQ-FLOTTA-086): la query del titolare deve stare
+  // sul suo uid, altrimenti le regole la negano.
+  where: (...filtro) => (fb.filtri.push(filtro), null),
   getDocs: async (c) => ({ docs: (fb.documenti[c] || []).map(([id, d]) => ({ id, data: () => d })) }),
   // La lettura dal solo server (REQ-FLOTTA-064): fallisce se non risponde.
   getDocsFromServer: async (c) => {
@@ -108,6 +111,7 @@ beforeEach(() => {
   fb.risposte = {}
   fb.documenti = {}
   fb.dalServer = []
+  fb.filtri = []
   fb.serverGiu = false
   fb.scritti = []
   tracciati.length = 0
@@ -117,6 +121,9 @@ beforeEach(() => {
 // Le chiamate alle Functions: [funzione di db.js, argomenti, Function, dati attesi].
 const FUNCTIONS = [
   ['chiediAttivazione', [], 'chiediAttivazione', {}],
+  // REQ-FLOTTA-086: niente slug, la regia usa quello di chi chiama.
+  ['statoMiaApp', [], 'statoMiaApp', {}],
+  ['collegaIstanza', ['bar'], 'collegaIstanza', { slug: 'bar' }],
   ['creaClienteDaAdmin', [{ email: 'x@y.it' }], 'creaCliente', { email: 'x@y.it' }],
   ['impostaStatoIstanza', ['bar', 'sospesa', 'motivo'], 'impostaStatoIstanza', { slug: 'bar', stato: 'sospesa', motivo: 'motivo' }],
   ['cambiaScelta', [{ piano: 'base' }], 'cambiaScelta', { piano: 'base' }],
@@ -372,15 +379,32 @@ describe('l’accesso', () => {
 })
 
 describe('i documenti della regia', () => {
-  it('cliente, istanza, richiesta e impostazioni si osservano dal loro documento', () => {
+  it('cliente e impostazioni si osservano dal loro documento', () => {
     fb.documenti['clienti/u1'] = { slug: 'bar' }
-    fb.documenti['istanze/bar'] = { stato: 'attiva' }
     const visti = []
     db.osservaCliente('u1', (d) => visti.push(d))
-    db.osservaIstanza('bar', (d) => visti.push(d))
-    db.osservaRichiesta('bar', (d) => visti.push(d))
     db.osservaImpostazioniRegia((d) => visti.push(d))
-    expect(visti).toEqual([{ slug: 'bar' }, { stato: 'attiva' }, null, {}])
+    expect(visti).toEqual([{ slug: 'bar' }, {}])
+  })
+
+  // REQ-FLOTTA-086: per slug, un documento che non c'è era negato dalle
+  // regole come uno di un altro, e l'ascolto si fermava. La query sul suo
+  // uid torna vuota senza errore e resta viva.
+  it('istanza e richiesta del titolare: la query sul suo uid, il documento del suo slug, null se non c’è', () => {
+    fb.documenti.istanze = [['altro-slug', { stato: 'attiva', uid: 'u1' }], ['bar', { stato: 'attiva', uid: 'u1' }]]
+    fb.documenti.richieste = []
+    const visti = []
+    db.osservaMiaIstanza('u1', 'bar', (d) => visti.push(d))
+    db.osservaMiaRichiesta('u1', 'bar', (d) => visti.push(d))
+    expect(visti).toEqual([{ stato: 'attiva', uid: 'u1' }, null])
+    expect(fb.filtri).toEqual([['uid', '==', 'u1'], ['uid', '==', 'u1']])
+  })
+
+  it('un errore di lettura arriva alla funzione per l’errore', () => {
+    fb.documenti.istanze = 'errore'
+    const errori = []
+    db.osservaMiaIstanza('u1', 'bar', () => {}, (e) => errori.push(e.message))
+    expect(errori).toEqual(['permesso negato'])
   })
 
   it('le regole degli aggiornamenti si osservano da impostazioni/aggiornamenti; senza documento, spente', () => {

@@ -1,4 +1,4 @@
-// ── istanze/{slug} E richieste/{slug} SULLE REGOLE VERE (REQ-FLOTTA-005, REQ-FLOTTA-006, REQ-DEV-007)
+// ── istanze/{slug} E richieste/{slug} SULLE REGOLE VERE (REQ-FLOTTA-005, REQ-FLOTTA-006, REQ-DEV-007, REQ-FLOTTA-086)
 // REGOLE PROVATE: /istanze/{slug}, /richieste/{slug}
 //
 // L'istanza la scrive il provisioning o l'admin, il titolare la legge. La
@@ -8,9 +8,9 @@
 // nemmeno dall'admin. Il titolare la legge, l'admin la autorizza, rifiuta o
 // rilancia.
 
-import { describe, it, beforeAll, afterAll, beforeEach } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { assertSucceeds, assertFails } from '@firebase/rules-unit-testing'
-import { doc, collection, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where } from 'firebase/firestore'
+import { doc, collection, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where, limit, onSnapshot } from 'firebase/firestore'
 import { avviaAmbiente, azzera, semina, CHI, UID } from './ambiente.js'
 
 let env
@@ -58,6 +58,56 @@ describe.each([
   it('l’admin legge tutto, una per una e in elenco', async () => {
     await assertSucceeds(getDoc(doc(CHI.admin(env), `${collezione}/${SLUG_A}`)))
     await assertSucceeds(getDocs(collection(CHI.admin(env), collezione)))
+  })
+
+  // REQ-FLOTTA-086. Per slug, un documento che non c'è è negato come quello
+  // di un altro (provato il 13/11/2026), e l'ascolto si ferma. Le regole
+  // restano queste (Daniele, 13/11/2026: «serve una soluzione piu sicura e
+  // piu robusta»): la dashboard ascolta la query sul suo uid.
+  it(`per un cliente nuovo la query sul suo uid torna vuota, senza errore (${cosa})`, async () => {
+    const nuovo = env.authenticatedContext('cliente-nuovo', { email: 'nuovo@locale.example', email_verified: true }).firestore()
+    const letti = await assertSucceeds(getDocs(query(collection(nuovo, collezione), where('uid', '==', 'cliente-nuovo'), limit(2))))
+    expect(letti.size).toBe(0)
+  })
+
+  it(`l’ascolto della query sul suo uid riceve ${cosa} creata dopo, e non quella di un altro`, async () => {
+    // Il titolare A non ha ancora niente: com'è prima di «Attiva».
+    await azzera(env)
+    const fotografie = []
+    let avvisa = () => {}
+    const aspetta = (vale) =>
+      new Promise((ok, ko) => {
+        const timer = setTimeout(() => ko(new Error(`fotografie arrivate: ${JSON.stringify(fotografie.map(String))}`)), 5000)
+        avvisa = () => {
+          if (vale()) {
+            clearTimeout(timer)
+            ok()
+          }
+        }
+        avvisa()
+      })
+    const stop = onSnapshot(
+      query(collection(CHI.clienteA(env), collezione), where('uid', '==', UID.a), limit(2)),
+      (s) => {
+        fotografie.push(s.docs.map((d) => d.id).sort())
+        avvisa()
+      },
+      (e) => {
+        fotografie.push(e)
+        avvisa()
+      }
+    )
+    try {
+      await aspetta(() => fotografie.length >= 1)
+      expect(fotografie[0]).toEqual([])
+      await semina(env, `${collezione}/${SLUG_B}`, { slug: SLUG_B, uid: UID.b, stato: 'in corso' })
+      await semina(env, `${collezione}/locale-nuovo`, { slug: 'locale-nuovo', uid: UID.a, stato: 'in corso' })
+      await aspetta(() => JSON.stringify(fotografie.at(-1)) === JSON.stringify(['locale-nuovo']))
+      expect(fotografie.some((f) => f instanceof Error)).toBe(false)
+      expect(fotografie.flat()).not.toContain(SLUG_B)
+    } finally {
+      stop()
+    }
   })
 })
 
