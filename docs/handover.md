@@ -1186,13 +1186,27 @@ moduli, la licenza nell'istanza e la Tana.
   un risultato usabile (il costo resta); `429 { codice: "occupato",
   errore: "Troppe richieste AI insieme: riprova tra poco." }` il locale ha
   già due richieste AI in corso (REQ-FLOTTA-088): si riprova dopo qualche
-  secondo, non in un ciclo stretto; `503` servizio occupato, si riprova.
+  secondo, non in un ciclo stretto; **`429` senza corpo** (o con un corpo
+  che non è il nostro JSON) quando sono pieni i posti di `richiestaAI` per
+  tutta la flotta: lo risponde Cloud Run prima che la regia veda la
+  richiesta (dal 13/11/2026 i posti sono 10 istanze × 3 richieste = 30).
+  È diverso da `429 { codice: "occupato" }`, ma l'app li deve trattare tutti e
+  due come «riprova tra poco», con la stessa attesa; `503` servizio
+  occupato o non disponibile, si riprova (anche quando la regia non
+  riesce a prenotare il credito: la prenotazione, se si è scritta lo
+  stesso, viene restituita subito).
   **Il credito si prenota** (REQ-FLOTTA-088, dal 13/11/2026): prima della
   chiamata la regia scala dal credito la stima massima della richiesta (al
   prezzo del modello più caro del listino), dopo la risposta restituisce
   la differenza col costo vero. `credito_eur` nelle risposte è già al netto
   delle richieste in corso. Una richiesta la cui Function si ferma a metà
-  si paga alla stima, con una riga di consumo «interrotta». `risultato` per la descrizione è `{ descrizione, da_verificare:
+  si paga alla stima, con una riga di consumo «interrotta». Se dopo la
+  risposta del modello la regia non riesce a scrivere la correzione, il
+  locale riceve comunque il risultato, con `costo_eur` uguale alla stima:
+  è quello che pagherà, una volta sola (dalla revisione del 13/11/2026).
+  Il credito può scendere di poco sotto zero quando una fattura costa più
+  della sua stima (un PDF scansionato): al massimo la differenza di due
+  richieste; la richiesta dopo riceve `402 credito`. `risultato` per la descrizione è `{ descrizione, da_verificare:
   [] }`; per la fattura `{ fornitore: { ragione_sociale, partita_iva },
   numero, data, righe: [{ descrizione, codice, quantita, unita,
   prezzo_unitario, sconto_percentuale, aliquota_iva, importo }],

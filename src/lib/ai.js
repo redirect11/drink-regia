@@ -67,10 +67,12 @@ export const origineDetta = (o) => ORIGINI[o] || o
 // hanno l'ai»). La stessa regola delle Functions (functions/lib/ai.js,
 // aiConcessa), che è quella che conta: qui serve solo a non mostrare il
 // credito e i tasti dell'AI a chi non potrebbe usarli. Il piano tornato al
-// Free per un pagamento mancato, la copia sull'istanza e il piano del
-// cliente: se uno dei tre è un piano senza AI, niente AI.
+// Free per un pagamento mancato e il piano del cliente: se uno dei due è
+// un piano senza AI, niente AI. La copia `licenza_piano` dell'istanza non
+// conta (revisione del 13/11/2026): può restare 'free' a un locale che è
+// tornato a pagare.
 const pianoSenzaAI = (id) => Boolean(id) && listino.piani[id]?.limiti?.ai === false
 export function aiNelPiano(cliente, istanza) {
   if (!cliente) return false
-  return ![istanza?.ripiego_free ? 'free' : null, istanza?.licenza_piano, cliente.piano].some(pianoSenzaAI)
+  return ![istanza?.ripiego_free ? 'free' : null, cliente.piano].some(pianoSenzaAI)
 }

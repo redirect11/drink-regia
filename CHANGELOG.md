@@ -6,6 +6,14 @@ data.
 
 ## Prossima release (da decidere)
 
+- Ritocchi dell'AI dopo la revisione: un locale che torna a pagare ha di
+  nuovo l'AI anche se la copia del piano sull'istanza era rimasta Free
+  (REQ-FLOTTA-087); il credito non si prenota se il modello non si può
+  chiamare, un errore nei conti o nella correzione non dà più un errore
+  muto ma la risposta del contratto, e chi riceve la risposta paga una
+  volta sola; una prenotazione rovinata non blocca più l'AI del locale, e
+  una prenotazione ripetuta dalla transazione dopo una conferma persa non
+  scala la stima due volte (REQ-FLOTTA-088).
 - Un locale sospeso o chiuso lo dice in cima a «Piano e moduli», con un
   avviso nella panoramica: sospeso per il pagamento, coi pagamenti online
   accesi, c'è il tasto per pagare la fattura aperta di Stripe (il locale

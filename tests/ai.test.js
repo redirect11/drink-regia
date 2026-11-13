@@ -225,14 +225,10 @@ describe('si può partire?', () => {
     expect(ai.stimaMassimaMicroeuro(m)).toBe(atteso(usd))
   })
 
-  it('l’addebito scala il credito e somma al mese, che riparte se è cambiato', () => {
-    const cassetto = { credito_microeuro: 1_000_000, mese: '2026-09', speso_mese_microeuro: 7_000_000 }
-    expect(ai.addebito(cassetto, 12_345, ADESSO)).toEqual({
-      credito_microeuro: 987_655,
-      speso_mese_microeuro: 12_345,
-      mese: '2026-10',
-      ultimo_uso_il: ADESSO.toISOString(),
-    })
+  // Revisione del 13/11/2026 (B4): l'addebito dopo la risposta è stato
+  // sostituito dalla prenotazione, e il codice morto non resta.
+  it('l’addebito dopo la risposta non c’è più: il credito passa solo dalla prenotazione', () => {
+    expect(ai.addebito).toBeUndefined()
   })
 })
 
