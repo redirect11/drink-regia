@@ -17,6 +17,8 @@ import AggiornamentiLocale from './AggiornamentiLocale.jsx'
 import IlLocale from './IlLocale.jsx'
 import Registrati from './Registrati.jsx'
 import Anteprima from './Anteprima.jsx'
+import RinnovoLocale, { AvvisoRinnovo } from './RinnovoLocale.jsx'
+import { abbonamentoDetto } from '../lib/rinnovo.js'
 
 // LA DASHBOARD DEL TITOLARE (REQ-FLOTTA-004): il suo locale, il piano, lo
 // stato dell'istanza e, quando è attiva, l'indirizzo dell'app.
@@ -115,6 +117,8 @@ export default function Dashboard({ utente, chiuso = false }) {
     <main className="pagina dashboard">
       {inPanoramica && <AvvisoEmail utente={utente} />}
       {inPanoramica && cancellazione && <ChiudiLocale istanza={istanza} />}
+      {/* Il locale sospeso o chiuso, o il pagamento che non va (REQ-FLOTTA-090): l'avviso porta al riquadro in «Piano e moduli». */}
+      {inPanoramica && <AvvisoRinnovo cliente={cliente} istanza={istanza} />}
       <header className="dashboard-testa">
         <h2>{cliente.nome_locale}</h2>
         <p className="muted small">
@@ -346,7 +350,8 @@ function RiepilogoPiano({ cliente }) {
       ) : (
         <p className="muted">Nessun piano ancora.</p>
       )}
-      {abbonamentoFermo(cliente) && <p className="errore small">Abbonamento {cliente.abbonamento.stato}.</p>}
+      {/* Lo stato a parole, mai quello grezzo di Stripe (REQ-FLOTTA-090). */}
+      {abbonamentoFermo(cliente) && <p className="errore small">Abbonamento {abbonamentoDetto(cliente.abbonamento.stato)}.</p>}
       <p className="small">
         <Link to={indirizzoSezione('piano')}>{piano ? 'Dettagli e cambi in «Piano e moduli»' : 'Scegli il piano in «Piano e moduli»'}</Link>
       </p>
@@ -361,6 +366,8 @@ function PianoEModuli({ cliente, istanza }) {
   const { search } = useLocation()
   return (
     <>
+      {/* In cima: il locale sospeso o chiuso, e come si rinnova (REQ-FLOTTA-090). Qui arriva rinnovo_url. */}
+      <RinnovoLocale cliente={cliente} istanza={istanza} />
       {new URLSearchParams(search).get('pagamento') === 'ok' && (
         <p className="muted small" role="status">
           Pagamento ricevuto: l’abbonamento compare qui sotto appena Stripe ce lo conferma, di solito in pochi secondi.
@@ -421,7 +428,7 @@ function RiquadroPiano({ cliente, istanza }) {
       ) : (
         <p className="muted">Nessun piano ancora: scegline uno qui sotto.</p>
       )}
-      {abbonamentoFermo(cliente) && <p className="errore small">Abbonamento {cliente.abbonamento.stato}.</p>}
+      {abbonamentoFermo(cliente) && <p className="errore small">Abbonamento {abbonamentoDetto(cliente.abbonamento.stato)}.</p>}
       {/* Gestire l'abbonamento da soli (REQ-FLOTTA-023): con Stripe il
           portale clienti (disdetta a fine periodo, carta, fatture); a
           mano fino a quando è pagato, e a chi scrivere. */}

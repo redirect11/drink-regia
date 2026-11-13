@@ -25,6 +25,7 @@ const { getFirestore } = require('firebase-admin/firestore')
 const { simulazioneAmmessa, documentoSimulato, preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, eAggiornamento, documentoIstanza, documentoAggiornamento, vincoliEsito, bearerValido, segretoUsabile } = require('./lib/provisioning.js')
 const rilasci = require('./lib/rilasci.js')
 const { sceltaCambiata, licenzaProtetta, stessaLicenza, perIlDatabase, scadenzaCoerente } = require('./lib/licenza.js')
+const { rinnovoUrl, fatturaDelRinnovo } = require('./lib/rinnovo.js')
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
 const { FieldValue, Timestamp } = require('firebase-admin/firestore')
 const { chiaveStripeVera, ritornoAmmesso, righeSubscription, prodottiDi, parametriAliquotaIva, eAliquotaIva, CHIAVE_IDEMPOTENZA_IVA, metadatiDi, aggiornamentoDaEvento, sceltaPulita, sessioneCheckout, intervalloDi, prenotazioneDaRilasciare, fondatoreDaConfermare, DURATA_SESSIONE_MS, fineDelPeriodo, STATI_STRIPE } = require('./lib/abbonamento.js')
@@ -2059,6 +2060,45 @@ exports.portaleAbbonamento = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, a
   if (!stripe || !REGIA_URL) throw new HttpsError('unavailable', 'La gestione dell’abbonamento non è disponibile al momento: scrivici.')
   const sessione = await stripe.billingPortal.sessions.create({ customer, return_url: `${REGIA_URL}/dashboard` })
   return { url: sessione.url }
+})
+
+// IL PAGAMENTO DEL RINNOVO DI UN LOCALE SOSPESO (REQ-FLOTTA-090). Daniele,
+// 13/11/2026: «dobbiamo portare l'utente alla schermata di pagamento per il
+// rinnovo in qualche modo (se prevediamo di accettare pagamenti altrimenti
+// sito sospeso e si danno le info di contatto)». La pagina più diretta è
+// quella della fattura aperta di Stripe (`hosted_invoice_url`): pagata
+// quella, invoice.paid riporta l'abbonamento ad attivo e il locale si
+// riattiva da solo (REQ-FLOTTA-023, scadenze.azioneDiPagamento). La
+// fattura si cerca qui, sulla subscription scritta sul cliente che chiama:
+// dal browser non arriva nessun id, così nessuno apre la fattura di un
+// altro. Senza fattura aperta (già pagata, o Stripe non l'ha ancora fatta)
+// il portale clienti, per cambiare la carta. Coi pagamenti online spenti
+// (REQ-FLOTTA-017) niente Stripe: il sito mostra i contatti.
+exports.pagamentoRinnovo = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  const cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data()
+  if (!cliente) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
+  if (!contatti.pagamentiOnline(await vendita())) throw new HttpsError('failed-precondition', PAGAMENTI_SPENTI)
+  const stripeSuo = cliente.abbonamento?.origine === 'stripe'
+  const customer = stripeSuo ? cliente.abbonamento.stripe_customer : null
+  if (!customer) throw new HttpsError('failed-precondition', 'Il tuo abbonamento non passa da Stripe: per rinnovarlo scrivici.')
+  const stripe = stripeClient()
+  if (!stripe || !REGIA_URL) throw new HttpsError('unavailable', 'La gestione dell’abbonamento non è disponibile al momento: scrivici.')
+  const sub = cliente.abbonamento.stripe_subscription
+  if (sub) {
+    const subscription = await stripe.subscriptions.retrieve(sub, { expand: ['latest_invoice'] }).catch((e) => {
+      // Una subscription che Stripe non trova più: si va al portale.
+      console.error(`[rinnovo] ${cliente.slug}, la subscription:`, e?.message || e)
+      return null
+    })
+    // La subscription deve essere di questo cliente: un dato sbagliato sul
+    // documento non deve aprire la fattura di un altro.
+    const suo = subscription && (typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id) === customer
+    const url = suo ? fatturaDelRinnovo(subscription) : null
+    if (url) return { url, via: 'fattura' }
+  }
+  const sessione = await stripe.billingPortal.sessions.create({ customer, return_url: rinnovoUrl(REGIA_URL) })
+  return { url: sessione.url, via: 'portale' }
 })
 
 exports.cambiaScelta = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (req) => {

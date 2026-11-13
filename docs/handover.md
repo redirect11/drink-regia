@@ -1001,8 +1001,24 @@ moduli, la licenza nell'istanza e la Tana.
 - **Licenza nell'istanza** (BUG-125 di tana-drink, dal 31/10/2026):
   `licenza/attuale` = `{ piano, moduli: {id: bool}, terminali, temi,
   temi_su_misura, limiti, prove, stato: attiva|sospesa|chiusa, motivo, dal,
-  slug, regia_url, aggiornamenti, valida_fino, alla_scadenza,
-  cancellazione, scritta_il }`. `temi` (dal 05/11/2026, REQ-FLOTTA-039, per
+  slug, regia_url, rinnovo_url, aggiornamenti, valida_fino, alla_scadenza,
+  cancellazione, scritta_il }`.
+  `rinnovo_url` (dal 13/11/2026, REQ-FLOTTA-090; Daniele: «dobbiamo
+  portare l'utente alla schermata di pagamento per il rinnovo») è
+  `<origine di regia_url>/dashboard/piano?rinnovo=1`, o `null` se la regia
+  non sa il suo indirizzo: il tasto «Riattiva il locale» della schermata
+  del titolare lo apre. Lì il riquadro del rinnovo dice, secondo il caso,
+  «Il tuo locale è sospeso dal ‹data›» col tasto per pagare (sospeso per
+  il pagamento, pagamenti online accesi, abbonamento con Stripe: la
+  fattura aperta di Stripe o il portale; pagata, il locale si riattiva da
+  solo, REQ-FLOTTA-023), oppure «Il tuo locale è sospeso: per riattivarlo
+  scrivici a ‹email›» (pagamenti spenti, sospeso dall'admin, abbonamento
+  a mano), oppure, chiuso, i contatti e la data della cancellazione dei
+  dati. Chi non ha la sessione nella regia passa dall'accesso e arriva
+  alla panoramica, dove un avviso porta al riquadro. Le licenze scritte
+  prima del 13/11/2026 lo ricevono alla prossima riscrittura (un cambio
+  di stato, di piano o di pagamento, un aggiornamento, «Allinea» nel
+  backoffice): l'app deve trattare il campo assente come `null`. `temi` (dal 05/11/2026, REQ-FLOTTA-039, per
   REQ-LIC-010 di tana-drink) è l'elenco degli id degli stili in licenza,
   esclusivi o comprati (`notte`, `meraviglie`): l'app accende uno stile
   `inLicenza` solo se è lì. Viene da `clienti/{uid}.temi`, che scrive
