@@ -162,28 +162,215 @@ describe('il credito chiesto dall’installazione tiene conto della stima', () =
   })
 })
 
-describe('le Functions usano la prenotazione', () => {
-  it('interrogaClaude prenota in transazione prima del modello e corregge in transazione dopo', () => {
-    const f = tratto('async function interrogaClaude(', '\n}\n')
-    const prenota = f.indexOf('ai.prenota(')
-    const modello = f.indexOf('messages.stream(')
-    expect(prenota).toBeGreaterThan(0)
-    expect(prenota).toBeLessThan(modello)
-    expect(f.lastIndexOf('runTransaction', prenota)).toBeGreaterThan(-1)
-    // La correzione è una transazione (chiudi), chiamata col costo vero dopo la risposta.
-    const chiudi = f.indexOf('ai.chiudiPrenotazione(')
-    expect(f.lastIndexOf('runTransaction', chiudi)).toBeGreaterThan(prenota)
-    expect(f.indexOf('chiudi(costo', modello)).toBeGreaterThan(modello)
-    expect(f).toContain('ai.rigaInterrotta(')
-    // Il vecchio controllo fuori transazione non c'è più.
-    expect(f).not.toContain('ai.puoChiedere(')
+// Revisione del 13/11/2026 (B3): una voce di `prenotazioni` senza un `il`
+// valido faceva lanciare rigaInterrotta (meseDi di una data non valida), e
+// l'AI del locale restava bloccata per sempre: ogni richiesta ripartiva
+// dalla stessa voce rotta.
+describe('una prenotazione rotta non blocca il locale', () => {
+  const rotte = () => ({
+    ...pieno(),
+    prenotazioni: { senzaOra: { stima: 100_000, tipo: 'fattura' }, oraFinta: { il: 'ieri', stima: 50_000 }, vuota: null, numero: { il: 12345 } },
   })
 
-  it('una chiamata fallita restituisce la prenotazione prima di rispondere 503', () => {
+  it('si tratta come scaduta, col mese corrente, senza lanciare', () => {
+    const p = ai.prenota(rotte(), { id: 'r1', stima: 100_000, tipo: 'descrizione', adesso: ADESSO })
+    expect(p.ok).toBe(true)
+    expect(p.scadute.map((x) => x.id).sort()).toEqual(['numero', 'oraFinta', 'senzaOra', 'vuota'])
+    expect(Object.keys(p.patch.prenotazioni)).toEqual(['r1'])
+    for (const x of p.scadute) {
+      const riga = ai.rigaInterrotta(x, ADESSO)
+      expect(riga).toMatchObject({ mese: MESE, esito: 'interrotta', prenotata_il: null })
+      expect(Number.isFinite(riga.costo_microeuro)).toBe(true)
+    }
+    expect(ai.rigaInterrotta(p.scadute.find((x) => x.id === 'senzaOra'), ADESSO)).toMatchObject({ tipo: 'fattura', costo_microeuro: 100_000 })
+  })
+
+  it('anche un mese scritto male cede al mese corrente', () => {
+    expect(ai.rigaInterrotta({ il: 'x', mese: 42, stima: 1 }, ADESSO).mese).toBe(MESE)
+    expect(ai.rigaInterrotta({ il: ADESSO.toISOString(), mese: '2026-10' }, fra(1)).mese).toBe('2026-10')
+  })
+
+  it('una mappa delle prenotazioni che non è una mappa non conta niente', () => {
+    expect(ai.prenota({ ...pieno(), prenotazioni: 'rotta' }, { id: 'r1', stima: 1, tipo: 'descrizione', adesso: ADESSO })).toMatchObject({ ok: true, scadute: [] })
+  })
+
+  it('la chiusura di una prenotazione con la stima rotta non porta il credito a NaN', () => {
+    const c = ai.chiudiPrenotazione({ ...pieno(), prenotazioni: { r1: { il: ADESSO.toISOString(), mese: MESE } } }, { id: 'r1', costo: 12_000, adesso: ADESSO })
+    expect(c.patch.credito_microeuro).toBe(10_000_000 - 12_000)
+    expect(Number.isFinite(c.patch.speso_mese_microeuro)).toBe(true)
+  })
+})
+
+// Revisione del 13/11/2026 (B1): il client del modello si creava dopo la
+// prenotazione e fuori dal try, e un suo errore lasciava la stima appesa;
+// un errore nei conti o nella chiusura dava un 500 muto. Qui la stessa
+// orchestrazione di interrogaClaude, con Firestore e Anthropic finti.
+describe('la richiesta col credito prenotato, da capo a fondo', () => {
+  class APIError extends Error {}
+  class RateLimitError extends APIError {}
+  class InternalServerError extends APIError {}
+  class APIConnectionError extends APIError {}
+  const Anthropic = { APIError, RateLimitError, InternalServerError, APIConnectionError }
+  const messaggio = ai.preparaMessaggio({ tipo: 'descrizione', nome: 'Gin' })
+  const STIMA = ai.stimaMassimaMicroeuro(messaggio)
+  const buona = () => ({
+    model: AI.modello,
+    stop_reason: 'end_turn',
+    usage: { input_tokens: 200, output_tokens: 80 },
+    content: [{ type: 'text', text: '{"descrizione":"Gin secco","da_verificare":[]}' }],
+  })
+  const muto = { warn: () => {}, error: () => {} }
+
+  // Un cassetto in memoria che fa quello che fanno le due transazioni di
+  // index.js: prenota e chiudiPrenotazione sulla stessa logica.
+  function banco({ risposta = buona(), errore = null, creaRotto = false, prenotaRotta = false, chiudiRotta = false } = {}) {
+    const stato = { cassetto: pieno(), chiamate: 0, prenotate: 0, chiusure: [] }
+    const client = {
+      beta: {
+        messages: {
+          stream: () => ({
+            finalMessage: async () => {
+              stato.chiamate++
+              if (errore) throw errore
+              return risposta
+            },
+          }),
+        },
+      },
+    }
+    const deps = {
+      slug: 'bar-prova',
+      messaggio,
+      log: muto,
+      crea: () => {
+        if (creaRotto) throw new Error('configurazione mancante')
+        return { Anthropic, client }
+      },
+      prenota: async (stima) => {
+        stato.prenotate++
+        if (prenotaRotta) throw new Error('transazione fallita')
+        const esito = ai.prenota(stato.cassetto, { id: 'r1', stima, tipo: messaggio.tipo, adesso: ADESSO })
+        if (esito.patch) stato.cassetto = { ...stato.cassetto, ...esito.patch }
+        return esito
+      },
+      chiudi: async (costo, riga) => {
+        stato.chiusure.push({ costo, riga })
+        if (chiudiRotta) throw new Error('transazione fallita')
+        const { trovata, patch } = ai.chiudiPrenotazione(stato.cassetto, { id: 'r1', costo, adesso: fra(5_000) })
+        if (trovata) stato.cassetto = { ...stato.cassetto, ...patch }
+        return stato.cassetto.credito_microeuro
+      },
+    }
+    return { stato, deps }
+  }
+
+  it('una risposta buona si paga al costo vero, e la prenotazione si chiude', async () => {
+    const { stato, deps } = banco()
+    const costo = ai.costoMicroeuro(buona())
+    const r = await ai.interrogaConPrenotazione(deps)
+    expect(r).toMatchObject({ ok: true, risultato: { descrizione: 'Gin secco' }, costo_eur: ai.inEuro(costo), credito_eur: ai.inEuro(10_000_000 - costo) })
+    expect(stato.cassetto.prenotazioni).toEqual({})
+    expect(stato.chiusure[0].riga).toMatchObject({ esito: 'ok', costo_microeuro: costo })
+  })
+
+  it('il client del modello si crea prima della prenotazione: se non si crea, niente prenotazione e 503', async () => {
+    const { stato, deps } = banco({ creaRotto: true })
+    const r = await ai.interrogaConPrenotazione(deps)
+    expect(r).toMatchObject({ ok: false, http: 503, codice: 'servizio', errore: 'Il servizio AI non è disponibile in questo momento.' })
+    expect(stato.prenotate).toBe(0)
+    expect(stato.cassetto.credito_microeuro).toBe(10_000_000)
+  })
+
+  it('una prenotazione che non si scrive dà 503 «riprova», e il modello non si chiama', async () => {
+    const { stato, deps } = banco({ prenotaRotta: true })
+    const r = await ai.interrogaConPrenotazione(deps)
+    expect(r).toMatchObject({ ok: false, http: 503, codice: 'servizio', errore: 'Il servizio AI è occupato: riprova tra poco.' })
+    expect(stato.chiamate).toBe(0)
+  })
+
+  it('un rifiuto della prenotazione esce col suo codice, senza chiamare il modello', async () => {
+    const { stato, deps } = banco()
+    stato.cassetto = { ...stato.cassetto, credito_microeuro: 0 }
+    const r = await ai.interrogaConPrenotazione(deps)
+    expect(r).toMatchObject({ ok: false, http: 402, codice: 'credito', credito_eur: 0 })
+    expect(stato.chiamate).toBe(0)
+  })
+
+  it('una chiamata fallita restituisce tutta la stima e risponde 503', async () => {
+    const { stato, deps } = banco({ errore: new RateLimitError('troppe') })
+    const r = await ai.interrogaConPrenotazione(deps)
+    expect(r).toMatchObject({ ok: false, http: 503, errore: 'Il servizio AI è occupato: riprova tra poco.' })
+    expect(stato.chiusure).toEqual([{ costo: 0, riga: null }])
+    expect(stato.cassetto.credito_microeuro).toBe(10_000_000)
+  })
+
+  it('una chiamata fallita la cui restituzione fallisce risponde comunque 503, non 500', async () => {
+    const { deps } = banco({ errore: new Error('rete'), chiudiRotta: true })
+    await expect(ai.interrogaConPrenotazione(deps)).resolves.toMatchObject({ ok: false, http: 503, errore: 'Il servizio AI non è disponibile in questo momento.' })
+  })
+
+  it('se il costo non si calcola si paga la stima, che è il caso peggiore riservato', async () => {
+    const strana = {
+      ...buona(),
+      get usage() {
+        throw new Error('usage illeggibile')
+      },
+    }
+    const { stato, deps } = banco({ risposta: strana })
+    const r = await ai.interrogaConPrenotazione(deps)
+    expect(r.ok).toBe(true)
+    expect(stato.chiusure[0].costo).toBe(STIMA)
+    expect(r.costo_eur).toBe(ai.inEuro(STIMA))
+    expect(stato.chiusure[0].riga).toMatchObject({ costo_microeuro: STIMA })
+  })
+
+  it('una risposta che non si legge è un 422 col suo costo, non un 500', async () => {
+    const rotta = {
+      ...buona(),
+      get content() {
+        throw new Error('rotto')
+      },
+    }
+    const { deps } = banco({ risposta: rotta })
+    const r = await ai.interrogaConPrenotazione(deps)
+    expect(r).toMatchObject({ ok: false, http: 422, codice: 'illeggibile' })
+    expect(r.costo_eur).toBeGreaterThan(0)
+  })
+
+  it('se la chiusura fallisce dopo la risposta: il locale riceve il risultato, paga una volta sola la stima, e niente 500', async () => {
+    const { stato, deps } = banco({ chiudiRotta: true })
+    const r = await ai.interrogaConPrenotazione(deps)
+    expect(r).toMatchObject({ ok: true, risultato: { descrizione: 'Gin secco' }, costo_eur: ai.inEuro(STIMA), credito_eur: ai.inEuro(10_000_000 - STIMA) })
+    // Una sola chiusura tentata (nessun secondo addebito), e la prenotazione
+    // resta: scadrà e si chiuderà alla stima, una volta.
+    expect(stato.chiusure).toHaveLength(1)
+    expect(Object.keys(stato.cassetto.prenotazioni)).toEqual(['r1'])
+    const dopo = ai.prenota(stato.cassetto, { id: 'r2', stima: 1, tipo: 'descrizione', adesso: fra(ai.SCADENZA_PRENOTAZIONE_MS + 1) })
+    expect(dopo.patch.credito_microeuro).toBe(10_000_000 - STIMA - 1)
+    expect(dopo.scadute.map((x) => x.id)).toEqual(['r1'])
+  })
+
+  it('anche il 422 regge una chiusura fallita', async () => {
+    const { deps } = banco({ risposta: { ...buona(), stop_reason: 'refusal' }, chiudiRotta: true })
+    await expect(ai.interrogaConPrenotazione(deps)).resolves.toMatchObject({ ok: false, http: 422, codice: 'rifiuto', costo_eur: ai.inEuro(STIMA) })
+  })
+})
+
+describe('le Functions usano la prenotazione', () => {
+  it('interrogaClaude collega le due transazioni e il client all’orchestrazione di lib/ai.js', () => {
     const f = tratto('async function interrogaClaude(', '\n}\n')
-    const errore = f.indexOf('} catch (e) {')
-    expect(f.indexOf('restituisci(', errore)).toBeGreaterThan(errore)
-    expect(f.indexOf('restituisci(', errore)).toBeLessThan(f.indexOf('http: 503', errore))
+    expect(f).toContain('ai.interrogaConPrenotazione(')
+    expect(f).toContain('crea: claude')
+    const prenota = f.indexOf('ai.prenota(')
+    const chiudi = f.indexOf('ai.chiudiPrenotazione(')
+    expect(prenota).toBeGreaterThan(0)
+    expect(f.lastIndexOf('runTransaction', prenota)).toBeGreaterThan(-1)
+    expect(f.lastIndexOf('runTransaction', chiudi)).toBeGreaterThan(prenota)
+    expect(f).toContain('ai.rigaInterrotta(')
+    // Il vecchio controllo fuori transazione non c'è più, e la chiamata al
+    // modello sta in lib/ai.js, dentro i suoi try.
+    expect(f).not.toContain('ai.puoChiedere(')
+    expect(f).not.toContain('messages.stream(')
   })
 
   it('richiestaAI ha una concorrenza per istanza esplicita, il tema dal mockup istanze e concorrenza basse', () => {

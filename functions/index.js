@@ -2399,79 +2399,46 @@ exports.richiestaAI = onRequest(
 // CON LA PRENOTAZIONE (REQ-FLOTTA-088, audit del 13/11/2026): prima della
 // chiamata, in transazione, la stima massima esce dal credito e la
 // richiesta si segna nel cassetto; dopo, in transazione, si corregge col
-// costo vero. Le regole stanno in lib/ai.js (prenota, chiudiPrenotazione).
+// costo vero. Qui solo Firestore e il client: l'ordine delle cose e cosa
+// succede quando un passo fallisce stanno in lib/ai.js
+// (interrogaConPrenotazione, revisione del 13/11/2026), dove si provano.
 async function interrogaClaude(slug, messaggio) {
   const cassettoRef = db.doc(`ai/${slug}`)
-  const stima = ai.stimaMassimaMicroeuro(messaggio)
   // L'id della prenotazione: uno casuale di Firestore, fissato fuori dalla
   // transazione perché un nuovo tentativo della transazione usi lo stesso.
   const id = cassettoRef.collection('consumi').doc().id
-  const prenotata = await db.runTransaction(async (t) => {
-    const adesso = new Date()
-    const snap = await t.get(cassettoRef)
-    const esito = ai.prenota(snap.exists ? snap.data() : null, { id, stima, tipo: messaggio.tipo, adesso })
-    if (esito.patch) t.update(cassettoRef, esito.patch)
-    // Le prenotazioni rimaste appese: consumate alla stima, e lo storico
-    // lo dice.
-    for (const p of esito.scadute) t.set(cassettoRef.collection('consumi').doc(), ai.rigaInterrotta(p, adesso))
-    return esito
+  return ai.interrogaConPrenotazione({
+    slug,
+    messaggio,
+    crea: claude,
+    prenota: (stima) =>
+      db.runTransaction(async (t) => {
+        const adesso = new Date()
+        const snap = await t.get(cassettoRef)
+        const esito = ai.prenota(snap.exists ? snap.data() : null, { id, stima, tipo: messaggio.tipo, adesso })
+        if (esito.patch) t.update(cassettoRef, esito.patch)
+        // Le prenotazioni rimaste appese: consumate alla stima, e lo
+        // storico lo dice.
+        for (const p of esito.scadute) t.set(cassettoRef.collection('consumi').doc(), ai.rigaInterrotta(p, adesso))
+        return esito
+      }),
+    // La correzione: in transazione, sul cassetto com'è adesso. `riga` è
+    // la riga dei consumi, da scrivere solo se la prenotazione c'era ancora.
+    chiudi: (costo, riga) =>
+      db.runTransaction(async (t) => {
+        const snap = await t.get(cassettoRef)
+        const { trovata, patch } = ai.chiudiPrenotazione(snap.data(), { id, costo, adesso: new Date() })
+        if (!trovata) {
+          // Già chiusa come interrotta, alla stima: il locale ha pagato il
+          // caso peggiore, che copre il costo vero. Non si corregge due volte.
+          console.warn(`[ai] ${slug}: la prenotazione ${id} era già scaduta`)
+          return Number(snap.data()?.credito_microeuro) || 0
+        }
+        t.update(cassettoRef, patch)
+        if (riga) t.set(cassettoRef.collection('consumi').doc(), riga)
+        return patch.credito_microeuro
+      }),
   })
-  if (prenotata.scadute.length) console.warn(`[ai] ${slug}: ${prenotata.scadute.length} prenotazioni scadute, chiuse come interrotte`)
-  if (!prenotata.ok) return { ok: false, http: prenotata.http, errore: prenotata.perche, codice: prenotata.codice, credito_eur: ai.inEuro(prenotata.credito) }
-
-  // La correzione: in transazione, sul cassetto com'è adesso. `riga` è la
-  // riga dei consumi, da scrivere solo se la prenotazione c'era ancora.
-  const chiudi = (costo, riga = null) =>
-    db.runTransaction(async (t) => {
-      const snap = await t.get(cassettoRef)
-      const { trovata, patch } = ai.chiudiPrenotazione(snap.data(), { id, costo, adesso: new Date() })
-      if (!trovata) {
-        // Già chiusa come interrotta, alla stima: il locale ha pagato il
-        // caso peggiore, che copre il costo vero. Non si corregge due volte.
-        console.warn(`[ai] ${slug}: la prenotazione ${id} era già scaduta`)
-        return Number(snap.data()?.credito_microeuro) || 0
-      }
-      t.update(cassettoRef, patch)
-      if (riga) t.set(cassettoRef.collection('consumi').doc(), riga)
-      return patch.credito_microeuro
-    })
-  // Senza risposta niente costo: la stima torna tutta. Se anche questo
-  // fallisce, la prenotazione scade da sé e si consuma alla stima.
-  const restituisci = () => chiudi(0).catch((e) => console.error(`[ai] ${slug}: la prenotazione ${id} non è tornata:`, e?.message || e))
-
-  const { Anthropic, client } = claude()
-  let risposta
-  try {
-    risposta = await client.beta.messages.stream(ai.parametriClaude(messaggio)).finalMessage()
-  } catch (e) {
-    // Niente addebito: se la chiamata non è arrivata in fondo non c'è una
-    // usage da scalare. Il tipo dell'errore dice di chi è il problema.
-    const tipo = e instanceof Anthropic.APIError ? e.type || e.status : 'rete'
-    if (tipo === 'billing_error') {
-      // IL NOSTRO credito presso Anthropic è finito: va ricaricato dalla
-      // Console (o la ricarica automatica non è scattata). Riga cercabile
-      // nei log: «[ai] CREDITO ANTHROPIC».
-      console.error('[ai] CREDITO ANTHROPIC esaurito o pagamento rifiutato:', e.message)
-    } else {
-      console.error(`[ai] ${slug} ${messaggio.tipo}: ${tipo}`, e?.message)
-    }
-    await restituisci()
-    const riprova =
-      e instanceof Anthropic.RateLimitError || e instanceof Anthropic.InternalServerError || e instanceof Anthropic.APIConnectionError
-    return {
-      ok: false,
-      http: 503,
-      errore: riprova ? 'Il servizio AI è occupato: riprova tra poco.' : 'Il servizio AI non è disponibile in questo momento.',
-      codice: 'servizio',
-    }
-  }
-
-  const costo = ai.costoMicroeuro(risposta)
-  const letta = ai.leggiRisposta(risposta)
-  const residuo = await chiudi(costo, ai.rigaConsumo({ tipo: messaggio.tipo, risposta, costo, esito: letta.ok ? 'ok' : letta.codice }))
-  const conti = { costo_eur: ai.inEuro(costo), credito_eur: ai.inEuro(residuo) }
-  if (!letta.ok) return { ok: false, http: 422, errore: letta.perche, codice: letta.codice, ...conti }
-  return { ok: true, risultato: letta.risultato, ...conti }
 }
 
 // Il titolare ricarica il credito AI dalla dashboard: una sessione di

@@ -9,6 +9,7 @@
 import { describe, it, expect } from 'vitest'
 import { createRequire } from 'node:module'
 import { readFileSync } from 'node:fs'
+import { aiNelPiano } from '../src/lib/ai.js'
 
 const require = createRequire(import.meta.url)
 const ai = require('../functions/lib/ai.js')
@@ -40,11 +41,30 @@ describe('il piano decide se il locale ha l’AI', () => {
     expect(ai.aiConcessa(ripiegata, { piano: 'base' })).toBe(false)
   })
 
-  it('se istanza e cliente non dicono lo stesso piano vale il più restrittivo', () => {
-    // La copia del piano sull'istanza dice Free, il cliente dice Base.
-    expect(ai.aiConcessa({ ...istanza, licenza_piano: 'free' }, { piano: 'base' })).toBe(false)
-    // Il cliente è passato al Free, la copia sull'istanza non ancora.
+  it('se il ripiego e il cliente non dicono lo stesso piano vale il più restrittivo', () => {
+    // Il cliente è passato al Free, il ripiego non c'è.
+    expect(ai.aiConcessa(istanza, { piano: 'free' })).toBe(false)
+  })
+
+  // Revisione del 13/11/2026 (M1): la copia del piano sull'istanza
+  // (licenza_piano) non la scrive scriviLicenza, quindi può restare 'free'
+  // dopo che il locale è tornato a pagare. Le fonti sono quelle della
+  // licenza che l'app riceve (licenzaProtetta): ripiego_free e il piano del
+  // cliente, e basta.
+  it('la copia licenza_piano sull’istanza non conta: un locale che è tornato a pagare ha l’AI', () => {
+    const tornato = { ...istanza, ripiego_free: null, licenza_piano: 'free' }
+    expect(ai.aiConcessa(tornato, { piano: 'base' })).toBe(true)
+    expect(licenzaProtetta(tornato, { piano: 'base' }, { slug: 'bar-prova' }).piano).toBe('base')
+    // E una copia che dice «base» non salva un cliente Free.
     expect(ai.aiConcessa({ ...istanza, licenza_piano: 'base' }, { piano: 'free' })).toBe(false)
+  })
+
+  it('il sito segue la stessa regola: niente licenza_piano nemmeno lì', () => {
+    const tornato = { ...istanza, ripiego_free: null, licenza_piano: 'free' }
+    expect(aiNelPiano({ piano: 'base' }, tornato)).toBe(true)
+    expect(aiNelPiano({ piano: 'base' }, { ...istanza, ripiego_free: { dal: '2026-11-01T00:00:00Z' } })).toBe(false)
+    expect(aiNelPiano({ piano: 'free' }, { ...istanza, licenza_piano: 'base' })).toBe(false)
+    expect(aiNelPiano(null, istanza)).toBe(false)
   })
 
   it('senza cliente la licenza non si calcola, e l’AI non si concede', () => {

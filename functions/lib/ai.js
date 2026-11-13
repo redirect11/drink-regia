@@ -422,18 +422,21 @@ function rispostaCredito(cassetto, adesso = new Date()) {
 // Daniele, 13/11/2026: «I free non hanno l'ai». Il piano vero è quello
 // della licenza che l'app riceve (licenza.js, licenzaProtetta): Free se il
 // locale è tornato al Free perché non paga (istanza.ripiego_free), se no il
-// piano del cliente. L'istanza ne tiene anche una copia (licenza_piano,
-// scritta da ripiegaAlFree e da licenzaSegueIlPiano): se le tre fonti non
-// dicono lo stesso vale la più restrittiva, perché concedere l'AI per
-// sbaglio spende credito, negarla per sbaglio si vede subito e si
-// corregge riscrivendo la licenza. Senza cliente la licenza non si calcola
-// (scriviLicenza) e l'AI non si concede. Si guarda il limite del listino
-// (limiti.ai === false), lo stesso che arriva all'app: una sola fonte.
+// piano del cliente. Se le due fonti non dicono lo stesso vale la più
+// restrittiva, perché concedere l'AI per sbaglio spende credito. Senza
+// cliente la licenza non si calcola (scriviLicenza) e l'AI non si concede.
+// Si guarda il limite del listino (limiti.ai === false), lo stesso che
+// arriva all'app.
+// NIENTE `istanza.licenza_piano` (revisione del 13/11/2026, M1): quella
+// copia la scrivono solo ripiegaAlFree e licenzaSegueIlPiano, non
+// scriviLicenza («Allinea»). Un locale che torna a pagare mentre l'istanza
+// non è attiva teneva la copia a 'free' e riceveva 402 piano per sempre,
+// senza un tasto dell'admin che la correggesse.
 const SENZA_AI_NEL_PIANO = 'Il piano Free non comprende le funzioni AI.'
 const pianoSenzaAI = (id) => Boolean(id) && listino.piani[id]?.limiti?.ai === false
 function aiConcessa(istanza, cliente) {
   if (!cliente) return false
-  const piani = [istanza?.ripiego_free ? 'free' : null, istanza?.licenza_piano, cliente.piano]
+  const piani = [istanza?.ripiego_free ? 'free' : null, cliente.piano]
   return !piani.some(pianoSenzaAI)
 }
 
@@ -460,19 +463,38 @@ const SCADENZA_PRENOTAZIONE_MS = (TIMEOUT_AI_SECONDI + 60) * 1000
 const MAX_CONTEMPORANEE = 2
 const OCCUPATO = 'Troppe richieste AI insieme: riprova tra poco.'
 
-const scaduta = (p, adesso) => !(adesso.getTime() - Date.parse(p?.il) <= SCADENZA_PRENOTAZIONE_MS)
+// L'ora di una prenotazione, o null se non è una data credibile: le
+// prenotazioni le scrive solo prenota(), ma una voce rotta (scritta a mano,
+// da una versione vecchia, o a metà) non deve bloccare il locale
+// (revisione del 13/11/2026, B3). Una data più avanti di un minuto
+// rispetto a adesso non l'ha scritta prenota(): conta come rotta, se no
+// occuperebbe un posto fra le contemporanee per sempre.
+const MARGINE_OROLOGI_MS = 60 * 1000
+function oraPrenotazione(p, adesso) {
+  const t = typeof p?.il === 'string' ? Date.parse(p.il) : NaN
+  return Number.isFinite(t) && t <= adesso.getTime() + MARGINE_OROLOGI_MS ? t : null
+}
+const MESE_VALIDO = /^\d{4}-(0[1-9]|1[0-2])$/
+
+const scaduta = (p, adesso) => {
+  const t = oraPrenotazione(p, adesso)
+  return t === null || adesso.getTime() - t > SCADENZA_PRENOTAZIONE_MS
+}
 
 // Le prenotazioni divise in vive e scadute. Una scaduta è una Function
 // morta fra la prenotazione e la correzione: non conta più fra le
 // contemporanee, e si considera CONSUMATA alla stima, non restituita,
 // perché Anthropic potrebbe averci già fatturato la risposta. Il locale
 // paga al massimo la stima, cioè il caso peggiore che gli era stato
-// riservato; la riga di consumo lo dice (rigaInterrotta).
+// riservato; la riga di consumo lo dice (rigaInterrotta). Una voce senza
+// un'ora valida si tratta come scaduta.
 function dividiPrenotazioni(cassetto, adesso) {
   const vive = {}
   const scadute = []
-  for (const [id, p] of Object.entries(cassetto?.prenotazioni || {})) {
-    if (scaduta(p, adesso)) scadute.push({ id, ...p })
+  const mappa = cassetto?.prenotazioni
+  if (!mappa || typeof mappa !== 'object' || Array.isArray(mappa)) return { vive, scadute }
+  for (const [id, p] of Object.entries(mappa)) {
+    if (scaduta(p, adesso)) scadute.push({ id, ...(p && typeof p === 'object' ? p : {}) })
     else vive[id] = p
   }
   return { vive, scadute }
@@ -484,6 +506,21 @@ function dividiPrenotazioni(cassetto, adesso) {
 // loro righe «interrotta» si scrivono una volta sola), null se non c'è
 // niente da scrivere; `scadute` sono le prenotazioni da chiudere come
 // interrotte. Un rifiuto non tocca il credito.
+//
+// QUANTO PROMETTE (revisione del 13/11/2026, M3). Due richieste insieme
+// non spendono lo stesso credito: ognuna parte solo se il credito, già al
+// netto delle altre, copre la sua stima. Ma la stima dell'ingresso di un
+// PDF va per byte, e un PDF scansionato può costare più della stima: la
+// correzione allora porta il credito sotto zero, al massimo della
+// differenza fra costo vero e stima di MAX_CONTEMPORANEE richieste; la
+// richiesta dopo si rifiuta (credito ≤ 0).
+// IL TETTO AL CAMBIO DI MESE (B2), una scelta: le richieste prenotate a
+// fine mese portano il loro costo vero nel mese nuovo (chiudiPrenotazione),
+// che però, alla prenotazione delle sue prime richieste, non le vedeva.
+// Il mese nuovo può quindi sforare il tetto di al massimo MAX_CONTEMPORANEE
+// stime. Tenerne conto vorrebbe dire contare le prenotazioni del mese
+// vecchio nel mese nuovo: pochi centesimi, una volta al mese, non valgono
+// la regola in più.
 function prenota(cassetto, { id, stima, tipo, adesso = new Date() }) {
   if (!cassetto) {
     const via = puoChiedere(null, stima, adesso)
@@ -527,12 +564,13 @@ function chiudiPrenotazione(cassetto, { id, costo, adesso = new Date() }) {
   const p = cassetto?.prenotazioni?.[id]
   if (!p) return { trovata: false, patch: null }
   const s = statoCassetto(cassetto, adesso)
+  const stima = Number(p.stima) || 0
   const resto = Object.fromEntries(Object.entries(cassetto.prenotazioni).filter(([k]) => k !== id))
-  const spesoMese = p.mese === s.mese ? s.spesoMese - p.stima + costo : s.spesoMese + costo
+  const spesoMese = p.mese === s.mese ? s.spesoMese - stima + costo : s.spesoMese + costo
   return {
     trovata: true,
     patch: {
-      credito_microeuro: s.credito + p.stima - costo,
+      credito_microeuro: s.credito + stima - costo,
       speso_mese_microeuro: Math.max(0, spesoMese),
       mese: s.mese,
       prenotazioni: resto,
@@ -542,32 +580,23 @@ function chiudiPrenotazione(cassetto, { id, costo, adesso = new Date() }) {
 }
 
 // La riga dei consumi di una prenotazione scaduta: la stima come costo,
-// nel mese in cui era stata prenotata, con l'esito che lo dice.
+// nel mese in cui era stata prenotata, con l'esito che lo dice. Una voce
+// rotta (B3) non lancia: senza un'ora valida va nel mese corrente, e senza
+// una stima leggibile costa zero.
 function rigaInterrotta(p, adesso = new Date()) {
+  const t = oraPrenotazione(p, adesso)
+  const mese = typeof p?.mese === 'string' && MESE_VALIDO.test(p.mese) ? p.mese : meseDi(t === null ? adesso : new Date(t))
   return {
     il: adesso.toISOString(),
-    mese: p.mese || meseDi(new Date(p.il)),
-    tipo: p.tipo || null,
+    mese,
+    tipo: typeof p?.tipo === 'string' ? p.tipo : null,
     modello: null,
     token_input: 0,
     token_output: 0,
     fallback: false,
-    costo_microeuro: Number(p.stima) || 0,
+    costo_microeuro: Math.max(0, Number(p?.stima) || 0),
     esito: 'interrotta',
-    prenotata_il: p.il || null,
-  }
-}
-
-// La patch del cassetto dopo una chiamata: credito giù, speso del mese su
-// (da zero se il mese è cambiato). Gli incrementi li fa index.js in una
-// transazione, qui si decide cosa scrivere.
-function addebito(cassetto, costo, adesso = new Date()) {
-  const s = statoCassetto(cassetto, adesso)
-  return {
-    credito_microeuro: s.credito - costo,
-    speso_mese_microeuro: s.spesoMese + costo,
-    mese: s.mese,
-    ultimo_uso_il: adesso.toISOString(),
+    prenotata_il: t === null ? null : p.il,
   }
 }
 
@@ -601,10 +630,130 @@ function rigaConsumo({ tipo, risposta, costo, esito, adesso = new Date() }) {
     modello: risposta?.model || null,
     token_input: (Number(u.input_tokens) || 0) + (Number(u.cache_read_input_tokens) || 0) + (Number(u.cache_creation_input_tokens) || 0),
     token_output: Number(u.output_tokens) || 0,
-    fallback: (u.iterations || []).some((t) => t.type === 'fallback_message'),
+    fallback: Array.isArray(u.iterations) && u.iterations.some((t) => t?.type === 'fallback_message'),
     costo_microeuro: costo,
     esito,
   }
+}
+
+// ── UNA RICHIESTA COL CREDITO PRENOTATO, DA CAPO A FONDO (REQ-FLOTTA-088) ──
+// L'ordine delle cose per richiestaAI e per il tema dal mockup; index.js
+// ci mette Firestore e Anthropic (interrogaClaude), qui si decide. Fuori
+// da index.js perché si possa provare con un cassetto e un modello finti.
+//   crea()               → { Anthropic, client }: il client del modello.
+//   prenota(stima)       → l'esito di prenota(), scritto in transazione.
+//   chiudi(costo, riga)  → il credito dopo chiudiPrenotazione(), in
+//                          transazione, con la riga dei consumi.
+// → { ok: true, risultato, costo_eur, credito_eur }, oppure { ok: false,
+// http, errore, codice, ... } con i codici del contratto (402, 422, 429,
+// 503): mai un'eccezione, che diventerebbe un 500 muto.
+//
+// Revisione del 13/11/2026 (B1): prima il client si creava DOPO la
+// prenotazione e fuori dal try, e un suo errore lasciava la stima appesa
+// (pagata alla scadenza per una chiamata mai fatta). Ora:
+// - il client si crea PRIMA di prenotare: se non si crea non si è speso
+//   niente, 503;
+// - una prenotazione che non si scrive (transazione fallita) è un 503
+//   «riprova»: il credito non si è mosso;
+// - un costo che non si calcola vale la stima, che è il caso peggiore già
+//   riservato; una risposta che non si legge è un 422 col suo costo;
+// - LA CHIUSURA CHE FALLISCE dopo una risposta del modello: il locale
+//   riceve comunque il risultato che ha pagato, e paga UNA volta sola, la
+//   stima. Non si riprova a chiudere (runTransaction ha già riprovato), e
+//   non si rifà la chiamata: la prenotazione resta, scade e si chiude
+//   alla stima, con la riga «interrotta». La risposta dice la stima come
+//   costo e il credito com'era dopo la prenotazione, cioè quello che il
+//   locale pagherà davvero. Se la transazione era riuscita e solo la
+//   risposta di Firestore si è persa, il locale ha pagato il costo vero,
+//   meno della stima detta: mai di più.
+const NON_DISPONIBILE = 'Il servizio AI non è disponibile in questo momento.'
+const RIPROVA = 'Il servizio AI è occupato: riprova tra poco.'
+const breve = (e) => e?.message || String(e)
+
+async function interrogaConPrenotazione({ slug, messaggio, crea, prenota: prenotaInTransazione, chiudi, log = console }) {
+  const stima = stimaMassimaMicroeuro(messaggio)
+
+  let Anthropic
+  let client
+  try {
+    ;({ Anthropic, client } = crea())
+  } catch (e) {
+    log.error(`[ai] ${slug}: il client del modello non si crea:`, breve(e))
+    return { ok: false, http: 503, errore: NON_DISPONIBILE, codice: 'servizio' }
+  }
+
+  let prenotata
+  try {
+    prenotata = await prenotaInTransazione(stima)
+  } catch (e) {
+    log.error(`[ai] ${slug}: la prenotazione non si scrive:`, breve(e))
+    return { ok: false, http: 503, errore: RIPROVA, codice: 'servizio' }
+  }
+  if (prenotata.scadute?.length) log.warn(`[ai] ${slug}: ${prenotata.scadute.length} prenotazioni scadute, chiuse come interrotte`)
+  if (!prenotata.ok) return { ok: false, http: prenotata.http, errore: prenotata.perche, codice: prenotata.codice, credito_eur: inEuro(prenotata.credito) }
+
+  let risposta
+  try {
+    risposta = await client.beta.messages.stream(parametriClaude(messaggio)).finalMessage()
+  } catch (e) {
+    // Niente costo: se la chiamata non è arrivata in fondo non c'è una
+    // usage da scalare, e la stima torna tutta. Il tipo dell'errore dice
+    // di chi è il problema.
+    const apiError = Anthropic?.APIError && e instanceof Anthropic.APIError
+    const tipo = apiError ? e.type || e.status : 'rete'
+    if (tipo === 'billing_error') {
+      // IL NOSTRO credito presso Anthropic è finito: va ricaricato dalla
+      // Console (o la ricarica automatica non è scattata). Riga cercabile
+      // nei log: «[ai] CREDITO ANTHROPIC».
+      log.error('[ai] CREDITO ANTHROPIC esaurito o pagamento rifiutato:', breve(e))
+    } else {
+      log.error(`[ai] ${slug} ${messaggio.tipo}: ${tipo}`, breve(e))
+    }
+    // Se anche la restituzione fallisce, la prenotazione scade da sé e si
+    // consuma alla stima: lo dice il log, per rimborsarla a mano.
+    await Promise.resolve()
+      .then(() => chiudi(0, null))
+      .catch((x) => log.error(`[ai] ${slug}: la prenotazione non è tornata, si consumerà alla stima:`, breve(x)))
+    const riprova = [Anthropic?.RateLimitError, Anthropic?.InternalServerError, Anthropic?.APIConnectionError].some((C) => C && e instanceof C)
+    return { ok: false, http: 503, errore: riprova ? RIPROVA : NON_DISPONIBILE, codice: 'servizio' }
+  }
+
+  // I conti della risposta, ognuno col suo ripiego: un'eccezione qui
+  // lascerebbe la stima appesa e il locale senza risposta.
+  let costo
+  try {
+    costo = costoMicroeuro(risposta)
+    if (!Number.isFinite(costo) || costo < 0) throw new Error(`costo non valido: ${costo}`)
+  } catch (e) {
+    log.error(`[ai] ${slug}: il costo non si calcola, vale la stima:`, breve(e))
+    costo = stima
+  }
+  let letta
+  try {
+    letta = leggiRisposta(risposta)
+  } catch (e) {
+    log.error(`[ai] ${slug}: la risposta non si legge:`, breve(e))
+    letta = { ok: false, codice: 'illeggibile', perche: 'La risposta del modello non era leggibile.' }
+  }
+  const esito = letta.ok ? 'ok' : letta.codice
+  let riga
+  try {
+    riga = rigaConsumo({ tipo: messaggio.tipo, risposta, costo, esito })
+  } catch {
+    riga = rigaConsumo({ tipo: messaggio.tipo, risposta: null, costo, esito })
+  }
+
+  let conti
+  try {
+    const residuo = await chiudi(costo, riga)
+    conti = { costo_eur: inEuro(costo), credito_eur: inEuro(residuo) }
+  } catch (e) {
+    // Riga cercabile nei log: «[ai] CHIUSURA». Il locale paga la stima.
+    log.error(`[ai] CHIUSURA ${slug}: la correzione non si scrive, il locale pagherà la stima:`, breve(e))
+    conti = { costo_eur: inEuro(stima), credito_eur: inEuro(prenotata.credito) }
+  }
+  if (!letta.ok) return { ok: false, http: 422, errore: letta.perche, codice: letta.codice, ...conti }
+  return { ok: true, risultato: letta.risultato, ...conti }
 }
 
 // ── la ricarica con Stripe ──
@@ -691,7 +840,7 @@ module.exports = {
   prenota,
   chiudiPrenotazione,
   rigaInterrotta,
-  addebito,
+  interrogaConPrenotazione,
   leggiRisposta,
   rigaConsumo,
   pacchetto,
