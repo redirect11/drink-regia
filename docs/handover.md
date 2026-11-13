@@ -117,9 +117,16 @@ produzione su `drink-regia`. Si prova in locale e sui test automatici.
   differenza, ha scelto la pratica: «usa questa: una ventina di rami
   feature/, fix/ e hotfix/, tutti staccati da develop, ognuno con la sua
   PR». I rami `release/0.1.0`…`release/0.3.0` restano nella storia.
-  DA DECIDERE AL PRIMO RILASCIO IN PRODUZIONE: da dove parte la PR verso
-  `main` (i passi più sotto dicono «dal ramo di release») e da dove
-  nasce un hotfix quando `main` e `develop` saranno diversi.
+  IL RILASCIO IN PRODUZIONE (dalla 0.3.0, 13/11/2026; Daniele: «prima vai
+  su test e poi su produzione»): un ramo di rilascio si stacca da
+  `develop` quando develop è quello che va in produzione, e porta solo la
+  versione senza `-beta` e il CHANGELOG datato. Prima una PR verso
+  `develop`, poi il tag `-beta` su develop col collaudo, poi una PR dallo
+  stesso ramo verso `main`, poi il tag `vX.Y.Z` su main. Il nome è
+  `release/x.y.z`; per la 0.3.0 è `release/0.3.0-produzione`, perché
+  `release/0.3.0` è il ramo vecchio rimasto nella storia. Un hotfix,
+  quando `main` e `develop` saranno diversi, si stacca da `main` e ha due
+  PR, verso `main` e verso `develop`.
 - **Un worktree per ramo**: non si cambia ramo nella cartella
   principale, si fa `git worktree add ../drink-regia-<nome> -b feature/<nome> origin/develop`.
   In un worktree nuovo mancano `.env` e `node_modules`

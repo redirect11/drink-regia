@@ -2,7 +2,7 @@
   "name": "drink-regia",
   "private": true,
   "license": "UNLICENSED",
-  "version": "0.3.0-beta",
+  "version": "0.3.0",
   "type": "module",
   "description": "La regia del prodotto: sito, prezzi, registrazione, dashboard dei clienti e backoffice (docs/flotta.md).",
   "scripts": {
