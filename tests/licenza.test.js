@@ -83,6 +83,8 @@ describe('licenzaIniziale', () => {
       stato: 'attiva',
       slug: 'bar-mario',
       regia_url: 'https://drink-regia.web.app',
+      // Anche la prima licenza porta il rinnovo (REQ-FLOTTA-090).
+      rinnovo_url: 'https://drink-regia.web.app/dashboard/piano?rinnovo=1',
       scritta_il: '2026-10-29T10:00:00.000Z',
     })
     expect(p.venue_name).toBe('Bar Mario Centrale')
@@ -124,6 +126,8 @@ describe('la licenza protetta, dai dati della regia', () => {
       dal: null,
       slug: 'bar-mario',
       regia_url: 'https://drink-regia.web.app',
+      // L'indirizzo del rinnovo (REQ-FLOTTA-090): la sezione del piano nell'area del titolare.
+      rinnovo_url: 'https://drink-regia.web.app/dashboard/piano?rinnovo=1',
       aggiornamenti: { modalita: 'obbligatori', inclusi: true, motivo: null, proposta: null, avviso: null },
       scritta_il: ADESSO.toISOString(),
     })
@@ -150,6 +154,27 @@ describe('la licenza protetta, dai dati della regia', () => {
     // Conta per «stessa licenza»: un pagamento registrato la cambia.
     const a = licenzaProtetta({ stato: 'attiva' }, aMano, { adesso: ADESSO })
     expect(stessaLicenza(a, { ...a, valida_fino: '2027-01-07T23:59:59.000Z' })).toBe(false)
+  })
+
+  // REQ-FLOTTA-090 (Daniele, 13/11/2026: «dobbiamo portare l'utente alla
+  // schermata di pagamento per il rinnovo»): la licenza dice all'app dove
+  // si rinnova. Un campo in più, niente tolto; dall'origine di regia_url.
+  it('rinnovo_url: la sezione del piano con ?rinnovo=1, dall’origine della regia; null senza regia; conta per la verifica', () => {
+    const conRegia = (regiaUrl) => licenzaProtetta({ stato: 'attiva', licenza_stato: 'sospesa', licenza_per: 'pagamento' }, cliente, { regiaUrl, adesso: ADESSO })
+    expect(conRegia('https://drink-regia-test.web.app').rinnovo_url).toBe('https://drink-regia-test.web.app/dashboard/piano?rinnovo=1')
+    // Una barra finale o un percorso nell'indirizzo della regia non cambiano niente.
+    expect(conRegia('https://drink-regia.web.app/').rinnovo_url).toBe('https://drink-regia.web.app/dashboard/piano?rinnovo=1')
+    expect(conRegia('https://drink-regia.web.app/qualcosa?x=1').rinnovo_url).toBe('https://drink-regia.web.app/dashboard/piano?rinnovo=1')
+    // Senza un indirizzo buono, nessun indirizzo: l'app mostra solo i contatti.
+    for (const v of [null, '', 'non un indirizzo', 'javascript:alert(1)']) expect(conRegia(v).rinnovo_url).toBeNull()
+    // Gli altri campi restano: regia_url non cambia.
+    expect(conRegia('https://drink-regia.web.app').regia_url).toBe('https://drink-regia.web.app')
+    // Una licenza scritta prima, senza rinnovo_url, per la verifica è diversa:
+    // «Allinea» la riscrive.
+    const a = conRegia('https://drink-regia.web.app')
+    const { rinnovo_url: _via, ...vecchia } = a
+    expect(stessaLicenza(a, vecchia)).toBe(false)
+    expect(licenzaIniziale({}, { piano: 'base', slug: 'bar-prova', regiaUrl: '' }, ADESSO).licenza.rinnovo_url).toBeNull()
   })
 
   // REQ-FLOTTA-039 (tana-drink, 05/11/2026): senza `temi` nella licenza
