@@ -26,6 +26,7 @@ const { scadenzaPagamento, GIORNI_DI_GRAZIA } = require('./scadenze.js')
 
 const TZ = 'Europe/Rome'
 const GIORNI = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom']
+const NOMI_GIORNI = { lun: 'Lunedì', mar: 'Martedì', mer: 'Mercoledì', gio: 'Giovedì', ven: 'Venerdì', sab: 'Sabato', dom: 'Domenica' }
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
 const ORA = 3600000
 const GIORNO = 24 * ORA
@@ -61,6 +62,14 @@ const h24 = (g) => g?.apre === H24.apre && g?.chiude === H24.chiude
 const durata = (g) => {
   const d = minuti(g.chiude) - minuti(g.apre)
   return d > 0 ? d : d + 1440
+}
+
+// Un giorno a parole, come nel sito: «18:00–02:00 (fino al giorno dopo)»,
+// «aperto 24 ore (00:00–24:00)», «chiuso». Serve all'email all'admin.
+function giornoDetto(g) {
+  if (!g || chiuso(g)) return 'chiuso'
+  if (h24(g)) return 'aperto 24 ore (00:00–24:00)'
+  return minuti(g.chiude) < minuti(g.apre) ? `${g.apre}–${g.chiude} (fino al giorno dopo)` : `${g.apre}–${g.chiude}`
 }
 
 // Perché gli orari non vanno, giorno per giorno ({ lun: '…', orari: '…' });
@@ -419,6 +428,8 @@ module.exports = {
   fermoDavvero,
   FINESTRA_SCADENZA,
   GIORNI,
+  NOMI_GIORNI,
+  giornoDetto,
   GIORNI_DI_CORREZIONE,
   MOTIVO_MINIMO,
   STORIA_MASSIMA,

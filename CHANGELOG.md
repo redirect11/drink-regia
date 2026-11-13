@@ -13,7 +13,10 @@ data.
   o corregge gli orari di qualunque locale, anche di uno che non ne ha,
   con una nota nella traccia; a un locale senza orari la sua scrittura non
   apre i 7 giorni del titolare. Con gli orari ma senza una data valida, il
-  sito e la regia li considerano correggibili allo stesso modo.
+  sito e la regia li considerano correggibili allo stesso modo. Quando
+  il titolare chiede di cambiare gli orari, all'amministratore arriva una
+  email (una per richiesta) col locale, gli orari di prima e dopo e il
+  motivo; al titolare non parte nessuna email con la decisione.
 - La chat del gestionale passa dalla regia: `richiestaAI` accetta
   `{ tipo: 'chat', messaggi, strumenti, versione }` col credito del locale,
   senza conservare le conversazioni; i turni del modello tornano firmati

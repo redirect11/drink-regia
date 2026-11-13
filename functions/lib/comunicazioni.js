@@ -15,6 +15,11 @@
 //
 // Le email vanno nella coda `mail` (estensione Trigger Email di Firebase,
 // con l'SMTP di Resend): qui solo destinatario, oggetto e testo.
+//
+// E una all'admin: la richiesta di cambio degli orari di servizio
+// (REQ-FLOTTA-095, più sotto).
+
+const { GIORNI, NOMI_GIORNI, giornoDetto } = require('./orari-servizio.js')
 
 const GIORNO = 86400000
 const ms = (iso) => Date.parse(iso || '')
@@ -102,4 +107,68 @@ function emailStato(cliente, azione) {
   return null
 }
 
-module.exports = { conArticolo, PROMEMORIA, orariPromemoria, promemoriaDelCompito, chiavePromemoria, giaMandato, emailPromemoria, emailPagamentoRicevuto, emailStato }
+// ── ALL'ADMIN: LA RICHIESTA DI CAMBIO DEGLI ORARI (REQ-FLOTTA-095) ────
+// Daniele, 13/11/2026: «A me arriva solo la richiesta, poi rispondo io a
+// mano al momento». Una email per richiesta, col locale, gli orari di
+// prima e dopo e il motivo. Al titolare nessuna email con la decisione: la
+// legge nella sua area, e la risposta gliela dà l'admin.
+
+// Gli indirizzi dell'admin: gli account col claim admin (quelli con cui si
+// entra nel backoffice), attivi e con l'email. Così nel codice, che è in un
+// repository pubblico, non c'è nessun indirizzo.
+function indirizziAdmin(utenti) {
+  const indirizzi = (utenti || []).filter((u) => u?.customClaims?.admin === true && !u.disabled && u.email).map((u) => String(u.email).toLowerCase())
+  return [...new Set(indirizzi)].sort()
+}
+
+const dataEOra = (iso) => `${data(iso)}, ${new Date(iso).toLocaleTimeString('it-IT', { timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit' })}`
+
+function emailRichiestaOrari(cliente, richiesta, destinatari) {
+  if (!richiesta || !destinatari?.length) return null
+  const locale = cliente?.nome_locale || cliente?.slug || 'Un locale'
+  const righe = GIORNI.map((id) => {
+    const prima = giornoDetto(richiesta.prima?.[id])
+    const dopo = giornoDetto(richiesta.giorni?.[id])
+    return `${NOMI_GIORNI[id]}: ${prima === dopo ? `${prima} (uguale)` : `${prima} → ${dopo}`}`
+  })
+  return {
+    to: destinatari,
+    message: {
+      subject: `${locale} chiede di cambiare gli orari di servizio`,
+      text: [
+        `${locale}${cliente?.slug ? ` (${cliente.slug})` : ''} chiede di cambiare gli orari di servizio.`,
+        `Titolare: ${cliente?.email || 'email non indicata'}`,
+        `Chiesta il: ${dataEOra(richiesta.chiesta_il)}`,
+        `Motivo: «${richiesta.motivo}»`,
+        '',
+        'Orari di adesso → orari chiesti:',
+        ...righe,
+        '',
+        'La richiesta si approva o si rifiuta dal backoffice, nella scheda del locale (blocco Titolare). Al titolare non parte nessuna email: la risposta gliela dai tu.',
+      ].join('\n'),
+    },
+  }
+}
+
+// L'id del documento nella coda: viene dalla richiesta, così la stessa
+// richiesta non manda due email (accodaUnaVolta). Null senza una data.
+function idEmailRichiestaOrari(uid, richiesta) {
+  const quando = ms(richiesta?.chiesta_il)
+  return uid && Number.isFinite(quando) ? `orari_${uid}_${quando}` : null
+}
+
+// Un'email nella coda una volta sola: il documento si crea solo se non
+// c'è (Firestore risponde ALREADY_EXISTS, codice 6). True se è entrata.
+// Il database arriva da fuori, come in orari-servizio.js (cambiaOrari).
+async function accodaUnaVolta(db, id, documento) {
+  if (!id || !documento) return false
+  try {
+    await db.collection('mail').doc(id).create(documento)
+    return true
+  } catch (e) {
+    if (e?.code === 6 || /already exists/i.test(String(e?.message || ''))) return false
+    throw e
+  }
+}
+
+module.exports = { conArticolo, PROMEMORIA, orariPromemoria, promemoriaDelCompito, chiavePromemoria, giaMandato, emailPromemoria, emailPagamentoRicevuto, emailStato, indirizziAdmin, emailRichiestaOrari, idEmailRichiestaOrari, accodaUnaVolta }

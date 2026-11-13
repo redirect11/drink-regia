@@ -533,6 +533,8 @@ describe('il sito e la regia dicono le stesse cose sugli orari', () => {
     }
     const conOre = { ...SERA, lun: { chiuso: true, apre: '1', chiude: '2' } }
     expect(sito.orariPuliti(conOre)).toEqual(orari().orariPuliti(conOre))
+    for (const g of [CHIUSO, aperto('18:00', '02:00'), aperto('07:00', '15:00'), aperto('00:00', '24:00'), null]) expect(sito.giornoDetto(g)).toBe(orari().giornoDetto(g))
+    expect(sito.NOMI_GIORNI).toEqual(orari().NOMI_GIORNI)
     const c = { orari_servizio: { impostati_il: '2026-11-13T10:00:00.000Z' } }
     expect(sito.correggibiliFino(c)).toBe(orari().correggibiliFino(c))
     expect([sito.GIORNI, sito.GIORNI_DI_CORREZIONE, sito.MOTIVO_MINIMO, sito.H24]).toEqual([orari().GIORNI, orari().GIORNI_DI_CORREZIONE, orari().MOTIVO_MINIMO, orari().H24])
@@ -633,6 +635,92 @@ describe('orariDellAdmin: la callable degli orari scritti dall’admin', () => {
   })
 })
 
+// Daniele, 13/11/2026, sull'email: «A me arriva solo la richiesta, poi
+// rispondo io a mano al momento». Una email all'admin per richiesta, col
+// locale, gli orari di prima e dopo e il motivo; al titolare niente.
+describe('l’email all’admin per una richiesta di cambio', () => {
+  const comunica = () => require('../functions/lib/comunicazioni.js')
+  const PRANZO = { ...SERA, lun: aperto('12:00', '15:00'), dom: aperto('00:00', '24:00') }
+  const cliente = { uid: 'u1', slug: 'bar-mario', nome_locale: 'Bar Mario', email: 'titolare@example.it', orari_servizio: { giorni: SERA, impostati_il: '2026-11-13T10:00:00.000Z', richiesta: null, storia: [] } }
+  const richiesta = () => orari().richiestaDiCambio(cliente, PRANZO, 'Da dicembre apriamo anche il lunedì a pranzo.', { uid: 'u1', adesso: new Date('2026-12-01T09:30:00.000Z') }).orari_servizio.richiesta
+
+  it('il contenuto: il locale, il titolare, quando, il motivo, gli orari di prima e dopo giorno per giorno', () => {
+    const posta = comunica().emailRichiestaOrari(cliente, richiesta(), ['admin@example.it'])
+    expect(posta.to).toEqual(['admin@example.it'])
+    expect(posta.message.subject).toBe('Bar Mario chiede di cambiare gli orari di servizio')
+    const testo = posta.message.text
+    expect(testo).toContain('Bar Mario (bar-mario)')
+    expect(testo).toContain('titolare@example.it')
+    // Le 10:30 di Roma.
+    expect(testo).toContain('1 dicembre 2026, 10:30')
+    expect(testo).toContain('«Da dicembre apriamo anche il lunedì a pranzo.»')
+    expect(testo).toContain('Lunedì: chiuso → 12:00–15:00')
+    expect(testo).toContain('Martedì: 18:00–02:00 (fino al giorno dopo) (uguale)')
+    expect(testo).toContain('Domenica: 18:00–02:00 (fino al giorno dopo) → aperto 24 ore (00:00–24:00)')
+    expect(testo).toMatch(/backoffice/)
+  })
+
+  it('senza destinatari o senza richiesta, nessuna email', () => {
+    expect(comunica().emailRichiestaOrari(cliente, richiesta(), [])).toBeNull()
+    expect(comunica().emailRichiestaOrari(cliente, null, ['admin@example.it'])).toBeNull()
+  })
+
+  // L'indirizzo dell'admin è quello dell'account con cui entra nel
+  // backoffice (il claim admin): nessun indirizzo scritto nel codice.
+  it('i destinatari sono gli account col claim admin, attivi e con l’email', () => {
+    const utenti = [
+      { uid: 'a1', email: 'admin@example.it', customClaims: { admin: true } },
+      { uid: 'a2', email: 'spento@example.it', customClaims: { admin: true }, disabled: true },
+      { uid: 'a3', customClaims: { admin: true } },
+      { uid: 'u1', email: 'titolare@example.it', customClaims: {} },
+      { uid: 'u2', email: 'altro@example.it' },
+      { uid: 'a4', email: 'ADMIN@example.it', customClaims: { admin: true } },
+      { uid: 'a5', email: 'falso@example.it', customClaims: { admin: 'true' } },
+    ]
+    expect(comunica().indirizziAdmin(utenti)).toEqual(['admin@example.it'])
+    expect(comunica().indirizziAdmin(undefined)).toEqual([])
+  })
+
+  it('l’id dell’email viene dalla richiesta: lo stesso per la stessa, un altro per la successiva', () => {
+    const { idEmailRichiestaOrari } = comunica()
+    const r = richiesta()
+    expect(idEmailRichiestaOrari('u1', r)).toBe(idEmailRichiestaOrari('u1', { ...r }))
+    expect(idEmailRichiestaOrari('u1', r)).toMatch(/^orari_u1_\d+$/)
+    expect(idEmailRichiestaOrari('u1', { ...r, chiesta_il: '2027-01-10T09:00:00.000Z' })).not.toBe(idEmailRichiestaOrari('u1', r))
+    expect(idEmailRichiestaOrari('u1', { ...r, chiesta_il: 'ieri' })).toBeNull()
+  })
+
+  // Una richiesta ripetuta (la callable rilanciata dal browser, un ritento)
+  // non manda due email: il documento della coda ha l'id della richiesta e
+  // si crea solo se non c'è.
+  it('parte una volta sola per richiesta', async () => {
+    const { accodaUnaVolta } = comunica()
+    const coda = {}
+    const db = {
+      collection: (nome) => ({
+        doc: (id) => ({
+          async create(dati) {
+            if (coda[`${nome}/${id}`]) throw Object.assign(new Error('6 ALREADY_EXISTS: Document already exists'), { code: 6 })
+            coda[`${nome}/${id}`] = dati
+          },
+        }),
+      }),
+    }
+    const posta = comunica().emailRichiestaOrari(cliente, richiesta(), ['admin@example.it'])
+    const id = comunica().idEmailRichiestaOrari('u1', richiesta())
+    expect(await accodaUnaVolta(db, id, { ...posta, motivo: 'richiesta_orari' })).toBe(true)
+    expect(await accodaUnaVolta(db, id, { ...posta, motivo: 'richiesta_orari' })).toBe(false)
+    expect(Object.keys(coda)).toEqual([`mail/${id}`])
+    expect(coda[`mail/${id}`].to).toEqual(['admin@example.it'])
+    // Senza email o senza id, niente.
+    expect(await accodaUnaVolta(db, id, null)).toBe(false)
+    expect(await accodaUnaVolta(db, null, posta)).toBe(false)
+    // Un altro errore non si nasconde.
+    const rotto = { collection: () => ({ doc: () => ({ create: async () => Promise.reject(new Error('permesso negato')) }) }) }
+    await expect(accodaUnaVolta(rotto, id, posta)).rejects.toThrow('permesso negato')
+  })
+})
+
 describe('il compito della sospensione', () => {
   it('«sospensione» è un tipo di compito delle scadenze', () => {
     expect(require('../functions/lib/scadenze.js').TIPI).toContain('sospensione')
@@ -663,6 +751,22 @@ describe('functions/index.js', () => {
     }
     expect(corpo('correggiOrari')).toContain('orari.correzioneDelTitolare(c, req.data?.giorni, { uid })')
     expect(corpo('chiediCambioOrari')).toContain('orari.richiestaDiCambio(c, req.data?.giorni, req.data?.motivo, { uid })')
+  })
+
+  // L'email all'admin parte dopo che la richiesta è salvata, una volta
+  // sola (accodaUnaVolta con l'id della richiesta); se non parte, la
+  // richiesta resta e l'admin la trova nel backoffice.
+  it('chiediCambioOrari avvisa l’admin per email dopo aver salvato la richiesta; la correzione e la decisione no', () => {
+    const fn = corpo('chiediCambioOrari')
+    expect(fn).toContain('await avvisaAdminDellaRichiesta(uid, os.richiesta).catch(')
+    expect(fn.indexOf('orari.cambiaOrari(')).toBeLessThan(fn.indexOf('avvisaAdminDellaRichiesta('))
+    const avvisa = funzione('avvisaAdminDellaRichiesta')
+    expect(avvisa).toContain('comunica.indirizziAdmin(')
+    expect(avvisa).toContain('comunica.emailRichiestaOrari(')
+    expect(avvisa).toContain('comunica.accodaUnaVolta(db, comunica.idEmailRichiestaOrari(uid, richiesta),')
+    expect(corpo('correggiOrari')).not.toContain('avvisaAdmin')
+    expect(corpo('decidiCambioOrari')).not.toContain('accodaEmail')
+    expect(corpo('scriviOrariAdmin')).not.toContain('accodaEmail')
   })
 
   it('decidiCambioOrari: solo l’admin', () => {

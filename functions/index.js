@@ -2327,14 +2327,36 @@ exports.correggiOrari = onCall(OPTS, async (req) => {
   }
 })
 
+// La richiesta all'admin per email (Daniele, 13/11/2026: «A me arriva solo
+// la richiesta, poi rispondo io a mano al momento»): agli account col claim
+// admin, una volta sola per richiesta (l'id del documento viene dalla
+// richiesta). Gli utenti si leggono a pagine: le richieste sono rare.
+async function avvisaAdminDellaRichiesta(uid, richiesta) {
+  const utenti = []
+  let pagina
+  do {
+    const r = await getAuth().listUsers(1000, pagina)
+    utenti.push(...r.users)
+    pagina = r.pageToken
+  } while (pagina)
+  const posta = comunica.emailRichiestaOrari((await db.doc(`clienti/${uid}`).get()).data(), richiesta, comunica.indirizziAdmin(utenti))
+  if (!posta) return console.warn(`[orari] ${uid}: nessun account admin con l’email, la richiesta si vede solo nel backoffice`)
+  await comunica.accodaUnaVolta(db, comunica.idEmailRichiestaOrari(uid, richiesta), { ...posta, uid, motivo: 'richiesta_orari', creata_il: new Date().toISOString() })
+}
+
 exports.chiediCambioOrari = onCall(OPTS, async (req) => {
   if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
   const uid = req.auth.uid
+  let os
   try {
-    return { orari_servizio: await orari.cambiaOrari(db, uid, (c) => orari.richiestaDiCambio(c, req.data?.giorni, req.data?.motivo, { uid })) }
+    os = await orari.cambiaOrari(db, uid, (c) => orari.richiestaDiCambio(c, req.data?.giorni, req.data?.motivo, { uid }))
   } catch (e) {
     throw erroreOrari(e)
   }
+  // Salvata la richiesta, l'email: se non parte, la richiesta resta e
+  // l'admin la trova nel backoffice.
+  await avvisaAdminDellaRichiesta(uid, os.richiesta).catch((e) => console.error(`[orari] ${uid}, l’email all’admin:`, e?.message || e))
+  return { orari_servizio: os }
 })
 
 // L'admin scrive o corregge gli orari di qualunque locale, in qualunque
