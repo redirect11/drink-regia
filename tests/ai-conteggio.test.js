@@ -19,9 +19,11 @@
 // descrizione usa la stima per byte con la stessa forma, una richiesta con
 // un file risponde 503 senza prenotare. Se il costo vero supera lo stesso
 // la stima (un difetto) il credito si ferma a zero e la differenza va in
-// `da_recuperare_microeuro`.
+// `sforato_microeuro`: è un costo che Stonebit si accolla (Daniele,
+// 13/11/2026: «gestisco io a mano. In realtà è un costo che ci
+// accolliamo»), non un debito del locale.
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createRequire } from 'node:module'
 import { readFileSync } from 'node:fs'
 
@@ -50,14 +52,18 @@ const TENTATIVI = 2
 // Quanto ingresso può avere al massimo il primo tentativo, dato il conteggio.
 const ingressoMassimo = (contati) => Math.ceil(contati * (1 + MARGINE))
 // La stima attesa, da un ingresso di base (contato col margine, o la stima
-// per byte): due tentativi completi, ogni voce al prezzo più alto.
+// per byte): due tentativi completi, ogni voce al prezzo più alto, più un
+// micro-euro. La revisione della PR #234 (13/11/2026) ha trovato il costo
+// vero 1 micro-euro sopra la stima in 24 casi su 72.369: la stima
+// moltiplica i totali, il costo somma i tentativi uno per uno, e i due
+// arrotondamenti in virgola mobile finiscono da parti diverse del ceil.
 function stimaAttesa(base, maxTokens) {
   const pin = Math.max(...PREZZI.map((p) => p.input))
   const pout = Math.max(...PREZZI.map((p) => p.output))
   const ingresso = base + (base + maxTokens)
   const uscita = TENTATIVI * maxTokens
   const usd = (ingresso * pin + uscita * pout) / 1_000_000
-  return Math.ceil(usd * AI.cambio_eur_per_usd * AI.ricarico * 1_000_000)
+  return Math.ceil(usd * AI.cambio_eur_per_usd * AI.ricarico * 1_000_000) + 1
 }
 
 describe('le costanti della misura', () => {
@@ -110,6 +116,59 @@ describe('il costo vero non supera mai la stima', () => {
   const sconosciuto = 'claude-che-non-ce-9'
   const coppie = [...MODELLI, sconosciuto].flatMap((a) => [...MODELLI, sconosciuto].map((b) => [a, b]))
 
+  // I conteggi, fitti: uno per uno fino a 20.000, poi a passi di 97 fino
+  // a 300.000. Cinque valori fissi non vedevano gli arrotondamenti
+  // (revisione della PR #234: fattura con 12.857 token su claude-opus-5,
+  // costo 971.356 µ€ contro una stima di 971.355). Con la stima senza il
+  // micro-euro in più questa griglia trova 94 casi oltre la stima; il primo
+  // è una descrizione con 5.904 token.
+  const conteggi = [...Array.from({ length: 20_000 }, (_, i) => i + 1), ...Array.from({ length: 2_900 }, (_, i) => 20_001 + i * 97), 300_000]
+
+  it('su un intervallo fitto di conteggi, per ogni tipo e ogni modello, al caso peggiore', () => {
+    // Le violazioni si raccolgono e si guardano alla fine: un expect per
+    // ognuna delle centinaia di migliaia di prove costerebbe un minuto.
+    const oltre = []
+    let provate = 0
+    const prova = (tipo, contati, modello, risposta, stima) => {
+      provate++
+      const costo = ai.costoMicroeuro(risposta, { modelloChiesto: modello })
+      if (costo > stima) oltre.push({ tipo, contati, modello, costo, stima })
+    }
+    const peggiore = (m, I, a, b) => ({
+      model: b,
+      usage: {
+        input_tokens: I + m.max_tokens,
+        output_tokens: m.max_tokens,
+        iterations: [
+          { type: 'message', model: a, input_tokens: I, output_tokens: m.max_tokens },
+          { type: 'fallback_message', model: b, input_tokens: I + m.max_tokens, output_tokens: m.max_tokens },
+        ],
+      },
+    })
+    const tutti = [...MODELLI, sconosciuto]
+    for (const [tipo, m] of Object.entries(messaggi)) {
+      for (const contati of conteggi) {
+        const stima = ai.stimaMassimaMicroeuro(m, { inputContati: contati })
+        const I = ingressoMassimo(contati)
+        for (const a of tutti) {
+          // Due tentativi interi sullo stesso modello, e uno solo.
+          prova(tipo, contati, a, peggiore(m, I, a, a), stima)
+          prova(tipo, contati, a, { model: a, usage: { input_tokens: I, output_tokens: m.max_tokens } }, stima)
+        }
+        // Un modello col ripiego su un altro, e l'ingresso in parte dalla cache.
+        const misto = peggiore(m, I, MODELLI[0], MODELLI[MODELLI.length - 1])
+        prova(tipo, contati, MODELLI[0], misto, stima)
+        for (const t of misto.usage.iterations) {
+          t.cache_read_input_tokens = Math.floor(t.input_tokens / 3)
+          t.input_tokens -= t.cache_read_input_tokens
+        }
+        prova(tipo, contati, MODELLI[0], misto, stima)
+      }
+    }
+    expect(oltre.slice(0, 5)).toEqual([])
+    expect(provate).toBeGreaterThan(800_000)
+  }, 60_000)
+
   it('per ogni tipo, ogni conteggio, ogni coppia di modelli e ogni divisione dell’uscita', () => {
     let provate = 0
     for (const m of Object.values(messaggi)) {
@@ -161,7 +220,8 @@ describe('il costo vero non supera mai la stima', () => {
 })
 
 // LO SFORAMENTO, SE CAPITA LO STESSO (un difetto): il credito si ferma a
-// zero, e quello che manca si segna da recuperare. La riga dei consumi
+// zero, e quello che manca si segna in sforato_microeuro, a carico di
+// Stonebit: l'admin lo vede, il locale non lo ripaga. La riga dei consumi
 // tiene il costo vero (la scrive interrogaConPrenotazione col costo).
 describe('la chiusura con un costo sopra la stima', () => {
   const conPrenotazione = (credito, stima, extra = {}) => ({
@@ -174,30 +234,30 @@ describe('la chiusura con un costo sopra la stima', () => {
     ...extra,
   })
 
-  it('il credito si ferma a zero e la differenza va in da_recuperare_microeuro', () => {
+  it('il credito si ferma a zero e la differenza va in sforato_microeuro', () => {
     const { trovata, patch } = ai.chiudiPrenotazione(conPrenotazione(50, 100), { id: 'r1', costo: 400, adesso: ADESSO })
     expect(trovata).toBe(true)
     expect(patch.credito_microeuro).toBe(0)
-    expect(patch.da_recuperare_microeuro).toBe(250)
+    expect(patch.sforato_microeuro).toBe(250)
     // Lo speso del mese porta il costo vero.
     expect(patch.speso_mese_microeuro).toBe(400)
   })
 
-  it('si somma a quello che c’era già da recuperare', () => {
-    const { patch } = ai.chiudiPrenotazione(conPrenotazione(50, 100, { da_recuperare_microeuro: 10 }), { id: 'r1', costo: 400, adesso: ADESSO })
-    expect(patch.da_recuperare_microeuro).toBe(260)
+  it('si somma a quello che c’era già di sforato', () => {
+    const { patch } = ai.chiudiPrenotazione(conPrenotazione(50, 100, { sforato_microeuro: 10 }), { id: 'r1', costo: 400, adesso: ADESSO })
+    expect(patch.sforato_microeuro).toBe(260)
   })
 
-  it('un costo sopra la stima che il credito copre ancora non lascia niente da recuperare', () => {
+  it('un costo sopra la stima che il credito copre ancora non lascia niente di sforato', () => {
     const { patch } = ai.chiudiPrenotazione(conPrenotazione(1_000, 100), { id: 'r1', costo: 400, adesso: ADESSO })
     expect(patch.credito_microeuro).toBe(700)
-    expect(patch).not.toHaveProperty('da_recuperare_microeuro')
+    expect(patch).not.toHaveProperty('sforato_microeuro')
   })
 
-  it('un costo dentro la stima non tocca da_recuperare_microeuro', () => {
-    const { patch } = ai.chiudiPrenotazione(conPrenotazione(0, 100, { da_recuperare_microeuro: 10 }), { id: 'r1', costo: 80, adesso: ADESSO })
+  it('un costo dentro la stima non tocca sforato_microeuro', () => {
+    const { patch } = ai.chiudiPrenotazione(conPrenotazione(0, 100, { sforato_microeuro: 10 }), { id: 'r1', costo: 80, adesso: ADESSO })
     expect(patch.credito_microeuro).toBe(20)
-    expect(patch).not.toHaveProperty('da_recuperare_microeuro')
+    expect(patch).not.toHaveProperty('sforato_microeuro')
   })
 })
 
@@ -226,9 +286,10 @@ describe('il conteggio prima della prenotazione', () => {
     }
     const client = {
       messages: {
-        countTokens: async (p) => {
+        countTokens: async (p, opzioni) => {
           stato.ordine.push('conta-client')
           stato.contati.push(p)
+          stato.opzioni = opzioni
           if (!contaDelClient) throw new Error('conteggio non disponibile')
           return contaDelClient
         },
@@ -302,6 +363,51 @@ describe('il conteggio prima della prenotazione', () => {
     expect(stato.stime).toEqual([ai.stimaMassimaMicroeuro(messaggi.descrizione, { inputContati: 640 })])
   })
 
+  // Revisione della PR #234: coi valori predefiniti dell'SDK (10 minuti, 2
+  // nuovi tentativi anche sui 429) un conteggio lento poteva consumare il
+  // tempo della Function (300 secondi) prima della chiamata al modello.
+  it('il conteggio dell’SDK ha un tempo massimo suo, 10 secondi, e nessun nuovo tentativo', async () => {
+    expect(ai.TEMPO_CONTEGGIO_MS).toBe(10_000)
+    const { stato, deps } = banco({ contaDelClient: { input_tokens: 640 } })
+    await ai.interrogaConPrenotazione(deps)
+    expect(stato.opzioni).toEqual({ timeout: 10_000, maxRetries: 0 })
+  })
+
+  describe('un conteggio che non risponde in tempo vale come fallito', () => {
+    beforeEach(() => vi.useFakeTimers())
+    afterEach(() => vi.useRealTimers())
+    const fermo = () => new Promise(() => {})
+
+    it('una descrizione parte con la stima per byte', async () => {
+      const { stato, deps } = banco({ conta: fermo })
+      const esito = ai.interrogaConPrenotazione(deps)
+      await vi.advanceTimersByTimeAsync(ai.TEMPO_CONTEGGIO_MS)
+      const r = await esito
+      expect(r.ok).toBe(true)
+      expect(stato.stime).toEqual([ai.stimaMassimaMicroeuro(messaggi.descrizione)])
+    })
+
+    it('una richiesta con un file risponde 503 senza prenotare', async () => {
+      const { stato, deps } = banco({ messaggio: messaggi.fattura, conta: fermo })
+      const esito = ai.interrogaConPrenotazione(deps)
+      await vi.advanceTimersByTimeAsync(ai.TEMPO_CONTEGGIO_MS)
+      const r = await esito
+      expect(r).toEqual({ ok: false, http: 503, codice: 'servizio', errore: 'Il servizio AI è occupato: riprova tra poco.' })
+      expect(stato.stime).toEqual([])
+      expect(stato.chiamate).toBe(0)
+    })
+
+    it('prima del tempo massimo non si arrende', async () => {
+      let rispondi
+      const { stato, deps } = banco({ conta: () => new Promise((r) => (rispondi = r)) })
+      const esito = ai.interrogaConPrenotazione(deps)
+      await vi.advanceTimersByTimeAsync(ai.TEMPO_CONTEGGIO_MS - 1)
+      rispondi({ input_tokens: 700 })
+      await esito
+      expect(stato.stime).toEqual([ai.stimaMassimaMicroeuro(messaggi.descrizione, { inputContati: 700 })])
+    })
+  })
+
   it('una descrizione senza conteggio (errore, limite raggiunto) usa la stima per byte, e parte', async () => {
     const { stato, deps } = banco({
       conta: async () => {
@@ -370,11 +476,11 @@ describe('il conteggio prima della prenotazione', () => {
     const r = await ai.interrogaConPrenotazione(deps)
     expect(r.ok).toBe(true)
     expect(stato.cassetto.credito_microeuro).toBeGreaterThanOrEqual(0)
-    expect(stato.cassetto.da_recuperare_microeuro ?? 0).toBe(0)
+    expect(stato.cassetto.sforato_microeuro ?? 0).toBe(0)
     expect(errori.filter((e) => e.includes('[ai] SFORAMENTO'))).toEqual([])
   })
 
-  it('un costo vero sopra la stima: credito a zero, il resto da recuperare, la riga dei consumi col costo vero, e «[ai] SFORAMENTO» nei log', async () => {
+  it('un costo vero sopra la stima: credito a zero, il resto in sforato_microeuro, la riga dei consumi col costo vero, e «[ai] SFORAMENTO» nei log', async () => {
     const errori = []
     const contati = 10
     const stima = ai.stimaMassimaMicroeuro(messaggi.descrizione, { inputContati: contati })
@@ -386,7 +492,7 @@ describe('il conteggio prima della prenotazione', () => {
     const r = await ai.interrogaConPrenotazione(deps)
     expect(r.ok).toBe(true)
     expect(stato.cassetto.credito_microeuro).toBe(0)
-    expect(stato.cassetto.da_recuperare_microeuro).toBe(costo - credito)
+    expect(stato.cassetto.sforato_microeuro).toBe(costo - credito)
     expect(stato.righe[0].costo_microeuro).toBe(costo)
     const righe = errori.filter((e) => e.includes('[ai] SFORAMENTO'))
     expect(righe).toHaveLength(1)
@@ -395,17 +501,17 @@ describe('il conteggio prima della prenotazione', () => {
 })
 
 describe('index.js e il contratto', () => {
-  it('interrogaClaude scrive la patch della chiusura così com’è, compreso da_recuperare_microeuro', () => {
+  it('interrogaClaude scrive la patch della chiusura così com’è, compreso sforato_microeuro', () => {
     const codice = readFileSync('functions/index.js', 'utf8').replace(/\r\n/g, '\n')
     const f = codice.slice(codice.indexOf('async function interrogaClaude('), codice.indexOf('exports.creaRicaricaAI'))
     expect(f).toContain('ai.chiudiPrenotazione(')
     expect(f).toContain('t.update(cassettoRef, patch)')
   })
 
-  it('docs/handover.md §7 non dice più che il credito può scendere sotto zero, e dice del conteggio e del da recuperare', () => {
+  it('docs/handover.md §7 non dice più che il credito può scendere sotto zero, e dice del conteggio e dello sforato', () => {
     const h = readFileSync('docs/handover.md', 'utf8').replace(/\s+/g, ' ')
     expect(h).not.toContain('Il credito può scendere di poco sotto zero')
     expect(h).toContain('countTokens')
-    expect(h).toContain('da_recuperare_microeuro')
+    expect(h).toContain('sforato_microeuro')
   })
 })

@@ -4256,7 +4256,7 @@ requirements:
 
   - id: REQ-FLOTTA-092
     title: "Il modello AI si sceglie per tipo di richiesta dal backoffice: Sonnet per tutti, all'inizio"
-    area: "functions/piani.json (ai.prezzi_usd_per_milione), functions/lib/ai.js (TIPI_MODELLO, modelliDelListino, modelloPer, validaModelliAI, interrogaConPrenotazione), functions/index.js (interrogaClaude, gestisciModelliAI), src/lib/db.js (impostaModelliAI), src/pages/Backoffice.jsx (Vendita)"
+    area: "functions/piani.json (ai.prezzi_usd_per_milione), functions/lib/ai.js (TIPI_MODELLO, modelliDelListino, modelloPer, validaModelliAI, interrogaConPrenotazione), functions/index.js (interrogaClaude, gestisciModelliAI), src/lib/db.js (impostaModelliAI), src/pages/Backoffice.jsx (Vendita), firestore.rules (impostazioni)"
     description: >
       Daniele, 13/11/2026, in chat, alla domanda su quali richieste far
       passare a Sonnet: «Per tutto». Oggi la regia ha un solo modello per
@@ -4297,14 +4297,23 @@ requirements:
       (Descrizione, Fattura, Tema, Chat) coi soli modelli del listino;
       mostra la scelta salvata, o Sonnet; cambiarla chiama
       impostaModelliAI({ <tipo>: <modello> }) di src/lib/db.js, che passa
-      dalla Function e non scrive il documento da sé.
+      dalla Function e non scrive il documento da sé. (8) LE REGOLE
+      (Daniele, 13/11/2026, sulle regole di impostazioni/regia: «il modo più
+      sicuro»): nessuno, nemmeno l'admin, scrive da client le chiavi
+      `ai_modelli` e `limiti_chat` di impostazioni/regia, né crea, riscrive
+      intero o cancella il documento quando le porta; `limiti_chat`
+      arriverà con la chat (REQ-FLOTTA-094) e passerà dalla Function
+      gestisciLimitiChat, ed è chiusa già da ora. Le altre chiavi che il
+      backoffice scrive oggi (deploy_automatico, attivazione_simulata,
+      aggiornate_il) e le altre impostazioni (impostazioni/aggiornamenti)
+      restano come prima. Le Functions scrivono con l'Admin SDK, che le
+      regole non le guarda. Il server continua a ricontrollare il modello
+      col listino (criterio 4).
       PUNTI DEBOLI. (a) Il tipo «chat» oggi non esiste fra le richieste
       della regia (preparaMessaggio conosce descrizione, fattura e tema):
       la scelta si salva ma non viene usata finché la chat non arriva. (b)
-      Le regole di Firestore lasciano all'admin scrivere impostazioni/regia
-      direttamente; per questo il server non si fida del documento e
-      ricontrolla il modello col listino (criterio 4). Chiudere le regole
-      su ai_modelli è una decisione di Daniele. (c) Sonnet costa meno di
+      Chiuse le due chiavi, se gestisciModelliAI non risponde l'admin non
+      ha un'altra strada dal sito per cambiare il modello. (c) Sonnet costa meno di
       Opus ma risponde in modo diverso: la qualità di fatture e temi con
       Sonnet non è provata da nessun test.
     status: implemented
@@ -4315,6 +4324,7 @@ requirements:
       - tests/ai-modello.test.js
       - tests/Backoffice.test.jsx
       - tests/ai.test.js
+      - tests/regole/impostazioni.test.js
 
   - id: REQ-FLOTTA-093
     title: "Il costo massimo si misura prima di prenotare: il credito non va mai sotto zero"
@@ -4344,7 +4354,13 @@ requirements:
       parametri del ripiego. Il conteggio si inietta in
       interrogaConPrenotazione come `conta`, accanto a `crea` e `prenota`,
       per provarlo con un finto; senza `conta` si usa
-      client.messages.countTokens. (2) LA STIMA mette da parte due
+      client.messages.countTokens con un tempo massimo di 10 secondi e
+      nessun nuovo tentativo (`{ timeout: 10_000, maxRetries: 0 }`): coi
+      valori predefiniti dell'SDK (10 minuti, 2 nuovi tentativi anche sui
+      429) un conteggio lento consumava il tempo della Function (300
+      secondi) prima della chiamata al modello, e la prenotazione scadeva
+      alla stima. Il tempo massimo vale anche per un `conta` iniettato.
+      (2) LA STIMA mette da parte due
       tentativi completi, perché il ripiego `fallbacks: 'default'` può
       rifare la richiesta con un altro modello dopo un rifiuto a metà
       risposta: uscita 2 × max_tokens; ingresso I per il primo tentativo
@@ -4352,8 +4368,14 @@ requirements:
       testo già scritto, con I = ingresso contato × (1 +
       MARGINE_CONTEGGIO, 5%) arrotondato in su. Ogni voce (ingresso,
       uscita) al prezzo più alto del listino
-      (stimaMassimaMicroeuro(m, { inputContati })). (3) SE IL CONTEGGIO
-      NON RISPONDE (errore, limite raggiunto, numero non valido): una
+      (stimaMassimaMicroeuro(m, { inputContati })), più UN micro-euro dopo
+      l'arrotondamento: la stima moltiplica i totali, il costo somma i
+      tentativi uno per uno, e in virgola mobile i due conti possono cadere
+      da parti diverse del Math.ceil (revisione della PR #234, 13/11/2026:
+      24 casi su 72.369, per esempio una fattura con 12.857 token su
+      claude-opus-5, costo 971.356 µ€ contro una stima di 971.355). (3) SE
+      IL CONTEGGIO NON RISPONDE (errore, limite raggiunto, numero non
+      valido, o nessuna risposta entro TEMPO_CONTEGGIO_MS, 10 secondi): una
       richiesta senza file (la descrizione) usa la stima per byte, con la
       stessa forma a due tentativi e la stima d'ingresso della richiesta
       (stimaInputToken) al posto del contato; una richiesta con un file
@@ -4362,21 +4384,34 @@ requirements:
       poco.' }, senza prenotare e senza chiamare il modello. (4) Se il
       credito non copre la stima: 402 credito, come oggi, e il modello non
       si chiama. (5) L'INVARIANTE, provata per ogni tipo, ogni coppia di
-      modelli (anche uno che il listino non conosce) e ogni divisione
-      dell'uscita: per ogni usage che rispetta i limiti (al massimo 2
+      modelli (anche uno che il listino non conosce), ogni divisione
+      dell'uscita e un intervallo fitto di conteggi (uno per uno fino a
+      20.000, poi a passi fino a 300.000): per ogni usage che rispetta i limiti (al massimo 2
       tentativi; ingresso del primo ≤ I, del secondo ≤ I + max_tokens;
       uscita di ciascun tentativo ≤ max_tokens) costoMicroeuro ≤ stima;
       quindi, col credito che alla prenotazione copriva la stima, dopo la
       chiusura il credito resta ≥ 0. (6) SE LO SFORAMENTO CAPITA LO STESSO
       (costo vero > stima: è un difetto): il credito si ferma a zero, mai
-      sotto; l'importo che manca si somma a `da_recuperare_microeuro` nel
+      sotto; l'importo che manca si somma a `sforato_microeuro` nel
       cassetto ai/{slug}; nei log una riga cercabile `[ai] SFORAMENTO` col
       locale, il costo e la stima; la riga dei consumi tiene il costo vero.
-      (7) Nel backoffice, nel blocco Credito AI della scheda del locale, un
-      avviso con l'importo da recuperare quando `da_recuperare_microeuro` è
-      sopra zero. (8) Il contratto in docs/handover.md §7 non dice più che
-      il credito può scendere di poco sotto zero, e dice del conteggio, del
-      503 per le richieste con un file e dell'importo da recuperare.
+      Lo sforato NON si recupera dal locale: Daniele, 13/11/2026, «gestisco
+      io a mano. In realtà è un costo che ci accolliamo». Il campo si
+      chiamava `da_recuperare_microeuro` nella PR #234 ed è stato
+      rinominato prima che un cassetto lo avesse. (7) Nel backoffice, nel
+      blocco Credito AI della scheda del locale, un avviso informativo
+      «Sforamento assorbito da Stonebit: X €» quando `sforato_microeuro` è
+      sopra zero, senza toni di recupero. (8) Il contratto in
+      docs/handover.md §7 non dice più che il credito può scendere di poco
+      sotto zero, e dice del conteggio, del 503 per le richieste con un
+      file e dello sforato a carico di Stonebit.
+      LIMITE NOTO (revisione della PR #234). Lo sforamento si segna in
+      `sforato_microeuro` solo nella chiusura normale. Se la correzione
+      dopo la risposta non si scrive (il ramo «[ai] CHIUSURA») o la
+      prenotazione scade (riga «interrotta»), il locale paga la stima e un
+      costo vero più alto, se ci fosse, non lascia traccia nel cassetto:
+      resta solo la riga «[ai] SFORAMENTO» nei log, che si scrive prima
+      della chiusura.
       PUNTI DEBOLI. (a) Il conteggio è «una stima, può differire di poco»:
       il 5% di margine è una scelta, non un numero garantito da Anthropic.
       (b) La stima è più alta di oggi, anche per le descrizioni (due
@@ -4390,9 +4425,9 @@ requirements:
       cache, se un giorno la chiedono la stima va rivista. (f) Come
       Anthropic fattura un rifiuto prima di qualunque risposta resta [da
       verificare]: la stima lo copre comunque, perché conta due tentativi
-      interi. (g) L'importo da recuperare si mostra all'admin ma non si
-      recupera da solo: come recuperarlo (dal credito della prossima
-      ricarica, o a mano) non è deciso.
+      interi. (g) Il micro-euro in più copre l'errore di arrotondamento
+      finché una richiesta vale molto meno di un miliardo di micro-euro:
+      oggi una richiesta vale al massimo qualche euro.
     status: implemented
     generate_issue: true
     labels: [regia, ai, sicurezza]

@@ -2602,10 +2602,6 @@ exports.creaRicaricaAI = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async
   return { url: sessione.url }
 })
 
-// Dal backoffice, sul cassetto di un'installazione: ricarica a mano (la
-// Tana la ricarichiamo noi), tetto mensile, acceso o spento, e la chiave
-// che l'installazione usa per chiamare `richiestaAI`. La chiave si vede
-// una volta sola, qui: la regia ne tiene solo l'impronta.
 // IL MODELLO AI PER TIPO DI RICHIESTA (REQ-FLOTTA-092). Daniele,
 // 13/11/2026, su Sonnet: «Per tutto». L'admin sceglie dal backoffice il
 // modello di un tipo, fra quelli che hanno un prezzo nel listino; si
@@ -2624,6 +2620,10 @@ exports.gestisciModelliAI = onCall(OPTS, async (req) => {
   return { ok: true, ai_modelli: scelta }
 })
 
+// Dal backoffice, sul cassetto di un'installazione: ricarica a mano (la
+// Tana la ricarichiamo noi), tetto mensile, acceso o spento, e la chiave
+// che l'installazione usa per chiamare `richiestaAI`. La chiave si vede
+// una volta sola, qui: la regia ne tiene solo l'impronta.
 exports.gestisciCassettoAI = onCall(OPTS, async (req) => {
   if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
   const { slug, azione } = req.data || {}

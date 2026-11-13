@@ -940,12 +940,14 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
                   mese {euroCent(credito.spesoMese)} / {euroCent(credito.tetto)}
                   {!credito.attivo && ' · spento'}
                 </div>
-                {credito.daRecuperare > 0 && (
+                {credito.sforato > 0 && (
                   // REQ-FLOTTA-093: un costo vero sopra la stima, che il
                   // credito non copriva. È un difetto: il credito si è
-                  // fermato a zero e questo è il resto, da recuperare a mano.
-                  <p className="errore small" role="status" data-testid={`da-recuperare-${c.slug}`}>
-                    Da recuperare: {euroCent(credito.daRecuperare)} (una richiesta AI è costata più della sua stima: vedi «[ai] SFORAMENTO» nei log)
+                  // fermato a zero e il resto lo paga Stonebit (Daniele,
+                  // 13/11/2026: «In realtà è un costo che ci accolliamo»).
+                  // Un'informazione per l'admin, non un debito del locale.
+                  <p className="muted small" role="status" data-testid={`sforato-${c.slug}`}>
+                    Sforamento assorbito da Stonebit: {euroCent(credito.sforato)}. Una richiesta AI è costata più della sua stima: i dettagli sono nei log, alla riga «[ai] SFORAMENTO».
                   </p>
                 )}
               </>

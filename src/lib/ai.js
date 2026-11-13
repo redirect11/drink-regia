@@ -44,8 +44,9 @@ export function statoCredito(cassetto, adesso = new Date()) {
     tetto,
     spesoMese,
     // Lo sforamento che il credito non copriva (REQ-FLOTTA-093): il credito
-    // si è fermato a zero, e questo resta da recuperare.
-    daRecuperare: Math.max(0, daMicro(cassetto.da_recuperare_microeuro)),
+    // si è fermato a zero, e questo lo paga Stonebit (Daniele, 13/11/2026:
+    // «In realtà è un costo che ci accolliamo»).
+    sforato: Math.max(0, daMicro(cassetto.sforato_microeuro)),
   }
 }
 

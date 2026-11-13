@@ -1781,23 +1781,25 @@ describe('il modello AI nel backoffice', () => {
 
 // LO SFORAMENTO DEL CREDITO AI (REQ-FLOTTA-093). Daniele, 13/11/2026: il
 // credito non va mai sotto zero; se il costo vero supera lo stesso la stima
-// (un difetto), quello che manca si segna in da_recuperare_microeuro e
+// (un difetto), quello che manca si segna in sforato_microeuro. Daniele,
+// 13/11/2026: «gestisco io a mano. In realtà è un costo che ci
+// accolliamo»: l'avviso informa, non chiede un recupero al locale, e
 // l'admin lo vede nella scheda del locale.
-describe('il credito AI da recuperare', () => {
-  it('nel blocco Credito AI un avviso con l’importo da recuperare', async () => {
-    db.elencoCassettiAI.mockResolvedValue({ 'bar-attivo': { credito_microeuro: 0, da_recuperare_microeuro: 1_234_567 } })
+describe('lo sforamento del credito AI', () => {
+  it('nel blocco Credito AI un avviso con l’importo assorbito da Stonebit', async () => {
+    db.elencoCassettiAI.mockResolvedValue({ 'bar-attivo': { credito_microeuro: 0, sforato_microeuro: 1_234_567 } })
     mostra()
     const attivo = await apri('Bar Attivo')
     const blocco = within(attivo).getByRole('region', { name: 'Credito AI' })
-    const avviso = within(blocco).getByTestId('da-recuperare-bar-attivo')
-    expect(avviso).toHaveTextContent('1,23 €')
-    expect(avviso).toHaveTextContent(/da recuperare/i)
+    const avviso = within(blocco).getByTestId('sforato-bar-attivo')
+    expect(avviso).toHaveTextContent('Sforamento assorbito da Stonebit: 1,23 €')
+    expect(avviso).not.toHaveTextContent(/recuper/i)
   })
 
-  it('senza niente da recuperare, nessun avviso', async () => {
-    db.elencoCassettiAI.mockResolvedValue({ 'bar-attivo': { credito_microeuro: 5_000_000, da_recuperare_microeuro: 0 } })
+  it('senza sforamenti, nessun avviso', async () => {
+    db.elencoCassettiAI.mockResolvedValue({ 'bar-attivo': { credito_microeuro: 5_000_000, sforato_microeuro: 0 } })
     mostra()
     const attivo = await apri('Bar Attivo')
-    expect(within(attivo).queryByTestId('da-recuperare-bar-attivo')).toBeNull()
+    expect(within(attivo).queryByTestId('sforato-bar-attivo')).toBeNull()
   })
 })

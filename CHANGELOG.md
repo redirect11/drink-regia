@@ -16,7 +16,14 @@ data.
   completi; se il conteggio non risponde una fattura o un tema rispondono
   «riprova tra poco», senza addebiti. Se una richiesta costasse lo stesso
   più della stima il credito si ferma a zero, e la scheda del locale nel
-  backoffice mostra l'importo da recuperare (REQ-FLOTTA-093).
+  backoffice mostra l'importo che Stonebit si accolla (REQ-FLOTTA-093).
+- Ritocchi del credito AI dopo la revisione: la stima tiene un
+  micro-euro in più per gli arrotondamenti, così il costo vero non la
+  supera mai; il conteggio dei token si arrende dopo 10 secondi invece di
+  tenere ferma la richiesta; lo sforamento si dice «assorbito da
+  Stonebit», non «da recuperare» (REQ-FLOTTA-093). Il modello AI e i
+  limiti della chat in impostazioni/regia si cambiano solo dalle
+  Functions: nemmeno l'admin li scrive dal browser (REQ-FLOTTA-092).
 - Il credito AI chiesto dall'app dice anche se il locale può ricaricare
   dal sito e dove (`ricaricabile`, `ricarica_url`): coi pagamenti online
   spenti, il sito chiuso o un locale interno l'app rimanda all'assistenza
