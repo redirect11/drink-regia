@@ -6,6 +6,18 @@ data.
 
 ## Prossima release (da decidere)
 
+- La chat del gestionale passa dalla regia: `richiestaAI` accetta
+  `{ tipo: 'chat', messaggi, strumenti, versione }` col credito del locale,
+  senza conservare le conversazioni; i turni del modello tornano firmati
+  e un turno ritoccato si rifiuta. Una conversazione troppo lunga o nata
+  con istruzioni vecchie riceve 409, e l'app ne apre una nuova. Nel
+  backoffice, in «Vendita», la sezione «Limiti della chat AI» sceglie i
+  token di una risposta e della conversazione, gli strumenti per
+  messaggio e le righe degli strumenti di lettura, ognuno col suo tetto.
+  La chat usa la cache del prompt, e la stima del credito ne copre la
+  scrittura; lo storico dei consumi dice quanti token sono stati letti e
+  scritti in cache, e i log i tempi del conteggio e della chiamata.
+  Serve il segreto `AI_CHAT_SECRET` (REQ-FLOTTA-094).
 - Gli orari di servizio del locale: alla registrazione sono obbligatori,
   un giorno per riga, con apertura e chiusura (anche dopo la mezzanotte,
   o 24 ore) oppure «chiuso». Per 7 giorni il titolare li corregge dalla

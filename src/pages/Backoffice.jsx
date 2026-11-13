@@ -18,6 +18,7 @@ import {
   elencoCassettiAI,
   gestisciCassettoAI,
   impostaModelliAI,
+  impostaLimitiChat,
   registraLocaleEsistente,
   elencoRilasci,
   gestisciRilascio,
@@ -52,7 +53,7 @@ import { PIANI, MODULI, prezzoMensile, euro, baseMancante, senzaOrfani } from '.
 import { prezzoConSconto, scontoDetto, usiDetti, CODICE_VALIDO, REGOLA_CODICE, LIMITE_PER_IL_CENTO, generaCodice } from '../lib/sconti.js'
 import CatalogoTemi, { EditorTema } from './CatalogoTemi.jsx'
 import { contattoDi } from '../lib/clienti.js'
-import { statoCredito, euroCent, aiNelPiano, MODELLI_AI, TIPI_MODELLO_DETTI, modelloScelto } from '../lib/ai.js'
+import { statoCredito, euroCent, aiNelPiano, MODELLI_AI, TIPI_MODELLO_DETTI, modelloScelto, VOCI_LIMITI_CHAT, limiteChatScelto, tettoLimiteChat, limiteChatValido } from '../lib/ai.js'
 import { GRUPPI, TAG, aggiornamentoDetto, runNellErrore } from '../lib/rilasci.js'
 import { BASE, SEZIONI, VISTE, aggiornamentoFallito, aggiornaLaRegia, contiDelBackoffice, filtraLocali, profiloDaAutorizzare } from '../lib/backoffice.js'
 import Rilasci from './Rilasci.jsx'
@@ -410,6 +411,7 @@ export default function Backoffice() {
               <>
                 <Vendita onErrore={setErrore} />
                 <ModelliAI impostazioni={impostazioni} onErrore={setErrore} />
+                <LimitiChat impostazioni={impostazioni} onErrore={setErrore} />
                 <CodiciSconto onErrore={setErrore} />
               </>
             }
@@ -1804,6 +1806,75 @@ function ModelliAI({ impostazioni, onErrore }) {
         </div>
       ))}
     </section>
+  )
+}
+
+// I LIMITI DELLA CHAT AI (REQ-FLOTTA-094). Daniele, 13/11/2026: «rendi
+// questi parametri configurabili da backoffice di admin». Ogni campo si
+// salva uscendo, da solo, passando dalla Function gestisciLimitiChat; un
+// numero fuori dal suo intervallo non parte, e la sezione dice perché.
+// Le chat dopo usano i limiti nuovi.
+const migliaia = (n) => n.toLocaleString('it-IT')
+
+function LimitiChat({ impostazioni, onErrore }) {
+  const [avviso, setAvviso] = useState(null)
+  const salva = (voce, riga, n) => impostaLimitiChat(riga ? { righe: { [voce]: n } } : { [voce]: n }).catch((e) => onErrore(e.message))
+  return (
+    <section className="card vendita" aria-label="Limiti della chat AI">
+      <h3>Limiti della chat AI</h3>
+      <p className="muted small">
+        Quanto può costare una conversazione della chat del gestionale: la lunghezza di una risposta e della conversazione intera, gli strumenti
+        che il modello usa per ogni messaggio, e le righe che restituiscono gli strumenti di lettura.
+      </p>
+      {VOCI_LIMITI_CHAT.map(([voce, etichetta, riga]) => (
+        <CampoLimite
+          key={voce}
+          voce={voce}
+          etichetta={etichetta}
+          valore={limiteChatScelto(voce, impostazioni, { riga })}
+          tetto={tettoLimiteChat(voce, { riga })}
+          onSalva={(n) => salva(voce, riga, n)}
+          onAvviso={setAvviso}
+        />
+      ))}
+      {avviso && (
+        <p className="errore small" role="alert">
+          {avviso}
+        </p>
+      )}
+    </section>
+  )
+}
+
+function CampoLimite({ voce, etichetta, valore, tetto, onSalva, onAvviso }) {
+  const [testo, setTesto] = useState(String(valore))
+  useEffect(() => setTesto(String(valore)), [valore])
+  const salva = () => {
+    const n = Number(testo)
+    if (!limiteChatValido(n, tetto)) {
+      onAvviso(`${etichetta}: un numero intero da 1, al massimo ${migliaia(tetto)}.`)
+      setTesto(String(valore))
+      return
+    }
+    onAvviso(null)
+    if (n !== valore) onSalva(n)
+  }
+  return (
+    <div className="campo">
+      <label htmlFor={`bo-limite-${voce}`}>{etichetta}</label>
+      <input
+        id={`bo-limite-${voce}`}
+        type="number"
+        min={1}
+        max={tetto}
+        step={1}
+        value={testo}
+        onChange={(e) => setTesto(e.target.value)}
+        onBlur={salva}
+        onKeyDown={(e) => e.key === 'Enter' && salva()}
+      />
+      <span className="muted small"> al massimo {migliaia(tetto)}</span>
+    </div>
   )
 }
 
