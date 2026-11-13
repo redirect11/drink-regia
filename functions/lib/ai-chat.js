@@ -319,8 +319,13 @@ function preparaChat(corpo, { slug, segreto, limiti, modello }) {
 
   // La versione prima della firma: i turni di una versione vecchia sono
   // firmati con quella, e la risposta giusta è «conversazione nuova».
+  // Senza turni del modello non c'è niente di firmato da buttare: una
+  // versione vecchia sul primo messaggio vale come quella di adesso, sennò
+  // un'app che la manda già dal primo turno aprirebbe conversazioni nuove
+  // all'infinito (domanda di tana-drink del 13/11/2026).
   if (corpo.versione != null && (typeof corpo.versione !== 'string' || corpo.versione.length > 64)) no('La versione della conversazione non è valida.')
-  const versione = corpo.versione ?? VERSIONE_CHAT
+  const conTurniFirmati = Array.isArray(corpo.messaggi) && corpo.messaggi.some((m) => mappa(m) && m.role === 'assistant')
+  const versione = conTurniFirmati ? (corpo.versione ?? VERSIONE_CHAT) : VERSIONE_CHAT
   if (versione !== VERSIONE_CHAT) throw new ConversazioneDaRifare('versione', VERSIONE_VECCHIA)
 
   const strumenti = corpo.strumenti ?? []

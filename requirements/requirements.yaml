@@ -4805,8 +4805,12 @@ requirements:
       caratteri) cambia quando cambiano le istruzioni o le definizioni degli
       strumenti, e torna in ogni risposta. Una richiesta con un'altra
       versione è un 409 `{ codice: 'versione' }`, controllato prima della
-      firma; senza versione (il primo messaggio) vale quella di adesso.
-      Dalla revisione della PR #237 è `chat-2026-11-13.2`. Lo stesso 409
+      firma; senza versione, o in una conversazione che non ha ancora
+      turni del modello, vale quella di adesso (domanda di tana-drink del
+      13/11/2026: un'app che la manda già dal primo turno non apre
+      conversazioni nuove all'infinito). Esiti e domanda in due turni di
+      chi scrive di fila sono accettati così come sono: unirli vorrebbe
+      dire ritoccare un messaggio vecchio. Dalla revisione della PR #237 è `chat-2026-11-13.2`. Lo stesso 409
       versione arriva quando un turno del modello è stato firmato con un
       altro contesto (l'admin ha cambiato le righe, o l'app manda un altro
       elenco di `strumenti`): col ragionamento di Sonnet 5.5, `system` o
