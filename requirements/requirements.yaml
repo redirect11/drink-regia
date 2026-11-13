@@ -4254,6 +4254,135 @@ requirements:
     test_cases:
       - tests/ai.test.js
 
+  - id: REQ-FLOTTA-095
+    title: "Gli orari di servizio del locale e la sospensione per pagamento fuori servizio"
+    area: "functions/lib/orari-servizio.js (nuovo), functions/lib/registrazione.js (documentoRegistrazione), src/lib/clienti.js (nuovoCliente), functions/lib/licenza.js (validaFino), functions/lib/taglio.js, functions/lib/scadenze.js (TIPI), functions/index.js (registraCliente, scriviLicenza, il compito delle scadenze, le callable degli orari), src/pages/Registrati.jsx, l'area del titolare (src/pages/Dashboard.jsx), src/pages/Backoffice.jsx (scheda del locale), docs/handover.md §7"
+    description: >
+      Daniele, 13/11/2026, in chat: «quando un cliente si registra deve
+      specificare gli orari di servizio dell'esercizio. Decidiamo la
+      sospensione per Stripe fuori dall'orario di servizio quindi di sicuro
+      non subito. In base all'orario in cui gli viene attivato
+      l'abbonamento fa fede quell'orario per decidere se disattivare prima
+      o dopo l'orario di servizio che il cliente ha deciso. Orario di
+      servizio che non può cambiare se non previa approvazione nostra e che
+      deve essere dimostrato in qualche modo che effettivamente l'orario di
+      servizio è cambiato. Se invece è semplicemente sbagliato, possiamo
+      dare una settimana di tempo per cambiarlo se necessario dopo di che
+      rimane quello e si può cambiare solo se approvato da me admin».
+      Alle domande dello stesso giorno ha scelto: (a) la sospensione per
+      pagamento cade alla STESSA ORA DEL GIORNO in cui è stato attivato
+      l'abbonamento (attivato alle 10:00 → sospeso alle 10:00); se
+      quell'ora cade dentro un intervallo di servizio si sposta al bordo:
+      un'ora prima dell'apertura o alla chiusura (servizio 18:00–02:00,
+      attivato alle 21:00 → sospeso alle 02:00); (b) gli orari sono UNO PER
+      GIORNO della settimana, con apertura e chiusura (anche oltre la
+      mezzanotte) oppure «chiuso»; (c) la prova per cambiarli è un MOTIVO
+      SCRITTO del titolare: l'admin verifica come vuole e approva o rifiuta
+      dal backoffice, nessun file nella regia. Al momento della
+      sospensione: «Si ferma tutto così com'è. Alla riattivazione del
+      servizio non si è mosso nulla e così deve essere» (la parte dell'app
+      è di tana-drink). Le sospensioni dell'admin restano immediate, come
+      oggi (REQ-FLOTTA-090). «L'app che si carica ed è sospesa si sospende
+      subito» è lato tana-drink: i terminali ascoltano già la licenza in
+      tempo reale. Questa voce scioglie il «punto debole» di REQ-FLOTTA-090
+      sulla sospensione per pagamento.
+      CRITERI DI ACCETTAZIONE. (1) ALLA REGISTRAZIONE GLI ORARI SONO
+      OBBLIGATORI: un passo «Orari» dopo «Il locale», un giorno per riga
+      (lunedì…domenica) con apertura e chiusura o «chiuso»; orari in HH:MM
+      (00:00–23:59); la chiusura prima dell'apertura vuol dire il giorno
+      dopo; apertura e chiusura non coincidono; almeno un giorno aperto;
+      fra la chiusura di un giorno e l'apertura del giorno dopo almeno
+      un'ora (il margine del criterio 3: se no fuori servizio non c'è
+      posto). L'errore sta sul giorno. Il passo dice che per 7 giorni gli
+      orari si correggono da sé e dopo solo con una richiesta approvata.
+      Vale anche per chi completa la registrazione dopo l'accesso con
+      Google. La regia (registraCliente) li ricontrolla e rifiuta senza
+      orari validi (`invalid-argument`, campo `orari`). Il cliente nasce
+      con `clienti/{uid}.orari_servizio` = `{ giorni, impostati_il,
+      richiesta: null, storia: [] }`, IN CIMA AL DOCUMENTO e mai dentro
+      `locale`: le regole lasciano al titolare solo locale, fatturazione,
+      referente e consensi, quindi gli orari li scrivono solo le Functions
+      e le regole non cambiano. Il giorno chiuso è `{ chiuso: true }`,
+      quello aperto `{ apre, chiude }`. (2) PER 7 GIORNI da `impostati_il`
+      il titolare li corregge da solo dall'area del titolare (una callable:
+      ricontrolla gli orari, non fa ripartire i 7 giorni). Dal settimo
+      giorno compiuto la correzione diretta si rifiuta
+      (`failed-precondition`): il titolare manda una richiesta di cambio
+      con gli orari nuovi e un motivo scritto (almeno 10 caratteri),
+      diversi da quelli di oggi, una sola alla volta (`already-exists`);
+      dentro i 7 giorni la richiesta non serve e si rifiuta. Gli orari non
+      cambiano finché l'admin non decide. L'admin, dalla scheda del locale
+      nel backoffice, vede la richiesta (prima, dopo, motivo, quando) e la
+      approva o la rifiuta con una nota; solo l'admin (`permission-denied`
+      altrimenti). Ogni cambio lascia la traccia in
+      `orari_servizio.storia`: tipo (correzione, approvata, rifiutata), chi
+      l'ha chiesto, quando, prima, dopo, motivo e, per le decisioni, chi ha
+      deciso, quando era stata chiesta e la nota. (3) IL MOMENTO DELLA
+      SOSPENSIONE PER PAGAMENTO, con Stripe e col pagamento a mano: l'ora
+      del giorno dell'attivazione (criterio 4) sull'orologio di Roma
+      (Europe/Rome), la prima che arriva da quando l'abbonamento passa a
+      «non pagato» (o «disdetto»: la chiusura per pagamento segue la stessa
+      strada); se cade in servizio si sposta alla chiusura di quel
+      servizio, anche oltre la mezzanotte (l'1 di notte è ancora il
+      servizio della sera prima); se cade nell'ora prima dell'apertura, a
+      un'ora prima dell'apertura, e se quel momento è già passato alla
+      chiusura. Un giorno chiuso non sposta niente. Col cambio dell'ora:
+      l'ora resta quella dell'orologio (attivato alle 10 d'estate, sospeso
+      alle 10 d'inverno); un'ora che quel giorno non c'è (marzo, fra le 2 e
+      le 3) vale un'ora dopo; un'ora che quel giorno c'è due volte
+      (ottobre) vale la seconda, che non cade mai in servizio. La
+      sospensione e la chiusura per pagamento arrivano all'app (stato
+      `sospesa`/`chiusa` in licenza/attuale e settings/bar.licenza) a quel
+      momento, con un compito suo programmato come gli altri (proposta: il
+      tipo «sospensione» in scadenze.TIPI, che quando arriva ricontrolla
+      che il momento e lo stato dell'abbonamento siano ancora quelli). Le
+      riduzioni della licenza (moduli, terminali, limiti, il ripiego al
+      Free) restano al taglio della giornata (REQ-FLOTTA-024). Chi paga
+      prima del momento non viene sospeso: «riattiva» (REQ-FLOTTA-023)
+      riscrive la licenza attiva e il compito, arrivato, non fa niente.
+      `valida_fino` (il momento in cui l'app si ferma da sola anche senza
+      rete) è lo stesso momento calcolato sulla scadenza del pagamento,
+      non più il taglio dopo la scadenza. Le sospensioni e le chiusure
+      dell'admin e del titolare restano immediate. (4) L'ORA
+      DELL'ATTIVAZIONE è `clienti/{uid}.abbonamento.dal`: la scrive il
+      webhook di Stripe a `checkout.session.completed` (lib/abbonamento.js,
+      l'istante in cui la regia lo lavora), la creazione a mano dall'admin
+      (creaCliente) e gli sconti (che la tengono se c'è). Un nuovo
+      checkout dopo una disdetta la riscrive. (5) I LOCALI DI PRIMA, senza
+      orari: il momento resta il taglio della giornata di oggi
+      (`settings/bar.business_day_cutoff_hour`, le 5 se manca), lo stesso
+      per orari non validi; con gli orari ma senza `abbonamento.dal` l'ora
+      è quella del taglio, passata per gli intervalli di servizio. Il
+      titolare di un locale di prima scrive gli orari la prima volta dalla
+      sua area, e da lì partono i suoi 7 giorni; l'area glieli chiede con
+      un avviso finché mancano. (6) IL CONTRATTO in docs/handover.md §7
+      (la licenza): lo stato «sospesa» o «chiusa» voluto dal pagamento
+      arriva fuori dal servizio del locale, al momento del criterio 3, e
+      `valida_fino` è quello stesso momento; quelli dell'admin e del
+      titolare subito. Gli orari restano nella regia: la licenza non li
+      porta (se tana-drink li vuole, un campo nuovo è una decisione a
+      parte). I test dell'integrazione (scriviLicenza, il compito, le
+      callable, l'area del titolare, il backoffice) si aggiungono con
+      l'implementazione e la voce li cita.
+      PUNTI DEBOLI. «Il bordo più vicino» preso alla lettera darebbe, per
+      l'esempio di Daniele (18–02, attivato alle 21), le 17:00 e non le
+      02:00: qui vale l'esempio (in servizio → alla chiusura; nell'ora
+      prima dell'apertura → un'ora prima dell'apertura), da confermare. Un
+      locale aperto 24 ore, o con meno di un'ora fra chiusura e apertura,
+      non si può registrare: da decidere se serve. L'ora di
+      `abbonamento.dal` con Stripe è quella in cui la regia lavora
+      l'evento, non quella del pagamento (di solito pochi secondi). Fra
+      «non pagato» e la sospensione il locale lavora ancora fino a quasi
+      24 ore (e di più se l'ora cade in servizio): è la scelta (a), ma è
+      tempo non pagato.
+    status: todo
+    generate_issue: true
+    labels: [regia, flotta, registrazione]
+    priority: P1
+    test_cases:
+      - tests/orari-servizio.test.js
+      - tests/RegistratiOrari.test.jsx
+
   - id: REQ-FLOTTA-090
     title: "Il locale sospeso o chiuso: rinnovo_url nella licenza e, nell'area del titolare, il riquadro per pagare o per scriverci"
     area: "functions/lib/licenza.js (licenzaProtetta, licenzaIniziale, CHIAVI_PROTETTA), functions/lib/rinnovo.js, functions/index.js (pagamentoRinnovo), src/lib/rinnovo.js, src/lib/db.js (apriPagamentoRinnovo), src/pages/RinnovoLocale.jsx, src/pages/Dashboard.jsx, docs/handover.md §7"
