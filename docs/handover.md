@@ -1219,7 +1219,14 @@ moduli, la licenza nell'istanza e la Tana.
   motivo }`, gratis e senza riga di consumo. `attivo` dice se una
   richiesta può partire adesso (dal 13/11/2026: se il credito copre la
   stima di una descrizione, circa 0,10 €, non un micro-euro); `motivo` è
-  `null`, `"credito"` o `"tetto"`. Un locale Free riceve `402 piano`. Senza cassetto o spento, il `402 { codice: senza-cassetto |
+  `null`, `"credito"` o `"tetto"`. Dal 13/11/2026 (REQ-FLOTTA-091,
+  richiesta di tana-drink per il promemoria di ricarica) la risposta porta
+  anche `ricaricabile` (booleano) e `ricarica_url`: `true` e
+  `<origine della regia>/dashboard/credito-ai` (la sezione «Credito AI»
+  dell'area del titolare) se il titolare può comprare credito dal sito
+  adesso (pagamenti online accesi, sito aperto, locale non interno);
+  altrimenti `false` e `null`, e l'app dice di rivolgersi all'assistenza.
+  Un locale Free riceve `402 piano`. Senza cassetto o spento, il `402 { codice: senza-cassetto |
   spento }` di sempre. Va chiesto all'apertura delle Impostazioni e della
   chat, non a ogni pagina.
   **Dal 12/11/2026 senza chiave** (REQ-FLOTTA-077, Daniele: «niente

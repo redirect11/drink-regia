@@ -6,6 +6,10 @@ data.
 
 ## Prossima release (da decidere)
 
+- Il credito AI chiesto dall'app dice anche se il locale può ricaricare
+  dal sito e dove (`ricaricabile`, `ricarica_url`): coi pagamenti online
+  spenti, il sito chiuso o un locale interno l'app rimanda all'assistenza
+  (REQ-FLOTTA-091).
 - Ritocchi dell'AI dopo la revisione: un locale che torna a pagare ha di
   nuovo l'AI anche se la copia del piano sull'istanza era rimasta Free
   (REQ-FLOTTA-087); il credito non si prenota se il modello non si può

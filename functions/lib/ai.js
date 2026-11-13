@@ -403,7 +403,10 @@ function puoChiedere(cassetto, stima, adesso = new Date()) {
 // che poi riceveva 402 a ogni richiesta.
 // Senza cassetto o spento: il 402 di sempre, non c'è niente da mostrare.
 const stimaDescrizione = () => stimaMassimaMicroeuro(preparaMessaggio({ tipo: 'descrizione', nome: 'Prodotto' }))
-function rispostaCredito(cassetto, adesso = new Date()) {
+// `ricarica` è quello che dice ricaricaDelLocale (sotto); senza, il locale
+// non è ricaricabile: meglio rimandare all'assistenza che a un sito dove
+// la ricarica poi si rifiuta.
+function rispostaCredito(cassetto, adesso = new Date(), ricarica = NON_RICARICABILE) {
   const via = puoChiedere(cassetto, stimaDescrizione(), adesso)
   if (via.codice === 'senza-cassetto' || via.codice === 'spento') return { ok: false, http: 402, codice: via.codice, errore: via.perche }
   const s = statoCassetto(cassetto, adesso)
@@ -415,7 +418,31 @@ function rispostaCredito(cassetto, adesso = new Date()) {
     speso_mese_eur: inEuro(s.spesoMese),
     attivo: via.ok,
     motivo: via.codice,
+    ricaricabile: ricarica?.ricaricabile === true,
+    ricarica_url: ricarica?.ricaricabile === true ? ricarica.ricarica_url : null,
   }
+}
+
+// SI PUÒ RICARICARE, E DOVE (REQ-FLOTTA-091). Richiesta di tana-drink del
+// 13/11/2026: con `ricaricabile: false` l'app rimanda all'assistenza invece
+// che al sito. Le condizioni sono quelle di creaRicaricaAI (index.js), che
+// resta la porta vera: pagamenti online accesi, sito aperto, e non un
+// locale interno (la Tana la ricarichiamo noi). Senza un indirizzo della
+// regia non c'è dove mandare il titolare. L'indirizzo è la sezione
+// «Credito AI» dell'area del titolare (src/lib/areaTitolare.js), con la
+// sola origine di REGIA_URL, come rinnovo_url (lib/rinnovo.js).
+const PERCORSO_RICARICA = '/dashboard/credito-ai'
+const NON_RICARICABILE = Object.freeze({ ricaricabile: false, ricarica_url: null })
+function ricaricaDelLocale({ istanza, vendita, sitoChiuso, regiaUrl } = {}) {
+  if (vendita?.pagamenti_online !== true || sitoChiuso !== false || istanza?.interna === true) return { ...NON_RICARICABILE }
+  let origine = null
+  try {
+    const u = new URL(String(regiaUrl || ''))
+    if (u.protocol === 'https:' || u.protocol === 'http:') origine = u.origin
+  } catch {
+    origine = null
+  }
+  return origine ? { ricaricabile: true, ricarica_url: `${origine}${PERCORSO_RICARICA}` } : { ...NON_RICARICABILE }
 }
 
 // ── IL FREE NON HA L'AI (REQ-FLOTTA-087) ──
@@ -851,6 +878,7 @@ module.exports = {
   stimaMassimaMicroeuro,
   puoChiedere,
   rispostaCredito,
+  ricaricaDelLocale,
   SENZA_AI_NEL_PIANO,
   aiConcessa,
   TIMEOUT_AI_SECONDI,
