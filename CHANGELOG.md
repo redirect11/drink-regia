@@ -16,7 +16,9 @@ data.
   sito e la regia li considerano correggibili allo stesso modo. Quando
   il titolare chiede di cambiare gli orari, all'amministratore arriva una
   email (una per richiesta) col locale, gli orari di prima e dopo e il
-  motivo; al titolare non parte nessuna email con la decisione.
+  motivo; al titolare non parte nessuna email con la decisione. Nel
+  backoffice «sospensione il …» dice anche l'ora, e mentre una
+  sospensione per pagamento aspetta il suo momento c'è «Sospendi subito».
 - La chat del gestionale passa dalla regia: `richiestaAI` accetta
   `{ tipo: 'chat', messaggi, strumenti, versione }` col credito del locale,
   senza conservare le conversazioni; i turni del modello tornano firmati

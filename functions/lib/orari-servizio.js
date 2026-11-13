@@ -407,9 +407,12 @@ function compitoSospensioneValido(ist, quando) {
 
 // Lo stato dell'istanza è cambiato fra la lettura e la scrittura della
 // licenza (D7: il compito e «riattiva» insieme)? Allora la licenza si
-// ricalcola, invece di scrivere quella letta prima.
+// ricalcola, invece di scrivere quella letta prima. Conta anche il momento
+// atteso (sospensione_al.dal): un'altra scrittura della licenza l'ha
+// spostato o vuotato nel frattempo.
 function statoCambiato(prima, dopo) {
-  return ['licenza_stato', 'licenza_per', 'licenza_dal'].some((k) => (prima?.[k] ?? null) !== (dopo?.[k] ?? null))
+  const cambiato = ['licenza_stato', 'licenza_per', 'licenza_dal'].some((k) => (prima?.[k] ?? null) !== (dopo?.[k] ?? null))
+  return cambiato || (prima?.sospensione_al?.dal ?? null) !== (dopo?.sospensione_al?.dal ?? null)
 }
 
 // Il locale si è fermato davvero? No se la sospensione per pagamento

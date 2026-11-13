@@ -950,7 +950,11 @@ describe('il flusso della sospensione per pagamento', () => {
   it('D7: lo stato cambiato fra la lettura e la scrittura si riconosce', () => {
     const { statoCambiato } = orari()
     expect(statoCambiato(DECISA, { ...DECISA })).toBe(false)
-    expect(statoCambiato(DECISA, { ...DECISA, sospensione_al: { dal: 'x' } })).toBe(false)
+    // Il momento atteso spostato o vuotato da un'altra scrittura (D7).
+    expect(statoCambiato(DECISA, { ...DECISA, sospensione_al: { dal: 'x' } })).toBe(true)
+    const inAttesa = { ...DECISA, sospensione_al: { dal: '2026-12-24T09:16:00.000Z', stato: 'sospesa' } }
+    expect(statoCambiato(inAttesa, { ...inAttesa, sospensione_al: { ...inAttesa.sospensione_al } })).toBe(false)
+    expect(statoCambiato(inAttesa, { ...inAttesa, sospensione_al: null })).toBe(true)
     expect(statoCambiato(DECISA, { ...DECISA, licenza_stato: 'attiva' })).toBe(true)
     expect(statoCambiato(DECISA, { ...DECISA, licenza_per: 'admin' })).toBe(true)
     expect(statoCambiato(DECISA, { ...DECISA, licenza_dal: '2026-12-24T00:00:00.000Z' })).toBe(true)

@@ -4405,8 +4405,14 @@ requirements:
       deciso entro un'ora dalla scadenza del pagamento, dalla scadenza:
       così coincide con valida_fino (revisione del 13/11/2026, D1;
       momentoDelloStato, logica pura). Subito prima di scrivere la licenza
-      l'istanza si rilegge: se lo stato è cambiato (il compito e «riattiva»
-      insieme) si ricalcola (D7). Chi paga prima del momento non riceve
+      l'istanza si rilegge: se lo stato (licenza_stato, licenza_per,
+      licenza_dal) o il momento atteso (sospensione_al.dal) sono cambiati
+      (il compito e «riattiva» insieme) si ricalcola, fino a tre giri (D7,
+      statoCambiato). Nel backoffice la riga del locale dice «sospensione il
+      …» col giorno e l'ora di Roma, e finché la sospensione per pagamento
+      aspetta il suo momento la scheda ha «Sospendi subito»: una
+      sospensione dell'admin, immediata (D6). Da quel momento è dell'admin:
+      il pagamento che arriva non la toglie da solo, si riattiva a mano. Chi paga prima del momento non riceve
       l'email «è di nuovo attivo»: il locale non si è mai fermato. Le
       riduzioni della licenza (moduli, terminali, limiti, il ripiego al
       Free) restano al taglio della giornata (REQ-FLOTTA-024). Chi paga
@@ -4481,6 +4487,8 @@ requirements:
       - tests/rinnovo.test.js
       - tests/RinnovoLocale.test.jsx
       - tests/regole/clienti.test.js
+      - tests/Backoffice.test.jsx
+      - tests/db.test.js
 
   - id: REQ-FLOTTA-092
     title: "Il modello AI si sceglie per tipo di richiesta dal backoffice: Sonnet per tutti, all'inizio"
