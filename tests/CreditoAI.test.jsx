@@ -136,3 +136,12 @@ describe('niente più «non ancora collegata»', () => {
     expect(readFileSync('src/pages/CreditoAI.jsx', 'utf8')).not.toContain('non è ancora collegata')
   })
 })
+
+// REQ-FLOTTA-088: una richiesta rimasta appesa oltre il timeout della
+// Function si considera consumata alla stima, e il titolare lo legge.
+describe('una richiesta AI interrotta', () => {
+  it('fra i consumi si dice interrotta', async () => {
+    const { esitoDetto } = await import('../src/lib/ai.js')
+    expect(esitoDetto('interrotta')).toBe('interrotta, addebitata la stima')
+  })
+})

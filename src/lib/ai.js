@@ -53,6 +53,8 @@ const ESITI = {
   troncata: 'risposta interrotta',
   vuota: 'risposta vuota',
   illeggibile: 'risposta illeggibile',
+  // REQ-FLOTTA-088: la Function si è fermata a metà; si paga la stima.
+  interrotta: 'interrotta, addebitata la stima',
 }
 export const tipoDetto = (t) => TIPI[t] || t
 export const esitoDetto = (e) => ESITI[e] || e
@@ -60,3 +62,15 @@ export const esitoDetto = (e) => ESITI[e] || e
 // da Stripe e accreditato da noi, o un regalo (l'utente, 06/11/2026).
 const ORIGINI = { stripe: 'pagamento', manuale: 'accreditata da noi', omaggio: 'in omaggio' }
 export const origineDetta = (o) => ORIGINI[o] || o
+
+// IL FREE NON HA L'AI (REQ-FLOTTA-087; Daniele, 13/11/2026: «I free non
+// hanno l'ai»). La stessa regola delle Functions (functions/lib/ai.js,
+// aiConcessa), che è quella che conta: qui serve solo a non mostrare il
+// credito e i tasti dell'AI a chi non potrebbe usarli. Il piano tornato al
+// Free per un pagamento mancato, la copia sull'istanza e il piano del
+// cliente: se uno dei tre è un piano senza AI, niente AI.
+const pianoSenzaAI = (id) => Boolean(id) && listino.piani[id]?.limiti?.ai === false
+export function aiNelPiano(cliente, istanza) {
+  if (!cliente) return false
+  return ![istanza?.ripiego_free ? 'free' : null, istanza?.licenza_piano, cliente.piano].some(pianoSenzaAI)
+}

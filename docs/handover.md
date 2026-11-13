@@ -963,9 +963,11 @@ moduli, la licenza nell'istanza e la Tana.
   30/10/2026, per intero in [richieste-tana-drink-free.md](richieste-tana-drink-free.md)).
   La regia scrive `settings/bar.licenza.limiti` = `{ prodotti_max: 10,
   conti_aperti_max: 5, sconti: false, storico_giorni: 7, utenti_max: 1,
-  marchio: true, comande: false }` (`comande: false` dal 31/10/2026:
-  l'utente, «le comande fuori dal free, nel senso che la visualizzazione
-  per comande non funziona»)
+  marchio: true, comande: false, stampa: false, ai: false }` (`comande:
+  false` dal 31/10/2026: l'utente, «le comande fuori dal free, nel senso
+  che la visualizzazione per comande non funziona»; `ai: false` dal
+  13/11/2026, REQ-FLOTTA-087, Daniele: «I free non hanno l'ai»: l'app
+  nasconde tasti AI e chat, e la regia rifiuta comunque con `402 piano`)
   per il Free, e `null` per i piani a pagamento. L'app applica i limiti solo
   se la voce c'è: senza, nessun limite (la Tana non ha la voce). Un locale
   Free si pubblica col profilo leggero (`--only firestore,hosting`): l'app
@@ -1177,9 +1179,20 @@ moduli, la licenza nell'istanza e la Tana.
   `200 { ok, tipo, risultato, costo_eur, credito_eur }`; `400` richiesta
   sbagliata; `401` locale non riconosciuto; `402 { codice: credito | tetto |
   spento | senza-cassetto }` credito o tetto non bastano: **si ferma solo
-  l'AI**; `422 { codice, costo_eur, credito_eur }` il modello non ha dato
-  un risultato usabile (il costo resta); `503` servizio occupato, si
-  riprova. `risultato` per la descrizione è `{ descrizione, da_verificare:
+  l'AI**; `402 { codice: "piano", errore: "Il piano Free non comprende le
+  funzioni AI." }` il locale è Free (REQ-FLOTTA-087, dal 13/11/2026), per
+  ogni tipo compreso `credito`: l'app tratta il locale come senza AI e non
+  riprova; `422 { codice, costo_eur, credito_eur }` il modello non ha dato
+  un risultato usabile (il costo resta); `429 { codice: "occupato",
+  errore: "Troppe richieste AI insieme: riprova tra poco." }` il locale ha
+  già due richieste AI in corso (REQ-FLOTTA-088): si riprova dopo qualche
+  secondo, non in un ciclo stretto; `503` servizio occupato, si riprova.
+  **Il credito si prenota** (REQ-FLOTTA-088, dal 13/11/2026): prima della
+  chiamata la regia scala dal credito la stima massima della richiesta (al
+  prezzo del modello più caro del listino), dopo la risposta restituisce
+  la differenza col costo vero. `credito_eur` nelle risposte è già al netto
+  delle richieste in corso. Una richiesta la cui Function si ferma a metà
+  si paga alla stima, con una riga di consumo «interrotta». `risultato` per la descrizione è `{ descrizione, da_verificare:
   [] }`; per la fattura `{ fornitore: { ragione_sociale, partita_iva },
   numero, data, righe: [{ descrizione, codice, quantita, unita,
   prezzo_unitario, sconto_percentuale, aliquota_iva, importo }],
@@ -1190,8 +1203,9 @@ moduli, la licenza nell'istanza e la Tana.
   `{ "tipo": "credito" }` con lo stesso gettone → `200 { ok, tipo:
   "credito", credito_eur, tetto_mensile_eur, speso_mese_eur, attivo,
   motivo }`, gratis e senza riga di consumo. `attivo` dice se una
-  richiesta può partire adesso; `motivo` è `null`, `"credito"` o
-  `"tetto"`. Senza cassetto o spento, il `402 { codice: senza-cassetto |
+  richiesta può partire adesso (dal 13/11/2026: se il credito copre la
+  stima di una descrizione, circa 0,10 €, non un micro-euro); `motivo` è
+  `null`, `"credito"` o `"tetto"`. Un locale Free riceve `402 piano`. Senza cassetto o spento, il `402 { codice: senza-cassetto |
   spento }` di sempre. Va chiesto all'apertura delle Impostazioni e della
   chat, non a ogni pagina.
   **Dal 12/11/2026 senza chiave** (REQ-FLOTTA-077, Daniele: «niente

@@ -523,8 +523,6 @@ input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--
 .filtri-locali { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; }
 @media (max-width: 560px) { .filtri-locali { grid-template-columns: 1fr; } }
 .bo-sezione .locali { margin-top: 0; }
-/* Cosa fa «Aggiorna subito», accanto al bottone e sempre visibile. */
-.spiega-azione { flex: 1 1 16rem; }
 .locali { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 12px; }
 /* LA TABELLA DEI LOCALI (02/11/2026): una riga per locale, il nome apre
    la scheda sotto. Su un telefono scorre dentro il suo riquadro, mai la
@@ -576,13 +574,47 @@ input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--
 .locale-dati dt label { display: inline; margin: 0; font-size: inherit; color: inherit; }
 .locale-dati dd { margin: 0; overflow-wrap: anywhere; }
 .locale-dati select { padding: 6px 8px; }
-.locale-azioni { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; border-top: 1px solid var(--line); padding-top: 12px; }
 .gruppo-azioni { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .gruppo-azioni.pericolo { margin-left: auto; }
-/* Il modulo «Pubblicazione e licenza» si apre sotto i tasti, largo quanto
-   la scheda: nella riga dei tasti li schiacciava di lato. */
-.locale-azioni .gestione-esistente { flex: 1 1 100%; order: 99; margin: 4px 0 0; max-width: 640px; }
 .gruppo-azioni.pericolo .btn:hover { border-color: var(--errore); color: #ff8a7a; }
+/* LA SCHEDA DEL LOCALE (REQ-FLOTTA-089, Daniele, 13/11/2026: «è tutto
+   troppo caotico e formattato male»). In testa stato, piano e versione a
+   destra del nome; sotto gli avvisi, in ambra come ogni cosa in attesa;
+   poi i blocchi: auto-fit con min(100%, 18rem) li mette in una colonna sul
+   telefono, in due su un tablet e al massimo in tre nei 1120px del
+   contenuto (quattro da 18rem con gli spazi non ci stanno), senza media
+   query; in fondo, sotto una riga, Sospendi e Chiudi da soli. */
+.locale-sintesi { display: grid; justify-items: end; gap: 4px; text-align: right; }
+.locale-avvisi { list-style: none; margin: 0; padding: 10px 12px; display: grid; gap: 8px; border: 1px solid rgba(227, 178, 60, 0.4); border-radius: 10px; background: var(--attesa-soft); }
+.locale-avvisi li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.locale-blocchi { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: 20px 28px; }
+.blocco { display: grid; gap: 4px; align-content: start; min-width: 0; overflow-wrap: anywhere; }
+.blocco h4 { margin: 0 0 4px; font-family: inherit; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.blocco > .btn { justify-self: start; }
+.blocco > .gruppo-azioni { margin-top: 6px; }
+.blocco select { padding: 6px 8px; max-width: 100%; }
+.campo-blocco { display: grid; gap: 2px; margin-top: 4px; }
+.campo-blocco label { margin: 0; }
+/* Un modulo aperto (Cambia piano, i temi, l'editor di un tema su misura,
+   Pubblicazione e licenza) prende tutta la riga: in un terzo di scheda i
+   suoi campi non ci stanno. */
+.blocco:has(form, .editor-tema) { grid-column: 1 / -1; }
+.blocco .gestione-esistente { margin: 4px 0 0; max-width: 640px; }
+.segno-ok { color: var(--ok); }
+.locale-fondo { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px 24px; border-top: 1px solid var(--line); padding-top: 12px; }
+.locale-fondo .gruppo-azioni { gap: 12px; }
+.locale-fondo .locale-eliminazione { margin: 0 auto 0 0; }
+.locale-fondo .elimina-form { flex: 1 1 100%; }
+/* L'aiuto che si apre (REQ-FLOTTA-089): un «?» tondo accanto al tasto, che
+   si apre col clic, col dito e da tastiera; aperto, prende la riga intera
+   sotto i tasti, col testo sotto il «?». */
+.aiuto { display: inline-block; }
+.aiuto[open] { display: block; flex: 1 1 100%; }
+.aiuto > summary { list-style: none; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 50%; color: var(--muted); cursor: pointer; font-weight: 600; }
+.aiuto > summary::-webkit-details-marker { display: none; }
+.aiuto > summary:hover, .aiuto[open] > summary { color: var(--text); border-color: var(--accent); }
+.aiuto > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.aiuto > p { margin: 6px 0 0; }
 /* L'aggiornamento in corso nella scheda: un segno che gira accanto al testo,
    così si vede che la pagina sta aspettando il workflow e non è ferma. */
 .avanzamento { display: inline-flex; align-items: center; gap: 6px; margin: 2px 0 0; color: var(--muted); }
@@ -591,7 +623,6 @@ input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--
 .spinner { display: inline-block; flex: none; width: 12px; height: 12px; border: 2px solid var(--line); border-top-color: currentColor; border-radius: 50%; animation: gira 0.9s linear infinite; }
 @keyframes gira { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
-.gruppo-nome { margin-right: 2px; }
 
 /* ── Chiudere e cancellare un locale (REQ-FLOTTA-014): bordo e tasto
    rossi, perché è il solo gesto della regia che non si annulla. ── */
@@ -701,10 +732,6 @@ code { background: rgba(255, 255, 255, 0.06); padding: 1px 5px; border-radius: 5
 .contatti li.gestita { opacity: 0.6; }
 .cambia-piano { display: grid; gap: 8px; margin-top: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
 .cambia-piano label { margin: 0; }
-/* Moduli e temi del locale (REQ-FLOTTA-039): tre righe fra i dati e i tasti. */
-.moduli-temi { display: grid; gap: 6px; margin: 12px 0; padding-top: 10px; border-top: 1px solid var(--line); font-size: 0.9rem; }
-.moduli-temi strong { font-weight: 600; margin-right: 4px; }
-.moduli-temi .btn { margin-left: 8px; }
 /* I temi su misura (REQ-FLOTTA-040): nella dashboard e nella scheda del locale. */
 .temi-su-misura { list-style: none; padding: 0; margin: 0 0 16px; display: grid; gap: 14px; }
 .temi-su-misura li { display: grid; gap: 6px; justify-items: start; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
@@ -714,4 +741,3 @@ code { background: rgba(255, 255, 255, 0.06); padding: 1px 5px; border-radius: 5
 .tema-dal-mockup, .tema-dal-fornitore { display: grid; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
 .tema-dal-mockup h4, .tema-dal-fornitore h4 { margin: 0; }
 .tema-dal-mockup textarea, .tema-dal-fornitore textarea, .tema-dal-fornitore input, .tema-dal-mockup select, .tema-dal-fornitore select { width: 100%; max-width: 520px; }
-.moduli-temi .temi-su-misura { margin-top: 8px; }

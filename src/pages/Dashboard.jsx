@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useMatch } from 'react-router-dom'
-import { osservaCliente, osservaIstanza, osservaRichiesta, chiediAttivazione, inviaVerificaEmail, rileggiUtente, apriPortaleAbbonamento, apriLaTuaApp } from '../lib/db.js'
+import { osservaCliente, osservaMiaIstanza, osservaMiaRichiesta, statoMiaApp, chiediAttivazione, inviaVerificaEmail, rileggiUtente, apriPortaleAbbonamento, apriLaTuaApp } from '../lib/db.js'
 import { statoIstanza, statoDetto, puoAttivare, urlDi, progettoDi, riduzioneDetta, hrefSicuro, STATI } from '../lib/istanze.js'
 import { PIANI, MODULI, prezzoMensile, prezzoAnnuale, prezzoFondatori, conIva, euro } from '../lib/piani.js'
 import { prezzoConSconto, scontoDetto } from '../lib/sconti.js'
 import { nomeStile } from '../lib/temi.js'
-import { BASE_TITOLARE, SEZIONI_TITOLARE, indirizzoSezione } from '../lib/areaTitolare.js'
+import { BASE_TITOLARE, sezioniTitolare, indirizzoSezione } from '../lib/areaTitolare.js'
+import { EMAIL_CONTATTI } from '../lib/prodotto.js'
+import { aiNelPiano } from '../lib/ai.js'
 import SceltaPiano from './SceltaPiano.jsx'
 import CreditoAI from './CreditoAI.jsx'
 import TemiSuMisura from './TemiSuMisura.jsx'
@@ -34,6 +36,14 @@ export default function Dashboard({ utente, chiuso = false }) {
   const [cliente, setCliente] = useState(undefined)
   const [istanza, setIstanza] = useState(null)
   const [richiesta, setRichiesta] = useState(null)
+  // ISTANZA E TITOLARE SCOLLEGATI (REQ-FLOTTA-086). Istanza e richiesta
+  // arrivano dalla query sul suo uid: vuota vuol dire «non c'è» oppure «c'è,
+  // ma è legata a un altro account». `vuota`: la query dell'istanza ha
+  // risposto e non l'ha trovata; allora, una volta, si chiede alla regia
+  // (`app`). `errori`: le letture fallite.
+  const [vuota, setVuota] = useState(false)
+  const [app, setApp] = useState(null)
+  const [errori, setErrori] = useState({ istanza: false, richiesta: false })
   // Gli avvisi che si dicono per primi stanno in cima alla panoramica, sopra
   // il nome del locale; nelle altre sezioni c'è la sezione e basta.
   const inPanoramica = Boolean(useMatch(BASE_TITOLARE))
@@ -42,13 +52,45 @@ export default function Dashboard({ utente, chiuso = false }) {
   useEffect(() => osservaCliente(utente.uid, setCliente), [utente.uid])
   useEffect(() => {
     if (!cliente?.slug) return undefined
-    const a = osservaIstanza(cliente.slug, setIstanza)
-    const b = osservaRichiesta(cliente.slug, setRichiesta)
+    const errore = (quale) => () => setErrori((e) => ({ ...e, [quale]: true }))
+    const a = osservaMiaIstanza(
+      utente.uid,
+      cliente.slug,
+      (d) => {
+        setIstanza(d)
+        setVuota(!d)
+        setErrori((e) => ({ ...e, istanza: false }))
+      },
+      errore('istanza')
+    )
+    const b = osservaMiaRichiesta(
+      utente.uid,
+      cliente.slug,
+      (d) => {
+        setRichiesta(d)
+        setErrori((e) => ({ ...e, richiesta: false }))
+      },
+      errore('richiesta')
+    )
     return () => {
       a()
       b()
     }
-  }, [cliente?.slug])
+  }, [utente.uid, cliente?.slug])
+  // Una volta sola, e solo con la query dell'istanza vuota: per un cliente
+  // nuovo è «nessuna» e tutto resta com'era. Se la regia non risponde si fa
+  // come prima («Non ancora attivata»): l'attivazione la ricontrolla
+  // comunque il server (preparaRichiesta), che non ne lancia una seconda.
+  useEffect(() => {
+    if (!vuota || app !== null) return undefined
+    let viva = true
+    statoMiaApp()
+      .then((r) => viva && setApp(r?.app || 'nessuna'))
+      .catch(() => viva && setApp('nessuna'))
+    return () => {
+      viva = false
+    }
+  }, [vuota, app])
 
   // /dashboard/ con la barra finale (scritto a mano) è la panoramica: senza
   // questo nessuna voce del menù resta accesa (revisione del 13/11/2026).
@@ -63,7 +105,11 @@ export default function Dashboard({ utente, chiuso = false }) {
   if (!cliente && !utente.admin) return chiuso ? <Anteprima lingua="it" /> : <Registrati completa={utente} />
   if (!cliente) return <main className="pagina stretta">Nessun locale registrato per questo account.</main>
 
-  const stato = statoIstanza(istanza, richiesta)
+  const illeggibile = errori.istanza || (errori.richiesta && !istanza) || (!istanza && app === 'scollegata')
+  const stato = statoIstanza(istanza, richiesta, { illeggibile })
+  // Il Free non ha l'AI (REQ-FLOTTA-087): né la sezione del credito né il
+  // tema dal mockup.
+  const ai = aiNelPiano(cliente, istanza)
   // I dati del locale stanno per essere cancellati: si dice per primo.
   const cancellazione = ['programmata', 'in coda', 'in corso'].includes(istanza?.eliminazione?.stato)
 
@@ -80,25 +126,29 @@ export default function Dashboard({ utente, chiuso = false }) {
           Identificativo: <code>{cliente.slug}</code> · progetto <code>{istanza?.simulata ? 'simulato' : istanza?.progetto || progettoDi(cliente.slug)}</code>
         </p>
       </header>
-      <SottoMenu />
+      <SottoMenu ai={ai} />
       <Routes>
-        <Route index element={<Panoramica utente={utente} cliente={cliente} istanza={istanza} richiesta={richiesta} stato={stato} />} />
+        <Route index element={<Panoramica utente={utente} cliente={cliente} istanza={istanza} richiesta={richiesta} stato={stato} illeggibile={illeggibile} ai={ai} />} />
         <Route path="piano" element={<PianoEModuli cliente={cliente} istanza={istanza} />} />
         {/* Senza app attiva e senza credito il riquadro del credito non ha
             niente da dire (CreditoAI): la sezione dice perché è vuota. */}
         <Route
           path="credito-ai"
           element={
-            <CreditoAI
-              slug={cliente.slug}
-              istanzaAttiva={stato === STATI.ATTIVA}
-              senza={
-                <section className="card" aria-label="Credito AI">
-                  <h3>Credito AI</h3>
-                  <p className="muted">Il credito serve alle funzioni AI dell’app: si ricarica da qui quando l’app è attiva.</p>
-                </section>
-              }
-            />
+            !ai ? (
+              <Navigate to={BASE_TITOLARE} replace />
+            ) : (
+              <CreditoAI
+                slug={cliente.slug}
+                istanzaAttiva={stato === STATI.ATTIVA}
+                senza={
+                  <section className="card" aria-label="Credito AI">
+                    <h3>Credito AI</h3>
+                    <p className="muted">Il credito serve alle funzioni AI dell’app: si ricarica da qui quando l’app è attiva.</p>
+                  </section>
+                }
+              />
+            )
           }
         />
         <Route path="locale" element={<IlLocale cliente={cliente} />} />
@@ -113,10 +163,10 @@ export default function Dashboard({ utente, chiuso = false }) {
 // IL SOTTO-MENÙ, lo stesso del backoffice (index.css, .sotto-menu): la voce
 // attiva con aria-current, che mette NavLink. `end`: la panoramica è
 // /dashboard e non deve restare accesa nelle sezioni sotto.
-function SottoMenu() {
+function SottoMenu({ ai }) {
   return (
     <nav className="sotto-menu" aria-label="Sezioni dell’area del titolare">
-      {SEZIONI_TITOLARE.map((s) => (
+      {sezioniTitolare({ ai }).map((s) => (
         <NavLink key={s.id || 'panoramica'} to={indirizzoSezione(s.id)} end>
           {s.nome}
         </NavLink>
@@ -192,7 +242,7 @@ const abbonamentoFermo = (cliente) => Boolean(cliente.abbonamento?.stato) && cli
 // riquadro sta subito sotto il precedente, qualunque altezza abbia. A
 // sinistra, più larga, l'app e quello che si compila; a destra il
 // riepilogo del piano.
-function Panoramica({ utente, cliente, istanza, richiesta, stato }) {
+function Panoramica({ utente, cliente, istanza, richiesta, stato, illeggibile, ai }) {
   const { search } = useLocation()
   // Il ritorno da Stripe arriva su /dashboard (le Functions scrivono lì
   // success_url e cancel_url): si va alla sezione dove se ne parla, con lo
@@ -204,11 +254,11 @@ function Panoramica({ utente, cliente, istanza, richiesta, stato }) {
   return (
     <div className="dashboard-colonne">
       <div className="pila principale">
-        <AppDelLocale utente={utente} cliente={cliente} istanza={istanza} richiesta={richiesta} stato={stato} />
+        <AppDelLocale utente={utente} cliente={cliente} istanza={istanza} richiesta={richiesta} stato={stato} illeggibile={illeggibile} />
         {/* Le versioni nuove e le condizioni degli aggiornamenti (REQ-FLOTTA-020). */}
         {attiva && <AggiornamentiLocale istanza={istanza} />}
         {/* I temi su misura (REQ-FLOTTA-040) arrivano all'app con la licenza: con l'app attiva. */}
-        {attiva && <TemiSuMisura uid={utente.uid} slug={cliente.slug} />}
+        {attiva && <TemiSuMisura uid={utente.uid} slug={cliente.slug} ai={ai} />}
       </div>
       <div className="pila accanto">
         <RiepilogoPiano cliente={cliente} />
@@ -217,9 +267,9 @@ function Panoramica({ utente, cliente, istanza, richiesta, stato }) {
   )
 }
 
-function AppDelLocale({ utente, cliente, istanza, richiesta, stato }) {
+function AppDelLocale({ utente, cliente, istanza, richiesta, stato, illeggibile }) {
   const [errore, setErrore] = useState(null)
-  const via = puoAttivare(cliente, istanza, richiesta, { emailVerificata: utente.emailVerificata !== false })
+  const via = puoAttivare(cliente, istanza, richiesta, { emailVerificata: utente.emailVerificata !== false, illeggibile })
   // L'indirizzo dell'app: quello scritto dal provisioning se è un https
   // (hrefSicuro), altrimenti quello che l'istanza avrà per il suo slug.
   const indirizzoApp = hrefSicuro(istanza?.url) || urlDi(cliente.slug)
@@ -265,6 +315,13 @@ function AppDelLocale({ utente, cliente, istanza, richiesta, stato }) {
         </button>
       )}
       {stato === STATI.ERRORE && istanza?.errore && <p className="errore small">{istanza.errore}</p>}
+      {/* L'app c'è ma non si vede da qui (REQ-FLOTTA-086): niente «Attiva»,
+          che non servirebbe, e a chi scrivere. */}
+      {stato === STATI.ILLEGGIBILE && (
+        <p className="small">
+          Scrivici a <a href={`mailto:${EMAIL_CONTATTI}`}>{EMAIL_CONTATTI}</a>: controlliamo noi il collegamento fra l’app e questo account.
+        </p>
+      )}
       {(stato === STATI.DA_ATTIVARE || stato === STATI.ERRORE) && (
         <>
           <button className="btn" type="button" disabled={!via.ok} onClick={attiva}>

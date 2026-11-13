@@ -75,7 +75,8 @@
         "utenti_max": 1,
         "marchio": true,
         "comande": false,
-        "stampa": false
+        "stampa": false,
+        "ai": false
       }
     },
     "base": {

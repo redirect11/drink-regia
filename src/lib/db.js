@@ -13,7 +13,7 @@ import {
   signInWithPopup,
   GoogleAuthProvider,
 } from 'firebase/auth'
-import { doc, setDoc, getDoc, onSnapshot, collection, getDocs, getDocsFromServer, orderBy, query, updateDoc, limit, addDoc } from 'firebase/firestore'
+import { doc, setDoc, getDoc, onSnapshot, collection, getDocs, getDocsFromServer, orderBy, query, updateDoc, limit, addDoc, where } from 'firebase/firestore'
 import { getFunctions, httpsCallable } from 'firebase/functions'
 import { auth, db, configurata, app } from './firebase.js'
 import { STATI } from './istanze.js'
@@ -177,14 +177,43 @@ export function osservaCliente(uid, cb) {
   return onSnapshot(doc(db, 'clienti', uid), (s) => cb(s.exists() ? s.data() : null))
 }
 
-export function osservaIstanza(slug, cb) {
+// ISTANZA E RICHIESTA DEL TITOLARE, DALLA QUERY SUL SUO UID (REQ-FLOTTA-086).
+// Lette per slug, un documento che non c'è ancora era negato dalle regole
+// come uno di un altro (provato sull'emulatore il 13/11/2026): la dashboard
+// non distingueva un cliente nuovo da uno scollegato, e l'ascolto aperto
+// prima di «Attiva» si fermava al primo rifiuto. La query vincolata al suo
+// uid è quella che le regole permettono: vuota torna vuota, senza errore, e
+// resta viva, così il documento che la Function scrive dopo arriva da solo.
+// Vale il documento del suo slug (null se non c'è); l'errore, se c'è, va a
+// `errore`.
+function osservaDelTitolare(collezione, uid, slug, cb, errore) {
   serve()
-  return onSnapshot(doc(db, 'istanze', slug), (s) => cb(s.exists() ? s.data() : null))
+  return onSnapshot(
+    query(collection(db, collezione), where('uid', '==', uid), limit(2)),
+    (s) => cb(s.docs.find((d) => d.id === slug)?.data() ?? null),
+    (e) => errore?.(e)
+  )
+}
+export const osservaMiaIstanza = (uid, slug, cb, errore) => osservaDelTitolare('istanze', uid, slug, cb, errore)
+export const osservaMiaRichiesta = (uid, slug, cb, errore) => osservaDelTitolare('richieste', uid, slug, cb, errore)
+
+// Quando la query dell'istanza è vuota: la regia dice se un'app c'è ed è
+// legata a un altro account ('scollegata'), se non c'è ('nessuna') o se è
+// sua ('collegata'). Solo per il locale di chi chiama: non si passa niente.
+export async function statoMiaApp() {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'statoMiaApp')
+  const { data } = await fn({})
+  return data
 }
 
-export function osservaRichiesta(slug, cb) {
+// Dal backoffice: l'istanza scollegata passa al titolare del suo slug
+// (REQ-FLOTTA-086). Torna l'uid vecchio e il nuovo.
+export async function collegaIstanza(slug) {
   serve()
-  return onSnapshot(doc(db, 'richieste', slug), (s) => cb(s.exists() ? s.data() : null))
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'collegaIstanza')
+  const { data } = await fn({ slug })
+  return data
 }
 
 // L'attivazione si chiede alla Function `chiediAttivazione` (audit del

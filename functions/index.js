@@ -59,6 +59,7 @@ const movimenti = require('./lib/movimenti.js')
 const traffico = require('./lib/traffico.js')
 const registrazione = require('./lib/registrazione.js')
 const eliminazioneCliente = require('./lib/eliminazione-cliente.js')
+const collegamento = require('./lib/collegamento.js')
 // L'aliquota del listino, per l'IVA dei pagamenti registrati a mano.
 const listino = require('./piani.json')
 
@@ -90,7 +91,9 @@ const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY')
 const OPTS_AI = {
   ...OPTS,
   secrets: [ANTHROPIC_API_KEY],
-  timeoutSeconds: 300,
+  // Lo stesso numero da cui lib/ai.js fa scadere le prenotazioni del
+  // credito rimaste appese (REQ-FLOTTA-088): se cambia qui, cambia là.
+  timeoutSeconds: ai.TIMEOUT_AI_SECONDI,
   memory: '512MiB',
   ...(process.env.AI_SERVICE_ACCOUNT ? { serviceAccount: process.env.AI_SERVICE_ACCOUNT } : {}),
 }
@@ -189,8 +192,11 @@ async function lancia(richiesta) {
   if (res.status !== 204) {
     const testo = await res.text().catch(() => '')
     await db.doc(`richieste/${richiesta.slug}`).set({ stato: 'errore', errore: `GitHub ${res.status}: ${testo.slice(0, 200)}`, aggiornata_il: adesso }, { merge: true })
+    // Con l'uid del titolare, come il lancio riuscito qui sotto
+    // (REQ-FLOTTA-086): la dashboard trova l'istanza con la query sul suo
+    // uid, e senza uid gliela nasconderebbe.
     await db.doc(`istanze/${richiesta.slug}`).set(
-      documentoIstanza({ slug: richiesta.slug, stato: 'errore', errore: `Lancio fallito (GitHub ${res.status})` }, null),
+      { ...documentoIstanza({ slug: richiesta.slug, stato: 'errore', errore: `Lancio fallito (GitHub ${res.status})` }, null), uid: richiesta.uid || null },
       { merge: true }
     )
     return
@@ -857,6 +863,66 @@ exports.eliminaCliente = onCall(OPTS, async (req) => {
     })
   console.log(`[cliente] eliminato ${slug} (${cliente.uid}) dall’admin ${req.auth.uid}`)
   return { ok: true }
+})
+
+// ── ISTANZA E TITOLARE SCOLLEGATI (REQ-FLOTTA-086) ─────────────────────
+// Daniele, 13/11/2026: «fai il tasto di collegamento nel backoffice, ma
+// deve apparire solo se per qualche motivo istanza e regia risultano
+// scollegati». L'istanza passa al titolare del suo slug; con lei la
+// richiesta e il cassetto AI, se hanno l'uid vecchio o nessuno. Tutto in
+// una transazione: o si scrive tutto o niente, e due clic insieme non
+// collegano due volte (il secondo trova l'istanza già collegata).
+exports.collegaIstanza = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const slug = String(req.data?.slug || '')
+  if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(slug)) throw new HttpsError('invalid-argument', 'Slug non valido.')
+  const refIstanza = db.doc(`istanze/${slug}`)
+  const refRichiesta = db.doc(`richieste/${slug}`)
+  const refCassetto = db.doc(`ai/${slug}`)
+  const esito = await db.runTransaction(async (t) => {
+    let docCliente
+    try {
+      docCliente = await registrazione.clientePerSlug(db, slug, t)
+    } catch (e) {
+      if (e instanceof registrazione.SlugAmbiguo) throw new HttpsError('failed-precondition', e.message)
+      throw e
+    }
+    const [istanza, richiesta, cassetto] = await Promise.all([t.get(refIstanza), t.get(refRichiesta), t.get(refCassetto)])
+    // L'uid del titolare è l'id del suo documento: è quello con cui entra.
+    const piano = collegamento.pianoCollegamento({
+      cliente: docCliente ? { ...docCliente.data(), uid: docCliente.id } : null,
+      istanza: istanza.data() || null,
+      richiesta: richiesta.data() || null,
+      cassetto: cassetto.data() || null,
+      da: req.auth.token.email || req.auth.uid,
+      adesso: new Date(),
+    })
+    if (!piano.ok) throw new HttpsError(piano.codice, piano.perche)
+    t.set(refIstanza, piano.istanza, { merge: true })
+    if (piano.richiesta) t.set(refRichiesta, piano.richiesta, { merge: true })
+    if (piano.cassetto) t.set(refCassetto, piano.cassetto, { merge: true })
+    return piano
+  })
+  console.log(`[collegamento] ${slug}: ${esito.vecchio || 'nessun uid'} → ${esito.nuovo}, dall’admin ${req.auth.uid}`)
+  return { ok: true, vecchio: esito.vecchio, nuovo: esito.nuovo, richiesta: Boolean(esito.richiesta), cassetto: Boolean(esito.cassetto) }
+})
+
+// La dashboard ascolta istanze e richieste con la query sul suo uid, che le
+// regole permettono e che torna vuota senza errore. Vuota può voler dire
+// «non c'è» o «c'è, ma è legata a un altro account»: lo dice la regia. Solo
+// per il locale di chi chiama: niente slug in ingresso, lo slug è quello di
+// clienti/{uid}, che il titolare non può cambiare; nessun uid altrui in
+// risposta. Così non si impara niente di locali che non sono propri.
+// Daniele, 13/11/2026, sull'alternativa di aprire le regole: «non va bene
+// serve una soluzione piu sicura e piu robusta». La dashboard la chiama una
+// volta, e solo con la query dell'istanza vuota.
+exports.statoMiaApp = onCall({ ...OPTS, maxInstances: 5 }, async (req) => {
+  const uid = req.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  const cliente = (await db.doc(`clienti/${uid}`).get()).data()
+  if (!cliente?.slug || !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(cliente.slug)) return { app: 'nessuna' }
+  const istanza = (await db.doc(`istanze/${cliente.slug}`).get()).data() || null
+  return { app: collegamento.appDelTitolare(uid, istanza) }
 })
 
 // Il ritorno al Free di chi non paga, e il suo piano quando torna a pagare.
@@ -1808,12 +1874,18 @@ exports.gestisciStili = onCall(OPTS, async (req) => {
 // la proposta come ogni tema e la mette subito fra i suoi temi, pubblicata.
 // Una proposta che non regge (colori illeggibili) non si scrive, e il
 // tentativo resta addebitato: lo si dice.
-exports.temaDaMockup = onCall(OPTS_AI, async (req) => {
+// Poche istanze e poche richieste per istanza (REQ-FLOTTA-088): un tema si
+// chiede di rado, dal sito, e un mockup in PDF pesa fino a 20 MB in memoria
+// più volte (corpo, base64, richiesta al modello). Tre richieste insieme
+// per istanza starebbero strette nei 512 MiB.
+exports.temaDaMockup = onCall({ ...OPTS_AI, maxInstances: 2, concurrency: 2 }, async (req) => {
   if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
   if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Prima conferma la tua email.')
   const uid = req.auth.uid
   const cliente = (await db.doc(`clienti/${uid}`).get()).data()
   if (!cliente?.slug) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
+  // Il Free non ha l'AI (REQ-FLOTTA-087), nemmeno dal sito.
+  if (!(await aiDelLocale(cliente.slug))) throw new HttpsError('failed-precondition', ai.SENZA_AI_NEL_PIANO)
   let messaggio
   try {
     messaggio = ai.preparaMessaggio({ ...(req.data || {}), tipo: 'tema' })
@@ -1822,7 +1894,7 @@ exports.temaDaMockup = onCall(OPTS_AI, async (req) => {
     throw e
   }
   const esito = await interrogaClaude(cliente.slug, messaggio)
-  if (!esito.ok) throw new HttpsError(esito.http === 402 ? 'resource-exhausted' : esito.http === 503 ? 'unavailable' : 'failed-precondition', esito.errore)
+  if (!esito.ok) throw new HttpsError([402, 429].includes(esito.http) ? 'resource-exhausted' : esito.http === 503 ? 'unavailable' : 'failed-precondition', esito.errore)
   const { tema, errore } = temi.temaDalMockup(esito.risultato, { struttura: messaggio.struttura })
   if (errore) {
     throw new HttpsError('failed-precondition', `La proposta del modello non si può usare (${errore.replace(/\.$/, '')}). Il tentativo è costato ${esito.costo_eur} €: riprova, magari con una nota in più.`)
@@ -2352,12 +2424,27 @@ async function cassettoDi(slug) {
 // scadenza e destinatario li controlla Google; il locale lo trova
 // lib/identita-locale.js dal nome del progetto dell'account ai-locale.
 const oauthGoogle = new OAuth2Client()
+
+// Il locale ha l'AI nel suo piano? (REQ-FLOTTA-087) L'istanza e il cliente,
+// la regola in lib/ai.js (aiConcessa): una sola, per richiestaAI, il tema
+// dal mockup, la ricarica dal sito e quella dell'admin.
+async function aiDelLocale(slug) {
+  const [istanza, cliente] = await Promise.all([db.doc(`istanze/${slug}`).get(), clienteDi(slug)])
+  return ai.aiConcessa(istanza.data() || null, cliente)
+}
 const verificaGettone = async (gettone, audience) => (await oauthGoogle.verifyIdToken({ idToken: gettone, audience })).getPayload()
 const istanzePerProgetto = async (progetto) =>
   (await db.collection('istanze').where('progetto', '==', progetto).limit(2).get()).docs.map((d) => ({ id: d.id, data: d.data() }))
 
+// CAPACITÀ (REQ-FLOTTA-088): 10 istanze per tutta la flotta, 3 richieste
+// insieme per istanza, cioè 30 posti; un locale ne usa al massimo
+// ai.MAX_CONTEMPORANEE (2). Tre e non le 80 predefinite: una fattura in PDF
+// pesa fino a 20 MB, e in memoria sta più volte (corpo, base64 ripulito,
+// richiesta al modello), quindi con 512 MiB tre fatture grandi insieme sono
+// il massimo prudente. Le descrizioni sono piccole, ma non si sa prima chi
+// arriva.
 exports.richiestaAI = onRequest(
-  { ...OPTS_AI, cors: false, maxInstances: 10 },
+  { ...OPTS_AI, cors: false, maxInstances: 10, concurrency: 3 },
   async (req, res) => {
     if (req.method !== 'POST') return res.status(405).json({ errore: 'Solo POST.' })
     // IL GETTONE DI GOOGLE (REQ-FLOTTA-077): l'unica strada. La «Chiave AI»
@@ -2372,6 +2459,11 @@ exports.richiestaAI = onRequest(
           })
       : null
     if (!slug) return res.status(401).json({ errore: 'Locale non riconosciuto.' })
+
+    // IL FREE NON HA L'AI (REQ-FLOTTA-087): per ogni richiesta, il credito
+    // compreso. Un locale tornato al Free conserva la sua Function AI
+    // finché non si ridistribuisce: il blocco vero è qui, non nell'app.
+    if (!(await aiDelLocale(slug))) return res.status(402).json({ codice: 'piano', errore: ai.SENZA_AI_NEL_PIANO })
 
     // IL CREDITO (REQ-FLOTTA-085): una lettura del cassetto, niente modello
     // e niente addebito.
@@ -2401,16 +2493,55 @@ exports.richiestaAI = onRequest(
 )
 
 // UNA RICHIESTA AL MODELLO SUL CREDITO DI UN'INSTALLAZIONE, in un posto
-// solo, per richiestaAI e per il tema dal mockup (REQ-FLOTTA-040): il
-// controllo del credito, la chiamata, l'addebito e la riga dei consumi.
-// → { ok: true, risultato, costo_eur, credito_eur }, oppure { ok: false,
-// http, errore, codice, ... } con il codice HTTP che richiestaAI risponde
-// (402 credito, 503 servizio, 422 risposta inutilizzabile: addebitata).
+// solo, per richiestaAI e per il tema dal mockup (REQ-FLOTTA-040): la
+// prenotazione del credito, la chiamata, la correzione e la riga dei
+// consumi. → { ok: true, risultato, costo_eur, credito_eur }, oppure {
+// ok: false, http, errore, codice, ... } con il codice HTTP che
+// richiestaAI risponde (402 credito, 429 occupato, 503 servizio, 422
+// risposta inutilizzabile: addebitata).
+//
+// CON LA PRENOTAZIONE (REQ-FLOTTA-088, audit del 13/11/2026): prima della
+// chiamata, in transazione, la stima massima esce dal credito e la
+// richiesta si segna nel cassetto; dopo, in transazione, si corregge col
+// costo vero. Le regole stanno in lib/ai.js (prenota, chiudiPrenotazione).
 async function interrogaClaude(slug, messaggio) {
   const cassettoRef = db.doc(`ai/${slug}`)
-  const prima = (await cassettoRef.get()).data()
-  const via = ai.puoChiedere(prima, ai.stimaMassimaMicroeuro(messaggio))
-  if (!via.ok) return { ok: false, http: 402, errore: via.perche, codice: via.codice, credito_eur: ai.inEuro(prima?.credito_microeuro) }
+  const stima = ai.stimaMassimaMicroeuro(messaggio)
+  // L'id della prenotazione: uno casuale di Firestore, fissato fuori dalla
+  // transazione perché un nuovo tentativo della transazione usi lo stesso.
+  const id = cassettoRef.collection('consumi').doc().id
+  const prenotata = await db.runTransaction(async (t) => {
+    const adesso = new Date()
+    const snap = await t.get(cassettoRef)
+    const esito = ai.prenota(snap.exists ? snap.data() : null, { id, stima, tipo: messaggio.tipo, adesso })
+    if (esito.patch) t.update(cassettoRef, esito.patch)
+    // Le prenotazioni rimaste appese: consumate alla stima, e lo storico
+    // lo dice.
+    for (const p of esito.scadute) t.set(cassettoRef.collection('consumi').doc(), ai.rigaInterrotta(p, adesso))
+    return esito
+  })
+  if (prenotata.scadute.length) console.warn(`[ai] ${slug}: ${prenotata.scadute.length} prenotazioni scadute, chiuse come interrotte`)
+  if (!prenotata.ok) return { ok: false, http: prenotata.http, errore: prenotata.perche, codice: prenotata.codice, credito_eur: ai.inEuro(prenotata.credito) }
+
+  // La correzione: in transazione, sul cassetto com'è adesso. `riga` è la
+  // riga dei consumi, da scrivere solo se la prenotazione c'era ancora.
+  const chiudi = (costo, riga = null) =>
+    db.runTransaction(async (t) => {
+      const snap = await t.get(cassettoRef)
+      const { trovata, patch } = ai.chiudiPrenotazione(snap.data(), { id, costo, adesso: new Date() })
+      if (!trovata) {
+        // Già chiusa come interrotta, alla stima: il locale ha pagato il
+        // caso peggiore, che copre il costo vero. Non si corregge due volte.
+        console.warn(`[ai] ${slug}: la prenotazione ${id} era già scaduta`)
+        return Number(snap.data()?.credito_microeuro) || 0
+      }
+      t.update(cassettoRef, patch)
+      if (riga) t.set(cassettoRef.collection('consumi').doc(), riga)
+      return patch.credito_microeuro
+    })
+  // Senza risposta niente costo: la stima torna tutta. Se anche questo
+  // fallisce, la prenotazione scade da sé e si consuma alla stima.
+  const restituisci = () => chiudi(0).catch((e) => console.error(`[ai] ${slug}: la prenotazione ${id} non è tornata:`, e?.message || e))
 
   const { Anthropic, client } = claude()
   let risposta
@@ -2428,6 +2559,7 @@ async function interrogaClaude(slug, messaggio) {
     } else {
       console.error(`[ai] ${slug} ${messaggio.tipo}: ${tipo}`, e?.message)
     }
+    await restituisci()
     const riprova =
       e instanceof Anthropic.RateLimitError || e instanceof Anthropic.InternalServerError || e instanceof Anthropic.APIConnectionError
     return {
@@ -2440,13 +2572,7 @@ async function interrogaClaude(slug, messaggio) {
 
   const costo = ai.costoMicroeuro(risposta)
   const letta = ai.leggiRisposta(risposta)
-  const residuo = await db.runTransaction(async (t) => {
-    const snap = await t.get(cassettoRef)
-    const patch = ai.addebito(snap.data(), costo)
-    t.update(cassettoRef, patch)
-    t.set(cassettoRef.collection('consumi').doc(), ai.rigaConsumo({ tipo: messaggio.tipo, risposta, costo, esito: letta.ok ? 'ok' : letta.codice }))
-    return patch.credito_microeuro
-  })
+  const residuo = await chiudi(costo, ai.rigaConsumo({ tipo: messaggio.tipo, risposta, costo, esito: letta.ok ? 'ok' : letta.codice }))
   const conti = { costo_eur: ai.inEuro(costo), credito_eur: ai.inEuro(residuo) }
   if (!letta.ok) return { ok: false, http: 422, errore: letta.perche, codice: letta.codice, ...conti }
   return { ok: true, risultato: letta.risultato, ...conti }
@@ -2462,6 +2588,9 @@ exports.creaRicaricaAI = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async
   if (!cliente?.slug) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
   const p = ai.pacchetto(req.data?.pacchetto)
   if (!p) throw new HttpsError('invalid-argument', 'Pacchetto di ricarica sconosciuto.')
+  // Un Free non compra credito che la regia poi non gli lascerebbe usare
+  // (REQ-FLOTTA-087).
+  if (!(await aiDelLocale(cliente.slug))) throw new HttpsError('failed-precondition', ai.SENZA_AI_NEL_PIANO)
   await solOSitoAperto()
   // Anche la ricarica passa da Stripe: coi pagamenti spenti la fa l'admin.
   if (!contatti.pagamentiOnline(await vendita())) throw new HttpsError('failed-precondition', PAGAMENTI_SPENTI)
@@ -2494,6 +2623,11 @@ exports.gestisciCassettoAI = onCall(OPTS, async (req) => {
   const { slug, azione } = req.data || {}
   if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(slug || '')) throw new HttpsError('invalid-argument', 'Slug non valido.')
   const importo = Number(req.data?.importo)
+  // Niente credito, pagato o regalato, a un locale Free (REQ-FLOTTA-087):
+  // resterebbe nel cassetto senza potersi usare. Tetto e interruttore sì:
+  // non danno niente.
+  const daCredito = ['ricarica', 'omaggio'].includes(azione)
+  if (daCredito && !(await aiDelLocale(slug))) throw new HttpsError('failed-precondition', ai.SENZA_AI_NEL_PIANO)
   const ref = await cassettoDi(slug)
   const ora = new Date().toISOString()
   if (azione === 'ricarica') {
