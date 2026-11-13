@@ -6,6 +6,19 @@ data.
 
 ## Prossima release (da decidere)
 
+- Orari di servizio, revisione del 13/11/2026 (REQ-FLOTTA-095): un giorno
+  aperto 24 ore si scrive 00:00–24:00, con la casella «24 ore» nel
+  modulo; apertura e chiusura alla stessa ora non valgono più 24 ore, e
+  l'errore suggerisce 00:00–24:00. Dalla scheda del locale l'admin scrive
+  o corregge gli orari di qualunque locale, anche di uno che non ne ha,
+  con una nota nella traccia; a un locale senza orari la sua scrittura non
+  apre i 7 giorni del titolare. Con gli orari ma senza una data valida, il
+  sito e la regia li considerano correggibili allo stesso modo. Quando
+  il titolare chiede di cambiare gli orari, all'amministratore arriva una
+  email (una per richiesta) col locale, gli orari di prima e dopo e il
+  motivo; al titolare non parte nessuna email con la decisione. Nel
+  backoffice «sospensione il …» dice anche l'ora, e mentre una
+  sospensione per pagamento aspetta il suo momento c'è «Sospendi subito».
 - La chat del gestionale passa dalla regia: `richiestaAI` accetta
   `{ tipo: 'chat', messaggi, strumenti, versione }` col credito del locale,
   senza conservare le conversazioni; i turni del modello tornano firmati

@@ -14,6 +14,10 @@ export const AVVISO_SENZA_PAUSA = 'Con questi orari la sospensione per mancato p
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
 const minuti = (hhmm) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3))
 const chiuso = (g) => g?.chiuso === true
+// Aperto 24 ore si scrive 00:00–24:00 (Daniele, 13/11/2026: «se è h24 fai
+// 0 - 24»): 24:00 vale solo come chiusura di un giorno che apre alle 00:00.
+export const H24 = { apre: '00:00', chiude: '24:00' }
+export const h24 = (g) => g?.apre === H24.apre && g?.chiude === H24.chiude
 const durata = (g) => {
   const d = minuti(g.chiude) - minuti(g.apre)
   return d > 0 ? d : d + 1440
@@ -32,7 +36,10 @@ export function problemiOrari(giorni) {
     const g = giorni?.[id]
     if (chiuso(g)) continue
     if (!g || g.apre == null || g.chiude == null || g.apre === '' || g.chiude === '') problemi[id] = 'Scrivi apertura e chiusura, o segna il giorno come chiuso.'
+    else if (h24(g)) continue
+    else if (g.chiude === '24:00') problemi[id] = 'La chiusura 24:00 vale solo con l’apertura 00:00 (aperto 24 ore).'
     else if (typeof g.apre !== 'string' || typeof g.chiude !== 'string' || !HHMM.test(g.apre) || !HHMM.test(g.chiude)) problemi[id] = 'Orario non valido: scrivi HH:MM, per esempio 18:30.'
+    else if (g.apre === g.chiude) problemi[id] = 'Apertura e chiusura coincidono: per un giorno aperto 24 ore scrivi 00:00–24:00.'
   }
   if (!Object.keys(problemi).length && GIORNI.every((id) => chiuso(giorni[id]))) problemi.orari = 'Almeno un giorno deve essere aperto.'
   return problemi
@@ -54,15 +61,29 @@ export function giorniSenzaPausa(giorni) {
   })
 }
 
+// Come la regia: correggibili_fino, se l'ha messa l'admin, vale da sé;
+// senza una data valida null, cioè correggibili (revisione, D8).
+const istante = (iso) => Date.parse(typeof iso === 'string' ? iso : '')
 export function correggibiliFino(cliente) {
-  const dal = Date.parse(cliente?.orari_servizio?.impostati_il || '')
+  const os = cliente?.orari_servizio
+  const fissata = istante(os?.correggibili_fino)
+  if (Number.isFinite(fissata)) return new Date(fissata).toISOString()
+  const dal = istante(os?.impostati_il)
   return Number.isFinite(dal) ? new Date(dal + GIORNI_DI_CORREZIONE * 86400000).toISOString() : null
 }
 
-// Un giorno a parole: «18:00–02:00 (fino al giorno dopo)», «24 ore», «chiuso».
+// Il titolare li corregge da sé? Senza orari sì (la prima volta), senza una
+// data valida sì (D8), altrimenti fino a correggibiliFino.
+export function correggibili(cliente, adesso = new Date()) {
+  const fino = correggibiliFino(cliente)
+  return !cliente?.orari_servizio?.giorni || !fino || adesso.getTime() < Date.parse(fino)
+}
+
+// Un giorno a parole: «18:00–02:00 (fino al giorno dopo)», «aperto 24
+// ore», «chiuso».
 export function giornoDetto(g) {
   if (!g || chiuso(g)) return 'chiuso'
-  if (g.apre === g.chiude) return `aperto 24 ore dalle ${g.apre}`
+  if (h24(g)) return 'aperto 24 ore (00:00–24:00)'
   return minuti(g.chiude) < minuti(g.apre) ? `${g.apre}–${g.chiude} (fino al giorno dopo)` : `${g.apre}–${g.chiude}`
 }
 

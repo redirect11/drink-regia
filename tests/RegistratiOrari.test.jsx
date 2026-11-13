@@ -127,20 +127,56 @@ describe('gli orari di servizio alla registrazione', () => {
   })
 
   // Daniele, 13/11/2026 (punto 9): aperti 24 ore o senza un'ora fra la
-  // chiusura e l'apertura dopo si registrano, ma il titolare lo legge.
-  it('aperto 24 ore si va avanti, e un avviso dice che la sospensione per mancato pagamento può arrivare durante il servizio', async () => {
+  // chiusura e l'apertura dopo si registrano, ma il titolare lo legge. Un
+  // giorno aperto 24 ore si segna con la casella «24 ore», che vale
+  // 00:00–24:00 («se è h24 fai 0 - 24»).
+  it('aperto 24 ore (la casella «24 ore») si va avanti, e un avviso dice che la sospensione per mancato pagamento può arrivare durante il servizio', async () => {
     const user = userEvent.setup()
+    db.registra.mockResolvedValue({ slug: 'bar-mario' })
     mostra()
     await passoAccount(user)
     await passoLocale(user)
     expect(screen.queryByText(/durante il servizio/i)).toBeNull()
-    for (const g of GIORNI) {
-      fireEvent.change(apertura(g), { target: { value: '00:00' } })
-      fireEvent.change(chiusura(g), { target: { value: '00:00' } })
-    }
+    for (const g of GIORNI) await user.click(screen.getByLabelText(`${g} aperto 24 ore`))
+    // I campi dell'ora spariscono: 24:00 non si scrive a mano.
+    expect(screen.queryByLabelText(/Lunedì, apertura/)).toBeNull()
     expect(screen.getByText(/sospensione per mancato pagamento può arrivare durante il servizio/i)).toBeInTheDocument()
     await avanti(user)
     expect(screen.getByLabelText('Ragione sociale')).toBeInTheDocument()
+    await passoFatturazione(user)
+    await passoReferente(user)
+    await user.click(screen.getByRole('button', { name: /Crea l’account/ }))
+    expect(db.registra).toHaveBeenCalledWith(expect.objectContaining({ orari: expect.objectContaining({ lun: { apre: '00:00', chiude: '24:00' }, dom: { apre: '00:00', chiude: '24:00' } }) }))
+  })
+
+  it('tolta la casella «24 ore» i campi tornano vuoti', async () => {
+    const user = userEvent.setup()
+    mostra()
+    await passoAccount(user)
+    await passoLocale(user)
+    await user.click(screen.getByLabelText('Martedì aperto 24 ore'))
+    await user.click(screen.getByLabelText('Martedì aperto 24 ore'))
+    expect(apertura('Martedì')).toHaveValue('')
+    expect(chiusura('Martedì')).toHaveValue('')
+  })
+
+  // Apertura e chiusura alla stessa ora non sono più 24 ore: l'errore sul
+  // giorno dice come si scrive.
+  it('apertura uguale alla chiusura: non si va avanti, e l’errore suggerisce 00:00–24:00', async () => {
+    const user = userEvent.setup()
+    mostra()
+    await passoAccount(user)
+    await passoLocale(user)
+    await user.click(chiuso('Lunedì'))
+    for (const g of GIORNI.slice(1)) {
+      fireEvent.change(apertura(g), { target: { value: '18:00' } })
+      fireEvent.change(chiusura(g), { target: { value: '02:00' } })
+    }
+    fireEvent.change(apertura('Giovedì'), { target: { value: '10:00' } })
+    fireEvent.change(chiusura('Giovedì'), { target: { value: '10:00' } })
+    await avanti(user)
+    expect(screen.getByText(/per un giorno aperto 24 ore scrivi 00:00–24:00/)).toBeInTheDocument()
+    expect(screen.queryByLabelText('Ragione sociale')).toBeNull()
   })
 
   it('con gli orari giusti si va avanti, e l’account nasce con gli orari, anche oltre la mezzanotte', async () => {

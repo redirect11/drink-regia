@@ -20,6 +20,7 @@ const db = vi.hoisted(() => ({
   correggiOrari: vi.fn(async () => ({})),
   chiediCambioOrari: vi.fn(async () => ({})),
   decidiCambioOrari: vi.fn(async () => ({})),
+  scriviOrariAdmin: vi.fn(async () => ({})),
 }))
 vi.mock('../src/lib/db.js', () => db)
 
@@ -93,10 +94,10 @@ describe('nell’area del titolare', () => {
 
   // Punto 9 di Daniele: il titolare lo legge chiaramente.
   it('con orari senza pausa, l’avviso che la sospensione può arrivare durante il servizio', () => {
-    const h24 = Object.fromEntries(Object.keys(SERA).map((g) => [g, aperto('00:00', '00:00')]))
+    const h24 = Object.fromEntries(Object.keys(SERA).map((g) => [g, aperto('00:00', '24:00')]))
     mostra(<OrariServizio cliente={cliente({ giorni: h24 })} adesso={DOPO} />)
     expect(screen.getByText(/sospensione per mancato pagamento può arrivare durante il servizio/)).toBeInTheDocument()
-    expect(screen.getAllByText('aperto 24 ore dalle 00:00')).toHaveLength(7)
+    expect(screen.getAllByText('aperto 24 ore (00:00–24:00)')).toHaveLength(7)
   })
 
   // Punto 10: i locali di prima e quelli creati dall'admin, senza orari.
@@ -118,6 +119,26 @@ describe('nell’area del titolare', () => {
     mostra(<OrariServizio cliente={cliente()} adesso={NEI_7_GIORNI} />)
     await user.click(screen.getByRole('button', { name: 'Salva gli orari' }))
     expect(await screen.findByText(/Sono passati 7 giorni/)).toBeInTheDocument()
+  })
+
+  // Revisione del 13/11/2026, D8: con gli orari ma senza una data valida
+  // il sito fa come la regia: si correggono, e il primo salvataggio fa
+  // partire i 7 giorni.
+  it('D8: con gli orari ma senza data, si correggono da sé', async () => {
+    const user = userEvent.setup()
+    mostra(<OrariServizio cliente={cliente({ impostati_il: undefined })} adesso={DOPO} />)
+    expect(screen.getByText(/dal primo salvataggio hai 7 giorni/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Salva gli orari' }))
+    expect(db.correggiOrari).toHaveBeenCalledWith(SERA)
+    expect(screen.queryByRole('button', { name: 'Chiedi un cambio degli orari' })).toBeNull()
+  })
+
+  // Gli orari scritti dall'admin a un locale che non li aveva: i 7 giorni
+  // del titolare non partono (correggibili_fino), si chiede il cambio.
+  it('scritti dall’admin a un locale che non li aveva: si leggono e si chiede il cambio', () => {
+    mostra(<OrariServizio cliente={cliente({ impostati_il: '2026-11-30T10:00:00.000Z', correggibili_fino: '2026-11-30T10:00:00.000Z' })} adesso={DOPO} />)
+    expect(screen.queryByRole('button', { name: 'Salva gli orari' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Chiedi un cambio degli orari' })).toBeInTheDocument()
   })
 
   it('nella panoramica, un avviso finché gli orari mancano', () => {
@@ -164,5 +185,65 @@ describe('nel backoffice', () => {
   it('senza orari, il backoffice dice che vale il taglio della giornata', () => {
     mostra(<OrariNelBackoffice cliente={{ uid: 'u2', slug: 'pub-vecchio' }} />)
     expect(screen.getByText(/Non indicati: la sospensione per pagamento arriva al taglio della giornata/)).toBeInTheDocument()
+  })
+
+  it('D8: con gli orari ma senza data, il backoffice dice che i 7 giorni non sono partiti', () => {
+    mostra(<OrariNelBackoffice cliente={cliente({ impostati_il: undefined })} />)
+    expect(screen.getByText(/i 7 giorni partono dal suo primo salvataggio/)).toBeInTheDocument()
+  })
+
+  // Daniele, 13/11/2026, sugli orari scritti dall'admin: «si». Per
+  // qualunque locale, in qualunque momento, anche uno senza orari.
+  describe('l’admin scrive gli orari', () => {
+    it('a un locale senza orari: «Scrivi gli orari», il modulo, la nota, e la callable con l’uid del cliente', async () => {
+      const user = userEvent.setup()
+      const onFatto = vi.fn()
+      mostra(<OrariNelBackoffice cliente={{ uid: 'u2', slug: 'pub-vecchio' }} onFatto={onFatto} />)
+      await user.click(screen.getByRole('button', { name: 'Scrivi gli orari' }))
+      for (const g of ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato']) {
+        fireEvent.change(screen.getByLabelText(`${g}, apertura`), { target: { value: '07:00' } })
+        fireEvent.change(screen.getByLabelText(`${g}, chiusura`), { target: { value: '15:00' } })
+      }
+      await user.click(screen.getByLabelText('Domenica aperto 24 ore'))
+      await user.type(screen.getByLabelText(/Nota per la traccia/), 'Dal sito del locale.')
+      await user.click(screen.getByRole('button', { name: 'Salva gli orari' }))
+      expect(db.scriviOrariAdmin).toHaveBeenCalledWith('u2', expect.objectContaining({ lun: aperto('07:00', '15:00'), dom: aperto('00:00', '24:00') }), 'Dal sito del locale.')
+      expect(onFatto).toHaveBeenCalled()
+      expect(screen.queryByRole('button', { name: 'Salva gli orari' })).toBeNull()
+    })
+
+    it('a un locale con gli orari, anche con una richiesta in attesa: «Correggi gli orari» parte da quelli di adesso, e la richiesta resta da decidere', async () => {
+      const user = userEvent.setup()
+      mostra(<OrariNelBackoffice cliente={cliente({ richiesta })} />)
+      await user.click(screen.getByRole('button', { name: 'Correggi gli orari' }))
+      expect(screen.getByLabelText('Martedì, apertura')).toHaveValue('18:00')
+      expect(screen.getByRole('button', { name: 'Approva' })).toBeInTheDocument()
+      fireEvent.change(screen.getByLabelText('Martedì, chiusura'), { target: { value: '01:00' } })
+      await user.click(screen.getByRole('button', { name: 'Salva gli orari' }))
+      expect(db.scriviOrariAdmin).toHaveBeenCalledWith('u1', { ...SERA, mar: aperto('18:00', '01:00') }, null)
+    })
+
+    it('orari sbagliati: l’errore sta sul giorno e non si manda niente; «Annulla» chiude', async () => {
+      const user = userEvent.setup()
+      mostra(<OrariNelBackoffice cliente={cliente()} />)
+      await user.click(screen.getByRole('button', { name: 'Correggi gli orari' }))
+      fireEvent.change(screen.getByLabelText('Mercoledì, chiusura'), { target: { value: '18:00' } })
+      await user.click(screen.getByRole('button', { name: 'Salva gli orari' }))
+      expect(screen.getByText(/per un giorno aperto 24 ore scrivi 00:00–24:00/)).toBeInTheDocument()
+      expect(db.scriviOrariAdmin).not.toHaveBeenCalled()
+      await user.click(screen.getByRole('button', { name: 'Annulla' }))
+      expect(screen.queryByRole('button', { name: 'Salva gli orari' })).toBeNull()
+    })
+
+    it('un errore della regia va a chi lo mostra, e il modulo resta aperto', async () => {
+      const user = userEvent.setup()
+      const onErrore = vi.fn()
+      db.scriviOrariAdmin.mockRejectedValueOnce(new Error('Solo l’amministratore.'))
+      mostra(<OrariNelBackoffice cliente={cliente()} onErrore={onErrore} />)
+      await user.click(screen.getByRole('button', { name: 'Correggi gli orari' }))
+      await user.click(screen.getByRole('button', { name: 'Salva gli orari' }))
+      expect(onErrore).toHaveBeenCalledWith('Solo l’amministratore.')
+      expect(screen.getByRole('button', { name: 'Salva gli orari' })).toBeInTheDocument()
+    })
   })
 })
