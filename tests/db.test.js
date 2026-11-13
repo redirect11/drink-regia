@@ -170,6 +170,12 @@ const FUNCTIONS = [
   ['creaTemaDaMockup', [{ file: 'AAAA', media_type: 'image/png', struttura: 'unica', note: '' }], 'temaDaMockup', { file: 'AAAA', media_type: 'image/png', struttura: 'unica', note: '' }],
   ['gestisciTemiSuMisura', ['ritira', { id: 'su-misura-1' }], 'gestisciTemiSuMisura', { id: 'su-misura-1', azione: 'ritira' }],
   ['chiediTemaSuMisura', [{ descrizione: 'Verde bosco', struttura: 'per-categoria' }], 'chiediTemaSuMisura', { descrizione: 'Verde bosco', struttura: 'per-categoria' }],
+  // Gli orari di servizio (REQ-FLOTTA-095): il titolare manda solo i giorni
+  // (e il motivo), mai il suo uid; l'admin dice di quale cliente e l'esito.
+  ['correggiOrari', [{ lun: { chiuso: true } }], 'correggiOrari', { giorni: { lun: { chiuso: true } } }],
+  ['chiediCambioOrari', [{ lun: { chiuso: true } }, 'Da dicembre chiudiamo il lunedì.'], 'chiediCambioOrari', { giorni: { lun: { chiuso: true } }, motivo: 'Da dicembre chiudiamo il lunedì.' }],
+  ['decidiCambioOrari', ['u1', 'approvata', 'Visto il cartello.'], 'decidiCambioOrari', { uid: 'u1', esito: 'approvata', nota: 'Visto il cartello.' }],
+  ['decidiCambioOrari', ['u1', 'rifiutata'], 'decidiCambioOrari', { uid: 'u1', esito: 'rifiutata', nota: null }],
 ]
 
 describe('le chiamate alle Functions', () => {
@@ -336,6 +342,18 @@ describe('l’accesso', () => {
     expect(db.slugGiaInUso({ code: 'functions/already-exists', details: { campo: 'account' } })).toBe(false)
     expect(db.slugGiaInUso({ code: 'functions/invalid-argument', details: { campo: 'slug' } })).toBe(false)
     expect(db.slugGiaInUso(new Error('rete'))).toBe(false)
+  })
+
+  // REQ-FLOTTA-095: gli orari di servizio vanno con gli altri dati, e la
+  // risposta della regia (gli orari salvati) torna a chi chiama.
+  it('gli orari di servizio arrivano a registraCliente; correggerli torna con gli orari salvati', async () => {
+    fb.risposte.registraCliente = { ok: true, cliente: { uid: 'nuovo' } }
+    const orari = { lun: { chiuso: true }, mar: { apre: '18:00', chiude: '02:00' } }
+    await db.registra({ email: 'bar@example.com', password: 'x', locale: { nome: 'Bar Mario' }, orari, fatturazione: {}, referente: {} })
+    expect(fb.chiamate[0]).toEqual({ nome: 'registraCliente', dati: { locale: { nome: 'Bar Mario' }, orari, fatturazione: {}, referente: {} } })
+    fb.risposte.correggiOrari = { orari_servizio: { giorni: orari } }
+    expect(await db.correggiOrari(orari)).toEqual({ orari_servizio: { giorni: orari } })
+    expect(fb.scritti).toEqual([])
   })
 
   // Dopo un rifiuto l'account c'è: al secondo tentativo non si ricrea.
