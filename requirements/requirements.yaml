@@ -4307,13 +4307,14 @@ requirements:
       su ai_modelli è una decisione di Daniele. (c) Sonnet costa meno di
       Opus ma risponde in modo diverso: la qualità di fatture e temi con
       Sonnet non è provata da nessun test.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [regia, ai, backoffice]
     priority: P1
     test_cases:
       - tests/ai-modello.test.js
       - tests/Backoffice.test.jsx
+      - tests/ai.test.js
 
   - id: REQ-FLOTTA-093
     title: "Il costo massimo si misura prima di prenotare: il credito non va mai sotto zero"
@@ -4392,7 +4393,7 @@ requirements:
       interi. (g) L'importo da recuperare si mostra all'admin ma non si
       recupera da solo: come recuperarlo (dal credito della prossima
       ricarica, o a mano) non è deciso.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [regia, ai, sicurezza]
     priority: P1
@@ -4400,6 +4401,7 @@ requirements:
       - tests/ai-conteggio.test.js
       - tests/ai-prenotazione.test.js
       - tests/Backoffice.test.jsx
+      - tests/ai.test.js
 
   - id: REQ-FLOTTA-091
     title: "Il credito chiesto dall'app dice se il locale può ricaricare e dove: ricaricabile e ricarica_url"

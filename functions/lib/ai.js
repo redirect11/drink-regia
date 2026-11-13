@@ -63,6 +63,43 @@ function prezziDi(modello) {
   return Object.values(tab).reduce((max, p) => (p.output > max.output ? p : max))
 }
 
+// ── IL MODELLO PER TIPO DI RICHIESTA (REQ-FLOTTA-092) ──
+// Daniele, 13/11/2026, su Sonnet: «Per tutto». Ogni tipo di richiesta ha
+// il suo modello, lo sceglie l'admin dal backoffice e sta in
+// impostazioni/regia.ai_modelli; senza scelta vale il predefinito del
+// listino (piani.json → ai.modello). Si sceglie solo fra i modelli che
+// hanno un prezzo nel listino: una richiesta che non si sa prezzare non
+// parte. «chat» c'è già fra i tipi anche se la regia non la serve ancora:
+// la scelta si prepara prima che arrivi.
+const TIPI_MODELLO = ['descrizione', 'fattura', 'tema', 'chat']
+const modelliDelListino = () => Object.keys(AI.prezzi_usd_per_milione)
+const nelListino = (modello) => typeof modello === 'string' && Object.hasOwn(AI.prezzi_usd_per_milione, modello)
+const mappa = (v) => Boolean(v) && typeof v === 'object' && !Array.isArray(v)
+
+// Il modello di un tipo, dalle impostazioni della regia. Il documento lo
+// può scrivere l'admin anche senza la Function (le regole glielo
+// permettono), e un modello può uscire dal listino dopo essere stato
+// scelto: per questo il valore si ricontrolla qui, a ogni richiesta.
+function modelloPer(tipo, impostazioni) {
+  const scelti = impostazioni?.ai_modelli
+  const scelto = mappa(scelti) && Object.hasOwn(scelti, tipo) ? scelti[tipo] : null
+  return nelListino(scelto) ? scelto : AI.modello
+}
+
+// La scelta che arriva dal backoffice (gestisciModelliAI): una mappa non
+// vuota { tipo: modello }, tipi conosciuti e modelli del listino. Rende
+// solo quello che è arrivato: la Function lo scrive con merge.
+function validaModelliAI(dati) {
+  if (!mappa(dati) || !Object.keys(dati).length) throw new RichiestaNonValida('Indica almeno un tipo di richiesta e il suo modello.')
+  const scelta = {}
+  for (const [tipo, modello] of Object.entries(dati)) {
+    if (!TIPI_MODELLO.includes(tipo)) throw new RichiestaNonValida(`Tipo di richiesta sconosciuto: «${tipo}».`)
+    if (!nelListino(modello)) throw new RichiestaNonValida(`Il modello «${String(modello)}» non ha un prezzo nel listino.`)
+    scelta[tipo] = modello
+  }
+  return scelta
+}
+
 // Il costo in micro-euro di una risposta del modello. Con i fallback la
 // verità sta in `usage.iterations`, un tentativo per riga, ciascuno al
 // prezzo del modello che l'ha eseguito; senza, basta la usage in cima.
@@ -361,24 +398,61 @@ function preparaMessaggio(corpo) {
 // che ha risposto (costoMicroeuro).
 function parametriClaude(m, { modello = AI.modello } = {}) {
   return {
-    model: modello,
+    ...parametriConteggio(m, { modello }),
     max_tokens: m.max_tokens,
-    system: m.system,
-    messages: [{ role: 'user', content: m.content }],
-    output_config: { effort: m.effort, format: { type: 'json_schema', schema: m.schema } },
     betas: ['server-side-fallback-2026-07-01'],
     fallbacks: 'default',
   }
 }
 
-// Quanto può costare al massimo: i token d'ingresso stimati più tutti
-// quelli d'uscita che il tetto permette, al prezzo PIÙ ALTO del listino
-// (REQ-FLOTTA-088): il fallback di Anthropic può rispondere con un modello
-// più caro di quello chiesto, e la prenotazione deve coprire anche quello.
-function stimaMassimaMicroeuro(m) {
-  const usage = { input_tokens: m.stimaInputToken, output_tokens: m.max_tokens }
-  return Math.max(...Object.keys(AI.prezzi_usd_per_milione).map((modello) => costoMicroeuro({ model: modello, usage }, { modelloChiesto: modello })))
+// Quello che si conta prima di prenotare (REQ-FLOTTA-093): lo stesso
+// modello, le stesse istruzioni, lo stesso messaggio e lo stesso formato
+// della richiesta che parte (lo schema della risposta pesa sull'ingresso),
+// senza i parametri del ripiego, che il conteggio non conosce.
+function parametriConteggio(m, { modello = AI.modello } = {}) {
+  return {
+    model: modello,
+    system: m.system,
+    messages: [{ role: 'user', content: m.content }],
+    output_config: { effort: m.effort, format: { type: 'json_schema', schema: m.schema } },
+  }
 }
+
+// ── QUANTO PUÒ COSTARE AL MASSIMO (REQ-FLOTTA-088, REQ-FLOTTA-093) ──
+// Daniele, 13/11/2026, sul credito sotto zero: «Non deve mai succedere».
+// La stima mette da parte DUE TENTATIVI COMPLETI: il ripiego `fallbacks:
+// 'default'` rifà la richiesta con un altro modello dopo un rifiuto, e un
+// rifiuto a metà risposta si paga (ingresso e uscita già scritta), mentre
+// il ripiego riceve il testo già scritto come contesto. Quindi:
+//   uscita   = 2 × max_tokens
+//   ingresso = I (primo tentativo) + I + max_tokens (il secondo)
+// con I = i token d'ingresso contati (countTokens) più il 5%, perché il
+// conteggio «è una stima, può differire di poco». Senza conteggio, I è la
+// stima per byte della richiesta.
+// Ogni voce al prezzo PIÙ ALTO del listino, preso voce per voce: il
+// ripiego può rispondere con un modello più caro di quello chiesto, e un
+// modello che il listino non conosce si paga a uno del listino (prezziDi).
+// Col massimo voce per voce la stima copre ogni coppia di modelli anche se
+// un giorno il più caro in ingresso non fosse il più caro in uscita.
+const MARGINE_CONTEGGIO = 0.05
+const TENTATIVI_MASSIMI = 2
+const contoValido = (n) => Number.isSafeInteger(n) && n > 0
+
+function stimaMassimaMicroeuro(m, { inputContati } = {}) {
+  const base = contoValido(inputContati) ? Math.ceil(inputContati * (1 + MARGINE_CONTEGGIO)) : m.stimaInputToken
+  const prezzi = Object.values(AI.prezzi_usd_per_milione)
+  const pin = Math.max(...prezzi.map((p) => p.input))
+  const pout = Math.max(...prezzi.map((p) => p.output))
+  const ingresso = base + (base + m.max_tokens)
+  const uscita = TENTATIVI_MASSIMI * m.max_tokens
+  const usd = (ingresso * pin + uscita * pout) / 1_000_000
+  return Math.ceil(usd * AI.cambio_eur_per_usd * AI.ricarico * MICRO)
+}
+
+// Una richiesta con un file (una fattura, un mockup): senza conteggio la
+// sua stima per byte non è sicura (un PDF scansionato pesa pochi byte e
+// molti token), e non parte.
+const conFile = (m) => (m.content || []).some((b) => b?.type !== 'text')
 
 // Si può partire? Il cassetto deve essere acceso, il credito deve bastare
 // per il caso peggiore e il mese non deve sforare il tetto. Il credito qui
@@ -534,13 +608,13 @@ function dividiPrenotazioni(cassetto, adesso) {
 // niente da scrivere; `scadute` sono le prenotazioni da chiudere come
 // interrotte. Un rifiuto non tocca il credito.
 //
-// QUANTO PROMETTE (revisione del 13/11/2026, M3). Due richieste insieme
-// non spendono lo stesso credito: ognuna parte solo se il credito, già al
-// netto delle altre, copre la sua stima. Ma la stima dell'ingresso di un
-// PDF va per byte, e un PDF scansionato può costare più della stima: la
-// correzione allora porta il credito sotto zero, al massimo della
-// differenza fra costo vero e stima di MAX_CONTEMPORANEE richieste; la
-// richiesta dopo si rifiuta (credito ≤ 0).
+// QUANTO PROMETTE (revisione del 13/11/2026, M3; REQ-FLOTTA-093). Due
+// richieste insieme non spendono lo stesso credito: ognuna parte solo se
+// il credito, già al netto delle altre, copre la sua stima. La stima conta
+// i token d'ingresso veri e due tentativi completi (stimaMassimaMicroeuro),
+// quindi il costo vero non la supera; se succede lo stesso, è un difetto, e
+// chiudiPrenotazione ferma il credito a zero e segna il resto da
+// recuperare. Il credito non va mai sotto zero.
 // IL TETTO AL CAMBIO DI MESE (B2), una scelta: le richieste prenotate a
 // fine mese portano il loro costo vero nel mese nuovo (chiudiPrenotazione),
 // che però, alla prenotazione delle sue prime richieste, non le vedeva.
@@ -597,6 +671,13 @@ function prenota(cassetto, { id, stima, tipo, adesso = new Date() }) {
 // nel mese vecchio, che non si tiene più: il mese nuovo porta il costo
 // vero. Una prenotazione che non c'è più è già stata chiusa come
 // interrotta, alla stima: non si corregge una seconda volta.
+// LO SFORAMENTO (REQ-FLOTTA-093, Daniele, 13/11/2026: «per tutti i 10 i
+// punti facciamo come dici»): un costo vero sopra la stima non dovrebbe
+// esistere (la stima conta due tentativi completi), ed è un difetto. Se il
+// credito non basta a coprirlo, il credito si ferma a ZERO e quello che
+// manca si somma a `da_recuperare_microeuro`, che l'admin vede nella
+// scheda del locale; lo speso del mese e la riga dei consumi tengono il
+// costo vero.
 function chiudiPrenotazione(cassetto, { id, costo, adesso = new Date() }) {
   const p = cassetto?.prenotazioni?.[id]
   if (!p) return { trovata: false, patch: null }
@@ -604,14 +685,17 @@ function chiudiPrenotazione(cassetto, { id, costo, adesso = new Date() }) {
   const stima = Number(p.stima) || 0
   const resto = Object.fromEntries(Object.entries(cassetto.prenotazioni).filter(([k]) => k !== id))
   const spesoMese = p.mese === s.mese ? s.spesoMese - stima + costo : s.spesoMese + costo
+  const credito = s.credito + stima - costo
+  const manca = costo > stima && credito < 0 ? -credito : 0
   return {
     trovata: true,
     patch: {
-      credito_microeuro: s.credito + stima - costo,
+      credito_microeuro: manca ? 0 : credito,
       speso_mese_microeuro: Math.max(0, spesoMese),
       mese: s.mese,
       prenotazioni: resto,
       ultimo_uso_il: adesso.toISOString(),
+      ...(manca ? { da_recuperare_microeuro: (Number(cassetto.da_recuperare_microeuro) || 0) + manca } : {}),
     },
   }
 }
@@ -709,9 +793,7 @@ const NON_DISPONIBILE = 'Il servizio AI non è disponibile in questo momento.'
 const RIPROVA = 'Il servizio AI è occupato: riprova tra poco.'
 const breve = (e) => e?.message || String(e)
 
-async function interrogaConPrenotazione({ slug, messaggio, crea, prenota: prenotaInTransazione, chiudi, log = console }) {
-  const stima = stimaMassimaMicroeuro(messaggio)
-
+async function interrogaConPrenotazione({ slug, messaggio, modello = modelloPer(messaggio?.tipo, null), crea, conta, prenota: prenotaInTransazione, chiudi, log = console }) {
   let Anthropic
   let client
   try {
@@ -720,6 +802,26 @@ async function interrogaConPrenotazione({ slug, messaggio, crea, prenota: prenot
     log.error(`[ai] ${slug}: il client del modello non si crea:`, breve(e))
     return { ok: false, http: 503, errore: NON_DISPONIBILE, codice: 'servizio' }
   }
+
+  // IL CONTEGGIO PRIMA DI PRENOTARE (REQ-FLOTTA-093). Gratuito, con un suo
+  // limite di richieste al minuto. Se non risponde, una descrizione usa la
+  // stima per byte (il suo ingresso è testo corto, ben sotto la stima);
+  // una richiesta con un file no: 503, senza prenotare niente.
+  let inputContati = null
+  try {
+    const parametri = parametriConteggio(messaggio, { modello })
+    const contato = await (conta ? conta(parametri) : client.messages.countTokens(parametri))
+    inputContati = contato?.input_tokens
+    if (!contoValido(inputContati)) throw new Error(`conteggio non valido: ${inputContati}`)
+  } catch (e) {
+    inputContati = null
+    if (conFile(messaggio)) {
+      log.warn(`[ai] ${slug} ${messaggio.tipo}: il conteggio dei token non risponde, la richiesta non parte:`, breve(e))
+      return { ok: false, http: 503, errore: RIPROVA, codice: 'servizio' }
+    }
+    log.warn(`[ai] ${slug} ${messaggio.tipo}: il conteggio dei token non risponde, si usa la stima per byte:`, breve(e))
+  }
+  const stima = stimaMassimaMicroeuro(messaggio, { inputContati })
 
   let prenotata
   try {
@@ -740,7 +842,7 @@ async function interrogaConPrenotazione({ slug, messaggio, crea, prenota: prenot
 
   let risposta
   try {
-    risposta = await client.beta.messages.stream(parametriClaude(messaggio)).finalMessage()
+    risposta = await client.beta.messages.stream(parametriClaude(messaggio, { modello })).finalMessage()
   } catch (e) {
     // Niente costo: se la chiamata non è arrivata in fondo non c'è una
     // usage da scalare, e la stima torna tutta. Il tipo dell'errore dice
@@ -768,11 +870,17 @@ async function interrogaConPrenotazione({ slug, messaggio, crea, prenota: prenot
   // lascerebbe la stima appesa e il locale senza risposta.
   let costo
   try {
-    costo = costoMicroeuro(risposta)
+    costo = costoMicroeuro(risposta, { modelloChiesto: modello })
     if (!Number.isFinite(costo) || costo < 0) throw new Error(`costo non valido: ${costo}`)
   } catch (e) {
     log.error(`[ai] ${slug}: il costo non si calcola, vale la stima:`, breve(e))
     costo = stima
+  }
+  // Un difetto, non un caso previsto: riga cercabile nei log, «[ai]
+  // SFORAMENTO». Il credito si ferma a zero e il resto si segna da
+  // recuperare (chiudiPrenotazione).
+  if (costo > stima) {
+    log.error(`[ai] SFORAMENTO ${slug} ${messaggio.tipo}: costo ${costo} micro-euro sopra la stima di ${stima} (contati ${inputContati ?? 'no'}, modello ${modello})`)
   }
   let letta
   try {
@@ -876,6 +984,13 @@ module.exports = {
   preparaMessaggio,
   parametriClaude,
   stimaMassimaMicroeuro,
+  parametriConteggio,
+  MARGINE_CONTEGGIO,
+  TENTATIVI_MASSIMI,
+  TIPI_MODELLO,
+  modelliDelListino,
+  modelloPer,
+  validaModelliAI,
   puoChiedere,
   rispostaCredito,
   ricaricaDelLocale,
