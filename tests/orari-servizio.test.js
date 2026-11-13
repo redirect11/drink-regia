@@ -80,14 +80,31 @@ describe('gli orari di servizio: uno per giorno', () => {
 
   // Daniele, 13/11/2026 («per tutti i 10 i punti facciamo come dici»): i
   // locali aperti 24 ore, o con meno di un'ora fra la chiusura e l'apertura
-  // dopo, si possono registrare. Apertura e chiusura alla stessa ora vuol
-  // dire aperto 24 ore, fino alla stessa ora del giorno dopo.
-  it('aperto 24 ore (apertura e chiusura alla stessa ora) e senza pausa fra un giorno e l’altro si registrano', () => {
-    const { problemiOrari } = orari()
-    expect(problemiOrari(tutti(aperto('00:00', '00:00')))).toEqual({})
-    expect(problemiOrari({ ...SERA, gio: aperto('18:00', '18:00') })).toEqual({})
+  // dopo, si possono registrare. Un giorno aperto 24 ore si scrive
+  // 00:00–24:00 (Daniele, 13/11/2026: «se è h24 fai 0 - 24»).
+  it('aperto 24 ore (00:00–24:00) e senza pausa fra un giorno e l’altro si registrano', () => {
+    const { problemiOrari, H24 } = orari()
+    expect(H24).toEqual({ apre: '00:00', chiude: '24:00' })
+    expect(problemiOrari(tutti(aperto('00:00', '24:00')))).toEqual({})
+    expect(problemiOrari({ ...SERA, gio: aperto('00:00', '24:00') })).toEqual({})
     expect(problemiOrari(tutti(aperto('08:00', '07:30')))).toEqual({})
     expect(problemiOrari({ ...tutti(CHIUSO), dom: aperto('20:00', '09:00'), lun: aperto('08:00', '12:00') })).toEqual({})
+  })
+
+  // Apertura uguale alla chiusura non vuol più dire 24 ore: era ambiguo
+  // (aperto 24 ore o un errore di battitura?). L'errore suggerisce la
+  // forma giusta; 24:00 vale solo come chiusura di un giorno che apre alle
+  // 00:00.
+  it('apertura uguale alla chiusura non è valida, e l’errore suggerisce 00:00–24:00', () => {
+    const { problemiOrari } = orari()
+    for (const ora of ['00:00', '18:00', '10:30']) {
+      const p = problemiOrari({ ...SERA, gio: aperto(ora, ora) })
+      expect(p, ora).toHaveProperty('gio')
+      expect(p.gio, ora).toContain('00:00–24:00')
+    }
+    expect(problemiOrari({ ...SERA, gio: aperto('18:00', '24:00') }).gio).toMatch(/24:00 vale solo con l’apertura 00:00/)
+    expect(problemiOrari({ ...SERA, gio: aperto('24:00', '24:00') })).toHaveProperty('gio')
+    expect(problemiOrari({ ...SERA, gio: aperto('24:00', '00:00') })).toHaveProperty('gio')
   })
 
   // Il segno per l'avviso al titolare: dopo quali giorni la chiusura non
@@ -97,14 +114,16 @@ describe('gli orari di servizio: uno per giorno', () => {
     const { giorniSenzaPausa } = orari()
     expect(giorniSenzaPausa(SERA)).toEqual([])
     expect(giorniSenzaPausa(tutti(aperto('08:00', '07:30')))).toEqual(['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'])
-    expect(giorniSenzaPausa(tutti(aperto('00:00', '00:00')))).toEqual(['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'])
+    expect(giorniSenzaPausa(tutti(aperto('00:00', '24:00')))).toEqual(['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'])
+    // Aperto 24 ore il sabato, la domenica apre alle 18: c'è pausa.
+    expect(giorniSenzaPausa({ ...SERA, sab: aperto('00:00', '24:00') })).toEqual(['ven'])
     expect(giorniSenzaPausa({ ...tutti(CHIUSO), dom: aperto('20:00', '07:30'), lun: aperto('08:00', '12:00') })).toEqual(['dom'])
     // Un'ora esatta basta.
     expect(giorniSenzaPausa({ ...tutti(CHIUSO), mar: aperto('20:00', '07:00'), mer: aperto('08:00', '12:00') })).toEqual([])
     // Il giorno dopo chiuso: la chiusura può arrivare a qualunque ora.
     expect(giorniSenzaPausa({ ...tutti(CHIUSO), mar: aperto('20:00', '11:00') })).toEqual([])
     // Aperto 24 ore un giorno solo, col giorno dopo chiuso: c'è pausa.
-    expect(giorniSenzaPausa({ ...tutti(CHIUSO), sab: aperto('10:00', '10:00') })).toEqual([])
+    expect(giorniSenzaPausa({ ...tutti(CHIUSO), sab: aperto('00:00', '24:00') })).toEqual([])
     expect(giorniSenzaPausa(null)).toEqual([])
   })
 
@@ -326,8 +345,8 @@ describe('il momento della sospensione per pagamento', () => {
   // prossima apertura), la sospensione cade all'ora dell'attivazione anche
   // in servizio. Il titolare lo sa dall'avviso (giorniSenzaPausa).
   it('senza un momento adatto fuori servizio, all’ora dell’attivazione anche in servizio', () => {
-    // Aperto 24 ore tutti i giorni.
-    expect(momento(ALLE_21, '2026-11-18T09:00:00Z', tutti(aperto('00:00', '00:00')))).toBe('2026-11-18T20:00:00.000Z')
+    // Aperto 24 ore (00:00–24:00) tutti i giorni.
+    expect(momento(ALLE_21, '2026-11-18T09:00:00Z', tutti(aperto('00:00', '24:00')))).toBe('2026-11-18T20:00:00.000Z')
     // Dalle 8 alle 7:30 del giorno dopo: la chiusura cade nell'ora prima
     // dell'apertura dopo, quindi non va bene.
     const SENZA_PAUSA = tutti(aperto('08:00', '07:30'))
@@ -338,6 +357,25 @@ describe('il momento della sospensione per pagamento', () => {
     // Un giorno con la pausa basta per quel giorno: il sabato chiude alle 2
     // e la domenica apre alle 8.
     expect(momento(ALLE_21, '2026-11-21T09:00:00Z', { ...SENZA_PAUSA, sab: aperto('08:00', '02:00') })).toBe('2026-11-22T01:00:00.000Z')
+  })
+
+  // Daniele, 13/11/2026: «se è h24 fai 0 - 24». Il servizio di un giorno
+  // aperto 24 ore finisce alla mezzanotte del giorno dopo.
+  it('un giorno aperto 24 ore (00:00–24:00): in servizio si va alla mezzanotte, se il giorno dopo lascia la pausa', () => {
+    // Sabato 21/11 aperto 24 ore, domenica e lunedì chiusi: le 21 di sabato
+    // sono in servizio, la chiusura è la mezzanotte (le 23 UTC).
+    const SAB_H24 = { ...SERA, sab: aperto('00:00', '24:00'), dom: CHIUSO }
+    expect(momento(ALLE_21, '2026-11-21T09:00:00Z', SAB_H24)).toBe('2026-11-21T23:00:00.000Z')
+    // La domenica apre alle 18: la mezzanotte va bene lo stesso.
+    expect(momento(ALLE_21, '2026-11-21T09:00:00Z', { ...SERA, sab: aperto('00:00', '24:00') })).toBe('2026-11-21T23:00:00.000Z')
+    // Domenica aperta dalle 00:00 (24 ore anche lei): niente pausa alla
+    // mezzanotte, si resta all'ora dell'attivazione.
+    expect(momento(ALLE_21, '2026-11-21T09:00:00Z', { ...SERA, sab: aperto('00:00', '24:00'), dom: aperto('00:00', '24:00') })).toBe('2026-11-21T20:00:00.000Z')
+    // Il venerdì sera (18–02) finisce dentro il sabato aperto 24 ore.
+    expect(momento(ALLE_21, '2026-11-20T09:00:00Z', { ...SERA, sab: aperto('00:00', '24:00') })).toBe('2026-11-20T20:00:00.000Z')
+    // Col cambio dell'ora d'autunno: sabato 24/10 aperto 24 ore, domenica
+    // chiusa; la mezzanotte è ancora quella dell'ora legale (22:00 UTC).
+    expect(momento('2026-09-01T19:00:00.000Z', '2026-10-24T09:00:00Z', { ...tutti(CHIUSO), sab: aperto('00:00', '24:00') })).toBe('2026-10-24T22:00:00.000Z')
   })
 
   // Criterio 5: i locali di prima.
@@ -400,6 +438,11 @@ describe('il sito e la regia dicono le stesse cose sugli orari', () => {
     SERA,
     tutti(CHIUSO),
     tutti(aperto('00:00', '00:00')),
+    tutti(aperto('00:00', '24:00')),
+    { ...SERA, sab: aperto('00:00', '24:00') },
+    { ...SERA, sab: aperto('18:00', '24:00') },
+    { ...SERA, sab: aperto('24:00', '24:00') },
+    { ...SERA, gio: aperto('10:00', '10:00') },
     tutti(aperto('08:00', '07:30')),
     { ...SERA, mar: aperto('18:00', '25:00') },
     { ...SERA, mer: {} },
@@ -410,14 +453,14 @@ describe('il sito e la regia dicono le stesse cose sugli orari', () => {
 
   it('problemiOrari, giorniSenzaPausa, orariPuliti e correggibiliFino', () => {
     for (const caso of CASI) {
-      expect(Object.keys(sito.problemiOrari(caso)), JSON.stringify(caso)).toEqual(Object.keys(orari().problemiOrari(caso)))
+      expect(sito.problemiOrari(caso), JSON.stringify(caso)).toEqual(orari().problemiOrari(caso))
       expect(sito.giorniSenzaPausa(caso), JSON.stringify(caso)).toEqual(orari().giorniSenzaPausa(caso))
     }
     const conOre = { ...SERA, lun: { chiuso: true, apre: '1', chiude: '2' } }
     expect(sito.orariPuliti(conOre)).toEqual(orari().orariPuliti(conOre))
     const c = { orari_servizio: { impostati_il: '2026-11-13T10:00:00.000Z' } }
     expect(sito.correggibiliFino(c)).toBe(orari().correggibiliFino(c))
-    expect([sito.GIORNI, sito.GIORNI_DI_CORREZIONE, sito.MOTIVO_MINIMO]).toEqual([orari().GIORNI, orari().GIORNI_DI_CORREZIONE, orari().MOTIVO_MINIMO])
+    expect([sito.GIORNI, sito.GIORNI_DI_CORREZIONE, sito.MOTIVO_MINIMO, sito.H24]).toEqual([orari().GIORNI, orari().GIORNI_DI_CORREZIONE, orari().MOTIVO_MINIMO, orari().H24])
   })
 })
 

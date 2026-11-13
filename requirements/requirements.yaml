@@ -4306,9 +4306,13 @@ requirements:
       OBBLIGATORI: un passo «Orari» dopo «Il locale», un giorno per riga
       (lunedì…domenica) con apertura e chiusura o «chiuso»; orari in HH:MM
       (00:00–23:59); la chiusura prima dell'apertura vuol dire il giorno
-      dopo, e alla stessa ora dell'apertura vuol dire aperto 24 ore (fino
-      alla stessa ora del giorno dopo); almeno un giorno aperto. L'errore
-      sta sul giorno. Aperti 24 ore o con meno di un'ora fra la chiusura di
+      dopo; almeno un giorno aperto. Un giorno APERTO 24 ORE si scrive
+      00:00–24:00 (Daniele, 13/11/2026: «se è h24 fai 0 - 24»): 24:00 vale
+      solo come chiusura di un giorno che apre alle 00:00, e nel modulo c'è
+      la casella «24 ore» (un campo orario non sa scrivere 24:00). Apertura
+      uguale alla chiusura NON è valida, con un errore che suggerisce
+      00:00–24:00 (fino alla revisione del 13/11/2026 voleva dire 24 ore:
+      ambiguo con un errore di battitura). L'errore sta sul giorno. Aperti 24 ore o con meno di un'ora fra la chiusura di
       un giorno e l'apertura del giorno dopo si registrano (punto 9), con
       un avviso: «con questi orari la sospensione per mancato pagamento può
       arrivare durante il servizio» (giorniSenzaPausa). Il passo dice che

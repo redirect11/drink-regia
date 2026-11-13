@@ -6,6 +6,10 @@ data.
 
 ## Prossima release (da decidere)
 
+- Orari di servizio, revisione del 13/11/2026 (REQ-FLOTTA-095): un giorno
+  aperto 24 ore si scrive 00:00–24:00, con la casella «24 ore» nel
+  modulo; apertura e chiusura alla stessa ora non valgono più 24 ore, e
+  l'errore suggerisce 00:00–24:00.
 - La chat del gestionale passa dalla regia: `richiestaAI` accetta
   `{ tipo: 'chat', messaggi, strumenti, versione }` col credito del locale,
   senza conservare le conversazioni; i turni del modello tornano firmati

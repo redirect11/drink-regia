@@ -93,10 +93,10 @@ describe('nell’area del titolare', () => {
 
   // Punto 9 di Daniele: il titolare lo legge chiaramente.
   it('con orari senza pausa, l’avviso che la sospensione può arrivare durante il servizio', () => {
-    const h24 = Object.fromEntries(Object.keys(SERA).map((g) => [g, aperto('00:00', '00:00')]))
+    const h24 = Object.fromEntries(Object.keys(SERA).map((g) => [g, aperto('00:00', '24:00')]))
     mostra(<OrariServizio cliente={cliente({ giorni: h24 })} adesso={DOPO} />)
     expect(screen.getByText(/sospensione per mancato pagamento può arrivare durante il servizio/)).toBeInTheDocument()
-    expect(screen.getAllByText('aperto 24 ore dalle 00:00')).toHaveLength(7)
+    expect(screen.getAllByText('aperto 24 ore (00:00–24:00)')).toHaveLength(7)
   })
 
   // Punto 10: i locali di prima e quelli creati dall'admin, senza orari.
