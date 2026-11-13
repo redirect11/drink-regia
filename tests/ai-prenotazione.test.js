@@ -166,6 +166,42 @@ describe('il credito chiesto dall’installazione tiene conto della stima', () =
 // valido faceva lanciare rigaInterrotta (meseDi di una data non valida), e
 // l'AI del locale restava bloccata per sempre: ogni richiesta ripartiva
 // dalla stessa voce rotta.
+// Revisione della PR #227 (13/11/2026): Firestore ripete la transazione
+// anche quando si perde solo la conferma del commit (DEADLINE_EXCEEDED,
+// UNAVAILABLE). Il nuovo tentativo trova la prenotazione col suo id già
+// scritta: non deve scalare la stima una seconda volta né contarla fra le
+// contemporanee.
+describe('la stessa prenotazione, ripetuta da un nuovo tentativo, vale una volta', () => {
+  it('lo stesso id non scala di nuovo la stima e non riscrive niente', () => {
+    const prima = ai.prenota(pieno(), { id: 'r1', stima: 300_000, tipo: 'fattura', adesso: ADESSO })
+    const dopo = { ...pieno(), ...prima.patch }
+    const ripetuta = ai.prenota(dopo, { id: 'r1', stima: 300_000, tipo: 'fattura', adesso: fra(2_000) })
+    expect(ripetuta).toMatchObject({ ok: true, http: 200, credito: 9_700_000, patch: null, scadute: [] })
+    // Chiusa una volta, il credito torna giusto: una stima sola era uscita.
+    const c = ai.chiudiPrenotazione(dopo, { id: 'r1', costo: 100_000, adesso: fra(3_000) })
+    expect(c.patch.credito_microeuro).toBe(9_900_000)
+  })
+
+  it('con un’altra richiesta in corso non diventa un 429 con la stima appesa', () => {
+    const a = ai.prenota(pieno(), { id: 'altra', stima: 300_000, tipo: 'descrizione', adesso: ADESSO })
+    const c1 = { ...pieno(), ...a.patch }
+    const b = ai.prenota(c1, { id: 'r1', stima: 300_000, tipo: 'descrizione', adesso: ADESSO })
+    const c2 = { ...c1, ...b.patch }
+    expect(Object.keys(c2.prenotazioni)).toHaveLength(ai.MAX_CONTEMPORANEE)
+    expect(ai.prenota(c2, { id: 'r1', stima: 300_000, tipo: 'descrizione', adesso: fra(1_000) })).toMatchObject({ ok: true, patch: null })
+    // Un id nuovo invece resta fuori: i posti sono pieni.
+    expect(ai.prenota(c2, { id: 'r3', stima: 300_000, tipo: 'descrizione', adesso: fra(1_000) })).toMatchObject({ ok: false, http: 429, codice: 'occupato' })
+  })
+
+  it('nel ripetere toglie comunque le scadute', () => {
+    const cassetto = { ...pieno(), prenotazioni: { r1: { il: ADESSO.toISOString(), stima: 1, mese: MESE }, vecchia: { il: '2026-11-13T09:00:00Z', stima: 5, mese: MESE } } }
+    const r = ai.prenota(cassetto, { id: 'r1', stima: 1, tipo: 'descrizione', adesso: fra(1_000) })
+    expect(r.ok).toBe(true)
+    expect(r.scadute.map((x) => x.id)).toEqual(['vecchia'])
+    expect(r.patch).toEqual({ prenotazioni: { r1: cassetto.prenotazioni.r1 } })
+  })
+})
+
 describe('una prenotazione rotta non blocca il locale', () => {
   const rotte = () => ({
     ...pieno(),
@@ -223,7 +259,7 @@ describe('la richiesta col credito prenotato, da capo a fondo', () => {
 
   // Un cassetto in memoria che fa quello che fanno le due transazioni di
   // index.js: prenota e chiudiPrenotazione sulla stessa logica.
-  function banco({ risposta = buona(), errore = null, creaRotto = false, prenotaRotta = false, chiudiRotta = false } = {}) {
+  function banco({ risposta = buona(), errore = null, creaRotto = false, prenotaRotta = false, confermaPersa = false, chiudiRotta = false } = {}) {
     const stato = { cassetto: pieno(), chiamate: 0, prenotate: 0, chiusure: [] }
     const client = {
       beta: {
@@ -251,6 +287,8 @@ describe('la richiesta col credito prenotato, da capo a fondo', () => {
         if (prenotaRotta) throw new Error('transazione fallita')
         const esito = ai.prenota(stato.cassetto, { id: 'r1', stima, tipo: messaggio.tipo, adesso: ADESSO })
         if (esito.patch) stato.cassetto = { ...stato.cassetto, ...esito.patch }
+        // Il commit è riuscito, ma la conferma non è arrivata.
+        if (confermaPersa) throw new Error('DEADLINE_EXCEEDED')
         return esito
       },
       chiudi: async (costo, riga) => {
@@ -286,6 +324,21 @@ describe('la richiesta col credito prenotato, da capo a fondo', () => {
     const r = await ai.interrogaConPrenotazione(deps)
     expect(r).toMatchObject({ ok: false, http: 503, codice: 'servizio', errore: 'Il servizio AI è occupato: riprova tra poco.' })
     expect(stato.chiamate).toBe(0)
+  })
+
+  it('una prenotazione scritta ma senza conferma si restituisce subito: 503, e il credito torna com’era', async () => {
+    const { stato, deps } = banco({ confermaPersa: true })
+    const r = await ai.interrogaConPrenotazione(deps)
+    expect(r).toMatchObject({ ok: false, http: 503, codice: 'servizio', errore: 'Il servizio AI è occupato: riprova tra poco.' })
+    expect(stato.chiamate).toBe(0)
+    expect(stato.chiusure).toEqual([{ costo: 0, riga: null }])
+    expect(stato.cassetto.credito_microeuro).toBe(10_000_000)
+    expect(stato.cassetto.prenotazioni).toEqual({})
+  })
+
+  it('se anche la restituzione dopo la prenotazione fallita non si scrive, resta un 503', async () => {
+    const { deps } = banco({ confermaPersa: true, chiudiRotta: true })
+    await expect(ai.interrogaConPrenotazione(deps)).resolves.toMatchObject({ ok: false, http: 503, codice: 'servizio' })
   })
 
   it('un rifiuto della prenotazione esce col suo codice, senza chiamare il modello', async () => {

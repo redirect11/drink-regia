@@ -1177,7 +1177,8 @@ moduli, la licenza nell'istanza e la Tana.
   È diverso da `429 { codice: "occupato" }`, ma l'app li deve trattare tutti e
   due come «riprova tra poco», con la stessa attesa; `503` servizio
   occupato o non disponibile, si riprova (anche quando la regia non
-  riesce a prenotare il credito: niente è stato scalato).
+  riesce a prenotare il credito: la prenotazione, se si è scritta lo
+  stesso, viene restituita subito).
   **Il credito si prenota** (REQ-FLOTTA-088, dal 13/11/2026): prima della
   chiamata la regia scala dal credito la stima massima della richiesta (al
   prezzo del modello più caro del listino), dopo la risposta restituisce

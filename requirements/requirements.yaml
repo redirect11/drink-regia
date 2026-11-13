@@ -4466,25 +4466,33 @@ requirements:
       massimo MAX_CONTEMPORANEE (2) richieste (la stima dell'ingresso di un
       PDF va per byte, e uno scansionato può costare di più), e dopo una
       richiesta che lo porta sotto zero la successiva si rifiuta. Al cambio
-      di mese il mese nuovo può sforare il tetto di al massimo
-      MAX_CONTEMPORANEE stime (le richieste prenotate nel mese vecchio
-      portano il loro costo nel nuovo): una scelta, scritta nel codice.
+      di mese il mese nuovo può sforare il tetto del costo vero di al
+      massimo MAX_CONTEMPORANEE richieste (le richieste prenotate nel mese
+      vecchio portano il loro costo nel nuovo; per un PDF può superare la
+      stima): una scelta, scritta nel codice.
       (10) Niente addebito senza chiamata: il client del modello si crea
       prima della prenotazione (se non si crea, 503 e niente prenotato);
       una prenotazione che non si scrive è un 503 «riprova»; un costo che
       non si calcola vale la stima; una risposta che non si legge è un 422
-      col suo costo. Mai un 500 fuori contratto: l'orchestrazione sta in
+      col suo costo. Se la transazione della prenotazione lancia (anche
+      dopo aver scritto, con la conferma persa) la prenotazione si
+      restituisce subito, a costo zero, prima del 503. Mai un 500 fuori
+      contratto: l'orchestrazione sta in
       ai.interrogaConPrenotazione, provata con Firestore e modello finti.
       (11) Se la correzione dopo una risposta del modello non si scrive, il
       locale riceve comunque il risultato e paga una volta sola, la stima:
       la prenotazione resta, scade e si chiude come interrotta; la risposta
       dice la stima come costo. (12) Una voce di prenotazioni senza un'ora
-      valida (o con un'ora nel futuro) si tratta come scaduta, nel mese
+      valida (o con un'ora più di un minuto nel futuro) si tratta come scaduta, nel mese
       corrente, senza lanciare: non blocca l'AI del locale. (13) ai.addebito,
       l'addebito dopo la risposta di prima, non c'è più. (14) Il contratto
       in docs/handover.md §7 dice che a posti pieni Cloud Run risponde 429
       senza corpo, diverso dal 429 occupato: l'app li tratta tutti e due
-      come «riprova tra poco».
+      come «riprova tra poco». (15) Una prenotazione vale una volta per id:
+      se un nuovo tentativo della transazione (Firestore la ripete anche
+      quando si perde solo la conferma del commit) trova il suo id già fra
+      quelle in corso, prenota risponde ok senza scalare di nuovo la stima
+      e senza contarla fra le contemporanee (revisione della PR #227).
     status: implemented
     generate_issue: true
     labels: [regia, ai, sicurezza]

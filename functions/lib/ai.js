@@ -517,10 +517,17 @@ function dividiPrenotazioni(cassetto, adesso) {
 // IL TETTO AL CAMBIO DI MESE (B2), una scelta: le richieste prenotate a
 // fine mese portano il loro costo vero nel mese nuovo (chiudiPrenotazione),
 // che però, alla prenotazione delle sue prime richieste, non le vedeva.
-// Il mese nuovo può quindi sforare il tetto di al massimo MAX_CONTEMPORANEE
-// stime. Tenerne conto vorrebbe dire contare le prenotazioni del mese
-// vecchio nel mese nuovo: pochi centesimi, una volta al mese, non valgono
-// la regola in più.
+// Il mese nuovo può quindi sforare il tetto del costo vero di al massimo
+// MAX_CONTEMPORANEE richieste (la stima, o di più per un PDF che costa più
+// della sua stima). Tenerne conto vorrebbe dire contare le prenotazioni del
+// mese vecchio nel mese nuovo: pochi centesimi, una volta al mese, non
+// valgono la regola in più.
+// UNA VOLTA SOLA PER ID (revisione della PR #227, 13/11/2026): Firestore
+// ripete la transazione anche quando la conferma del commit si perde
+// (DEADLINE_EXCEEDED, UNAVAILABLE), e il nuovo tentativo può trovare la
+// prenotazione già scritta dal primo. Allora è già fatta: si risponde ok
+// senza scalare di nuovo la stima e senza contarla fra le contemporanee
+// (sennò due stime per una chiamata, o un 429 con la stima appesa).
 function prenota(cassetto, { id, stima, tipo, adesso = new Date() }) {
   if (!cassetto) {
     const via = puoChiedere(null, stima, adesso)
@@ -528,6 +535,9 @@ function prenota(cassetto, { id, stima, tipo, adesso = new Date() }) {
   }
   const { vive, scadute } = dividiPrenotazioni(cassetto, adesso)
   const pulizia = scadute.length ? { prenotazioni: vive } : null
+  if (id != null && Object.hasOwn(vive, id)) {
+    return { ok: true, http: 200, codice: null, perche: null, credito: statoCassetto(cassetto, adesso).credito, patch: pulizia, scadute }
+  }
   const no = (http, codice, perche) => ({ ok: false, http, codice, perche, credito: Number(cassetto.credito_microeuro) || 0, patch: pulizia, scadute })
   const via = puoChiedere(cassetto, stima, adesso)
   // Il cassetto spento si dice prima di tutto: non è un problema di
@@ -654,7 +664,9 @@ function rigaConsumo({ tipo, risposta, costo, esito, adesso = new Date() }) {
 // - il client si crea PRIMA di prenotare: se non si crea non si è speso
 //   niente, 503;
 // - una prenotazione che non si scrive (transazione fallita) è un 503
-//   «riprova»: il credito non si è mosso;
+//   «riprova»; se la transazione aveva scritto e si è persa solo la
+//   conferma, la prenotazione si restituisce subito (chiudi a costo zero),
+//   così il credito torna com'era;
 // - un costo che non si calcola vale la stima, che è il caso peggiore già
 //   riservato; una risposta che non si legge è un 422 col suo costo;
 // - LA CHIUSURA CHE FALLISCE dopo una risposta del modello: il locale
@@ -687,6 +699,13 @@ async function interrogaConPrenotazione({ slug, messaggio, crea, prenota: prenot
     prenotata = await prenotaInTransazione(stima)
   } catch (e) {
     log.error(`[ai] ${slug}: la prenotazione non si scrive:`, breve(e))
+    // La transazione può aver scritto e aver perso solo la conferma: la
+    // prenotazione allora c'è, e senza chiamata scadrebbe alla stima. Si
+    // restituisce col suo id, a buon rendere; se non c'è non si tocca
+    // niente (revisione della PR #227).
+    await Promise.resolve()
+      .then(() => chiudi(0, null))
+      .catch((x) => log.error(`[ai] ${slug}: dopo la prenotazione fallita, la restituzione non si scrive:`, breve(x)))
     return { ok: false, http: 503, errore: RIPROVA, codice: 'servizio' }
   }
   if (prenotata.scadute?.length) log.warn(`[ai] ${slug}: ${prenotata.scadute.length} prenotazioni scadute, chiuse come interrotte`)

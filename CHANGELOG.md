@@ -11,8 +11,9 @@ data.
   (REQ-FLOTTA-087); il credito non si prenota se il modello non si può
   chiamare, un errore nei conti o nella correzione non dà più un errore
   muto ma la risposta del contratto, e chi riceve la risposta paga una
-  volta sola; una prenotazione rovinata non blocca più l'AI del locale
-  (REQ-FLOTTA-088).
+  volta sola; una prenotazione rovinata non blocca più l'AI del locale, e
+  una prenotazione ripetuta dalla transazione dopo una conferma persa non
+  scala la stima due volte (REQ-FLOTTA-088).
 - Un'app legata a un altro account non è più «Non ancora attivata» nella
   dashboard del titolare: la dashboard la cerca col suo uid e, se non la
   trova, chiede alla regia; se c'è ma non è sua dice di scriverci, senza il
