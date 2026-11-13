@@ -4,7 +4,7 @@ Una voce per ogni cambiamento visibile, nello stesso commit del
 cambiamento. La versione in cima è quella in lavorazione finché non ha la
 data.
 
-## Prossima release (da decidere)
+## 0.3.0 (13/11/2026, la seconda in produzione: col sito chiuso al pubblico, comprende tutto il lavoro dopo la 0.2.1)
 
 - Col sito chiuso al pubblico, anche i termini di servizio sono la
   pagina di anteprima e il piè di pagina non ci porta: i termini citano i
@@ -555,8 +555,6 @@ data.
   stampanti non supportate a preventivo. La prova di 30 giorni è pronta ma
   spenta (`prova_nel_checkout`) finché non si decide quando si paga
   l'attivazione (REQ-FLOTTA-031, REQ-PREZZI-001).
-
-## 0.3.0 (in lavorazione)
 
 - La demo pubblica si ripubblica di nuovo dalla regia, e più chiusa: una
   configurazione finta al posto di quella del progetto, nessuna chiamata
