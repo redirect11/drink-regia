@@ -4286,15 +4286,34 @@ requirements:
       subito» è lato tana-drink: i terminali ascoltano già la licenza in
       tempo reale. Questa voce scioglie il «punto debole» di REQ-FLOTTA-090
       sulla sospensione per pagamento.
+      SUI DUBBI DELLA VOCE, Daniele, 13/11/2026: «per tutti i 10 i punti
+      facciamo come dici», cioè: (7) un'ora che cade in servizio va SEMPRE
+      alla chiusura, così il servizio non si interrompe mai a metà;
+      nell'ora prima dell'apertura a un'ora prima dell'apertura, e se quel
+      momento è già passato alla chiusura; (8) fra «non pagato» e la
+      sospensione il locale lavora ancora fino a circa un giorno: è
+      accettato, una conseguenza nota; (9) i locali aperti 24 ore, o con
+      meno di un'ora fra la chiusura e l'apertura dopo, si registrano: se
+      gli orari non lasciano un momento fuori servizio adatto, la
+      sospensione cade all'ora dell'attivazione anche in servizio, e il
+      titolare lo legge in un avviso alla registrazione e nella sua area;
+      (10) i locali di prima e quelli creati dall'admin, senza orari,
+      restano al taglio della giornata finché il titolare non li scrive.
+      Vanno bene anche il motivo di almeno 10 caratteri, l'ora doppia di
+      ottobre che vale la seconda, il compito «sospensione» e
+      `abbonamento.dal` come ora dell'attivazione.
       CRITERI DI ACCETTAZIONE. (1) ALLA REGISTRAZIONE GLI ORARI SONO
       OBBLIGATORI: un passo «Orari» dopo «Il locale», un giorno per riga
       (lunedì…domenica) con apertura e chiusura o «chiuso»; orari in HH:MM
       (00:00–23:59); la chiusura prima dell'apertura vuol dire il giorno
-      dopo; apertura e chiusura non coincidono; almeno un giorno aperto;
-      fra la chiusura di un giorno e l'apertura del giorno dopo almeno
-      un'ora (il margine del criterio 3: se no fuori servizio non c'è
-      posto). L'errore sta sul giorno. Il passo dice che per 7 giorni gli
-      orari si correggono da sé e dopo solo con una richiesta approvata.
+      dopo, e alla stessa ora dell'apertura vuol dire aperto 24 ore (fino
+      alla stessa ora del giorno dopo); almeno un giorno aperto. L'errore
+      sta sul giorno. Aperti 24 ore o con meno di un'ora fra la chiusura di
+      un giorno e l'apertura del giorno dopo si registrano (punto 9), con
+      un avviso: «con questi orari la sospensione per mancato pagamento può
+      arrivare durante il servizio» (giorniSenzaPausa). Il passo dice che
+      per 7 giorni gli orari si correggono da sé e dopo solo con una
+      richiesta approvata.
       Vale anche per chi completa la registrazione dopo l'accesso con
       Google. La regia (registraCliente) li ricontrolla e rifiuta senza
       orari validi (`invalid-argument`, campo `orari`). Il cliente nasce
@@ -4322,20 +4341,24 @@ requirements:
       del giorno dell'attivazione (criterio 4) sull'orologio di Roma
       (Europe/Rome), la prima che arriva da quando l'abbonamento passa a
       «non pagato» (o «disdetto»: la chiusura per pagamento segue la stessa
-      strada); se cade in servizio si sposta alla chiusura di quel
+      strada); se cade in servizio si sposta SEMPRE alla chiusura di quel
       servizio, anche oltre la mezzanotte (l'1 di notte è ancora il
       servizio della sera prima); se cade nell'ora prima dell'apertura, a
       un'ora prima dell'apertura, e se quel momento è già passato alla
-      chiusura. Un giorno chiuso non sposta niente. Col cambio dell'ora:
+      chiusura. Il momento di arrivo deve essere ADATTO: fuori servizio e
+      almeno un'ora prima della prossima apertura; se non lo è (aperto 24
+      ore, o meno di un'ora fra chiusura e apertura), la sospensione cade
+      all'ora dell'attivazione anche in servizio (punto 9). Un giorno
+      chiuso non sposta niente. Col cambio dell'ora:
       l'ora resta quella dell'orologio (attivato alle 10 d'estate, sospeso
       alle 10 d'inverno); un'ora che quel giorno non c'è (marzo, fra le 2 e
       le 3) vale un'ora dopo; un'ora che quel giorno c'è due volte
       (ottobre) vale la seconda, che non cade mai in servizio. La
       sospensione e la chiusura per pagamento arrivano all'app (stato
       `sospesa`/`chiusa` in licenza/attuale e settings/bar.licenza) a quel
-      momento, con un compito suo programmato come gli altri (proposta: il
-      tipo «sospensione» in scadenze.TIPI, che quando arriva ricontrolla
-      che il momento e lo stato dell'abbonamento siano ancora quelli). Le
+      momento, con un compito suo programmato come gli altri: il tipo
+      «sospensione» in scadenze.TIPI, che quando arriva ricontrolla che il
+      momento sia ancora quello. Le
       riduzioni della licenza (moduli, terminali, limiti, il ripiego al
       Free) restano al taglio della giornata (REQ-FLOTTA-024). Chi paga
       prima del momento non viene sospeso: «riattiva» (REQ-FLOTTA-023)
@@ -4355,7 +4378,8 @@ requirements:
       è quella del taglio, passata per gli intervalli di servizio. Il
       titolare di un locale di prima scrive gli orari la prima volta dalla
       sua area, e da lì partono i suoi 7 giorni; l'area glieli chiede con
-      un avviso finché mancano. (6) IL CONTRATTO in docs/handover.md §7
+      un avviso finché mancano. Vale anche per i clienti creati dall'admin
+      (punto 10). (6) IL CONTRATTO in docs/handover.md §7
       (la licenza): lo stato «sospesa» o «chiusa» voluto dal pagamento
       arriva fuori dal servizio del locale, al momento del criterio 3, e
       `valida_fino` è quello stesso momento; quelli dell'admin e del
@@ -4364,17 +4388,13 @@ requirements:
       parte). I test dell'integrazione (scriviLicenza, il compito, le
       callable, l'area del titolare, il backoffice) si aggiungono con
       l'implementazione e la voce li cita.
-      PUNTI DEBOLI. «Il bordo più vicino» preso alla lettera darebbe, per
-      l'esempio di Daniele (18–02, attivato alle 21), le 17:00 e non le
-      02:00: qui vale l'esempio (in servizio → alla chiusura; nell'ora
-      prima dell'apertura → un'ora prima dell'apertura), da confermare. Un
-      locale aperto 24 ore, o con meno di un'ora fra chiusura e apertura,
-      non si può registrare: da decidere se serve. L'ora di
+      CONSEGUENZA NOTA (punto 8): fra «non pagato» e la sospensione il
+      locale lavora ancora fino a circa un giorno. PUNTI DEBOLI. L'ora di
       `abbonamento.dal` con Stripe è quella in cui la regia lavora
-      l'evento, non quella del pagamento (di solito pochi secondi). Fra
-      «non pagato» e la sospensione il locale lavora ancora fino a quasi
-      24 ore (e di più se l'ora cade in servizio): è la scelta (a), ma è
-      tempo non pagato.
+      l'evento, non quella del pagamento (di solito pochi secondi).
+      «Adatto» guarda solo la chiusura del servizio in cui cade l'ora: un
+      locale con la pausa solo in certi giorni può essere sospeso in
+      servizio negli altri, e l'avviso lo dice per quei giorni.
     status: todo
     generate_issue: true
     labels: [regia, flotta, registrazione]

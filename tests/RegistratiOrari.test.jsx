@@ -126,6 +126,23 @@ describe('gli orari di servizio alla registrazione', () => {
     expect(screen.queryByLabelText('Ragione sociale')).toBeNull()
   })
 
+  // Daniele, 13/11/2026 (punto 9): aperti 24 ore o senza un'ora fra la
+  // chiusura e l'apertura dopo si registrano, ma il titolare lo legge.
+  it('aperto 24 ore si va avanti, e un avviso dice che la sospensione per mancato pagamento può arrivare durante il servizio', async () => {
+    const user = userEvent.setup()
+    mostra()
+    await passoAccount(user)
+    await passoLocale(user)
+    expect(screen.queryByText(/durante il servizio/i)).toBeNull()
+    for (const g of GIORNI) {
+      fireEvent.change(apertura(g), { target: { value: '00:00' } })
+      fireEvent.change(chiusura(g), { target: { value: '00:00' } })
+    }
+    expect(screen.getByText(/sospensione per mancato pagamento può arrivare durante il servizio/i)).toBeInTheDocument()
+    await avanti(user)
+    expect(screen.getByLabelText('Ragione sociale')).toBeInTheDocument()
+  })
+
   it('con gli orari giusti si va avanti, e l’account nasce con gli orari, anche oltre la mezzanotte', async () => {
     const user = userEvent.setup()
     db.registra.mockResolvedValue({ slug: 'bar-mario' })

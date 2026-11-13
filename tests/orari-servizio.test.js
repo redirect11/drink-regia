@@ -70,27 +70,40 @@ describe('gli orari di servizio: uno per giorno', () => {
     }
   })
 
-  it('apertura e chiusura non coincidono', () => {
-    expect(orari().problemiOrari({ ...SERA, gio: aperto('18:00', '18:00') })).toHaveProperty('gio')
-  })
-
   it('almeno un giorno aperto', () => {
     const problemi = orari().problemiOrari(tutti(CHIUSO))
     expect(problemi).toHaveProperty('orari')
     expect(problemi.orari).toMatch(/almeno un giorno/i)
   })
 
-  // Fuori servizio deve esserci posto per la sospensione: la chiusura di un
-  // giorno sta almeno un'ora prima dell'apertura del giorno dopo, che è il
-  // margine prima dell'apertura (criterio 3). Domenica guarda a lunedì.
-  it('fra la chiusura di un giorno e l’apertura del giorno dopo c’è almeno un’ora', () => {
+  // Daniele, 13/11/2026 («per tutti i 10 i punti facciamo come dici»): i
+  // locali aperti 24 ore, o con meno di un'ora fra la chiusura e l'apertura
+  // dopo, si possono registrare. Apertura e chiusura alla stessa ora vuol
+  // dire aperto 24 ore, fino alla stessa ora del giorno dopo.
+  it('aperto 24 ore (apertura e chiusura alla stessa ora) e senza pausa fra un giorno e l’altro si registrano', () => {
     const { problemiOrari } = orari()
-    expect(problemiOrari({ ...tutti(aperto('08:00', '07:30')) })).toHaveProperty('lun')
-    expect(problemiOrari({ ...tutti(CHIUSO), dom: aperto('20:00', '07:30'), lun: aperto('08:00', '12:00') })).toHaveProperty('dom')
+    expect(problemiOrari(tutti(aperto('00:00', '00:00')))).toEqual({})
+    expect(problemiOrari({ ...SERA, gio: aperto('18:00', '18:00') })).toEqual({})
+    expect(problemiOrari(tutti(aperto('08:00', '07:30')))).toEqual({})
+    expect(problemiOrari({ ...tutti(CHIUSO), dom: aperto('20:00', '09:00'), lun: aperto('08:00', '12:00') })).toEqual({})
+  })
+
+  // Il segno per l'avviso al titolare: dopo quali giorni la chiusura non
+  // lascia un'ora prima dell'apertura dopo. Lì la sospensione per mancato
+  // pagamento può arrivare durante il servizio. Domenica guarda a lunedì.
+  it('i giorni senza pausa: la chiusura a meno di un’ora dall’apertura dopo, o aperti 24 ore', () => {
+    const { giorniSenzaPausa } = orari()
+    expect(giorniSenzaPausa(SERA)).toEqual([])
+    expect(giorniSenzaPausa(tutti(aperto('08:00', '07:30')))).toEqual(['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'])
+    expect(giorniSenzaPausa(tutti(aperto('00:00', '00:00')))).toEqual(['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'])
+    expect(giorniSenzaPausa({ ...tutti(CHIUSO), dom: aperto('20:00', '07:30'), lun: aperto('08:00', '12:00') })).toEqual(['dom'])
     // Un'ora esatta basta.
-    expect(problemiOrari({ ...tutti(CHIUSO), mar: aperto('20:00', '07:00'), mer: aperto('08:00', '12:00') })).toEqual({})
+    expect(giorniSenzaPausa({ ...tutti(CHIUSO), mar: aperto('20:00', '07:00'), mer: aperto('08:00', '12:00') })).toEqual([])
     // Il giorno dopo chiuso: la chiusura può arrivare a qualunque ora.
-    expect(problemiOrari({ ...tutti(CHIUSO), mar: aperto('20:00', '11:00') })).toEqual({})
+    expect(giorniSenzaPausa({ ...tutti(CHIUSO), mar: aperto('20:00', '11:00') })).toEqual([])
+    // Aperto 24 ore un giorno solo, col giorno dopo chiuso: c'è pausa.
+    expect(giorniSenzaPausa({ ...tutti(CHIUSO), sab: aperto('10:00', '10:00') })).toEqual([])
+    expect(giorniSenzaPausa(null)).toEqual([])
   })
 
   it('in forma pulita: il giorno chiuso è { chiuso: true } senza ore, quello aperto { apre, chiude }', () => {
@@ -109,7 +122,7 @@ describe('alla registrazione gli orari sono obbligatori', () => {
   const registra = (dati) => registrazione.documentoRegistrazione({ uid: 'u1', email: 'mario@example.it', dati, adesso: ADESSO })
 
   it('senza orari, o con orari sbagliati, la regia rifiuta e indica la casella', () => {
-    for (const sbagliati of [undefined, tutti(CHIUSO), { ...SERA, mar: aperto('18:00', '18:00') }]) {
+    for (const sbagliati of [undefined, tutti(CHIUSO), { ...SERA, mar: aperto('18:00', '25:00') }]) {
       let errore = null
       try {
         registra({ ...DATI, orari: sbagliati })
@@ -266,6 +279,12 @@ describe('il momento della sospensione per pagamento', () => {
     expect(momento(ALLE_21, '2026-11-18T09:00:00Z')).toBe('2026-11-19T01:00:00.000Z')
   })
 
+  // Daniele, 13/11/2026 (punto 7): in servizio si va SEMPRE alla chiusura,
+  // anche quando l'apertura è più vicina: il servizio non si interrompe.
+  it('in servizio sempre alla chiusura, anche appena dopo l’apertura', () => {
+    expect(momento('2026-11-02T17:30:00.000Z', '2026-11-18T09:00:00Z')).toBe('2026-11-19T01:00:00.000Z')
+  })
+
   it('oltre la mezzanotte: l’1 di notte è ancora il servizio della sera prima', () => {
     const ALL_UNA = '2026-11-02T00:00:00.000Z'
     expect(momento(ALL_UNA, '2026-11-18T02:00:00Z')).toBe('2026-11-19T01:00:00.000Z')
@@ -298,6 +317,25 @@ describe('il momento della sospensione per pagamento', () => {
     // si sospende alle 3:30 dell'ora legale (01:30 UTC). La chiusura del
     // sabato (le 2, che non esistono) è alle 3: le 3:30 sono fuori servizio.
     expect(momento('2026-01-10T01:30:00.000Z', '2026-03-28T22:00:00Z')).toBe('2026-03-29T01:30:00.000Z')
+  })
+
+  // Daniele, 13/11/2026 (punto 9): se gli orari non lasciano un momento
+  // fuori servizio adatto (fuori servizio e almeno un'ora prima della
+  // prossima apertura), la sospensione cade all'ora dell'attivazione anche
+  // in servizio. Il titolare lo sa dall'avviso (giorniSenzaPausa).
+  it('senza un momento adatto fuori servizio, all’ora dell’attivazione anche in servizio', () => {
+    // Aperto 24 ore tutti i giorni.
+    expect(momento(ALLE_21, '2026-11-18T09:00:00Z', tutti(aperto('00:00', '00:00')))).toBe('2026-11-18T20:00:00.000Z')
+    // Dalle 8 alle 7:30 del giorno dopo: la chiusura cade nell'ora prima
+    // dell'apertura dopo, quindi non va bene.
+    const SENZA_PAUSA = tutti(aperto('08:00', '07:30'))
+    expect(momento(ALLE_21, '2026-11-18T09:00:00Z', SENZA_PAUSA)).toBe('2026-11-18T20:00:00.000Z')
+    // Le 7:45 cadono nell'ora prima dell'apertura delle 8, ma le 7 sono
+    // ancora il servizio della sera prima: anche lì, l'ora dell'attivazione.
+    expect(momento('2026-11-02T06:45:00.000Z', '2026-11-18T02:00:00Z', SENZA_PAUSA)).toBe('2026-11-18T06:45:00.000Z')
+    // Un giorno con la pausa basta per quel giorno: il sabato chiude alle 2
+    // e la domenica apre alle 8.
+    expect(momento(ALLE_21, '2026-11-21T09:00:00Z', { ...SENZA_PAUSA, sab: aperto('08:00', '02:00') })).toBe('2026-11-22T01:00:00.000Z')
   })
 
   // Criterio 5: i locali di prima.
