@@ -126,7 +126,7 @@ beforeEach(() => {
     { uid: 'c', slug: 'bar-nuovo', nome_locale: 'Bar Nuovo', email: 'c@x.it', creato_il: '2026-10-03' },
   ])
   db.elencoIstanze.mockResolvedValue({
-    'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', versione: 'v1.10.0' },
+    'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', versione: 'v1.10.0', uid: 'a' },
     'bar-rotto': { stato: 'errore', errore: 'quota progetti' },
   })
   db.elencoRichieste.mockResolvedValue({})
@@ -1674,7 +1674,8 @@ describe('la scheda del locale in blocchi', () => {
     const avvisi = within(attivo).getByRole('list', { name: 'Da trattare' })
     expect(avvisi.closest('section')).toBeNull()
     expect(avvisi).toHaveTextContent('aggiornamento a v1.11.0 fallito: deploy interrotto')
-    expect(nomiTasti(avvisi)).toEqual(['Riprova', 'Torna a v1.10.0'])
+    // L'app legata a un altro account ha il suo tasto (REQ-FLOTTA-086).
+    expect(nomiTasti(avvisi)).toEqual(['Riprova', 'Torna a v1.10.0', 'Collega l’app al titolare'])
     expect(avvisi).toHaveTextContent('licenza/attuale manca.')
     expect(avvisi).toHaveTextContent('non pagato')
     expect(avvisi).toHaveTextContent('L’app è legata a un altro account')

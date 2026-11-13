@@ -46,7 +46,7 @@ import { venditaPulita } from '../lib/vendita.js'
 import { stampantiDette } from '../lib/stampanti.js'
 
 import { ESCLUSIVI, nomeStile, nomeImpaginazione, ORIGINI_DETTE, STATI_DETTI, temaVuoto } from '../lib/temi.js'
-import { statoIstanza, statoDetto, STATI, progettoDi, riduzioneDetta, hrefSicuro } from '../lib/istanze.js'
+import { statoIstanza, statoDetto, STATI, progettoDi, riduzioneDetta, hrefSicuro, istanzaScollegata } from '../lib/istanze.js'
 import { PIANI, MODULI, prezzoMensile, euro, baseMancante, senzaOrfani } from '../lib/piani.js'
 import { prezzoConSconto, scontoDetto, usiDetti, CODICE_VALIDO, REGOLA_CODICE, LIMITE_PER_IL_CENTO, generaCodice } from '../lib/sconti.js'
 import CatalogoTemi, { EditorTema } from './CatalogoTemi.jsx'
@@ -56,6 +56,7 @@ import { GRUPPI, TAG, aggiornamentoDetto, runNellErrore } from '../lib/rilasci.j
 import { BASE, SEZIONI, VISTE, aggiornamentoFallito, aggiornaLaRegia, contiDelBackoffice, filtraLocali, profiloDaAutorizzare } from '../lib/backoffice.js'
 import Rilasci from './Rilasci.jsx'
 import Commerciale from './Commerciale.jsx'
+import CollegaIstanza from './CollegaIstanza.jsx'
 import { MODALITA, regolaDetta, propostaDetta } from '../lib/aggiornamenti.js'
 
 // Il sito di produzione: lo dice il deploy (deploy.yml), come in App.jsx.
@@ -685,7 +686,13 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
     manuale && c.abbonamento.stato === 'non pagato' && (
       <li key="pagamento">Piano fuori da Stripe non pagato: si registra un pagamento dal blocco Piano.</li>
     ),
-    account === 'diverso' && <li key="account">L’app è legata a un altro account, non a quello del titolare.</li>,
+    // L'app legata a un altro account, col tasto per ricollegarla
+    // (REQ-FLOTTA-086): solo quando è scollegata.
+    istanzaScollegata(c, istanza) && (
+      <li key="account">
+        <CollegaIstanza cliente={c} istanza={istanza} onFatto={az.carica} />
+      </li>
+    ),
   ].filter(Boolean)
 
   // Il fondo: i gesti che fermano o cancellano.

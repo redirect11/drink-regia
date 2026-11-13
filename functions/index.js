@@ -58,6 +58,7 @@ const movimenti = require('./lib/movimenti.js')
 const traffico = require('./lib/traffico.js')
 const registrazione = require('./lib/registrazione.js')
 const eliminazioneCliente = require('./lib/eliminazione-cliente.js')
+const collegamento = require('./lib/collegamento.js')
 // L'aliquota del listino, per l'IVA dei pagamenti registrati a mano.
 const listino = require('./piani.json')
 
@@ -190,8 +191,11 @@ async function lancia(richiesta) {
   if (res.status !== 204) {
     const testo = await res.text().catch(() => '')
     await db.doc(`richieste/${richiesta.slug}`).set({ stato: 'errore', errore: `GitHub ${res.status}: ${testo.slice(0, 200)}`, aggiornata_il: adesso }, { merge: true })
+    // Con l'uid del titolare, come il lancio riuscito qui sotto
+    // (REQ-FLOTTA-086): la dashboard trova l'istanza con la query sul suo
+    // uid, e senza uid gliela nasconderebbe.
     await db.doc(`istanze/${richiesta.slug}`).set(
-      documentoIstanza({ slug: richiesta.slug, stato: 'errore', errore: `Lancio fallito (GitHub ${res.status})` }, null),
+      { ...documentoIstanza({ slug: richiesta.slug, stato: 'errore', errore: `Lancio fallito (GitHub ${res.status})` }, null), uid: richiesta.uid || null },
       { merge: true }
     )
     return
@@ -858,6 +862,66 @@ exports.eliminaCliente = onCall(OPTS, async (req) => {
     })
   console.log(`[cliente] eliminato ${slug} (${cliente.uid}) dall’admin ${req.auth.uid}`)
   return { ok: true }
+})
+
+// ── ISTANZA E TITOLARE SCOLLEGATI (REQ-FLOTTA-086) ─────────────────────
+// Daniele, 13/11/2026: «fai il tasto di collegamento nel backoffice, ma
+// deve apparire solo se per qualche motivo istanza e regia risultano
+// scollegati». L'istanza passa al titolare del suo slug; con lei la
+// richiesta e il cassetto AI, se hanno l'uid vecchio o nessuno. Tutto in
+// una transazione: o si scrive tutto o niente, e due clic insieme non
+// collegano due volte (il secondo trova l'istanza già collegata).
+exports.collegaIstanza = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const slug = String(req.data?.slug || '')
+  if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(slug)) throw new HttpsError('invalid-argument', 'Slug non valido.')
+  const refIstanza = db.doc(`istanze/${slug}`)
+  const refRichiesta = db.doc(`richieste/${slug}`)
+  const refCassetto = db.doc(`ai/${slug}`)
+  const esito = await db.runTransaction(async (t) => {
+    let docCliente
+    try {
+      docCliente = await registrazione.clientePerSlug(db, slug, t)
+    } catch (e) {
+      if (e instanceof registrazione.SlugAmbiguo) throw new HttpsError('failed-precondition', e.message)
+      throw e
+    }
+    const [istanza, richiesta, cassetto] = await Promise.all([t.get(refIstanza), t.get(refRichiesta), t.get(refCassetto)])
+    // L'uid del titolare è l'id del suo documento: è quello con cui entra.
+    const piano = collegamento.pianoCollegamento({
+      cliente: docCliente ? { ...docCliente.data(), uid: docCliente.id } : null,
+      istanza: istanza.data() || null,
+      richiesta: richiesta.data() || null,
+      cassetto: cassetto.data() || null,
+      da: req.auth.token.email || req.auth.uid,
+      adesso: new Date(),
+    })
+    if (!piano.ok) throw new HttpsError(piano.codice, piano.perche)
+    t.set(refIstanza, piano.istanza, { merge: true })
+    if (piano.richiesta) t.set(refRichiesta, piano.richiesta, { merge: true })
+    if (piano.cassetto) t.set(refCassetto, piano.cassetto, { merge: true })
+    return piano
+  })
+  console.log(`[collegamento] ${slug}: ${esito.vecchio || 'nessun uid'} → ${esito.nuovo}, dall’admin ${req.auth.uid}`)
+  return { ok: true, vecchio: esito.vecchio, nuovo: esito.nuovo, richiesta: Boolean(esito.richiesta), cassetto: Boolean(esito.cassetto) }
+})
+
+// La dashboard ascolta istanze e richieste con la query sul suo uid, che le
+// regole permettono e che torna vuota senza errore. Vuota può voler dire
+// «non c'è» o «c'è, ma è legata a un altro account»: lo dice la regia. Solo
+// per il locale di chi chiama: niente slug in ingresso, lo slug è quello di
+// clienti/{uid}, che il titolare non può cambiare; nessun uid altrui in
+// risposta. Così non si impara niente di locali che non sono propri.
+// Daniele, 13/11/2026, sull'alternativa di aprire le regole: «non va bene
+// serve una soluzione piu sicura e piu robusta». La dashboard la chiama una
+// volta, e solo con la query dell'istanza vuota.
+exports.statoMiaApp = onCall({ ...OPTS, maxInstances: 5 }, async (req) => {
+  const uid = req.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  const cliente = (await db.doc(`clienti/${uid}`).get()).data()
+  if (!cliente?.slug || !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(cliente.slug)) return { app: 'nessuna' }
+  const istanza = (await db.doc(`istanze/${cliente.slug}`).get()).data() || null
+  return { app: collegamento.appDelTitolare(uid, istanza) }
 })
 
 // Il ritorno al Free di chi non paga, e il suo piano quando torna a pagare.

@@ -11,21 +11,29 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import '@testing-library/jest-dom/vitest'
+import { EMAIL_CONTATTI } from '../src/lib/prodotto.js'
 
-const stato = vi.hoisted(() => ({ cliente: null, istanza: null, richiesta: null }))
+const stato = vi.hoisted(() => ({ cliente: null, istanza: null, richiesta: null, erroreIstanza: false, erroreRichiesta: false, app: 'nessuna' }))
 const db = vi.hoisted(() => ({
   osservaCliente: vi.fn((uid, cb) => {
     cb(stato.cliente)
     return () => {}
   }),
-  osservaIstanza: vi.fn((slug, cb) => {
-    cb(stato.istanza)
+  // Istanza e richiesta dalla query sul suo uid (REQ-FLOTTA-086): null se
+  // la query è vuota; un errore di lettura arriva al quarto argomento, come
+  // l'errore di onSnapshot.
+  osservaMiaIstanza: vi.fn((uid, slug, cb, errore) => {
+    if (stato.erroreIstanza) errore?.(Object.assign(new Error('Errore di rete.'), { code: 'unavailable' }))
+    else cb(stato.istanza)
     return () => {}
   }),
-  osservaRichiesta: vi.fn((slug, cb) => {
-    cb(stato.richiesta)
+  osservaMiaRichiesta: vi.fn((uid, slug, cb, errore) => {
+    if (stato.erroreRichiesta) errore?.(Object.assign(new Error('Errore di rete.'), { code: 'unavailable' }))
+    else cb(stato.richiesta)
     return () => {}
   }),
+  // Quello che la regia dice dell'app quando la query dell'istanza è vuota.
+  statoMiaApp: vi.fn(async () => ({ app: stato.app })),
   chiediAttivazione: vi.fn(async () => {}),
   apriPortaleAbbonamento: vi.fn(async () => ({ url: 'about:blank#portale' })),
   apriLaTuaApp: vi.fn(async () => ({ url: 'about:blank#app' })),
@@ -90,6 +98,9 @@ beforeEach(() => {
   stato.cliente = { uid: 'u1', slug: 'bar-mario', nome_locale: 'Bar Mario', piano: 'base', moduli: ['staff'], terminali: 2, abbonamento: { stato: 'attivo' } }
   stato.istanza = null
   stato.richiesta = null
+  stato.erroreIstanza = false
+  stato.erroreRichiesta = false
+  stato.app = 'nessuna'
 })
 
 describe('la dashboard', () => {
@@ -295,6 +306,72 @@ describe('la dashboard', () => {
     mostra()
     expect(screen.getByTestId('stato-istanza')).toHaveTextContent(/In coda/)
     expect(screen.queryByRole('button', { name: /Attiva l’istanza/ })).toBeNull()
+  })
+
+  // ISTANZA E TITOLARE SCOLLEGATI (REQ-FLOTTA-086): su prova-free l'istanza
+  // non si leggeva e la dashboard diceva «Non ancora attivata» col tasto
+  // «Attiva», con l'app attiva. Ora ascolta la query sul suo uid e, se
+  // l'istanza non compare, chiede alla regia com'è la sua app.
+  it('ascolta istanza e richiesta col suo uid e il suo slug, con una funzione per l’errore', () => {
+    mostra()
+    expect(db.osservaMiaIstanza).toHaveBeenCalledWith('u1', 'bar-mario', expect.any(Function), expect.any(Function))
+    expect(db.osservaMiaRichiesta).toHaveBeenCalledWith('u1', 'bar-mario', expect.any(Function), expect.any(Function))
+  })
+
+  it('l’app c’è ma è legata a un altro account: niente «Non ancora attivata», niente «Attiva», e a chi scrivere', async () => {
+    stato.app = 'scollegata'
+    mostra()
+    expect(await screen.findByText(/Non riesco a leggere lo stato della tua app/)).toBeInTheDocument()
+    expect(db.statoMiaApp).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('stato-istanza')).not.toHaveTextContent('Non ancora attivata')
+    expect(screen.queryByRole('button', { name: /Attiva l’istanza/ })).toBeNull()
+    expect(screen.getByRole('link', { name: EMAIL_CONTATTI })).toHaveAttribute('href', `mailto:${EMAIL_CONTATTI}`)
+  })
+
+  it('nessuna app: «Non ancora attivata» col tasto, come prima', async () => {
+    mostra()
+    await vi.waitFor(() => expect(db.statoMiaApp).toHaveBeenCalledTimes(1))
+    expect(screen.getByTestId('stato-istanza')).toHaveTextContent('Non ancora attivata')
+    expect(screen.getByRole('button', { name: /Attiva l’istanza/ })).toBeEnabled()
+  })
+
+  it('con l’istanza che compare, alla regia non si chiede niente', () => {
+    stato.istanza = { stato: 'attiva', url: 'https://bar-mario.drink.app' }
+    mostra()
+    expect(db.statoMiaApp).not.toHaveBeenCalled()
+  })
+
+  it('se la regia non risponde, la dashboard fa come prima: l’attivazione la ricontrolla il server', async () => {
+    db.statoMiaApp.mockRejectedValueOnce(new Error('internal'))
+    mostra()
+    await vi.waitFor(() => expect(db.statoMiaApp).toHaveBeenCalledTimes(1))
+    expect(screen.getByTestId('stato-istanza')).toHaveTextContent('Non ancora attivata')
+  })
+
+  it('se la lettura dell’istanza fallisce: il messaggio onesto, senza «Attiva»', () => {
+    stato.erroreIstanza = true
+    mostra()
+    expect(screen.getByText(/Non riesco a leggere lo stato della tua app/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Attiva l’istanza/ })).toBeNull()
+  })
+
+  it('se fallisce la richiesta ma l’istanza dice «attiva», vale l’istanza', () => {
+    stato.erroreRichiesta = true
+    stato.istanza = { stato: 'attiva', url: 'https://bar-mario.drink.app' }
+    mostra()
+    expect(screen.getByTestId('stato-istanza')).toHaveTextContent('Attiva')
+    expect(screen.queryByText(/Non riesco a leggere/)).toBeNull()
+  })
+
+  // Il lancio fallito prima del progetto (GitHub che non risponde): la
+  // richiesta del titolare dice «errore», la regia dice «nessuna», e il
+  // titolare rilancia.
+  it('attivazione fallita al lancio: si vede l’errore e si può rilanciare', async () => {
+    stato.richiesta = { stato: 'errore' }
+    mostra()
+    await vi.waitFor(() => expect(db.statoMiaApp).toHaveBeenCalledTimes(1))
+    expect(screen.getByTestId('stato-istanza')).toHaveTextContent(/Attivazione fallita/)
+    expect(screen.getByRole('button', { name: /Attiva l’istanza/ })).toBeEnabled()
   })
 })
 

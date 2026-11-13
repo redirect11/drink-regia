@@ -16,6 +16,9 @@ export const STATI = {
   ERRORE: 'errore',
   // Eliminata col suo progetto, dopo il backup (REQ-FLOTTA-014).
   ELIMINATA: 'eliminata',
+  // Solo nella dashboard (REQ-FLOTTA-086): l'app c'è ma è legata a un altro
+  // account, o la lettura non va. Non lo scrive nessuno.
+  ILLEGGIBILE: 'illeggibile',
 }
 
 const DETTO = {
@@ -26,16 +29,33 @@ const DETTO = {
   [STATI.ATTIVA]: 'Attiva',
   [STATI.ERRORE]: 'Attivazione fallita: ci stiamo guardando',
   [STATI.ELIMINATA]: 'Eliminata',
+  [STATI.ILLEGGIBILE]: 'Non riesco a leggere lo stato della tua app',
 }
 
 export const statoDetto = (stato) => DETTO[stato] || DETTO[STATI.DA_ATTIVARE]
 
 // L'istanza come la vede il titolare, da quello che c'è: niente documento
-// → da attivare.
-export function statoIstanza(istanza, richiesta) {
+// → da attivare. `illeggibile` (REQ-FLOTTA-086): l'istanza non si vede ma
+// la regia dice che c'è, o la lettura è fallita. Allora non si dice «Non
+// ancora attivata», che era la bugia di prova-free, e la richiesta da sola
+// non basta a dire com'è l'app.
+export function statoIstanza(istanza, richiesta, { illeggibile = false } = {}) {
   if (istanza?.stato) return istanza.stato
+  if (illeggibile) return STATI.ILLEGGIBILE
   if (richiesta?.stato) return richiesta.stato
   return STATI.DA_ATTIVARE
+}
+
+// Per il backoffice (REQ-FLOTTA-086): l'istanza non è legata all'account del
+// titolare (un altro uid, o nessuno), e lui nella sua area non la vede. Una
+// istanza eliminata non ha più niente da far vedere.
+export function istanzaScollegata(cliente, istanza) {
+  if (!cliente?.uid || !istanza || istanza.stato === STATI.ELIMINATA) return false
+  // Un lancio fallito senza uid e senza progetto non è un'app da collegare:
+  // il titolare lo vede dalla sua richiesta e rilancia (come appDelTitolare
+  // in functions/lib/collegamento.js).
+  if (!istanza.uid && !istanza.progetto) return false
+  return (istanza.uid || '') !== cliente.uid
 }
 
 // Il progetto e l'indirizzo che l'istanza avrà.
@@ -61,8 +81,8 @@ export function hrefSicuro(url) {
 // attivazione già in viaggio. Questo decide solo se il tasto è acceso: la
 // regola che conta la rifà il server (functions/lib/provisioning.js,
 // preparaRichiesta), perché il browser non è di fiducia (audit C2).
-export function puoAttivare(cliente, istanza, richiesta, { emailVerificata = true } = {}) {
-  const stato = statoIstanza(istanza, richiesta)
+export function puoAttivare(cliente, istanza, richiesta, { emailVerificata = true, illeggibile = false } = {}) {
+  const stato = statoIstanza(istanza, richiesta, { illeggibile })
   if (stato !== STATI.DA_ATTIVARE && stato !== STATI.ERRORE) return { ok: false, perche: statoDetto(stato) }
   if (!emailVerificata) return { ok: false, perche: 'Prima conferma l’email: trovi il messaggio nella casella con cui ti sei registrato.' }
   if (!cliente?.piano) return { ok: false, perche: 'Serve un piano: scegline uno e completa l’abbonamento.' }
