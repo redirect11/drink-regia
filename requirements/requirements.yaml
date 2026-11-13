@@ -4366,7 +4366,11 @@ requirements:
       `valida_fino` (il momento in cui l'app si ferma da sola anche senza
       rete) è lo stesso momento calcolato sulla scadenza del pagamento,
       non più il taglio dopo la scadenza. Le sospensioni e le chiusure
-      dell'admin e del titolare restano immediate. (4) L'ORA
+      dell'admin e del titolare restano immediate. Finché lo stato aspetta
+      il suo momento, il riquadro del rinnovo (REQ-FLOTTA-090) dice «Il
+      locale sta per essere sospeso» (o «chiuso», per la disdetta) e quando
+      l'app si ferma, mai «è sospeso» o «è chiuso» mentre l'app lavora
+      (revisione del 13/11/2026, D2). (4) L'ORA
       DELL'ATTIVAZIONE è `clienti/{uid}.abbonamento.dal`: la scrive il
       webhook di Stripe a `checkout.session.completed` (lib/abbonamento.js,
       l'istante in cui la regia lo lavora), la creazione a mano dall'admin

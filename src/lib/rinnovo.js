@@ -78,7 +78,10 @@ export function situazioneRinnovo({ cliente, istanza, vendita }) {
   if (licenza === 'chiusa') {
     const e = istanza.eliminazione
     const cancellazione = ['programmata', 'in coda', 'in corso'].includes(e?.stato) ? e.quando || null : null
-    return { ...base, tipo: 'chiuso', perPagamento: perIlPagamento(istanza), paga: false, cancellazione }
+    // Anche la chiusura per pagamento (la disdetta) aspetta il suo momento
+    // fuori servizio: finché non arriva, l'app lavora (revisione, D2).
+    const perPagamento = perIlPagamento(istanza)
+    return { ...base, tipo: 'chiuso', perPagamento, paga: false, cancellazione, siFerma: perPagamento ? sospensioneAlMomento(istanza) : null }
   }
   if (licenza === 'sospesa') {
     const perPagamento = perIlPagamento(istanza)

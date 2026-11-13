@@ -182,6 +182,15 @@ describe('cosa dice l’area del titolare', () => {
     expect(admin.siFerma).toBeNull()
   })
 
+  // Revisione del 13/11/2026 (D2): anche la chiusura per pagamento aspetta
+  // il suo momento; quella dell'admin no.
+  it('la chiusura per pagamento che aspetta il suo momento ha siFerma; quella dell’admin no', () => {
+    const sospensione_al = { dal: '2026-11-11T01:00:00.000Z', stato: 'chiusa' }
+    const s = situazioneRinnovo({ cliente: cliente({ stato: 'disdetto' }), istanza: istanza({ licenza_stato: 'chiusa', licenza_per: 'pagamento', sospensione_al }), vendita: ONLINE })
+    expect(s).toMatchObject({ tipo: 'chiuso', siFerma: '2026-11-11T01:00:00.000Z' })
+    expect(situazioneRinnovo({ cliente: cliente(), istanza: istanza({ licenza_stato: 'chiusa', licenza_per: 'admin', sospensione_al }), vendita: ONLINE }).siFerma).toBeNull()
+  })
+
   it('i contatti sono quelli del prodotto', () => {
     expect(situazioneRinnovo({ cliente: cliente(), istanza: istanza({ licenza_stato: 'sospesa' }), vendita: ONLINE }).email).toBe(EMAIL_CONTATTI)
   })
