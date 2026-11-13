@@ -19,6 +19,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import '@testing-library/jest-dom/vitest'
 import { readFileSync } from 'node:fs'
+import listinoAI from '../functions/piani.json'
 
 const db = vi.hoisted(() => ({
   elencoClienti: vi.fn(),
@@ -35,6 +36,8 @@ const db = vi.hoisted(() => ({
   }),
   impostaDeployAutomatico: vi.fn(async () => {}),
   impostaAttivazioneSimulata: vi.fn(async () => {}),
+  // Il modello AI per tipo di richiesta (REQ-FLOTTA-092).
+  impostaModelliAI: vi.fn(async () => ({ ok: true })),
   autorizzaRichiesta: vi.fn(async () => {}),
   autorizzaProfiloCompleto: vi.fn(async () => ({ ok: true })),
   rifiutaRichiesta: vi.fn(async () => {}),
@@ -1740,5 +1743,38 @@ describe('il backoffice e un locale Free', () => {
     mostra()
     const locale = await apri('Bar Ripiego')
     expect(within(locale).queryByRole('button', { name: 'Ricarica AI' })).toBeNull()
+  })
+})
+
+// IL MODELLO AI PER TIPO DI RICHIESTA (REQ-FLOTTA-092). Daniele,
+// 13/11/2026, su Sonnet: «Per tutto». L'admin sceglie un modello per ogni
+// tipo, fra quelli che hanno un prezzo nel listino; la scelta sta in
+// impostazioni/regia.ai_modelli e passa dalla Function gestisciModelliAI.
+describe('il modello AI nel backoffice', () => {
+  const modelli = Object.keys(listinoAI.ai.prezzi_usd_per_milione)
+
+  it('in «Vendita» c’è una scelta per descrizione, fattura, tema e chat, coi soli modelli del listino', async () => {
+    mostra('/backoffice/vendita')
+    const sezione = await screen.findByRole('region', { name: 'Modelli AI' })
+    for (const tipo of ['Descrizione', 'Fattura', 'Tema', 'Chat']) {
+      const scelta = within(sezione).getByRole('combobox', { name: tipo })
+      expect([...scelta.querySelectorAll('option')].map((o) => o.value)).toEqual(modelli)
+    }
+  })
+
+  it('senza una scelta salvata mostra Sonnet; una scelta salvata si vede', async () => {
+    regia.impostazioni = { ai_modelli: { fattura: 'claude-opus-5-5' } }
+    mostra('/backoffice/vendita')
+    const sezione = await screen.findByRole('region', { name: 'Modelli AI' })
+    expect(within(sezione).getByRole('combobox', { name: 'Descrizione' })).toHaveValue('claude-sonnet-5-5')
+    expect(within(sezione).getByRole('combobox', { name: 'Fattura' })).toHaveValue('claude-opus-5-5')
+  })
+
+  it('cambiare il modello di un tipo lo salva passando dalla Function, solo per quel tipo', async () => {
+    const user = userEvent.setup()
+    mostra('/backoffice/vendita')
+    const sezione = await screen.findByRole('region', { name: 'Modelli AI' })
+    await user.selectOptions(within(sezione).getByRole('combobox', { name: 'Descrizione' }), 'claude-opus-5-5')
+    expect(db.impostaModelliAI).toHaveBeenCalledWith({ descrizione: 'claude-opus-5-5' })
   })
 })
