@@ -174,7 +174,10 @@ export default function App() {
         <Route path="/dashboard/*" element={dopoLAccesso(utente ? <Dashboard utente={utente} chiuso={chiuso} /> : <Navigate to="/accedi" replace />)} />
         {/* Le sezioni del backoffice (REQ-FLOTTA-005, 30/10/2026) sono sotto-rotte: «/*» le porta tutte a Backoffice, e il controllo del claim admin vale per ognuna. */}
         <Route path="/backoffice/*" element={dopoLAccesso(utente?.admin ? <Backoffice /> : <Navigate to="/" replace />)} />
-        <Route path="/termini" element={dopoLAccesso(<Termini />)} />
+        {/* Col sito chiuso niente prezzi al pubblico (REQ-FLOTTA-096): i
+            termini citano quelli dei Fondatori, e finché non si vende non
+            c'è niente da sottoscrivere. La privacy resta. */}
+        <Route path="/termini" element={chiuso ? <Anteprima lingua="it" /> : dopoLAccesso(<Termini />)} />
         <Route path="/privacy" element={dopoLAccesso(<Privacy />)} />
         <Route path="*" element={dopoLAccesso(<Navigate to="/" replace />)} />
       </Routes>
@@ -216,10 +219,12 @@ export default function App() {
           </div>
           <div>
             <h2 className="piede-titolo">{t.piede.informazioni}</h2>
-            <Link to="/termini" {...versoItaliano}>
-              {t.piede.termini}
-              {inItaliano}
-            </Link>
+            {!chiuso && (
+              <Link to="/termini" {...versoItaliano}>
+                {t.piede.termini}
+                {inItaliano}
+              </Link>
+            )}
             <Link to="/privacy" {...versoItaliano}>
               {t.piede.privacy}
               {inItaliano}
