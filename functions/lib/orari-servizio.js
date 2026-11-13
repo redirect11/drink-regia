@@ -106,9 +106,19 @@ function giorniSenzaPausa(giorni) {
 // ── I 7 GIORNI E LE RICHIESTE ─────────────────────────────────────────
 
 // Fino a quando il titolare li corregge da solo: 7 giorni da quando sono
-// stati scritti la prima volta. Null se non ci sono ancora.
+// stati scritti la prima volta. Null se non ci sono ancora, o se la data
+// non è valida: allora gli orari sono correggibili, e il primo salvataggio
+// fa partire i 7 giorni (revisione del 13/11/2026, D8: il sito e la regia
+// la pensano uguale).
+// `correggibili_fino`, se c'è, vale da sé: la mette l'admin quando scrive
+// gli orari di un locale che non li aveva (Daniele, 13/11/2026), così i 7
+// giorni del titolare non partono.
+const istante = (iso) => Date.parse(typeof iso === 'string' ? iso : '')
 function correggibiliFino(cliente) {
-  const dal = Date.parse(cliente?.orari_servizio?.impostati_il || '')
+  const os = cliente?.orari_servizio
+  const fissata = istante(os?.correggibili_fino)
+  if (Number.isFinite(fissata)) return new Date(fissata).toISOString()
+  const dal = istante(os?.impostati_il)
   return Number.isFinite(dal) ? new Date(dal + GIORNI_DI_CORREZIONE * GIORNO).toISOString() : null
 }
 
@@ -146,7 +156,8 @@ function correzioneDelTitolare(cliente, giorni, { uid, adesso = new Date() }) {
       richiesta: null,
       ...(os || {}),
       giorni: nuovi,
-      impostati_il: os?.giorni && os.impostati_il ? os.impostati_il : quando,
+      // Una data non valida non conta (D8): i 7 giorni partono adesso.
+      impostati_il: os?.giorni && Number.isFinite(istante(os.impostati_il)) ? os.impostati_il : quando,
       storia: conTraccia(os?.storia, traccia),
     },
   }
@@ -171,6 +182,34 @@ function richiestaDiCambio(cliente, giorni, motivo, { uid, adesso = new Date() }
 // LA DECISIONE DELL'ADMIN dal backoffice: approvata, valgono gli orari
 // nuovi; rifiutata, restano quelli di prima. In tutti e due i casi la
 // richiesta si chiude e resta la traccia.
+// GLI ORARI SCRITTI DALL'ADMIN (Daniele, 13/11/2026: «si»): in qualunque
+// momento, per qualunque locale, anche uno creato da lui che non ne ha. La
+// stessa validazione, e la traccia (chi è l'admin, prima, dopo, la nota).
+// Una richiesta in attesa resta: l'admin la decide a parte.
+// Se gli orari non avevano una data valida, la scrittura dell'admin NON
+// apre i 7 giorni del titolare: impostati_il è adesso (sono stati scritti
+// adesso) e correggibili_fino è adesso, quindi da sé il titolare non li
+// corregge, e per cambiarli chiede. Scelto un campo a parte invece di
+// spostare indietro impostati_il: la data resta vera, e la traccia pure.
+// Con una data, i 7 giorni restano quelli che erano.
+function scritturaDellAdmin(cliente, giorni, { admin, nota = null, adesso = new Date() }) {
+  const os = cliente?.orari_servizio
+  const nuovi = controllati(giorni)
+  const quando = adesso.toISOString()
+  const conData = Number.isFinite(istante(os?.impostati_il))
+  const traccia = { tipo: 'admin', chi: admin, quando, prima: os?.giorni || null, dopo: nuovi, motivo: null, nota: String(nota ?? '').trim().slice(0, TESTO_MASSIMO) || null }
+  return {
+    orari_servizio: {
+      richiesta: null,
+      ...(os || {}),
+      giorni: nuovi,
+      impostati_il: conData ? os.impostati_il : quando,
+      ...(conData ? {} : { correggibili_fino: quando }),
+      storia: conTraccia(os?.storia, traccia),
+    },
+  }
+}
+
 function decisioneSullaRichiesta(cliente, { esito, admin, adesso = new Date(), nota = null }) {
   const os = cliente?.orari_servizio
   const r = os?.richiesta
@@ -296,6 +335,15 @@ function quandoSospendere(cliente, { adesso = new Date(), oraTaglio = ORA_DEL_TA
 // controlla prima di farne un percorso (revisione del 13/11/2026).
 const UID_VALIDO = /^[A-Za-z0-9_-]{1,128}$/
 
+// LA CALLABLE DEGLI ORARI SCRITTI DALL'ADMIN (scriviOrariAdmin in
+// index.js): solo col claim admin; l'uid del cliente arriva dal browser e
+// cambiaOrari lo controlla. Qui e non in index.js perché si prova da sola.
+async function orariDellAdmin(db, auth, dati, { adesso = new Date() } = {}) {
+  if (auth?.token?.admin !== true) throw new OrariRifiutati('permission-denied', 'Solo l’amministratore.')
+  const admin = auth.token.email || auth.uid
+  return cambiaOrari(db, String(dati?.uid || ''), (c) => scritturaDellAdmin(c, dati?.giorni, { admin, nota: dati?.nota, adesso }))
+}
+
 async function cambiaOrari(db, uid, cambio) {
   if (!uid) throw new OrariRifiutati('invalid-argument', 'Manca il cliente.')
   if (!UID_VALIDO.test(uid)) throw new OrariRifiutati('invalid-argument', 'Cliente non valido.')
@@ -362,6 +410,8 @@ const fermoDavvero = (ist) => ferma(ist?.licenza_stato) && !ist?.sospensione_al?
 
 module.exports = {
   cambiaOrari,
+  orariDellAdmin,
+  scritturaDellAdmin,
   momentoDelloStato,
   H24,
   compitoSospensioneValido,

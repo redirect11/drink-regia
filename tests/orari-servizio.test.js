@@ -271,6 +271,81 @@ describe('per 7 giorni li corregge il titolare, dopo serve l’approvazione', ()
       expect(rifiuto(() => decisioneSullaRichiesta(conRichiesta(), { esito: 'forse', admin: 'admin@example.it', adesso: deciso }))?.codice).toBe('invalid-argument')
     })
   })
+
+  // Revisione del 13/11/2026, D8: con gli orari ma senza una data valida
+  // (impostati_il mancante o rotto) il sito e la regia applicano la stessa
+  // regola: gli orari sono correggibili, e il primo salvataggio fa partire
+  // i 7 giorni.
+  it('D8: con gli orari ma senza una data valida, gli orari sono correggibili', () => {
+    const { correzioneDelTitolare, correggibiliFino } = orari()
+    const adesso = new Date('2026-12-01T09:00:00.000Z')
+    for (const impostati_il of [undefined, null, '', 'ieri']) {
+      const senzaData = { uid: 'u1', orari_servizio: { giorni: SERA, impostati_il, richiesta: null, storia: [] } }
+      expect(correggibiliFino(senzaData), String(impostati_il)).toBeNull()
+      expect(sito.correggibiliFino(senzaData), String(impostati_il)).toBeNull()
+      const { orari_servizio: dopo } = correzioneDelTitolare(senzaData, PRANZO, { uid: 'u1', adesso })
+      expect(dopo.giorni).toEqual(PRANZO)
+      expect(dopo.impostati_il).toBe(adesso.toISOString())
+    }
+  })
+
+  // Daniele, 13/11/2026, sugli orari scritti dall'admin: «si». In qualunque
+  // momento, per qualunque locale, con la stessa validazione e la traccia.
+  describe('l’admin scrive gli orari dal backoffice', () => {
+    const adesso = new Date('2026-12-05T15:00:00.000Z')
+    const PRANZO_E_SERA = { ...SERA, lun: aperto('12:00', '15:00'), dom: aperto('00:00', '24:00') }
+
+    it('a un locale che non ne ha: gli orari, la traccia (chi è l’admin, prima, dopo, nota) e i 7 giorni del titolare NON partono', () => {
+      const { scritturaDellAdmin, correggibiliFino, correzioneDelTitolare, richiestaDiCambio } = orari()
+      const { orari_servizio: dopo } = scritturaDellAdmin({ uid: 'u2', slug: 'pub-vecchio' }, PRANZO_E_SERA, { admin: 'admin@example.it', nota: '  Dal sito del locale.  ', adesso })
+      expect(dopo.giorni).toEqual(PRANZO_E_SERA)
+      expect(dopo.richiesta).toBeNull()
+      expect(dopo.impostati_il).toBe(adesso.toISOString())
+      expect(dopo.correggibili_fino).toBe(adesso.toISOString())
+      expect(dopo.storia).toEqual([{ tipo: 'admin', chi: 'admin@example.it', quando: adesso.toISOString(), prima: null, dopo: PRANZO_E_SERA, motivo: null, nota: 'Dal sito del locale.' }])
+      // Il titolare non li corregge da sé: chiede il cambio.
+      const scritto = { uid: 'u2', orari_servizio: dopo }
+      expect(correggibiliFino(scritto)).toBe(adesso.toISOString())
+      expect(sito.correggibiliFino(scritto)).toBe(adesso.toISOString())
+      expect(rifiuto(() => correzioneDelTitolare(scritto, SERA, { uid: 'u2', adesso: new Date(adesso.getTime() + 1000) }))?.codice).toBe('failed-precondition')
+      expect(() => richiestaDiCambio(scritto, SERA, 'Il lunedì a pranzo non apriamo più.', { uid: 'u2', adesso: new Date(adesso.getTime() + 1000) })).not.toThrow()
+    })
+
+    it('con gli orari senza data (D8) vale lo stesso: la scrittura dell’admin non apre i 7 giorni', () => {
+      const { scritturaDellAdmin, correggibiliFino } = orari()
+      const { orari_servizio: dopo } = scritturaDellAdmin({ orari_servizio: { giorni: SERA } }, PRANZO_E_SERA, { admin: 'admin@example.it', adesso })
+      expect(correggibiliFino({ orari_servizio: dopo })).toBe(adesso.toISOString())
+      expect(dopo.storia.at(-1)).toMatchObject({ tipo: 'admin', prima: SERA, nota: null })
+    })
+
+    it('a un locale con la sua data: i 7 giorni del titolare restano quelli che erano', () => {
+      const { scritturaDellAdmin, correggibiliFino, correzioneDelTitolare } = orari()
+      const nei7 = new Date('2026-11-15T10:00:00.000Z')
+      const { orari_servizio: dopo } = scritturaDellAdmin(cliente, PRANZO_E_SERA, { admin: 'admin@example.it', adesso: nei7 })
+      expect(dopo.impostati_il).toBe(IMPOSTATI)
+      expect(dopo).not.toHaveProperty('correggibili_fino')
+      expect(correggibiliFino({ orari_servizio: dopo })).toBe(FINO)
+      expect(() => correzioneDelTitolare({ orari_servizio: dopo }, SERA, { uid: 'u1', adesso: nei7 })).not.toThrow()
+    })
+
+    it('in qualunque momento, anche dopo i 7 giorni; una richiesta in attesa resta, e l’admin la decide a parte', () => {
+      const { scritturaDellAdmin, richiestaDiCambio } = orari()
+      const conRichiesta = { ...cliente, ...richiestaDiCambio(cliente, PRANZO, 'Da dicembre apriamo anche il lunedì a pranzo.', { uid: 'u1', adesso: new Date('2026-12-01T09:00:00.000Z') }) }
+      const { orari_servizio: dopo } = scritturaDellAdmin(conRichiesta, PRANZO_E_SERA, { admin: 'admin@example.it', adesso })
+      expect(dopo.giorni).toEqual(PRANZO_E_SERA)
+      expect(dopo.richiesta).toEqual(conRichiesta.orari_servizio.richiesta)
+      expect(dopo.storia.at(-1)).toMatchObject({ tipo: 'admin', prima: SERA, dopo: PRANZO_E_SERA })
+    })
+
+    it('la stessa validazione: orari sbagliati si rifiutano, e la nota ha il suo tetto', () => {
+      const { scritturaDellAdmin, TESTO_MASSIMO } = orari()
+      expect(rifiuto(() => scritturaDellAdmin(cliente, tutti(CHIUSO), { admin: 'admin@example.it', adesso }))?.codice).toBe('invalid-argument')
+      expect(rifiuto(() => scritturaDellAdmin(cliente, { ...SERA, mar: aperto('18:00', '18:00') }, { admin: 'admin@example.it', adesso }))?.codice).toBe('invalid-argument')
+      expect(rifiuto(() => scritturaDellAdmin(cliente, null, { admin: 'admin@example.it', adesso }))?.codice).toBe('invalid-argument')
+      const { orari_servizio: dopo } = scritturaDellAdmin(cliente, SERA, { admin: 'admin@example.it', nota: 'x'.repeat(TESTO_MASSIMO + 10), adesso })
+      expect(dopo.storia.at(-1).nota).toHaveLength(TESTO_MASSIMO)
+    })
+  })
 })
 
 describe('il momento della sospensione per pagamento', () => {
@@ -518,6 +593,46 @@ describe('cambiaOrari: in transazione sul documento del cliente', () => {
   })
 })
 
+// La callable degli orari scritti dall'admin (scriviOrariAdmin in
+// index.js) è questa funzione: solo col claim admin, e l'uid che arriva dal
+// browser si controlla prima di farne un percorso.
+describe('orariDellAdmin: la callable degli orari scritti dall’admin', () => {
+  const cliente = { uid: 'u1', slug: 'bar-mario', orari_servizio: { giorni: SERA, impostati_il: '2026-11-13T10:00:00.000Z', richiesta: null, storia: [] } }
+  const PRANZO = { ...SERA, lun: aperto('12:00', '15:00') }
+  const ADMIN = { uid: 'a1', token: { admin: true, email: 'admin@example.it' } }
+  const adesso = new Date('2026-12-05T15:00:00.000Z')
+
+  it('l’admin scrive gli orari di un locale, con la traccia a suo nome', async () => {
+    const db = firestoreFinto({ 'clienti/u1': cliente, 'clienti/u2': { uid: 'u2', slug: 'pub-vecchio' } })
+    const scritto = await orari().orariDellAdmin(db, ADMIN, { uid: 'u1', giorni: PRANZO, nota: 'Al telefono.' }, { adesso })
+    expect(db.dati['clienti/u1'].orari_servizio).toEqual(scritto)
+    expect(scritto.giorni).toEqual(PRANZO)
+    expect(scritto.storia.at(-1)).toMatchObject({ tipo: 'admin', chi: 'admin@example.it', nota: 'Al telefono.' })
+    // Anche a un locale che non ne ha; senza email nel token, l'uid.
+    const nuovo = await orari().orariDellAdmin(db, { uid: 'a1', token: { admin: true } }, { uid: 'u2', giorni: SERA }, { adesso })
+    expect(nuovo).toMatchObject({ giorni: SERA, correggibili_fino: adesso.toISOString() })
+    expect(nuovo.storia.at(-1).chi).toBe('a1')
+  })
+
+  it('il titolare no, nemmeno sul suo locale; senza accesso nemmeno', async () => {
+    const db = firestoreFinto({ 'clienti/u1': cliente })
+    for (const auth of [{ uid: 'u1', token: {} }, { uid: 'u1', token: { admin: 'true' } }, null, undefined]) {
+      await expect(orari().orariDellAdmin(db, auth, { uid: 'u1', giorni: PRANZO }, { adesso }), JSON.stringify(auth)).rejects.toMatchObject({ codice: 'permission-denied' })
+    }
+    expect(db.scritture).toEqual([])
+  })
+
+  it('l’uid si controlla: niente percorsi costruiti dal browser, e un cliente che non c’è non si crea', async () => {
+    const db = firestoreFinto({ 'clienti/u1': cliente })
+    for (const uid of ['', undefined, '../impostazioni/regia', 'u1/altro', 'a'.repeat(129)]) {
+      await expect(orari().orariDellAdmin(db, ADMIN, { uid, giorni: PRANZO }, { adesso }), String(uid)).rejects.toMatchObject({ codice: 'invalid-argument' })
+    }
+    await expect(orari().orariDellAdmin(db, ADMIN, { uid: 'nessuno', giorni: PRANZO }, { adesso })).rejects.toMatchObject({ codice: 'not-found' })
+    await expect(orari().orariDellAdmin(db, ADMIN, { uid: 'u1', giorni: tutti(CHIUSO) }, { adesso })).rejects.toMatchObject({ codice: 'invalid-argument' })
+    expect(db.scritture).toEqual([])
+  })
+})
+
 describe('il compito della sospensione', () => {
   it('«sospensione» è un tipo di compito delle scadenze', () => {
     expect(require('../functions/lib/scadenze.js').TIPI).toContain('sospensione')
@@ -554,6 +669,17 @@ describe('functions/index.js', () => {
     const fn = corpo('decidiCambioOrari')
     expect(fn).toContain("if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied'")
     expect(fn).toContain('orari.decisioneSullaRichiesta(c, scelta)')
+  })
+
+  // Daniele, 13/11/2026: «si». Il controllo dell'admin e dell'uid sta in
+  // orariDellAdmin, provata sopra; la callable la chiama e basta. Le
+  // scadenze si ricalcolano da licenzaSegueIlPiano, come per ogni cambio
+  // degli orari (momentoSpostato).
+  it('scriviOrariAdmin: passa da orariDellAdmin con l’accesso di chi chiama', () => {
+    const fn = corpo('scriviOrariAdmin')
+    expect(fn).toContain('return { orari_servizio: await orari.orariDellAdmin(db, req.auth, req.data) }')
+    expect(fn).toContain('throw erroreOrari(e)')
+    expect(corpo('licenzaSegueIlPiano')).toContain("JSON.stringify(prima?.orari_servizio?.giorni ?? null) !== JSON.stringify(dopo.orari_servizio?.giorni ?? null)")
   })
 
   it('i rifiuti degli orari diventano HttpsError col loro codice', () => {

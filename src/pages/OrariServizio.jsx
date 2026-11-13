@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { correggiOrari, chiediCambioOrari, decidiCambioOrari } from '../lib/db.js'
-import { GIORNI, NOMI_GIORNI, MOTIVO_MINIMO, AVVISO_SENZA_PAUSA, problemiOrari, orariPuliti, orariNelModulo, giorniSenzaPausa, correggibiliFino, giornoDetto, quandoDetto } from '../lib/orari.js'
+import { correggiOrari, chiediCambioOrari, decidiCambioOrari, scriviOrariAdmin } from '../lib/db.js'
+import { GIORNI, NOMI_GIORNI, MOTIVO_MINIMO, AVVISO_SENZA_PAUSA, problemiOrari, orariPuliti, orariNelModulo, giorniSenzaPausa, correggibiliFino, correggibili as siCorreggono, giornoDetto, quandoDetto } from '../lib/orari.js'
 import { BASE_TITOLARE } from '../lib/areaTitolare.js'
 import OrariSettimana from './OrariSettimana.jsx'
 
@@ -14,7 +14,8 @@ import OrariSettimana from './OrariSettimana.jsx'
 // - nei 7 giorni (e la prima volta, per i locali di prima) il titolare li
 //   corregge da sé;
 // - dopo li legge, e per cambiarli manda una richiesta col motivo scritto;
-// - l'admin, nella scheda del locale, approva o rifiuta con una nota.
+// - l'admin, nella scheda del locale, approva o rifiuta con una nota, e
+//   scrive o corregge lui gli orari quando serve (Daniele, 13/11/2026: «si»).
 // Il browser chiama le Functions: orari_servizio non lo scrive mai.
 
 // Gli orari a parole, un giorno per riga.
@@ -64,7 +65,8 @@ export function AvvisoOrari({ cliente }) {
 export default function OrariServizio({ cliente, adesso = new Date() }) {
   const os = cliente?.orari_servizio
   const fino = correggibiliFino(cliente)
-  const correggibili = !os?.giorni || (fino && adesso.getTime() < Date.parse(fino))
+  // Senza una data valida si correggono, come nella regia (revisione, D8).
+  const correggibili = siCorreggono(cliente, adesso)
   const [modulo, setModulo] = useState(() => orariNelModulo(os?.giorni))
   const [motivo, setMotivo] = useState('')
   const [chiedendo, setChiedendo] = useState(false)
@@ -108,8 +110,11 @@ export default function OrariServizio({ cliente, adesso = new Date() }) {
           salvati, li puoi correggere per 7 giorni; dopo si cambiano solo con una richiesta.
         </p>
       )}
-      {os?.giorni && correggibili && (
+      {os?.giorni && correggibili && fino && (
         <p className="muted small">Li puoi correggere fino al {quandoDetto(fino)}. Dopo si cambiano solo con una richiesta, col motivo, che approviamo noi.</p>
+      )}
+      {os?.giorni && correggibili && !fino && (
+        <p className="muted small">Li puoi correggere da qui: dal primo salvataggio hai 7 giorni, poi si cambiano solo con una richiesta, col motivo, che approviamo noi.</p>
       )}
       {os?.giorni && !correggibili && <OrariDetti giorni={os.giorni} />}
       {os?.giorni && !chiedendo && <AvvisoSenzaPausa giorni={os.giorni} />}
@@ -186,14 +191,79 @@ export default function OrariServizio({ cliente, adesso = new Date() }) {
   )
 }
 
+// L'ADMIN SCRIVE GLI ORARI (Daniele, 13/11/2026: «si»): di qualunque
+// locale, in qualunque momento, anche di uno che non ne ha, con gli stessi
+// controlli del titolare e una nota facoltativa che resta nella traccia.
+// Una richiesta in attesa non si tocca: si decide a parte, qui sotto.
+function OrariDellAdmin({ cliente, onFatto, onErrore }) {
+  const os = cliente?.orari_servizio
+  const [aperto, setAperto] = useState(false)
+  const [modulo, setModulo] = useState(() => orariNelModulo(os?.giorni))
+  const [nota, setNota] = useState('')
+  const [errori, setErrori] = useState({})
+  const [inCorso, setInCorso] = useState(false)
+
+  const salva = async () => {
+    const p = problemiOrari(modulo)
+    setErrori(p)
+    if (Object.keys(p).length) return
+    setInCorso(true)
+    try {
+      await scriviOrariAdmin(cliente.uid, orariPuliti(modulo), nota.trim() || null)
+      setAperto(false)
+      setNota('')
+      onFatto?.()
+    } catch (e) {
+      onErrore?.(e?.message || 'Gli orari non si sono salvati.')
+    } finally {
+      setInCorso(false)
+    }
+  }
+
+  if (!aperto) {
+    return (
+      <div className="azioni">
+        <button
+          type="button"
+          className="btn ghost small"
+          onClick={() => {
+            setModulo(orariNelModulo(os?.giorni))
+            setErrori({})
+            setAperto(true)
+          }}
+        >
+          {os?.giorni ? 'Correggi gli orari' : 'Scrivi gli orari'}
+        </button>
+      </div>
+    )
+  }
+  return (
+    <div className="riquadro-richiesta" aria-label="Orari scritti dall’amministratore">
+      <OrariSettimana valore={modulo} onChange={setModulo} errori={errori} prefisso={`admin-${cliente.slug}`} disabilitato={inCorso} />
+      <label htmlFor={`nota-admin-orari-${cliente.slug}`}>Nota per la traccia (facoltativa)</label>
+      <input id={`nota-admin-orari-${cliente.slug}`} value={nota} onChange={(e) => setNota(e.target.value)} disabled={inCorso} />
+      <div className="azioni">
+        <button type="button" className="btn ghost small" disabled={inCorso} onClick={() => setAperto(false)}>
+          Annulla
+        </button>
+        <button type="button" className="btn small" disabled={inCorso} onClick={salva}>
+          {inCorso ? 'Un momento…' : 'Salva gli orari'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // NEL BACKOFFICE, nella scheda del locale: gli orari, l'avviso se non c'è
-// pausa, e la richiesta in attesa con Approva e Rifiuta. La nota va al
-// titolare con la decisione (la legge nella sua area).
+// pausa, la richiesta in attesa con Approva e Rifiuta, e gli orari scritti
+// dall'admin. La nota della decisione va al titolare (la legge nella sua
+// area).
 export function OrariNelBackoffice({ cliente, onFatto, onErrore }) {
   const os = cliente?.orari_servizio
   const [nota, setNota] = useState('')
   const [inCorso, setInCorso] = useState(false)
   const r = os?.richiesta
+  const fino = correggibiliFino(cliente)
 
   const decidi = async (esito) => {
     setInCorso(true)
@@ -208,7 +278,14 @@ export function OrariNelBackoffice({ cliente, onFatto, onErrore }) {
     }
   }
 
-  if (!os?.giorni) return <p className="muted small">Non indicati: la sospensione per pagamento arriva al taglio della giornata.</p>
+  if (!os?.giorni) {
+    return (
+      <>
+        <p className="muted small">Non indicati: la sospensione per pagamento arriva al taglio della giornata.</p>
+        <OrariDellAdmin cliente={cliente} onFatto={onFatto} onErrore={onErrore} />
+      </>
+    )
+  }
   return (
     <>
       <ul className="orari-elenco small">
@@ -218,8 +295,11 @@ export function OrariNelBackoffice({ cliente, onFatto, onErrore }) {
           </li>
         ))}
       </ul>
-      <div className="muted small">Correggibili dal titolare fino al {quandoDetto(correggibiliFino(cliente))}</div>
+      <div className="muted small">
+        {fino ? `Correggibili dal titolare fino al ${quandoDetto(fino)}` : 'Correggibili dal titolare: i 7 giorni partono dal suo primo salvataggio'}
+      </div>
       <AvvisoSenzaPausa giorni={os.giorni} />
+      <OrariDellAdmin cliente={cliente} onFatto={onFatto} onErrore={onErrore} />
       {r && (
         <div className="riquadro-richiesta" aria-label="Richiesta di cambio degli orari">
           <p className="small">

@@ -2337,6 +2337,18 @@ exports.chiediCambioOrari = onCall(OPTS, async (req) => {
   }
 })
 
+// L'admin scrive o corregge gli orari di qualunque locale, in qualunque
+// momento (Daniele, 13/11/2026: «si»). Il controllo del claim e dell'uid
+// sta in lib/orari-servizio.js (orariDellAdmin). Le scadenze si ricalcolano
+// da licenzaSegueIlPiano, come per ogni cambio degli orari.
+exports.scriviOrariAdmin = onCall(OPTS, async (req) => {
+  try {
+    return { orari_servizio: await orari.orariDellAdmin(db, req.auth, req.data) }
+  } catch (e) {
+    throw erroreOrari(e)
+  }
+})
+
 exports.decidiCambioOrari = onCall(OPTS, async (req) => {
   if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
   const admin = req.auth.token.email || req.auth.uid

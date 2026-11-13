@@ -61,9 +61,22 @@ export function giorniSenzaPausa(giorni) {
   })
 }
 
+// Come la regia: correggibili_fino, se l'ha messa l'admin, vale da sé;
+// senza una data valida null, cioè correggibili (revisione, D8).
+const istante = (iso) => Date.parse(typeof iso === 'string' ? iso : '')
 export function correggibiliFino(cliente) {
-  const dal = Date.parse(cliente?.orari_servizio?.impostati_il || '')
+  const os = cliente?.orari_servizio
+  const fissata = istante(os?.correggibili_fino)
+  if (Number.isFinite(fissata)) return new Date(fissata).toISOString()
+  const dal = istante(os?.impostati_il)
   return Number.isFinite(dal) ? new Date(dal + GIORNI_DI_CORREZIONE * 86400000).toISOString() : null
+}
+
+// Il titolare li corregge da sé? Senza orari sì (la prima volta), senza una
+// data valida sì (D8), altrimenti fino a correggibiliFino.
+export function correggibili(cliente, adesso = new Date()) {
+  const fino = correggibiliFino(cliente)
+  return !cliente?.orari_servizio?.giorni || !fino || adesso.getTime() < Date.parse(fino)
 }
 
 // Un giorno a parole: «18:00–02:00 (fino al giorno dopo)», «aperto 24
