@@ -269,6 +269,9 @@ describe('la risposta del modello', () => {
       tipo: 'fattura',
       modello: 'claude-opus-5-5',
       token_input: 150,
+      // La cache letta e scritta (REQ-FLOTTA-094).
+      token_cache_lettura: 50,
+      token_cache_scrittura: 0,
       token_output: 20,
       fallback: true,
       costo_microeuro: 999,

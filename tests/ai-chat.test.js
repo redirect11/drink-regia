@@ -18,6 +18,7 @@ import { readFileSync } from 'node:fs'
 
 const require = createRequire(import.meta.url)
 const ai = require('../functions/lib/ai.js')
+const listino = require('../functions/piani.json')
 
 // Finché la voce è da fare il modulo non c'è: ogni test fallisce da sé,
 // col suo nome, invece di un solo errore d'importazione che li nasconde.
@@ -83,10 +84,11 @@ function cassettoFinto({ esito = { ok: true, credito: 5_000_000, scadute: [] }, 
 
 const rispostaModello = (content, altro = {}) => ({ model: MODELLO, stop_reason: 'end_turn', content, usage: { input_tokens: 1200, output_tokens: 80 }, ...altro })
 // La stima della prenotazione: stimaMassimaMicroeuro coi token contati,
-// come per le altre richieste (REQ-FLOTTA-093: `inputContati`). Oggi il
-// secondo argomento non c'è e vale la stima d'ingresso; dopo la 093 vale la
-// sua formula, e il test resta giusto.
-const stimaChat = (contati, maxTokens) => ai.stimaMassimaMicroeuro({ tipo: 'chat', stimaInputToken: contati, max_tokens: maxTokens }, { inputContati: contati })
+// come per le altre richieste (REQ-FLOTTA-093: `inputContati`, il margine
+// e TENTATIVI_MASSIMI stanno lì). Si confronta con la funzione e non con
+// un numero, così una correzione della 093 arriva anche alla chat.
+// Con la cache in scrittura: la chat la usa (Daniele, 13/11/2026).
+const stimaChat = (contati, maxTokens) => ai.stimaMassimaMicroeuro({ tipo: 'chat', stimaInputToken: contati, max_tokens: maxTokens }, { inputContati: contati, scritturaCache: true })
 const silenzioso = { error: () => {}, warn: () => {}, log: () => {} }
 
 async function interroga(corpo, { risposta = rispostaModello([{ type: 'text', text: 'Ci sono 4 bottiglie di Gin.' }]), token = 12_345, cassetto = cassettoFinto(), modello, impostazioni = {}, segreto = SEGRETO } = {}) {
@@ -98,13 +100,13 @@ async function interroga(corpo, { risposta = rispostaModello([{ type: 'text', te
     segreto,
     limiti: chat.limitiChat(impostazioni),
     modello: MODELLO,
-    // Il conteggio si inietta come `conta`, lo stesso nome di
-    // interrogaConPrenotazione in REQ-FLOTTA-093. Un Error al posto del
-    // numero fa fallire il conteggio.
+    // Il conteggio si inietta come `conta`, come in interrogaConPrenotazione
+    // (REQ-FLOTTA-093), e risponde come countTokens: { input_tokens }. Un
+    // Error al posto del numero fa fallire il conteggio.
     conta: async (p) => {
       contati.push(p)
       if (token instanceof Error) throw token
-      return token
+      return { input_tokens: token }
     },
     crea: m.crea,
     prenota: cassetto.prenota,
@@ -153,6 +155,13 @@ describe('i tetti dei limiti: l’admin sceglie, ma dentro un intervallo sensato
       max_strumenti_per_messaggio: 20,
       righe: { giacenza: 100, vendite: 100, cerca_prodotti: 100 },
     })
+  })
+
+  it('il backoffice usa gli stessi numeri del server (src/lib/ai.js)', async () => {
+    const sito = await import('../src/lib/ai.js')
+    expect(sito.LIMITI_CHAT.tetti).toEqual(chat.TETTI_LIMITI_CHAT)
+    expect(sito.LIMITI_CHAT.predefiniti).toEqual(chat.LIMITI_CHAT_PREDEFINITI)
+    expect(sito.limiteChatScelto('vendite', { limiti_chat: { righe: { vendite: 101 } } }, { riga: true })).toBe(20)
   })
 
   it('il tetto si può scegliere; oltre, il valore scritto a mano vale il predefinito', () => {
@@ -267,6 +276,25 @@ describe('la richiesta della chat: la regia la controlla prima di spendere', () 
     expect(() => prepara(richiesta([utente('Quanto Gin ho?'), esiti(['toolu_1', '4'])]))).toThrow(ai.RichiestaNonValida)
   })
 
+  // Le tre cose che l'API di Anthropic rifiuterebbe dopo la prenotazione:
+  // meglio un 400 subito che un 503 col credito tenuto in sospeso.
+  it('ogni strumento chiesto ha il suo esito, e uno strumento chiesto prima deve essere ancora fra quelli dati', () => {
+    const due = firmato([
+      { type: 'tool_use', id: 'toolu_1', name: 'giacenza', input: { prodotto: 'Gin' } },
+      { type: 'tool_use', id: 'toolu_2', name: 'vendite', input: { dal: '2026-11-01' } },
+    ])
+    expect(() => prepara(richiesta([utente('Gin e vendite?'), due, esiti(['toolu_1', '4'])]))).toThrow(ai.RichiestaNonValida)
+    expect(prepara(richiesta([utente('Gin e vendite?'), due, esiti(['toolu_1', '4'], ['toolu_2', '{}'])])).parametri.messages).toHaveLength(3)
+    expect(() => prepara(richiesta([utente('Quanto Gin ho?'), chiamaGiacenza(), esiti(['toolu_1', '4'])], { strumenti: ['vendite'] }))).toThrow(ai.RichiestaNonValida)
+    // Due turni del modello di fila non vengono dalla regia.
+    expect(() => prepara(richiesta([utente('Ciao'), firmato([{ type: 'text', text: 'Ciao' }]), firmato([{ type: 'text', text: 'Ancora' }]), utente('?')]))).toThrow(ai.RichiestaNonValida)
+  })
+
+  it('due turni di chi scrive di fila vanno bene: dopo un errore si riscrive senza risposta in mezzo', () => {
+    const m = prepara(richiesta([utente('Quanto Gin ho?'), utente('Ci sei?')]))
+    expect(m.parametri.messages).toEqual([utente('Quanto Gin ho?'), utente('Ci sei?')])
+  })
+
   it('gli strumenti sono solo identificativi che la regia conosce', () => {
     expect(chat.STRUMENTI_CHAT).toEqual(TUTTI)
     expect(() => prepara(richiesta([utente('Ciao')], { strumenti: ['giacenza', 'cancella_tutto'] }))).toThrow(ai.RichiestaNonValida)
@@ -338,6 +366,17 @@ describe('la lunghezza della conversazione', () => {
     expect(chat.controllaLunghezza(50_001, l)).toMatchObject({ http: 409, codice: 'troppo-lunga' })
     expect(chat.controllaLunghezza(50_001, l).errore).toMatch(/conversazione nuova/i)
     expect(chat.controllaLunghezza(60_001, chat.limitiChat({ limiti_chat: { max_token_conversazione: 60_000 } }))).toMatchObject({ codice: 'troppo-lunga' })
+  })
+
+  it('una conversazione enorme si ferma prima del conteggio, col 409 troppo-lunga', () => {
+    let errore
+    try {
+      prepara(richiesta([utente('x'.repeat(chat.MAX_CARATTERI_CHAT + 1))]))
+    } catch (e) {
+      errore = e
+    }
+    expect(errore).toBeInstanceOf(chat.ConversazioneDaRifare)
+    expect(errore.codice).toBe('troppo-lunga')
   })
 })
 
@@ -467,6 +506,116 @@ describe('da capo a fondo: la chat passa dalla prenotazione del credito', () => 
     expect(modello.chiamate[0].max_tokens).toBe(2500)
     expect(cassetto.prenotate).toEqual([stimaChat(12_345, 2500)])
     expect(esito.limiti_strumenti).toEqual({ giacenza: 5, vendite: 20, cerca_prodotti: 10 })
+  })
+})
+
+// LA CACHE DEL PROMPT. Daniele, 13/11/2026: «stiamo con la soglia più alta
+// basta che questo non allunghi troppo i tempi di attesa. Considera che una
+// chat che cresce e la rimanda tutta il costo delle richieste aumenta». Il
+// ripiego resta `fallbacks: 'default'` e la stima al prezzo più alto; la
+// chat mette in cache istruzioni, strumenti e conversazione, e la stima
+// copre la scrittura in cache dei due tentativi.
+describe('la cache del prompt della chat', () => {
+  it('la chiamata porta il segno sulle istruzioni (che coprono gli strumenti) e quello in cima, per l’ultimo turno', async () => {
+    const { modello, contati } = await interroga(richiesta([utente('Quanto Gin ho?')]))
+    const p = modello.chiamate[0]
+    expect(Array.isArray(p.system)).toBe(true)
+    expect(p.system.at(-1).cache_control).toEqual({ type: 'ephemeral' })
+    expect(p.cache_control).toEqual({ type: 'ephemeral' })
+    expect(p.tools.map((t) => t.name)).toEqual(['giacenza', 'vendite'])
+    // Il ripiego resta quello di sempre.
+    expect(p.fallbacks).toBe('default')
+    // La conversazione non si tocca: resta quella firmata, senza segni.
+    expect(p.messages).toEqual([{ role: 'user', content: 'Quanto Gin ho?' }])
+    // Al conteggio i segni non servono, e non cambiano i token.
+    expect(JSON.stringify(contati[0])).not.toMatch(/cache_control/)
+  })
+
+  it('la stima della chat copre la scrittura in cache; quella delle altre richieste non cambia', () => {
+    const m = { stimaInputToken: 12_345, max_tokens: 4000 }
+    const senza = ai.stimaMassimaMicroeuro(m, { inputContati: 12_345 })
+    expect(ai.stimaMassimaMicroeuro(m, { inputContati: 12_345, scritturaCache: false })).toBe(senza)
+    expect(stimaChat(12_345, 4000)).toBeGreaterThan(senza)
+  })
+
+  // L'INVARIANTE, come in REQ-FLOTTA-093 ma con la cache: per ogni risposta
+  // dentro i limiti (due tentativi al massimo, ingresso del primo ≤ I, del
+  // secondo ≤ I + max_tokens, uscita di ciascuno ≤ max_tokens) e per ogni
+  // divisione dell'ingresso fra normale, scritto in cache e letto dalla
+  // cache, il costo vero non supera la stima.
+  it('il costo vero non supera la stima con la cache scritta e letta, per ogni coppia di modelli', () => {
+    const modelli = [...Object.keys(listino.ai.prezzi_usd_per_milione), 'claude-che-non-ce-9']
+    const divisioni = [
+      [1, 0, 0],
+      [0, 1, 0],
+      [0, 0, 1],
+      [0.5, 0.5, 0],
+      [0.2, 0.3, 0.5],
+    ]
+    const dividi = (n, [a, b]) => {
+      const scritti = Math.floor(n * b)
+      const normali = Math.floor(n * a)
+      return { input_tokens: normali, cache_creation_input_tokens: scritti, cache_read_input_tokens: n - normali - scritti }
+    }
+    let provate = 0
+    for (const T of [4000, 16000]) {
+      for (const contati of [1, 600, 12_345, 50_000, 200_000]) {
+        const stima = stimaChat(contati, T)
+        const I = Math.ceil(contati * (1 + ai.MARGINE_CONTEGGIO))
+        for (const a of modelli) {
+          for (const b of modelli) {
+            for (const d1 of divisioni) {
+              for (const d2 of divisioni) {
+                const due = {
+                  model: b,
+                  usage: {
+                    output_tokens: T,
+                    iterations: [
+                      { type: 'message', model: a, ...dividi(I, d1), output_tokens: T },
+                      { type: 'fallback_message', model: b, ...dividi(I + T, d2), output_tokens: T },
+                    ],
+                  },
+                }
+                expect(ai.costoMicroeuro(due, { modelloChiesto: a })).toBeLessThanOrEqual(stima)
+                provate++
+              }
+            }
+          }
+        }
+      }
+    }
+    expect(provate).toBeGreaterThan(1000)
+  })
+
+  it('i tempi di conteggio e chiamata vanno nei log, coi numeri della cache e senza il contenuto', async () => {
+    const righe = []
+    const log = { ...silenzioso, info: (...x) => righe.push(x.join(' ')) }
+    const m = modelloFinto(rispostaModello([{ type: 'text', text: 'Ci sono 4 bottiglie di Gin.' }]))
+    const cassetto = cassettoFinto()
+    await chat.interrogaChat({
+      slug: SLUG,
+      corpo: richiesta([utente('Quanto Gin ho?')]),
+      segreto: SEGRETO,
+      limiti: chat.limitiChat({}),
+      modello: MODELLO,
+      conta: async () => ({ input_tokens: 777 }),
+      crea: m.crea,
+      prenota: cassetto.prenota,
+      chiudi: cassetto.chiudi,
+      log,
+    })
+    const tempi = righe.filter((x) => x.includes('[ai] TEMPI'))
+    expect(tempi).toHaveLength(1)
+    expect(tempi[0]).toMatch(/conteggio \d+ ms, chiamata \d+ ms, ingresso 777 token/)
+    expect(tempi[0]).not.toMatch(/Gin|bottiglie/)
+  })
+
+  it('la riga dei consumi tiene i token letti e scritti in cache', async () => {
+    const risposta = rispostaModello([{ type: 'text', text: 'Ci sono 4 bottiglie.' }], {
+      usage: { input_tokens: 30, cache_creation_input_tokens: 200, cache_read_input_tokens: 9000, output_tokens: 40 },
+    })
+    const { cassetto } = await interroga(richiesta([utente('Quanto Gin ho?')]), { risposta })
+    expect(cassetto.chiuse[0].riga).toMatchObject({ token_input: 9230, token_cache_lettura: 9000, token_cache_scrittura: 200, token_output: 40 })
   })
 })
 

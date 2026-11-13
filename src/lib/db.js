@@ -587,6 +587,16 @@ export async function impostaModelliAI(scelta) {
   return data
 }
 
+// I limiti della chat AI (REQ-FLOTTA-094): come i modelli, passano dalla
+// Function gestisciLimitiChat, che accetta solo l'admin e solo valori
+// dentro i loro tetti. Si manda solo la voce cambiata.
+export async function impostaLimitiChat(cambio) {
+  serve()
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'gestisciLimitiChat')
+  const { data } = await fn({ limiti_chat: cambio })
+  return data
+}
+
 export async function gestisciCassettoAI(slug, azione, extra = {}) {
   serve()
   const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'gestisciCassettoAI')

@@ -66,7 +66,38 @@ export function modelloScelto(tipo, impostazioni) {
   return MODELLI_AI.includes(scelto) ? scelto : MODELLO_PREDEFINITO
 }
 
-const TIPI = { descrizione: 'Descrizione di un prodotto', fattura: 'Lettura di una fattura', tema: 'Tema dal mockup' }
+// ── I LIMITI DELLA CHAT (REQ-FLOTTA-094) ──
+// Gli stessi numeri di functions/lib/ai-chat.js (LIMITI_CHAT_PREDEFINITI e
+// TETTI_LIMITI_CHAT): tests/ai-chat.test.js li confronta. Qui servono al
+// backoffice per mostrare il valore in uso e fermare un numero fuori dal
+// tetto prima di mandarlo; il server li ricontrolla comunque.
+export const LIMITI_CHAT = Object.freeze({
+  predefiniti: { max_token_risposta: 4000, max_token_conversazione: 50000, max_strumenti_per_messaggio: 5, righe: { giacenza: 5, vendite: 20, cerca_prodotti: 15 } },
+  tetti: { max_token_risposta: 16000, max_token_conversazione: 200000, max_strumenti_per_messaggio: 20, righe: { giacenza: 100, vendite: 100, cerca_prodotti: 100 } },
+})
+// Le voci come le vede l'admin: [chiave, etichetta, strumento delle righe].
+export const VOCI_LIMITI_CHAT = [
+  ['max_token_risposta', 'Token della risposta'],
+  ['max_token_conversazione', 'Token della conversazione'],
+  ['max_strumenti_per_messaggio', 'Strumenti per messaggio'],
+  ['giacenza', 'Righe di Giacenza', true],
+  ['vendite', 'Righe di Vendite', true],
+  ['cerca_prodotti', 'Righe di Cerca prodotti', true],
+]
+const limiteValido = (v, tetto) => Number.isSafeInteger(v) && v > 0 && v <= tetto
+// Il valore in uso di una voce: quello salvato se sta nel suo intervallo,
+// se no il predefinito, come sul server (limitiChat).
+export function limiteChatScelto(voce, impostazioni, { riga = false } = {}) {
+  const l = impostazioni?.limiti_chat || {}
+  const salvato = riga ? l.righe?.[voce] : l[voce]
+  const tetto = riga ? LIMITI_CHAT.tetti.righe[voce] : LIMITI_CHAT.tetti[voce]
+  const predefinito = riga ? LIMITI_CHAT.predefiniti.righe[voce] : LIMITI_CHAT.predefiniti[voce]
+  return limiteValido(salvato, tetto) ? salvato : predefinito
+}
+export const tettoLimiteChat = (voce, { riga = false } = {}) => (riga ? LIMITI_CHAT.tetti.righe[voce] : LIMITI_CHAT.tetti[voce])
+export const limiteChatValido = limiteValido
+
+const TIPI = { descrizione: 'Descrizione di un prodotto', fattura: 'Lettura di una fattura', tema: 'Tema dal mockup', chat: 'Chat del gestionale' }
 const ESITI = {
   ok: 'riuscita',
   rifiuto: 'il modello non ha risposto',

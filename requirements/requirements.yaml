@@ -4442,7 +4442,7 @@ requirements:
 
   - id: REQ-FLOTTA-094
     title: "La chat del gestionale passa dalla regia: richiesta chat con turni firmati, versione, limiti dell'admin e la stessa prenotazione del credito"
-    area: "functions/lib/ai-chat.js (nuovo: preparaChat, firmaTurno, turnoIntatto, limitiChat, TETTI_LIMITI_CHAT, validaLimitiChat, definizioniStrumenti, strumentiUsati, controllaLunghezza, rispostaChat, interrogaChat), functions/lib/ai.js (prenotazione, costo, modelloPer), functions/index.js (richiestaAI, gestisciLimitiChat), impostazioni/regia.limiti_chat, src/lib/db.js (impostaLimitiChat), src/pages/Backoffice.jsx (Vendita), docs/handover.md §7"
+    area: "functions/lib/ai-chat.js (preparaChat, firmaTurno, turnoIntatto, limitiChat, TETTI_LIMITI_CHAT, validaLimitiChat, definizioniStrumenti, strumentiUsati, controllaLunghezza, rispostaChat, interrogaChat), functions/lib/ai.js (parametriConteggio, parametriClaude, stimaMassimaMicroeuro con scritturaCache, SCRITTURA_CACHE, rigaConsumo, interrogaConPrenotazione: parametri, conteggio obbligatorio, rifiutaIngresso, leggi, la riga dei tempi), functions/index.js (richiestaAI, interrogaClaude, gestisciLimitiChat, AI_CHAT_SECRET), impostazioni/regia.limiti_chat, src/lib/ai.js (LIMITI_CHAT), src/lib/db.js (impostaLimitiChat), src/pages/Backoffice.jsx (Vendita, LimitiChat), docs/handover.md §5 e §7, CHANGELOG.md"
     description: >
       Il contratto viene da tana-drink, REQ-AI-006 (ramo feature/chat-ai,
       13/11/2026, «IL CONTRATTO CON LA REGIA» e «GLI STRUMENTI»;
@@ -4462,8 +4462,14 @@ requirements:
       AI_CHAT_SECRET, uno strumento per turno all'inizio, limiti_strumenti
       nella risposta della chat, il 503 quando il conteggio non risponde, lo
       sforamento come lo regola la 093, i limiti nel backoffice con un
-      tetto per ciascuno. L'implementazione aspetta che REQ-FLOTTA-092 e
-      REQ-FLOTTA-093 siano in develop.
+      tetto per ciascuno. L'implementazione è partita dopo che REQ-FLOTTA-092 e
+      REQ-FLOTTA-093 sono arrivate in develop (PR #234).
+      LA CACHE (Daniele, 13/11/2026, sul ripiego e sulla stima al prezzo
+      più alto): «stiamo con la soglia più alta basta che questo non
+      allunghi troppo i tempi di attesa. Considera che una chat che cresce
+      e la rimanda tutta il costo delle richieste aumenta». Quindi il
+      ripiego resta `fallbacks: 'default'`, la stima resta al prezzo più
+      alto del listino, e la chat usa la cache del prompt di Anthropic.
       CRITERI DI ACCETTAZIONE. (1) LA RICHIESTA. richiestaAI accetta dal
       gettone del locale `{ tipo: 'chat', messaggi, strumenti, versione }`,
       dopo il controllo del piano (402 piano, REQ-FLOTTA-087) e prima delle
@@ -4473,7 +4479,10 @@ requirements:
       sono un testo non vuoto o blocchi `text` e `tool_result` di solo
       testo: immagini e documenti sono un 400 (il file di una fattura passa
       dalla richiesta `fattura`). Ogni `tool_result` risponde a un
-      `tool_use` del turno del modello subito prima. `strumenti` sono solo
+      `tool_use` del turno del modello subito prima, e ogni `tool_use` ha
+      il suo esito; due turni di chi scrive di fila vanno bene (dopo un
+      errore si riscrive), due del modello no; uno strumento usato nella
+      conversazione dev'essere ancora fra quelli dati. `strumenti` sono solo
       identificativi fra `giacenza`, `vendite`, `cerca_prodotti`,
       `proponi_descrizione`, `proponi_voce_menu`, `leggi_fattura`; altro è
       un 400. Il controllo dei ruoli (`leggi_fattura` solo dell'admin) lo
@@ -4481,9 +4490,10 @@ requirements:
       role: 'assistant', content, firma }`: `content` com'è tornato dal
       modello, `firma` un HMAC-SHA256 sulla forma canonica (chiavi in
       ordine) di slug, versione e content, col segreto delle Functions
-      `AI_CHAT_SECRET`. Il segreto lo crea il coordinatore sul progetto di
-      test quando si implementa; in produzione solo col via libera di
-      Daniele, prima del deploy, che senza si ferma. La verifica è a tempo
+      `AI_CHAT_SECRET` (defineSecret, legato solo a richiestaAI). Il
+      segreto lo crea il coordinatore sul progetto drink-regia-test prima
+      del primo tag beta che porta la chat; in produzione solo col via
+      libera di Daniele, prima del deploy, che senza si ferma. La verifica è a tempo
       costante. Un turno del modello senza firma o che non torna (testo
       cambiato, blocco tolto, altro locale, altra versione) è un 400. La
       firma si toglie prima di mandare la conversazione al modello. Senza
@@ -4523,7 +4533,11 @@ requirements:
       arrivato, senza strumenti a metà (i `tool_use` di una risposta
       troncata escono dal turno e da `strumenti_richiesti`). (7) LA
       CONVERSAZIONE TROPPO LUNGA. I token d'ingresso si contano prima di
-      prenotare, col conteggio iniettato come `conta` (REQ-FLOTTA-093).
+      prenotare, col conteggio di REQ-FLOTTA-093 (`conta`, o
+      client.messages.countTokens), sugli stessi parametri della chiamata:
+      istruzioni, conversazione, strumenti. Una conversazione oltre 200
+      messaggi o 2.000.000 di caratteri riceve lo stesso 409 prima del
+      conteggio.
       Oltre `max_token_conversazione` la regia risponde 409 `{ codice:
       'troppo-lunga', errore }` senza prenotare né chiamare il modello, e
       l'app propone una conversazione nuova: tana-drink lo deve
@@ -4535,17 +4549,39 @@ requirements:
       dall'ultimo turno di chi scrive che ha un testo: raggiunto
       `max_strumenti_per_messaggio` la chiamata va con `tool_choice: none`,
       e il modello risponde con quello che ha. Il conto regge perché i
-      turni del modello sono firmati. (9) IL CREDITO. La chat passa dalla
+      turni del modello sono firmati. (8b) LA CACHE DEL PROMPT. La
+      chiamata della chat porta `cache_control: { type: 'ephemeral' }` (5
+      minuti) sull'ultimo blocco delle istruzioni, che in cache coprono
+      anche gli strumenti (vengono prima), e in cima alla richiesta, dove
+      Anthropic lo mette sull'ultimo blocco della conversazione e lo sposta
+      in avanti a ogni giro: il giro dopo rilegge la conversazione dalla
+      cache. La conversazione non si tocca (resta quella firmata); al
+      conteggio i segni non vanno. La stima della chat copre la SCRITTURA
+      in cache, 1,25 volte l'ingresso, per ognuno dei due tentativi:
+      stimaMassimaMicroeuro(m, { inputContati, scritturaCache: true }); le
+      altre richieste non la chiedono e la loro stima non cambia. Il costo
+      vero non supera la stima per ogni divisione dell'ingresso fra
+      normale, scritto e letto dalla cache, e per ogni coppia di modelli.
+      La riga dei consumi, per ogni tipo, tiene anche
+      `token_cache_lettura` e `token_cache_scrittura`. (8c) I TEMPI. Ogni
+      richiesta AI lascia nei log una riga «[ai] TEMPI» coi millisecondi
+      del conteggio e della chiamata, i token contati e quelli letti e
+      scritti in cache, mai il contenuto: sul test si misura quanto il
+      conteggio allunga l'attesa. (9) IL CREDITO. La chat passa dalla
       stessa prenotazione delle altre richieste (REQ-FLOTTA-088: prenota,
       chiudiPrenotazione, al massimo due insieme, righe «interrotta»), con
-      la stima di REQ-FLOTTA-093 sui token contati (stimaMassimaMicroeuro
-      con `inputContati`) e su `max_token_risposta`: 402 credito, tetto,
+      la stima di REQ-FLOTTA-093 (stimaMassimaMicroeuro(m, { inputContati
+      }): ingresso contato col margine, TENTATIVI_MASSIMI tentativi) e
+      `max_token_risposta` come `max_tokens`: 402 credito, tetto,
       spento, senza-cassetto e 429 occupato prima del modello; il modello
       che non risponde è un 503 e la stima torna tutta; un rifiuto (422
       rifiuto) o una risposta vuota (422 vuota) costano. Uno sforamento
       segue la regola della 093: il credito non va mai sotto zero e
-      l'importo mancante si segna in `da_recuperare_microeuro` [da
-      verificare sul testo finale della 093]. La riga dei consumi dice
+      l'importo mancante si segna in `da_recuperare_microeuro`
+      (chiudiPrenotazione). La chat non ricopia niente di questa logica:
+      passa i suoi parametri, il tetto dell'ingresso e il modo di leggere la
+      risposta a interrogaConPrenotazione, così le correzioni della 093
+      valgono anche per lei. La riga dei consumi dice
       `tipo: 'chat'` e i numeri, mai il contenuto. (10) LA RISPOSTA 200 è
       `{ ok, tipo: 'chat', turno, testo, strumenti_richiesti: [{ id, nome,
       input }], versione, limiti_strumenti: { giacenza, vendite,
@@ -4557,14 +4593,29 @@ requirements:
       e il 503 del conteggio, lo stesso giorno, e si scrive a tana-drink.
       PUNTI DEBOLI. Uno strumento per turno si tiene all'inizio: una
       domanda che vuole tre letture fa tre giri, ognuno con la
-      conversazione intera da pagare. Si misurano i costi sul test; l'idea
-      per i giri ripetuti è la cache del prompt di Anthropic sul prefisso
-      della conversazione (istruzioni, strumenti, turni già fatti), da
-      provare con la stima di REQ-FLOTTA-093, che oggi non conta la
-      scrittura della cache. Un turno firmato non scade: vale finché non
+      conversazione intera; con la cache i giri dopo il primo la rileggono
+      a un ventesimo del prezzo, ma la prenotazione resta quella del caso
+      peggiore (tutto scritto in cache, due tentativi, al prezzo più alto):
+      a ogni giro si tiene da parte molto più di quanto si spende, e un
+      locale col credito basso può vedersi rifiutare un giro che costerebbe
+      poco. Il conteggio aggiunge un viaggio prima di ogni giro, più lungo
+      con la conversazione: lo dicono le righe «[ai] TEMPI». Sotto i 512
+      token (istruzioni senza strumenti) Sonnet 5.5 non mette niente in
+      cache, senza errori. Un turno firmato non scade: vale finché non
       cambia la versione. Finché tana-drink non distingue i due 409, la
-      conversazione troppo lunga riparte col messaggio della versione.
-    status: todo
+      conversazione troppo lunga riparte col messaggio della versione, e
+      finché non legge `limiti_strumenti` vale il suo LIMITI_RIGHE fisso.
+      Le definizioni degli ingressi degli strumenti seguono il codice di
+      tana-drink del 13/11/2026 (PannelloChat.jsx, strumentiChat.js): se
+      l'app li cambia, cambia VERSIONE_CHAT.
+      FATTO (13/11/2026, ramo feature/ai-chat): tutti i criteri, provati da
+      tests/ai-chat.test.js (logica pura, il percorso intero con un modello
+      e un cassetto finti, il collegamento in index.js, il contratto) e da
+      tests/Backoffice.test.jsx (la sezione dei limiti). NON PROVATO con
+      Anthropic vero: che countTokens accetti tools e tool_choice, e che il
+      ripiego `fallbacks: 'default'` funzioni con gli strumenti e la cache,
+      e che la cache legga davvero (si vede da `token_cache_lettura`).
+    status: implemented
     generate_issue: true
     labels: [flotta, regia, ai]
     priority: P2
