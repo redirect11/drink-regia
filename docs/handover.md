@@ -1282,7 +1282,13 @@ moduli, la licenza nell'istanza e la Tana.
   un `tool_use` del turno del modello subito prima, e ogni `tool_use` ha
   il suo esito; due turni di chi scrive di fila vanno bene, due del modello
   no. La conversazione si rimanda **in sola aggiunta**: niente messaggi
-  vecchi tolti, accorciati o ritoccati. I turni del modello si rimettono **esattamente** come la regia li ha
+  vecchi tolti, accorciati o ritoccati, né del modello né di chi scrive
+  (la firma di ogni turno del modello copre tutti i messaggi che vengono
+  prima). Se un giro di strumenti resta a metà (l'assistente si ferma
+  dopo gli esiti, una richiesta fallisce), la domanda dopo si aggiunge in
+  un turno suo dopo quello degli esiti, **senza unirli**: esiti e testo in
+  due turni di fila sono accettati così (domanda di tana-drink del
+  13/11/2026). I turni del modello si rimettono **esattamente** come la regia li ha
   dati: `{ role: "assistant", content, firma }`. `firma` è una stringa
   opaca per l'app (dalla revisione della PR #237 è `<impronta del
   contesto>.<HMAC>`): un HMAC-SHA256 della regia (segreto
@@ -1298,7 +1304,10 @@ moduli, la licenza nell'istanza e la Tana.
   `proponi_descrizione`, `proponi_voce_menu`, `leggi_fattura` (il ruolo
   lo controlla l'app); l'elenco resta lo stesso per tutta la
   conversazione. `versione` è quella della prima risposta (assente al
-  primo messaggio); dal 13/11/2026 (revisione della PR #237) è
+  primo messaggio; se arriva lo stesso su una conversazione che non ha
+  ancora turni del modello, la regia la ignora e risponde con quella di
+  adesso, così una versione vecchia non fa aprire conversazioni nuove
+  all'infinito); dal 13/11/2026 (revisione della PR #237) è
   `chat-2026-11-13.2`, e le conversazioni aperte con la `.1` ricevono il
   `409 versione`. Istruzioni, definizioni degli strumenti, modello
   (`impostazioni/regia.ai_modelli.chat`, REQ-FLOTTA-092) e limiti sono

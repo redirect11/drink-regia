@@ -357,7 +357,7 @@ describe('la richiesta della chat: la regia la controlla prima di spendere', () 
     expect(chat.VERSIONE_CHAT.length).toBeLessThanOrEqual(64)
     let errore
     try {
-      prepara(richiesta([utente('Ciao')], { versione: 'chat-di-ieri' }))
+      prepara(richiesta([utente('Ciao'), turnoModello([{ type: 'text', text: 'Ciao' }]), utente('Quanto Gin ho?')], { versione: 'chat-di-ieri' }))
     } catch (e) {
       errore = e
     }
@@ -365,6 +365,21 @@ describe('la richiesta della chat: la regia la controlla prima di spendere', () 
     expect(errore.codice).toBe('versione')
     // Senza versione vale quella di adesso: è il primo messaggio.
     expect(prepara(richiesta([utente('Ciao')])).versione).toBe(chat.VERSIONE_CHAT)
+  })
+
+  it('sul primo messaggio una versione vecchia non conta: non c’è niente di firmato, e l’app non apre conversazioni nuove all’infinito', () => {
+    expect(prepara(richiesta([utente('Ciao')], { versione: 'chat-di-ieri' })).versione).toBe(chat.VERSIONE_CHAT)
+    expect(prepara(richiesta([utente('Ciao'), utente('Ci sei?')], { versione: 'chat-di-ieri' })).versione).toBe(chat.VERSIONE_CHAT)
+  })
+
+  it('esiti e domanda in due turni di fila (tana-drink, 13/11/2026): la regia li accetta così come sono, e il conto degli strumenti riparte', () => {
+    // L'assistente si è fermato dopo gli strumenti, o la richiesta è fallita:
+    // la conversazione finisce con gli esiti, e la domanda dopo si aggiunge
+    // in un turno suo, senza ritoccare quello degli esiti.
+    const messaggi = [utente('Quanto Gin ho?'), chiamaGiacenza(), esiti(['toolu_1', '4 bottiglie']), utente('E di Vodka?')]
+    const m = prepara(richiesta(messaggi))
+    expect(m.parametri.messages.slice(-2)).toEqual([esiti(['toolu_1', '4 bottiglie']), utente('E di Vodka?')])
+    expect(m.parametri.tool_choice).toMatchObject({ type: 'auto' })
   })
 })
 
@@ -493,7 +508,7 @@ describe('da capo a fondo: la chat passa dalla prenotazione del credito', () => 
   it('400, 409 e una conversazione troppo lunga si fermano prima della prenotazione e del modello', async () => {
     const casi = [
       [richiesta([utente('Ciao')], { system: 'altro' }), 400, undefined],
-      [richiesta([utente('Ciao')], { versione: 'chat-di-ieri' }), 409, 'versione'],
+      [richiesta([utente('Ciao'), turnoModello([{ type: 'text', text: 'Ciao' }]), utente('Ancora')], { versione: 'chat-di-ieri' }), 409, 'versione'],
     ]
     for (const [corpo, http, codice] of casi) {
       const { esito, modello, cassetto } = await interroga(corpo)
