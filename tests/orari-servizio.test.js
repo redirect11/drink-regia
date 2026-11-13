@@ -381,8 +381,8 @@ describe('il momento della sospensione per pagamento', () => {
       orari_servizio: { giorni: SERA, impostati_il: '2026-09-01T19:00:00.000Z' },
     }
     // Pagato fino al 10/11, più 7 giorni di grazia: martedì 17/11 alle
-    // 23:59:59 UTC, cioè mercoledì all'1 di Roma. Le 21 di mercoledì sono
-    // in servizio: giovedì alle 2.
+    // 23:59:59 UTC, cioè mercoledì alle 00:59:59 di Roma. Le 21 di
+    // mercoledì sono in servizio: giovedì alle 2.
     const lic = licenzaProtetta({ stato: 'attiva' }, cliente, { adesso: new Date('2026-11-13T10:00:00Z'), oraTaglio: 5 })
     expect(lic.valida_fino).toBe('2026-11-19T01:00:00.000Z')
     // Senza orari resta com'era: il taglio dopo la scadenza.
@@ -518,14 +518,35 @@ describe('functions/index.js', () => {
   })
 
   it('scriviLicenza trattiene lo stato per pagamento fino al suo momento e programma il compito; il compito riscrive solo se aspetta quel momento', () => {
-    expect(funzione('scriviLicenza')).toContain('const statoDal = momentoDelloStato(ist, cliente, bar.data())')
+    // Il momento e il controllo del compito sono le funzioni pure provate
+    // sopra («il flusso della sospensione per pagamento»).
+    expect(funzione('scriviLicenza')).toContain('const statoDal = orari.momentoDelloStato(ist, cliente, { oraTaglio: taglio.oraDelTaglio(bar.data()), giorniGrazia: opzioni.giorniGrazia })')
     expect(funzione('scriviLicenza')).toContain("await programma('sospensione', slug, sospensione)")
     expect(funzione('scriviLicenza')).toContain('sospensione_al: sospensioneAl')
-    expect(funzione('verificaLicenza')).toContain('const statoDal = momentoDelloStato(ist, cliente, bar.data())')
-    expect(index).toContain("if (ist.sospensione_al?.dal !== new Date(quando).toISOString()) return")
-    const momento = funzione('momentoDelloStato')
-    expect(momento).toContain("if (ist?.licenza_per !== 'pagamento'")
-    expect(momento).toContain('orari.quandoSospendere(cliente, { adesso: new Date(deciso)')
+    expect(funzione('verificaLicenza')).toContain('const statoDal = orari.momentoDelloStato(ist, cliente,')
+    expect(index).toContain('if (!orari.compitoSospensioneValido(ist, quando)) return')
+    expect(index).not.toContain('function momentoDelloStato(')
+  })
+
+  // Revisione del 13/11/2026, D7: il compito e «riattiva» insieme.
+  it('scriviLicenza rilegge l’istanza prima di scrivere e, se lo stato è cambiato, ricalcola (al massimo tre giri)', () => {
+    const fn = funzione('scriviLicenza')
+    expect(fn).toContain('if (orari.statoCambiato(ist, (await ref.get()).data()) && tentativo < 3) return scriviLicenza(slug, { subito, tentativo: tentativo + 1 })')
+    // La rilettura sta prima della scrittura della licenza.
+    expect(fn.indexOf('orari.statoCambiato(')).toBeLessThan(fn.indexOf('istanza.doc(LICENZA_PROTETTA).set('))
+  })
+
+  // D5: «programmaScadenze» rimette in coda anche la sospensione che aspetta.
+  it('programmaScadenze riprogramma il compito della sospensione', () => {
+    expect(corpo('programmaScadenze')).toContain("if (ist.sospensione_al?.dal) await prova(`${slug} sospensione`, () => programma('sospensione', slug, ist.sospensione_al.dal))")
+  })
+
+  // Nota della revisione: niente «è di nuovo attivo» a chi non si è mai fermato.
+  it('«riattiva» manda l’email solo se il locale si era fermato davvero', () => {
+    const fn = funzione('eseguiAzionePagamento')
+    expect(fn).toContain('const fermo = orari.fermoDavvero(')
+    expect(fn.indexOf('const fermo = orari.fermoDavvero(')).toBeLessThan(fn.indexOf("await scriviStatoIstanza(cliente.slug, 'attiva', null)"))
+    expect(fn).toContain('if (!fermo) return null')
   })
 
   it('la licenza si riscrive quando cambiano gli orari o l’ora dell’attivazione (valida_fino)', () => {
@@ -551,5 +572,133 @@ describe('i tetti al documento del cliente', () => {
     const deciso = decisioneSullaRichiesta(conRichiesta, { esito: 'rifiutata', admin: 'admin', adesso: dopo, nota: lungo })
     expect(deciso.orari_servizio.storia.at(-1).nota).toHaveLength(TESTO_MASSIMO)
     expect(deciso.orari_servizio.storia).toHaveLength(STORIA_MASSIMA)
+  })
+})
+
+// ── IL FLUSSO DELLA SOSPENSIONE PER PAGAMENTO (revisione del 13/11/2026) ──
+// D1: valida_fino e il momento della sospensione non devono differire di
+// un giorno. D3: il momento e il controllo del compito sono funzioni pure,
+// provate col flusso intero: decisione, attesa, compito, pagamento nel
+// mezzo, sospensione dell'admin, compito vecchio o ripetuto.
+describe('il flusso della sospensione per pagamento', () => {
+  const { licenzaDaScrivere } = require('../functions/lib/taglio.js')
+  // Una subscription ancorata alle 09:15:59 UTC, l'abbonamento attivato alle
+  // 09:16:02 UTC (le 10:16 di Roma). Il periodo pagato finisce il 16/12:
+  // con 7 giorni di grazia la scadenza è il 23/12 alle 09:15:59 UTC.
+  const STRIPE = {
+    slug: 'bar-mario',
+    piano: 'base',
+    moduli: [],
+    terminali: 1,
+    abbonamento: { origine: 'stripe', stato: 'non pagato', pagato_fino: '2026-12-16T09:15:59.000Z', dal: '2026-11-16T09:16:02.000Z' },
+    orari_servizio: { giorni: SERA, impostati_il: '2026-11-16T09:16:02.000Z' },
+  }
+  // La regia decide qualche secondo dopo la scadenza (il compito del
+  // pagamento, poi la domanda a Stripe).
+  const DECISA = { stato: 'attiva', licenza_stato: 'sospesa', licenza_per: 'pagamento', licenza_motivo: 'pagamento non ricevuto', licenza_dal: '2026-12-23T09:16:03.000Z' }
+
+  it('D1: decisa pochi secondi dopo la scadenza, la sospensione cade dove cade valida_fino, non il giorno dopo', () => {
+    const { momentoDelloStato, quandoSospendere } = orari()
+    const validaFino = licenzaProtetta({ stato: 'attiva' }, STRIPE, { oraTaglio: 5 }).valida_fino
+    // Le 10:16 di Roma del 23/12, fuori servizio (il locale apre alle 18).
+    expect(validaFino).toBe('2026-12-23T09:16:00.000Z')
+    expect(momentoDelloStato(DECISA, STRIPE, { oraTaglio: 5 })).toBe(validaFino)
+    // Partendo dalla decisione sarebbe stato il 24/12: il difetto trovato.
+    expect(quandoSospendere(STRIPE, { adesso: new Date(DECISA.licenza_dal), oraTaglio: 5 }).toISOString()).toBe('2026-12-24T09:16:00.000Z')
+    // Il momento è già passato: la licenza sospesa si scrive subito, come
+    // l'app senza rete, che si è fermata a valida_fino.
+    const attiva = { stato: 'attiva', motivo: null, dal: null, piano: 'base' }
+    const sospesa = { ...attiva, stato: 'sospesa', motivo: 'pagamento non ricevuto' }
+    expect(licenzaDaScrivere(attiva, sospesa, { statoDal: validaFino, adesso: new Date(DECISA.licenza_dal) })).toMatchObject({ licenza: { stato: 'sospesa' }, sospensione: null })
+  })
+
+  it('D1: decisa oltre un’ora dopo la scadenza (un compito rilanciato), si parte dalla decisione', () => {
+    const { momentoDelloStato, FINESTRA_SCADENZA } = orari()
+    expect(FINESTRA_SCADENZA).toBe(60 * 60 * 1000)
+    const tardi = { ...DECISA, licenza_dal: '2026-12-25T15:00:00.000Z' }
+    // Venerdì 25/12 alle 16 di Roma: le 10:16 di sabato 26.
+    expect(momentoDelloStato(tardi, STRIPE, { oraTaglio: 5 })).toBe('2026-12-26T09:16:00.000Z')
+    // Decisa prima della scadenza (Stripe ha finito i tentativi prima): dalla decisione.
+    const prima = { ...DECISA, licenza_dal: '2026-12-20T15:00:00.000Z' }
+    expect(momentoDelloStato(prima, STRIPE, { oraTaglio: 5 })).toBe('2026-12-21T09:16:00.000Z')
+  })
+
+  it('D3: nessun momento per uno stato che non è fermo per il pagamento: attivo, o dell’admin (immediato)', () => {
+    const { momentoDelloStato } = orari()
+    expect(momentoDelloStato({ ...DECISA, licenza_stato: 'attiva', licenza_per: null }, STRIPE)).toBeNull()
+    expect(momentoDelloStato({ ...DECISA, licenza_per: 'admin' }, STRIPE)).toBeNull()
+    expect(momentoDelloStato({ ...DECISA, licenza_per: 'titolare', licenza_stato: 'chiusa' }, STRIPE)).toBeNull()
+    expect(momentoDelloStato({ ...DECISA, licenza_dal: null }, STRIPE)).toBeNull()
+    // La chiusura per pagamento (la disdetta) segue la stessa strada.
+    expect(momentoDelloStato({ ...DECISA, licenza_stato: 'chiusa', licenza_motivo: 'abbonamento disdetto' }, STRIPE, { oraTaglio: 5 })).toBe('2026-12-23T09:16:00.000Z')
+  })
+
+  it('D3: il compito vale solo per il momento atteso e lo stato ancora fermo; vecchio o dopo «riattiva» non scrive; ripetuto dà lo stesso esito', () => {
+    const { compitoSospensioneValido } = orari()
+    const quando = '2026-11-19T01:00:00.000Z'
+    const inAttesa = { ...DECISA, licenza_dal: '2026-11-18T09:00:00.000Z', sospensione_al: { dal: quando, stato: 'sospesa' } }
+    expect(compitoSospensioneValido(inAttesa, quando)).toBe(true)
+    // Ripetuto (Cloud Tasks ritenta): stesso esito finché nulla cambia.
+    expect(compitoSospensioneValido(inAttesa, new Date(quando))).toBe(true)
+    // Un compito vecchio, per un altro momento.
+    expect(compitoSospensioneValido(inAttesa, '2026-11-18T01:00:00.000Z')).toBe(false)
+    // Dopo «riattiva» (pagato nel mezzo): stato attivo e sospensione_al vuoto.
+    expect(compitoSospensioneValido({ ...inAttesa, licenza_stato: 'attiva', licenza_per: null, sospensione_al: null }, quando)).toBe(false)
+    // Già scritta: scriviLicenza ha vuotato sospensione_al, il compito ripetuto non fa niente.
+    expect(compitoSospensioneValido({ ...inAttesa, sospensione_al: null }, quando)).toBe(false)
+    // Diventata dell'admin nel frattempo («Sospendi subito»).
+    expect(compitoSospensioneValido({ ...inAttesa, licenza_per: 'admin' }, quando)).toBe(false)
+    expect(compitoSospensioneValido(inAttesa, 'domani')).toBe(false)
+  })
+
+  it('D3: dall’inizio alla fine, con «riattiva» nel mezzo', () => {
+    const { momentoDelloStato } = orari()
+    const attiva = { stato: 'attiva', motivo: null, dal: null, piano: 'base' }
+    const sospesa = { ...attiva, stato: 'sospesa', motivo: 'pagamento non ricevuto', dal: '2026-11-18T09:00:00.000Z' }
+    const ist = { ...DECISA, licenza_dal: '2026-11-18T09:00:00.000Z' }
+    const cliente = { ...STRIPE, abbonamento: { ...STRIPE.abbonamento, pagato_fino: '2026-11-11T09:00:00.000Z', dal: '2026-09-01T19:00:00.000Z' } }
+    // Decisa mercoledì 18/11 alle 10 di Roma; attivato alle 21: in servizio,
+    // quindi giovedì alle 2.
+    const statoDal = momentoDelloStato(ist, cliente, { oraTaglio: 5 })
+    expect(statoDal).toBe('2026-11-19T01:00:00.000Z')
+    // Alla decisione: trattenuta, e il compito si programma.
+    expect(licenzaDaScrivere(attiva, sospesa, { statoDal, adesso: new Date('2026-11-18T09:00:05Z') })).toMatchObject({ licenza: { stato: 'attiva' }, sospensione: statoDal })
+    // Riscritta più tardi (un altro cambio): il momento non si sposta.
+    expect(momentoDelloStato(ist, cliente, { oraTaglio: 5 })).toBe(statoDal)
+    // Al compito: arriva.
+    expect(licenzaDaScrivere(attiva, sospesa, { statoDal, adesso: new Date(statoDal) })).toMatchObject({ licenza: { stato: 'sospesa' }, sospensione: null })
+    // Pagato nel mezzo: «riattiva» rimette l'istanza attiva, nessun momento,
+    // la licenza resta attiva e sospensione_al torna vuoto.
+    const riattivata = { ...ist, licenza_stato: 'attiva', licenza_per: null }
+    expect(momentoDelloStato(riattivata, cliente, { oraTaglio: 5 })).toBeNull()
+    expect(licenzaDaScrivere(attiva, attiva, { statoDal: null, adesso: new Date('2026-11-18T20:00:00Z') })).toMatchObject({ licenza: { stato: 'attiva' }, sospensione: null })
+  })
+
+  it('D7: lo stato cambiato fra la lettura e la scrittura si riconosce', () => {
+    const { statoCambiato } = orari()
+    expect(statoCambiato(DECISA, { ...DECISA })).toBe(false)
+    expect(statoCambiato(DECISA, { ...DECISA, sospensione_al: { dal: 'x' } })).toBe(false)
+    expect(statoCambiato(DECISA, { ...DECISA, licenza_stato: 'attiva' })).toBe(true)
+    expect(statoCambiato(DECISA, { ...DECISA, licenza_per: 'admin' })).toBe(true)
+    expect(statoCambiato(DECISA, { ...DECISA, licenza_dal: '2026-12-24T00:00:00.000Z' })).toBe(true)
+    expect(statoCambiato(null, undefined)).toBe(false)
+  })
+
+  it('l’email «di nuovo attivo» solo per un locale che si era fermato davvero', () => {
+    const { fermoDavvero } = orari()
+    expect(fermoDavvero({ ...DECISA, sospensione_al: null })).toBe(true)
+    expect(fermoDavvero({ ...DECISA, licenza_stato: 'chiusa' })).toBe(true)
+    // La sospensione aspettava ancora il suo momento: mai fermo.
+    expect(fermoDavvero({ ...DECISA, sospensione_al: { dal: '2026-12-24T09:16:00.000Z', stato: 'sospesa' } })).toBe(false)
+    expect(fermoDavvero({ ...DECISA, licenza_stato: 'attiva' })).toBe(false)
+    expect(fermoDavvero(undefined)).toBe(false)
+  })
+
+  it('l’uid che arriva dal browser (l’admin) si controlla prima di farne un percorso', async () => {
+    const { cambiaOrari } = orari()
+    const db = { doc: () => ({}), runTransaction: async () => ({}) }
+    for (const uid of ['../impostazioni/regia', 'u1/altro', 'a'.repeat(129), 'uid con spazi']) {
+      await expect(cambiaOrari(db, uid, (c) => c), uid).rejects.toMatchObject({ codice: 'invalid-argument' })
+    }
   })
 })

@@ -964,8 +964,12 @@ async function eseguiAzionePagamento(cliente, { azione, motivo }) {
     return conservaDati(cliente.slug, motivo)
   }
   if (azione === 'riattiva') {
+    // Pagato prima del momento della sospensione (REQ-FLOTTA-095): il locale
+    // non si è mai fermato, e «è di nuovo attivo» sarebbe falso.
+    const fermo = orari.fermoDavvero((await db.doc(`istanze/${cliente.slug}`).get()).data())
     await scriviStatoIstanza(cliente.slug, 'attiva', null)
     await annullaConservazione(cliente.slug, 'pagamento')
+    if (!fermo) return null
     return accodaEmail(comunica.emailStato(cliente, azione), { slug: cliente.slug, motivo: azione })
   }
   await ripiegaAlFree(cliente, azione)
@@ -1107,7 +1111,7 @@ exports.scadenza = onTaskDispatched(
     // servizio (REQ-FLOTTA-095): solo se aspetta ancora questo momento. Chi
     // ha pagato nel frattempo ha la licenza attiva e sospensione_al vuoto.
     if (tipo === 'sospensione') {
-      if (ist.sospensione_al?.dal !== new Date(quando).toISOString()) return
+      if (!orari.compitoSospensioneValido(ist, quando)) return
       const scritta = await scriviLicenza(chiave)
       console.log(`[sospensione] ${chiave}: ${scritta.ok ? 'licenza scritta' : scritta.perche}`)
       return
@@ -1212,6 +1216,8 @@ exports.programmaScadenze = onCall({ ...OPTS, timeoutSeconds: 540 }, async (req)
     }
     if (ist.condizioni_prossime?.dal) await prova(`${slug} condizioni`, () => programma('condizioni', slug, ist.condizioni_prossime.dal))
     if (ist.riduzione_al_taglio?.dal) await prova(`${slug} taglio`, () => programma('taglio', slug, ist.riduzione_al_taglio.dal))
+    // La sospensione per pagamento che aspetta il suo momento (REQ-FLOTTA-095).
+    if (ist.sospensione_al?.dal) await prova(`${slug} sospensione`, () => programma('sospensione', slug, ist.sospensione_al.dal))
     if (ist.licenza_stato === 'sospesa' && !ist.licenza_per && /pagamento non ricevuto/.test(ist.licenza_motivo || '')) {
       await db.doc(`istanze/${slug}`).set({ licenza_per: 'pagamento' }, { merge: true })
     }
@@ -1478,7 +1484,7 @@ const riceveLicenza = (ist) => Boolean(ist?.progetto) && ist.stato === 'attiva' 
 // licenza/attuale non si cancella mai (tana-drink, 01/11/2026): senza
 // documento l'app si ferma, e le sue regole lo leggono come «nessun
 // limite». Un locale si ferma con lo stato, sospesa o chiusa.
-async function scriviLicenza(slug, { subito = false } = {}) {
+async function scriviLicenza(slug, { subito = false, tentativo = 1 } = {}) {
   const ref = db.doc(`istanze/${slug}`)
   const ist = (await ref.get()).data()
   if (!ist) return { ok: false, perche: 'Istanza non trovata.' }
@@ -1495,7 +1501,7 @@ async function scriviLicenza(slug, { subito = false } = {}) {
   // dall'orario di servizio (REQ-FLOTTA-095); senza orari al taglio della
   // giornata del locale (REQ-FLOTTA-024).
   const lic = licenzaProtetta(ist, cliente, { ...opzioni, oraTaglio: taglio.oraDelTaglio(bar.data()) })
-  const statoDal = momentoDelloStato(ist, cliente, bar.data())
+  const statoDal = orari.momentoDelloStato(ist, cliente, { oraTaglio: taglio.oraDelTaglio(bar.data()), giorniGrazia: opzioni.giorniGrazia })
   const { licenza, riduzioni, sospensione } = taglio.licenzaDaScrivere(scritta.exists ? scritta.data() : null, lic, { subito, statoDal })
   let alTaglio = null
   let perche = null
@@ -1516,6 +1522,10 @@ async function scriviLicenza(slug, { subito = false } = {}) {
       perche = `La riduzione al taglio non si è programmata: ${String(e?.message || e).slice(0, 160)}`
     })
   }
+  // Lo stato dell'istanza cambiato mentre si calcolava (il compito
+  // «sospensione» e un «riattiva» insieme, REQ-FLOTTA-095): si ricalcola
+  // dall'inizio invece di scrivere una licenza vecchia. Tre giri al massimo.
+  if (orari.statoCambiato(ist, (await ref.get()).data()) && tentativo < 3) return scriviLicenza(slug, { subito, tentativo: tentativo + 1 })
   // Con valida_fino_ts, la scadenza che le regole sanno leggere.
   const doc = perIlDatabase(licenza, (d) => Timestamp.fromDate(d))
   await istanza.doc(LICENZA_PROTETTA).set(doc)
@@ -1524,18 +1534,6 @@ async function scriviLicenza(slug, { subito = false } = {}) {
   await istanza.doc('settings/bar').set({ licenza: doc }, { mergeFields: ['licenza'] })
   await ref.update({ licenza_protetta: { ok: !perche, perche, controllata_il: lic.scritta_il }, riduzione_al_taglio: alTaglio, sospensione_al: sospensioneAl })
   return { ok: true, scritta: true }
-}
-
-// IL MOMENTO DELLO STATO PER IL PAGAMENTO (REQ-FLOTTA-095): solo per una
-// sospensione o una chiusura voluta dal pagamento; null per quelle
-// dell'admin e del titolare, che valgono subito. Si calcola da quando la
-// regia l'ha decisa (licenza_dal): riscrivere la licenza più tardi non lo
-// sposta in avanti.
-function momentoDelloStato(ist, cliente, bar) {
-  if (ist?.licenza_per !== 'pagamento' || !['sospesa', 'chiusa'].includes(ist.licenza_stato)) return null
-  const deciso = Date.parse(ist.licenza_dal || '')
-  if (!Number.isFinite(deciso)) return null
-  return orari.quandoSospendere(cliente, { adesso: new Date(deciso), oraTaglio: taglio.oraDelTaglio(bar) }).toISOString()
 }
 
 // La verifica di un locale: licenza/attuale c'è, è uguale a
@@ -1551,7 +1549,7 @@ async function verificaLicenza(slug) {
   // prima più le aggiunte (REQ-FLOTTA-024).
   // E con la sospensione per pagamento che aspetta il suo momento, lo
   // stato di prima (REQ-FLOTTA-095).
-  const statoDal = momentoDelloStato(ist, cliente, bar.data())
+  const statoDal = orari.momentoDelloStato(ist, cliente, { oraTaglio: taglio.oraDelTaglio(bar.data()), giorniGrazia: await giorniDiGrazia() })
   const attesa = (ist.riduzione_al_taglio || statoDal) && protetta.exists ? taglio.licenzaDaScrivere(protetta.data(), calcolata, { subito: !ist.riduzione_al_taglio, statoDal }).licenza : calcolata
   let perche = null
   if (!protetta.exists) perche = 'Manca licenza/attuale: con l’app nuova il locale si ferma.'

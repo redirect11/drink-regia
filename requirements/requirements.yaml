@@ -4358,7 +4358,15 @@ requirements:
       `sospesa`/`chiusa` in licenza/attuale e settings/bar.licenza) a quel
       momento, con un compito suo programmato come gli altri: il tipo
       «sospensione» in scadenze.TIPI, che quando arriva ricontrolla che il
-      momento sia ancora quello. Le
+      momento sia ancora quello e lo stato ancora fermo per il pagamento
+      (compitoSospensioneValido); programmaScadenze lo rimette in coda. Il
+      momento parte da quando la regia ha deciso (licenza_dal) o, se ha
+      deciso entro un'ora dalla scadenza del pagamento, dalla scadenza:
+      così coincide con valida_fino (revisione del 13/11/2026, D1;
+      momentoDelloStato, logica pura). Subito prima di scrivere la licenza
+      l'istanza si rilegge: se lo stato è cambiato (il compito e «riattiva»
+      insieme) si ricalcola (D7). Chi paga prima del momento non riceve
+      l'email «è di nuovo attivo»: il locale non si è mai fermato. Le
       riduzioni della licenza (moduli, terminali, limiti, il ripiego al
       Free) restano al taglio della giornata (REQ-FLOTTA-024). Chi paga
       prima del momento non viene sospeso: «riattiva» (REQ-FLOTTA-023)

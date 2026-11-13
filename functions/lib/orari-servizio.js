@@ -22,6 +22,7 @@
 // gli lascia locale, fatturazione, referente e consensi).
 
 const { prossimoTaglio, ORA_DEL_TAGLIO } = require('./taglio.js')
+const { scadenzaPagamento, GIORNI_DI_GRAZIA } = require('./scadenze.js')
 
 const TZ = 'Europe/Rome'
 const GIORNI = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom']
@@ -283,8 +284,13 @@ function quandoSospendere(cliente, { adesso = new Date(), oraTaglio = ORA_DEL_TA
 // decidiCambioOrari) rileggono il cliente dentro una transazione e ci
 // scrivono il blocco intero: due richieste insieme non si sovrascrivono a
 // metà, e una decisione dell'admin vede la richiesta com'è adesso.
+// L'uid arriva dal browser solo per l'admin (decidiCambioOrari): si
+// controlla prima di farne un percorso (revisione del 13/11/2026).
+const UID_VALIDO = /^[A-Za-z0-9_-]{1,128}$/
+
 async function cambiaOrari(db, uid, cambio) {
   if (!uid) throw new OrariRifiutati('invalid-argument', 'Manca il cliente.')
+  if (!UID_VALIDO.test(uid)) throw new OrariRifiutati('invalid-argument', 'Cliente non valido.')
   const ref = db.doc(`clienti/${uid}`)
   return db.runTransaction(async (t) => {
     const snap = await t.get(ref)
@@ -295,8 +301,64 @@ async function cambiaOrari(db, uid, cambio) {
   })
 }
 
+// ── LA SOSPENSIONE PER PAGAMENTO, DALLA PARTE DELL'ISTANZA ────────────
+// (revisione del 13/11/2026, D1 e D3: logica pura, provata da sola)
+
+const ferma = (stato) => stato === 'sospesa' || stato === 'chiusa'
+// Entro quanto dalla scadenza una decisione si conta «presa alla scadenza».
+// Il compito del pagamento arriva alla scadenza e la regia decide qualche
+// secondo dopo (o dopo aver chiesto a Stripe): partire dalla decisione
+// spostava il momento al giorno dopo rispetto a valida_fino, che parte
+// dalla scadenza. Oltre l'ora (un compito fallito, rilanciato giorni dopo)
+// si parte dalla decisione: altrimenti il momento sarebbe già passato da
+// un pezzo e la sospensione arriverebbe subito, magari in servizio.
+const FINESTRA_SCADENZA = 60 * 60 * 1000
+
+// IL MOMENTO DELLO STATO PER IL PAGAMENTO: null se lo stato non è una
+// sospensione o una chiusura voluta dal pagamento (quelle dell'admin e del
+// titolare valgono subito, REQ-FLOTTA-090). Si parte da quando la regia
+// l'ha decisa (licenza_dal), così riscrivere la licenza più tardi non lo
+// sposta; o dalla scadenza del pagamento, se la decisione è arrivata entro
+// un'ora da quella: così coincide con valida_fino.
+function momentoDelloStato(ist, cliente, { oraTaglio = ORA_DEL_TAGLIO, giorniGrazia = GIORNI_DI_GRAZIA } = {}) {
+  if (ist?.licenza_per !== 'pagamento' || !ferma(ist.licenza_stato)) return null
+  const deciso = Date.parse(ist.licenza_dal || '')
+  if (!Number.isFinite(deciso)) return null
+  const scadenza = Date.parse(scadenzaPagamento(cliente, giorniGrazia) || '')
+  const da = Number.isFinite(scadenza) && scadenza <= deciso && deciso - scadenza <= FINESTRA_SCADENZA ? scadenza : deciso
+  return quandoSospendere(cliente, { adesso: new Date(da), oraTaglio }).toISOString()
+}
+
+// È arrivato il compito «sospensione»: vale ancora? Solo se l'istanza
+// aspetta proprio quel momento e lo stato è ancora fermo per il pagamento.
+// Chi ha pagato nel frattempo («riattiva») ha sospensione_al vuoto; un
+// compito vecchio, di un momento diverso, non fa niente; uno ripetuto dopo
+// la scrittura trova sospensione_al vuoto.
+function compitoSospensioneValido(ist, quando) {
+  const atteso = ist?.sospensione_al?.dal
+  if (!atteso || !Number.isFinite(Date.parse(quando || ''))) return false
+  return atteso === new Date(quando).toISOString() && ist.licenza_per === 'pagamento' && ferma(ist.licenza_stato)
+}
+
+// Lo stato dell'istanza è cambiato fra la lettura e la scrittura della
+// licenza (D7: il compito e «riattiva» insieme)? Allora la licenza si
+// ricalcola, invece di scrivere quella letta prima.
+function statoCambiato(prima, dopo) {
+  return ['licenza_stato', 'licenza_per', 'licenza_dal'].some((k) => (prima?.[k] ?? null) !== (dopo?.[k] ?? null))
+}
+
+// Il locale si è fermato davvero? No se la sospensione per pagamento
+// aspettava ancora il suo momento: il locale non ha mai smesso di lavorare,
+// e l'email «è di nuovo attivo» non deve partire.
+const fermoDavvero = (ist) => ferma(ist?.licenza_stato) && !ist?.sospensione_al?.dal
+
 module.exports = {
   cambiaOrari,
+  momentoDelloStato,
+  compitoSospensioneValido,
+  statoCambiato,
+  fermoDavvero,
+  FINESTRA_SCADENZA,
   GIORNI,
   GIORNI_DI_CORREZIONE,
   MOTIVO_MINIMO,
