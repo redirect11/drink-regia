@@ -1217,7 +1217,8 @@ moduli, la licenza nell'istanza e la Tana.
   due come «riprova tra poco», con la stessa attesa; `503` servizio
   occupato o non disponibile, si riprova (anche quando la regia non
   riesce a prenotare il credito: la prenotazione, se si è scritta lo
-  stesso, viene restituita subito).
+  stesso, viene restituita subito; e per una fattura quando la regia non
+  riesce a contarne i token, sotto).
   **Il credito si prenota** (REQ-FLOTTA-088, dal 13/11/2026): prima della
   chiamata la regia scala dal credito la stima massima della richiesta (al
   prezzo del modello più caro del listino), dopo la risposta restituisce
@@ -1227,9 +1228,18 @@ moduli, la licenza nell'istanza e la Tana.
   risposta del modello la regia non riesce a scrivere la correzione, il
   locale riceve comunque il risultato, con `costo_eur` uguale alla stima:
   è quello che pagherà, una volta sola (dalla revisione del 13/11/2026).
-  Il credito può scendere di poco sotto zero quando una fattura costa più
-  della sua stima (un PDF scansionato): al massimo la differenza di due
-  richieste; la richiesta dopo riceve `402 credito`. `risultato` per la descrizione è `{ descrizione, da_verificare:
+  **Il credito non va mai sotto zero** (REQ-FLOTTA-093, dal 13/11/2026,
+  Daniele: «Non deve mai succedere»). Prima di prenotare la regia conta i
+  token d'ingresso della richiesta con `countTokens` di Anthropic, e la
+  stima mette da parte due tentativi completi (il ripiego dopo un rifiuto
+  a metà risposta): uscita 2 × `max_tokens`, ingresso contato + 5% due
+  volte più `max_tokens`. Se il conteggio non risponde, una descrizione
+  usa la stima per byte con la stessa forma; una fattura risponde `503 {
+  codice: "servizio" }` senza prenotare niente, da riprovare come gli
+  altri 503. Se una richiesta costasse lo stesso più della stima (un
+  difetto), il credito si ferma a zero e il resto la regia lo segna in
+  `da_recuperare_microeuro` nel cassetto, per l'admin: per l'app il
+  credito è zero e la richiesta dopo riceve `402 credito`. `risultato` per la descrizione è `{ descrizione, da_verificare:
   [] }`; per la fattura `{ fornitore: { ragione_sociale, partita_iva },
   numero, data, righe: [{ descrizione, codice, quantita, unita,
   prezzo_unitario, sconto_percentuale, aliquota_iva, importo }],
@@ -1241,7 +1251,7 @@ moduli, la licenza nell'istanza e la Tana.
   "credito", credito_eur, tetto_mensile_eur, speso_mese_eur, attivo,
   motivo }`, gratis e senza riga di consumo. `attivo` dice se una
   richiesta può partire adesso (dal 13/11/2026: se il credito copre la
-  stima di una descrizione, circa 0,10 €, non un micro-euro); `motivo` è
+  stima di una descrizione, circa 0,22 € dal 13/11/2026, non un micro-euro); `motivo` è
   `null`, `"credito"` o `"tetto"`. Dal 13/11/2026 (REQ-FLOTTA-091,
   richiesta di tana-drink per il promemoria di ricarica) la risposta porta
   anche `ricaricabile` (booleano) e `ricarica_url`: `true` e

@@ -25,13 +25,21 @@ const codice = readFileSync('functions/index.js', 'utf8').replace(/\r\n/g, '\n')
 const tratto = (da, a) => codice.slice(codice.indexOf(da), codice.indexOf(a, codice.indexOf(da) + 1))
 
 describe('la stima massima', () => {
+  // Dal 13/11/2026 (REQ-FLOTTA-093) la stima mette da parte due tentativi
+  // completi: il ripiego dopo un rifiuto a metà risposta riparte col testo
+  // già scritto come contesto. Qui la stima per byte; quella col conteggio
+  // dei token ha i suoi test in ai-conteggio.test.js.
   it('usa il prezzo più alto del listino: il fallback può costare più del modello chiesto', () => {
     const m = ai.preparaMessaggio({ tipo: 'descrizione', nome: 'Gin' })
-    const usd = (p) => (m.stimaInputToken * p.input + m.max_tokens * p.output) / 1e6
-    const piuCaro = Math.max(...Object.values(AI.prezzi_usd_per_milione).map(usd))
+    const ingresso = m.stimaInputToken + (m.stimaInputToken + m.max_tokens)
+    const uscita = 2 * m.max_tokens
+    const usd = (pin, pout) => (ingresso * pin + uscita * pout) / 1e6
+    const prezzi = Object.values(AI.prezzi_usd_per_milione)
+    const piuCaro = usd(Math.max(...prezzi.map((p) => p.input)), Math.max(...prezzi.map((p) => p.output)))
     expect(ai.stimaMassimaMicroeuro(m)).toBe(Math.ceil(piuCaro * AI.cambio_eur_per_usd * AI.ricarico * 1_000_000))
     // Con il listino di oggi il modello chiesto non è il più caro.
-    expect(ai.stimaMassimaMicroeuro(m)).toBeGreaterThan(Math.ceil(usd(AI.prezzi_usd_per_milione[AI.modello]) * AI.cambio_eur_per_usd * AI.ricarico * 1_000_000))
+    const chiesto = AI.prezzi_usd_per_milione[AI.modello]
+    expect(ai.stimaMassimaMicroeuro(m)).toBeGreaterThan(Math.ceil(usd(chiesto.input, chiesto.output) * AI.cambio_eur_per_usd * AI.ricarico * 1_000_000))
   })
 })
 

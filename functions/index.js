@@ -2602,9 +2602,22 @@ async function interrogaClaude(slug, messaggio) {
   // L'id della prenotazione: uno casuale di Firestore, fissato fuori dalla
   // transazione perché un nuovo tentativo della transazione usi lo stesso.
   const id = cassettoRef.collection('consumi').doc().id
+  // IL MODELLO DEL TIPO (REQ-FLOTTA-092): si rilegge a ogni richiesta, così
+  // una scelta dell'admin vale dalla richiesta dopo. Se le impostazioni non
+  // si leggono vale il predefinito del listino: non è un motivo per
+  // fermare l'AI dei locali.
+  const regia = db.doc('impostazioni/regia')
+  const impostazioni = await regia
+    .get()
+    .then((s) => s.data() || {})
+    .catch((e) => {
+      console.warn(`[ai] ${slug}: le impostazioni della regia non si leggono, vale il modello predefinito:`, e?.message || e)
+      return {}
+    })
   return ai.interrogaConPrenotazione({
     slug,
     messaggio,
+    modello: ai.modelloPer(messaggio.tipo, impostazioni),
     crea: claude,
     prenota: (stima) =>
       db.runTransaction(async (t) => {
@@ -2676,6 +2689,24 @@ exports.creaRicaricaAI = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async
 // Tana la ricarichiamo noi), tetto mensile, acceso o spento, e la chiave
 // che l'installazione usa per chiamare `richiestaAI`. La chiave si vede
 // una volta sola, qui: la regia ne tiene solo l'impronta.
+// IL MODELLO AI PER TIPO DI RICHIESTA (REQ-FLOTTA-092). Daniele,
+// 13/11/2026, su Sonnet: «Per tutto». L'admin sceglie dal backoffice il
+// modello di un tipo, fra quelli che hanno un prezzo nel listino; si
+// salvano solo i tipi arrivati, con merge, in impostazioni/regia.ai_modelli.
+// interrogaClaude rilegge la scelta a ogni richiesta e la ricontrolla.
+exports.gestisciModelliAI = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  let scelta
+  try {
+    scelta = ai.validaModelliAI(req.data?.ai_modelli)
+  } catch (e) {
+    if (e instanceof ai.RichiestaNonValida) throw new HttpsError('invalid-argument', e.message)
+    throw e
+  }
+  await db.doc('impostazioni/regia').set({ ai_modelli: scelta, aggiornate_il: new Date().toISOString() }, { merge: true })
+  return { ok: true, ai_modelli: scelta }
+})
+
 exports.gestisciCassettoAI = onCall(OPTS, async (req) => {
   if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
   const { slug, azione } = req.data || {}

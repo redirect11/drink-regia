@@ -58,7 +58,9 @@ describe('il costo di una risposta', () => {
         ],
       },
     }
-    const a = prezzo('claude-opus-5-5')
+    // Il primo tentativo, senza `model`, è del modello chiesto: quello
+    // predefinito del listino (REQ-FLOTTA-092).
+    const a = prezzo(AI.modello)
     const b = prezzo('claude-opus-4-8')
     expect(ai.costoMicroeuro(r)).toBe(atteso((900 * a.input + 900 * b.input + 300 * b.output) / 1e6))
   })
@@ -223,9 +225,14 @@ describe('si può partire?', () => {
 
   // REQ-FLOTTA-088: al prezzo più alto del listino, perché il fallback può
   // rispondere con un modello più caro di quello chiesto.
-  it('la stima massima è il caso peggiore: tutti i token d’uscita permessi, al prezzo più alto', () => {
+  // Dal 13/11/2026 (REQ-FLOTTA-093) due tentativi completi: il ripiego
+  // dopo un rifiuto a metà risposta riparte col testo già scritto.
+  it('la stima massima è il caso peggiore: due tentativi con tutti i token d’uscita permessi, al prezzo più alto', () => {
     const m = ai.preparaMessaggio({ tipo: 'descrizione', nome: 'Gin' })
-    const usd = Math.max(...Object.keys(AI.prezzi_usd_per_milione).map((id) => (m.stimaInputToken * prezzo(id).input + m.max_tokens * prezzo(id).output) / 1e6))
+    const ids = Object.keys(AI.prezzi_usd_per_milione)
+    const pin = Math.max(...ids.map((id) => prezzo(id).input))
+    const pout = Math.max(...ids.map((id) => prezzo(id).output))
+    const usd = ((m.stimaInputToken + m.stimaInputToken + m.max_tokens) * pin + 2 * m.max_tokens * pout) / 1e6
     expect(ai.stimaMassimaMicroeuro(m)).toBe(atteso(usd))
   })
 

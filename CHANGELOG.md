@@ -20,6 +20,17 @@ data.
   arrivare in servizio, e un avviso lo dice. La data in cui l'app si
   ferma da sola (`valida_fino`) segue la stessa regola; senza orari resta
   il taglio della giornata (REQ-FLOTTA-095).
+- Le richieste AI dei locali vanno a Claude Sonnet 5.5, per tutti i tipi
+  (descrizione, fattura, tema): nel backoffice, in «Vendita», la sezione
+  «Modelli AI» sceglie il modello di ogni tipo fra quelli che hanno un
+  prezzo nel listino, e la scelta vale dalla richiesta dopo
+  (REQ-FLOTTA-092).
+- Il credito AI non va mai sotto zero: prima di prenotare la regia conta
+  i token della richiesta e mette da parte il costo di due tentativi
+  completi; se il conteggio non risponde una fattura o un tema rispondono
+  «riprova tra poco», senza addebiti. Se una richiesta costasse lo stesso
+  più della stima il credito si ferma a zero, e la scheda del locale nel
+  backoffice mostra l'importo da recuperare (REQ-FLOTTA-093).
 - Il credito AI chiesto dall'app dice anche se il locale può ricaricare
   dal sito e dove (`ricaricabile`, `ricarica_url`): coi pagamenti online
   spenti, il sito chiuso o un locale interno l'app rimanda all'assistenza
