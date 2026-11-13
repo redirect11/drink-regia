@@ -4383,6 +4383,43 @@ requirements:
       - tests/orari-servizio.test.js
       - tests/RegistratiOrari.test.jsx
 
+  - id: REQ-FLOTTA-091
+    title: "Il credito chiesto dall'app dice se il locale può ricaricare e dove: ricaricabile e ricarica_url"
+    area: "functions/lib/ai.js (ricaricaDelLocale, rispostaCredito), functions/index.js (richiestaAI), docs/handover.md §7"
+    description: >
+      Richiesta di tana-drink del 13/11/2026, girata da Daniele: «Per il
+      promemoria di ricarica, nella risposta di tipo: 'credito' ci
+      servirebbe sapere se il locale può comprare credito e dove: per
+      esempio ricaricabile: true|false e ricarica_url. Con ricaricabile:
+      false l'app dirà di rivolgersi all'assistenza invece di mandare al
+      sito.»
+      CRITERI DI ACCETTAZIONE. (1) La risposta 200 di { tipo: 'credito' }
+      (REQ-FLOTTA-085) porta anche `ricaricabile` (booleano) e
+      `ricarica_url` (stringa o null), e nient'altro di nuovo. (2)
+      `ricaricabile` è true solo se il titolare può comprare credito dal
+      sito adesso, con le stesse condizioni di creaRicaricaAI: pagamenti
+      online accesi (vendita/listino.pagamenti_online), sito aperto
+      (REQ-FLOTTA-043), locale non interno (istanza.interna: la Tana la
+      ricarichiamo noi), e la regia sa il suo indirizzo (REGIA_URL). Il
+      piano senza AI non arriva qui: risponde prima 402 piano
+      (REQ-FLOTTA-087). (3) `ricarica_url` è `<origine di
+      REGIA_URL>/dashboard/credito-ai`, la sezione «Credito AI»
+      dell'area del titolare (REQ-FLOTTA-084), solo l'origine come per
+      rinnovo_url (REQ-FLOTTA-090); con `ricaricabile: false` vale null.
+      (4) Le risposte 402 (senza-cassetto, spento, piano) restano come
+      sono. (5) Il contratto in docs/handover.md §7 dice i due campi e che
+      con `ricaricabile: false` l'app rimanda all'assistenza.
+      PUNTO DEBOLE: la regia non guarda se la chiave di Stripe è
+      configurata (richiestaAI non ha quel segreto, e non glielo diamo per
+      un controllo): con i pagamenti online accesi e Stripe non
+      configurato, l'app manda al sito e lì la ricarica dice di scriverci.
+    status: implemented
+    generate_issue: true
+    labels: [regia, ai]
+    priority: P2
+    test_cases:
+      - tests/ai-ricarica.test.js
+
   - id: REQ-FLOTTA-090
     title: "Il locale sospeso o chiuso: rinnovo_url nella licenza e, nell'area del titolare, il riquadro per pagare o per scriverci"
     area: "functions/lib/licenza.js (licenzaProtetta, licenzaIniziale, CHIAVI_PROTETTA), functions/lib/rinnovo.js, functions/index.js (pagamentoRinnovo), src/lib/rinnovo.js, src/lib/db.js (apriPagamentoRinnovo), src/pages/RinnovoLocale.jsx, src/pages/Dashboard.jsx, docs/handover.md §7"
