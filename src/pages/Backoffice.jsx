@@ -51,7 +51,7 @@ import { PIANI, MODULI, prezzoMensile, euro, baseMancante, senzaOrfani } from '.
 import { prezzoConSconto, scontoDetto, usiDetti, CODICE_VALIDO, REGOLA_CODICE, LIMITE_PER_IL_CENTO, generaCodice } from '../lib/sconti.js'
 import CatalogoTemi, { EditorTema } from './CatalogoTemi.jsx'
 import { contattoDi } from '../lib/clienti.js'
-import { statoCredito, euroCent } from '../lib/ai.js'
+import { statoCredito, euroCent, aiNelPiano } from '../lib/ai.js'
 import { GRUPPI, TAG, aggiornamentoDetto, runNellErrore } from '../lib/rilasci.js'
 import { BASE, SEZIONI, VISTE, aggiornamentoFallito, aggiornaLaRegia, contiDelBackoffice, filtraLocali, profiloDaAutorizzare } from '../lib/backoffice.js'
 import Rilasci from './Rilasci.jsx'
@@ -632,9 +632,11 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
   const { tono, testo: statoTesto } = statoBreve(riga)
   const attiva = stato === STATI.ATTIVA
   const piano = PIANI[c.piano]
-  // Il Free non ha l'AI (Daniele, 13/11/2026): niente blocco Credito AI.
-  const conAI = piano?.gratuito !== true
-  const aiVisibile = credito || attiva
+  // Il Free non ha l'AI (REQ-FLOTTA-087; Daniele, 13/11/2026: «I free non
+  // hanno l'ai»): niente blocco Credito AI, o si regalerebbe un credito che
+  // la regia poi non lascia spendere. La regola è quella della regia.
+  const conAI = aiNelPiano(c, istanza)
+  const aiVisibile = conAI && (credito || attiva)
   // Un locale pubblicato fuori dalla regia (la Tana, da GitHub) non manda
   // l'esito del deploy: la versione la dice l'app stessa quando si
   // presenta (REQ-FLOTTA-026).

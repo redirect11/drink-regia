@@ -13,6 +13,15 @@ data.
   da soli in fondo. Il Free non ha il blocco Credito AI, la spiegazione di
   «Aggiorna subito» è un aiuto che si apre e sul telefono i blocchi vanno
   in colonna (REQ-FLOTTA-089).
+- Il Free non ha l'AI: la regia rifiuta le richieste AI di un locale Free
+  (anche tornato al Free perché non paga) con `402 piano`, non gli vende
+  né gli regala credito, e la licenza del Free porta `ai: false`; nel
+  backoffice e nell'area del titolare Free non compaiono il credito AI e
+  il tema dal mockup (REQ-FLOTTA-087).
+- Il credito AI si prenota prima della chiamata e si corregge dopo col
+  costo vero: richieste in parallelo non lo portano sotto zero, un locale
+  ha al massimo due richieste AI insieme (`429 occupato`), e una richiesta
+  rimasta a metà si paga alla stima, segnata «interrotta» (REQ-FLOTTA-088).
 - Il gestionale chiede il credito AI senza chiamare il modello e senza
   pagarlo: saldo, tetto, speso del mese e se l'AI può partire
   (REQ-FLOTTA-085).
