@@ -4254,6 +4254,108 @@ requirements:
     test_cases:
       - tests/ai.test.js
 
+  - id: REQ-FLOTTA-094
+    title: "La chat del gestionale passa dalla regia: richiesta chat con turni firmati, versione, limiti dell'admin e la stessa prenotazione del credito"
+    area: "functions/lib/ai-chat.js (nuovo: preparaChat, firmaTurno, turnoIntatto, limitiChat, definizioniStrumenti, strumentiUsati, controllaLunghezza, rispostaChat, interrogaChat), functions/lib/ai.js (prenotazione, costo), functions/index.js (richiestaAI), impostazioni/regia.limiti_chat, backoffice, docs/handover.md §7"
+    description: >
+      Il contratto viene da tana-drink, REQ-AI-006 (ramo feature/chat-ai,
+      13/11/2026, «IL CONTRATTO CON LA REGIA» e «GLI STRUMENTI»;
+      functions/lib/ai-service.js: CAMPI.chat, interpreta, STRUMENTI_CHAT,
+      STRUMENTI_ADMIN). La chat sta in un pannello del gestionale, senza
+      memoria fra una conversazione e l'altra (Daniele, 12/11/2026), e
+      chiede alla regia con lo stesso gettone delle altre richieste AI.
+      LE DECISIONI DI DANIELE DEL 13/11/2026. Il modello è Sonnet: «Per
+      tutto»; il modello di ogni tipo, chat compresa, lo sceglie l'admin dal
+      backoffice (REQ-FLOTTA-092, ramo feature/ai-sonnet-conteggio). I
+      limiti: «rendi questi parametri configurabili da backoffice di
+      admin». Niente memoria: la regia non conserva le conversazioni (la
+      regia non tiene i dati dei locali), e un turno ritoccato lo riconosce
+      dalla firma. Il costo massimo prima di prenotare lo dà il conteggio
+      esatto dei token di REQ-FLOTTA-093.
+      CRITERI DI ACCETTAZIONE. (1) LA RICHIESTA. richiestaAI accetta dal
+      gettone del locale `{ tipo: 'chat', messaggi, strumenti, versione }`,
+      dopo il controllo del piano (402 piano, REQ-FLOTTA-087) e prima delle
+      richieste a schema; un campo in più (sistema, modello, token,
+      strumenti definiti) è un 400. `messaggi` è nel formato di Anthropic,
+      comincia e finisce con un turno di chi scrive; i turni di chi scrive
+      sono un testo non vuoto o blocchi `text` e `tool_result` di solo
+      testo: immagini e documenti sono un 400 (il file di una fattura passa
+      dalla richiesta `fattura`). Ogni `tool_result` risponde a un
+      `tool_use` del turno del modello subito prima. `strumenti` sono solo
+      identificativi fra `giacenza`, `vendite`, `cerca_prodotti`,
+      `proponi_descrizione`, `proponi_voce_menu`, `leggi_fattura`; altro è
+      un 400. Il controllo dei ruoli (`leggi_fattura` solo dell'admin) lo
+      fa l'app. (2) LA FIRMA. Ogni turno che la regia dà (`turno`) è `{
+      role: 'assistant', content, firma }`: `content` com'è tornato dal
+      modello, `firma` un HMAC-SHA256 sulla forma canonica (chiavi in
+      ordine) di slug, versione e content, con un segreto della regia
+      (`AI_CHAT_SECRET`, nome proposto). La verifica è a tempo costante. Un
+      turno del modello senza firma o che non torna (testo cambiato, blocco
+      tolto, altro locale, altra versione) è un 400. La firma si toglie
+      prima di mandare la conversazione al modello. Senza un segreto
+      usabile (vuoto, corto, `non-configurato`) la chat risponde 503
+      servizio, senza prenotare. La regia non scrive niente della
+      conversazione. (3) LA VERSIONE. `VERSIONE_CHAT` (al massimo 64
+      caratteri) cambia quando cambiano le istruzioni o le definizioni degli
+      strumenti, e torna in ogni risposta. Una richiesta con un'altra
+      versione è un 409 `{ codice: 'versione' }`, controllato prima della
+      firma; senza versione (il primo messaggio) vale quella di adesso. (4)
+      IL MODELLO E GLI STRUMENTI. La chat usa il modello impostato per il
+      tipo `chat` (REQ-FLOTTA-092); istruzioni e definizioni degli strumenti
+      (nome, descrizione, schema dell'ingresso) sono della regia. Le
+      descrizioni degli strumenti di lettura dicono quante righe tornano, dai
+      limiti; `leggi_fattura` non chiede il file. (5) I LIMITI, in
+      `impostazioni/regia.limiti_chat`, che legge e scrive solo l'admin
+      (regole di oggi su `impostazioni/{doc}`), cambiabili dal backoffice.
+      Valori iniziali: `max_token_risposta` 4000, `max_token_conversazione`
+      50000, `max_strumenti_per_messaggio` 5, `righe` `{ giacenza: 5,
+      vendite: 20, cerca_prodotti: 15 }`. Un valore che non è un intero
+      positivo vale il predefinito, voce per voce. (6) LA RISPOSTA OLTRE IL
+      TETTO si tronca: 200 col testo arrivato, senza strumenti a metà (i
+      `tool_use` di una risposta troncata escono dal turno e da
+      `strumenti_richiesti`). (7) LA CONVERSAZIONE TROPPO LUNGA. I token
+      d'ingresso si contano prima di prenotare (REQ-FLOTTA-093); oltre
+      `max_token_conversazione` la regia risponde 409 `{ codice:
+      'troppo-lunga', errore }` senza prenotare né chiamare il modello, e
+      l'app propone una conversazione nuova. (8) GLI STRUMENTI PER
+      MESSAGGIO. Uno per turno del modello (`disable_parallel_tool_use`),
+      contati dall'ultimo turno di chi scrive che ha un testo: raggiunto
+      `max_strumenti_per_messaggio` la chiamata va con `tool_choice: none`,
+      e il modello risponde con quello che ha. Il conto regge perché i
+      turni del modello sono firmati. (9) IL CREDITO. La chat passa dalla
+      stessa prenotazione delle altre richieste (REQ-FLOTTA-088: prenota,
+      chiudiPrenotazione, al massimo due insieme, righe «interrotta»), con
+      la stima massima sui token contati e su `max_token_risposta`: 402
+      credito, tetto, spento, senza-cassetto e 429 occupato prima del
+      modello; il modello che non risponde è un 503 e la stima torna tutta;
+      un rifiuto (422 rifiuto) o una risposta vuota (422 vuota) costano.
+      La riga dei consumi dice `tipo: 'chat'` e i numeri, mai il contenuto.
+      (10) LA RISPOSTA 200 è `{ ok, tipo: 'chat', turno, testo,
+      strumenti_richiesti: [{ id, nome, input }], versione,
+      limiti_strumenti: { giacenza, vendite, cerca_prodotti }, costo_eur,
+      credito_eur }`. `limiti_strumenti` sono le righe che l'app applica
+      agli strumenti di lettura: un campo in più rispetto al contratto di
+      tana-drink, che l'app deve leggere. (11) Il contratto in
+      docs/handover.md §7, «Cassetto AI», dice la chat, la firma, i limiti
+      e il 409 troppo-lunga, lo stesso giorno, e si scrive a tana-drink.
+      PUNTI DEBOLI. Il 409 troppo-lunga oggi nell'app vale come «versione»
+      (interpreta non guarda il codice del 409): la conversazione riparte,
+      ma il messaggio a schermo sarà quello sbagliato finché tana-drink non
+      distingue i due codici. Il segreto della firma è un segreto nuovo
+      delle Functions: va creato sul test e, col via libera di Daniele, in
+      produzione, prima del deploy, che altrimenti si ferma. Un turno
+      firmato non scade: vale finché non cambia la versione. Con uno
+      strumento per turno una domanda che vuole tre letture fa tre giri,
+      ognuno con la conversazione intera da pagare. La sezione del
+      backoffice per i limiti avrà il suo test (tests/Backoffice.test.jsx)
+      col lavoro.
+    status: todo
+    generate_issue: true
+    labels: [flotta, regia, ai]
+    priority: P2
+    test_cases:
+      - tests/ai-chat.test.js
+
   - id: REQ-FLOTTA-090
     title: "Il locale sospeso o chiuso: rinnovo_url nella licenza e, nell'area del titolare, il riquadro per pagare o per scriverci"
     area: "functions/lib/licenza.js (licenzaProtetta, licenzaIniziale, CHIAVI_PROTETTA), functions/lib/rinnovo.js, functions/index.js (pagamentoRinnovo), src/lib/rinnovo.js, src/lib/db.js (apriPagamentoRinnovo), src/pages/RinnovoLocale.jsx, src/pages/Dashboard.jsx, docs/handover.md §7"
