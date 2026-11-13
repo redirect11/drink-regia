@@ -6,9 +6,12 @@
 
 import { describe, it, expect } from 'vitest'
 import { createRequire } from 'node:module'
+import { readFileSync } from 'node:fs'
 
 const require = createRequire(import.meta.url)
 const ai = require('../functions/lib/ai.js')
+const t = require('../functions/lib/temi.js')
+const s = require('../functions/lib/stili.js')
 const { aggiornamentoDaEvento } = require('../functions/lib/abbonamento.js')
 const listino = require('../functions/piani.json')
 
@@ -55,7 +58,9 @@ describe('il costo di una risposta', () => {
         ],
       },
     }
-    const a = prezzo('claude-opus-5-5')
+    // Il primo tentativo, senza `model`, è del modello chiesto: quello
+    // predefinito del listino (REQ-FLOTTA-092).
+    const a = prezzo(AI.modello)
     const b = prezzo('claude-opus-4-8')
     expect(ai.costoMicroeuro(r)).toBe(atteso((900 * a.input + 900 * b.input + 300 * b.output) / 1e6))
   })
@@ -130,6 +135,78 @@ describe('le richieste che un’installazione può fare', () => {
     }
     controlla(ai.preparaMessaggio({ tipo: 'descrizione', nome: 'Gin' }).schema, 'descrizione')
     controlla(ai.preparaMessaggio({ tipo: 'fattura', media_type: 'application/pdf', file: 'AAAA' }).schema, 'fattura')
+    controlla(ai.preparaMessaggio({ tipo: 'tema', media_type: 'image/png', file: 'AAAA', struttura: 'unica' }).schema, 'tema')
+  })
+
+  // REQ-FLOTTA-040 (06/11/2026): il tema dal mockup di Canva, col credito AI.
+  it('un tema vuole il mockup (foto o PDF) e la struttura del menù; lo schema chiude ogni scelta sui valori dell’app', () => {
+    const m = ai.preparaMessaggio({ tipo: 'tema', media_type: 'image/png', file: 'AAAA', struttura: 'per-categoria', note: '  prezzi coi puntini  ' })
+    expect(m.tipo).toBe('tema')
+    expect(m.struttura).toBe('per-categoria')
+    expect(m.content[0]).toMatchObject({ type: 'image', source: { media_type: 'image/png', data: 'AAAA' } })
+    expect(m.content[1].text).toContain('una pagina per categoria')
+    expect(m.content[1].text).toContain('Note del locale: prezzi coi puntini')
+    expect(m.system).toMatch(/contrasto/)
+    expect(ai.parametriClaude(m).output_config.effort).toBe('medium')
+    // Gli enum sono quelli della regia: basi, stili dell'app (mai gli esclusivi), caratteri, vocabolario della ricetta.
+    const p = m.schema.properties
+    expect(p.tavolozza.properties.base.enum).toEqual(t.BASI)
+    expect(p.stile_vicino.enum).toEqual(t.STILI)
+    expect(p.stile_vicino.enum).not.toContain('notte')
+    expect(p.ricetta.properties.caratteri.properties.titolo.enum).toEqual(s.CARATTERI)
+    expect(p.ricetta.properties.sfondo.enum).toEqual(s.VALORI.sfondo)
+    expect(p.ricetta.properties.voce.properties.prezzo.enum).toEqual(s.VALORI['voce.prezzo'])
+    // La struttura la sceglie il titolare: nello schema non c'è.
+    expect(p.ricetta.properties).not.toHaveProperty('impaginazione')
+    expect(p.tavolozza.properties.colori.required).toEqual(t.CHIAVI_COLORE)
+    expect(() => ai.preparaMessaggio({ tipo: 'tema', media_type: 'image/png', file: 'AAAA' })).toThrow(/struttura del menù/)
+    expect(() => ai.preparaMessaggio({ tipo: 'tema', media_type: 'text/plain', file: 'AAAA', struttura: 'unica' })).toThrow(/Formato non accettato/)
+    // Da un'installazione si chiedono solo descrizione e fattura.
+    expect(ai.TIPI_INSTALLAZIONE).toEqual(['descrizione', 'fattura'])
+  })
+})
+
+// IL CREDITO SENZA IL MODELLO (REQ-FLOTTA-085; tana-drink, 13/11/2026:
+// «Serve a sapere il credito senza chiamare il modello»).
+describe('il credito chiesto dall’installazione', () => {
+  const pieno = { attivo: true, credito_microeuro: 12_340_000, mese: '2026-10', speso_mese_microeuro: 2_500_000, tetto_mensile_microeuro: 20_000_000 }
+
+  it('risponde saldo, tetto, speso del mese e se una richiesta può partire', () => {
+    expect(ai.rispostaCredito(pieno, ADESSO)).toEqual({
+      ok: true,
+      tipo: 'credito',
+      credito_eur: 12.34,
+      tetto_mensile_eur: 20,
+      speso_mese_eur: 2.5,
+      attivo: true,
+      motivo: null,
+      // Senza dire se si ricarica, non si ricarica (REQ-FLOTTA-091,
+      // tests/ai-ricarica.test.js).
+      ricaricabile: false,
+      ricarica_url: null,
+    })
+  })
+
+  it('credito finito, tetto raggiunto, mese nuovo', () => {
+    expect(ai.rispostaCredito({ ...pieno, credito_microeuro: 0 }, ADESSO)).toMatchObject({ attivo: false, motivo: 'credito' })
+    expect(ai.rispostaCredito({ ...pieno, speso_mese_microeuro: 20_000_000 }, ADESSO)).toMatchObject({ attivo: false, motivo: 'tetto' })
+    expect(ai.rispostaCredito({ ...pieno, mese: '2026-09', speso_mese_microeuro: 20_000_000 }, ADESSO)).toMatchObject({ attivo: true, speso_mese_eur: 0 })
+  })
+
+  it('senza cassetto o col cassetto spento è il 402 di sempre', () => {
+    expect(ai.rispostaCredito(null, ADESSO)).toEqual({ ok: false, http: 402, codice: 'senza-cassetto', errore: 'Il credito AI di questa installazione non è attivo.' })
+    expect(ai.rispostaCredito({ ...pieno, attivo: false }, ADESSO)).toMatchObject({ ok: false, http: 402, codice: 'spento' })
+  })
+
+  it('richiestaAI lo dà dopo il gettone, prima del modello, senza addebito', () => {
+    const codice = readFileSync('functions/index.js', 'utf8').replace(/\r\n/g, '\n')
+    const porta = codice.slice(codice.indexOf('exports.richiestaAI = '), codice.indexOf('async function interrogaClaude('))
+    const gettone = porta.indexOf("res.status(401)")
+    const credito = porta.indexOf("req.body?.tipo === 'credito'")
+    expect(gettone).toBeGreaterThan(0)
+    expect(credito).toBeGreaterThan(gettone)
+    expect(credito).toBeLessThan(porta.indexOf('ai.preparaMessaggio('))
+    expect(porta).toContain('ai.rispostaCredito(')
   })
 })
 
@@ -146,20 +223,25 @@ describe('si può partire?', () => {
     expect(ai.puoChiedere({ ...pieno, mese: '2026-09', speso_mese_microeuro: 19_990_000 }, 50_000, ADESSO).ok).toBe(true)
   })
 
-  it('la stima massima è il caso peggiore: tutti i token d’uscita permessi', () => {
+  // REQ-FLOTTA-088: al prezzo più alto del listino, perché il fallback può
+  // rispondere con un modello più caro di quello chiesto.
+  // Dal 13/11/2026 (REQ-FLOTTA-093) due tentativi completi: il ripiego
+  // dopo un rifiuto a metà risposta riparte col testo già scritto.
+  it('la stima massima è il caso peggiore: due tentativi con tutti i token d’uscita permessi, al prezzo più alto', () => {
     const m = ai.preparaMessaggio({ tipo: 'descrizione', nome: 'Gin' })
-    const p = prezzo(AI.modello)
-    expect(ai.stimaMassimaMicroeuro(m)).toBe(atteso((m.stimaInputToken * p.input + m.max_tokens * p.output) / 1e6))
+    const ids = Object.keys(AI.prezzi_usd_per_milione)
+    const pin = Math.max(...ids.map((id) => prezzo(id).input))
+    const pout = Math.max(...ids.map((id) => prezzo(id).output))
+    const usd = ((m.stimaInputToken + m.stimaInputToken + m.max_tokens) * pin + 2 * m.max_tokens * pout) / 1e6
+    // Più un micro-euro per gli arrotondamenti in virgola mobile
+    // (revisione della PR #234).
+    expect(ai.stimaMassimaMicroeuro(m)).toBe(atteso(usd) + 1)
   })
 
-  it('l’addebito scala il credito e somma al mese, che riparte se è cambiato', () => {
-    const cassetto = { credito_microeuro: 1_000_000, mese: '2026-09', speso_mese_microeuro: 7_000_000 }
-    expect(ai.addebito(cassetto, 12_345, ADESSO)).toEqual({
-      credito_microeuro: 987_655,
-      speso_mese_microeuro: 12_345,
-      mese: '2026-10',
-      ultimo_uso_il: ADESSO.toISOString(),
-    })
+  // Revisione del 13/11/2026 (B4): l'addebito dopo la risposta è stato
+  // sostituito dalla prenotazione, e il codice morto non resta.
+  it('l’addebito dopo la risposta non c’è più: il credito passa solo dalla prenotazione', () => {
+    expect(ai.addebito).toBeUndefined()
   })
 })
 
@@ -189,6 +271,9 @@ describe('la risposta del modello', () => {
       tipo: 'fattura',
       modello: 'claude-opus-5-5',
       token_input: 150,
+      // La cache letta e scritta (REQ-FLOTTA-094).
+      token_cache_lettura: 50,
+      token_cache_scrittura: 0,
       token_output: 20,
       fallback: true,
       costo_microeuro: 999,
@@ -198,24 +283,11 @@ describe('la risposta del modello', () => {
   })
 })
 
-describe('la chiave di un’installazione', () => {
-  it('il bearer porta lo slug; la regia tiene solo l’impronta e la confronta a tempo costante', () => {
-    const { bearer, impronta } = ai.nuovaChiave('tana-drink')
-    expect(bearer).toMatch(/^tana-drink\.[A-Za-z0-9_-]{40,}$/)
-    expect(impronta).toMatch(/^[0-9a-f]{64}$/)
-    expect(bearer).not.toContain(impronta)
-    const letto = ai.leggiBearer(`Bearer ${bearer}`)
-    expect(letto.slug).toBe('tana-drink')
-    expect(ai.chiaveGiusta(letto.segreto, impronta)).toBe(true)
-    expect(ai.chiaveGiusta(`${letto.segreto}x`, impronta)).toBe(false)
-    expect(ai.chiaveGiusta(letto.segreto, null)).toBe(false)
-  })
-
-  it('un header storto non apre niente', () => {
-    expect(ai.leggiBearer('Bearer solo-segreto')).toBeNull()
-    expect(ai.leggiBearer('tana-drink.abcdefghijklmnopqrstuvwxyz')).toBeNull()
-    expect(ai.leggiBearer('Bearer X.abcdefghijklmnopqrstuvwxyz')).toBeNull()
-    expect(() => ai.nuovaChiave('X')).toThrow(/Slug/)
+// REQ-FLOTTA-079: la «Chiave AI» non c'è più; l'installazione si fa
+// riconoscere col gettone di Google (lib/identita-locale.js).
+describe('niente più chiave di un’installazione', () => {
+  it('la libreria dell’AI non crea né legge chiavi', () => {
+    for (const nome of ['nuovaChiave', 'leggiBearer', 'chiaveGiusta']) expect(ai[nome], nome).toBeUndefined()
   })
 })
 
@@ -234,6 +306,9 @@ describe('la ricarica con Stripe', () => {
     const riga = ai.rigaRicarica(p)
     expect(riga.price_data).toMatchObject({ currency: 'eur', unit_amount: p.importo * 100 })
     expect(riga.price_data.recurring).toBeUndefined()
+    // L'IVA (REQ-FLOTTA-035): il pacchetto è IVA esclusa, Stripe la aggiunge.
+    expect(riga.price_data.tax_behavior).toBe('exclusive')
+    expect(ai.rigaRicarica(p, { aliquotaIva: 'txr_iva' }).tax_rates).toEqual(['txr_iva'])
     expect(ai.metadatiRicarica({ uid: 'u1', slug: 'bar-mario', p })).toMatchObject({ tipo: 'ricarica_ai', uid: 'u1', slug: 'bar-mario', pacchetto: p.id })
   })
 
@@ -247,6 +322,10 @@ describe('la ricarica con Stripe', () => {
     })
   })
 
+  it('con l’IVA il credito è l’imponibile, non il totale pagato (REQ-FLOTTA-035)', () => {
+    expect(ai.ricaricaDaSessione({ ...sessione, amount_total: 3050 }).importo_microeuro).toBe(25_000_000)
+  })
+
   it('una sessione non pagata, o che non è una ricarica, non dà credito', () => {
     expect(ai.ricaricaDaSessione({ ...sessione, payment_status: 'unpaid' })).toBeNull()
     expect(ai.ricaricaDaSessione({ ...sessione, metadata: { uid: 'u1', piano: 'base' } })).toBeNull()
@@ -256,6 +335,44 @@ describe('la ricarica con Stripe', () => {
   it('l’abbonamento non scambia una ricarica per un piano pagato', () => {
     expect(aggiornamentoDaEvento('checkout.session.completed', sessione)).toBeNull()
     expect(aggiornamentoDaEvento('checkout.session.completed', { metadata: { uid: 'u1', piano: 'base' } })).not.toBeNull()
+  })
+
+  // L'utente, 06/11/2026: «regalare crediti a un cassetto AI di un gestore».
+  it('un omaggio è una ricarica con la sua origine, fino a 200 €, che l’admin accredita senza pagamento', () => {
+    expect(ai.ORIGINI_RICARICA).toEqual(['stripe', 'manuale', 'omaggio'])
+    expect(ai.MAX_OMAGGIO).toBe(200)
+    const codice = readFileSync('functions/index.js', 'utf8')
+    const omaggio = codice.slice(codice.indexOf("if (azione === 'omaggio')"), codice.indexOf("if (azione === 'tetto')"))
+    expect(omaggio).toContain('importo > ai.MAX_OMAGGIO')
+    expect(omaggio).toContain("{ origine: 'omaggio', nota:")
+    expect(omaggio).toContain('await accreditaRicarica(')
+  })
+
+  // L'utente, 06/11/2026: un workspace Anthropic per la regia, con la
+  // federazione delle identità al posto della chiave statica.
+  it('con la regola di federazione configurata le Functions AI usano il token dell’account di servizio dedicato, non la chiave', () => {
+    const codice = readFileSync('functions/index.js', 'utf8')
+    const client = codice.slice(codice.indexOf('const claude = () => {'), codice.indexOf('// Una ricarica (Stripe o a mano)'))
+    expect(client).toContain("if (!federazione) return { Anthropic, client: new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() }) }")
+    expect(client).toContain("require('@anthropic-ai/sdk/lib/credentials/oidc-federation')")
+    expect(client).toContain("headers: { 'Metadata-Flavor': 'Google' }")
+    expect(client).toContain('new Anthropic({ credentials })')
+    expect(codice).toContain("'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=https://api.anthropic.com&format=full'")
+    expect(codice).toContain('federationRuleId: process.env.ANTHROPIC_FEDERATION_RULE_ID')
+    expect(codice).toContain('organizationId: process.env.ANTHROPIC_ORGANIZATION_ID')
+    expect(codice).toContain('serviceAccountId: process.env.ANTHROPIC_SERVICE_ACCOUNT_ID')
+    // Lo script dell'account: Firestore e log sul progetto, il deploy che agisce come lui, email e id numerico per la Console.
+    const script = readFileSync('scripts/account-ai.mjs', 'utf8')
+    expect(script).toContain("const RUOLI_PROGETTO = ['roles/datastore.user', 'roles/logging.logWriter']")
+    expect(script).toContain("['roles/iam.serviceAccountUser']")
+    expect(script).toContain('account.uniqueId')
+    // Il file di ambiente del test spiega le cinque variabili.
+    // Test e produzione hanno ciascuno il proprio account Google e la propria regola, nella stessa area di lavoro.
+    for (const progetto of ['drink-regia-test', 'drink-regia']) {
+      const env = readFileSync(`functions/.env.${progetto}`, 'utf8')
+      expect(env).toContain(`\nAI_SERVICE_ACCOUNT=ai-regia@${progetto}.iam.gserviceaccount.com`)
+      for (const v of ['ANTHROPIC_FEDERATION_RULE_ID=fdrl_', 'ANTHROPIC_ORGANIZATION_ID=', 'ANTHROPIC_SERVICE_ACCOUNT_ID=svac_', 'ANTHROPIC_WORKSPACE_ID=wrkspc_']) expect(env).toContain(`\n${v}`)
+    }
   })
 
   it('un cassetto nuovo nasce vuoto, acceso, col tetto del listino', () => {
@@ -270,5 +387,22 @@ describe('la ricarica con Stripe', () => {
       speso_mese_microeuro: 0,
       creato_il: ADESSO.toISOString(),
     })
+  })
+})
+
+// IL RICARICO (REQ-AI-003, Daniele, 12/11/2026: «il ricarico è x1.1. Voglio
+// il 10% di guadagno sul costo effettivo dei crediti»).
+describe('il ricarico sul costo dell’AI', () => {
+  it('è il 10%: il locale paga il costo Anthropic in euro più un decimo', () => {
+    expect(AI.ricarico).toBe(1.1)
+    // Un milione di token d'uscita del modello del listino: il costo in
+    // dollari, al cambio del listino, più il 10%. Per eccesso, al più un
+    // micro-euro sopra il conto esatto.
+    const m = AI.modello
+    const usd = prezzo(m).output
+    const esatto = Math.round(usd * AI.cambio_eur_per_usd * 1.1 * 1_000_000)
+    const costo = ai.costoMicroeuro({ model: m, usage: { output_tokens: 1_000_000 } })
+    expect(costo - esatto).toBeGreaterThanOrEqual(0)
+    expect(costo - esatto).toBeLessThanOrEqual(1)
   })
 })

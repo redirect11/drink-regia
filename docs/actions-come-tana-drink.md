@@ -36,9 +36,9 @@ Regole che valgono per tutto il lavoro qui sotto:
 |---|---|
 | push su un ramo qualsiasi (tranne `release/**`) | lint, test, build. Nessun deploy. |
 | pull request verso `develop` o `main` | lint, test, build **e coverage** |
-| lancio a mano di «Deploy to Firebase» su un ramo | va sul **test**, subito |
-| tag su un commit **non** in `main` | va sul **test**, subito |
-| tag su un commit **di `main`** | va in **produzione**, dopo l'approvazione di una persona |
+| lancio a mano di «Deploy to Firebase» su un ramo | va sul **test**, subito, senza collaudo |
+| tag su un commit **non** in `main` | va sul **test**, poi il **collaudo** (dal 09/11/2026, REQ-DEV-009) |
+| tag su un commit **di `main`** | va in **produzione**, se un collaudo è riuscito sul test per quel codice |
 
 Il ramo non conta: conta **dove sta il commit taggato**. Lo decide il job
 «Dove va» con `git merge-base --is-ancestor`. I segreti stanno nelle
@@ -103,7 +103,10 @@ Firebase crea `firebase-adminsdk-fbsvc@<progetto>.iam.gserviceaccount.com`.
    `roles/secretmanager.admin` (il deploy controlla che i segreti delle
    Functions esistano e dà al SA di runtime il permesso di leggerli: senza,
    si ferma con `secretmanager.secrets.get` negato), `roles/cloudscheduler.admin`
-   (la pianificazione di `sospendiMorosi`), `roles/artifactregistry.admin`
+   (per le Functions pianificate: dal 31/10/2026 la regia non ne ha più,
+   il ruolo resta per quando servisse), `roles/cloudtasks.queueAdmin`
+   (la coda della Function `scadenza`, REQ-FLOTTA-023, con l'API
+   `cloudtasks.googleapis.com` accesa), `roles/artifactregistry.admin`
    (la pulizia automatica delle immagini vecchie) e `roles/run.admin`:
    senza, le Functions HTTP e callable nascono **private** (`allUsers` non
    riceve `roles/run.invoker`), Google risponde 403 a sito, Stripe e
@@ -127,7 +130,7 @@ Firebase crea `firebase-adminsdk-fbsvc@<progetto>.iam.gserviceaccount.com`.
    Il numero di progetto lo dà `npx firebase-tools projects:list`.
    Lo stesso ruolo serve **anche sul SA di App Engine**
    (`<progetto>@appspot.gserviceaccount.com`): il CLI lo controlla per le
-   Functions pianificate (`sospendiMorosi`) e senza si ferma con
+   Functions pianificate (dal 31/10/2026 non ce ne sono) e senza si ferma con
    `iam.serviceAccounts.ActAs` (provato su `drink-regia-test`, 29/10/2026).
 3. **Chiave JSON** del SA (console → IAM → Service account → Chiavi →
    Aggiungi chiave), scaricata in un file nella scratchpad e messa

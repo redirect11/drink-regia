@@ -1,35 +1,64 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { registra } from '../lib/db.js'
+import { registra, completaRegistrazione, esci, slugGiaInUso } from '../lib/db.js'
+import EntraConGoogle from './EntraConGoogle.jsx'
 import { slugDi, problemaSlug } from '../lib/clienti.js'
 import { urlDi } from '../lib/istanze.js'
 import { TIPI_LOCALE, problemiAccount, problemiLocale, problemiFatturazione, problemiReferente } from '../lib/validazione.js'
+import { orariVuoti, problemiOrari, orariPuliti, GIORNI_DI_CORREZIONE } from '../lib/orari.js'
+import OrariSettimana from './OrariSettimana.jsx'
 
 // LA REGISTRAZIONE DEL TITOLARE (REQ-FLOTTA-003), in quattro passi: account,
 // locale, fatturazione, referente e consensi. Ogni passo si controlla prima
 // di andare avanti, e gli errori stanno accanto alla casella. Lo slug si
 // vede mentre si scrive il nome, perché è l'indirizzo che l'app avrà e non
 // si cambia dopo. Alla fine parte l'email di verifica.
+//
+// CON GOOGLE (REQ-FLOTTA-038) l'account c'è già: la dashboard mostra questa
+// stessa pagina con `completa` (l'utente entrato), senza il passo
+// dell'account, e alla fine scrive solo il documento del cliente.
+//
+// LO SLUG È UNICO (REQ-FLOTTA-045, audit del 09/11/2026): lo scrive la
+// Function, che rifiuta se un altro locale ce l'ha già. Allora si torna al
+// passo del locale con la casella dell'identificativo, prima nascosta, da
+// cui il titolare ne sceglie un altro; chi non ha questo problema non la
+// vede mai e tiene lo slug derivato dal nome, come sempre.
+//
+// GLI ORARI DI SERVIZIO (REQ-FLOTTA-095). Daniele, 13/11/2026: «quando un
+// cliente si registra deve specificare gli orari di servizio
+// dell'esercizio». Un passo loro, dopo il locale: decidono quando arriva
+// una sospensione per mancato pagamento, e dopo 7 giorni si cambiano solo
+// con una richiesta che approviamo noi. Il passo lo dice subito.
 
-const PASSI = ['Account', 'Il locale', 'Fatturazione', 'Referente']
+const PASSI = ['Account', 'Il locale', 'Orari', 'Fatturazione', 'Referente']
+const SLUG_IN_USO = 'Questo identificativo è già in uso: scegline un altro.'
 
-export default function Registrati() {
+export default function Registrati({ completa = null }) {
   const navigate = useNavigate()
-  const [passo, setPasso] = useState(0)
+  const primo = completa ? 1 : 0
+  const [passo, setPasso] = useState(primo)
   const [account, setAccount] = useState({ email: '', password: '', conferma: '' })
   const [locale, setLocale] = useState({ nome: '', tipo: '', via: '', cap: '', citta: '', provincia: '', telefono: '', sito: '' })
+  const [orari, setOrari] = useState(orariVuoti)
   const [fatturazione, setFatturazione] = useState({ ragione_sociale: '', partita_iva: '', codice_fiscale: '', pec: '', sdi: '', stessa_sede: true, via: '', cap: '', citta: '', provincia: '' })
   const [referente, setReferente] = useState({ nome: '', cognome: '', ruolo: '', telefono: '', termini: false, privacy: false, marketing: false })
   const [errori, setErrori] = useState({})
   const [errore, setErrore] = useState(null)
   const [inCorso, setInCorso] = useState(false)
+  // L'identificativo scelto a mano ('' = quello dal nome) e se la casella si vede.
+  const [slugScelto, setSlugScelto] = useState('')
+  const [scegliSlug, setScegliSlug] = useState(false)
 
-  const slug = slugDi(locale.nome)
-  const problemaNome = locale.nome ? problemaSlug(slug) : null
+  const slug = slugScelto || slugDi(locale.nome)
+  const problemaNome = locale.nome || slugScelto ? problemaSlug(slug) : null
+  // Il problema sta accanto alla casella da cui nasce: l'identificativo se
+  // è stato scritto a mano, il nome altrimenti.
+  const casellaSlug = slugScelto ? 'slug' : 'nome'
 
   const controlli = [
     () => problemiAccount(account),
-    () => ({ ...problemiLocale(locale), ...(problemaNome ? { nome: problemaNome } : {}) }),
+    () => ({ ...problemiLocale(locale), ...(problemaNome ? { [casellaSlug]: problemaNome } : {}) }),
+    () => problemiOrari(orari),
     () => problemiFatturazione(fatturazione),
     () => problemiReferente(referente),
   ]
@@ -48,10 +77,22 @@ export default function Registrati() {
     setErrore(null)
     setInCorso(true)
     try {
-      await registra({ email: account.email, password: account.password, locale, fatturazione, referente })
-      navigate('/dashboard', { replace: true })
+      const dati = { locale, orari: orariPuliti(orari), fatturazione, referente, ...(slugScelto ? { slug: slugScelto } : {}) }
+      // Completata, la dashboard vede il cliente da sé (osservaCliente).
+      if (completa) await completaRegistrazione(dati)
+      else {
+        await registra({ email: account.email, password: account.password, ...dati })
+        navigate('/dashboard', { replace: true })
+      }
     } catch (err) {
-      setErrore(messaggio(err))
+      if (slugGiaInUso(err)) {
+        // Si torna al locale, con la casella dell'identificativo aperta e
+        // già piena di quello rifiutato: si cambia e si va avanti.
+        setScegliSlug(true)
+        setSlugScelto(slug)
+        setErrori({ slug: SLUG_IN_USO })
+        setPasso(1)
+      } else setErrore(messaggio(err))
     } finally {
       setInCorso(false)
     }
@@ -68,18 +109,20 @@ export default function Registrati() {
   return (
     <main className="pagina stretta">
       <form className="card" onSubmit={invia} noValidate>
-        <h2>Registra il tuo locale</h2>
+        <h2>{completa ? 'Completa la registrazione' : 'Registra il tuo locale'}</h2>
+        {completa && <p className="muted">Sei entrato come {completa.email}. Mancano i dati del locale.</p>}
         <ol className="passi" aria-label="Passi della registrazione">
           {PASSI.map((n, i) => (
             <li key={n} className={i === passo ? 'corrente' : i < passo ? 'fatto' : ''} aria-current={i === passo ? 'step' : undefined}>
               {n}
             </li>
-          ))}
+          )).slice(primo)}
         </ol>
 
         {passo === 0 && (
           <fieldset>
             <legend>Il tuo account</legend>
+            <EntraConGoogle etichetta="Registrati con Google" />
             {campo('email', 'Email', account.email, (v) => setAccount({ ...account, email: v }), { type: 'email', autoComplete: 'email' })}
             {campo('password', 'Password (almeno 10 caratteri, con una cifra)', account.password, (v) => setAccount({ ...account, password: v }), { type: 'password', autoComplete: 'new-password' })}
             {campo('conferma', 'Ripeti la password', account.conferma, (v) => setAccount({ ...account, conferma: v }), { type: 'password', autoComplete: 'new-password' })}
@@ -90,7 +133,24 @@ export default function Registrati() {
           <fieldset>
             <legend>Il locale</legend>
             {campo('nome', 'Nome del locale', locale.nome, (v) => setLocale({ ...locale, nome: v }))}
-            {locale.nome && !errori.nome && <p className="muted small">L’indirizzo dell’app sarà {urlDi(slug)}</p>}
+            {scegliSlug &&
+              campo(
+                'slug',
+                'Identificativo dell’app (minuscole, cifre e trattini)',
+                slugScelto,
+                (v) => {
+                  setSlugScelto(v.toLowerCase().trim())
+                  // Appena si scrive, l'avviso «già in uso» ha fatto il suo:
+                  // l'indirizzo nuovo si vede sotto mentre si sceglie.
+                  setErrori((e) => {
+                    const resto = { ...e }
+                    delete resto.slug
+                    return resto
+                  })
+                },
+                { autoComplete: 'off', spellCheck: false }
+              )}
+            {locale.nome && !errori.nome && !errori.slug && <p className="muted small">L’indirizzo dell’app sarà {urlDi(slug)}</p>}
             <div className="campo">
               <label htmlFor="tipo">Tipo di locale</label>
               <select id="tipo" value={locale.tipo} onChange={(e) => setLocale({ ...locale, tipo: e.target.value })} aria-invalid={Boolean(errori.tipo)}>
@@ -116,6 +176,22 @@ export default function Registrati() {
 
         {passo === 2 && (
           <fieldset>
+            <legend>Orari di servizio</legend>
+            <p className="muted small">
+              Gli orari in cui il locale lavora, giorno per giorno. Una chiusura prima dell’apertura è il giorno dopo (per esempio 18:00–02:00);
+              per un giorno aperto 24 ore segna «24 ore» (00:00–24:00). Servono a non fermare il locale mentre lavora, se un pagamento
+              non arriva.
+            </p>
+            <p className="muted small">
+              Per {GIORNI_DI_CORREZIONE} giorni li puoi correggere dalla tua area; dopo si cambiano solo con una richiesta, col motivo, che
+              approviamo noi.
+            </p>
+            <OrariSettimana valore={orari} onChange={setOrari} errori={errori} />
+          </fieldset>
+        )}
+
+        {passo === 3 && (
+          <fieldset>
             <legend>Dati di fatturazione</legend>
             {campo('ragione_sociale', 'Ragione sociale', fatturazione.ragione_sociale, (v) => setFatturazione({ ...fatturazione, ragione_sociale: v }), { autoComplete: 'organization' })}
             {campo('partita_iva', 'Partita IVA', fatturazione.partita_iva, (v) => setFatturazione({ ...fatturazione, partita_iva: v }), { inputMode: 'numeric' })}
@@ -140,7 +216,7 @@ export default function Registrati() {
           </fieldset>
         )}
 
-        {passo === 3 && (
+        {passo === 4 && (
           <fieldset>
             <legend>Referente e consensi</legend>
             <div className="grid-2">
@@ -168,31 +244,57 @@ export default function Registrati() {
 
         {errore && <p className="errore">{errore}</p>}
         <div className="azioni">
-          {passo > 0 && (
+          {passo > primo && (
             <button type="button" className="btn ghost" onClick={() => setPasso((x) => x - 1)}>
               Indietro
             </button>
           )}
+          {/* Le `key`: «Avanti» e il bottone che invia devono essere due
+              elementi diversi. Senza, React riusava lo stesso <button> e
+              gli cambiava il type da «button» a «submit» dentro il click
+              su «Avanti»; il browser decide cosa fa un click solo dopo che
+              i gestori hanno finito, e trovandolo «submit» inviava il
+              modulo appena arrivati al referente. Al primo giro i controlli
+              lo fermavano (ma mostravano gli errori dei campi ancora vuoti);
+              al secondo, con lo slug rifiutato e il referente già compilato,
+              l'account si creava senza che nessuno premesse «Crea l’account»
+              (trovato dal collaudo automatico del 09/11/2026, REQ-DEV-009). */}
           {passo < PASSI.length - 1 ? (
-            <button type="button" className="btn" onClick={avanti}>
+            <button key="avanti" type="button" className="btn" onClick={avanti}>
               Avanti
             </button>
           ) : (
-            <button type="submit" className="btn" disabled={inCorso}>
-              {inCorso ? 'Un momento…' : 'Crea l’account'}
+            <button key="invia" type="submit" className="btn" disabled={inCorso}>
+              {inCorso ? 'Un momento…' : completa ? 'Salva i dati del locale' : 'Crea l’account'}
             </button>
           )}
         </div>
         <p className="muted small">
-          Hai già un account? <Link to="/accedi">Accedi</Link>
+          {completa ? (
+            <>
+              Non è l’account giusto?{' '}
+              <button type="button" className="link" onClick={esci}>
+                Esci
+              </button>
+            </>
+          ) : (
+            <>
+              Hai già un account? <Link to="/accedi">Accedi</Link>
+            </>
+          )}
         </p>
       </form>
     </main>
   )
 }
 
+// Gli errori di Firebase Auth in italiano, per la registrazione, l'accesso
+// e la finestra di Google (REQ-FLOTTA-038).
 export function messaggio(err) {
   const codice = err?.code || ''
+  // Un'email che ha già un account, o col «+» (REQ-FLOTTA-083): il
+  // messaggio della regia dice già cosa fare.
+  if (err?.details?.campo === 'email' && err?.message) return err.message
   if (codice.includes('email-already-in-use')) return 'Questa email ha già un account: accedi.'
   if (codice.includes('invalid-email')) return 'L’email non è scritta bene.'
   if (codice.includes('weak-password')) return 'La password è troppo corta.'
@@ -200,5 +302,15 @@ export function messaggio(err) {
   if (codice.includes('invalid-credential') || codice.includes('wrong-password') || codice.includes('user-not-found')) {
     return 'Email o password non corrispondono.'
   }
+  if (codice.includes('popup-blocked')) return 'Il browser ha bloccato la finestra di Google: consenti le finestre per questo sito e riprova.'
+  // Un account con la password e un'email che Google non garantisce (non
+  // Gmail): Firebase non li unisce da sé, per non consegnare l'account a
+  // chi ha solo l'indirizzo. Il caso opposto non dà errore: con un'email
+  // che Google garantisce ma non confermata da noi, Google prende il posto
+  // della password (stesso uid, il locale resta; «Password dimenticata?»
+  // la rimette). Con l'email confermata i due accessi convivono.
+  if (codice.includes('account-exists-with-different-credential')) return 'Questa email ha già un account con la password: entra con email e password.'
+  if (codice.includes('operation-not-allowed') || codice.includes('unauthorized-domain')) return 'L’accesso con Google non è ancora attivo: entra con email e password.'
+  if (codice.includes('network-request-failed')) return 'Connessione assente: riprova.'
   return err?.message || 'Qualcosa non è andato. Riprova.'
 }

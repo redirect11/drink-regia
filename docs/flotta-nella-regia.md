@@ -38,12 +38,32 @@ lavorare per lei, e questo portava quattro problemi:
 4. Scrive la licenza con `licenzaIniziale` di `functions/lib/licenza.js`:
    la stessa mappa piano → moduli che le Functions usano quando il piano
    cambia, non più una copia.
-5. Manda l'esito alla regia, con `operazione: attivazione` o
+5. Dopo il deploy, il titolare (REQ-FLOTTA-029,
+   `scripts/titolare-istanza.mjs`): nel progetto del locale c'è il suo
+   account con **lo stesso uid e la stessa email che ha nella regia**,
+   admin nei custom claims, senza password (gliela fa impostare l'email
+   di Firebase). Un segnaposto mai usato con un altro uid si ricrea; un
+   account già usato resta, con un avviso. Si può rilanciare senza danni.
+   Mai su un locale esistente: per la Tana c'è `scripts/titolare-locale.mjs`
+   in tana-drink, a mano.
+6. Manda l'esito alla regia, con `operazione: attivazione` o
    `aggiornamento`.
 
 Gli input dei workflow arrivano da fuori: entrano nei passi solo come
 variabili d'ambiente e si controllano per primi (audit del 22/10/2026,
 C1, che nei workflow di tana-drink era ancora aperta).
+
+I passi 3 e 6 non stanno nello stesso job (dal 09/11/2026, REQ-FLOTTA-047,
+audit punto 6): il codice di tana-drink (`npm ci`, `genera-cliente`, la
+build di Vite) gira nel job `compila`, che non ha environment né secret;
+la chiave di provisioning sta solo nei job `prepara` (Terraform,
+configurazione web) e `pubblica` (deploy, licenza, esito), che non
+scaricano l'app. In mezzo passano un output di job (la configurazione web
+del client, pubblica per disegno) e un artifact (l'app compilata). La
+tabella dei job sta in [infra/README.md](../infra/README.md). E prima di
+eliminare o aggiornare, il progetto deve portare l'etichetta `ambiente`
+della regia che lancia (REQ-FLOTTA-048): la stessa chiave serve le due
+regie, l'etichetta dice di chi è il locale.
 
 ## Cosa resta del contratto con tana-drink
 
@@ -52,11 +72,18 @@ tana-drink non riceve più lanci e non manda più esiti. Restano:
 - **i tag**: un tag `vX.Y.Z` ha `package.json` a `X.Y.Z` (i rilasci a
   ondate confrontano le due cose);
 - **la build di un locale**: `npm ci` nella radice e in `functions/`,
-  `node scripts/genera-cliente.mjs --slug … --nome …`, `npm run build` con
+  `node scripts/genera-cliente.mjs --slug … --nome …` (dal 12/11/2026 con
+  `--tipo-locale bar` se l'app risponde di sì a `--sa tipo-locale`:
+  REQ-FLOTTA-065, tana-drink REQ-VENUE-007), `npm run build` con
   `BASE_PATH=/`, `CLIENTE=<slug>`, `VITE_APP_ENV=production` e il `.env`
   con i `VITE_FIREBASE_*`; `functions/.env.<progetto>` con `VENUE_NAME`;
   `firebase deploy --only firestore,storage,functions,hosting`;
 - **gli id dei moduli** e **la licenza in `settings/bar`** (handover §7);
+- **il ruolo del titolare**: il claim `role: 'admin'` dell'app
+  (`src/lib/ruoli.js` di tana-drink, docs/flotta.md «Il titolare»). Per
+  quello che tocca l'abbonamento o la versione (moduli dall'app, scelta
+  degli aggiornamenti) la regia vuole in più che sia l'account del
+  cliente: stesso uid (M7) o email verificata uguale (REQ-FLOTTA-050);
 - **la Tana**, che si pubblica dal suo repository e riferisce la sua
   versione alla regia (handover §7, «Rilasci a ondate»).
 

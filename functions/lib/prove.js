@@ -29,18 +29,62 @@ function haGiaIlModulo(cliente, id) {
   return p?.include?.includes(id) || (cliente?.moduli || []).includes(id)
 }
 
+// LA BASE DI UN MODULO (tana-drink REQ-LIC-015, decisione dell'utente del
+// 07/11/2026). Un modulo del listino può richiederne un altro (`richiede`
+// in piani.json): gli ordini dal telefono vogliono il menù digitale, perché
+// il cliente ordina da lì e senza non avrebbe una pagina da cui farlo. La
+// base c'è se è nel piano, comprata o in prova. → il nome della prima base
+// che manca, o null.
+function baseMancante(cliente, id, adesso = new Date()) {
+  const m = listino.moduli.find((x) => x.id === id)
+  const inProva = proveAttive(cliente, adesso)
+  const manca = (m?.richiede || []).find((r) => !haGiaIlModulo(cliente, r) && !inProva.includes(r))
+  return manca ? listino.moduli.find((x) => x.id === manca)?.nome || manca : null
+}
+
+const nomeDi = (id) => listino.moduli.find((x) => x.id === id)?.nome || id
+
+// LA BASE IN UNA SCELTA (l'utente, 07/11/2026, dopo la PR #91: «risolvi i
+// tre buchi»). Dall'area clienti, dall'admin e dalla richiesta di contatto
+// arriva una scelta intera, { piano, moduli }: ogni modulo scelto deve
+// avere la sua base nel piano o fra i moduli scelti. → il primo problema a
+// parole, impersonale come gli altri, o null.
+function problemaBasi(scelta) {
+  const p = listino.piani[scelta?.piano]
+  const presenti = new Set([...(p?.include || []), ...(scelta?.moduli || [])])
+  for (const id of scelta?.moduli || []) {
+    const m = listino.moduli.find((x) => x.id === id)
+    const manca = (m?.richiede || []).find((r) => !presenti.has(r))
+    if (manca) return `${m.nome} richiede ${nomeDi(manca)}.`
+  }
+  return null
+}
+
+// CHI RICHIEDE UN MODULO: i moduli del cliente, comprati o in prova, che
+// hanno `id` come base. Togliere la base lascerebbe quelli senza niente da
+// cui lavorare (gli ordini senza il menù): prima si tolgono loro.
+function chiLoRichiede(cliente, id, adesso = new Date()) {
+  const attivi = new Set([...(cliente?.moduli || []), ...proveAttive(cliente, adesso)])
+  return listino.moduli.filter((m) => attivi.has(m.id) && (m.richiede || []).includes(id)).map((m) => m.nome)
+}
+
 // Si può accendere la prova di questo modulo? { ok, perche, giorni, scade_il }
 // `vendita` è quella di free.venditaPulita, con le prove già pulite.
 function puoProvare(cliente, istanza, id, vendita, adesso = new Date()) {
   const m = listino.moduli.find((x) => x.id === id)
   if (!m) return { ok: false, perche: 'Modulo sconosciuto.' }
   const giorni = vendita?.prove?.[id] || 0
+  // I motivi in forma impersonale (REQ-FLOTTA-037): li mostrano così come
+  // sono sia la dashboard sia l'app del locale, nel registro del gestionale.
   if (!giorni) return { ok: false, perche: `${m.nome} non si può provare.` }
   if (vendita?.moduli?.[id] === false) return { ok: false, perche: `${m.nome} non è in vendita.` }
   if (istanza?.stato !== 'attiva') return { ok: false, perche: 'Il locale non è attivo.' }
   if ((istanza.licenza_stato || 'attiva') !== 'attiva') return { ok: false, perche: 'Il locale è sospeso o chiuso.' }
-  if (haGiaIlModulo(cliente, id)) return { ok: false, perche: `${m.nome} è già nel tuo piano.` }
-  if ((cliente?.prove_fatte || []).includes(id)) return { ok: false, perche: `${m.nome} l’hai già provato: si prova una volta sola.` }
+  if (haGiaIlModulo(cliente, id)) return { ok: false, perche: `${m.nome} è già attivo nel piano.` }
+  if ((cliente?.prove_fatte || []).includes(id)) return { ok: false, perche: `La prova di ${m.nome} è già stata usata: si prova una volta sola.` }
+  const base = baseMancante(cliente, id, adesso)
+  if (base) return { ok: false, perche: `${m.nome} richiede ${base}.` }
+
   return { ok: true, perche: null, giorni, scade_il: new Date(adesso.getTime() + giorni * GIORNO).toISOString() }
 }
 
@@ -51,11 +95,13 @@ function proveAttive(cliente, adesso = new Date()) {
     .map(([id]) => id)
 }
 
-// Le prove da togliere oggi: scadute, o del modulo ormai comprato.
+// Le prove da togliere oggi: scadute, del modulo ormai comprato, o rimaste
+// senza la loro base (la prova del menù finita prima di quella degli
+// ordini: gli ordini non hanno più da dove partire).
 function proveDaTogliere(cliente, adesso = new Date()) {
   return Object.entries(cliente?.prove || {})
-    .filter(([id, p]) => !(Date.parse(p?.scade_il) > adesso.getTime()) || haGiaIlModulo(cliente, id))
+    .filter(([id, p]) => !(Date.parse(p?.scade_il) > adesso.getTime()) || haGiaIlModulo(cliente, id) || baseMancante(cliente, id, adesso))
     .map(([id]) => id)
 }
 
-module.exports = { provePulite, haGiaIlModulo, puoProvare, proveAttive, proveDaTogliere, GIORNI_MAX }
+module.exports = { provePulite, haGiaIlModulo, baseMancante, problemaBasi, chiLoRichiede, puoProvare, proveAttive, proveDaTogliere, GIORNI_MAX }

@@ -5,7 +5,12 @@
 // il documento nasce a blocchi, con i consensi datati.
 
 import { describe, it, expect } from 'vitest'
+import { readFileSync, readdirSync } from 'node:fs'
+import { join, sep } from 'node:path'
+import { createRequire } from 'node:module'
 import { slugDi, problemaSlug, nuovoCliente, contattoDi } from '../src/lib/clienti.js'
+
+const { datiEsistente, documentiEsistente } = createRequire(import.meta.url)('../functions/lib/esistente.js')
 
 describe('slugDi', () => {
   it('minuscole, senza accenti, trattini', () => {
@@ -69,5 +74,44 @@ describe('nuovoCliente', () => {
     expect(contattoDi(nuovoCliente(dati))).toBe('Mario Rossi')
     expect(contattoDi({ contatto: 'Giulia' })).toBe('Giulia')
     expect(contattoDi({})).toBe('')
+  })
+})
+
+// AUDIT H1 (22/10/2026, chiusa il 02/11/2026): il titolare non scrive sul
+// suo documento i campi che diventano licenza. Le regole si provano
+// sull'emulatore, con le regole vere (tests/regole/clienti.test.js,
+// REQ-DEV-007); qui resta solo la forma del documento di un locale
+// esistente, che quelle prove danno per scontata.
+describe('le regole di clienti/{uid} (H1)', () => {
+  // Valido, o com'era: un locale esistente (la Tana) nasce con
+  // fatturazione {} e consensi a null, e non deve restare bloccato. È il
+  // caso che tests/regole/clienti.test.js prova sull'emulatore.
+  it('un locale esistente nasce con fatturazione {} e consensi a null', () => {
+    const esistente = documentiEsistente(datiEsistente({ nome_locale: 'La Tana', slug: 'tana-drink', email: 't@example.it', progetto: 'tana-drink', url: 'https://tana-drink.web.app' }), { uid: 'u' }).cliente
+    expect(esistente.fatturazione).toEqual({})
+    expect(esistente.consensi).toMatchObject({ termini_il: null, privacy_il: null })
+  })
+
+  // REQ-FLOTTA-045 (audit del 09/11/2026, finding 4): nemmeno la creazione.
+  // Il documento lo scrive la Function registraCliente, che controlla che
+  // lo slug sia libero; le regole non hanno più nessuna create.
+  it('il sito non scrive mai clienti/{uid} dal browser: registrazione compresa, tutto passa dalle Functions', () => {
+    const file = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((d) => (d.isDirectory() ? file(join(dir, d.name)) : [join(dir, d.name)]))
+    const scritture = file('src')
+      .filter((f) => /\.(js|jsx)$/.test(f))
+      // Il percorso con «/» anche su Windows, dove join() mette «\».
+      .flatMap((f) => readFileSync(f, 'utf8').split('\n').filter((r) => /(setDoc|updateDoc|deleteDoc|addDoc)\(doc\(db, 'clienti'/.test(r)).map((r) => `${f.split(sep).join('/')}: ${r.trim()}`))
+    expect(scritture).toEqual([])
+    // Il blocco di clienti/{uid} nelle regole, fino al match successivo; e
+    // l'istruzione intera, fino al suo «;»: fra la create e la update ci
+    // sono i commenti e le funzioni d'appoggio della update. La prova sul
+    // comportamento sta sull'emulatore (tests/regole/clienti.test.js).
+    const regole = readFileSync('firestore.rules', 'utf8')
+    const inizio = regole.indexOf('match /clienti/{uid}')
+    const fine = regole.indexOf('\n    match /', inizio + 1)
+    const blocco = regole.slice(inizio, fine > 0 ? fine : undefined)
+    const daCreate = blocco.slice(blocco.indexOf('allow create'))
+    expect(daCreate.slice(0, daCreate.indexOf(';') + 1).replace(/\s+/g, ' ')).toBe('allow create: if false;')
+    expect(blocco).not.toContain('request.resource.data.slug.matches')
   })
 })

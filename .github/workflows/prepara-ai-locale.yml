@@ -1,0 +1,71 @@
+name: Prepara l'AI di un locale esistente
+
+# L'AI DI UN LOCALE ESISTENTE (REQ-FLOTTA-078). La Function AI dell'app gira
+# con ai-locale@<progetto>, e la regia la riconosce da lì (REQ-FLOTTA-077).
+# Ai locali della flotta l'account lo danno il Terraform e «Aggiorna»; un
+# locale esistente come la Tana non passa da «Aggiorna» della regia: le sue
+# Functions le pubblica il deploy.yml di tana-drink col suo account
+# (firebase-adminsdk-fbsvc@<progetto>). Questo workflow, su richiesta:
+# crea ai-locale se manca, gli dà i ruoli del Terraform, e dà all'account di
+# deploy di tana-drink il permesso di pubblicare come ai-locale (solo su
+# quell'account). Rilanciato non cambia niente. Dopo, tana-drink scrive
+# REGIA_PROGETTO nella configurazione della Tana (da tana-drink,
+# 12/11/2026).
+on:
+  workflow_dispatch:
+    inputs:
+      progetto:
+        description: 'Il progetto Firebase del locale esistente (es. tana-drink-test, tana-drink)'
+        required: true
+        type: string
+      ambiente:
+        description: 'Quale regia: test (flotta-test) o produzione (flotta)'
+        required: true
+        type: choice
+        options: [test, produzione]
+        default: test
+
+permissions:
+  contents: read
+
+jobs:
+  prepara:
+    name: L'AI di ${{ inputs.progetto }} (${{ inputs.ambiente }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: ${{ inputs.ambiente == 'test' && 'flotta-test' || 'flotta' }}
+    env:
+      PROGETTO: ${{ inputs.progetto }}
+    steps:
+      # Gli input arrivano da fuori: si controllano per primi, ed entrano
+      # nei comandi solo come variabili d'ambiente.
+      - name: Controlla il progetto
+        run: |
+          [[ "$PROGETTO" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]] || { echo "::error::progetto non valido."; exit 1; }
+          if [ "$PROGETTO" = "drink-regia" ] || [ "$PROGETTO" = "drink-regia-test" ]; then echo "::error::$PROGETTO è un progetto della regia."; exit 1; fi
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Dipendenze della regia
+        run: npm ci --prefix functions
+
+      - name: Credenziali di provisioning
+        env:
+          SA_JSON: ${{ secrets.PROVISIONING_SA_JSON }}
+        run: |
+          if [ -z "$SA_JSON" ]; then echo "::error::Manca il segreto PROVISIONING_SA_JSON (infra/README.md)."; exit 1; fi
+          echo "$SA_JSON" > "$RUNNER_TEMP/sa.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
+
+      - name: L'account dell'AI e il permesso del deploy
+        run: node scripts/account-ai-locale.mjs --project "$PROGETTO" --deploy "firebase-adminsdk-fbsvc@$PROGETTO.iam.gserviceaccount.com"
+
+      - name: Pulizia credenziali
+        if: always()
+        run: rm -f "$RUNNER_TEMP/sa.json"

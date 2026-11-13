@@ -1,7 +1,8 @@
 {
   "name": "drink-regia",
   "private": true,
-  "version": "0.2.1",
+  "license": "UNLICENSED",
+  "version": "0.3.0",
   "type": "module",
   "description": "La regia del prodotto: sito, prezzi, registrazione, dashboard dei clienti e backoffice (docs/flotta.md).",
   "scripts": {
@@ -10,27 +11,39 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "test:regole": "firebase emulators:exec --project demo-drink-regia --only firestore --config firebase.collaudo.json \"npm run test:regole:vitest\"",
+    "test:regole:vitest": "vitest run --config vitest.regole.config.mjs",
+    "build:e2e": "vite build --mode e2e --outDir dist-e2e",
+    "test:e2e": "playwright test",
+    "semina:test": "node scripts/semina-test.mjs --progetto drink-regia-test",
     "lint": "eslint ."
   },
   "dependencies": {
     "firebase": "^12.14.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.26.2"
+    "react-router-dom": "^7.18.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.11.1",
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "@playwright/test": "^1.65.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@vitejs/plugin-react": "^4.7.0",
-    "@vitest/coverage-v8": "^2.1.9",
+    "@vitest/coverage-v8": "^4.1.12",
     "eslint": "^9.11.1",
     "eslint-plugin-react-hooks": "^5.1.0",
+    "firebase-tools": "15.35.0",
     "globals": "^15.9.0",
-    "happy-dom": "^20.10.6",
+    "happy-dom": "^21.0.4",
     "js-yaml": "^5.5.0",
-    "vite": "^5.4.8",
-    "vitest": "^2.1.8"
+    "vite": "^7.3.8",
+    "vitest": "^4.1.12"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "^1.14.5",
+    "uuid": "^11.1.1"
   }
 }

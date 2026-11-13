@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { MODULI, PIANI } from '../lib/piani.js'
+import { MODULI, PIANI, baseMancante } from '../lib/piani.js'
 import { osservaVendita, provaModulo } from '../lib/db.js'
 import { venditaPulita } from '../lib/vendita.js'
 import { STATI } from '../lib/istanze.js'
@@ -21,7 +21,12 @@ export default function ProveModuli({ cliente, istanza }) {
   const inclusi = new Set(PIANI[cliente.piano]?.include || [])
   const suoi = new Set([...inclusi, ...(cliente.moduli || [])])
   const inProva = Object.entries(cliente.prove || {}).filter(([id, p]) => !suoi.has(id) && Date.parse(p?.scade_il) > Date.now())
-  const provabili = MODULI.filter((m) => vendita.prove[m.id] > 0 && vendita.moduli[m.id] && !suoi.has(m.id) && !(cliente.prove_fatte || []).includes(m.id))
+  // Senza la sua base (nel piano, comprata o in prova) un modulo non si
+  // propone (tana-drink REQ-LIC-015): il server direbbe di no.
+  const scelta = { piano: cliente.piano, moduli: cliente.moduli || [], prove: inProva.map(([id]) => id) }
+  const provabili = MODULI.filter(
+    (m) => vendita.prove[m.id] > 0 && vendita.moduli[m.id] && !suoi.has(m.id) && !(cliente.prove_fatte || []).includes(m.id) && !baseMancante(scelta, m.id)
+  )
   if (!inProva.length && !provabili.length) return null
 
   const prova = async (id) => {

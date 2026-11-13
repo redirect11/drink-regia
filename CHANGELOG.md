@@ -4,6 +4,675 @@ Una voce per ogni cambiamento visibile, nello stesso commit del
 cambiamento. La versione in cima è quella in lavorazione finché non ha la
 data.
 
+## 0.3.0 (13/11/2026, la seconda in produzione: col sito chiuso al pubblico, comprende tutto il lavoro dopo la 0.2.1)
+
+- Col sito chiuso al pubblico, anche i termini di servizio sono la
+  pagina di anteprima e il piè di pagina non ci porta: i termini citano i
+  prezzi dei Fondatori, e finché non si vende niente prezzi al pubblico.
+  La privacy resta (REQ-FLOTTA-096).
+- La chat del gestionale, dopo la revisione: un rifiuto di Anthropic per
+  una conversazione che non può passare, o istruzioni e strumenti cambiati
+  a metà, aprono una conversazione nuova (409 versione) invece di far
+  riprovare per sempre; un turno del modello non si sposta in un'altra
+  conversazione; il ripiego su un altro modello a metà risposta si rimanda
+  come vuole Anthropic; il modello ragiona poco (sforzo «low») e non
+  consuma la risposta nel ragionamento; un testo accanto agli esiti non
+  riapre il conto degli strumenti. Per tutte le richieste AI, un locale
+  con l'AI spenta o senza credito riceve il 402 senza consumare il
+  conteggio dei token, e i log degli errori di Anthropic dicono tipo e
+  stato, mai il contenuto. La versione della chat diventa
+  `chat-2026-11-13.2` (REQ-FLOTTA-094).
+- Orari di servizio, revisione del 13/11/2026 (REQ-FLOTTA-095): un giorno
+  aperto 24 ore si scrive 00:00–24:00, con la casella «24 ore» nel
+  modulo; apertura e chiusura alla stessa ora non valgono più 24 ore, e
+  l'errore suggerisce 00:00–24:00. Dalla scheda del locale l'admin scrive
+  o corregge gli orari di qualunque locale, anche di uno che non ne ha,
+  con una nota nella traccia; a un locale senza orari la sua scrittura non
+  apre i 7 giorni del titolare. Con gli orari ma senza una data valida, il
+  sito e la regia li considerano correggibili allo stesso modo. Quando
+  il titolare chiede di cambiare gli orari, all'amministratore arriva una
+  email (una per richiesta) col locale, gli orari di prima e dopo e il
+  motivo; al titolare non parte nessuna email con la decisione. Nel
+  backoffice «sospensione il …» dice anche l'ora, e mentre una
+  sospensione per pagamento aspetta il suo momento c'è «Sospendi subito».
+- La chat del gestionale passa dalla regia: `richiestaAI` accetta
+  `{ tipo: 'chat', messaggi, strumenti, versione }` col credito del locale,
+  senza conservare le conversazioni; i turni del modello tornano firmati
+  e un turno ritoccato si rifiuta. Una conversazione troppo lunga o nata
+  con istruzioni vecchie riceve 409, e l'app ne apre una nuova. Nel
+  backoffice, in «Vendita», la sezione «Limiti della chat AI» sceglie i
+  token di una risposta e della conversazione, gli strumenti per
+  messaggio e le righe degli strumenti di lettura, ognuno col suo tetto.
+  La chat usa la cache del prompt, e la stima del credito ne copre la
+  scrittura; lo storico dei consumi dice quanti token sono stati letti e
+  scritti in cache, e i log i tempi del conteggio e della chiamata.
+  Serve il segreto `AI_CHAT_SECRET` (REQ-FLOTTA-094).
+- Gli orari di servizio del locale: alla registrazione sono obbligatori,
+  un giorno per riga, con apertura e chiusura (anche dopo la mezzanotte,
+  o 24 ore) oppure «chiuso». Per 7 giorni il titolare li corregge dalla
+  sua area («Il locale»); dopo li cambia solo con una richiesta col
+  motivo, che l'amministratore approva o rifiuta dalla scheda del locale,
+  con la traccia di ogni cambio. Un locale che non li ha ancora li scrive
+  la prima volta dalla sua area, e la panoramica glieli chiede. La
+  sospensione per mancato pagamento non arriva più al taglio della
+  giornata ma fuori dall'orario di servizio: all'ora in cui era stato
+  attivato l'abbonamento, spostata alla chiusura se cade in servizio, o a
+  un'ora prima dell'apertura. Con orari senza un'ora di pausa può
+  arrivare in servizio, e un avviso lo dice. La data in cui l'app si
+  ferma da sola (`valida_fino`) segue la stessa regola; senza orari resta
+  il taglio della giornata (REQ-FLOTTA-095).
+- Le richieste AI dei locali vanno a Claude Sonnet 5.5, per tutti i tipi
+  (descrizione, fattura, tema): nel backoffice, in «Vendita», la sezione
+  «Modelli AI» sceglie il modello di ogni tipo fra quelli che hanno un
+  prezzo nel listino, e la scelta vale dalla richiesta dopo
+  (REQ-FLOTTA-092).
+- Il credito AI non va mai sotto zero: prima di prenotare la regia conta
+  i token della richiesta e mette da parte il costo di due tentativi
+  completi; se il conteggio non risponde una fattura o un tema rispondono
+  «riprova tra poco», senza addebiti. Se una richiesta costasse lo stesso
+  più della stima il credito si ferma a zero, e la scheda del locale nel
+  backoffice mostra l'importo che Stonebit si accolla (REQ-FLOTTA-093).
+- Ritocchi del credito AI dopo la revisione: la stima tiene un
+  micro-euro in più per gli arrotondamenti, così il costo vero non la
+  supera mai; il conteggio dei token si arrende dopo 10 secondi invece di
+  tenere ferma la richiesta; lo sforamento si dice «assorbito da
+  Stonebit», non «da recuperare» (REQ-FLOTTA-093). Il modello AI e i
+  limiti della chat in impostazioni/regia si cambiano solo dalle
+  Functions: nemmeno l'admin li scrive dal browser (REQ-FLOTTA-092).
+- Il credito AI chiesto dall'app dice anche se il locale può ricaricare
+  dal sito e dove (`ricaricabile`, `ricarica_url`): coi pagamenti online
+  spenti, il sito chiuso o un locale interno l'app rimanda all'assistenza
+  (REQ-FLOTTA-091).
+- Ritocchi dell'AI dopo la revisione: un locale che torna a pagare ha di
+  nuovo l'AI anche se la copia del piano sull'istanza era rimasta Free
+  (REQ-FLOTTA-087); il credito non si prenota se il modello non si può
+  chiamare, un errore nei conti o nella correzione non dà più un errore
+  muto ma la risposta del contratto, e chi riceve la risposta paga una
+  volta sola; una prenotazione rovinata non blocca più l'AI del locale, e
+  una prenotazione ripetuta dalla transazione dopo una conferma persa non
+  scala la stima due volte (REQ-FLOTTA-088).
+- Un locale sospeso o chiuso lo dice in cima a «Piano e moduli», con un
+  avviso nella panoramica: sospeso per il pagamento, coi pagamenti online
+  accesi, c'è il tasto per pagare la fattura aperta di Stripe (il locale
+  si riattiva da solo); altrimenti, o se l'ha sospeso l'amministratore,
+  l'email a cui scriverci; chiuso, i contatti e la data della
+  cancellazione dei dati. La licenza porta `rinnovo_url`, l'indirizzo che
+  l'app apre col tasto «Riattiva il locale». Lo stato dell'abbonamento si
+  legge in italiano, mai «past_due» (REQ-FLOTTA-090).
+- Un'app legata a un altro account non è più «Non ancora attivata» nella
+  dashboard del titolare: la dashboard la cerca col suo uid e, se non la
+  trova, chiede alla regia; se c'è ma non è sua dice di scriverci, senza il
+  tasto «Attiva». Nel backoffice la scheda del locale lo segnala e ha
+  «Collega l'app al titolare», solo in quel caso (REQ-FLOTTA-086).
+- Nel backoffice la scheda di un locale è ordinata: in testa nome, stato,
+  piano e versione, poi gli avvisi da trattare coi loro tasti, poi sei
+  blocchi sempre nello stesso ordine (Titolare, Piano, App, Aggiornamenti,
+  Aspetto, Credito AI), ciascuno coi suoi tasti; Sospendi e Chiudi stanno
+  da soli in fondo. Il Free non ha il blocco Credito AI, la spiegazione di
+  «Aggiorna subito» è un aiuto che si apre e sul telefono i blocchi vanno
+  in colonna (REQ-FLOTTA-089).
+- Il Free non ha l'AI: la regia rifiuta le richieste AI di un locale Free
+  (anche tornato al Free perché non paga) con `402 piano`, non gli vende
+  né gli regala credito, e la licenza del Free porta `ai: false`; nel
+  backoffice e nell'area del titolare Free non compaiono il credito AI e
+  il tema dal mockup (REQ-FLOTTA-087).
+- Il credito AI si prenota prima della chiamata e si corregge dopo col
+  costo vero: richieste in parallelo non lo portano sotto zero, un locale
+  ha al massimo due richieste AI insieme (`429 occupato`), e una richiesta
+  rimasta a metà si paga alla stima, segnata «interrotta» (REQ-FLOTTA-088).
+- Il gestionale chiede il credito AI senza chiamare il modello e senza
+  pagarlo: saldo, tetto, speso del mese e se l'AI può partire
+  (REQ-FLOTTA-085).
+- L'area del titolare ha un sotto-menù, come il backoffice: Panoramica,
+  Piano e moduli, Credito AI, Il locale (i dati della registrazione e le
+  stampanti, in sola lettura) e Chiudi il locale, ognuna col suo
+  indirizzo sotto /dashboard. Nella scelta del piano il piano attuale del
+  cliente compare come «Il tuo piano», anche il Free fuori vendita, e il
+  tasto si accende solo per un cambio (REQ-FLOTTA-084).
+- Un account per persona: chi si registra non usa un'email col «+», né
+  una variante di un'email che ha già un account (REQ-FLOTTA-083).
+- Nel backoffice il segno che gira dell'aggiornamento resta tondo anche
+  accanto a un testo lungo (REQ-FLOTTA-082).
+- Nella richiesta di informazioni e in quella d'acquisto il titolare dice
+  la sua stampante non fiscale e il suo registratore telematico, da un
+  elenco o scritti a mano; il backoffice li mostra (REQ-FLOTTA-081).
+- Il Free è una cassa semplice: il confronto dice «Stati di servizio» e
+  «Stampa di comande e scontrino», tutti e due assenti nel Free, e la
+  licenza porta anche `stampa: false` (REQ-FLOTTA-080).
+- Via la «Chiave AI»: l'AI del locale passa solo dal gettone di Google
+  del suo account; il backoffice non la crea più e i workflow non creano
+  più il segreto REGIA_AI_KEY (REQ-FLOTTA-079).
+- Ogni locale completo riceve l'account dell'AI dalla regia a ogni
+  aggiornamento, senza passi a mano; per un locale esistente come la Tana
+  c'è il workflow «Prepara l'AI di un locale esistente», che dà anche il
+  permesso al deploy di tana-drink (REQ-FLOTTA-078).
+- L'AI del locale si fa riconoscere dalla regia col gettone di Google del
+  suo account «ai-locale», senza chiavi da creare o rinnovare
+  (REQ-FLOTTA-077).
+- La «Chiave AI» creata dal backoffice la regia la scrive da sé nel
+  segreto del locale, col permesso minimo; se non può, dice perché e come
+  farlo a mano (REQ-FLOTTA-076).
+- I workflow della flotta preparano l'AI del locale: il segreto
+  REGIA_AI_KEY, col segnaposto se manca, e la regia da chiamare nel .env
+  delle Functions (REQ-FLOTTA-075).
+- Il credito AI costa al locale il costo effettivo di Anthropic più il
+  10% (REQ-AI-003).
+- Il carosello passa da un filmato all'altro in dissolvenza, senza
+  scorrimento laterale, e ogni filmato si vede per intero (REQ-FLOTTA-074).
+- Sul test, dal backoffice, l'attivazione simulata: il locale arriva ad
+  attivo con un indirizzo finto, senza creare un progetto Google
+  (REQ-FLOTTA-072).
+- Cosa la prima pagina dice dell'attivazione, automatica o concordata, lo
+  decide un interruttore del backoffice; l'interruttore del Free si chiama
+  «Piano Free disponibile» (REQ-FLOTTA-073).
+- Il confronto fra i piani mostra il Free, con le sue differenze da Base
+  e Completo, anche prima che sia in vendita; dal backoffice si nasconde
+  (REQ-FLOTTA-071).
+- I tre passi della prima pagina si chiamano «Pronto in 3 passi»
+  (REQ-FLOTTA-070).
+- Il carosello della prima pagina scorre da solo anche col mouse sulla
+  pagina: aspetta solo sopra i suoi comandi. «Ferma i filmati» diventa un
+  tasto di pausa e play, e la nota sui filmati generati è una postilla
+  piccola, in corsivo, con l'asterisco (REQ-FLOTTA-069).
+- Le ventisei voci del registro scritte già fatte fra il 7 e l'11
+  novembre hanno la loro issue, nata a posteriori con l'etichetta
+  `a-posteriori` (REQ-DEV-015).
+- Nella prima pagina il confronto fra i piani dice che il Free porta
+  «Creato con Lime – SmartOrders» in fondo allo scontrino e al menù, e il prezzo dei
+  terminali in più sta solo nei prezzi (REQ-FLOTTA-068).
+- Il caricamento del rapporto di coverage non fa più fallire i controlli
+  di una PR: se GitHub non riesce a salvarlo, lint, test e build restano
+  verdi (REQ-DEV-014).
+- Anche rilasci, commerciale, temi e stili, nel backoffice, si leggono
+  sempre dal server: con la rete che cade non sembrano più vuoti, e la
+  pagina dice di controllare la connessione (REQ-FLOTTA-067, #148).
+- Nel backoffice, «Nuovo tema» e «Modifica» aprono il modulo subito sotto
+  i temi, e non più in fondo alla scheda dopo gli stili. E le issue
+  nascono dal registro anche sui rami di correzione (REQ-FLOTTA-066, #146;
+  REQ-DEV-003).
+- Quando costruisce l'app di un locale, la regia le chiede se sa leggere
+  il tipo di locale e, se sì, le passa «bar». Oggi nessuna app lo sa
+  ancora (lo farà tana-drink), quindi per i locali non cambia niente. Il
+  tipo scelto alla registrazione resta salvato com'è (REQ-FLOTTA-065,
+  #144).
+- Le regole di Stonebit nel `CLAUDE.md` sono alla quarta versione (la
+  sessione sul repository lavora come ha sempre fatto ed è il Tech Lead;
+  il PM è un ruolo di solo controllo): stanno
+  dopo la presentazione del repository, dicono che sulle regole di
+  lavoro vince il repository, e descrivono i rami come li vuole
+  `docs/handover.md`. La seconda sezione di Stonebit, in fondo, è tolta.
+  La regola sui rami è riscritta com'è la pratica: un ramo per ogni
+  lavoro, staccato da `develop`, con la sua pull request (REQ-DEV-012).
+- Il backoffice, se non riesce a leggere i clienti dal server, lo dice e
+  fa riprovare. Prima, con la rete che cadeva un attimo, mostrava «Nessun
+  cliente.» come se fossero spariti (REQ-FLOTTA-064).
+- Nei prezzi c'è il confronto fra i piani, che si apre con un comando
+  sotto le schede: una colonna per piano, «Incluso» dove un modulo è
+  compreso e il prezzo dove si compra a parte; col Free in vendita, anche
+  cosa gli manca. Sotto, i moduli uno per uno in righe che si aprono, al
+  posto della tabella sempre aperta. Sul telefono il tasto del menù non
+  esce più dallo schermo (REQ-FLOTTA-063, #139).
+- Nel carosello ogni filmato resta quattro secondi, non più sei, e sotto
+  la frase non ci sono più le etichette dei piani e dei moduli. Nemmeno
+  sotto le funzioni: lì si spiega cosa fa il prodotto, e cosa si compra
+  lo dicono i prezzi. La sezione «Funzioni» si apre con «Ogni funzione è
+  frutto dell'esperienza dietro al banco.» (REQ-FLOTTA-061, #135).
+- La dashboard del titolare è su due colonne senza buchi: ogni riquadro
+  sta subito sotto il precedente. Prima erano sfalsati, e «Temi su
+  misura» finiva solo, molto più in basso. L'avviso dell'email da
+  confermare occupa una riga (REQ-FLOTTA-062).
+- I cinque gesti stanno in un carosello nella prima schermata, al posto
+  delle fasce una sotto l'altra: i filmati scorrono in orizzontale da
+  soli, ognuno con la sua parola e una frase corta. Si va avanti e
+  indietro a mano, e «Ferma i filmati» ferma anche lo scorrimento. I
+  riquadri «Cosa comprende» sono di nuovo sempre aperti. Le frasi dei
+  gesti sono riscritte, più corte (REQ-FLOTTA-061, #135).
+- La prima pagina ha i filmati e racconta il lavoro del locale in cinque
+  gesti, ognuno con una parola sola: Ordina, Prepara, Incassa, Conta,
+  Riordina (dal carosello della voce qui sopra; all'inizio erano cinque
+  fasce una sotto l'altra). «Quello che si vede dal banco» e i tre
+  pilastri non ci sono più. Tutta la pagina è sul fondo scuro, dove il
+  lime rende meglio. Chi ha chiesto meno movimento vede immagini ferme
+  (REQ-FLOTTA-060, #131).
+- Dopo un rilascio il sito non si vede più senza grafica: la pagina si
+  ricontrolla a ogni visita, e i file di stile e di codice, che hanno
+  l'impronta nel nome, restano in memoria. Prima il browser teneva per
+  un'ora la pagina vecchia, che chiedeva file ormai tolti (REQ-DEV-013,
+  #133).
+- Il sito di test era uscito vuoto col tag `v0.3.0-beta.7`: una delle
+  versioni forzate (`minimatch` sotto `glob`) faceva pubblicare zero
+  file. L'override è tolto, e un test controlla che il deploy trovi i
+  file prima di accettarne altri (REQ-DEV-010, #129).
+- Il codice è dichiarato proprietario: `LICENSE` con tutti i diritti
+  riservati, `"license": "UNLICENSED"` nei due `package.json`, la sezione
+  «Licenza» nel README e l'elenco dei file di terzi
+  (`THIRD_PARTY_NOTICES.md`). Il repository è pubblico solo per la CI
+  (REQ-DEV-011).
+- Nella registrazione, chi si vede rifiutare l'identificativo perché già
+  in uso non viene più mandato alla dashboard mentre lo corregge: la
+  pagina resta, coi dati inseriti, finché l'account non ha il suo locale.
+  Trovato dal collaudo automatico (REQ-FLOTTA-003).
+- Il repository ha le regole di Stonebit e la sua squadra di agenti:
+  `CLAUDE.md` apre con «Stonebit — chi sei e come lavori qui», `AGENTS.md`
+  rimanda lì, e `.claude/agents/` definisce PM, Tech Lead, frontend,
+  backend, DevOps della flotta e revisore (REQ-DEV-012, #127).
+- Le dipendenze indirette con avvisi di sicurezza sono forzate alla
+  versione corretta (`overrides`): `@grpc/grpc-js` 1.14, `uuid` 11,
+  `fast-xml-parser` 5.12, e `minimatch` 11 dove serviva. Le librerie di
+  Google che le portano chiedevano ancora le vecchie (REQ-DEV-010).
+- I colori sono quelli di Lime: il verde lime è il colore primario di
+  tutto il sito, al posto del verde bottiglia e dell'oro. Sulla prima
+  pagina i bottoni principali sono lime col testo scuro e la seconda
+  frase del titolo è passata con l'evidenziatore; dashboard e backoffice
+  hanno il fondo nero appena verde e l'accento lime. «In attesa» e gli
+  avvisi restano ambra (REQ-FLOTTA-002).
+- Nella registrazione, arrivare al passo del referente non invia più il
+  modulo da sé: «Avanti» e «Crea l’account» erano lo stesso bottone, a cui
+  cambiava il tipo durante il click; al secondo tentativo (identificativo
+  rifiutato, referente già compilato) l'account nasceva senza premere
+  niente, al primo comparivano gli errori dei campi ancora vuoti. Trovato
+  dal primo collaudo automatico (REQ-FLOTTA-003).
+- Il collaudo automatico non si ripete da solo (ripeterlo lanciava un
+  secondo aggiornamento del locale), la pulizia dei clienti di collaudo
+  conta le righe e non i nomi, e «in corso» vale quanto «partito»
+  (REQ-DEV-009).
+- Nel collaudo, dopo «Esci» l'admin aspetta di essere uscito davvero
+  prima di provare l'accesso del titolare eliminato: l'uscita è asincrona
+  e sul runner la navigazione arrivava prima (secondo collaudo,
+  REQ-DEV-009). La password del titolare di collaudo ha una cifra fissa:
+  la marca in base 36 poteva venire di sole lettere.
+- Un test unitario del backoffice («Sito aperto al pubblico») aspettava
+  l'elemento e non il testo, e sul runner ogni tanto leggeva la riga prima
+  che la vendita arrivasse; ora aspetta il testo.
+- Il job Playwright gira su `ubuntu-24.04` e non su `ubuntu-latest`: dal
+  11/11/2026 quest'ultimo è Ubuntu 26.04, dove l'installazione dei
+  pacchetti di sistema di Chromium non risolve i mirror apt e il
+  collaudo non parte (REQ-DEV-009).
+- Fissare l'immagine non bastava: erano i mirror apt di Ubuntu a non
+  rispondere ai runner. Il collaudo installa Chromium senza passare da
+  apt, con le librerie che l'immagine ha già (REQ-DEV-009).
+- Il prodotto ha il suo nome: **Lime – SmartOrders**, deciso dall'utente
+  il 09/11/2026 al posto del segnaposto «Drink». Il logo è una fetta di
+  lime che sembra un grafico a torta, nella barra, nel piè di pagina e
+  come icona del sito; sotto il marchio il sottotitolo «Comande, cassa e
+  gestione del locale, in un’app sola.» (REQ-FLOTTA-002).
+- I rilasci solo su tag (decisione dell'utente del 09/11/2026): un tag
+  fuori da `main` pubblica sul test e poi passa il collaudo automatico,
+  che si registra davvero, sospende e riattiva la licenza del locale di
+  prova e lo aggiorna fino in fondo; un tag su `main` va in produzione
+  solo se quel collaudo è riuscito. Un push su `develop` non pubblica più
+  (REQ-DEV-009).
+- «Aggiorna subito» nel backoffice ora si vede lavorare: il bottone dice
+  «Avvio…», poi la scheda mostra un segno che gira con «aggiornamento a …
+  in corso da N min» e il link al workflow, e si ricarica da sola ogni
+  venti secondi finché non finisce; un aggiornamento fallito porta al run
+  di GitHub con «vedi il run»; uno riuscito dice a quale versione è
+  arrivato (REQ-FLOTTA-009).
+- Corretto: chi si registrava con il nome di un locale già preso non
+  vedeva il messaggio sullo slug e si ritrovava su «Completa la
+  registrazione» coi campi vuoti, perché il sito lo mandava alla
+  dashboard appena creato l'account. Ora la pagina resta, con la casella
+  dell'identificativo e il messaggio. Trovato dal primo collaudo
+  automatico (REQ-FLOTTA-045).
+- Corretto: dopo la build senza credenziali (#100) «Aggiorna subito» e
+  l'attivazione di un locale si fermavano al job di compilazione, perché
+  GitHub scartava la configurazione web passata come output del job
+  («may contain secret»). Ora viaggia in un artifact. Trovato dal primo
+  collaudo automatico (REQ-FLOTTA-047).
+- Nel backoffice l'admin elimina un cliente che non ha un'istanza, o la
+  cui istanza è già stata eliminata: via l'account e i suoi dati nella
+  regia, dopo conferma. Serve al diritto alla cancellazione e al collaudo
+  (REQ-FLOTTA-059).
+- Le dipendenze con falle note aggiornate in un colpo solo (finding 24
+  dell'audit del 09/11/2026): vite 7, vitest 4, happy-dom 21 e
+  react-router 7, che chiude un open redirect nei collegamenti. Per chi
+  usa il sito non cambia niente; le correzioni automatiche di Dependabot
+  (#106, #107, #108, #114) non si potevano unire da sole (REQ-DEV-008).
+- Dall'audit di sicurezza del 09/11/2026, la parte della vendita e del
+  sito. Il traffico del sito conta le provenienze per famiglia (Google,
+  Instagram, Facebook…, «diretto», «altro») da un elenco chiuso, non più
+  per dominio: il documento del giorno non cresce con quello che arriva,
+  una chiamata da un altro sito non si conta, e la Function `traccia` ha
+  un tetto di due istanze; la dashboard del commerciale mostra i nomi
+  delle famiglie (REQ-FLOTTA-052).
+- I codici sconto: un codice nuovo ha almeno 8 caratteri con almeno 2
+  cifre, il backoffice ne propone uno a caso (cinque lettere e quattro
+  cifre) e un codice al 100% ha sempre un limite di usi; i codici creati
+  prima restano validi. Un titolare che sbaglia dieci codici in un'ora
+  aspetta un'ora («Troppi tentativi, riprova fra un'ora.»)
+  (REQ-FLOTTA-053).
+- Dopo un pagamento con Stripe si torna solo sul sito della regia:
+  l'indirizzo di ritorno del Checkout e della ricarica AI e' accettato
+  solo se e' un'origine della regia (REQ-FLOTTA-054).
+- Col sito chiuso, chi entra con Google senza avere un locale vede
+  l'anteprima anche dalla dashboard, non «Completa la registrazione»; e
+  la richiesta di un tema su misura si ferma come le altre porte della
+  vendita (REQ-FLOTTA-055).
+- Nel CSV del commerciale una cella che comincia con = + - @ o un tab
+  prende un apostrofo davanti: Excel la legge come testo, non come formula
+  (REQ-FLOTTA-056).
+- Le impostazioni della regia le legge solo l'amministratore; lo script
+  `admin-regia.mjs` vuole sempre `--project` (niente produzione per
+  sbaglio); «Apri l'app» e l'indirizzo dell'app nella dashboard sono link
+  solo se l'indirizzo e' un https (REQ-FLOTTA-057).
+- L'identificativo del locale (lo slug, l'indirizzo che l'app avrà) è
+  unico: alla registrazione lo controlla e lo scrive la regia, non il
+  browser, e se è già di un altro locale il modulo torna al passo del
+  locale con una casella per sceglierne un altro. Ogni ricerca di un
+  cliente per identificativo si ferma con un errore esplicito se ne trova
+  due, invece di prendere il primo (audit di sicurezza del 09/11/2026,
+  REQ-FLOTTA-045).
+- Chi ha un abbonamento gestito a mano (bonifico, piano scritto
+  dall'amministratore) e dalla dashboard chiede un piano più grande, un
+  modulo o un terminale in più non lo ottiene da solo: la richiesta va
+  all'assistenza («Richiesta inviata: ti ricontattiamo per attivarla») e
+  l'amministratore la evade con «Cambia piano» a pagamento concordato. Le
+  riduzioni si applicano subito come prima (audit del 09/11/2026,
+  REQ-FLOTTA-046).
+- L'esito che i workflow della flotta mandano alla regia non è più preso
+  per buono (audit del 09/11/2026, finding 12): il progetto deve essere
+  quello dell'istanza, l'indirizzo dell'app deve stare sui suoi domini, il
+  bucket degli archivi è quello della regia e non viaggia più nel corpo, e
+  ogni run di GitHub passa una volta sola, entro dieci minuti. Col segreto
+  del callback non configurato o troppo corto la regia risponde 503
+  (REQ-FLOTTA-049).
+- Dall'app del locale i moduli (prova, aggiunta, disdetta) e la scelta
+  degli aggiornamenti li fa solo il titolare: l'account del cliente della
+  regia (stesso uid, o email verificata uguale), non un altro admin del
+  locale, che riceve «Solo il titolare del locale può …» (audit del
+  09/11/2026, finding 17; REQ-FLOTTA-050).
+- I log delle Functions non scrivono più l'email di chi agisce (l'uid, o
+  un'impronta), e la regia non si segna più quale utente del locale ha
+  aperto per primo una versione nuova dell'app (audit del 09/11/2026,
+  finding 29; REQ-FLOTTA-051).
+- L'attivazione e l'aggiornamento di un locale sono quattro job in fila
+  invece di uno: il codice di tana-drink (`npm ci`, la build) gira in un
+  job senza environment e senza nessun segreto, e i job con la chiave di
+  provisioning non scaricano l'app e non ne eseguono niente. La
+  configurazione web del progetto passa da un job all'altro come output,
+  l'app compilata come artifact; la build è dello SHA controllato, non del
+  ramo riletto. Se un job prima fallisce, l'esito di errore arriva lo
+  stesso alla regia (REQ-FLOTTA-047, audit del 09/11/2026, punto 6).
+- Prima di eliminare un locale il workflow verifica che il progetto porti
+  l'etichetta `ambiente` della regia che lancia e che il suo stato
+  Terraform esista; prima di aggiornarlo, l'etichetta. Un progetto che non
+  è di quella regia non si tocca, nemmeno per il backup: la regia di test
+  non può più eliminare o ripubblicare un locale di produzione. Un locale
+  esistente (la Tana, la demo) riceve l'etichetta una volta a mano. Lo SHA
+  di tana-drink pubblicato è pronto per l'esito (REQ-FLOTTA-048, audit
+  del 09/11/2026, punti 7 e 29).
+- Il sito manda con ogni pagina le intestazioni di sicurezza: nessuno lo
+  incornicia in una pagina altrui, i file si leggono per quello che sono,
+  il referrer esce solo come origine, fotocamera, microfono e posizione
+  sono spenti, HSTS per un anno; la Content-Security-Policy parte in
+  osservazione (`Report-Only`) e diventa vincolante dopo qualche giorno sul
+  test senza violazioni (REQ-DEV-005, audit del 09/11/2026, finding 14).
+- La catena di pubblicazione è ferma a commit precisi: ogni action dei
+  workflow è pinnata a uno SHA con la versione nel commento, Dependabot
+  propone ogni settimana gli aggiornamenti di sito, Functions e action
+  verso develop, e il workflow di test fa `npm audit` sulle dipendenze di
+  produzione; l'SDK di Anthropic nelle Functions passa alla 1.6
+  (REQ-DEV-006, finding 23 e 24).
+- Le Functions della regia possono girare con un account di servizio
+  dedicato, con i soli ruoli che il codice usa e senza Editor, al posto
+  dell'account predefinito di Compute Engine: lo crea
+  `scripts/account-runtime.mjs`, lo accende `RUNTIME_SERVICE_ACCOUNT` nel
+  file d'ambiente del progetto, e `REGIA_SA_EMAIL` nella flotta porta il
+  Terraform dei locali a autorizzare lui. Prima sul test, poi in
+  produzione (audit del 09/11/2026, finding 3; REQ-FLOTTA-058).
+- Le regole Firestore della regia si provano sull'emulatore, con le regole
+  vere e quattro attori (due titolari, l'admin, chi non ha fatto l'accesso),
+  collezione per collezione: `npm run test:regole` in locale, un job a parte
+  nella CI delle pull request con Java 21. Un test dentro `npm test` pretende
+  che ogni `match` delle regole abbia la sua prova. Due casi sono
+  documentati come stanno oggi e cambieranno: due titolari con lo stesso
+  slug (finding 4 dell'audit) e le impostazioni leggibili da ogni
+  autenticato (REQ-DEV-007).
+- Il listino dei moduli cambia: il menù digitale col QR al tavolo è
+  compreso nei piani Base e Completo; gli ordini dal telefono costano 12 €
+  al mese; le fatture ai clienti (5 €) e le fatture ai fornitori (6 €) si
+  comprano a parte e non sono più dentro «Magazzino e fornitori», che resta
+  a 15 € con l'inventario. Il Completo le comprende tutte. Nella pagina dei
+  prezzi il menù risulta incluso anche nel Base (REQ-FLOTTA-044).
+- La prima schermata dice subito cosa vendiamo: «Il gestionale del tuo
+  locale. Dalla comanda alla cassa.», una riga sola sotto, l'occhiello
+  «Gestionale per bar e ristoranti»; in inglese lo stesso. E il menù in
+  alto della vetrina senza il riquadro bianco dietro le voci
+  (REQ-FLOTTA-002).
+- Il sito si apre al pubblico quando lo decide l'amministratore: finché
+  l'interruttore «Sito aperto al pubblico» (sezione «Vendita») è spento, in
+  produzione al posto della prima pagina e della registrazione c'è una
+  pagina di anteprima, il menù ha solo «Accedi», e le Functions della
+  vendita (attivazione, Checkout, codici, cambio di piano, contatto, Free,
+  prove, ricarica AI, moduli dall'app) rifiutano. Sul test, finché non si
+  decide, il sito è aperto (REQ-FLOTTA-043).
+- Gli ordini dal telefono non si provano e non si aggiungono senza il menù
+  digitale, dall'app del locale e dalla dashboard: il motivo dice quale
+  modulo serve (REQ-FLOTTA-037, da tana-drink REQ-LIC-015). La stessa
+  regola vale ovunque si scelga un piano: nella scelta del piano del
+  titolare la casella degli ordini aspetta il menù e se ne va con lui; il
+  Checkout, il codice al 100%, il cambio di piano del titolare e
+  dell'admin e la richiesta di contatto rifiutano un modulo senza la sua
+  base; il menù non si disdice dall'app finché gli ordini sono attivi; una
+  prova rimasta senza base si spegne con la base.
+- La prima pagina ha un aspetto nuovo, editoriale: fondo avorio, testo
+  scuro, un accento verde per le azioni e l'oro come dettaglio; due sole
+  sezioni scure (il problema e la chiusura); la prima schermata col testo a
+  sinistra e la scheda dei fatti a destra; pilastri, funzioni e passi
+  divisi da fili e numerati, senza card né icone; i prezzi su pannelli di
+  carta. Niente luci sfocate, gradienti o aloni. Stessi testi e stesso
+  ordine (REQ-FLOTTA-002, DESIGN.md §4).
+- La sezione «Commerciale» del backoffice: la dashboard di chi vende, con
+  l'incasso del periodo e il confronto col periodo prima, il canone
+  mensile ricorrente, i clienti per classe e la conversione, gli andamenti
+  per giorno (incassi, registrazioni, viste), cosa si vende per piano e
+  per modulo, il percorso dal visitatore al cliente, il credito AI, le
+  scadenze e cosa chiede attenzione, gli abbonamenti e i movimenti in
+  tabella con l'esportazione in CSV. Nasce il libro dei movimenti: ogni
+  incasso (fattura di Stripe, ricarica AI, pagamento registrato dall'admin,
+  che ora chiede anche l'importo) è una riga (REQ-FLOTTA-041).
+- Il traffico del sito si conta nella regia, per giorno e senza cookie:
+  viste per pagina, lingua e provenienza, e i passi della vendita
+  (REQ-FLOTTA-042).
+- I locali di prova sulla regia di test (`npm run semina:test`): dodici
+  titolari in ogni situazione, l'amministratore, contatti, codici sconto,
+  movimenti e traffico; e i test end-to-end con Playwright (`npm run
+  test:e2e`) sui casi d'uso comuni, in locale e dopo ogni deploy sul test
+  (REQ-DEV-004).
+- I testi della prima pagina riscritti, in italiano e in inglese, senza
+  trovate e col prodotto raccontato per intero. Il filo scelto
+  dall'utente fra tre direzioni è la credibilità: «Scritto dietro il
+  banco. In servizio ogni sera.»; problema, pilastri, funzioni, passi,
+  prezzi e chiusura seguono; le altre due direzioni in DESIGN.md §5.1
+  (REQ-FLOTTA-002).
+- «Carte», il menù come un mazzo di carte francesi, è un tema esclusivo
+  che si assegna dalla scheda del locale, come «Notte» e «Meraviglie».
+
+- I temi su misura di un locale: dalla dashboard il titolare carica il
+  mockup di un tema (Canva o simili) e, col credito AI, la regia ne ricava
+  un tema del suo locale; oppure chiede un tema fatto da noi, che
+  l'amministratore scrive dalla scheda del locale con la struttura del
+  menù (una pagina, una per categoria, una per macro categoria) e una
+  ricetta. I temi su misura arrivano all'app con la licenza
+  (REQ-FLOTTA-040).
+- Dal backoffice si regala credito AI a un locale («Regala AI»), senza
+  pagamento; il titolare vede le ultime ricariche con la loro origine,
+  omaggi compresi (REQ-AI-003).
+- Le Functions AI si presentano ad Anthropic con la federazione delle
+  identità, con un account di servizio dedicato e un workspace della
+  regia, al posto della chiave statica; finché la regola non è
+  configurata resta la chiave (REQ-AI-003).
+- I temi in licenza di un locale (gli esclusivi della Tana, «Notte» e
+  «Meraviglie») si assegnano dal backoffice e la licenza li porta all'app;
+  la scheda del locale elenca moduli, temi in licenza e quello che il
+  locale ha installato nell'app, letto dal suo progetto. Il titolare vede
+  i suoi temi accanto al piano (REQ-FLOTTA-039).
+- Si entra e ci si registra anche con Google. Chi ha già un account con la
+  stessa email ritrova il suo locale; chi è nuovo completa i dati del
+  locale dopo l'accesso (REQ-FLOTTA-038).
+- La prima pagina ha un aspetto nuovo, in italiano e in inglese: le luci
+  di un bar di sera nella prima schermata, il titolo con la seconda frase
+  in oro, carte e piani col bordo d'oro, i passi in fila su una linea e le
+  domande in righe. La pagina compare subito, senza aspettare l'accesso, e
+  non scarica più l'immagine di fondo (REQ-FLOTTA-002).
+- Il titolare prova, aggiunge e disdice un modulo dall'app del suo locale
+  («Marketplace → Moduli»): la regia espone il listino dei moduli in
+  vendita e cambia l'abbonamento Stripe col conguaglio, e la licenza
+  dell'istanza segue. I motivi di un rifiuto sono scritti in forma
+  impersonale, uguali sulla dashboard e nell'app (REQ-FLOTTA-037).
+- Su un piano gestito a mano, un modulo chiesto dall'app non è più un
+  rifiuto: diventa una richiesta all'assistenza, che l'amministratore trova
+  fra le richieste di contatto del backoffice ed evade con «Cambia piano»
+  (REQ-FLOTTA-037).
+- I codici sconto hanno un limite di usi, che l'amministratore scrive alla
+  creazione e cambia dopo con «Limite…»; l'elenco dice quanti usi ha
+  ciascuno. Un codice esaurito non vale più per nessun locale nuovo
+  (REQ-FLOTTA-028).
+- Ogni deploy dopo un acquisto passa dall'amministratore finché non accende
+  il deploy automatico, anche quando un locale Free compra un piano
+  (REQ-FLOTTA-011). Il codice sconto si scrive nella scelta del piano e il
+  pagamento lo applica; col prezzo Fondatori vale il più conveniente, e un
+  codice al 100% attiva il piano senza pagamento (REQ-FLOTTA-028).
+- L'IVA: Stripe aggiunge il 22% ai canoni, all'attivazione, ai cambi di
+  piano e alle ricariche del credito AI, con un'aliquota fissa che la regia
+  trova o crea da sola; i prezzi restano IVA esclusa. Il Checkout chiede
+  l'indirizzo di fatturazione e la partita IVA. I cambi di piano mandano
+  a Stripe righe che una subscription accetta (prima no) (REQ-FLOTTA-035).
+- Il webhook di Stripe elabora ogni evento una volta sola (registro
+  `eventi_stripe`), e un evento arrivato in ritardo non riporta indietro lo
+  stato: un pagamento vecchio non riapre un abbonamento disdetto. Legge la
+  subscription delle fatture anche nella forma delle API Stripe più recenti
+  (REQ-FLOTTA-036, audit M4).
+- Il titolare, sul suo documento, cambia solo i dati anagrafici, con la
+  partita IVA sempre valida e i consensi che non si cancellano (audit H1).
+
+- Il listino deciso il 02/11/2026 (DEC-0005): Base a 32,70 € + IVA al mese
+  con tre terminali (anche il Completo ne ha tre), attivazione 82 € + IVA
+  addebitata al Checkout, prezzi a schermo «+ IVA» con il totale IVA
+  inclusa accanto, pagamento annuale a 10 mensilità, offerta Fondatori
+  (i primi 20 abbonamenti al Base: 25 € + IVA per 12 mesi, poi il listino;
+  attivazione gratuita), assistenza da remoto inclusa fino a 1 ora al mese,
+  stampanti non supportate a preventivo. La prova di 30 giorni è pronta ma
+  spenta (`prova_nel_checkout`) finché non si decide quando si paga
+  l'attivazione (REQ-FLOTTA-031, REQ-PREZZI-001).
+
+- La demo pubblica si ripubblica di nuovo dalla regia, e più chiusa: una
+  configurazione finta al posto di quella del progetto, nessuna chiamata
+  alla regia, lo Storage chiuso come il database, le intestazioni di
+  sicurezza. La regia non le scrive più licenza né dati (REQ-FLOTTA-019).
+- Gli stili a ricetta: la forma del menù (caratteri, voci, separatori,
+  cornici, sfondo) si pubblica dalla regia come un tema, e l'app la disegna
+  da sé. Sette stili nuovi (Osteria, Bauhaus, Tiki, Quaderno, Dattilo,
+  Insegna, Giardino) e sette temi che li usano. Arrivano nei locali con la
+  versione dell'app che sa disegnarli (REQ-FLOTTA-034).
+- Otto temi nuovi nel catalogo, disegnati da noi e pubblicati col deploy:
+  Smeraldo, Bordeaux, Agrumi, Ardesia, Seppia, Velluto, Menta, Neon. Dal
+  backoffice si vedono e si ritirano (REQ-FLOTTA-033).
+- Il catalogo dei temi: nella sezione «Temi» del backoffice si crea un tema
+  (una base, uno stile del menù, i colori ritoccati, con l'anteprima), si
+  pubblica e si ritira; l'app dei locali lo trova nel suo marketplace dei
+  temi. Per ora tutti gratis (REQ-FLOTTA-032).
+- «Apri la tua app»: dalla sua area il titolare entra nella sua app senza
+  password, con un codice che vale una volta sola e un minuto; e a ogni
+  deploy l'app riceve nome, indirizzo, telefono e intestazione fiscale del
+  locale, dove non li ha già (REQ-FLOTTA-030).
+- A ogni attivazione e aggiornamento, chi ha sottoscritto l'abbonamento è
+  l'admin del suo locale, e riceve l'email per impostare la password:
+  prima un locale nuovo nasceva senza nessuno che potesse entrare
+  (REQ-FLOTTA-029).
+- L'account del titolare nel suo locale ha lo stesso identificativo
+  (uid) che ha nella regia: prima l'attivazione lo riceveva e non lo usava.
+  I locali attivati prima, al prossimo aggiornamento, ricevono l'account
+  giusto se quello creato allora non è mai stato usato; uno già usato resta
+  com'è (REQ-FLOTTA-029, M7).
+- Anche con Stripe la licenza ha una durata: scade 7 giorni dopo la fine
+  del periodo pagato, e alla scadenza la regia controlla lo stato vero su
+  Stripe. Chi disdice, con «solo finché si paga», passa al Free; chi torna
+  a pagare entro i 90 giorni riapre il locale. Il titolare gestisce
+  l'abbonamento da solo, dal portale di Stripe (REQ-FLOTTA-023).
+- Comunicazioni automatiche per email: promemoria dei pagamenti a mano (7
+  giorni prima e alla scadenza), pagamento ricevuto, locale passato al
+  Free, locale riattivato. Le ricevute e i pagamenti falliti con Stripe li
+  manda Stripe (REQ-FLOTTA-027).
+- Codici sconto: si creano in «Vendita», con percentuale e durata in mesi o
+  illimitata, e si applicano dalla scheda del locale. Al 100% illimitato il
+  locale non paga e non scade. Un locale esistente, come la Tana, può avere
+  la licenza scritta dalla regia dal suo piano (REQ-FLOTTA-028).
+- Un titolare non può più cambiarsi da solo moduli, terminali o prove dal
+  browser: solo i suoi dati anagrafici.
+- L'app di ogni locale si presenta alla regia al primo avvio di una
+  versione nuova, da qualunque deploy arrivi: la regia sa quale versione
+  gira davvero e, se al locale manca la licenza, la riscrive.
+  La scheda del locale nel backoffice dice la versione vista dall'app
+  (REQ-FLOTTA-026).
+- Un locale fermo perché non paga, o chiuso, conserva i dati per 90 giorni,
+  poi l'installazione si cancella, sempre dopo un backup che il titolare
+  scarica per 180 giorni. Il titolare riceve un avviso subito, 7 giorni
+  prima e il giorno prima, per email, nella sua area clienti e nell'app.
+  Se torna a pagare, la cancellazione si annulla. Un locale tornato al Free
+  non perde niente. I termini e l'informativa lo dicono (REQ-FLOTTA-025).
+- La licenza dice all'app cosa fare quando scade (fermarsi o passare al
+  Free) e scade al taglio della giornata, non a mezzanotte. La scadenza è
+  scritta anche nella forma che le regole del database sanno leggere.
+- Un piano più piccolo, un modulo tolto, il passaggio al Free o una
+  sospensione per un pagamento mancato arrivano al locale al taglio della
+  giornata (alle 5, o all'ora del locale), non durante il servizio: fino
+  ad allora l'app resta com'è. Quello che si aggiunge arriva subito. La
+  dashboard e la scheda del locale dicono quando (REQ-FLOTTA-024).
+- Un locale nuovo riceve la licenza prima dell'app.
+- Il piano Free non comprende le comande.
+- Niente più controlli quotidiani: un locale si sospende, torna al Free o si
+  chiude quando cambia lo stato del suo abbonamento. Con Stripe lo decidono
+  i tentativi di pagamento di Stripe; fuori da Stripe si scrive «pagato
+  fino al» e, a quella data più i giorni di grazia, il locale si ferma da
+  solo. Prove dei moduli ed eliminazioni programmate scattano alla loro
+  data (REQ-FLOTTA-023).
+- La licenza di ogni locale si scrive anche in un documento suo, che
+  dall'app non si può modificare: prima un bartender poteva cambiarsela.
+  Nella sezione «Rilasci» si allineano e si verificano le licenze di tutti
+  i locali. Ogni aggiornamento la scrive prima del deploy, e senza non
+  parte (REQ-FLOTTA-022).
+- Gli aggiornamenti si possono dare in due modi: automatici, come oggi, o
+  a scelta del titolare, che vede prima le novità e decide se aggiornare o
+  saltare la versione. E si possono legare al pagamento: chi non paga torna
+  al Free e riceve solo i rilasci obbligatori. Le due regole si accendono
+  dal backoffice («Rilasci»); chi ha già un piano le prende al rinnovo e
+  riceve un avviso. Un rilascio si può segnare obbligatorio: arriva a tutti
+  (REQ-FLOTTA-020). I termini del servizio (punti 3 e 5) lo dicono. La
+  scelta fatta nell'app arriva alla regia subito, con l'accesso del
+  titolare.
+- La demo della prima pagina non scrive più nel suo database: la regia la
+  pubblica sempre leggera e con il database chiuso a tutti, e la build
+  della demo va solo sul suo progetto. I dati di prova e la sessione nel
+  browser arrivano con la modalità demo di tana-drink (REQ-FLOTTA-019).
+- Il backoffice è diviso in sezioni, con un sotto-menù: «Locali» (le schede,
+  con la ricerca e la vista per stato), «Richieste» (deploy automatico,
+  attivazioni da autorizzare, richieste di contatto), «Rilasci» (i rilasci a
+  ondate e gli aggiornamenti falliti), «Vendita» e «Nuovo locale». Ogni
+  sezione ha il suo indirizzo, quindi il tasto indietro e i link funzionano;
+  un numero accanto alla voce dice quando c'è qualcosa da fare. Sulla scheda
+  di un locale «Aggiorna» diventa «Aggiorna subito» e dice accanto cosa fa:
+  porta solo quel locale all'ultima versione dell'app, mentre a tutti un
+  rilascio arriva a ondate; l'esito dice la versione lanciata
+  (REQ-FLOTTA-005).
+- La Tana si può affidare alla regia per gli aggiornamenti: entra nelle
+  ondate dei rilasci e «Aggiorna» la porta alla versione scelta, sul suo
+  progetto, senza perdere SumUp, notifiche, App Check e Analytics. Il
+  deploy da tana-drink resta, per il test e per la produzione. Di norma
+  un locale esistente continua a pubblicare da sé (REQ-FLOTTA-018).
+- La prima pagina è nuova, in italiano e in inglese. Il titolo dice la
+  promessa («La serata non si ferma. Nemmeno quando cade il Wi-Fi.»), e la
+  pagina segue un percorso: il problema, i tre pilastri (lavora anche senza
+  rete, i dati sono tuoi, fatta per il servizio), le funzioni con il modulo
+  che le porta, i tre passi, i prezzi con la tabella dei moduli e quanto conviene
+  il Completo, le domande, l'ultima azione. Parla a bar e ristoranti. La
+  versione inglese sta su `/en`; il selettore IT / EN nella barra e nel piè
+  di pagina ricorda la scelta, e chi ha il browser in inglese vede un
+  avviso che gliela propone. Registrazione, dashboard e testi legali
+  restano in italiano. I testi su dati, chiusura e disdetta sono quelli dei
+  Termini, e finché pagamenti online e Free sono spenti la pagina dice che
+  l'attivazione si concorda con noi (REQ-FLOTTA-002).
+
 ## 0.2.1 (30/10/2026, la prima in produzione: comprende la 0.2.0 e la 0.1.0)
 
 - In produzione un locale riceve solo l'app che è già uscita in produzione

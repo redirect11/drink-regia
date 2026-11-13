@@ -9,7 +9,8 @@
 //   1. prova     le istanze di prova (nostre, senza clienti veri);
 //   2. interna   le installazioni interne, come la Tana: se è un locale
 //                esistente si aggiorna dal suo repository, e qui si
-//                aspetta che riferisca la versione;
+//                aspetta che riferisca la versione; se l'admin l'ha
+//                affidato alla regia (REQ-FLOTTA-018) lo aggiorna la regia;
 //   3. pilota    i locali che hanno accettato di ricevere prima;
 //   4. generale  tutti gli altri.
 // Un'ondata parte solo quando l'admin la avvia e quella prima è finita
@@ -28,7 +29,9 @@ const APERTI = ['in corso', 'fermo']
 
 class RilascioNonValido extends Error {}
 
-const daFlotta = (ist) => ist?.origine !== 'esistente'
+// Chi aggiorna la regia: i locali della flotta, e un locale esistente
+// che l'admin le ha affidato (REQ-FLOTTA-018).
+const daFlotta = (ist) => ist?.origine !== 'esistente' || ist?.aggiornamenti_dalla_regia === true
 
 function ondataDi(ist) {
   if (ist?.interna === true || !daFlotta(ist)) return 'interna'
@@ -38,11 +41,14 @@ function ondataDi(ist) {
 // Chi riceve il rilascio: le istanze attive. Una chiusa no: la sua app
 // è ferma e non serve aggiornarla. Una sospesa sì, così alla
 // riattivazione è già allineata.
-const partecipa = (ist) => ist?.stato === 'attiva' && ist?.licenza_stato !== 'chiusa'
+// Un locale simulato (REQ-FLOTTA-072) no: non ha un progetto da aggiornare.
+const partecipa = (ist) => ist?.stato === 'attiva' && ist?.licenza_stato !== 'chiusa' && ist?.simulata !== true
 
 // Il rilascio nasce con le ondate fotografate in quel momento: chi si
-// attiva dopo nasce già con l'ultima versione.
-function nuovoRilascio(ref, istanze, { da = null, adesso = new Date() } = {}) {
+// attiva dopo nasce già con l'ultima versione. Un rilascio OBBLIGATORIO
+// (sicurezza, compatibilità: REQ-FLOTTA-020) si pubblica a tutti, anche a
+// chi aggiorna a scelta o non ha gli aggiornamenti nel piano.
+function nuovoRilascio(ref, istanze, { da = null, adesso = new Date(), obbligatorio = false } = {}) {
   if (!TAG.test(String(ref || ''))) throw new RilascioNonValido('Un rilascio è un tag vX.Y.Z di tana-drink, non un ramo.')
   const voci = Object.entries(istanze || {}).filter(([, ist]) => partecipa(ist))
   const ondate = ONDATE.map((nome) => ({
@@ -51,27 +57,35 @@ function nuovoRilascio(ref, istanze, { da = null, adesso = new Date() } = {}) {
     avviata_il: null,
   })).filter((o) => o.slugs.length > 0)
   if (!ondate.length) throw new RilascioNonValido('Nessuna istanza attiva a cui portare il rilascio.')
-  return { ref, stato: 'in corso', ondata: -1, ondate, creato_il: adesso.toISOString(), creato_da: da, aggiornato_il: adesso.toISOString() }
+  return { ref, stato: 'in corso', ondata: -1, ondate, obbligatorio: obbligatorio === true, non_inclusi: [], creato_il: adesso.toISOString(), creato_da: da, aggiornato_il: adesso.toISOString() }
 }
 
-// A che punto è un locale in questo rilascio.
-function esitoDi(ist, rilascio) {
+// A che punto è un locale in questo rilascio. Con gli aggiornamenti a
+// scelta (REQ-FLOTTA-020) un locale può avere la proposta in mano
+// («proposto»), averla saltata («saltato»), o non avere gli aggiornamenti
+// nel piano («non incluso»): nessuno dei tre ferma l'ondata.
+function esitoDi(ist, rilascio, slug = null) {
   const agg = ist?.aggiornamento
   if (agg?.rilascio === rilascio.ref) {
     // Tornato alla versione di prima: per questo rilascio è fuori.
     if (agg.ritorno) return 'escluso'
     if (['in corso', 'riuscito', 'fallito'].includes(agg.stato)) return agg.stato
   }
-  // Un locale esistente pubblica da sé: conta la versione che riferisce.
-  if (!daFlotta(ist) && ist?.versione === rilascio.ref) return 'riuscito'
+  const p = ist?.proposta_aggiornamento
+  if (p?.attesa && p.rilascio === rilascio.ref) return p.saltata_il ? 'saltato' : 'proposto'
+  if (slug && (rilascio.non_inclusi || []).includes(slug)) return 'non incluso'
+  // Un locale esistente pubblica da sé: conta la versione che riferisce,
+  // e da REQ-FLOTTA-026 la riferisce l'app stessa presentandosi alla regia
+  // (la Tana da GitHub non manda più un esito di deploy).
+  if (!daFlotta(ist) && [ist?.versione, ist?.presentazione?.versione].includes(rilascio.ref)) return 'riuscito'
   return 'in attesa'
 }
 
-const VUOTO = () => ({ 'in attesa': 0, 'in corso': 0, riuscito: 0, fallito: 0, escluso: 0 })
+const VUOTO = () => ({ 'in attesa': 0, 'in corso': 0, riuscito: 0, fallito: 0, escluso: 0, proposto: 0, saltato: 0, 'non incluso': 0 })
 
 function contaOndata(ondata, istanze, rilascio) {
   const conti = VUOTO()
-  for (const slug of ondata.slugs) conti[esitoDi(istanze?.[slug], rilascio)] += 1
+  for (const slug of ondata.slugs) conti[esitoDi(istanze?.[slug], rilascio, slug)] += 1
   return conti
 }
 
@@ -118,7 +132,7 @@ function dopoEsito(rilascio, istanze, adesso = new Date()) {
   const attuale = rilascio.ondate[rilascio.ondata]
   const c = contaOndata(attuale, istanze, rilascio)
   if (c.fallito && rilascio.stato === 'in corso') {
-    const chi = attuale.slugs.filter((s) => esitoDi(istanze?.[s], rilascio) === 'fallito')
+    const chi = attuale.slugs.filter((s) => esitoDi(istanze?.[s], rilascio, s) === 'fallito')
     return { ...rilascio, stato: 'fermo', fermato_perche: `Aggiornamento fallito: ${chi.join(', ')}`, aggiornato_il: adesso.toISOString() }
   }
   if (finita(c) && rilascio.ondata === rilascio.ondate.length - 1) {
@@ -163,6 +177,7 @@ function versioneDiRitorno(ist) {
 }
 
 module.exports = {
+  daFlotta,
   TAG,
   ONDATE,
   GRUPPI,

@@ -1,49 +1,196 @@
 import { useEffect, useState } from 'react'
-import { osservaCliente, osservaIstanza, osservaRichiesta, chiediAttivazione, inviaVerificaEmail, rileggiUtente } from '../lib/db.js'
-import { statoIstanza, statoDetto, puoAttivare, urlDi, progettoDi, STATI } from '../lib/istanze.js'
-import { PIANI, MODULI, prezzoMensile, euro } from '../lib/piani.js'
+import { Link, NavLink, Navigate, Route, Routes, useLocation, useMatch } from 'react-router-dom'
+import { osservaCliente, osservaMiaIstanza, osservaMiaRichiesta, statoMiaApp, chiediAttivazione, inviaVerificaEmail, rileggiUtente, apriPortaleAbbonamento, apriLaTuaApp } from '../lib/db.js'
+import { statoIstanza, statoDetto, puoAttivare, urlDi, progettoDi, riduzioneDetta, hrefSicuro, STATI } from '../lib/istanze.js'
+import { PIANI, MODULI, prezzoMensile, prezzoAnnuale, prezzoFondatori, conIva, euro } from '../lib/piani.js'
+import { prezzoConSconto, scontoDetto } from '../lib/sconti.js'
+import { nomeStile } from '../lib/temi.js'
+import { BASE_TITOLARE, sezioniTitolare, indirizzoSezione } from '../lib/areaTitolare.js'
+import { EMAIL_CONTATTI } from '../lib/prodotto.js'
+import { aiNelPiano } from '../lib/ai.js'
 import SceltaPiano from './SceltaPiano.jsx'
 import CreditoAI from './CreditoAI.jsx'
+import TemiSuMisura from './TemiSuMisura.jsx'
 import ChiudiLocale from './ChiudiLocale.jsx'
 import ProveModuli from './ProveModuli.jsx'
+import AggiornamentiLocale from './AggiornamentiLocale.jsx'
+import IlLocale from './IlLocale.jsx'
+import OrariServizio, { AvvisoOrari } from './OrariServizio.jsx'
+import Registrati from './Registrati.jsx'
+import Anteprima from './Anteprima.jsx'
+import RinnovoLocale, { AvvisoRinnovo } from './RinnovoLocale.jsx'
+import { abbonamentoDetto } from '../lib/rinnovo.js'
 
 // LA DASHBOARD DEL TITOLARE (REQ-FLOTTA-004): il suo locale, il piano, lo
 // stato dell'istanza e, quando è attiva, l'indirizzo dell'app.
-export default function Dashboard({ utente }) {
+//
+// IN SEZIONI COL SOTTO-MENÙ (REQ-FLOTTA-084). Daniele, 12/11/2026: «quel
+// box non dovrebbe essere messo nella dashboard, o meglio da qualche altra
+// parte nel backoffice del titolare di un locale. Non basta solo la
+// dashboard.» Come il backoffice: Panoramica, Piano e moduli, Credito AI,
+// Il locale, Chiudi il locale, ognuna col suo indirizzo sotto /dashboard
+// (src/lib/areaTitolare.js). Cliente, istanza e richiesta si leggono qui,
+// una volta per tutte le sezioni: passare da una all'altra non rilegge
+// niente.
+// `chiuso`: il sito non è aperto al pubblico (REQ-FLOTTA-043, App.jsx).
+export default function Dashboard({ utente, chiuso = false }) {
   const [cliente, setCliente] = useState(undefined)
   const [istanza, setIstanza] = useState(null)
   const [richiesta, setRichiesta] = useState(null)
-  const [errore, setErrore] = useState(null)
-  const [avviso, setAvviso] = useState(null)
+  // ISTANZA E TITOLARE SCOLLEGATI (REQ-FLOTTA-086). Istanza e richiesta
+  // arrivano dalla query sul suo uid: vuota vuol dire «non c'è» oppure «c'è,
+  // ma è legata a un altro account». `vuota`: la query dell'istanza ha
+  // risposto e non l'ha trovata; allora, una volta, si chiede alla regia
+  // (`app`). `errori`: le letture fallite.
+  const [vuota, setVuota] = useState(false)
+  const [app, setApp] = useState(null)
+  const [errori, setErrori] = useState({ istanza: false, richiesta: false })
+  // Gli avvisi che si dicono per primi stanno in cima alla panoramica, sopra
+  // il nome del locale; nelle altre sezioni c'è la sezione e basta.
+  const inPanoramica = Boolean(useMatch(BASE_TITOLARE))
+  const { pathname, search } = useLocation()
 
   useEffect(() => osservaCliente(utente.uid, setCliente), [utente.uid])
   useEffect(() => {
     if (!cliente?.slug) return undefined
-    const a = osservaIstanza(cliente.slug, setIstanza)
-    const b = osservaRichiesta(cliente.slug, setRichiesta)
+    const errore = (quale) => () => setErrori((e) => ({ ...e, [quale]: true }))
+    const a = osservaMiaIstanza(
+      utente.uid,
+      cliente.slug,
+      (d) => {
+        setIstanza(d)
+        setVuota(!d)
+        setErrori((e) => ({ ...e, istanza: false }))
+      },
+      errore('istanza')
+    )
+    const b = osservaMiaRichiesta(
+      utente.uid,
+      cliente.slug,
+      (d) => {
+        setRichiesta(d)
+        setErrori((e) => ({ ...e, richiesta: false }))
+      },
+      errore('richiesta')
+    )
     return () => {
       a()
       b()
     }
-  }, [cliente?.slug])
+  }, [utente.uid, cliente?.slug])
+  // Una volta sola, e solo con la query dell'istanza vuota: per un cliente
+  // nuovo è «nessuna» e tutto resta com'era. Se la regia non risponde si fa
+  // come prima («Non ancora attivata»): l'attivazione la ricontrolla
+  // comunque il server (preparaRichiesta), che non ne lancia una seconda.
+  useEffect(() => {
+    if (!vuota || app !== null) return undefined
+    let viva = true
+    statoMiaApp()
+      .then((r) => viva && setApp(r?.app || 'nessuna'))
+      .catch(() => viva && setApp('nessuna'))
+    return () => {
+      viva = false
+    }
+  }, [vuota, app])
 
+  // /dashboard/ con la barra finale (scritto a mano) è la panoramica: senza
+  // questo nessuna voce del menù resta accesa (revisione del 13/11/2026).
+  if (pathname === `${BASE_TITOLARE}/`) return <Navigate to={`${BASE_TITOLARE}${search}`} replace />
   if (cliente === undefined) return <main className="pagina stretta muted">Carico…</main>
+  // Un account senza locale (entrato con Google la prima volta, o una
+  // registrazione interrotta) completa qui i dati (REQ-FLOTTA-038).
+  // L'amministratore della regia non ha un locale.
+  // Col sito chiuso (REQ-FLOTTA-043) no: la registrazione è l'anteprima
+  // anche da qui, altrimenti chi entrava con Google si registrava lo stesso
+  // (audit del 09/11/2026, finding 26). Chi ha già un locale lo vede.
+  if (!cliente && !utente.admin) return chiuso ? <Anteprima lingua="it" /> : <Registrati completa={utente} />
   if (!cliente) return <main className="pagina stretta">Nessun locale registrato per questo account.</main>
 
-  const stato = statoIstanza(istanza, richiesta)
-  const via = puoAttivare(cliente, istanza, richiesta, { emailVerificata: utente.emailVerificata !== false })
-  const piano = cliente.piano ? PIANI[cliente.piano] : null
+  const illeggibile = errori.istanza || (errori.richiesta && !istanza) || (!istanza && app === 'scollegata')
+  const stato = statoIstanza(istanza, richiesta, { illeggibile })
+  // Il Free non ha l'AI (REQ-FLOTTA-087): né la sezione del credito né il
+  // tema dal mockup.
+  const ai = aiNelPiano(cliente, istanza)
+  // I dati del locale stanno per essere cancellati: si dice per primo.
+  const cancellazione = ['programmata', 'in coda', 'in corso'].includes(istanza?.eliminazione?.stato)
 
-  const attiva = async () => {
-    setErrore(null)
-    try {
-      // Il server rilegge tutto da sé: qui non si passa niente (audit C2).
-      await chiediAttivazione()
-    } catch (e) {
-      setErrore(e.message)
-    }
-  }
+  return (
+    <main className="pagina dashboard">
+      {inPanoramica && <AvvisoEmail utente={utente} />}
+      {inPanoramica && cancellazione && <ChiudiLocale istanza={istanza} />}
+      {/* Il locale sospeso o chiuso, o il pagamento che non va (REQ-FLOTTA-090): l'avviso porta al riquadro in «Piano e moduli». */}
+      {inPanoramica && <AvvisoRinnovo cliente={cliente} istanza={istanza} />}
+      {/* Gli orari di servizio che mancano (REQ-FLOTTA-095): un locale di prima, o creato dall'admin. */}
+      {inPanoramica && <AvvisoOrari cliente={cliente} />}
+      <header className="dashboard-testa">
+        <h2>{cliente.nome_locale}</h2>
+        <p className="muted small">
+          {/* Il progetto lo dice l'istanza: un locale esistente (la Tana) non è drinkpos-<slug>. */}
+          Identificativo: <code>{cliente.slug}</code> · progetto <code>{istanza?.simulata ? 'simulato' : istanza?.progetto || progettoDi(cliente.slug)}</code>
+        </p>
+      </header>
+      <SottoMenu ai={ai} />
+      <Routes>
+        <Route index element={<Panoramica utente={utente} cliente={cliente} istanza={istanza} richiesta={richiesta} stato={stato} illeggibile={illeggibile} ai={ai} />} />
+        <Route path="piano" element={<PianoEModuli cliente={cliente} istanza={istanza} />} />
+        {/* Senza app attiva e senza credito il riquadro del credito non ha
+            niente da dire (CreditoAI): la sezione dice perché è vuota. */}
+        <Route
+          path="credito-ai"
+          element={
+            !ai ? (
+              <Navigate to={BASE_TITOLARE} replace />
+            ) : (
+              <CreditoAI
+                slug={cliente.slug}
+                istanzaAttiva={stato === STATI.ATTIVA}
+                senza={
+                  <section className="card" aria-label="Credito AI">
+                    <h3>Credito AI</h3>
+                    <p className="muted">Il credito serve alle funzioni AI dell’app: si ricarica da qui quando l’app è attiva.</p>
+                  </section>
+                }
+              />
+            )
+          }
+        />
+        {/* Gli orari di servizio stanno coi dati del locale (REQ-FLOTTA-095). */}
+        <Route
+          path="locale"
+          element={
+            <>
+              <IlLocale cliente={cliente} />
+              <OrariServizio cliente={cliente} />
+            </>
+          }
+        />
+        <Route path="chiudi" element={<ChiudiLocale istanza={istanza} />} />
+        {/* Un indirizzo che non c'è (un link vecchio) porta alla panoramica, non a una pagina vuota. */}
+        <Route path="*" element={<Navigate to={BASE_TITOLARE} replace />} />
+      </Routes>
+    </main>
+  )
+}
 
+// IL SOTTO-MENÙ, lo stesso del backoffice (index.css, .sotto-menu): la voce
+// attiva con aria-current, che mette NavLink. `end`: la panoramica è
+// /dashboard e non deve restare accesa nelle sezioni sotto.
+function SottoMenu({ ai }) {
+  return (
+    <nav className="sotto-menu" aria-label="Sezioni dell’area del titolare">
+      {sezioniTitolare({ ai }).map((s) => (
+        <NavLink key={s.id || 'panoramica'} to={indirizzoSezione(s.id)} end>
+          {s.nome}
+        </NavLink>
+      ))}
+    </nav>
+  )
+}
+
+// L'email da confermare: senza, l'app non si attiva.
+function AvvisoEmail({ utente }) {
+  const [avviso, setAvviso] = useState(null)
+  if (utente.emailVerificata !== false) return null
   const rimanda = async () => {
     setAvviso(null)
     try {
@@ -57,88 +204,265 @@ export default function Dashboard({ utente }) {
     const ok = await rileggiUtente().catch(() => false)
     setAvviso(ok ? 'Email confermata.' : 'Non risulta ancora confermata: apri il link nel messaggio.')
   }
+  return (
+    <section className="card avviso avviso-email" role="status">
+      <p>
+        <strong>Conferma la tua email.</strong> Ti abbiamo scritto a {utente.email}: apri il link nel messaggio. Senza, l’app non
+        si attiva.
+      </p>
+      <div className="azioni">
+        <button type="button" className="btn ghost small" onClick={rimanda}>
+          Invia di nuovo
+        </button>
+        <button type="button" className="btn ghost small" onClick={verificata}>
+          Ho confermato
+        </button>
+      </div>
+      {avviso && <p className="muted small">{avviso}</p>}
+    </section>
+  )
+}
+
+// Il piano del cliente e quanto paga, per il riepilogo della panoramica e
+// per «Piano e moduli». Il prezzo coi centesimi e «+ IVA», col totale
+// accanto (DEC-0005); chi paga l'anno vede l'anno. Un Fondatore, finché
+// l'offerta vale (abbonamento.fondatore.fino_al, scritto dal webhook:
+// REQ-FLOTTA-031), vede il suo prezzo: il coupon Stripe toglie la
+// differenza dal piano, quindi moduli e terminali in più restano a listino.
+// Un codice sconto della regia (REQ-FLOTTA-028) si applica sul mese che
+// resta.
+function pianoDi(cliente) {
+  const piano = cliente.piano ? PIANI[cliente.piano] : null
+  if (!piano) return { piano: null, testo: null }
+  const annuale = cliente.abbonamento?.intervallo === 'anno' && !piano.gratuito
+  const fondatore = cliente.abbonamento?.fondatore
+  const scontoFondatore =
+    fondatore && new Date(fondatore.fino_al) > new Date() && prezzoFondatori(cliente.piano) != null ? piano.prezzo - prezzoFondatori(cliente.piano) : 0
+  const mensile = prezzoConSconto(prezzoMensile(cliente) - scontoFondatore, cliente)
+  const prezzo = annuale ? prezzoAnnuale(mensile) : Math.round(mensile * 100) / 100
+  const testo = piano.gratuito ? `${euro(0)} al mese` : `${euro(prezzo)} + IVA ${annuale ? 'all’anno' : 'al mese'} (${euro(conIva(prezzo))} IVA inclusa)`
+  return { piano, testo }
+}
+
+const abbonamentoFermo = (cliente) => Boolean(cliente.abbonamento?.stato) && cliente.abbonamento.stato !== 'attivo'
+
+// LA PANORAMICA: come va il locale. L'app e il suo stato, gli
+// aggiornamenti e i temi su misura (arrivano all'app con la licenza: con
+// l'app attiva), e il riepilogo del piano che porta a «Piano e moduli».
+// DUE COLONNE, OGNUNA UNA PILA (REQ-FLOTTA-062, Daniele, 11/11/2026: «tutti
+// i box sono sfalsati, quello sotto è lontanissimo»): in una pila ogni
+// riquadro sta subito sotto il precedente, qualunque altezza abbia. A
+// sinistra, più larga, l'app e quello che si compila; a destra il
+// riepilogo del piano.
+function Panoramica({ utente, cliente, istanza, richiesta, stato, illeggibile, ai }) {
+  const { search } = useLocation()
+  // Il ritorno da Stripe arriva su /dashboard (le Functions scrivono lì
+  // success_url e cancel_url): si va alla sezione dove se ne parla, con lo
+  // stesso indirizzo, che CreditoAI e «Piano e moduli» leggono.
+  const ritorno = new URLSearchParams(search)
+  if (ritorno.has('ricarica')) return <Navigate to={`${indirizzoSezione('credito-ai')}${search}`} replace />
+  if (ritorno.has('pagamento')) return <Navigate to={`${indirizzoSezione('piano')}${search}`} replace />
+  const attiva = stato === STATI.ATTIVA
+  return (
+    <div className="dashboard-colonne">
+      <div className="pila principale">
+        <AppDelLocale utente={utente} cliente={cliente} istanza={istanza} richiesta={richiesta} stato={stato} illeggibile={illeggibile} />
+        {/* Le versioni nuove e le condizioni degli aggiornamenti (REQ-FLOTTA-020). */}
+        {attiva && <AggiornamentiLocale istanza={istanza} />}
+        {/* I temi su misura (REQ-FLOTTA-040) arrivano all'app con la licenza: con l'app attiva. */}
+        {attiva && <TemiSuMisura uid={utente.uid} slug={cliente.slug} ai={ai} />}
+      </div>
+      <div className="pila accanto">
+        <RiepilogoPiano cliente={cliente} />
+      </div>
+    </div>
+  )
+}
+
+function AppDelLocale({ utente, cliente, istanza, richiesta, stato, illeggibile }) {
+  const [errore, setErrore] = useState(null)
+  const via = puoAttivare(cliente, istanza, richiesta, { emailVerificata: utente.emailVerificata !== false, illeggibile })
+  // L'indirizzo dell'app: quello scritto dal provisioning se è un https
+  // (hrefSicuro), altrimenti quello che l'istanza avrà per il suo slug.
+  const indirizzoApp = hrefSicuro(istanza?.url) || urlDi(cliente.slug)
+
+  const attiva = async () => {
+    setErrore(null)
+    try {
+      // Il server rilegge tutto da sé: qui non si passa niente (audit C2).
+      await chiediAttivazione()
+    } catch (e) {
+      setErrore(e.message)
+    }
+  }
+
+  // Nella propria app senza password (REQ-FLOTTA-030).
+  const apri = async () => {
+    setErrore(null)
+    try {
+      window.location.href = (await apriLaTuaApp()).url
+    } catch (e) {
+      setErrore(e.message)
+    }
+  }
 
   return (
-    <main className="pagina stretta">
-      {utente.emailVerificata === false && (
-        <section className="card avviso" role="status">
-          <strong>Conferma la tua email.</strong> Ti abbiamo scritto a {utente.email}: apri il link nel messaggio. Senza, l’app non si
-          attiva.
-          <div className="azioni">
-            <button type="button" className="btn ghost small" onClick={rimanda}>
-              Invia di nuovo
-            </button>
-            <button type="button" className="btn ghost small" onClick={verificata}>
-              Ho confermato
-            </button>
-          </div>
-          {avviso && <p className="muted small">{avviso}</p>}
-        </section>
-      )}
-      <section className="card">
-        <h2>{cliente.nome_locale}</h2>
-        <p className="muted small">
-          Identificativo: <code>{cliente.slug}</code> · progetto <code>{progettoDi(cliente.slug)}</code>
-        </p>
-        <h3>Piano</h3>
-        {piano ? (
-          <p>
-            <strong>{piano.nome}</strong> · {euro(prezzoMensile(cliente))} al mese
-            {cliente.moduli?.length > 0 && (
-              <span className="muted"> · moduli: {cliente.moduli.map((id) => MODULI.find((m) => m.id === id)?.nome || id).join(', ')}</span>
-            )}
-            {cliente.terminali > 1 && <span className="muted"> · {cliente.terminali} terminali</span>}
-            {/* I limiti del Free si dicono qui, chiari (REQ-FLOTTA-015). */}
-            {piano.limiti && (
-              <span className="muted small" data-testid="limiti-piano">
-                {' '}
-                · fino a {piano.limiti.prodotti_max} prodotti nel menù e {piano.limiti.conti_aperti_max} conti aperti insieme
-                {piano.limiti.utenti_max === 1 && ', solo il titolare'}
-                {piano.limiti.sconti === false && ', senza sconti'}, storico degli ultimi {piano.limiti.storico_giorni} giorni
-              </span>
-            )}
-          </p>
-        ) : (
-          <p className="muted">Nessun piano ancora: scegline uno qui sotto.</p>
-        )}
-        {cliente.abbonamento?.stato && cliente.abbonamento.stato !== 'attivo' && (
-          <p className="errore small">Abbonamento {cliente.abbonamento.stato}.</p>
-        )}
-        <h3>Istanza</h3>
+    <section className="card" aria-label="L’app">
+      <h3>L’app</h3>
+      <p>
+        <strong data-testid="stato-istanza">{statoDetto(stato)}</strong>
+        {istanza?.aggiornata_il && <span className="muted small"> · {new Date(istanza.aggiornata_il).toLocaleString('it-IT')}</span>}
+      </p>
+      {stato === STATI.ATTIVA && (
         <p>
-          <strong data-testid="stato-istanza">{statoDetto(stato)}</strong>
-          {istanza?.aggiornata_il && <span className="muted small"> · {new Date(istanza.aggiornata_il).toLocaleString('it-IT')}</span>}
+          L’app è su <a href={indirizzoApp}>{indirizzoApp}</a>. Sei l’admin del
+          locale con l’email di questo account: ti abbiamo scritto per impostare la password. Se non trovi il messaggio, usa
+          «password dimenticata» nell’app.
+          {istanza?.versione && <span className="muted small"> Versione {istanza.versione}.</span>}
         </p>
-        {stato === STATI.ATTIVA && (
-          <p>
-            L’app è su <a href={istanza?.url || urlDi(cliente.slug)}>{istanza?.url || urlDi(cliente.slug)}</a>. L’accesso
-            admin è l’email di questo account: la password la imposti al primo accesso con «password dimenticata».
-            {istanza?.versione && <span className="muted small"> Versione {istanza.versione}.</span>}
-          </p>
-        )}
-        {stato === STATI.ERRORE && istanza?.errore && <p className="errore small">{istanza.errore}</p>}
-        {(stato === STATI.DA_ATTIVARE || stato === STATI.ERRORE) && (
-          <>
-            <button className="btn" type="button" disabled={!via.ok} onClick={attiva}>
-              Attiva l’istanza
-            </button>
-            {!via.ok && <p className="muted small">{via.perche}</p>}
-          </>
-        )}
-        {errore && <p className="errore">{errore}</p>}
-      </section>
-      <CreditoAI slug={cliente.slug} istanzaAttiva={stato === STATI.ATTIVA} />
-      <ProveModuli cliente={cliente} istanza={istanza} />
+      )}
+      {stato === STATI.ATTIVA && (
+        <button className="btn" type="button" onClick={apri}>
+          Apri la tua app
+        </button>
+      )}
+      {stato === STATI.ERRORE && istanza?.errore && <p className="errore small">{istanza.errore}</p>}
+      {/* L'app c'è ma non si vede da qui (REQ-FLOTTA-086): niente «Attiva»,
+          che non servirebbe, e a chi scrivere. */}
+      {stato === STATI.ILLEGGIBILE && (
+        <p className="small">
+          Scrivici a <a href={`mailto:${EMAIL_CONTATTI}`}>{EMAIL_CONTATTI}</a>: controlliamo noi il collegamento fra l’app e questo account.
+        </p>
+      )}
+      {(stato === STATI.DA_ATTIVARE || stato === STATI.ERRORE) && (
+        <>
+          <button className="btn" type="button" disabled={!via.ok} onClick={attiva}>
+            Attiva l’istanza
+          </button>
+          {!via.ok && <p className="muted small">{via.perche}</p>}
+        </>
+      )}
+      {errore && <p className="errore">{errore}</p>}
+    </section>
+  )
+}
+
+// Il riepilogo della panoramica: il nome del piano e quanto costa. Il
+// dettaglio, la gestione dell'abbonamento e i cambi stanno in «Piano e
+// moduli».
+function RiepilogoPiano({ cliente }) {
+  const { piano, testo } = pianoDi(cliente)
+  return (
+    <section className="card" aria-label="Il tuo piano">
+      <h3>Il tuo piano</h3>
+      {piano ? (
+        <p>
+          <strong>{piano.nome}</strong> · <span data-testid="riepilogo-piano">{testo}</span>
+        </p>
+      ) : (
+        <p className="muted">Nessun piano ancora.</p>
+      )}
+      {/* Lo stato a parole, mai quello grezzo di Stripe (REQ-FLOTTA-090). */}
+      {abbonamentoFermo(cliente) && <p className="errore small">Abbonamento {abbonamentoDetto(cliente.abbonamento.stato)}.</p>}
+      <p className="small">
+        <Link to={indirizzoSezione('piano')}>{piano ? 'Dettagli e cambi in «Piano e moduli»' : 'Scegli il piano in «Piano e moduli»'}</Link>
+      </p>
+    </section>
+  )
+}
+
+// «PIANO E MODULI»: il piano attuale con la gestione dell'abbonamento, le
+// prove dei moduli, e sotto la scelta o il cambio del piano, larga quanto
+// la pagina.
+function PianoEModuli({ cliente, istanza }) {
+  const { search } = useLocation()
+  return (
+    <>
+      {/* In cima: il locale sospeso o chiuso, e come si rinnova (REQ-FLOTTA-090). Qui arriva rinnovo_url. */}
+      <RinnovoLocale cliente={cliente} istanza={istanza} />
+      {new URLSearchParams(search).get('pagamento') === 'ok' && (
+        <p className="muted small" role="status">
+          Pagamento ricevuto: l’abbonamento compare qui sotto appena Stripe ce lo conferma, di solito in pochi secondi.
+        </p>
+      )}
+      <div className="pila">
+        <RiquadroPiano cliente={cliente} istanza={istanza} />
+        <ProveModuli cliente={cliente} istanza={istanza} />
+      </div>
       {/* Senza un abbonamento attivo si sceglie (o si rinnova) il piano. Dal
           Free a un piano a pagamento si passa dal Checkout, non da «modifica»
           (REQ-FLOTTA-015). */}
-      {(cliente.abbonamento?.stato !== 'attivo' || cliente.abbonamento?.origine === 'gratuito') && <SceltaPiano cliente={cliente} />}
-      {cliente.abbonamento?.stato === 'attivo' && cliente.abbonamento?.origine !== 'gratuito' && <SceltaPiano cliente={cliente} modifica />}
-      {new URLSearchParams(window.location.search).get('pagamento') === 'ok' && (
-        <p className="muted small">Pagamento ricevuto: l’abbonamento compare qui sopra appena Stripe ce lo conferma, di solito in pochi secondi.</p>
+      <div className="dashboard-piano">
+        {(cliente.abbonamento?.stato !== 'attivo' || cliente.abbonamento?.origine === 'gratuito') && <SceltaPiano cliente={cliente} />}
+        {cliente.abbonamento?.stato === 'attivo' && cliente.abbonamento?.origine !== 'gratuito' && <SceltaPiano cliente={cliente} modifica />}
+      </div>
+    </>
+  )
+}
+
+function RiquadroPiano({ cliente, istanza }) {
+  const [errore, setErrore] = useState(null)
+  const { piano, testo } = pianoDi(cliente)
+
+  const gestisci = async () => {
+    setErrore(null)
+    try {
+      window.location.href = (await apriPortaleAbbonamento()).url
+    } catch (e) {
+      setErrore(e.message)
+    }
+  }
+
+  return (
+    <section className="card" aria-label="Piano">
+      <h3>Piano</h3>
+      {piano ? (
+        <p>
+          <strong>{piano.nome}</strong> · <span data-testid="prezzo-piano">{testo}</span>
+          {scontoDetto(cliente) && <span className="muted small"> · sconto {scontoDetto(cliente)}</span>}
+          {cliente.moduli?.length > 0 && (
+            <span className="muted"> · moduli: {cliente.moduli.map((id) => MODULI.find((m) => m.id === id)?.nome || id).join(', ')}</span>
+          )}
+          {cliente.terminali > 1 && <span className="muted"> · {cliente.terminali} terminali</span>}
+          {/* I temi in licenza (REQ-FLOTTA-039): gli esclusivi che il fornitore ha dato al locale. */}
+          {cliente.temi?.length > 0 && <span className="muted"> · temi: {cliente.temi.map(nomeStile).join(', ')}</span>}
+          {/* I limiti del Free si dicono qui, chiari (REQ-FLOTTA-015). */}
+          {piano.limiti && (
+            <span className="muted small" data-testid="limiti-piano">
+              {' '}
+              · fino a {piano.limiti.prodotti_max} prodotti nel menù e {piano.limiti.conti_aperti_max} conti aperti insieme
+              {piano.limiti.utenti_max === 1 && ', solo il titolare'}
+              {piano.limiti.sconti === false && ', senza sconti'}
+              {piano.limiti.comande === false && ', senza comande'}, storico degli ultimi {piano.limiti.storico_giorni} giorni
+            </span>
+          )}
+        </p>
+      ) : (
+        <p className="muted">Nessun piano ancora: scegline uno qui sotto.</p>
       )}
-      {/* In fondo, lontano dal resto: chiudere e cancellare il locale. */}
-      <ChiudiLocale istanza={istanza} />
-    </main>
+      {abbonamentoFermo(cliente) && <p className="errore small">Abbonamento {abbonamentoDetto(cliente.abbonamento.stato)}.</p>}
+      {/* Gestire l'abbonamento da soli (REQ-FLOTTA-023): con Stripe il
+          portale clienti (disdetta a fine periodo, carta, fatture); a
+          mano fino a quando è pagato, e a chi scrivere. */}
+      {cliente.abbonamento?.origine === 'stripe' && cliente.abbonamento?.stripe_customer && (
+        <button type="button" className="btn ghost small" onClick={gestisci}>
+          Gestisci l’abbonamento
+        </button>
+      )}
+      {cliente.abbonamento?.origine === 'manuale' && cliente.abbonamento?.pagato_fino_al && (
+        <p className="muted small" data-testid="pagato-fino-al">
+          Pagato fino al {new Date(cliente.abbonamento.pagato_fino_al).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}. Per
+          rinnovare o disdire scrivici.
+        </p>
+      )}
+      {/* Quello che il piano nuovo toglie arriva a fine giornata, non in
+          servizio (REQ-FLOTTA-024). */}
+      {riduzioneDetta(istanza) && (
+        <p className="muted small" data-testid="riduzione-al-taglio">
+          {riduzioneDetta(istanza)} Fino ad allora l’app resta com’è.
+        </p>
+      )}
+      {errore && <p className="errore">{errore}</p>}
+    </section>
   )
 }

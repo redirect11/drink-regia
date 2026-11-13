@@ -12,21 +12,56 @@ service cloud.firestore {
     // Il titolare: nasce alla registrazione, lo tocca solo lui (o l'admin).
     // Piano e abbonamento li scrive la regia (Functions/admin), non il
     // cliente: qui si impedisce che un cliente si assegni un piano da solo.
+    // LA CREAZIONE la fa SOLO la Function `registraCliente` (Admin SDK,
+    // fuori da queste regole), in transazione, dopo aver visto che lo slug
+    // è libero. Audit del 09/11/2026, finding 4: prima la creava il
+    // browser e la regola controllava la forma dello slug ma non che fosse
+    // di nessun altro, e una regola non può interrogare la collezione; due
+    // locali con lo stesso nome finivano sullo stesso slug, e la licenza, i
+    // dati del locale e la subscription di Stripe potevano andare al
+    // cliente sbagliato. Nessuna create dai client, a nessuna condizione.
     match /clienti/{uid} {
       allow read: if mio(uid) || admin();
-      allow create: if mio(uid)
-        && request.resource.data.keys().hasOnly(['uid', 'versione_schema', 'email', 'nome_locale', 'slug', 'locale', 'fatturazione', 'referente', 'consensi', 'creato_il'])
-        && request.resource.data.uid == uid
-        && request.resource.data.email == request.auth.token.email
-        && request.resource.data.slug.matches('^[a-z][a-z0-9-]{4,28}[a-z0-9]$')
-        && request.resource.data.fatturazione.partita_iva.matches('^[0-9]{11}$')
-        && request.resource.data.consensi.termini_il is string
-        && request.resource.data.consensi.privacy_il is string;
+      allow create: if false;
       // `interna` ed `esistente` (REQ-AI-003) li mette solo l'admin: un
       // titolare che se li scrivesse da sé uscirebbe dalla sospensione dei
       // morosi. La sospensione legge comunque il segno sull'istanza.
+      // Il titolare cambia solo i suoi dati anagrafici. Prima la regola
+      // vietava un elenco (piano, abbonamento…) e lasciava passare il resto:
+      // moduli, terminali, prove, sconto, che la regia trasforma in licenza.
+      // Un titolare poteva accendersi i moduli da solo (verifica del
+      // 02/11/2026). Ora è un elenco di quello che può cambiare.
+      // Dentro i blocchi permessi valgono gli stessi controlli della
+      // registrazione (H1, 02/11/2026; oggi li fa `registraCliente`): la
+      // partita IVA resta di 11 cifre, che serve alla fattura elettronica,
+      // e i consensi dati non si cancellano.
+      // VALIDO, O COM'ERA: un locale registrato come esistente (la Tana,
+      // documentiEsistente) nasce con `fatturazione: {}` e i consensi a
+      // null, e pretendere i valori pieni gli chiuderebbe ogni modifica.
+      // Così chi li ha validi non li può guastare, e chi non li ha ancora
+      // non resta bloccato: li può solo mettere giusti.
+      // Oggi il sito non scrive mai clienti/{uid} dal browser: registrazione,
+      // modifiche dei dati, scelta del piano, sconti e prove passano dalle
+      // Functions.
+      function nuovo(blocco, campo) {
+        return request.resource.data.get(blocco, {}).get(campo, null);
+      }
+      function vecchio(blocco, campo) {
+        return resource.data.get(blocco, {}).get(campo, null);
+      }
+      function comEra(blocco, campo) {
+        return nuovo(blocco, campo) == vecchio(blocco, campo);
+      }
       allow update: if admin()
-        || (mio(uid) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['piano', 'abbonamento', 'uid', 'slug', 'interna', 'esistente']));
+        || (mio(uid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['locale', 'fatturazione', 'referente', 'consensi'])
+          && request.resource.data.locale is map
+          && request.resource.data.referente is map
+          && request.resource.data.get('fatturazione', {}) is map
+          && request.resource.data.get('consensi', {}) is map
+          && ((nuovo('fatturazione', 'partita_iva') is string && nuovo('fatturazione', 'partita_iva').matches('^[0-9]{11}$')) || comEra('fatturazione', 'partita_iva'))
+          && (nuovo('consensi', 'termini_il') is string || comEra('consensi', 'termini_il'))
+          && (nuovo('consensi', 'privacy_il') is string || comEra('consensi', 'privacy_il')));
       allow delete: if admin();
     }
 
@@ -99,10 +134,102 @@ service cloud.firestore {
       }
     }
 
-    // Le impostazioni della regia (REQ-FLOTTA-011): il deploy automatico.
+    // Il registro degli eventi di Stripe (REQ-FLOTTA-036): una riga per
+    // event.id, perché un evento ripetuto non rifaccia i suoi effetti. Solo
+    // il webhook (Admin SDK); l'admin lo legge per capire cosa è arrivato.
+    match /eventi_stripe/{id} {
+      allow read: if admin();
+      allow write: if false;
+    }
+
+    // Il contatore dei posti Fondatori (REQ-FLOTTA-021): lo cambiano solo le
+    // Functions, in transazione; scritto da un client, varrebbe un posto
+    // regalato o tolto.
+    match /fondatori/{doc} {
+      allow read: if admin();
+      allow write: if false;
+    }
+
+    // I controlli della regia (BUG-125 di tana-drink: le licenze protette di
+    // tutti i locali): li scrivono solo le Functions, li legge l'admin.
+    // Dentro ci sono gli slug degli altri locali: un titolare non li vede.
+    match /controlli/{doc} {
+      allow read: if admin();
+      allow write: if false;
+    }
+
+    // I passaggi fra la regia e l'app (REQ-FLOTTA-030): codici d'accesso
+    // monouso. Solo le Functions: nessuno li legge né li scrive dal browser.
+    match /passaggi/{impronta} {
+      allow read, write: if false;
+    }
+
+    // Il catalogo dei temi (REQ-FLOTTA-032): lo legge l'admin dal
+    // backoffice; lo scrivono le Functions, che controllano ogni tema. Fuori
+    // esce solo dalla Function catalogoTemi, solo coi pubblicati.
+    match /temi/{id} {
+      allow read: if admin();
+      allow write: if false;
+    }
+
+    // I temi su misura di un locale (REQ-FLOTTA-040): li legge il titolare
+    // (sono suoi) e l'admin; li scrivono solo le Functions.
+    match /clienti/{uid}/temi_su_misura/{id} {
+      allow read: if mio(uid) || admin();
+      allow write: if false;
+    }
+
+    // Gli stili a ricetta (REQ-FLOTTA-034): come i temi.
+    match /stili/{id} {
+      allow read: if admin();
+      allow write: if false;
+    }
+
+    // I codici sconto (REQ-FLOTTA-028): li scrivono solo le Functions, li
+    // legge l'admin. Un titolare vede il suo sconto sul suo cliente.
+    match /sconti/{codice} {
+      allow read: if admin();
+      allow write: if false;
+    }
+
+    // Il libro dei movimenti (REQ-FLOTTA-041): ogni incasso una riga, scritta
+    // dalle Functions (il webhook di Stripe, i pagamenti registrati
+    // dall'admin). L'admin la legge nella sezione «Commerciale».
+    match /movimenti/{id} {
+      allow read: if admin();
+      allow write: if false;
+    }
+
+    // Il traffico del sito (REQ-FLOTTA-042): contatori per giorno, scritti
+    // solo dalla Function `traccia`; li legge l'admin.
+    match /traffico/{giorno} {
+      allow read: if admin();
+      allow write: if false;
+    }
+
+    // Le impostazioni della regia (REQ-FLOTTA-011): il deploy automatico, e
+    // le regole degli aggiornamenti (REQ-FLOTTA-020). Le legge solo il
+    // backoffice (src/lib/db.js: osservaImpostazioniRegia,
+    // osservaRegoleAggiornamenti, chiamate solo da Backoffice.jsx): prima
+    // le leggeva ogni autenticato, e sono informazioni interne (audit del
+    // 09/11/2026, finding 28). Le Functions le rileggono da sé.
+    // LE CHIAVI CHE PASSANO SOLO DA UNA FUNCTION (REQ-FLOTTA-092,
+    // Daniele, 13/11/2026: «il modo più sicuro»): `ai_modelli` (il modello
+    // AI per tipo di richiesta, gestisciModelliAI) e `limiti_chat` (i limiti
+    // della chat, gestisciLimitiChat, REQ-FLOTTA-094, chiusa già prima che
+    // arrivi). Nessuno le scrive da qui, nemmeno l'admin: le Functions
+    // ricontrollano i valori e scrivono con l'Admin SDK, che le regole non
+    // le guarda. Il resto di impostazioni/regia (deploy_automatico,
+    // attivazione_simulata, aggiornate_il) l'admin lo scrive come prima.
+    // Il documento non si cancella mentre le porta: le azzererebbe.
+    function chiaviSoloFunction() {
+      return ['ai_modelli', 'limiti_chat'];
+    }
     match /impostazioni/{doc} {
-      allow read: if autenticato();
-      allow write: if admin();
+      allow read: if admin();
+      allow create: if admin() && !(doc == 'regia' && request.resource.data.keys().hasAny(chiaviSoloFunction()));
+      allow update: if admin() && !(doc == 'regia' && request.resource.data.diff(resource.data).affectedKeys().hasAny(chiaviSoloFunction()));
+      allow delete: if admin() && !(doc == 'regia' && resource.data.keys().hasAny(chiaviSoloFunction()));
     }
   }
 }

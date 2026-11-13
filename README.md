@@ -24,10 +24,11 @@ npm run build
 ```
 
 **Due progetti Firebase**, come tana-drink: `drink-regia-test` per
-provare e `drink-regia` per la produzione. Un push su `develop` va sul
-test; in produzione va solo un tag su `main`, e un tag fuori da `main`
-non pubblica niente. Il lancio a mano di «Deploy to Firebase» su un ramo
-va sul test (`docs/handover.md` §3,
+provare e `drink-regia` per la produzione. A pubblicare è il tag: un tag
+fuori da `main` (`vX.Y.Z-beta` su `develop`) va sul test e poi passa il
+collaudo automatico; in produzione va solo un tag su `main`, e solo se
+quel collaudo è riuscito. Un push non pubblica mai. Il lancio a mano di
+«Deploy to Firebase» su un ramo va sul test, senza collaudo (`docs/handover.md` §3,
 `docs/actions-come-tana-drink.md`). I segreti stanno nelle GitHub
 Environments `test` e `production`, stessi nomi e valori del loro
 progetto: i quattro `VITE_FIREBASE_*` (`scripts/segreti-environment.mjs`
@@ -55,7 +56,7 @@ Ci si registra dal sito come un cliente qualsiasi, poi si dà il claim da
 qui, con le credenziali del progetto:
 
 ```sh
-node scripts/admin-regia.mjs --email <la tua email>
+node scripts/admin-regia.mjs --email <la tua email> --project <id del progetto>
 ```
 
 e si esce e rientra dal sito. Prima di tutto questo, in console Firebase
@@ -70,3 +71,9 @@ da chiudere prima della prima attivazione reale, sta in
 I prezzi stanno in `functions/piani.json`, in un posto solo. Il nome visibile del
 prodotto in `src/lib/prodotto.js`. I requisiti in
 `requirements/requirements.yaml`, coi test che li dimostrano.
+
+## Licenza
+
+Codice proprietario, tutti i diritti riservati: il repository è pubblico solo
+per usare la CI di GitHub. Le condizioni stanno in [LICENSE](LICENSE), i file
+di terzi in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

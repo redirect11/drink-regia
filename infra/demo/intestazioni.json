@@ -1,0 +1,13 @@
+{
+  "_nota": "Le intestazioni di sicurezza della demo (REQ-FLOTTA-019, revisione di sicurezza del 02/11/2026, B1 e M2). Il workflow aggiorna-istanza.yml le aggiunge a tutte le pagine di drinkpos-demo, sopra il firebase.json dell'app. connect-src 'self': il browser stesso non lascia partire nessuna richiesta verso altri indirizzi (database, Functions, la regia), anche se l'app sbagliasse. frame-ancestors 'none': la demo non si incornicia in pagine d'altri. 'unsafe-inline' solo per gli stili, che React scrive negli attributi.",
+  "headers": [
+    {
+      "key": "Content-Security-Policy",
+      "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self'; manifest-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+    },
+    { "key": "X-Content-Type-Options", "value": "nosniff" },
+    { "key": "X-Frame-Options", "value": "DENY" },
+    { "key": "Referrer-Policy", "value": "no-referrer" },
+    { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=(), serial=()" }
+  ]
+}

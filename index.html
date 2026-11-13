@@ -3,9 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0e0e15" />
-    <meta name="description" content="Cassa, comande e magazzino per bar e cocktail bar. Un'installazione per ogni locale." />
-    <title>Drink</title>
+    <meta name="theme-color" content="#0c0f0a" />
+    <!-- Il logo: la fetta di lime a torta (src/components/Logo.jsx). -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="description" content="Comande, conti e cassa, menù con QR, magazzino, statistiche e personale in un’app sola, scritta nel cocktail bar che la usa ogni sera. Ogni locale ha la sua installazione e i suoi dati, e lavora anche senza rete." />
+    <!-- Il titolo della prima pagina è in Playfair Display (DESIGN.md §4): il
+         peso 700 si chiede subito, perché è la parte più grande della prima
+         schermata. Solo sulla prima pagina (/ e /en): index.html è lo stesso
+         per tutte le rotte, e sulle altre il font non serve, quindi un
+         preload fisso scaricherebbe 23 KB per niente (e Chrome lo segnala). -->
+    <script>
+      if (/^\/(en\/?)?$/i.test(location.pathname)) {
+        var l = document.createElement('link')
+        l.rel = 'preload'; l.as = 'font'; l.type = 'font/woff2'; l.crossOrigin = 'anonymous'
+        l.href = '/fonts/playfair-display-latin-700-normal.woff2'
+        document.head.appendChild(l)
+      }
+    </script>
+    <title>Lime – SmartOrders · Comande, cassa e gestione del locale</title>
   </head>
   <body>
     <div id="root"></div>

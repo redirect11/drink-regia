@@ -224,6 +224,11 @@ resource "google_project_iam_member" "deploy" {
 # licenza (scripts/licenza-istanza.mjs). Chi crea il progetto
 # nell'organizzazione ne è anche proprietario; senza organizzazione il
 # ruolo di proprietario lo dà l'utente quando crea il progetto a mano.
+# Crea anche l'account del titolare con l'uid della regia
+# (scripts/titolare-istanza.mjs, M7): getUser, createUser con uid,
+# setCustomUserClaims e, per un segnaposto mai usato, deleteUser. Bastano i
+# permessi firebaseauth.users.* che roles/firebase.admin già comprende: non
+# serve un ruolo in più.
 resource "google_project_iam_member" "provisioning" {
   provider = google-beta
   for_each = var.provisioning_sa_email == "" ? toset([]) : toset([
@@ -291,6 +296,49 @@ resource "google_project_iam_member" "regia" {
   project  = google_project.istanza.project_id
   role     = "roles/datastore.user"
   member   = "serviceAccount:${var.regia_sa_email}"
+}
+
+# IL PASSAGGIO FRA LA REGIA E L'APP (REQ-FLOTTA-030): la regia legge
+# l'account del titolare nel locale (è lui, è admin?) e firma l'accesso
+# COME l'account dell'SDK di Firebase del progetto, perché Firebase accetta
+# solo accessi firmati da un account del suo progetto. Firmare non dà altri
+# permessi: niente lettura né scrittura in più.
+resource "google_project_iam_member" "regia_account" {
+  provider = google-beta
+  project  = google_project.istanza.project_id
+  role     = "roles/firebaseauth.viewer"
+  member   = "serviceAccount:${var.regia_sa_email}"
+}
+
+resource "google_service_account_iam_member" "regia_firma" {
+  provider           = google-beta
+  service_account_id = "projects/${google_project.istanza.project_id}/serviceAccounts/firebase-adminsdk-fbsvc@${google_project.istanza.project_id}.iam.gserviceaccount.com"
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${var.regia_sa_email}"
+  depends_on         = [google_firebase_project.firebase]
+}
+
+# L'ACCOUNT DELL'AI DEL LOCALE (REQ-FLOTTA-077): la Function AI dell'app
+# gira con questo, e la regia la riconosce dal suo indirizzo, che porta il
+# nome del progetto. Niente chiavi: il gettone lo firma Google. Gli serve
+# quello che serve a una Function: Firestore e log del suo progetto. Il
+# deploy lo può già usare (roles/iam.serviceAccountUser, sopra).
+resource "google_service_account" "ai_locale" {
+  provider     = google-beta
+  project      = google_project.istanza.project_id
+  account_id   = "ai-locale"
+  display_name = "L'AI del locale verso la regia"
+}
+
+resource "google_project_iam_member" "ai_locale" {
+  provider = google-beta
+  for_each = toset([
+    "roles/datastore.user",
+    "roles/logging.logWriter",
+  ])
+  project = google_project.istanza.project_id
+  role    = each.value
+  member  = "serviceAccount:${google_service_account.ai_locale.email}"
 }
 
 # Quello che il workflow mette nel .env della build (VITE_FIREBASE_*).

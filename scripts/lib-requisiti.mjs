@@ -40,7 +40,7 @@ export function parseRequirementsYaml(text) {
         requirements.push(current)
       }
       inTestCases = false
-      current = { id: '', title: '', area: '', description: '', status: 'todo', generate_issue: false, labels: [], test_cases: [], in_produzione: null, severity: null, priority: null }
+      current = { id: '', title: '', area: '', description: '', status: 'todo', generate_issue: false, issue_a_posteriori: false, labels: [], test_cases: [], in_produzione: null, severity: null, priority: null }
       current.id = line.replace(/^  - id:\s*/, '').trim()
       continue
     }
@@ -103,6 +103,10 @@ export function parseRequirementsYaml(text) {
         break
       case 'generate_issue':
         current.generate_issue = value.trim() === 'true'
+        break
+      // REQ-DEV-015: una voce nata già fatta chiede la sua issue lo stesso.
+      case 'issue_a_posteriori':
+        current.issue_a_posteriori = value.trim() === 'true'
         break
       // Solo per i bug: dice se succede sull'installazione che sta
       // lavorando. Assente = non si sa, e l'issue non dichiara niente
@@ -263,8 +267,22 @@ export function prossimoStato(attuale, destinazione) {
 export function deveNascere(req, esisteGia) {
   if (esisteGia) return false
   if (!req?.generate_issue) return false
-  return !STATI_CHIUSI.has(String(req?.status || '').toLowerCase())
+  const stato = String(req?.status || '').toLowerCase()
+  // A POSTERIORI (REQ-DEV-015): una voce scritta già fatta non ha mai avuto
+  // la sua issue. Se il registro lo chiede, nasce lo stesso, e poi segue la
+  // strada delle altre. Mai per una scartata: non c'è lavoro da raccontare.
+  if (req?.issue_a_posteriori === true && STATI_FATTI.has(stato)) return true
+  return !STATI_CHIUSI.has(stato)
 }
+
+// L'issue nata a posteriori si riconosce: un'etichetta per filtrarle, e una
+// riga nel testo per chi la apre senza sapere perché è nata chiusa o in prova.
+export const A_POSTERIORI = 'a-posteriori'
+export const etichetteAPosteriori = (req) => (req?.issue_a_posteriori === true ? [A_POSTERIORI] : [])
+export const rigaAPosteriori = (req) =>
+  req?.issue_a_posteriori === true && STATI_FATTI.has(String(req?.status || '').toLowerCase())
+    ? '\n> Nata a posteriori: il lavoro era già fatto quando la voce è entrata nel registro (REQ-DEV-015).\n'
+    : ''
 
 // GLI STATI CHE CHIUDONO UN'ISSUE, in due famiglie che GitHub distingue e
 // che vanno tenute distinte anche qui: una cosa fatta e una cosa che

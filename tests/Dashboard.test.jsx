@@ -7,27 +7,45 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import '@testing-library/jest-dom/vitest'
+import { EMAIL_CONTATTI } from '../src/lib/prodotto.js'
 
-const stato = vi.hoisted(() => ({ cliente: null, istanza: null, richiesta: null }))
+const stato = vi.hoisted(() => ({ cliente: null, istanza: null, richiesta: null, erroreIstanza: false, erroreRichiesta: false, app: 'nessuna' }))
 const db = vi.hoisted(() => ({
   osservaCliente: vi.fn((uid, cb) => {
     cb(stato.cliente)
     return () => {}
   }),
-  osservaIstanza: vi.fn((slug, cb) => {
-    cb(stato.istanza)
+  // Istanza e richiesta dalla query sul suo uid (REQ-FLOTTA-086): null se
+  // la query è vuota; un errore di lettura arriva al quarto argomento, come
+  // l'errore di onSnapshot.
+  osservaMiaIstanza: vi.fn((uid, slug, cb, errore) => {
+    if (stato.erroreIstanza) errore?.(Object.assign(new Error('Errore di rete.'), { code: 'unavailable' }))
+    else cb(stato.istanza)
     return () => {}
   }),
-  osservaRichiesta: vi.fn((slug, cb) => {
-    cb(stato.richiesta)
+  osservaMiaRichiesta: vi.fn((uid, slug, cb, errore) => {
+    if (stato.erroreRichiesta) errore?.(Object.assign(new Error('Errore di rete.'), { code: 'unavailable' }))
+    else cb(stato.richiesta)
     return () => {}
   }),
+  // Quello che la regia dice dell'app quando la query dell'istanza è vuota.
+  statoMiaApp: vi.fn(async () => ({ app: stato.app })),
   chiediAttivazione: vi.fn(async () => {}),
+  apriPortaleAbbonamento: vi.fn(async () => ({ url: 'about:blank#portale' })),
+  // Il rinnovo del locale sospeso (REQ-FLOTTA-090) ha i suoi test in RinnovoLocale.test.jsx.
+  apriPagamentoRinnovo: vi.fn(),
+  apriLaTuaApp: vi.fn(async () => ({ url: 'about:blank#app' })),
 }))
 vi.mock('../src/lib/db.js', () => ({
   ...db,
+  // Senza locale la dashboard mostra Registrati (REQ-FLOTTA-038), che ha i
+  // suoi test in AccessoGoogle.test.jsx: qui basta che si monti.
+  esci: vi.fn(),
+  completaRegistrazione: vi.fn(),
   avviaPagamento: vi.fn(),
   cambiaScelta: vi.fn(async () => ({ ok: true })),
   // Il credito AI (REQ-AI-003) ha i suoi test in CreditoAI.test.jsx: qui
@@ -38,6 +56,11 @@ vi.mock('../src/lib/db.js', () => ({
   },
   ultimiConsumiAI: vi.fn(async () => []),
   avviaRicaricaAI: vi.fn(),
+  // I temi su misura (REQ-FLOTTA-040) hanno i loro test in TemiSuMisura.test.jsx.
+  osservaTemiSuMisura: (uid, cb) => {
+    cb([])
+    return () => {}
+  },
   // La vendita (REQ-FLOTTA-015): qui il Free è in vendita.
   // E i pagamenti online accesi (REQ-FLOTTA-017).
   osservaVendita: (cb) => {
@@ -52,36 +75,180 @@ vi.mock('../src/lib/db.js', () => ({
   scegliFree: vi.fn(async () => ({ ok: true })),
   gestisciEliminazione: vi.fn(),
   scaricaArchivio: vi.fn(),
+  // Gli aggiornamenti a scelta (REQ-FLOTTA-020) hanno i loro test in
+  // AggiornamentiLocale.test.jsx.
+  sceltaAggiornamento: vi.fn(async () => ({ ok: true })),
 }))
 
 import Dashboard from '../src/pages/Dashboard.jsx'
 
-const FUTURO = { v7_startTransition: true, v7_relativeSplatPath: true }
-const mostra = () =>
+// Montata come in App.jsx: dal 12/11/2026 la dashboard è un'area con le
+// sue sezioni sotto /dashboard (REQ-FLOTTA-084). Il piano, il suo prezzo e
+// la scelta stanno in «Piano e moduli» (/dashboard/piano).
+const mostra = (percorso = '/dashboard', utente = { uid: 'u1', email: 'mario@example.it' }) =>
   render(
-    <MemoryRouter future={FUTURO}>
-      <Dashboard utente={{ uid: 'u1', email: 'mario@example.it' }} />
+    <MemoryRouter initialEntries={[percorso]}>
+      <Routes>
+        <Route path="/dashboard/*" element={<Dashboard utente={utente} />} />
+      </Routes>
     </MemoryRouter>
   )
+const PIANO = '/dashboard/piano'
 
 beforeEach(() => {
   vi.clearAllMocks()
   stato.cliente = { uid: 'u1', slug: 'bar-mario', nome_locale: 'Bar Mario', piano: 'base', moduli: ['staff'], terminali: 2, abbonamento: { stato: 'attivo' } }
   stato.istanza = null
   stato.richiesta = null
+  stato.erroreIstanza = false
+  stato.erroreRichiesta = false
+  stato.app = 'nessuna'
 })
 
 describe('la dashboard', () => {
-  it('dice locale, piano col prezzo del mese e stato dell’istanza', () => {
+  // Audit del 09/11/2026, finding 26 (REQ-FLOTTA-055): col sito chiuso un
+  // account senza locale (entrato con Google) non completa la registrazione
+  // dalla dashboard: vede l'anteprima, come da /registrati.
+  it('senza locale: completa la registrazione; col sito chiuso, l’anteprima', () => {
+    stato.cliente = null
+    const { unmount } = mostra()
+    expect(screen.getByRole('heading', { name: 'Completa la registrazione' })).toBeInTheDocument()
+    expect(screen.queryByText('Il sito apre a breve.')).toBeNull()
+    unmount()
+    render(
+      <MemoryRouter>
+        <Dashboard utente={{ uid: 'u1', email: 'mario@example.it' }} chiuso />
+      </MemoryRouter>
+    )
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Il sito apre a breve.')
+    expect(screen.queryByRole('heading', { name: /Completa la registrazione/ })).toBeNull()
+  })
+
+  it('con un locale, col sito chiuso, la dashboard resta la sua', () => {
+    render(
+      <MemoryRouter>
+        <Dashboard utente={{ uid: 'u1', email: 'mario@example.it' }} chiuso />
+      </MemoryRouter>
+    )
+    expect(screen.getByText('Bar Mario')).toBeInTheDocument()
+    expect(screen.queryByText('Il sito apre a breve.')).toBeNull()
+  })
+
+  // REQ-FLOTTA-030: dalla regia alla propria app senza password.
+  it('con l’app attiva c’è «Apri la tua app»; se non si apre lo dice', async () => {
+    const user = userEvent.setup()
+    stato.istanza = { stato: 'attiva', progetto: 'drinkpos-bar-mario', url: 'https://drinkpos-bar-mario.web.app' }
     mostra()
+    await user.click(screen.getByRole('button', { name: 'Apri la tua app' }))
+    expect(db.apriLaTuaApp).toHaveBeenCalledTimes(1)
+    db.apriLaTuaApp.mockRejectedValueOnce(new Error('Nel locale il tuo account non è admin.'))
+    await user.click(screen.getByRole('button', { name: 'Apri la tua app' }))
+    expect(await screen.findByText('Nel locale il tuo account non è admin.')).toBeInTheDocument()
+  })
+
+  it('senza app attiva niente «Apri la tua app»', () => {
+    mostra()
+    expect(screen.queryByRole('button', { name: 'Apri la tua app' })).toBeNull()
+  })
+
+  // REQ-FLOTTA-023: l'abbonamento si gestisce da soli (disdetta, carta,
+  // fatture) col portale di Stripe; a mano si vede fino a quando è pagato.
+  it('con Stripe c’è «Gestisci l’abbonamento», che apre il portale', async () => {
+    const user = userEvent.setup()
+    stato.cliente = { ...stato.cliente, abbonamento: { stato: 'attivo', origine: 'stripe', stripe_customer: 'cus_1' } }
+    mostra(PIANO)
+    await user.click(screen.getByRole('button', { name: 'Gestisci l’abbonamento' }))
+    expect(db.apriPortaleAbbonamento).toHaveBeenCalledTimes(1)
+    expect(screen.queryByTestId('pagato-fino-al')).toBeNull()
+  })
+
+  it('a mano dice fino a quando è pagato, e niente portale', () => {
+    stato.cliente = { ...stato.cliente, abbonamento: { stato: 'attivo', origine: 'manuale', pagato_fino_al: '2026-11-30' } }
+    mostra(PIANO)
+    expect(screen.getByTestId('pagato-fino-al')).toHaveTextContent('Pagato fino al 30 novembre 2026. Per rinnovare o disdire scrivici.')
+    expect(screen.queryByRole('button', { name: 'Gestisci l’abbonamento' })).toBeNull()
+  })
+
+  // REQ-FLOTTA-039: i temi in licenza si vedono col piano, come i moduli.
+  it('i temi in licenza stanno accanto al piano, col loro nome', () => {
+    stato.cliente = { ...stato.cliente, temi: ['notte', 'meraviglie'] }
+    mostra(PIANO)
+    expect(screen.getByText(/temi: Notte, Meraviglie/)).toBeInTheDocument()
+  })
+
+  it('se il portale non si apre, lo dice', async () => {
+    const user = userEvent.setup()
+    db.apriPortaleAbbonamento.mockRejectedValueOnce(new Error('La gestione dell’abbonamento non è disponibile al momento: scrivici.'))
+    stato.cliente = { ...stato.cliente, abbonamento: { stato: 'attivo', origine: 'stripe', stripe_customer: 'cus_1' } }
+    mostra(PIANO)
+    await user.click(screen.getByRole('button', { name: 'Gestisci l’abbonamento' }))
+    expect(await screen.findByText(/non è disponibile al momento/)).toBeInTheDocument()
+  })
+
+  it('dice locale, piano col prezzo del mese e stato dell’istanza', () => {
+    const { unmount } = mostra()
     expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Bar Mario')
-    expect(screen.getAllByText('Base')[0].closest('p')).toHaveTextContent('46 €') // 24 + 10 (staff) + 12 (secondo terminale)
     expect(screen.getByTestId('stato-istanza')).toHaveTextContent('Non ancora attivata')
+    // Nella panoramica il riepilogo dice lo stesso prezzo del riquadro del piano.
+    expect(screen.getByTestId('riepilogo-piano')).toHaveTextContent('42,70 € + IVA al mese (52,09 € IVA inclusa)')
+    unmount()
+    mostra(PIANO)
+    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Bar Mario')
+    // 32,70 + 10 (staff); il secondo terminale è fra i 3 inclusi (DEC-0005).
+    // Coi centesimi e «+ IVA», e il totale IVA inclusa accanto.
+    expect(screen.getByTestId('prezzo-piano')).toHaveTextContent('42,70 € + IVA al mese (52,09 € IVA inclusa)')
+  })
+
+  it('chi paga l’anno vede il prezzo dell’anno', () => {
+    stato.cliente = { ...stato.cliente, moduli: [], terminali: 1, abbonamento: { stato: 'attivo', intervallo: 'anno' } }
+    mostra(PIANO)
+    // 10 mensilità da 32,70 €: 327 € + IVA, 398,94 € IVA inclusa.
+    expect(screen.getByTestId('prezzo-piano')).toHaveTextContent('327 € + IVA all’anno (398,94 € IVA inclusa)')
+  })
+
+  // REQ-FLOTTA-031: un Fondatore, finché l'offerta vale, vede il suo prezzo;
+  // scaduti i 12 mesi torna il listino.
+  it('un Fondatore vede 25 € finché l’offerta vale, poi il listino', () => {
+    const fondatore = (fino_al) => ({ stato: 'attivo', intervallo: 'mese', fondatore: { numero: 1, dal: '2026-11-01T00:00:00Z', fino_al } })
+    stato.cliente = { ...stato.cliente, moduli: [], terminali: 1, abbonamento: fondatore('2999-01-01T00:00:00Z') }
+    const { unmount } = mostra(PIANO)
+    expect(screen.getByTestId('prezzo-piano')).toHaveTextContent('25 € + IVA al mese (30,50 € IVA inclusa)')
+    unmount()
+    stato.cliente = { ...stato.cliente, abbonamento: fondatore('2000-01-01T00:00:00Z') }
+    mostra(PIANO)
+    expect(screen.getByTestId('prezzo-piano')).toHaveTextContent('32,70 € + IVA al mese (39,89 € IVA inclusa)')
+  })
+
+  // REQ-FLOTTA-024: quello che il piano nuovo toglie arriva al taglio.
+  it('dice quando arriva una riduzione del piano, e niente se non ce n’è', () => {
+    stato.istanza = { stato: 'attiva', riduzione_al_taglio: { dal: '2026-11-02T04:00:00.000Z', cosa: ['il modulo staff'] } }
+    const { unmount } = mostra(PIANO)
+    expect(screen.getByTestId('riduzione-al-taglio')).toHaveTextContent(/Dal taglio della giornata .*: il modulo staff. Fino ad allora l’app resta com’è./)
+    unmount()
+    stato.istanza = { stato: 'attiva', riduzione_al_taglio: null }
+    mostra(PIANO)
+    expect(screen.queryByTestId('riduzione-al-taglio')).toBeNull()
+  })
+
+  // REQ-FLOTTA-025: i dati che stanno per essere cancellati si dicono per primi.
+  it('una cancellazione programmata sta in cima, prima del nome del locale', () => {
+    stato.cliente = { ...stato.cliente, abbonamento: { stato: 'non pagato' } }
+    stato.istanza = {
+      stato: 'attiva',
+      progetto: 'drinkpos-bar-mario',
+      licenza_stato: 'sospesa',
+      eliminazione: { stato: 'programmata', quando: '2027-01-31T10:00:00Z', richiedente: 'conservazione' },
+    }
+    mostra()
+    const avviso = screen.getByRole('region', { name: 'Cancellazione del locale' })
+    expect(avviso).toHaveTextContent('31 gennaio 2027')
+    expect(avviso.compareDocumentPosition(screen.getByRole('heading', { level: 2 })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getAllByRole('region', { name: 'Cancellazione del locale' })).toHaveLength(1)
   })
 
   // REQ-FLOTTA-010: con l'abbonamento attivo si cambia piano o moduli.
   it('con l’abbonamento attivo c’è «Cambia piano o moduli», non la scelta iniziale', () => {
-    mostra()
+    mostra(PIANO)
     expect(screen.getByRole('heading', { name: 'Cambia piano o moduli' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Aggiorna il piano' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Vai al pagamento/ })).toBeNull()
@@ -106,11 +273,14 @@ describe('la dashboard', () => {
     expect(await screen.findByText('L’abbonamento non risulta attivo.')).toBeInTheDocument()
   })
 
-  it('senza piano il tasto è spento, dice cosa manca, e sotto c’è la scelta del piano', () => {
+  it('senza piano il tasto è spento, dice cosa manca, e in «Piano e moduli» c’è la scelta del piano', () => {
     stato.cliente = { ...stato.cliente, piano: null, abbonamento: null }
-    mostra()
+    const { unmount } = mostra()
     expect(screen.getByRole('button', { name: /Attiva l’istanza/ })).toBeDisabled()
     expect(screen.getByText(/Serve un piano/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Scegli il piano in «Piano e moduli»' })).toHaveAttribute('href', PIANO)
+    unmount()
+    mostra(PIANO)
     expect(screen.getByRole('region', { name: 'Scelta del piano' })).toBeInTheDocument()
   })
 
@@ -123,23 +293,190 @@ describe('la dashboard', () => {
     expect(screen.queryByRole('button', { name: /Attiva l’istanza/ })).toBeNull()
   })
 
+  // Audit del 09/11/2026, finding 28 (REQ-FLOTTA-057): un url che non è
+  // https non diventa un link; si mostra l'indirizzo che l'istanza avrà.
+  it('attiva con un url che non è https: il link è l’indirizzo del suo slug', () => {
+    stato.istanza = { stato: 'attiva', url: 'javascript:alert(1)' }
+    mostra()
+    const link = screen.getByRole('link', { name: /^https:\/\/bar-mario\./ })
+    expect(link).toHaveAttribute('href', expect.stringMatching(/^https:\/\/bar-mario\./))
+    expect(screen.queryByText(/javascript:/)).toBeNull()
+  })
+
   it('in coda: niente tasto, si aspetta', () => {
     stato.richiesta = { stato: 'in coda' }
     mostra()
     expect(screen.getByTestId('stato-istanza')).toHaveTextContent(/In coda/)
     expect(screen.queryByRole('button', { name: /Attiva l’istanza/ })).toBeNull()
   })
+
+  // ISTANZA E TITOLARE SCOLLEGATI (REQ-FLOTTA-086): su prova-free l'istanza
+  // non si leggeva e la dashboard diceva «Non ancora attivata» col tasto
+  // «Attiva», con l'app attiva. Ora ascolta la query sul suo uid e, se
+  // l'istanza non compare, chiede alla regia com'è la sua app.
+  it('ascolta istanza e richiesta col suo uid e il suo slug, con una funzione per l’errore', () => {
+    mostra()
+    expect(db.osservaMiaIstanza).toHaveBeenCalledWith('u1', 'bar-mario', expect.any(Function), expect.any(Function))
+    expect(db.osservaMiaRichiesta).toHaveBeenCalledWith('u1', 'bar-mario', expect.any(Function), expect.any(Function))
+  })
+
+  it('l’app c’è ma è legata a un altro account: niente «Non ancora attivata», niente «Attiva», e a chi scrivere', async () => {
+    stato.app = 'scollegata'
+    mostra()
+    expect(await screen.findByText(/Non riesco a leggere lo stato della tua app/)).toBeInTheDocument()
+    expect(db.statoMiaApp).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('stato-istanza')).not.toHaveTextContent('Non ancora attivata')
+    expect(screen.queryByRole('button', { name: /Attiva l’istanza/ })).toBeNull()
+    expect(screen.getByRole('link', { name: EMAIL_CONTATTI })).toHaveAttribute('href', `mailto:${EMAIL_CONTATTI}`)
+  })
+
+  it('nessuna app: «Non ancora attivata» col tasto, come prima', async () => {
+    mostra()
+    await vi.waitFor(() => expect(db.statoMiaApp).toHaveBeenCalledTimes(1))
+    expect(screen.getByTestId('stato-istanza')).toHaveTextContent('Non ancora attivata')
+    expect(screen.getByRole('button', { name: /Attiva l’istanza/ })).toBeEnabled()
+  })
+
+  it('con l’istanza che compare, alla regia non si chiede niente', () => {
+    stato.istanza = { stato: 'attiva', url: 'https://bar-mario.drink.app' }
+    mostra()
+    expect(db.statoMiaApp).not.toHaveBeenCalled()
+  })
+
+  it('se la regia non risponde, la dashboard fa come prima: l’attivazione la ricontrolla il server', async () => {
+    db.statoMiaApp.mockRejectedValueOnce(new Error('internal'))
+    mostra()
+    await vi.waitFor(() => expect(db.statoMiaApp).toHaveBeenCalledTimes(1))
+    expect(screen.getByTestId('stato-istanza')).toHaveTextContent('Non ancora attivata')
+  })
+
+  it('se la lettura dell’istanza fallisce: il messaggio onesto, senza «Attiva»', () => {
+    stato.erroreIstanza = true
+    mostra()
+    expect(screen.getByText(/Non riesco a leggere lo stato della tua app/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Attiva l’istanza/ })).toBeNull()
+  })
+
+  it('se fallisce la richiesta ma l’istanza dice «attiva», vale l’istanza', () => {
+    stato.erroreRichiesta = true
+    stato.istanza = { stato: 'attiva', url: 'https://bar-mario.drink.app' }
+    mostra()
+    expect(screen.getByTestId('stato-istanza')).toHaveTextContent('Attiva')
+    expect(screen.queryByText(/Non riesco a leggere/)).toBeNull()
+  })
+
+  // Il lancio fallito prima del progetto (GitHub che non risponde): la
+  // richiesta del titolare dice «errore», la regia dice «nessuna», e il
+  // titolare rilancia.
+  it('attivazione fallita al lancio: si vede l’errore e si può rilanciare', async () => {
+    stato.richiesta = { stato: 'errore' }
+    mostra()
+    await vi.waitFor(() => expect(db.statoMiaApp).toHaveBeenCalledTimes(1))
+    expect(screen.getByTestId('stato-istanza')).toHaveTextContent(/Attivazione fallita/)
+    expect(screen.getByRole('button', { name: /Attiva l’istanza/ })).toBeEnabled()
+  })
+})
+
+// REQ-FLOTTA-062 (Daniele, 11/11/2026: «tutti i box sono sfalsati, quello
+// sotto è lontanissimo. Va rifatto meglio»). I riquadri stavano in una
+// griglia a righe, alta quanto il riquadro più alto: accanto restavano
+// buchi. Ora sono due pile, e in una pila ogni riquadro sta subito sotto
+// il precedente.
+describe('la dashboard su due colonne', () => {
+  const pile = () => [...document.querySelectorAll('.dashboard-colonne > .pila')]
+  const nomi = (pila) => [...pila.querySelectorAll(':scope > .card')].map((c) => c.getAttribute('aria-label'))
+
+  // REQ-FLOTTA-084: il piano e il credito AI hanno ora la loro sezione; a
+  // destra della panoramica resta il riepilogo del piano.
+  it('con l’app attiva: a sinistra app, aggiornamenti e temi su misura, in quest’ordine; a destra il riepilogo del piano', async () => {
+    stato.istanza = {
+      stato: 'attiva',
+      progetto: 'drinkpos-bar-mario',
+      url: 'https://drinkpos-bar-mario.web.app',
+      avviso_aggiornamenti: 'Dal 1° dicembre gli aggiornamenti cambiano.',
+    }
+    mostra()
+    await screen.findByRole('region', { name: 'Temi su misura' })
+    expect(pile().map((p) => p.className)).toEqual(['pila principale', 'pila accanto'])
+    expect(nomi(pile()[0])).toEqual(['L’app', 'Aggiornamenti', 'Temi su misura'])
+    expect(nomi(pile()[1])).toEqual(['Il tuo piano'])
+    // Ogni riquadro sta in una pila: nessuno direttamente fra le colonne.
+    expect(document.querySelectorAll('.dashboard-colonne > .card')).toHaveLength(0)
+    expect(document.querySelector('main.dashboard .riquadri')).toBeNull()
+  })
+
+  // Rilievo del revisore (REQ-FLOTTA-062): una pila senza riquadri il
+  // foglio di stile la toglie, perché non resti una colonna vuota. Senza app
+  // attiva a sinistra c'è solo l'app.
+  it('senza app attiva: a sinistra solo l’app, a destra il riepilogo; una pila vuota sparisce', async () => {
+    mostra()
+    await screen.findByRole('heading', { level: 2 })
+    expect(nomi(pile()[0])).toEqual(['L’app'])
+    expect(nomi(pile()[1])).toEqual(['Il tuo piano'])
+    const css = readFileSync(join(import.meta.dirname, '..', 'src', 'index.css'), 'utf8').replace(/\r\n/g, '\n')
+    expect(css).toContain('.pila:empty { display: none; }')
+  })
+
+  it('in «Piano e moduli» la scelta del piano sta sotto il riquadro del piano, larga quanto la pagina', async () => {
+    mostra(PIANO)
+    await screen.findByRole('heading', { level: 2 })
+    const riquadro = screen.getByRole('region', { name: 'Piano' })
+    const piano = document.querySelector('.dashboard-piano')
+    expect(piano.querySelectorAll(':scope > .card')).toHaveLength(1)
+    expect(piano.contains(riquadro)).toBe(false)
+    expect(riquadro.compareDocumentPosition(piano) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(document.querySelector('.dashboard-colonne')).toBeNull()
+  })
+
+  it('sotto i 900px le pile stanno una sotto l’altra; sopra, affiancate, tre parti a due', () => {
+    const css = readFileSync(join(import.meta.dirname, '..', 'src', 'index.css'), 'utf8').replace(/\r\n/g, '\n')
+    const regola = (selettore) => {
+      const i = css.indexOf(`${selettore} {`)
+      return css.slice(i, css.indexOf('}', i))
+    }
+    expect(regola('.dashboard-colonne')).toContain('flex-direction: column')
+    const larga = css.slice(css.indexOf('@media (min-width: 900px) {\n  .dashboard-colonne'))
+    expect(larga).toContain('.dashboard-colonne { flex-direction: row;')
+    expect(larga).toContain('.pila.principale { flex: 3 1 0; }')
+    expect(larga).toContain('.pila.accanto { flex: 2 1 0; }')
+  })
+
+  // L'unico punto dove il markup cambia: l'avviso dell'email ha il testo
+  // in un paragrafo e i bottoni accanto. Dice e fa le stesse cose.
+  it('l’avviso dell’email da confermare dice le stesse cose, coi suoi due bottoni', async () => {
+    mostra('/dashboard', { uid: 'u1', email: 'mario@example.it', emailVerificata: false })
+    const avviso = (await screen.findByText('Conferma la tua email.')).closest('section')
+    expect(avviso).toHaveAttribute('role', 'status')
+    expect(avviso).toHaveTextContent('Ti abbiamo scritto a mario@example.it: apri il link nel messaggio. Senza, l’app non si attiva.')
+    expect(avviso.querySelector('p')).toHaveTextContent('Conferma la tua email.')
+    expect([...avviso.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Invia di nuovo', 'Ho confermato'])
+  })
 })
 
 // REQ-FLOTTA-015: un cliente Free vede i limiti del suo piano, e sotto la
 // scelta per passare a pagamento, col Checkout e non con «modifica».
+// REQ-FLOTTA-084: il suo Free sta fra le opzioni, scelto; il pagamento si
+// accende scegliendo un piano a pagamento.
 describe('la dashboard di un cliente Free', () => {
-  it('dice i limiti del Free e propone i piani a pagamento', () => {
+  it('dice i limiti del Free e propone i piani a pagamento', async () => {
+    const user = userEvent.setup()
     stato.cliente = { ...stato.cliente, piano: 'free', moduli: [], terminali: 1, abbonamento: { stato: 'attivo', origine: 'gratuito' } }
-    mostra()
+    mostra(PIANO)
     expect(screen.getByTestId('limiti-piano')).toHaveTextContent('fino a 10 prodotti nel menù e 5 conti aperti insieme, solo il titolare, senza sconti')
     expect(screen.getByRole('heading', { name: 'Scegli il piano' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Cambia piano o moduli' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Vai al pagamento' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /^Free/ })).toBeChecked()
+    await user.click(screen.getByRole('radio', { name: /^Base/ }))
+    expect(screen.getByRole('button', { name: 'Vai al pagamento' })).toBeEnabled()
+  })
+})
+
+// REQ-FLOTTA-072, dalla revisione: il titolare di un locale simulato non
+// legge un progetto che non esiste.
+describe('un locale simulato nella dashboard', () => {
+  it('dice «simulato» al posto del progetto', async () => {
+    const { readFileSync } = await import('node:fs')
+    const codice = readFileSync('src/pages/Dashboard.jsx', 'utf8')
+    expect(codice).toContain("istanza?.simulata ? 'simulato' : istanza?.progetto || progettoDi(cliente.slug)")
   })
 })

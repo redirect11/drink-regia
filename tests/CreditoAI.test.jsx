@@ -17,6 +17,7 @@ const db = vi.hoisted(() => ({
     return () => {}
   }),
   ultimiConsumiAI: vi.fn(async () => []),
+  ultimeRicaricheAI: vi.fn(async () => []),
   avviaRicaricaAI: vi.fn(async () => ({ url: 'https://checkout.stripe.com/c/pay/x' })),
   osservaVendita: vi.fn((cb) => {
     cb(stato.vendita)
@@ -68,6 +69,18 @@ describe('il credito AI nella dashboard', () => {
     expect(within(tabella).getByText('meno di 0,01 €')).toBeInTheDocument()
   })
 
+  // L'utente, 06/11/2026: «regalare crediti a un cassetto AI di un gestore».
+  it('le ultime ricariche dicono da dove arrivano, e un omaggio porta la nota', async () => {
+    stato.cassetto = { credito_microeuro: 15_000_000, mese: meseDi(), speso_mese_microeuro: 0 }
+    db.ultimeRicaricheAI.mockResolvedValue([
+      { il: '2026-11-06T10:00:00Z', importo_microeuro: 5_000_000, origine: 'omaggio', nota: 'benvenuto' },
+      { il: '2026-11-01T10:00:00Z', importo_microeuro: 10_000_000, origine: 'stripe', pacchetto: 'ai-10' },
+    ])
+    render(<CreditoAI slug="bar-mario" istanzaAttiva />)
+    expect(await screen.findByTestId('ricariche-ai')).toHaveTextContent(/5,00 € in omaggio il 0?6\/11\/2026 \(«benvenuto»\) · 10,00 € pagamento il 0?1\/11\/2026/)
+    expect(db.ultimeRicaricheAI).toHaveBeenCalledWith('bar-mario')
+  })
+
   it('a credito finito dice che si ferma solo l’AI', () => {
     stato.cassetto = { credito_microeuro: 0, mese: meseDi(), chiave_creata_il: 'x' }
     render(<CreditoAI slug="bar-mario" istanzaAttiva />)
@@ -111,5 +124,24 @@ describe('il credito AI coi pagamenti online spenti', () => {
     render(<CreditoAI slug="bar-mario" istanzaAttiva />)
     expect(await screen.findByTestId('ricarica-a-mano')).toHaveTextContent('I pagamenti online non sono ancora attivi')
     expect(screen.queryByRole('button', { name: /Ricarica/ })).not.toBeInTheDocument()
+  })
+})
+
+// REQ-FLOTTA-079: «collegata» contava la Chiave AI, che non c'è più.
+describe('niente più «non ancora collegata»', () => {
+  it('un cassetto senza chiave non dice che l’app non è collegata', async () => {
+    const { statoCredito } = await import('../src/lib/ai.js')
+    expect(statoCredito({ credito_microeuro: 1_000_000 }).collegata).toBeUndefined()
+    const { readFileSync } = await import('node:fs')
+    expect(readFileSync('src/pages/CreditoAI.jsx', 'utf8')).not.toContain('non è ancora collegata')
+  })
+})
+
+// REQ-FLOTTA-088: una richiesta rimasta appesa oltre il timeout della
+// Function si considera consumata alla stima, e il titolare lo legge.
+describe('una richiesta AI interrotta', () => {
+  it('fra i consumi si dice interrotta', async () => {
+    const { esitoDetto } = await import('../src/lib/ai.js')
+    expect(esitoDetto('interrotta')).toBe('interrotta, addebitata la stima')
   })
 })

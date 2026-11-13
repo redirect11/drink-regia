@@ -1,9 +1,21 @@
 import { NOME_PRODOTTO } from '../lib/prodotto.js'
+import { PIANI, IVA, FONDATORI, ANNUALE, PROVA_GIORNI, ASSISTENZA, STAMPANTE, euro } from '../lib/piani.js'
 
 // LE PAGINE LEGALI (REQ-FLOTTA-003). Sono la STRUTTURA dei termini e
 // dell'informativa, con quello che il servizio fa davvero: vanno riviste
 // con un consulente prima di vendere, e il titolare del trattamento va
 // scritto con i dati della società che vende il prodotto.
+
+// I numeri delle condizioni (DEC-0005, 02/11/2026) vengono dal listino,
+// come nella pagina dei prezzi: se Daniele cambia il listino, i termini
+// non restano indietro. Le regole che il listino non dice (preavviso,
+// rimborsi, rinnovo dell'annuale, chi ha diritto alla prova) NON sono
+// inventate qui: sono segnate TODO, da decidere con un consulente.
+const pianiFondatori = Object.entries(FONDATORI?.prezzi || {})
+  .filter(([id]) => PIANI[id])
+  .map(([id, prezzo]) => `il piano ${PIANI[id].nome} a ${euro(prezzo)} al mese`)
+  .join('; ')
+const ore = (n) => (n === 1 ? '1 ora' : `${n} ore`)
 
 const TITOLARE = {
   nome: '[Ragione sociale del fornitore]',
@@ -15,7 +27,7 @@ export function Termini() {
   return (
     <main className="pagina legale">
       <h1>Termini di servizio</h1>
-      <p className="muted small">Ultimo aggiornamento: 29 ottobre 2026</p>
+      <p className="muted small">Ultimo aggiornamento: 2 novembre 2026</p>
       <h2>1. Il servizio</h2>
       <p>
         {NOME_PRODOTTO} è un software per la gestione di cassa, comande, magazzino e statistiche di un locale, fornito da{' '}
@@ -30,22 +42,87 @@ export function Termini() {
       </p>
       <h2>3. Abbonamento, prezzi e pagamenti</h2>
       <p>
-        I prezzi sono quelli pubblicati nella pagina dei piani al momento della sottoscrizione, al mese, IVA esclusa, oltre al
-        costo di attivazione una tantum. Il pagamento avviene tramite il fornitore di pagamenti indicato, oppure con i mezzi
+        I prezzi sono quelli pubblicati nella pagina dei piani al momento della sottoscrizione, al mese e IVA esclusa: l’IVA si
+        aggiunge con l’aliquota di legge, oggi il {IVA}%. Al canone si aggiunge il costo di attivazione una tantum. Il pagamento avviene tramite il fornitore di pagamenti indicato, oppure con i mezzi
         concordati con noi prima dell’attivazione (ad esempio il bonifico). La fattura viene
         emessa ai dati di fatturazione forniti in registrazione. Il mancato pagamento sospende il servizio dopo il termine
-        indicato nell’avviso.
+        indicato nell’avviso oppure, se le condizioni del piano lo prevedono, riporta il locale al piano Free (punto 5).
       </p>
+      {ANNUALE?.mensilita > 0 && (
+        <>
+          <h3>Pagamento annuale</h3>
+          {/* TODO (consulente): rinnovo automatico dell'annuale e suo
+              preavviso; rimborso della parte non goduta se il titolare
+              recede o cambia piano a metà anno; come si combina con
+              l'offerta Fondatori. Il listino non lo dice e qui non si
+              inventa. */}
+          <p>
+            L’abbonamento si può pagare ogni mese oppure un anno in anticipo. L’anno pagato in anticipo costa{' '}
+            {ANNUALE.mensilita} volte il prezzo mensile della scelta (piano, moduli e terminali) in vigore alla sottoscrizione.
+          </p>
+        </>
+      )}
+      {PROVA_GIORNI > 0 && (
+        <>
+          <h3>Periodo di prova</h3>
+          {/* TODO (Daniele e consulente): a chi spetta la prova (una volta
+              per locale?), se l'attivazione si paga all'inizio o alla fine
+              della prova, se serve la carta, cosa succede con la disdetta
+              durante la prova. */}
+          <p>
+            L’abbonamento a pagamento comincia con {PROVA_GIORNI} giorni di prova: il canone decorre dalla fine del periodo di
+            prova.
+          </p>
+        </>
+      )}
+      {FONDATORI?.posti > 0 && pianiFondatori && (
+        <>
+          <h3>Offerta Fondatori</h3>
+          {/* Il criterio è quello deciso da Daniele il 02/11/2026: i primi
+              abbonamenti a pagamento attivati, in ordine di attivazione;
+              il conteggio lo fa il server. TODO (consulente): durata del
+              preavviso prima del prezzo di listino, modalità del recesso,
+              se il posto decade con la disdetta o il cambio di piano. */}
+          <p>
+            Ai primi {FONDATORI.posti} abbonamenti a pagamento attivati, in ordine di attivazione, si applica l’offerta Fondatori:{' '}
+            {pianiFondatori}, IVA esclusa, per {FONDATORI.mesi} mesi dalla data di attivazione dell’abbonamento
+            {FONDATORI.attivazione === 0 ? ', con l’attivazione gratuita' : `, con l’attivazione a ${euro(FONDATORI.attivazione)}`}.
+            L’offerta vale solo sui piani indicati. Fa fede l’ordine di attivazione registrato dal fornitore. Alla fine dei{' '}
+            {FONDATORI.mesi} mesi si applica il prezzo di listino in vigore: il fornitore lo comunica per iscritto con un
+            preavviso, e il titolare che non lo accetta può recedere prima che si applichi, senza penali.
+          </p>
+        </>
+      )}
       <h2>4. Cosa il servizio non fa</h2>
       <p>
         Lo scontrino stampato dall’app non è uno scontrino fiscale: gli adempimenti fiscali restano a carico del locale, con il
         proprio registratore telematico. Il servizio non sostituisce la contabilità del locale.
       </p>
+      {STAMPANTE?.modalita === 'preventivo' && (
+        <p>
+          Sono supportate le stampanti termiche Epson in rete. L’integrazione di altre stampanti non è compresa
+          nell’abbonamento: si fa solo su preventivo scritto, accettato dal titolare prima dell’inizio del lavoro.
+        </p>
+      )}
       <h2>5. Disponibilità e assistenza</h2>
       <p>
-        Il servizio è fornito con cura ma senza garanzia di continuità assoluta. Gli aggiornamenti vengono pubblicati senza
-        preavviso e senza interruzioni programmate. L’assistenza è disponibile via email a {TITOLARE.email}, nei tempi indicati
-        nel piano.
+        Il servizio è fornito con cura ma senza garanzia di continuità assoluta. L’assistenza è disponibile via email a{' '}
+        {TITOLARE.email}, nei tempi indicati nel piano.
+        {ASSISTENZA?.ore_mese > 0 &&
+          ` L’assistenza ${ASSISTENZA.modalita} è inclusa nell’abbonamento fino a ${ore(ASSISTENZA.ore_mese)} al mese; oltre, si presta su preventivo accettato dal titolare.`}
+      </p>
+      {/* TODO (consulente): se le ore non usate in un mese si sommano ai
+          successivi, e come si conta il tempo dell'assistenza. */}
+      {/* GLI AGGIORNAMENTI (REQ-FLOTTA-020): il testo approvato dall'utente il
+          31/10/2026. Vale con le regole della regia accese o spente, così non
+          si riscrive quando l'admin le cambia. */}
+      <p>
+        Gli aggiornamenti dell’app sono di due tipi. Le correzioni di sicurezza e di compatibilità arrivano a tutti i locali, su
+        ogni piano, senza preavviso e senza interruzioni programmate. Le altre novità arrivano secondo le condizioni del piano:
+        possono installarsi da sole, oppure essere proposte al titolare, che può installarle o saltarle. Possono essere comprese
+        solo finché l’abbonamento è pagato: in quel caso un locale che non paga torna al piano Free e riceve solo le correzioni.
+        Le condizioni in vigore per il locale si leggono nella sua area clienti. Se cambiano, il titolare riceve un avviso, e le
+        condizioni nuove valgono dal rinnovo successivo, o dopo 30 giorni se il piano non ha una data di rinnovo.
       </p>
       <h2>6. Dati del locale</h2>
       <p>
@@ -56,10 +133,22 @@ export function Termini() {
         dati, che il locale può scaricare dalla propria pagina per 180 giorni; trascorso questo periodo il backup viene
         cancellato. Il fornitore può cancellare un’installazione già chiusa anche prima dei 30 giorni, sempre dopo il backup.
       </p>
+      {/* LA CONSERVAZIONE DEI DATI DI UN LOCALE FERMO (REQ-FLOTTA-025),
+          decisioni dell'utente del 02/11/2026: 90 giorni, avvisi subito, a 7
+          giorni e il giorno prima; al Free non si cancella niente. Testo da
+          approvare dall'utente. */}
+      <p>
+        Se il servizio si ferma perché l’abbonamento non è pagato o è stato disdetto, o perché il fornitore chiude
+        l’installazione, i dati del locale sono conservati per 90 giorni e poi cancellati definitivamente, sempre dopo il backup
+        descritto sopra. Il titolare viene avvisato per email, nella propria area clienti e nell’app quando la cancellazione
+        viene programmata, 7 giorni prima e il giorno prima. Se l’abbonamento torna attivo prima di quella data, la
+        cancellazione si annulla. Se le condizioni del piano prevedono il ritorno al piano Free, il locale continua a lavorare
+        con il piano Free e i suoi dati non vengono cancellati.
+      </p>
       <h2>7. Recesso e disdetta</h2>
       <p>
-        L’abbonamento si disdice in qualunque momento dalla propria pagina; il servizio resta attivo fino alla fine del periodo
-        già pagato. Il fornitore può interrompere il servizio in caso di uso contrario a questi termini, con preavviso scritto.
+        L’abbonamento, mensile o annuale, si disdice in qualunque momento dalla propria pagina; il servizio resta attivo fino
+        alla fine del periodo già pagato. Il fornitore può interrompere il servizio in caso di uso contrario a questi termini, con preavviso scritto.
       </p>
       <h2>8. Legge e foro</h2>
       <p>Questi termini sono regolati dalla legge italiana. Per ogni controversia è competente il foro della sede del fornitore.</p>
@@ -71,7 +160,7 @@ export function Privacy() {
   return (
     <main className="pagina legale">
       <h1>Informativa sulla privacy</h1>
-      <p className="muted small">Ai sensi degli articoli 13 e 14 del Regolamento (UE) 2016/679. Ultimo aggiornamento: 29 ottobre 2026</p>
+      <p className="muted small">Ai sensi degli articoli 13 e 14 del Regolamento (UE) 2016/679. Ultimo aggiornamento: 2 novembre 2026</p>
       <h2>Titolare del trattamento</h2>
       <p>
         {TITOLARE.nome}, {TITOLARE.indirizzo}, {TITOLARE.email}.
@@ -87,7 +176,9 @@ export function Privacy() {
       <p>
         I dati sono conservati su infrastruttura Google Cloud nella regione europea, per la durata del contratto e per i
         termini di legge sulla fatturazione (dieci anni per i documenti fiscali). I dati operativi del locale stanno in
-        un’installazione separata di cui il locale è titolare, e il fornitore agisce da responsabile del trattamento. Quando
+        un’installazione separata di cui il locale è titolare, e il fornitore agisce da responsabile del trattamento. Se il
+        servizio si ferma (abbonamento non pagato o disdetto), quei dati sono conservati per 90 giorni, con un avviso al
+        titolare, e poi cancellati. Quando
         un’installazione viene cancellata, il suo backup è conservato per 180 giorni in un archivio separato, nella regione
         europea, accessibile per il download solo al titolare del locale; poi viene cancellato.
       </p>

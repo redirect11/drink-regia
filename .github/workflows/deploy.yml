@@ -31,10 +31,10 @@ jobs:
     env:
       TARGET_PROJECT: ${{ inputs.progetto }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
@@ -58,7 +58,12 @@ jobs:
       - name: Build
         env:
           VITE_APP_ENV: ${{ inputs.ambiente == 'production' && 'production' || 'test' }}
-          VITE_APP_VERSION: ${{ inputs.versione || github.ref_name }}
+          # Un tag è la versione; da un ramo la versione è quella di
+          # package.json, e il ramo e il commit si dicono a parte
+          # (src/lib/versione.js).
+          VITE_APP_VERSION: ${{ inputs.versione || (github.ref_type == 'tag' && github.ref_name) || '' }}
+          VITE_APP_RAMO: ${{ github.ref_type == 'branch' && github.ref_name || '' }}
+          VITE_APP_COMMIT: ${{ github.sha }}
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
           VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
           VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}

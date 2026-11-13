@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { osservaCassettoAI, ultimiConsumiAI, avviaRicaricaAI, osservaVendita } from '../lib/db.js'
+import { osservaCassettoAI, ultimiConsumiAI, ultimeRicaricheAI, avviaRicaricaAI, osservaVendita } from '../lib/db.js'
 import { venditaPulita } from '../lib/vendita.js'
 import { EMAIL_CONTATTI } from '../lib/prodotto.js'
-import { PACCHETTI_AI, statoCredito, euroCent, daMicro, tipoDetto, esitoDetto } from '../lib/ai.js'
+import { PACCHETTI_AI, statoCredito, euroCent, daMicro, tipoDetto, esitoDetto, origineDetta } from '../lib/ai.js'
 
 // IL CREDITO AI DEL LOCALE (REQ-AI-003): quanto resta, quanto si è speso
 // questo mese contro il tetto, gli ultimi consumi, e la ricarica a
@@ -10,9 +10,14 @@ import { PACCHETTI_AI, statoCredito, euroCent, daMicro, tipoDetto, esitoDetto } 
 // dell'app: cassa e comande lavorano come sempre, e qui lo si dice.
 // `vai` è la navigazione verso Stripe: nei test si passa una funzione
 // (window.location non si spia).
-export default function CreditoAI({ slug, istanzaAttiva, vai = (url) => window.location.assign(url) }) {
+// `senza`: cosa mostrare quando non c'è niente da dire (di suo, niente).
+// Da quando il credito ha una sezione sua nell'area del titolare
+// (REQ-FLOTTA-084), una sezione vuota non spiegherebbe nulla: lì si dice
+// perché.
+export default function CreditoAI({ slug, istanzaAttiva, vai = (url) => window.location.assign(url), senza = null }) {
   const [cassetto, setCassetto] = useState(undefined)
   const [consumi, setConsumi] = useState([])
+  const [ricariche, setRicariche] = useState([])
   const [inCorso, setInCorso] = useState(null)
   const [errore, setErrore] = useState(null)
   // Coi pagamenti online spenti (REQ-FLOTTA-017) la ricarica la fa l'admin.
@@ -25,11 +30,15 @@ export default function CreditoAI({ slug, istanzaAttiva, vai = (url) => window.l
     ultimiConsumiAI(slug)
       .then(setConsumi)
       .catch(() => setConsumi([]))
+    ultimeRicaricheAI(slug)
+      .then(setRicariche)
+      .catch(() => setRicariche([]))
   }, [slug, cassetto])
 
   // Senza cassetto e senza istanza attiva non c'è niente da dire: l'AI
   // lavora sull'app installata.
-  if (cassetto === undefined || (!cassetto && !istanzaAttiva)) return null
+  if (cassetto === undefined) return null
+  if (!cassetto && !istanzaAttiva) return senza
   const s = statoCredito(cassetto)
 
   const ricarica = async (id) => {
@@ -48,8 +57,8 @@ export default function CreditoAI({ slug, istanzaAttiva, vai = (url) => window.l
     <section className="card" aria-label="Credito AI">
       <h3>Credito AI</h3>
       <p className="muted small">
-        Le funzioni AI dell’app (descrizione dei prodotti, lettura delle fatture) consumano un credito in euro. Quando il credito finisce
-        si fermano solo quelle: il resto dell’app lavora come sempre.
+        Le funzioni AI dell’app (descrizione dei prodotti, lettura delle fatture) e il tema dal tuo mockup consumano un credito in euro.
+        Quando il credito finisce si fermano solo quelle: il resto dell’app lavora come sempre.
       </p>
       {s ? (
         <>
@@ -59,7 +68,6 @@ export default function CreditoAI({ slug, istanzaAttiva, vai = (url) => window.l
           </p>
           {!s.attivo && <p className="errore small">Le funzioni AI di questo locale sono spente: scrivici per riaccenderle.</p>}
           {s.attivo && s.credito <= 0 && <p className="errore small">Credito esaurito: le funzioni AI sono ferme finché non ricarichi.</p>}
-          {!s.collegata && <p className="muted small">L’app non è ancora collegata al credito: lo facciamo noi e ti avvisiamo.</p>}
         </>
       ) : (
         <p data-testid="credito-ai">Nessun credito ancora: con la prima ricarica le funzioni AI si possono usare.</p>
@@ -86,6 +94,15 @@ export default function CreditoAI({ slug, istanzaAttiva, vai = (url) => window.l
         <p className="muted small">Pagamento ricevuto: il credito compare qui appena Stripe ce lo conferma, di solito in pochi secondi.</p>
       )}
 
+      {/* Le ricariche con l'origine: un credito regalato si vede come tale. */}
+      {ricariche.length > 0 && (
+        <p className="muted small" data-testid="ricariche-ai">
+          Ultime ricariche:{' '}
+          {ricariche
+            .map((r) => `${euroCent(daMicro(r.importo_microeuro))} ${origineDetta(r.origine)} il ${new Date(r.il).toLocaleDateString('it-IT')}${r.origine === 'omaggio' && r.nota ? ` («${r.nota}»)` : ''}`)
+            .join(' · ')}
+        </p>
+      )}
       {consumi.length > 0 && (
         <table className="clienti" aria-label="Ultimi consumi AI">
           <thead>

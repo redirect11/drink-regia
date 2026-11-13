@@ -26,7 +26,7 @@ on:
   # titolo esatto fra le issue aperte E chiuse — quindi spingere dieci volte
   # lo stesso registro non crea dieci issue: nascono solo quelle che mancano.
   # TRE LINEE, TRE COSE DIVERSE sulla stessa voce del registro:
-  #   feature/** e release/** -> si scrive e si riallinea; una voce finita
+  #   feature/**, fix/** e release/** -> si scrive e si riallinea; una voce finita
   #                 porta la scheda su «Implemented»: e' scritta, sta su un
   #                 ramo, non l'ha ancora provata nessuno
   #   develop    -> si mette IN PROVA: e' finita, ma al banco non l'ha vista
@@ -39,6 +39,10 @@ on:
       - "hotfix/**"
       - "release/**"
       - "feature/**"
+      # Dal 12/11/2026 ogni lavoro ha il suo ramo, e le correzioni stanno su
+      # `fix/**` (decisione di Daniele, docs/handover.md «I rami»): senza,
+      # la voce «da fare» di una correzione non aveva la sua issue.
+      - "fix/**"
     paths:
       - "requirements/requirements.yaml"
       - "requirements/bugs.yaml"
@@ -54,10 +58,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
 

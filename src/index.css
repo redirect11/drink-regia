@@ -1,39 +1,80 @@
 /* La regia: stesso tema scuro dell'app, in piccolo. */
+
+/* Playfair Display per i titoli della prima pagina (DESIGN.md §4): la firma
+   di casa, la usa anche l'app. Servita dal sito (public/fonts, licenza OFL
+   in OFL.txt), niente font da servizi esterni; solo il peso 700, l'unico che i titoli usano, e solo
+   i caratteri latini, che bastano a italiano e inglese (€ compreso). */
+@font-face { font-family: 'Playfair Display'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/playfair-display-latin-700-normal.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+
 :root {
-  --bg: #0e0e15;
-  --bg-2: #171724;
-  --bg-3: #1f1f30;
-  --text: #ececf3;
-  --muted: #9b9ba8;
+  /* LA PALETTE LIME (11/11/2026, DESIGN.md §4 «Colori»): il prodotto si
+     chiama Lime e il colore primario è il verde lime. Sul fondo scuro, un
+     nero appena verde, il lime fa da accento pieno: i bottoni lo portano
+     col testo scuro sopra (12:1), i link e il testo evidenziato usano la
+     sua versione più chiara. */
+  --bg: #0c0f0a;
+  --bg-2: #141911;
+  --bg-3: #1c2318;
+  --text: #eef2e6;
+  --muted: #9aa38e;
   --line: rgba(255, 255, 255, 0.1);
-  --accent: #e3b23c;
-  --accent-soft: rgba(227, 178, 60, 0.14);
+  --accent: #b4ec2b;
+  --accent-soft: rgba(180, 236, 43, 0.13);
+  /* Il lime per il TESTO su fondo scuro e il verde delle spunte. */
+  --accent-2: #c6f25a;
+  --ok: #5fd3a1;
+  /* L'ambra di «in attesa» e degli avvisi: prima era l'accento (l'oro);
+     ora che l'accento è verde, uno stato in attesa in lime sembrerebbe
+     «a posto». Il colore di stato resta suo. */
+  --attesa: #e3b23c;
+  --attesa-soft: rgba(227, 178, 60, 0.14);
+  --titoli: 'Playfair Display', Georgia, 'Times New Roman', serif;
   --errore: #e74c3c;
   --raggio: 14px;
 }
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+html { scroll-behavior: smooth; scroll-padding-top: 84px; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.55 system-ui, -apple-system, 'Segoe UI', sans-serif; }
 a { color: var(--accent); }
 h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .regia { min-height: 100dvh; display: flex; flex-direction: column; }
+/* Il fuoco si vede sempre, per chi usa la tastiera (DESIGN.md §4). */
+:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px; border-radius: 4px; }
+/* Per i lettori di schermo soltanto: presente nella pagina, invisibile. */
+.solo-lettori { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
 /* ── La barra: marchio a sinistra, menù a destra; sul telefono il menù si
    apre col tasto. Resta in cima, sopra la pagina che scorre. ── */
-.barra { position: sticky; top: 0; z-index: 10; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--line); background: rgba(14, 14, 21, 0.82); backdrop-filter: blur(12px); }
-.marchio { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; color: var(--text); text-decoration: none; font-size: 1.25rem; }
-.marchio-punto { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
-.barra nav { display: flex; gap: 18px; align-items: center; }
-.barra nav a, .barra nav .link { color: var(--text); text-decoration: none; background: none; border: none; font: inherit; cursor: pointer; padding: 4px 0; }
-.barra nav a:hover, .barra nav .link:hover { color: var(--accent); }
-.barra nav a.btn { color: #1a1a1a; }
-.menu-tasto { display: none; background: none; border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 6px 12px; font: inherit; cursor: pointer; }
+.barra { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 12px 24px; padding: 12px 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); background: rgba(12, 15, 10, 0.72); backdrop-filter: saturate(140%) blur(16px); }
+/* Il selettore della lingua e il tasto del menù stanno a destra, dopo il
+   menù; sul telefono il menù si apre sotto e restano visibili loro. */
+.barra-destra { order: 3; display: flex; align-items: center; gap: 12px; }
+.scelta-lingua { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 2px; }
+.scelta-lingua a { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 40px; padding: 0 10px; border-radius: 999px; color: var(--muted); text-decoration: none; font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.06em; }
+.scelta-lingua a:hover { color: var(--text); }
+.scelta-lingua a[aria-current='true'] { background: var(--accent-soft); color: var(--accent-2); }
+/* Il marchio in Playfair, come i titoli della vetrina (03/11/2026): il logo
+   (la fetta di lime a torta, 09/11/2026), il nome, la qualifica più piccola
+   e in tondo, come una firma. */
+.marchio { display: inline-flex; align-items: center; gap: 10px; font-family: var(--titoli); font-weight: 700; letter-spacing: -0.01em; color: var(--text); text-decoration: none; font-size: 1.375rem; }
+.marchio-logo { flex: none; width: 1.25em; height: 1.25em; }
+.marchio-qualifica { font-family: var(--testo, inherit); font-weight: 500; font-size: 0.6em; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-left: -2px; align-self: flex-end; padding-bottom: 0.2em; }
+.marchio-sottotitolo { margin: 2px 0 6px; color: var(--text); font-size: 0.95rem; }
+.barra nav { order: 2; margin-left: auto; display: flex; gap: 20px; align-items: center; }
+.barra nav a, .barra nav .link { color: var(--text); text-decoration: none; background: none; border: none; font: inherit; cursor: pointer; padding: 10px 0; }
+.barra nav a:hover, .barra nav .link:hover { color: var(--accent-2); }
+/* Il bottone del menù: la regola sopra gli toglieva lo sfondo, e il testo
+   scuro spariva sul fondo scuro della barra. */
+.barra nav a.btn { color: #16210a; background: var(--accent); border: 1px solid transparent; border-radius: 999px; padding: 8px 18px; font-weight: 600; }
+.barra nav a.btn:hover { color: #16210a; }
+.menu-tasto { display: none; min-height: 44px; background: none; border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 6px 14px; font: inherit; cursor: pointer; }
 @media (max-width: 760px) {
+  .barra-destra { margin-left: auto; }
   .menu-tasto { display: inline-block; }
   .barra nav { display: none; position: absolute; left: 0; right: 0; top: 100%; flex-direction: column; align-items: stretch; gap: 0; background: var(--bg-2); border-bottom: 1px solid var(--line); padding: 8px 20px 14px; }
   .barra nav.aperto { display: flex; }
   .barra nav a, .barra nav .link { padding: 10px 0; border-bottom: 1px solid var(--line); text-align: left; }
-  .barra nav a.btn { margin-top: 10px; text-align: center; border-bottom: none; }
+  .barra nav a.btn { margin-top: 10px; text-align: center; border-bottom: 1px solid var(--accent); }
 }
 
 .pagina { flex: 1; width: 100%; max-width: 960px; margin: 0 auto; padding: 24px 16px; }
@@ -41,70 +82,409 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .muted { color: var(--muted); }
 .small { font-size: 0.85rem; }
 .azioni { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
-.btn { display: inline-block; padding: 11px 18px; border-radius: 10px; border: 1px solid var(--accent); background: var(--accent); color: #1a1a1a; font-weight: 600; text-decoration: none; cursor: pointer; font: inherit; transition: transform 0.12s ease, filter 0.12s ease; }
+.btn { display: inline-block; padding: 11px 18px; border-radius: 10px; border: 1px solid var(--accent); background: var(--accent); color: #16210a; font-weight: 600; text-decoration: none; cursor: pointer; font: inherit; transition: transform 0.12s ease, filter 0.12s ease; }
 .btn:hover { filter: brightness(1.06); transform: translateY(-1px); }
 .btn.ghost { background: transparent; color: var(--text); border-color: var(--line); }
 .btn.ghost:hover { border-color: var(--accent); }
 .btn.small { padding: 6px 12px; font-size: 0.9rem; }
 .btn.block { display: block; width: 100%; margin-top: 12px; text-align: center; }
+/* Google sopra il modulo (REQ-FLOTTA-038), poi «oppure» fra due righe. */
+.oppure { display: flex; align-items: center; gap: 12px; margin: 16px 0 4px; }
+.oppure::before, .oppure::after { content: ''; flex: 1; border-top: 1px solid var(--line); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .card { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--raggio); padding: 18px; }
+/* Due riquadri uno sotto l'altro non si toccano (l'utente, 31/10/2026:
+   «questi box messi così uno sopra l'altro e attaccati tra loro sono
+   orribili»): nella dashboard, nel backoffice, ovunque. */
+.card + .card { margin-top: 16px; }
+/* La dashboard del titolare (REQ-FLOTTA-062): due colonne, ognuna una pila
+   di riquadri, così ognuno sta subito sotto il precedente qualunque
+   altezza abbia; sotto i 900px una colonna sola. La griglia a righe
+   (.riquadri, più sotto) lasciava buchi accanto al riquadro più alto: la
+   tiene il commerciale del backoffice, dove i riquadri sono alti uguali.
+   Lo spazio lo dà gap, non il margine fra riquadri. */
+.dashboard-colonne { display: flex; flex-direction: column; gap: 16px; margin-bottom: 16px; }
+.pila { display: grid; gap: 16px; min-width: 0; align-content: start; }
+/* Una pila senza riquadri non è una colonna: per un locale non ancora
+   attivo il credito AI non c'era, e la colonna di destra restava vuota
+   (rilievo del revisore, 11/11/2026). Sparendo, l'altra prende tutto. Dal
+   12/11/2026 il credito ha la sua sezione (REQ-FLOTTA-084) e a destra c'è
+   sempre il riepilogo del piano; la regola resta per una pila che si
+   ritrovi senza riquadri. */
+.pila:empty { display: none; }
+.pila .card, .dashboard-piano .card { margin: 0; }
+.pila .card h3:first-child, .dashboard-piano .card h3:first-child { margin-top: 0; }
+.dashboard-piano { margin-bottom: 16px; }
+/* «Piano e moduli» (REQ-FLOTTA-084): la scelta del piano sotto la pila del
+   riquadro del piano, staccata come due riquadri qualsiasi. */
+.pila + .dashboard-piano { margin-top: 16px; }
+@media (min-width: 900px) {
+  .dashboard-colonne { flex-direction: row; align-items: flex-start; gap: 20px; }
+  .pila { gap: 20px; }
+  .pila.principale { flex: 3 1 0; }
+  .pila.accanto { flex: 2 1 0; }
+}
+/* L'avviso dell'email, e quello del locale fermo (REQ-FLOTTA-090): testo e bottoni sulla stessa riga quando c'è spazio. */
+.avviso-email, .avviso-rinnovo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; }
+.avviso-email > p, .avviso-rinnovo > p { flex: 1 1 22rem; margin: 0; }
+.avviso-email .azioni { margin: 0; }
+.avviso-email > .muted { flex-basis: 100%; margin: 0; }
+.pagina.dashboard { max-width: 1120px; }
+.dashboard-testa { margin-bottom: 16px; }
+.dashboard-testa h2 { margin: 0 0 4px; }
+.riquadri { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); align-items: start; margin-bottom: 16px; }
+.riquadri .card { margin: 0; }
+.riquadri .card h3:first-child { margin-top: 0; }
 
-/* ── La landing page (REQ-FLOTTA-002) ── */
-.landing { flex: 1; width: 100%; max-width: 1080px; margin: 0 auto; padding: 0 20px 40px; }
-.sezione { padding: 56px 0 8px; }
-.sezione h2 { font-size: 1.9rem; margin: 0 0 6px; }
-.sezione-sotto { max-width: 640px; margin: 0 0 20px; }
+/* ── La prima pagina (REQ-FLOTTA-002, DESIGN.md §4) ──────────────────
+   Una vetrina, non il gestionale. Dal 07/11/2026 (la direzione dell'utente:
+   «sembri il sito curato di un prodotto reale, nato e usato in un locale,
+   non un template generico») un'identità editoriale. Dall'11/11/2026 è tutta su fondo
+   scuro, col lime per le azioni e i dettagli (numeri, filetti, la seconda
+   frase del titolo): prima era avorio col verde e l'oro, poi chiara col
+   lime per un pomeriggio. Niente luci sfocate, gradienti, aloni o
+   vetro; niente card tutte uguali: griglie, filetti e righe numerate. Le
+   misure seguono la scala del DESIGN.md (4…96 px); se cambiano qui, si
+   aggiornano là. I token della vetrina valgono per barra e piè di pagina
+   sulla prima pagina soltanto (.regia.vetrina, App.jsx): il resto del sito
+   resta col tema scuro. */
+.regia.vetrina {
+  /* LA PRIMA PAGINA È SCURA (11/11/2026, la sera). La palette lime sul
+     chiaro è durata un pomeriggio: Daniele, vedendola coi filmati, «lo
+     sfondo troppo chiaro cozza un po' con il verde lime». Sul fondo nero
+     appena verde il lime regge sia come riempimento sia come testo, e la
+     pagina non salta più dal chiaro allo scuro a ogni filmato. I pannelli
+     (scheda dei fatti, piani, tabella) sono un gradino più chiari del
+     fondo; il testo in colore usa il lime chiaro (--accent, 13:1). */
+  --bg: #0c0f0a;
+  --bg-2: #151a11;
+  --bg-3: #1c2318;
+  --text: #eef2e6;
+  --muted: #a3ac96;
+  --line: rgba(255, 255, 255, 0.14);
+  --accent: #c6f25a;
+  --accent-2: #c6f25a;
+  --accent-soft: rgba(180, 236, 43, 0.13);
+  --ok: #c6f25a;
+  --lime: #b4ec2b;
+  --lime-forte: #c6f25a;
+  --su-lime: #16210a;
+  /* Le fasce coi filmati e la chiusura: lo stesso nero, un filo sotto. */
+  --scuro: #0c0f0a;
+  --scuro-2: #151a11;
+  --scuro-testo: #eef2e6;
+  --scuro-muted: #b8c1a6;
+  background: var(--bg);
+  color: var(--text);
+}
+.regia.vetrina .barra { background: rgba(12, 15, 10, 0.88); border-bottom-color: var(--line); }
+.regia.vetrina .barra nav a.btn { color: var(--su-lime); background: var(--lime); border-color: var(--lime); box-shadow: none; }
+.regia.vetrina .barra nav a.btn:hover { color: var(--su-lime); background: var(--lime-forte); }
+.regia.vetrina .barra nav a:hover, .regia.vetrina .barra nav .link:hover { color: var(--accent); }
+.regia.vetrina .scelta-lingua a[aria-current='true'] { color: var(--accent); }
+.regia.vetrina .menu-tasto { border-color: var(--line); }
+/* Lo sfondo del menù serve solo alla tendina del telefono: sul desktop
+   faceva un riquadro bianco dietro le voci (l'utente, 07/11/2026: «menu in
+   alto orribile»). */
+@media (max-width: 760px) { .regia.vetrina .barra nav { background: var(--bg-2); } }
+.regia.vetrina .piede { background: var(--bg-3); border-top-color: var(--line); }
+.regia.vetrina .piede-colonne a:hover { color: var(--accent); }
+.regia.vetrina code { background: rgba(255, 255, 255, 0.08); }
+.regia.vetrina :focus-visible { outline-color: var(--accent); }
 
-.hero { display: grid; grid-template-columns: 1.1fr 1fr; gap: 36px; align-items: center; padding: 56px 0 24px; position: relative; }
-.hero::before { content: ''; position: absolute; inset: -80px -200px auto; height: 420px; background: radial-gradient(60% 60% at 30% 20%, var(--accent-soft), transparent 70%); pointer-events: none; z-index: -1; }
-.occhiello { color: var(--accent); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; font-size: 0.8rem; margin: 0 0 10px; }
-.hero h1 { font-size: 3.4rem; margin: 0 0 8px; }
-.slogan { font-size: 1.5rem; margin: 0 0 10px; font-weight: 500; }
-.hero-descrizione { max-width: 520px; font-size: 1.05rem; }
-.fatti { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; padding: 0; margin: 22px 0 0; }
-.fatti li { font-size: 0.85rem; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg-2); color: var(--muted); }
-.hero-figura { margin: 0; border-radius: var(--raggio); overflow: hidden; border: 1px solid var(--line); box-shadow: 0 30px 60px rgba(0, 0, 0, 0.45); aspect-ratio: 4 / 3; }
-.hero-figura img { width: 100%; height: 100%; object-fit: cover; display: block; }
-@media (max-width: 860px) {
-  .hero { grid-template-columns: 1fr; padding-top: 32px; }
-  .hero h1 { font-size: 2.6rem; }
-  .hero-figura { aspect-ratio: 16 / 9; }
+.landing { flex: 1; width: 100%; font-size: 1rem; overflow-x: clip; }
+.contenitore { width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+.landing h1, .landing h2 { font-family: var(--titoli); font-weight: 700; letter-spacing: -0.015em; text-wrap: balance; }
+.landing h2 { font-size: clamp(1.75rem, 3.2vw, 2.375rem); line-height: 1.12; margin: 0 0 16px; }
+.landing h3 { text-wrap: balance; }
+.landing p { line-height: 1.6; }
+/* L'occhiello: una riga piccola col filetto lime davanti, in minuscolo. */
+.occhiello { display: flex; align-items: center; gap: 10px; color: var(--muted); font-weight: 600; font-size: 0.875rem; margin: 0 0 12px; }
+.occhiello::before { content: ''; width: 20px; height: 3px; background: var(--lime); flex: none; }
+.sezione { padding: 56px 0 0; }
+.sezione-testa { max-width: 42rem; margin: 0 0 32px; }
+.sezione-sotto { color: var(--muted); margin: 0; }
+.sezione-sotto + .sezione-sotto { margin-top: 8px; }
+.titolo-sezione { max-width: 24ch; }
+.nota { font-size: 0.875rem; color: var(--muted); max-width: 46rem; margin: 16px 0 0; }
+/* Il titoletto di un pannello (la scheda dei fatti, «Cosa comprende»). */
+.scheda-titolo { margin: 0 0 10px; font-size: 0.8125rem; font-weight: 600; color: var(--muted); }
+
+/* I bottoni della vetrina: il lime pieno col testo scuro per l'azione
+   principale, il contorno per la seconda. Angoli moderati, nessuna ombra. */
+.landing .btn { border-radius: 8px; font-weight: 600; transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease; }
+.landing .btn:hover { transform: none; filter: none; }
+.landing .btn:not(.ghost) { background: var(--lime); border-color: var(--lime); color: var(--su-lime); }
+.landing .btn:not(.ghost):hover { background: var(--lime-forte); border-color: var(--lime-forte); }
+.landing .btn.ghost { background: transparent; color: var(--text); border-color: var(--text); }
+.landing .btn.ghost:hover { background: rgba(255, 255, 255, 0.08); }
+.btn.grande { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 12px 22px; }
+.landing .btn.block { border-radius: 8px; }
+
+/* L'avviso della lingua: una riga discreta sopra la prima schermata. */
+.avviso-lingua { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; justify-content: center; padding: 4px 20px; background: var(--bg-3); border-bottom: 1px solid var(--line); font-size: 0.9375rem; }
+.avviso-lingua p { margin: 0; }
+.avviso-lingua-azioni { display: flex; flex-wrap: wrap; gap: 0 16px; align-items: center; }
+.avviso-lingua a, .avviso-lingua .link { display: inline-flex; align-items: center; min-height: 44px; }
+.avviso-lingua .link { background: none; border: none; padding: 0; font: inherit; color: var(--muted); text-decoration: underline; cursor: pointer; }
+
+/* ── La prima schermata: il filmato a tutta larghezza con un velo scuro,
+   e davanti due colonne da 900px, il testo a sinistra e la scheda dei
+   fatti a destra; sul telefono una sotto l'altra. Il velo è più fitto a
+   sinistra, dove sta il testo, e lascia vedere il filmato a destra; sul
+   telefono è uniforme, perché il testo copre tutto. Senza filmato (non
+   ancora caricato) resta il fondo scuro: il testo si legge comunque. ── */
+.hero { position: relative; isolation: isolate; overflow: hidden; padding: 56px 0 28px; background: var(--scuro); color: var(--scuro-testo); }
+.hero-sfondo { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; object-position: 72% center; }
+.hero-velo { position: absolute; inset: 0; z-index: -1; background: rgba(8, 11, 6, 0.74); }
+.hero .occhiello { color: var(--scuro-muted); }
+.hero .btn.ghost { color: var(--scuro-testo); border-color: var(--scuro-muted); }
+.hero .btn.ghost:hover { background: rgba(255, 255, 255, 0.08); }
+.hero .nota-lingua { color: var(--scuro-muted); }
+.hero-griglia { display: grid; gap: 32px; align-items: start; }
+.hero h1 { font-size: clamp(2.125rem, 4.6vw, 3.5rem); line-height: 1.08; margin: 0 0 20px; max-width: 18ch; }
+/* La seconda frase del titolo è scritta nel lime (13:1 sul fondo scuro).
+   Dove i colori li sceglie il sistema (contrasto elevato) torna testo. */
+.titolo-accento > span { color: var(--lime); }
+@media (forced-colors: active) { .titolo-accento > span { color: currentColor; } }
+.hero-sotto { font-size: 1.0625rem; max-width: 36rem; margin: 0; color: #dfe5d2; }
+.hero .azioni { margin-top: 28px; gap: 12px; }
+/* La scheda dei fatti: un pannello di carta con le righe divise da un filo. */
+.hero-scheda { background: rgba(12, 15, 10, 0.72); border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 12px; padding: 20px 22px; }
+.hero-scheda .scheda-titolo { color: var(--scuro-muted); }
+
+/* ── Il carosello dei cinque gesti (REQ-FLOTTA-061). Le diapositive stanno in
+   fila dietro a tutto e scorrono in orizzontale: si sposta la fila, una
+   larghezza alla volta. Davanti, in basso, la parola del gesto con
+   l'iniziale lime, la sua riga e i comandi. Chi ha chiesto meno
+   movimento non vede lo scorrimento: la diapositiva cambia di colpo. ── */
+.carosello { position: absolute; inset: 0; z-index: -2; overflow: hidden; }
+/* In dissolvenza (REQ-FLOTTA-074): le diapositive una sopra l'altra; quella
+   che si vede compare sopra, quella di prima resta sotto finché è coperta. */
+.diapositive { position: relative; height: 100%; margin: 0; padding: 0; list-style: none; }
+.diapositiva { position: absolute; inset: 0; opacity: 0; transition: opacity 1.5s ease; }
+.diapositiva[data-visibile='true'] { opacity: 1; z-index: 1; }
+.diapositiva[data-uscente='true'] { opacity: 1; }
+.gesto-entra { animation: gesto-entra 0.8s ease both; }
+@keyframes gesto-entra { from { opacity: 0; } to { opacity: 1; } }
+.gesti { display: grid; gap: 16px; margin-top: 40px; padding-top: 24px; border-top: 1px solid rgba(255, 255, 255, 0.2); }
+.gesto-testo { min-height: 7.5rem; }
+.gesto-parola { font-family: var(--titoli); font-weight: 700; font-size: clamp(2.5rem, 7vw, 4rem); line-height: 1; letter-spacing: -0.02em; margin: 0 0 10px; }
+.gesto-parola::first-letter { color: var(--lime); }
+.gesto-riga { margin: 0; font-size: 1.125rem; line-height: 1.5; color: #e6ebdc; max-width: 34rem; }
+.gesto-comandi { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.gesto-freccia { width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.4); background: rgba(12, 15, 10, 0.5); color: var(--scuro-testo); font-size: 1.5rem; line-height: 1; cursor: pointer; }
+.gesto-freccia:hover { border-color: var(--lime); color: var(--lime); }
+.gesto-punti { display: flex; align-items: center; margin: 0; padding: 0; list-style: none; }
+/* Il punto è piccolo, il bottone no: 44px di lato da toccare (DESIGN.md), il segno al centro. */
+.gesto-punto { position: relative; width: 44px; height: 44px; padding: 0; border: none; background: none; cursor: pointer; }
+.gesto-punto::before { content: ''; position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: rgba(255, 255, 255, 0.45); transition: width 0.2s ease, margin 0.2s ease, background-color 0.2s ease; }
+.gesto-punto:hover::before { background: #fff; }
+.gesto-punto[aria-current='true']::before { width: 24px; margin-left: -12px; border-radius: 999px; background: var(--lime); }
+/* Pausa e play (REQ-FLOTTA-069): un tasto tondo come le frecce, con l'icona. */
+.gesto-pausa { display: inline-grid; place-items: center; margin-left: 8px; }
+.gesto-pausa .icona { width: 18px; height: 18px; }
+/* Una postilla, non una nota: più piccola delle altre e in corsivo. */
+.nota-filmati { color: var(--scuro-muted); margin: 12px 0 0; max-width: none; font-size: 0.75rem; font-style: italic; }
+@media (min-width: 900px) {
+  .gesti { grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 32px; margin-top: 32px; }
+  .gesto-testo { min-height: 7rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .diapositiva, .gesto-punto::before { transition: none; }
+  .gesto-entra { animation: none; }
+}
+.fatti { list-style: none; padding: 0; margin: 0; }
+.fatti li { display: flex; align-items: baseline; gap: 12px; padding: 10px 0; border-top: 1px solid rgba(255, 255, 255, 0.14); font-size: 0.9375rem; }
+
+.fatti li::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 0 1px var(--lime-forte); flex: none; transform: translateY(-2px); }
+.nota-lingua { margin: 16px 0 0; font-size: 0.875rem; color: var(--muted); }
+
+
+
+/* ── Le funzioni: testo e pannello alternati a destra e a sinistra. Il
+   pannello aspetta le schermate vere dell'app (DESIGN.md §9): intanto è la
+   lista di cosa comprende, su carta. ── */
+.funzioni { display: grid; gap: 48px; }
+.funzione { display: grid; gap: 20px; align-items: center; padding-top: 32px; border-top: 1px solid var(--line); }
+.numero-funzione { font-family: var(--titoli); font-variant-numeric: lining-nums; color: var(--accent); }
+.funzione h3 { font-family: var(--titoli); font-size: clamp(1.5rem, 2.4vw, 1.875rem); line-height: 1.15; letter-spacing: -0.01em; margin: 0 0 12px; }
+.funzione-testo p:not(.occhiello) { color: var(--muted); max-width: 34rem; margin: 0; }
+.funzione-riquadro { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; }
+.punti { list-style: none; padding: 0; margin: 0; display: grid; }
+.punti li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+.icona.spunta { width: 18px; height: 18px; color: var(--ok); flex: none; margin-top: 4px; }
+.funzioni-minori { list-style: none; padding: 0; margin: 48px 0 0; display: grid; gap: 20px; }
+.minore { padding-top: 16px; border-top: 1px solid var(--line); }
+.minore-testo { margin: 0; }
+
+/* ── I tre passi: numerati, con un filo sopra. ── */
+.passi-landing { display: grid; gap: 24px; list-style: none; padding: 0; margin: 32px 0 0; counter-reset: passo; }
+.passi-landing li { padding-top: 16px; border-top: 2px solid var(--text); }
+.passi-landing .numero { display: block; font-family: var(--titoli); font-variant-numeric: lining-nums; font-size: 1.75rem; line-height: 1; color: var(--accent); margin-bottom: 12px; }
+.passi-landing h3 { margin: 0 0 6px; font-size: 1.125rem; }
+.passi-landing p { margin: 0; color: var(--muted); }
+
+/* ── I prezzi: due pannelli di carta affiancati, il Completo col bordo
+   verde; sotto, l'offerta Fondatori, la riga del confronto, la tabella. ── */
+.landing .piani { display: grid; gap: 16px; grid-template-columns: 1fr; margin: 0 0 20px; align-items: stretch; }
+.landing .piano { display: flex; flex-direction: column; background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 24px; }
+.landing .piano.in-evidenza { border: 2px solid var(--accent); }
+.piano-testa { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+.landing .piano h3 { font-size: 1.25rem; margin: 0; }
+/* Le cifre di Playfair sono «da testo», di altezze diverse: nei prezzi e
+   nei numeri si usano quelle allineate. */
+.landing .prezzo { font-family: var(--titoli); font-variant-numeric: lining-nums; font-size: 2.5rem; line-height: 1.1; letter-spacing: -0.02em; margin: 0; }
+.prezzo-mese { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: 1rem; font-weight: 400; letter-spacing: 0; color: var(--muted); }
+.piano-descrizione { color: var(--muted); margin: 16px 0 20px; padding-top: 14px; border-top: 1px solid var(--line); }
+.prezzo-lordo { margin: 6px 0 0; color: var(--muted); }
+.prezzo-anno { margin: 8px 0 0; font-size: 0.9375rem; color: var(--muted); }
+.iva-inclusa { display: block; font-size: 0.8125rem; color: var(--muted); }
+.landing .piano .btn { margin-top: auto; min-height: 48px; display: flex; align-items: center; justify-content: center; }
+/* L'etichetta del piano in evidenza: una targhetta, nel verde. */
+.etichetta { font-size: 0.75rem; font-weight: 600; color: var(--accent); background: var(--accent-soft); border-radius: 6px; padding: 4px 8px; white-space: nowrap; }
+/* L'offerta Fondatori: un pannello sobrio col filetto lime, senza urgenza. */
+.fondatori { padding: 18px 22px; border: 1px solid var(--line); border-left: 3px solid var(--lime); border-radius: 0 12px 12px 0; background: var(--bg-2); margin: 0 0 20px; }
+.fondatori h3 { font-size: 1.0625rem; margin: 0 0 6px; }
+.fondatori p { margin: 0; }
+.fondatori .nota-piccola { margin-top: 6px; font-size: 0.875rem; color: var(--muted); }
+.convenienza { padding: 12px 18px; border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: 0 8px 8px 0; margin: 0 0 40px; }
+.tabella-titolo { font-family: var(--titoli); font-size: 1.375rem; margin: 40px 0 12px; }
+
+/* ── Un pezzo che si apre (REQ-FLOTTA-063): il confronto fra i piani e ogni
+   modulo dell'elenco. L'altezza si anima facendo passare l'unica riga di
+   una griglia da 0fr a 1fr: è il modo che non chiede di conoscere
+   l'altezza del contenuto. Da chiuso il contenuto è anche `visibility:
+   hidden`, che lo toglie dal giro del Tab nei browser senza `inert`; la
+   visibilità cambia a fine chiusura, sennò il contenuto sparirebbe prima
+   di essersi richiuso. Il segno a destra è un «+» che ruota in «×». ── */
+.apribile-comando { display: flex; align-items: center; gap: 16px; width: 100%; min-height: 56px; padding: 12px 0; background: none; border: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.apribile-titolo { flex: 1; font-weight: 600; }
+.apribile-segno { position: relative; flex: none; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line); transition: transform 0.3s ease, border-color 0.2s ease, background-color 0.2s ease; }
+.apribile-segno::before, .apribile-segno::after { content: ''; position: absolute; left: 50%; top: 50%; width: 10px; height: 2px; margin: -1px 0 0 -5px; background: var(--text); border-radius: 1px; }
+.apribile-segno::after { transform: rotate(90deg); }
+.apribile-comando:hover .apribile-segno { border-color: var(--lime); }
+.apribile[data-aperto='true'] > .apribile-comando .apribile-segno { transform: rotate(45deg); background: var(--lime); border-color: var(--lime); }
+.apribile[data-aperto='true'] > .apribile-comando .apribile-segno::before, .apribile[data-aperto='true'] > .apribile-comando .apribile-segno::after { background: var(--su-lime); }
+.apribile-corpo { display: grid; grid-template-rows: 0fr; visibility: hidden; transition: grid-template-rows 0.35s ease, visibility 0s linear 0.35s; }
+.apribile[data-aperto='true'] > .apribile-corpo { grid-template-rows: 1fr; visibility: visible; transition: grid-template-rows 0.35s ease, visibility 0s; }
+.apribile-dentro { min-height: 0; overflow: hidden; }
+
+/* Il confronto fra i piani: un comando largo quanto le schede dei piani,
+   che sembra il loro piede; aperto, la tabella sta in un pannello. */
+.confronto { margin: 0 0 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-2); }
+.confronto > .apribile-comando { padding: 12px 20px; }
+.confronto > .apribile-comando .apribile-titolo { font-size: 1.0625rem; }
+.confronto[data-aperto='true'] > .apribile-comando { border-bottom: 1px solid var(--line); }
+.tabella-confronto { padding: 4px 20px 0; overflow-x: auto; }
+.confronto-tabella { width: 100%; border-collapse: collapse; font-size: 0.9375rem; }
+.confronto-tabella th, .confronto-tabella td { padding: 12px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.confronto-tabella thead th { font-family: var(--titoli); font-size: 1.125rem; }
+.confronto-tabella thead th.in-evidenza { color: var(--accent); }
+.confronto-tabella tbody th { font-weight: 500; color: var(--text); }
+.confronto-tabella td { color: var(--text); white-space: nowrap; }
+.confronto-tabella .gruppo th { padding-top: 22px; font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); border-bottom-color: var(--lime); }
+.confronto-tabella tbody:last-child tr:last-child th, .confronto-tabella tbody:last-child tr:last-child td { border-bottom: none; }
+.confronto-nota { padding: 0 20px 18px; margin: 12px 0 0; }
+
+/* I moduli, uno per uno: righe separate da un filo, il nome a sinistra e
+   quanto costa a destra; aperte, dicono cosa fa il modulo. */
+.moduli-elenco { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.moduli-elenco > li { border-bottom: 1px solid var(--line); }
+.modulo-prezzo { flex: none; color: var(--muted); font-size: 0.9375rem; text-align: right; }
+.modulo .apribile-dentro > p { margin: 0; max-width: 46rem; }
+.modulo-cosa { color: var(--text); }
+.modulo .apribile-dentro > .modulo-dove { color: var(--muted); font-size: 0.9375rem; margin-top: 6px; padding-bottom: 18px; }
+/* Sul telefono stretto la barra non ci stava più: da quando il marchio è
+   «Lime SmartOrders» (09/11/2026), a 390px il tasto del menù finiva fuori
+   dallo schermo e la pagina scorreva di lato. Sotto i 480px la qualifica
+   si toglie dalla barra; resta nel piè di pagina, dove c'è posto. */
+@media (max-width: 479px) {
+  .barra .marchio-qualifica { display: none; }
+  .barra { padding-left: 16px; padding-right: 16px; }
+}
+@media (max-width: 639px) {
+  /* Sul telefono le colonne dei piani restano affiancate: nomi corti, celle
+     che vanno a capo, e l'IVA inclusa sotto. La pagina non scorre di lato. */
+  .tabella-confronto { padding: 0 12px; }
+  .confronto-tabella { font-size: 0.8125rem; table-layout: fixed; }
+  .confronto-tabella th, .confronto-tabella td { padding: 10px 4px; white-space: normal; overflow-wrap: anywhere; }
+  .confronto-tabella thead th { font-size: 0.9375rem; }
+  .confronto-tabella .incluso .icona.spunta { display: none; }
+  .apribile-comando { flex-wrap: wrap; gap: 4px 12px; }
+  .modulo .apribile-titolo { flex-basis: calc(100% - 44px); }
+  .modulo-prezzo { order: 3; text-align: left; flex-basis: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .apribile-corpo, .apribile[data-aperto='true'] > .apribile-corpo, .apribile-segno { transition: none; }
+}
+.incluso { display: inline-flex; gap: 6px; align-items: center; color: var(--ok); font-weight: 600; }
+.incluso .icona.spunta { margin-top: 0; width: 18px; height: 18px; }
+.non-incluso { color: var(--muted); }
+/* ── Le domande: righe editoriali separate da un filo; il «+» ruota e
+   diventa «×» quando la risposta è aperta. ── */
+.domande-griglia { display: grid; gap: 20px; }
+.domande { display: grid; border-top: 1px solid var(--line); }
+.domande details { border-bottom: 1px solid var(--line); }
+.domande summary { cursor: pointer; min-height: 44px; padding: 18px 0; font-weight: 600; font-size: 1.0625rem; list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.domande summary:hover { color: var(--accent); }
+.domande summary::-webkit-details-marker { display: none; }
+.domande summary::after { content: '+'; flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line); color: var(--text); font-weight: 400; font-size: 1.25rem; line-height: 1; transition: transform 0.2s ease; }
+.domande details[open] summary::after { transform: rotate(45deg); }
+.domande details p { margin: 0 0 18px; color: var(--muted); max-width: 44rem; }
+
+/* ── La chiusura: una fascia a tutta larghezza, col testo a
+   sinistra e i bottoni a destra. Sul fondo scuro l'azione principale è
+   lime col testo scuro, la seconda col contorno chiaro. ── */
+.chiusura { margin-top: 56px; padding: 56px 0; background: var(--bg-2); border-top: 1px solid var(--line); color: var(--scuro-testo); }
+.chiusura-griglia { display: grid; gap: 24px; align-items: center; }
+.chiusura h2 { margin: 0 0 12px; font-size: clamp(1.75rem, 3.2vw, 2.5rem); }
+.chiusura p { color: var(--scuro-muted); max-width: 34rem; margin: 0; }
+.chiusura .azioni { margin: 0; gap: 12px; }
+.chiusura .btn:not(.ghost) { background: var(--lime); border-color: var(--lime); color: var(--su-lime); }
+.chiusura .btn:not(.ghost):hover { background: #c6f25a; border-color: #c6f25a; }
+.chiusura .btn.ghost { color: var(--scuro-testo); border-color: var(--scuro-muted); }
+.chiusura .btn.ghost:hover { background: rgba(255, 255, 255, 0.08); }
+
+@media (min-width: 640px) {
+  .contenitore { padding: 0 32px; }
+  .funzioni-minori { grid-template-columns: 1fr 1fr; }
+  .landing .piani { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .passi-landing { grid-template-columns: repeat(3, 1fr); gap: 24px; }
+}
+@media (min-width: 768px) {
+  .landing { font-size: 1.0625rem; }
+  .sezione { padding-top: 80px; }
+  .hero-velo { background: linear-gradient(90deg, rgba(8, 11, 6, 0.9) 0%, rgba(8, 11, 6, 0.72) 48%, rgba(8, 11, 6, 0.28) 100%); }
+  .hero-sotto { font-size: 1.125rem; }
+  .titolo-accento { display: block; }
+  .chiusura { margin-top: 80px; padding: 80px 0; }
+}
+@media (min-width: 900px) {
+  .hero-griglia { grid-template-columns: minmax(0, 7fr) minmax(0, 4fr); gap: 64px; align-items: end; }
+  .funzione { grid-template-columns: 1fr 1fr; gap: 64px; }
+  .funzione:nth-child(even) .funzione-testo { order: 2; }
+  .domande-griglia { grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr); gap: 64px; align-items: start; }
+  .domande-griglia h2 { position: sticky; top: 104px; }
+  .chiusura-griglia { grid-template-columns: minmax(0, 1fr) auto; gap: 48px; }
 }
 
-.griglia-funzioni { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
-.funzione h3 { margin: 10px 0 6px; font-size: 1.1rem; }
-.funzione p { margin: 0; }
-.icona { width: 30px; height: 30px; color: var(--accent); }
+/* Le sezioni che entrano (src/lib/comparsa.js): una dissolvenza di 12px,
+   250ms, una volta sola; con meno movimento richiesto, niente. Nasconde
+   solo gli elementi che lo script sta osservando (classe in-attesa). */
+[data-comparsa] { transition: opacity 0.25s ease-out, transform 0.25s ease-out; }
+.in-attesa { opacity: 0; transform: translateY(12px); }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .btn, [data-comparsa], .domande summary::after { transition: none; }
+  .btn:hover { transform: none; }
+  .in-attesa { opacity: 1; transform: none; }
+}
 
-.passi-landing { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; list-style: none; padding: 0; margin: 8px 0 0; }
-.passi-landing li { position: relative; padding: 18px 18px 18px 64px; background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--raggio); }
-.passi-landing .numero { position: absolute; left: 18px; top: 18px; width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: #1a1a1a; font-weight: 700; display: grid; place-items: center; }
-.passi-landing h3 { margin: 0 0 4px; font-size: 1.05rem; }
-.passi-landing p { margin: 0; }
-
-.piani { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin: 12px 0 28px; }
-.piano { position: relative; display: flex; flex-direction: column; }
-.piano h3 { margin-top: 0; }
-.piano .btn { margin-top: auto; }
-.piano.in-evidenza { border-color: var(--accent); background: linear-gradient(180deg, var(--accent-soft), var(--bg-2) 60%); }
-.etichetta { position: absolute; top: 14px; right: 14px; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 3px 9px; }
+/* I prezzi e le tabelle delle altre pagine (scelta del piano, backoffice). */
 .prezzo { font-size: 2rem; font-weight: 700; margin: 4px 0; }
-table.moduli, table.clienti { width: 100%; border-collapse: collapse; }
-table th, table td { text-align: left; padding: 10px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
-.prezzo-riga { white-space: nowrap; text-align: right; }
-
-.domande { display: grid; gap: 8px; max-width: 760px; }
-.domande details { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 0 16px; }
-.domande summary { cursor: pointer; padding: 14px 0; font-weight: 600; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
-.domande summary::-webkit-details-marker { display: none; }
-.domande summary::after { content: '+'; color: var(--accent); font-weight: 400; }
-.domande details[open] summary::after { content: '–'; }
-.domande details p { margin: 0 0 14px; }
-
-.contatti { margin-top: 56px; padding: 32px; text-align: center; border-color: var(--accent); }
-.contatti h2 { margin-top: 0; }
-.contatti .azioni { justify-content: center; }
+table.clienti { width: 100%; border-collapse: collapse; }
+table th, table td { text-align: left; padding: 12px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
 
 /* ── Moduli, form, tabelle delle pagine interne ── */
 label { display: block; margin-top: 10px; font-size: 0.9rem; color: var(--muted); }
@@ -114,11 +494,21 @@ legend { font-weight: 600; margin: 10px 0 4px; }
 .campo { margin-bottom: 4px; }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .grid-3 { display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 10px; }
+/* Gli orari di servizio (REQ-FLOTTA-095): un giorno per riga, nome, «chiuso» e le due ore. */
+.orari-settimana { display: grid; gap: 6px; margin: 8px 0; }
+.orari-giorno { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.orari-giorno .orari-nome { min-width: 6.5rem; font-weight: 600; }
+.orari-giorno .opzione { display: inline-flex; align-items: center; margin: 0; padding: 6px 10px; font-size: 0.9rem; }
+.orari-giorno input[type="time"] { width: auto; min-width: 7.5rem; }
+.orari-giorno .errore { flex-basis: 100%; margin: 0; }
+.avviso { padding: 8px 12px; border-radius: 10px; background: var(--attesa-soft); border: 1px solid var(--attesa); color: var(--text); }
+.orari-elenco { list-style: none; padding: 0; margin: 4px 0; }
+.riquadro-richiesta { margin-top: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
 .passi { display: flex; gap: 6px; list-style: none; padding: 0; margin: 0 0 8px; font-size: 0.85rem; color: var(--muted); }
 .passi li { padding: 4px 8px; border-radius: 999px; border: 1px solid var(--line); }
 .passi li.corrente { color: var(--text); border-color: var(--accent); }
 .passi li.fatto { color: var(--accent); }
-.card.avviso { border-color: var(--accent); margin-bottom: 12px; }
+.card.avviso { border-color: var(--attesa); margin-bottom: 12px; }
 input[aria-invalid='true'], select[aria-invalid='true'] { border-color: var(--errore); }
 .legale h2 { margin-top: 24px; }
 input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; }
@@ -129,29 +519,121 @@ input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--
    colorato, poi i dati in una griglia che va a capo da sola, in fondo le
    azioni a gruppi: Sospendi e Chiudi a destra, lontano dalle altre. ── */
 .pagina.larga { max-width: 1200px; }
+/* ── Il sotto-menù del backoffice (REQ-FLOTTA-005; l'utente, 30/10/2026:
+   «Così è tutto troppo caotico»). Una riga di voci che sul telefono scorre
+   di lato dentro sé stessa: la pagina non scorre mai in orizzontale. La
+   voce attiva ha la riga lime; il contatore dice che dietro c'è da fare. ── */
+.sotto-menu { display: flex; gap: 4px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; border-bottom: 1px solid var(--line); margin: 8px 0 16px; }
+.sotto-menu a { flex: none; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; color: var(--muted); text-decoration: none; white-space: nowrap; border-bottom: 2px solid transparent; }
+.sotto-menu a:hover { color: var(--text); }
+.sotto-menu a[aria-current='page'] { color: var(--accent-2); border-bottom-color: var(--accent); }
+.conta { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--accent); color: #16210a; font-size: 0.75rem; font-weight: 700; }
+.bo-sezione { display: grid; gap: 12px; }
+.bo-sezione > * { min-width: 0; }
+.filtri-locali { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; }
+@media (max-width: 560px) { .filtri-locali { grid-template-columns: 1fr; } }
+.bo-sezione .locali { margin-top: 0; }
 .locali { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 12px; }
+/* LA TABELLA DEI LOCALI (02/11/2026): una riga per locale, il nome apre
+   la scheda sotto. Su un telefono scorre dentro il suo riquadro, mai la
+   pagina, e le colonne secondarie si nascondono. */
+.tabella-scorre { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--raggio); background: var(--bg-2); }
+.tabella-locali { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+.tabella-locali th, .tabella-locali td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.tabella-locali thead th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+.tabella-locali tbody th { font-weight: 400; }
+.riga-locale { cursor: pointer; border-left: 3px solid transparent; }
+.riga-locale:hover, .riga-locale.aperta { background: rgba(255, 255, 255, 0.03); }
+.riga-locale.tono-ok > th { box-shadow: inset 3px 0 0 #5fd3a1; }
+.riga-locale.tono-errore > th { box-shadow: inset 3px 0 0 var(--errore); }
+.riga-locale.tono-attesa > th { box-shadow: inset 3px 0 0 var(--attesa); }
+.riga-locale.tono-avviso > th { box-shadow: inset 3px 0 0 #e67e22; }
+.nome-locale { background: none; border: 0; padding: 0; color: var(--text); font: inherit; font-weight: 600; cursor: pointer; text-align: left; }
+.nome-locale:hover, .nome-locale:focus-visible { color: var(--accent); text-decoration: underline; }
+.riga-dettaglio > td { padding: 0 10px 14px; background: rgba(255, 255, 255, 0.03); }
+.riga-dettaglio .locale { margin-top: 4px; }
+@media (max-width: 720px) { .tabella-locali .col-secondaria { display: none; } }
+/* IL CATALOGO DEI TEMI (REQ-FLOTTA-032): i campi a sinistra, l'anteprima
+   a destra; su un telefono uno sotto l'altro. */
+.editor-tema { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 320px); gap: 20px; margin-top: 16px; border-top: 1px solid var(--line); padding-top: 16px; }
+@media (max-width: 760px) { .editor-tema { grid-template-columns: 1fr; } }
+.editor-tema-campi textarea { width: 100%; }
+.colori-tema { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; gap: 8px; }
+.colore-tema { display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: 10px; }
+.colore-tema input[type='color'] { width: 44px; height: 32px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: none; }
+.anteprima-tema { display: grid; gap: 12px; align-content: start; }
+.tavolozza-tema { display: flex; gap: 6px; }
+.tavolozza-tema .campione { flex: 1; height: 28px; border-radius: 6px; border: 1px solid rgba(127, 127, 127, 0.35); }
+.assaggio-tema { border-radius: 12px; padding: 18px; display: grid; gap: 10px; }
+.assaggio-card { border: 1px solid; border-radius: 10px; padding: 12px 14px; display: grid; gap: 6px; }
+.assaggio-bottone { justify-self: start; padding: 4px 12px; border-radius: 999px; font-weight: 600; font-size: 0.85rem; }
 .locale { background: var(--bg-2); border: 1px solid var(--line); border-left: 3px solid var(--line); border-radius: var(--raggio); padding: 16px 18px; display: grid; gap: 14px; }
 .locale.tono-ok { border-left-color: #5fd3a1; }
 .locale.tono-errore { border-left-color: var(--errore); background: linear-gradient(90deg, rgba(231, 76, 60, 0.07), var(--bg-2) 45%); }
-.locale.tono-attesa { border-left-color: var(--accent); }
+.locale.tono-attesa { border-left-color: var(--attesa); }
 .locale.tono-avviso { border-left-color: #e67e22; }
 .locale-testa { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .locale-testa h3 { margin: 0; font-size: 1.1rem; }
 .stato { font-size: 0.8rem; font-weight: 600; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); white-space: nowrap; }
 .stato-ok { color: #5fd3a1; border-color: rgba(95, 211, 161, 0.4); background: rgba(95, 211, 161, 0.08); }
 .stato-errore { color: #ff8a7a; border-color: rgba(231, 76, 60, 0.5); background: rgba(231, 76, 60, 0.1); }
-.stato-attesa { color: var(--accent); border-color: rgba(227, 178, 60, 0.4); background: var(--accent-soft); }
+.stato-attesa { color: var(--attesa); border-color: rgba(227, 178, 60, 0.4); background: var(--attesa-soft); }
 .stato-avviso { color: #f0a35e; border-color: rgba(230, 126, 34, 0.45); background: rgba(230, 126, 34, 0.1); }
 .locale-dati { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px 20px; margin: 0; }
 .locale-dati dt { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 4px; }
 .locale-dati dt label { display: inline; margin: 0; font-size: inherit; color: inherit; }
 .locale-dati dd { margin: 0; overflow-wrap: anywhere; }
 .locale-dati select { padding: 6px 8px; }
-.locale-azioni { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; border-top: 1px solid var(--line); padding-top: 12px; }
 .gruppo-azioni { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .gruppo-azioni.pericolo { margin-left: auto; }
 .gruppo-azioni.pericolo .btn:hover { border-color: var(--errore); color: #ff8a7a; }
-.gruppo-nome { margin-right: 2px; }
+/* LA SCHEDA DEL LOCALE (REQ-FLOTTA-089, Daniele, 13/11/2026: «è tutto
+   troppo caotico e formattato male»). In testa stato, piano e versione a
+   destra del nome; sotto gli avvisi, in ambra come ogni cosa in attesa;
+   poi i blocchi: auto-fit con min(100%, 18rem) li mette in una colonna sul
+   telefono, in due su un tablet e al massimo in tre nei 1120px del
+   contenuto (quattro da 18rem con gli spazi non ci stanno), senza media
+   query; in fondo, sotto una riga, Sospendi e Chiudi da soli. */
+.locale-sintesi { display: grid; justify-items: end; gap: 4px; text-align: right; }
+.locale-avvisi { list-style: none; margin: 0; padding: 10px 12px; display: grid; gap: 8px; border: 1px solid rgba(227, 178, 60, 0.4); border-radius: 10px; background: var(--attesa-soft); }
+.locale-avvisi li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.locale-blocchi { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: 20px 28px; }
+.blocco { display: grid; gap: 4px; align-content: start; min-width: 0; overflow-wrap: anywhere; }
+.blocco h4 { margin: 0 0 4px; font-family: inherit; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.blocco > .btn { justify-self: start; }
+.blocco h5.blocco-sotto { margin: 8px 0 0; font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+.blocco > .gruppo-azioni { margin-top: 6px; }
+.blocco select { padding: 6px 8px; max-width: 100%; }
+.campo-blocco { display: grid; gap: 2px; margin-top: 4px; }
+.campo-blocco label { margin: 0; }
+/* Un modulo aperto (Cambia piano, i temi, l'editor di un tema su misura,
+   Pubblicazione e licenza) prende tutta la riga: in un terzo di scheda i
+   suoi campi non ci stanno. */
+.blocco:has(form, .editor-tema) { grid-column: 1 / -1; }
+.blocco .gestione-esistente { margin: 4px 0 0; max-width: 640px; }
+.segno-ok { color: var(--ok); }
+.locale-fondo { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px 24px; border-top: 1px solid var(--line); padding-top: 12px; }
+.locale-fondo .gruppo-azioni { gap: 12px; }
+.locale-fondo .locale-eliminazione { margin: 0 auto 0 0; }
+.locale-fondo .elimina-form { flex: 1 1 100%; }
+/* L'aiuto che si apre (REQ-FLOTTA-089): un «?» tondo accanto al tasto, che
+   si apre col clic, col dito e da tastiera; aperto, prende la riga intera
+   sotto i tasti, col testo sotto il «?». */
+.aiuto { display: inline-block; }
+.aiuto[open] { display: block; flex: 1 1 100%; }
+.aiuto > summary { list-style: none; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 50%; color: var(--muted); cursor: pointer; font-weight: 600; }
+.aiuto > summary::-webkit-details-marker { display: none; }
+.aiuto > summary:hover, .aiuto[open] > summary { color: var(--text); border-color: var(--accent); }
+.aiuto > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.aiuto > p { margin: 6px 0 0; }
+/* L'aggiornamento in corso nella scheda: un segno che gira accanto al testo,
+   così si vede che la pagina sta aspettando il workflow e non è ferma. */
+.avanzamento { display: inline-flex; align-items: center; gap: 6px; margin: 2px 0 0; color: var(--muted); }
+/* flex: none (REQ-FLOTTA-082): accanto a un testo lungo, nella riga
+   flessibile dell'aggiornamento, si restringeva in larghezza e diventava ovale. */
+.spinner { display: inline-block; flex: none; width: 12px; height: 12px; border: 2px solid var(--line); border-top-color: currentColor; border-radius: 50%; animation: gira 0.9s linear infinite; }
+@keyframes gira { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
 
 /* ── Chiudere e cancellare un locale (REQ-FLOTTA-014): bordo e tasto
    rossi, perché è il solo gesto della regia che non si annulla. ── */
@@ -166,16 +648,27 @@ input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--
 .opzione input { width: auto; margin-right: 8px; }
 code { background: rgba(255, 255, 255, 0.06); padding: 1px 5px; border-radius: 5px; }
 .row-tra { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 /* ── Il piè di pagina a colonne ── */
 .piede { border-top: 1px solid var(--line); padding: 32px 20px 20px; background: var(--bg-2); }
 .piede-colonne { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 24px; max-width: 1080px; margin: 0 auto; }
-.piede-colonne h4 { margin: 0 0 8px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.piede-titolo { margin: 0 0 8px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
 .piede-colonne a { display: block; color: var(--text); text-decoration: none; padding: 3px 0; }
 .piede-colonne a:hover { color: var(--accent); }
 .piede-marchio { font-size: 1.1rem; margin-bottom: 4px; }
+.piede .scelta-lingua { margin-top: 12px; }
+/* Le regole dei link del piè di pagina (blocco, niente margini) non valgono per il selettore. */
+.piede-colonne .scelta-lingua a { display: inline-flex; padding: 0 10px; }
 .piede-riga { max-width: 1080px; margin: 24px auto 0; padding-top: 14px; border-top: 1px solid var(--line); }
 @media (max-width: 760px) { .piede-colonne { grid-template-columns: 1fr 1fr; } }
+
+/* L'ANTEPRIMA (REQ-FLOTTA-043): la pagina sola che la produzione mostra
+   finché il sito non è aperto. Poco: un titolo, due righe, l'email. */
+.anteprima { flex: 1; display: flex; align-items: center; padding: 64px 0; }
+.anteprima-testo { max-width: 40rem; }
+.anteprima h1 { font-family: var(--titoli); font-size: clamp(2rem, 4.5vw, 3rem); line-height: 1.1; margin: 0 0 16px; }
+.anteprima-sotto { font-size: 1.125rem; color: var(--muted); margin: 0 0 20px; }
 
 /* Il nastro «TEST» (REQ-DEV-002): sul sito di test si deve vedere subito che non è quello vero. */
 .nastro-test { position: sticky; top: 0; z-index: 11; text-align: center; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.04em; padding: 4px 12px; background: #b45309; color: #fff; }
@@ -186,6 +679,53 @@ code { background: rgba(255, 255, 255, 0.06); padding: 1px 5px; border-radius: 5
 .ondate { margin: 8px 0; padding-left: 20px; }
 .ondate li { margin: 4px 0; }
 .ondata-attuale { font-weight: 600; }
+/* Gli aggiornamenti a scelta (REQ-FLOTTA-020): l'avviso delle condizioni
+   si distingue; le note di una versione possono essere lunghe e scorrono
+   dentro il loro riquadro, non allungano la pagina. */
+.card .avviso { border-left: 3px solid var(--attesa); padding: 8px 12px; margin: 8px 0; background: var(--bg-3); }
+.proposta { margin-top: 12px; }
+.note-versione { max-height: 20rem; overflow-y: auto; padding: 4px 12px; border: 1px solid var(--line); border-radius: 8px; margin: 8px 0; }
+.note-versione h5 { margin: 12px 0 4px; font-size: 1rem; }
+.note-versione h6 { margin: 8px 0 4px; font-size: 0.9375rem; }
+.note-versione ul { margin: 4px 0; padding-left: 20px; }
+
+/* ── Il commerciale (REQ-FLOTTA-041, REQ-FLOTTA-042): la dashboard di chi
+   vende. Le tessere coi numeri di testa; i grafici a colonne, una serie
+   sola nel lime della regia, barre sottili e fondo che separa; le tabelle
+   coi numeri allineati a destra. ── */
+.commerciale { display: grid; gap: 16px; }
+.commerciale .filtri-locali { align-items: end; }
+.periodo-dal { margin: 0 0 10px; }
+.tessere { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); }
+.tessera { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--raggio); padding: 14px 16px; display: grid; gap: 4px; align-content: start; }
+.tessera-etichetta { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.tessera-valore { font-size: 2rem; font-weight: 600; line-height: 1.1; }
+.tessera-delta { font-size: 0.85rem; }
+.tessera-delta.su { color: var(--ok); }
+.tessera-delta.giu { color: #ff8a7a; }
+.commerciale-grafici { grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+.commerciale .riquadri { margin-bottom: 0; }
+.grafico h3 { margin-top: 0; font-size: 1rem; }
+.colonne { display: block; width: 100%; height: auto; }
+.colonne .asse { stroke: var(--line); stroke-width: 1; }
+.colonne .griglia { stroke: rgba(255, 255, 255, 0.06); stroke-width: 1; }
+.colonne .barra { fill: var(--accent); }
+.colonne .colonna:hover .barra { fill: var(--accent-2); }
+.colonne .etichetta-valore { fill: var(--text); font-size: 12px; font-weight: 600; }
+.colonne .etichetta-asse { fill: var(--muted); font-size: 11px; }
+.tabella-grafico summary { cursor: pointer; margin-top: 6px; }
+.tabella-grafico .tabella-scorre { max-height: 14rem; overflow-y: auto; margin-top: 6px; }
+.tabella-commerciale { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin: 6px 0 10px; }
+.tabella-commerciale th, .tabella-commerciale td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.tabella-commerciale thead th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+.tabella-commerciale tbody th { font-weight: 400; }
+.tabella-commerciale .num, .classifica .num, .imbuto .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.imbuto, .classifica { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 8px; }
+.imbuto-traccia { height: 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.06); overflow: hidden; margin-top: 3px; }
+.imbuto-barra { height: 100%; border-radius: 999px; background: var(--accent); }
+.attenzione { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.commerciale .card h3 { margin-top: 0; }
+.commerciale .card h4 { margin: 14px 0 4px; font-size: 0.9rem; }
 
 /* ── La vendita nel backoffice (REQ-FLOTTA-015) ── */
 .card.vendita { margin: 12px 0; }
@@ -203,3 +743,12 @@ code { background: rgba(255, 255, 255, 0.06); padding: 1px 5px; border-radius: 5
 .contatti li.gestita { opacity: 0.6; }
 .cambia-piano { display: grid; gap: 8px; margin-top: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
 .cambia-piano label { margin: 0; }
+/* I temi su misura (REQ-FLOTTA-040): nella dashboard e nella scheda del locale. */
+.temi-su-misura { list-style: none; padding: 0; margin: 0 0 16px; display: grid; gap: 14px; }
+.temi-su-misura li { display: grid; gap: 6px; justify-items: start; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.temi-su-misura li.ritirato .anteprima-tema { opacity: 0.5; }
+.temi-su-misura .anteprima-tema { width: 100%; max-width: 320px; }
+.da-verificare { margin: 0; padding-left: 18px; }
+.tema-dal-mockup, .tema-dal-fornitore { display: grid; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.tema-dal-mockup h4, .tema-dal-fornitore h4 { margin: 0; }
+.tema-dal-mockup textarea, .tema-dal-fornitore textarea, .tema-dal-fornitore input, .tema-dal-mockup select, .tema-dal-fornitore select { width: 100%; max-width: 520px; }

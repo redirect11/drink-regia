@@ -23,8 +23,8 @@ jobs:
     name: Lint, test e build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
@@ -32,13 +32,70 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      # LE DIPENDENZE DI PRODUZIONE (REQ-DEV-006, audit del 09/11/2026,
+      # finding 24): una falla alta o critica in quello che arriva sul sito
+      # o nelle Functions si vede qui, non in un avviso che nessuno legge.
+      # Le devDependencies (vite, vitest, happy-dom) restano fuori: non si
+      # pubblicano e si aggiornano nel loro ramo.
+      - name: Audit delle dipendenze del sito
+        # Al 09/11/2026 il passo non ferma la CI: `firebase` 12 (e anche
+        # 13) porta @grpc/grpc-js 1.9 con due avvisi alti che nessuna
+        # versione dell'SDK web risolve, e che il browser non usa (il
+        # sito parla con Firestore in WebChannel). Quando `npm audit
+        # --omit=dev --audit-level=high` passa pulito in radice, togliere
+        # `continue-on-error` e il passo diventa vincolante.
+        continue-on-error: true
+        run: npm audit --omit=dev --audit-level=high
+      - name: Audit delle dipendenze delle Functions
+        working-directory: functions
+        run: npm audit --omit=dev --audit-level=high
       - name: Test con coverage
         if: github.event_name == 'pull_request'
         run: npm run test:coverage
+      # Un allegato per chi legge, non un controllo (REQ-DEV-014): l'11/11/2026
+      # un guasto di GitHub ne ha fatto fallire il caricamento, e la PR #136
+      # è diventata rossa a test e build passati.
       - name: Rapporto di coverage
         if: github.event_name == 'pull_request' && always()
-        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: coverage-report
           path: coverage/
           retention-days: 14
+
+  # LE REGOLE DI FIRESTORE, SULL'EMULATORE (REQ-DEV-007). Sono l'unica
+  # barriera fra i documenti della regia (account, piani, abbonamenti) e chi
+  # apre la console del browser con apiKey e projectId, che sono pubblici.
+  # Fino all'audit del 09/11/2026 si provavano solo sul testo: un errore
+  # nelle regole passava il cancello. Ora girano su ogni pull request con le
+  # regole vere (tests/regole/). Un job a parte, come in tana-drink: ha
+  # bisogno di Java e dell'emulatore, e non rallenta lint, test e build.
+  regole:
+    name: Regole Firestore (emulatore)
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      # L'emulatore di Firestore gira su Java (21, come in locale).
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: 21
+      # Il jar dell'emulatore non cambia da una PR all'altra: si tiene,
+      # invece di riscaricarlo ogni volta. La chiave segue la versione di
+      # firebase-tools, fissata in package.json e quindi nel lockfile.
+      - name: Cache dell'emulatore
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/firebase/emulators
+          key: emulatori-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - run: npm ci
+      # firebase.collaudo.json e la versione di firebase-tools del lockfile:
+      # un emulatore nuovo che cambia comportamento non deve far diventare
+      # rossa una PR che non c'entra.
+      - run: npm run test:regole

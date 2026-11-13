@@ -9,11 +9,34 @@
 import { describe, it, expect } from 'vitest'
 import { createRequire } from 'node:module'
 
+import { aggiornamentoDetto, runNellErrore } from '../src/lib/rilasci.js'
+
 const require = createRequire(import.meta.url)
 const r = require('../functions/lib/rilasci.js')
 const { esitoValido, eAggiornamento, documentoAggiornamento } = require('../functions/lib/provisioning.js')
 
 const ADESSO = new Date('2026-10-27T10:00:00Z')
+
+// La riga della scheda del backoffice (l'utente, 09/11/2026: «vorrei almeno
+// un loading, qualcosa che mi faccia capire che sta succedendo qualcosa con
+// un minimo di gestione degli errori»).
+describe('l’aggiornamento di un locale, detto in una riga', () => {
+  it('in corso dice da quanto; riuscito dice a cosa è arrivato; fallito dice perché', () => {
+    expect(aggiornamentoDetto(null)).toBeNull()
+    expect(aggiornamentoDetto({ stato: 'in corso', ref: 'develop' })).toBe('aggiornamento a develop in corso')
+    expect(aggiornamentoDetto({ stato: 'in corso', ref: 'develop', chiesto_il: '2026-10-27T09:57:30Z' }, ADESSO)).toBe('aggiornamento a develop in corso da 2 min')
+    expect(aggiornamentoDetto({ stato: 'in corso', ref: 'develop', chiesto_il: '2026-10-27T09:59:40Z' }, ADESSO)).toBe('aggiornamento a develop in corso da meno di un minuto')
+    expect(aggiornamentoDetto({ stato: 'riuscito', ref: 'v1.11.0', versione: 'v1.11.0' })).toBe('aggiornato a v1.11.0')
+    expect(aggiornamentoDetto({ stato: 'riuscito', ref: 'v1.10.0', ritorno: true })).toBe('riportato a v1.10.0')
+    expect(aggiornamentoDetto({ stato: 'fallito', ref: 'develop', errore: 'GitHub 422' })).toBe('aggiornamento a develop fallito: GitHub 422')
+  })
+
+  it('il run di GitHub nell’errore diventa un link; senza run, niente link', () => {
+    expect(runNellErrore('Aggiornamento failure: GitHub Actions run 42666395985')).toBe('https://github.com/redirect11/drink-regia/actions/runs/42666395985')
+    expect(runNellErrore('GitHub 422: il workflow non è partito')).toBeNull()
+    expect(runNellErrore(null)).toBeNull()
+  })
+})
 
 const flotta = () => ({
   'demo-prova': { stato: 'attiva', gruppo_rilascio: 'prova', versione: 'v1.10.0' },
@@ -61,6 +84,22 @@ describe('un rilascio nasce da un tag, con le ondate in ordine', () => {
     expect(r.ondataDi({ gruppo_rilascio: 'boh' })).toBe('generale')
     expect(r.ondataDi({ interna: true })).toBe('interna')
     expect(r.ondataDi({ origine: 'esistente' })).toBe('interna')
+  })
+})
+
+// REQ-FLOTTA-018: la Tana affidata alla regia resta nell'ondata interna,
+// ma l'aggiornamento lo lancia la regia invece di aspettarlo.
+describe('un locale esistente affidato alla regia', () => {
+  it('lo aggiorna la regia, nella sua ondata; senza l’affidamento si aspetta la versione', () => {
+    expect(r.daFlotta({ origine: 'esistente' })).toBe(false)
+    expect(r.daFlotta({ origine: 'esistente', aggiornamenti_dalla_regia: true })).toBe(true)
+    expect(r.daFlotta({ stato: 'attiva' })).toBe(true)
+    const istanze = { ...flotta(), 'tana-drink': { ...flotta()['tana-drink'], aggiornamenti_dalla_regia: true } }
+    let ril = r.nuovoRilascio('v1.11.0', istanze)
+    expect(ril.ondate.map((o) => o.nome)).toEqual(['prova', 'interna', 'pilota', 'generale'])
+    ril = r.avanzamento(ril, istanze).rilascio
+    istanze['demo-prova'].aggiornamento = { rilascio: 'v1.11.0', stato: 'riuscito' }
+    expect(r.avanzamento(ril, istanze).daLanciare).toEqual(['tana-drink'])
   })
 })
 
@@ -187,9 +226,75 @@ describe('il riepilogo per il backoffice', () => {
     const ril = r.conRiepilogo(r.nuovoRilascio('v1.11.0', istanze), istanze)
     expect(ril.puo_avanzare).toBe(true)
     expect(ril.prossima).toBe('prova')
-    expect(ril.riepilogo[3]).toEqual({ nome: 'generale', 'in attesa': 2, 'in corso': 0, riuscito: 0, fallito: 0, escluso: 0 })
+    expect(ril.riepilogo[3]).toEqual({ nome: 'generale', 'in attesa': 2, 'in corso': 0, riuscito: 0, fallito: 0, escluso: 0, proposto: 0, saltato: 0, 'non incluso': 0 })
     // La Tana è già sulla versione? conta come riuscita anche prima.
     istanze['tana-drink'].versione = 'v1.11.0'
     expect(r.conRiepilogo(ril, istanze).riepilogo[1].riuscito).toBe(1)
+  })
+
+  // REQ-FLOTTA-026: la Tana pubblicata da GitHub non manda l'esito di un
+  // deploy della regia; la versione la dice l'app presentandosi. Senza,
+  // l'ondata «interna» non finirebbe mai.
+  it('un locale esistente conta anche con la versione che l’app ha presentato', () => {
+    const istanze = flotta()
+    const ril = r.conRiepilogo(r.nuovoRilascio('v1.11.0', istanze), istanze)
+    expect(ril.riepilogo[1].riuscito).toBe(0)
+    istanze['tana-drink'].presentazione = { versione: 'v1.11.0', il: '2026-11-02T10:00:00Z' }
+    expect(r.conRiepilogo(ril, istanze).riepilogo[1].riuscito).toBe(1)
+    // Una versione diversa no.
+    istanze['tana-drink'].presentazione.versione = 'v1.10.9'
+    expect(r.conRiepilogo(ril, istanze).riepilogo[1].riuscito).toBe(0)
+  })
+})
+
+// REQ-FLOTTA-020: con gli aggiornamenti a scelta un locale riceve una
+// proposta invece del deploy, e chi non ha gli aggiornamenti nel piano
+// resta fuori. Né l'uno né l'altro ferma l'ondata.
+describe('gli aggiornamenti a scelta nel rilascio', () => {
+  const avviato = () => {
+    const istanze = { 'bar-mario': { stato: 'attiva', versione: 'v1.10.0' }, 'bar-luigi': { stato: 'attiva', versione: 'v1.10.0' }, 'bar-free': { stato: 'attiva', versione: 'v1.10.0' } }
+    const { rilascio } = r.avanzamento(r.nuovoRilascio('v1.11.0', istanze), istanze)
+    return { istanze, rilascio }
+  }
+
+  it('un rilascio nasce normale, o obbligatorio se lo si dice', () => {
+    const istanze = { 'bar-mario': { stato: 'attiva' } }
+    expect(r.nuovoRilascio('v1.11.0', istanze)).toMatchObject({ obbligatorio: false, non_inclusi: [] })
+    expect(r.nuovoRilascio('v1.11.0', istanze, { obbligatorio: true }).obbligatorio).toBe(true)
+  })
+
+  it('proposto, saltato e non incluso non fermano l’ondata, e chiudono il rilascio', () => {
+    const { istanze, rilascio } = avviato()
+    istanze['bar-mario'].proposta_aggiornamento = { tag: 'v1.11.0', rilascio: 'v1.11.0', attesa: true, saltata_il: null }
+    istanze['bar-luigi'].proposta_aggiornamento = { tag: 'v1.11.0', rilascio: 'v1.11.0', attesa: true, saltata_il: '2026-11-02T10:00:00Z' }
+    const ril = { ...rilascio, non_inclusi: ['bar-free'] }
+    expect(r.esitoDi(istanze['bar-mario'], ril, 'bar-mario')).toBe('proposto')
+    expect(r.esitoDi(istanze['bar-luigi'], ril, 'bar-luigi')).toBe('saltato')
+    expect(r.esitoDi(istanze['bar-free'], ril, 'bar-free')).toBe('non incluso')
+    expect(r.contaOndata(ril.ondate[0], istanze, ril)).toMatchObject({ proposto: 1, saltato: 1, 'non incluso': 1, 'in attesa': 0 })
+    expect(r.dopoEsito(ril, istanze, ADESSO)).toMatchObject({ stato: 'completato' })
+  })
+
+  it('una proposta accettata diventa un aggiornamento come gli altri', () => {
+    const { istanze, rilascio } = avviato()
+    istanze['bar-mario'].proposta_aggiornamento = { tag: 'v1.11.0', rilascio: 'v1.11.0', attesa: false }
+    lancia(istanze, 'bar-mario', 'v1.11.0', { rilascio: 'v1.11.0' })
+    expect(r.esitoDi(istanze['bar-mario'], rilascio, 'bar-mario')).toBe('in corso')
+    esito(istanze, 'bar-mario', 'errore')
+    expect(r.dopoEsito(rilascio, istanze, ADESSO)).toMatchObject({ stato: 'fermo' })
+  })
+
+  it('la proposta di un altro rilascio non conta per questo', () => {
+    const { istanze, rilascio } = avviato()
+    istanze['bar-mario'].proposta_aggiornamento = { tag: 'v1.10.5', rilascio: 'v1.10.5', attesa: true }
+    expect(r.esitoDi(istanze['bar-mario'], rilascio, 'bar-mario')).toBe('in attesa')
+  })
+})
+
+// REQ-FLOTTA-072: un locale simulato non ha un progetto da aggiornare.
+describe('un locale simulato non entra nei rilasci', () => {
+  it('attiva ma simulata: non partecipa', () => {
+    expect(r.partecipa({ stato: 'attiva' })).toBe(true)
+    expect(r.partecipa({ stato: 'attiva', simulata: true })).toBe(false)
   })
 })

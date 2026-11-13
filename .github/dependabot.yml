@@ -1,0 +1,72 @@
+# DEPENDABOT (REQ-DEV-006, audit del 09/11/2026, finding 23 e 24). Le
+# dipendenze del sito, delle Functions e le action dei workflow si tengono
+# aggiornate con pull request verso develop, una volta a settimana: gli
+# avvisi di sicurezza da soli, il resto raggruppato in una PR per cartella
+# (patch e minor insieme), così la CI gira una volta e non venti. I
+# major non si aggiornano da soli: vite, vitest, happy-dom, firebase-admin
+# cambiano le regole del gioco e vanno in un ramo dedicato, a mano.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: Europe/Rome
+    target-branch: develop
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    labels: [dipendenze]
+    groups:
+      sito-minori:
+        applies-to: version-updates
+        update-types: [minor, patch]
+      sito-sicurezza:
+        applies-to: security-updates
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: npm
+    directory: /functions
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: Europe/Rome
+    target-branch: develop
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    labels: [dipendenze]
+    groups:
+      functions-minori:
+        applies-to: version-updates
+        update-types: [minor, patch]
+      functions-sicurezza:
+        applies-to: security-updates
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]
+
+  # Le action sono pinnate a uno SHA con la versione nel commento: Dependabot
+  # sposta lo SHA e aggiorna il commento, così il pin non invecchia.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: Europe/Rome
+    target-branch: develop
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(ci)"
+    labels: [dipendenze]
+    groups:
+      actions:
+        update-types: [minor, patch]

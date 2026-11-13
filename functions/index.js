@@ -9,36 +9,77 @@
 //   PROVISIONING_CALLBACK_SECRET  il bearer che il workflow usa per l'esito
 //   ANTHROPIC_API_KEY             la nostra chiave di Claude (REQ-AI-003): sta
 //                                 solo qui, mai in un'installazione
+//   AI_CHAT_SECRET                la chiave con cui la regia firma i turni
+//                                 della chat (REQ-FLOTTA-094): almeno 32
+//                                 caratteri casuali, mai fuori dalla regia
 // Configurazione non segreta (.env): GITHUB_REPO (il repository con i
 // workflow della flotta, dal 29/10/2026 la regia stessa), FLOTTA_REF (il
 // suo ramo con i workflow), APP_REF (la versione di tana-drink da
-// pubblicare), FLOTTA_AMBIENTE (produzione o test: quale environment).
+// pubblicare), FLOTTA_AMBIENTE (produzione o test: quale environment),
+// APP_REPO (il repository dell'app, da cui si leggono le note di un
+// rilascio: di norma redirect11/tana-drink).
 
-const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore')
+const { onDocumentCreated, onDocumentUpdated, onDocumentWritten } = require('firebase-functions/v2/firestore')
 const { onRequest } = require('firebase-functions/v2/https')
 const { defineSecret } = require('firebase-functions/params')
+const eventiStripe = require('./lib/eventistripe.js')
 const { initializeApp } = require('firebase-admin/app')
 const { getFirestore } = require('firebase-admin/firestore')
-const { preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, eAggiornamento, documentoIstanza, documentoAggiornamento, bearerValido } = require('./lib/provisioning.js')
+const { simulazioneAmmessa, documentoSimulato, preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, eAggiornamento, documentoIstanza, documentoAggiornamento, vincoliEsito, bearerValido, segretoUsabile } = require('./lib/provisioning.js')
 const rilasci = require('./lib/rilasci.js')
-const { patchLicenzaPiano, sceltaCambiata } = require('./lib/licenza.js')
+const { sceltaCambiata, licenzaProtetta, stessaLicenza, perIlDatabase, scadenzaCoerente } = require('./lib/licenza.js')
+const { rinnovoUrl, fatturaDelRinnovo } = require('./lib/rinnovo.js')
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
-const { FieldValue } = require('firebase-admin/firestore')
-const { chiaveStripeVera, righeCheckout, metadatiDi, aggiornamentoDaEvento } = require('./lib/abbonamento.js')
-const { onSchedule } = require('firebase-functions/v2/scheduler')
-const { patchLicenza, daSospendere, STATI: STATI_LICENZA } = require('./lib/sospensione.js')
+const { FieldValue, Timestamp } = require('firebase-admin/firestore')
+const { chiaveStripeVera, ritornoAmmesso, righeSubscription, prodottiDi, parametriAliquotaIva, eAliquotaIva, CHIAVE_IDEMPOTENZA_IVA, metadatiDi, aggiornamentoDaEvento, sceltaPulita, sessioneCheckout, intervalloDi, prenotazioneDaRilasciare, fondatoreDaConfermare, DURATA_SESSIONE_MS, fineDelPeriodo, STATI_STRIPE } = require('./lib/abbonamento.js')
+const fondatori = require('./lib/fondatori.js')
+const acquisto = require('./lib/acquisto.js')
+const { onTaskDispatched } = require('firebase-functions/v2/tasks')
+const { getFunctions: funzioniAdmin } = require('firebase-admin/functions')
+const { STATI: STATI_LICENZA } = require('./lib/sospensione.js')
+const scadenze = require('./lib/scadenze.js')
+const taglio = require('./lib/taglio.js')
+const orari = require('./lib/orari-servizio.js')
 const { initializeApp: initializeAppCon, getApps } = require('firebase-admin/app')
 const { getAuth } = require('firebase-admin/auth')
 const ai = require('./lib/ai.js')
+const aiChat = require('./lib/ai-chat.js')
+const identita = require('./lib/identita-locale.js')
+const stampanti = require('./lib/stampanti.js')
+const { OAuth2Client } = require('google-auth-library')
 const elim = require('./lib/eliminazione.js')
+const conserva = require('./lib/conservazione.js')
+const presenta = require('./lib/presentazione.js')
+const passa = require('./lib/passaggio.js')
+const temi = require('./lib/temi.js')
+const stili = require('./lib/stili.js')
+const comunica = require('./lib/comunicazioni.js')
+const sconti = require('./lib/sconti.js')
 const free = require('./lib/free.js')
 const contatti = require('./lib/contatti.js')
 const { getStorage } = require('firebase-admin/storage')
-const { datiEsistente, documentiEsistente, DatiNonValidi, scriveLicenza } = require('./lib/esistente.js')
+const { datiEsistente, documentiEsistente, DatiNonValidi, scriveLicenza, gestioneEsistente, eDemo } = require('./lib/esistente.js')
+const aggiornamenti = require('./lib/aggiornamenti.js')
+const movimenti = require('./lib/movimenti.js')
+const traffico = require('./lib/traffico.js')
+const registrazione = require('./lib/registrazione.js')
+const eliminazioneCliente = require('./lib/eliminazione-cliente.js')
+const collegamento = require('./lib/collegamento.js')
+// L'aliquota del listino, per l'IVA dei pagamenti registrati a mano.
+const listino = require('./piani.json')
 
 initializeApp()
 const db = getFirestore()
-const OPTS = { region: 'europe-west1' }
+// L'account con cui girano le Functions (audit del 09/11/2026, finding 3):
+// quello dedicato creato da scripts/account-runtime.mjs, con i soli ruoli
+// che il codice usa e niente Editor. Senza RUNTIME_SERVICE_ACCOUNT in
+// functions/.env.<progetto> resta l'account predefinito di Compute Engine,
+// che è Editor sulla regia: va bene solo finché l'account dedicato non è
+// stato creato e autorizzato sui locali (REGIA_SA_EMAIL nella flotta).
+const OPTS = {
+  region: 'europe-west1',
+  ...(process.env.RUNTIME_SERVICE_ACCOUNT ? { serviceAccount: process.env.RUNTIME_SERVICE_ACCOUNT } : {}),
+}
 const GITHUB_DISPATCH_TOKEN = defineSecret('GITHUB_DISPATCH_TOKEN')
 const PROVISIONING_CALLBACK_SECRET = defineSecret('PROVISIONING_CALLBACK_SECRET')
 // Stripe (REQ-FLOTTA-007): chiave segreta e segreto del webhook, prima
@@ -46,6 +87,26 @@ const PROVISIONING_CALLBACK_SECRET = defineSecret('PROVISIONING_CALLBACK_SECRET'
 const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY')
 const STRIPE_WEBHOOK_SECRET = defineSecret('STRIPE_WEBHOOK_SECRET')
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY')
+// LA FIRMA DEI TURNI DELLA CHAT (REQ-FLOTTA-094): la regia non conserva le
+// conversazioni, e riconosce un turno del modello ritoccato dalla firma.
+// Solo richiestaAI lo lega: senza il segreto nel progetto il deploy di
+// richiestaAI si ferma, e con il segnaposto la chat risponde 503.
+const AI_CHAT_SECRET = defineSecret('AI_CHAT_SECRET')
+// Le Functions che chiamano Claude (REQ-AI-003, REQ-FLOTTA-040): con la
+// federazione girano con l'account di servizio dedicato (AI_SERVICE_ACCOUNT
+// in functions/.env.<progetto>, docs/handover.md §7 «Cassetto AI»), che ha
+// solo Firestore della regia: per questo non scrivono nei progetti dei
+// locali, e la licenza la riscrive un trigger. Il segreto della chiave resta
+// legato finché la federazione non è configurata ovunque.
+const OPTS_AI = {
+  ...OPTS,
+  secrets: [ANTHROPIC_API_KEY],
+  // Lo stesso numero da cui lib/ai.js fa scadere le prenotazioni del
+  // credito rimaste appese (REQ-FLOTTA-088): se cambia qui, cambia là.
+  timeoutSeconds: ai.TIMEOUT_AI_SECONDI,
+  memory: '512MiB',
+  ...(process.env.AI_SERVICE_ACCOUNT ? { serviceAccount: process.env.AI_SERVICE_ACCOUNT } : {}),
+}
 const REPO = process.env.GITHUB_REPO || 'redirect11/drink-regia'
 const REF = process.env.FLOTTA_REF || 'main'
 const WORKFLOW = 'provisiona-istanza.yml'
@@ -56,6 +117,33 @@ const REF_APP = process.env.APP_REF || 'main'
 // La regia di test lancia sull'environment flotta-test: il suo account di
 // fatturazione, il suo callback, il suo account per la licenza.
 const AMBIENTE_FLOTTA = process.env.FLOTTA_AMBIENTE || 'produzione'
+// tana-drink è pubblico: le note di un rilascio si leggono senza token.
+const APP_REPO = process.env.APP_REPO || 'redirect11/tana-drink'
+// L'indirizzo di questa regia, che la licenza dà all'app per il «vedi i
+// piani» (functions/.env.<progetto>).
+const REGIA_URL = process.env.REGIA_URL || null
+// Il bucket degli archivi di eliminazione di QUESTA regia (REQ-FLOTTA-014,
+// infra/README.md): lo stesso che il workflow ha in vars.ARCHIVIO_BUCKET.
+// Dal 09/11/2026 il callback non lo dichiara più: un bucket nel corpo
+// faceva scaricare al titolare uno zip da dove voleva chi aveva il segreto.
+const ARCHIVIO_BUCKET = process.env.ARCHIVIO_BUCKET || null
+// Dove l'app manda la scelta del titolare (sceltaDallApp, REQ-FLOTTA-020):
+// l'indirizzo di questa Function nel progetto della regia.
+const PROGETTO_REGIA = process.env.GCLOUD_PROJECT || (() => { try { return JSON.parse(process.env.FIREBASE_CONFIG || '{}').projectId } catch { return null } })()
+const SCELTA_URL = PROGETTO_REGIA ? `https://europe-west1-${PROGETTO_REGIA}.cloudfunctions.net/sceltaDallApp` : null
+// I domini del sito della regia: i due di Hosting del progetto e quello di
+// REGIA_URL. Servono al traffico (una vista da una pagina nostra non è una
+// provenienza, e una chiamata da un altro sito non si conta) e agli
+// indirizzi di ritorno del Checkout (audit del 09/11/2026, finding 25).
+const DOMINI_NOSTRI = [PROGETTO_REGIA && `${PROGETTO_REGIA}.web.app`, PROGETTO_REGIA && `${PROGETTO_REGIA}.firebaseapp.com`, REGIA_URL && (() => { try { return new URL(REGIA_URL).hostname } catch { return null } })()].filter(Boolean)
+// L'origine a cui Stripe rimanda dopo il Checkout: solo una nostra
+// (abbonamento.ritornoAmmesso), altrimenti invalid-argument. Fuori dalla
+// produzione passa anche localhost, per provare in locale.
+function ritornoPulito(ritorno) {
+  const origine = ritornoAmmesso(ritorno, DOMINI_NOSTRI, { produzione: PROGETTO_REGIA === 'drink-regia' })
+  if (!origine) throw new HttpsError('invalid-argument', 'Indirizzo di ritorno non valido: il pagamento riparte solo dal sito della regia.')
+  return origine
+}
 
 async function dispatchGitHub(workflow, corpo) {
   return fetch(`https://api.github.com/repos/${REPO}/actions/workflows/${workflow}/dispatches`, {
@@ -82,7 +170,25 @@ async function lancia(richiesta) {
     await db.doc(`richieste/${richiesta.slug}`).set({ stato: 'errore', errore: `Lancio rifiutato: ${coerenza.perche}`, aggiornata_il: adesso }, { merge: true })
     return
   }
-  const corpo = dispatchPayload({ ...richiesta, nome_locale: cliente.nome_locale, piano: cliente.piano, moduli: cliente.moduli }, { ref: REF, app: REF_APP, ambiente: AMBIENTE_FLOTTA })
+  // L'ATTIVAZIONE SIMULATA (REQ-FLOTTA-072): sul test, con l'interruttore
+  // acceso, il locale arriva ad «attiva» qui, senza GitHub né Google.
+  const impostazioni = (await db.doc('impostazioni/regia').get()).data() || {}
+  if (simulazioneAmmessa(impostazioni, PROGETTO_REGIA)) {
+    const istRef = db.doc(`istanze/${richiesta.slug}`)
+    const prima = (await istRef.get()).data() || null
+    // Mai sopra un progetto vero (revisore, 12/11/2026): una prima
+    // attivazione finita male lo ha già creato, e scrivendoci sopra
+    // resterebbe orfano, a consumare la quota.
+    if (prima?.progetto) {
+      await db.doc(`richieste/${richiesta.slug}`).set({ stato: 'errore', errore: `C’è già il progetto ${prima.progetto}: eliminalo o spegni l’attivazione simulata.`, aggiornata_il: adesso }, { merge: true })
+      return
+    }
+    const condizioni = prima?.condizioni_aggiornamenti || (await regoleAggiornamenti().catch(() => null))
+    await istRef.set({ ...documentoSimulato(richiesta.slug, prima), uid: richiesta.uid || null, ...(condizioni ? { condizioni_aggiornamenti: condizioni } : {}) }, { merge: true })
+    await db.doc(`richieste/${richiesta.slug}`).set({ stato: 'attiva', simulata: true, lanciata_il: adesso, aggiornata_il: adesso }, { merge: true })
+    return
+  }
+  const corpo = dispatchPayload({ ...richiesta, nome_locale: cliente.nome_locale, piano: cliente.piano, moduli: cliente.moduli, email: cliente.email }, { ref: REF, app: REF_APP, ambiente: AMBIENTE_FLOTTA })
   const res = await fetch(`https://api.github.com/repos/${REPO}/actions/workflows/${WORKFLOW}/dispatches`, {
     method: 'POST',
     headers: {
@@ -96,8 +202,11 @@ async function lancia(richiesta) {
   if (res.status !== 204) {
     const testo = await res.text().catch(() => '')
     await db.doc(`richieste/${richiesta.slug}`).set({ stato: 'errore', errore: `GitHub ${res.status}: ${testo.slice(0, 200)}`, aggiornata_il: adesso }, { merge: true })
+    // Con l'uid del titolare, come il lancio riuscito qui sotto
+    // (REQ-FLOTTA-086): la dashboard trova l'istanza con la query sul suo
+    // uid, e senza uid gliela nasconderebbe.
     await db.doc(`istanze/${richiesta.slug}`).set(
-      documentoIstanza({ slug: richiesta.slug, stato: 'errore', errore: `Lancio fallito (GitHub ${res.status})` }, null),
+      { ...documentoIstanza({ slug: richiesta.slug, stato: 'errore', errore: `Lancio fallito (GitHub ${res.status})` }, null), uid: richiesta.uid || null },
       { merge: true }
     )
     return
@@ -116,6 +225,7 @@ async function lancia(richiesta) {
 // lasciano più creare richieste ai client.
 exports.chiediAttivazione = onCall(OPTS, async (req) => {
   if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  await solOSitoAperto()
   const uid = req.auth.uid
   const cliente = (await db.doc(`clienti/${uid}`).get()).data()
   if (!cliente?.slug) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
@@ -128,7 +238,9 @@ exports.chiediAttivazione = onCall(OPTS, async (req) => {
     istanza,
     richiesta,
     emailVerificata: req.auth.token?.email_verified === true,
-    automatico: impostazioni.deploy_automatico !== false,
+    // Spento finché l'admin non lo accende (l'utente, 02/11/2026: «per ora
+    // la vendita è attiva ma non il deploy automatico, che passa per me»).
+    automatico: impostazioni.deploy_automatico === true,
   })
   if (!esito.ok) throw new HttpsError('failed-precondition', esito.perche)
   await db.doc(`richieste/${cliente.slug}`).set(esito.richiesta)
@@ -152,9 +264,17 @@ exports.rilanciaProvisioning = onDocumentUpdated(
   }
 )
 
-// L'esito dal workflow: POST con bearer, corpo { slug, stato, url, progetto, versione, ref, ambiente, operazione, errore }.
+// L'esito dal workflow: POST con bearer, corpo { slug, stato, url, progetto, versione, ref, ambiente, operazione, errore, run_id, inviato_il }.
+// Il corpo non è fidato (audit del 09/11/2026, finding 12): progetto e url
+// devono essere quelli dell'istanza, e ogni run passa una volta sola
+// (vincoliEsito, lib/provisioning.js). Il segno dell'ultimo run accettato
+// sta in istanze/{slug}.ultimo_esito; le istanze nate prima non ce l'hanno,
+// e va bene: il primo esito nuovo lo scrive.
 exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK_SECRET], cors: false }, async (req, res) => {
   if (req.method !== 'POST') return res.status(405).send('')
+  // Col segnaposto «non-configurato», o con un segreto corto, il callback è
+  // chiuso: 503 come Stripe senza chiave, non 401.
+  if (!segretoUsabile(PROVISIONING_CALLBACK_SECRET.value())) return res.status(503).json({ errore: 'callback non configurato' })
   if (!bearerValido(req.get('authorization'), PROVISIONING_CALLBACK_SECRET.value())) return res.status(401).send('')
   // L'esito di un'eliminazione (REQ-FLOTTA-014) ha campi e stati suoi.
   if (req.body?.operazione === 'eliminazione') {
@@ -162,17 +282,43 @@ exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK
     if (!fine) return res.status(400).json({ errore: 'esito non valido' })
     const ref = db.doc(`istanze/${fine.slug}`)
     const prima = (await ref.get()).data() || null
-    await ref.set(elim.documentoEliminazione(fine, prima), { merge: true })
+    // Un locale simulato non ha un workflow suo (REQ-FLOTTA-072).
+    if (prima?.simulata) return res.status(409).json({ errore: 'locale simulato' })
+    const vincoli = vincoliEsito(fine, prima, { operazione: 'eliminazione' })
+    if (!vincoli.ok) return res.status(400).json({ errore: vincoli.perche })
+    await ref.set({ ...elim.documentoEliminazione(fine, prima), ultimo_esito: vincoli.ultimo_esito }, { merge: true })
     return res.status(200).json({ ok: true, operazione: 'eliminazione' })
   }
   const esito = esitoValido(req.body)
   if (!esito) return res.status(400).json({ errore: 'esito non valido' })
   const ref = db.doc(`istanze/${esito.slug}`)
   const prima = (await ref.get()).data() || null
+  // Un esito vero per un locale simulato (REQ-FLOTTA-072, revisore,
+  // 12/11/2026): un run rilanciato a mano lo renderebbe mezzo vero e mezzo
+  // simulato. Si rifiuta e si scrive nel log.
+  if (prima?.simulata) {
+    console.warn(`[provisioning] ${esito.slug}: esito di un workflow per un locale simulato, rifiutato.`)
+    return res.status(409).json({ errore: 'locale simulato' })
+  }
+  const aggiornamento = eAggiornamento(esito, prima)
+  const vincoli = vincoliEsito(esito, prima, { operazione: aggiornamento ? 'aggiornamento' : 'attivazione' })
+  if (!vincoli.ok) return res.status(400).json({ errore: vincoli.perche })
+  // Un locale esistente senza run_id (la Tana, oggi) non lascia il segno:
+  // non si cancella quello di un run precedente.
+  const segno = vincoli.ultimo_esito ? { ultimo_esito: vincoli.ultimo_esito } : {}
   // Un aggiornamento non tocca lo stato dell'istanza né la richiesta di
   // attivazione (REQ-FLOTTA-012); fa andare avanti, o fermare, il rilascio.
-  if (eAggiornamento(esito, prima)) {
-    await ref.set(documentoAggiornamento(esito, prima), { merge: true })
+  if (aggiornamento) {
+    await ref.set({ ...documentoAggiornamento(esito, prima), ...segno }, { merge: true })
+    // Arrivato a quella versione o oltre (un «Aggiorna subito», un rilascio
+    // obbligatorio): la proposta al titolare non serve più (REQ-FLOTTA-020).
+    if (esito.stato === 'attiva' && aggiornamenti.propostaSuperata(prima?.proposta_aggiornamento, esito.versione)) {
+      await ref.update({ 'proposta_aggiornamento.attesa': false })
+    }
+    // Ogni aggiornamento riuscito riscrive la licenza (BUG-125): un locale
+    // senza licenza/attuale, con l'app nuova, si ferma.
+    if (esito.stato === 'attiva') await scriviLicenza(esito.slug).catch((e) => console.error(`[licenza] ${esito.slug}:`, e?.message || e))
+    if (esito.stato === 'attiva') await scriviDatiDelLocale(esito.slug)
     try {
       await ricalcolaRilasci()
     } catch (e) {
@@ -180,8 +326,21 @@ exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK
     }
     return res.status(200).json({ ok: true, operazione: 'aggiornamento' })
   }
-  await ref.set(documentoIstanza(esito, prima), { merge: true })
+  await ref.set({ ...documentoIstanza(esito, prima), ...segno }, { merge: true })
   await db.doc(`richieste/${esito.slug}`).set({ stato: esito.stato, aggiornata_il: new Date().toISOString() }, { merge: true })
+  // Un locale che nasce adesso prende le regole degli aggiornamenti di
+  // adesso, senza preavviso: le accetta registrandosi (REQ-FLOTTA-020).
+  // E nasce con la sua licenza protetta (BUG-125), calcolata dalla regia.
+  if (esito.stato === 'attiva') {
+    try {
+      if (!prima?.condizioni_aggiornamenti) await ref.set({ condizioni_aggiornamenti: await regoleAggiornamenti() }, { merge: true })
+      // Il locale nasce adesso: nessuno ci lavora ancora, niente taglio.
+      await scriviLicenza(esito.slug, { subito: true })
+      await scriviDatiDelLocale(esito.slug)
+    } catch (e) {
+      console.error(`[licenza] ${esito.slug}, la prima licenza:`, e?.message || e)
+    }
+  }
   res.status(200).json({ ok: true })
 })
 
@@ -195,17 +354,67 @@ const stripeClient = () => {
   return new Stripe(chiave)
 }
 
+// Il contatore dei posti Fondatori (REQ-FLOTTA-031): un documento solo,
+// cambiato sempre in transazione. Lo leggono solo le Functions e l'admin.
+const POSTI_FONDATORI = () => db.doc('fondatori/posti')
+
+// Il coupon Fondatori su Stripe: si cerca per id e si crea se manca. L'id
+// dipende dall'importo, quindi un coupon trovato è quello giusto.
+async function couponSuStripe(stripe, parametri) {
+  try {
+    return (await stripe.coupons.retrieve(parametri.id)).id
+  } catch (e) {
+    if (e?.statusCode !== 404 && e?.code !== 'resource_missing') throw e
+    return (await stripe.coupons.create(parametri)).id
+  }
+}
+
+// L'aliquota IVA su Stripe (REQ-FLOTTA-035): si cerca fra le tax rate
+// attive dal segno nei metadati (eAliquotaIva), e si crea se manca, con una
+// chiave di idempotenza perché due Checkout insieme non ne creino due.
+// Ricordata per la vita dell'istanza della Function: la tax rate non cambia.
+// La si cerca invece di leggerne l'id da un segreto perché un id copiato a
+// mano dalla dashboard di Stripe è un passo in più da dimenticare per ogni
+// account (test e produzione), e un id sbagliato si scoprirebbe al primo
+// incasso.
+let aliquotaIvaRicordata = null
+async function aliquotaIvaSuStripe(stripe) {
+  if (aliquotaIvaRicordata) return aliquotaIvaRicordata
+  for await (const rate of stripe.taxRates.list({ active: true, inclusive: false, limit: 100 })) {
+    if (eAliquotaIva(rate)) return (aliquotaIvaRicordata = rate.id)
+  }
+  const creata = await stripe.taxRates.create(parametriAliquotaIva(), { idempotencyKey: CHIAVE_IDEMPOTENZA_IVA })
+  console.log(`[stripe] creata l'aliquota IVA ${creata.id}`)
+  return (aliquotaIvaRicordata = creata.id)
+}
+
+// I prodotti di Stripe delle righe di una subscription (righeSubscription):
+// id fissi, cercati e creati se mancano, come il coupon Fondatori.
+async function prodottiSuStripe(stripe, scelta) {
+  for (const p of prodottiDi(scelta)) {
+    try {
+      await stripe.products.retrieve(p.id)
+    } catch (e) {
+      if (e?.statusCode !== 404 && e?.code !== 'resource_missing') throw e
+      await stripe.products.create(p, { idempotencyKey: `drink-prodotto-${p.id}` })
+    }
+  }
+}
+
 // Il titolare sceglie il piano: nasce la sessione di Checkout (abbonamento
-// mensile) e torna l'url. I metadati portano uid e scelta, che il webhook
-// userà per aggiornare il cliente.
+// mensile o annuale) e torna l'url. I metadati portano uid e scelta, che il
+// webhook userà per aggiornare il cliente. Se il piano è coperto
+// dall'offerta Fondatori e c'è un posto, il posto si prenota qui, in
+// transazione, e la sessione porta il coupon.
 exports.creaCheckout = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (req) => {
   if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
   const stripe = stripeClient()
   if (!stripe) throw new HttpsError('failed-precondition', 'Il pagamento online non è ancora attivo: scrivici all’email del prodotto.')
+  await solOSitoAperto()
   const uid = req.auth.uid
   const cliente = (await db.doc(`clienti/${uid}`).get()).data()
   if (!cliente) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
-  const scelta = { piano: req.data?.piano, moduli: req.data?.moduli, terminali: req.data?.terminali }
+  const scelta = sceltaPulita({ piano: req.data?.piano, moduli: req.data?.moduli, terminali: req.data?.terminali, intervallo: req.data?.intervallo })
   const inVendita = await vendita()
   // Pagamenti online spenti (REQ-FLOTTA-017): il sito non mostra il
   // Checkout, e il server non lo apre comunque.
@@ -214,26 +423,240 @@ exports.creaCheckout = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
   // (REQ-FLOTTA-015); chi lo ha già lo tiene.
   const fuori = free.moduliFuoriVendita(cliente, scelta, inVendita)
   if (fuori.length) throw new HttpsError('failed-precondition', `Non più in vendita: ${fuori.join(', ')}.`)
-  const ritorno =String(req.data?.ritorno || '').replace(/\/$/, '')
-  if (!/^https?:\/\//.test(ritorno)) throw new HttpsError('invalid-argument', 'Indirizzo di ritorno non valido.')
-  const sessione = await stripe.checkout.sessions.create({
-    mode: 'subscription',
-    line_items: righeCheckout(scelta),
-    customer_email: cliente.abbonamento?.stripe_customer ? undefined : cliente.email,
-    customer: cliente.abbonamento?.stripe_customer || undefined,
-    client_reference_id: uid,
-    metadata: metadatiDi(uid, scelta),
-    subscription_data: { metadata: metadatiDi(uid, scelta) },
-    success_url: `${ritorno}/dashboard?pagamento=ok`,
-    cancel_url: `${ritorno}/dashboard?pagamento=annullato`,
-    locale: 'it',
-  })
-  return { url: sessione.url }
+  // Un modulo senza la sua base non si compra (tana-drink REQ-LIC-015).
+  const basi = prove.problemaBasi(scelta)
+  if (basi) throw new HttpsError('failed-precondition', basi)
+  // Le stampanti del locale (REQ-FLOTTA-081): nella scheda del cliente,
+  // prima del Checkout, così le vediamo anche se il pagamento non finisce.
+  if (req.data?.stampanti) {
+    const st = stampanti.stampantiPulite(req.data.stampanti)
+    if (!st.ok) throw new HttpsError('invalid-argument', st.perche)
+    await db.doc(`clienti/${uid}`).set({ stampanti: st.stampanti, stampanti_il: new Date().toISOString() }, { merge: true })
+  }
+  const ritorno = ritornoPulito(req.data?.ritorno)
+  const adesso = new Date()
+  // IL CODICE SCONTO (REQ-FLOTTA-028): quello scritto ora dal titolare, o
+  // quello che l'admin gli ha già dato. Un codice al 100% non passa da qui
+  // (attivaConCodice). Se c'è anche un posto Fondatori vale il più
+  // conveniente (acquisto.scontoCheVale): Stripe ne accetta uno solo.
+  // Un codice col limite di usi si tiene da parte per la durata della
+  // sessione, e diventa un uso quando Stripe conferma il pagamento.
+  const { sconto, uso, errore: erroreCodice } = await scontoPerAcquisto(cliente, req.data?.codice, adesso, uid)
+  if (erroreCodice) throw new HttpsError('failed-precondition', erroreCodice)
+  if (sconto?.percentuale === 100) throw new HttpsError('failed-precondition', 'Con questo codice il piano non si paga: usa «Attiva con il codice».')
+  const couponCodice = sconto ? acquisto.couponSconto(sconto, { intervallo: scelta.intervallo, adesso }) : null
+  if (couponCodice?.errore) throw new HttpsError('failed-precondition', couponCodice.errore)
+  // Un posto per cliente: chi è già stato Fondatore (anche se poi ha
+  // disdetto) torna al listino.
+  const puoFondatore = fondatori.coperto(scelta.piano) && !cliente.abbonamento?.fondatore && fondatori.postiLiberi((await POSTI_FONDATORI().get()).data(), adesso) > 0
+  const vale = acquisto.scontoCheVale({ scelta, sconto, fondatore: puoFondatore, adesso })
+  let prenotato = false
+  if (vale === 'fondatori') {
+    const scadenza = new Date(adesso.getTime() + DURATA_SESSIONE_MS)
+    prenotato = await db.runTransaction(async (t) => {
+      const p = fondatori.prenota((await t.get(POSTI_FONDATORI())).data(), uid, scadenza, adesso)
+      if (p.esito === 'prenotato') t.set(POSTI_FONDATORI(), p.doc)
+      return p.esito === 'prenotato'
+    })
+  }
+  // L'ultimo posto preso da un altro un attimo prima: allora il codice, se c'è.
+  const conCodice = Boolean(sconto) && !prenotato
+  const usoTenuto = conCodice && uso && (await prenotaUsoCodice(sconto.codice, uid, new Date(adesso.getTime() + DURATA_SESSIONE_MS), adesso))
+  if (conCodice && uso && !usoTenuto) throw new HttpsError('failed-precondition', sconti.ESAURITO)
+  let sessione
+  try {
+    const coupon = prenotato
+      ? await couponSuStripe(stripe, fondatori.couponFondatori(scelta.piano, scelta.intervallo))
+      : conCodice
+        ? await couponSuStripe(stripe, couponCodice.coupon)
+        : null
+    const aliquotaIva = await aliquotaIvaSuStripe(stripe)
+    sessione = await stripe.checkout.sessions.create(
+      sessioneCheckout({ uid, cliente, scelta, ritorno, coupon, fondatore: prenotato, sconto: conCodice ? acquisto.metadatiSconto(sconto, { uso }) : null, aliquotaIva, adesso })
+    )
+  } catch (e) {
+    // La sessione non è nata: il posto e l'uso del codice non restano
+    // tenuti per nessuno.
+    if (prenotato) await liberaPosto(uid).catch((x) => console.error('[fondatori] rilascio:', x?.message || x))
+    if (usoTenuto) await liberaUsoCodice(sconto.codice, uid).catch((x) => console.error('[sconti] rilascio:', x?.message || x))
+    throw e
+  }
+  return { url: sessione.url, fondatore: prenotato, sconto: conCodice ? sconto.codice : null }
 })
+
+// Lo sconto di un acquisto: il codice scritto dal titolare (che deve
+// esistere, essere attivo e avere ancora usi), o se non ne scrive uno
+// quello che l'admin gli ha dato ed è ancora in corso. → { sconto, uso }
+// (sconto null se non c'è; `uso`: consuma un uso del codice), o { errore }.
+async function scontoPerAcquisto(cliente, scritto, adesso = new Date(), uid = null) {
+  const codice = String(scritto || '').trim().toUpperCase()
+  if (!codice) return { sconto: acquisto.scontoInCorso(cliente, adesso), uso: false }
+  const doc = sconti.CODICE.test(codice) ? (await db.doc(`sconti/${codice}`).get()).data() : null
+  const s = acquisto.scontoDelCodice(doc, adesso)
+  if (!s) return { errore: 'Codice sconosciuto o disattivato.' }
+  const uso = sconti.usoNuovo(cliente, s.codice)
+  if (uso && sconti.esaurito(doc, adesso, uid)) return { errore: sconti.ESAURITO }
+  return { sconto: s, uso }
+}
+
+// Tiene da parte un uso del codice per un Checkout. → false se il codice è
+// esaurito. Un codice senza limite non tiene niente: non c'è da contendersi.
+async function prenotaUsoCodice(codice, uid, scadenza, adesso = new Date()) {
+  const ref = db.doc(`sconti/${codice}`)
+  return db.runTransaction(async (t) => {
+    const doc = (await t.get(ref)).data()
+    if (!doc || doc.usi_massimi == null) return true
+    const p = sconti.prenotaUso(doc, uid, scadenza, adesso)
+    if (p.esito !== 'prenotato') return false
+    t.update(ref, { prenotazioni: p.prenotazioni })
+    return true
+  })
+}
+
+async function liberaUsoCodice(codice, uid) {
+  const ref = db.doc(`sconti/${codice}`)
+  await db.runTransaction(async (t) => {
+    const doc = (await t.get(ref)).data()
+    if (doc) t.update(ref, sconti.prenotazioneTolta(doc, uid))
+  })
+}
+
+// Un uso del codice confermato: il contatore sale, la prenotazione va via.
+async function contaUsoCodice(codice, uid) {
+  const ref = db.doc(`sconti/${codice}`)
+  await db.runTransaction(async (t) => {
+    const doc = (await t.get(ref)).data()
+    if (doc) t.update(ref, sconti.usoConfermato(doc, uid))
+  })
+}
+
+// I TENTATIVI SUI CODICI (audit del 09/11/2026, finding 15): la verifica
+// dice se un codice esiste, e senza un limite è un oracolo per indovinarli.
+// Ogni tentativo fallito del titolare si conta sul suo cliente
+// (clienti/{uid}.tentativi_codice, lib/sconti.js); al decimo in un'ora si
+// rifiuta finché l'ora non passa, e un codice buono azzera il contatore.
+// La scrittura passa dal trigger licenzaSegueIlPiano, che non trova
+// cambiamenti e si ferma: un costo per tentativo fallito, non per verifica.
+function soloSeNonTroppiTentativi(cliente, adesso) {
+  if (sconti.troppiTentativi(cliente?.tentativi_codice, adesso)) throw new HttpsError('resource-exhausted', sconti.TROPPI_TENTATIVI)
+}
+async function segnaTentativoCodice(uid, adesso) {
+  const ref = db.doc(`clienti/${uid}`)
+  await db.runTransaction(async (t) => {
+    const cliente = (await t.get(ref)).data()
+    // Senza cliente non c'è dove contare, e non si crea un documento.
+    if (cliente) t.update(ref, { tentativi_codice: sconti.tentativoFallito(cliente.tentativi_codice, adesso) })
+  })
+}
+// Il contatore via quando il codice è buono: solo se c'era, per non
+// scrivere (e svegliare il trigger) a ogni verifica riuscita.
+const tentativiAzzerati = (cliente) => (cliente?.tentativi_codice ? { tentativi_codice: FieldValue.delete() } : {})
+
+// IL TITOLARE PROVA UN CODICE nella scelta del piano, prima di pagare: è
+// valido? quanto vale? vince sul prezzo Fondatori? Non scrive niente, se
+// non il contatore dei tentativi. Serve l'accesso con l'email confermata:
+// un codice non si indovina da fuori.
+exports.verificaCodiceSconto = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Prima conferma la tua email.')
+  const uid = req.auth.uid
+  const cliente = (await db.doc(`clienti/${uid}`).get()).data()
+  if (!cliente) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
+  if (!String(req.data?.codice || '').trim()) throw new HttpsError('invalid-argument', 'Scrivi il codice.')
+  const adesso = new Date()
+  soloSeNonTroppiTentativi(cliente, adesso)
+  const { sconto, errore } = await scontoPerAcquisto(cliente, req.data.codice, adesso, uid)
+  if (errore) {
+    await segnaTentativoCodice(uid, adesso)
+    throw new HttpsError('failed-precondition', errore)
+  }
+  const scelta = sceltaPulita({ piano: req.data?.piano, moduli: req.data?.moduli, terminali: req.data?.terminali, intervallo: req.data?.intervallo })
+  if (sconto.percentuale < 100) {
+    const c = acquisto.couponSconto(sconto, { intervallo: scelta.intervallo, adesso })
+    if (c.errore) throw new HttpsError('failed-precondition', c.errore)
+  }
+  if (cliente.tentativi_codice) await db.doc(`clienti/${uid}`).update(tentativiAzzerati(cliente))
+  const puoFondatore = fondatori.coperto(scelta.piano) && !cliente.abbonamento?.fondatore && fondatori.postiLiberi((await POSTI_FONDATORI().get()).data(), adesso) > 0
+  const vale = sconto.percentuale === 100 ? 'codice' : acquisto.scontoCheVale({ scelta, sconto, fondatore: puoFondatore, adesso })
+  return { codice: sconto.codice, percentuale: sconto.percentuale, durata_mesi: sconto.durata_mesi, gratis: sconto.percentuale === 100, vale }
+})
+
+// UN CODICE AL 100% (REQ-FLOTTA-028, l'utente: «senza passare da
+// Stripe»): il piano scelto si attiva subito con lo sconto. Il locale poi
+// si attiva come gli altri, da «Attiva», e col deploy automatico spento
+// la richiesta aspetta l'admin.
+exports.attivaConCodice = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Prima conferma la tua email.')
+  await solOSitoAperto()
+  const uid = req.auth.uid
+  const ref = db.doc(`clienti/${uid}`)
+  const adesso = new Date()
+  const prima = (await ref.get()).data()
+  soloSeNonTroppiTentativi(prima, adesso)
+  const codice = String(req.data?.codice || '').trim().toUpperCase()
+  if (!sconti.CODICE.test(codice)) {
+    await segnaTentativoCodice(uid, adesso)
+    throw new HttpsError('failed-precondition', 'Codice sconosciuto o disattivato.')
+  }
+  const refCodice = db.doc(`sconti/${codice}`)
+  const istanza = prima?.slug ? (await db.doc(`istanze/${prima.slug}`).get()).data() : null
+  const scelta = sceltaPulita({ piano: req.data?.piano, moduli: req.data?.moduli, terminali: req.data?.terminali })
+  const basi = prove.problemaBasi(scelta)
+  if (basi) throw new HttpsError('failed-precondition', basi)
+  const inVendita = await vendita()
+  // In transazione col codice: l'ultimo uso lo prende uno solo. Un
+  // tentativo fallito si conta nella stessa transazione.
+  const esito = await db.runTransaction(async (t) => {
+    const [cliente, doc] = (await Promise.all([t.get(ref), t.get(refCodice)])).map((s) => s.data())
+    const fuori = cliente ? free.moduliFuoriVendita(cliente, scelta, inVendita) : []
+    const e = acquisto.attivazioneConCodice({ cliente, uid, istanza, codice: doc, scelta, fuori })
+    if (e.errore) {
+      if (cliente) t.update(ref, { tentativi_codice: sconti.tentativoFallito(cliente.tentativi_codice, adesso) })
+      return e
+    }
+    t.update(ref, { ...e.patch, ...tentativiAzzerati(cliente) })
+    if (e.uso) t.update(refCodice, sconti.usoConfermato(doc, uid))
+    return e
+  })
+  if (esito.errore) throw new HttpsError('failed-precondition', esito.errore)
+  return { ok: true, piano: esito.patch.piano }
+})
+
+async function liberaPosto(uid, scadenza = null) {
+  await db.runTransaction(async (t) => {
+    const ref = POSTI_FONDATORI()
+    t.set(ref, fondatori.rilascia((await t.get(ref)).data(), uid, scadenza))
+  })
+}
+
+// Il pagamento da Fondatore è confermato: il posto prenotato diventa un
+// numero, sul contatore e sul cliente, nella stessa transazione.
+async function confermaFondatore(uid) {
+  return db.runTransaction(async (t) => {
+    const ref = POSTI_FONDATORI()
+    const c = fondatori.conferma((await t.get(ref)).data(), uid, new Date())
+    t.set(ref, c.doc)
+    const cliente = db.doc(`clienti/${uid}`)
+    if (c.fondatore) t.set(cliente, { abbonamento: { fondatore: c.fondatore } }, { merge: true })
+    // Ha pagato col coupon ma il posto non c'è più (webhook arrivato dopo
+    // la scadenza della prenotazione): lo decide l'admin, non la regia.
+    else t.set(cliente, { abbonamento: { fondatore_da_verificare: new Date().toISOString() } }, { merge: true })
+    return c.esito
+  })
+}
 
 // Il webhook di Stripe: la firma si verifica sul corpo grezzo, e lo stato
 // dell'abbonamento segue gli eventi (aggiornamentoDaEvento). Una
 // subscription si ritrova per id nel cliente che l'ha aperta.
+// UNA VOLTA SOLA E IN ORDINE (REQ-FLOTTA-036, audit M4): ogni evento passa
+// dal registro eventi_stripe/{event.id}, preso in carico in transazione
+// prima di fare qualunque cosa; un evento già fatto si conferma senza
+// rifarlo, uno che un'altra istanza sta elaborando risponde 409 e Stripe
+// lo ripete più tardi. Se l'elaborazione fallisce la riga si toglie, e la
+// ripetizione di Stripe riparte da capo: per questo ogni effetto resta
+// ripetibile da sé (la ricarica per id di sessione, il posto Fondatori per
+// uid, lo stato del cliente in ordine col suo orologio).
 exports.stripeWebhook = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET], cors: false }, async (req, res) => {
   if (req.method !== 'POST') return res.status(405).send('')
   const stripe = stripeClient()
@@ -245,48 +668,167 @@ exports.stripeWebhook = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY, STRIPE
     console.error('[stripe] firma non valida:', e?.message)
     return res.status(400).send('')
   }
+  if (!eventiStripe.idEventoValido(evento.id)) return res.status(400).send('')
+  const registro = db.doc(`eventi_stripe/${evento.id}`)
+  const decisione = await db.runTransaction(async (t) => {
+    const riga = await t.get(registro)
+    const d = eventiStripe.daElaborare(riga.exists ? riga.data() : null, new Date())
+    if (d !== 'elabora') return d
+    const nuova = eventiStripe.presaInCarico(evento, new Date())
+    t.set(registro, riga.exists ? { ...nuova, tentativi: (Number(riga.data().tentativi) || 0) + 1 } : nuova)
+    return d
+  })
+  if (decisione === 'fatto') return res.status(200).json({ ok: true, duplicato: true })
+  if (decisione === 'in corso') return res.status(409).json({ ok: false, in_corso: true })
+  let esito
+  try {
+    esito = await elaboraEventoStripe(evento)
+  } catch (e) {
+    console.error(`[stripe] ${evento.type} ${evento.id}:`, e?.message || e)
+    await registro.delete().catch((x) => console.error('[stripe] registro:', x?.message || x))
+    return res.status(500).json({ ok: false })
+  }
+  await registro.update({ stato: 'fatto', fatto_il: new Date().toISOString(), esito: JSON.stringify(esito).slice(0, 200) })
+  res.status(200).json(esito)
+})
+
+// Gli effetti di un evento, una volta preso in carico. → il corpo della
+// risposta.
+async function elaboraEventoStripe(evento) {
   // Una ricarica del credito AI (REQ-AI-003): pagamento singolo, credito
   // in più. Prima dell'abbonamento, che la ignora comunque.
   if (evento.type === 'checkout.session.completed') {
     const ricarica = ai.ricaricaDaSessione(evento.data?.object)
     if (ricarica) {
       const esito = await accreditaRicarica(ricarica, { origine: 'stripe' })
-      return res.status(200).json({ ok: true, ricarica: esito })
+      // L'incasso nel libro dei movimenti (REQ-FLOTTA-041), una volta sola.
+      if (esito === 'accreditata') await scriviMovimento(movimenti.movimentoDaRicarica(evento.data?.object, ricarica))
+      return { ok: true, ricarica: esito }
     }
   }
+  // Una sessione Fondatori scaduta: il posto prenotato torna libero.
+  const daLiberare = prenotazioneDaRilasciare(evento.type, evento.data?.object)
+  if (daLiberare) {
+    await liberaPosto(daLiberare.uid, daLiberare.scadenza)
+    return { ok: true, fondatori: 'rilasciato' }
+  }
   const agg = aggiornamentoDaEvento(evento.type, evento.data?.object)
-  if (!agg) return res.status(200).json({ ok: true, ignorato: evento.type })
+  if (!agg) return { ok: true, ignorato: evento.type }
   let uid = agg.uid
   if (!uid && agg.stripe_subscription) {
     const q = await db.collection('clienti').where('abbonamento.stripe_subscription', '==', agg.stripe_subscription).limit(1).get()
     uid = q.empty ? null : q.docs[0].id
   }
-  if (!uid) return res.status(200).json({ ok: true, ignorato: 'cliente non trovato' })
+  if (!uid) return { ok: true, ignorato: 'cliente non trovato' }
   const ref = db.doc(`clienti/${uid}`)
-  if (agg.patch.abbonamento) await ref.set(agg.patch, { merge: true })
-  else await ref.update({ ...agg.patch, 'abbonamento.visto_il': FieldValue.serverTimestamp() })
-  res.status(200).json({ ok: true })
+  // In transazione: due eventi dello stesso cliente insieme non si
+  // scavalcano, e l'ordine si confronta col cliente com'è davvero ora.
+  const scritto = await db.runTransaction(async (t) => {
+    const snap = await t.get(ref)
+    if (!snap.exists) return false
+    const patch = eventiStripe.inOrdine(snap.data(), agg, { creato: evento.created })
+    if (!patch) return false
+    if (patch.abbonamento) t.set(ref, patch, { merge: true })
+    else t.update(ref, { ...patch, 'abbonamento.visto_il': FieldValue.serverTimestamp() })
+    return true
+  })
+  // Una fattura pagata è un incasso: nel libro dei movimenti
+  // (REQ-FLOTTA-041), anche se la patch non si è scritta (un evento in
+  // ritardo è comunque un pagamento avvenuto). L'id è quello della fattura.
+  if (evento.type === 'invoice.paid') {
+    const cli = (await ref.get()).data()
+    await scriviMovimento(movimenti.movimentoDaFattura(evento.data?.object, { uid, slug: cli?.slug }))
+  }
+  // Dopo l'abbonamento, che con merge non tocca abbonamento.fondatore. Anche
+  // se la patch non si è scritta: il pagamento col coupon c'è stato, e la
+  // conferma è idempotente (fondatori.conferma).
+  const daConfermare = fondatoreDaConfermare(evento.type, evento.data?.object)
+  if (daConfermare) {
+    const esito = await confermaFondatore(daConfermare)
+    if (esito === 'esauriti') console.error(`[fondatori] ${daConfermare}: pagato col coupon, posti esauriti: da verificare`)
+  }
+  // Pagato con un codice: un uso in più, anche se la patch non si è
+  // scritta. L'evento passa di qui una volta sola (eventi_stripe).
+  const daContare = acquisto.usoDaContare(evento.type, evento.data?.object)
+  if (daContare) await contaUsoCodice(daContare.codice, daContare.uid)
+  return scritto ? { ok: true } : { ok: true, ignorato: 'fuori ordine o già scritto' }
+}
+
+// IL LIBRO DEI MOVIMENTI (REQ-FLOTTA-041): ogni incasso una riga, con l'id
+// della fattura o della sessione. Un movimento che non si scrive non deve
+// fermare il webhook: Stripe ha già incassato, e la riga si rifà a mano.
+async function scriviMovimento(m) {
+  if (!movimenti.movimentoValido(m)) return false
+  try {
+    await db.doc(`movimenti/${m.id}`).set(m, { merge: true })
+    return true
+  } catch (e) {
+    console.error(`[movimenti] ${m.id} non scritto:`, e?.message || e)
+    return false
+  }
+}
+
+// IL TRAFFICO DEL SITO (REQ-FLOTTA-042): il sito chiama qui a ogni pagina e
+// a ogni passo della vendita; si incrementano contatori per giorno, niente
+// altro (lib/traffico.js). Aperta a tutti perché la chiama anche chi non è
+// entrato: non legge niente, non risponde niente, e un contatore gonfiato
+// apposta è il danno peggiore che può fare.
+// AUDIT DEL 09/11/2026, FINDING 13: il documento del giorno non cresce più
+// con quello che arriva (ogni chiave viene da un elenco chiuso,
+// lib/traffico.js), una chiamata che il browser dichiara venire da un
+// altro sito (header Origin) non si conta, e la Function ha un tetto di
+// istanze: un ciclo di POST costa al massimo due istanze, non una flotta.
+// Il riferimento resta nel corpo: l'header Referer di questa chiamata è la
+// pagina nostra che la fa, e document.referrer lo conosce solo il browser.
+exports.traccia = onRequest({ ...OPTS, cors: true, maxInstances: 2, concurrency: 80 }, async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).send('')
+  if (!traffico.origineAmmessa(req.get('origin'), DOMINI_NOSTRI)) return res.status(204).send('')
+  const esito = traffico.incrementiDi(req.body, { nostri: DOMINI_NOSTRI })
+  if (!esito) return res.status(204).send('')
+  try {
+    await db.doc(`traffico/${esito.giorno}`).set({ giorno: esito.giorno, ...traffico.annidati(esito.incrementi, (v) => FieldValue.increment(v)) }, { merge: true })
+  } catch (e) {
+    console.error(`[traffico] ${esito.giorno}:`, e?.message || e)
+  }
+  res.status(204).send('')
 })
 
 // ── SOSPENDERE, RIATTIVARE, CHIUDERE UN'ISTANZA (REQ-FLOTTA-008) ───────
 
 // Il Firestore di un'istanza, da qui: un'app admin per progetto. Il
 // service account di runtime della regia ha `roles/datastore.user` sul
-// progetto (lo dà Terraform).
-function firestoreDi(progetto) {
+// progetto (lo dà Terraform). Per il passaggio (REQ-FLOTTA-030) firma gli
+// accessi COME l'account dell'SDK di Firebase del locale: Firebase accetta
+// un accesso solo se firmato da un account del suo progetto. Serve
+// roles/iam.serviceAccountTokenCreator su quell'account, e
+// roles/firebaseauth.viewer sul progetto per leggere l'account del titolare.
+function appDi(progetto) {
   const nome = `istanza-${progetto}`
-  const app = getApps().find((a) => a.name === nome) || initializeAppCon({ projectId: progetto }, nome)
-  return getFirestore(app)
+  return (
+    getApps().find((a) => a.name === nome) ||
+    initializeAppCon({ projectId: progetto, serviceAccountId: `firebase-adminsdk-fbsvc@${progetto}.iam.gserviceaccount.com` }, nome)
+  )
 }
+const firestoreDi = (progetto) => getFirestore(appDi(progetto))
 
-async function scriviStatoIstanza(slug, stato, motivo) {
+// `per`: chi ha voluto lo stato (admin, pagamento, titolare). Solo una
+// sospensione per il pagamento si toglie da sola quando si torna a pagare
+// (REQ-FLOTTA-023): una dell'admin la toglie l'admin.
+async function scriviStatoIstanza(slug, stato, motivo, { per = 'admin' } = {}) {
   const ist = (await db.doc(`istanze/${slug}`).get()).data()
+  // Un locale simulato (REQ-FLOTTA-072): lo stato cambia, la licenza non ha
+  // un progetto dove andare.
+  if (ist?.simulata) {
+    await db.doc(`istanze/${slug}`).set({ licenza_stato: stato, licenza_motivo: motivo || null, licenza_dal: new Date().toISOString(), licenza_per: stato === 'attiva' ? null : per }, { merge: true })
+    return
+  }
   if (!ist?.progetto) throw new HttpsError('failed-precondition', 'Istanza senza progetto: non è ancora attiva.')
   // Un locale registrato come esistente (la Tana, REQ-AI-003) non riceve
   // la licenza dalla regia finché non lo si collega: «senza rompere niente».
   if (!scriveLicenza(ist)) throw new HttpsError('failed-precondition', 'Questa installazione non riceve la licenza dalla regia: si gestisce dal suo progetto.')
-  await firestoreDi(ist.progetto).doc('settings/bar').update(patchLicenza(stato, { motivo }))
-  await db.doc(`istanze/${slug}`).set({ licenza_stato: stato, licenza_motivo: motivo || null, licenza_dal: new Date().toISOString() }, { merge: true })
+  await db.doc(`istanze/${slug}`).set({ licenza_stato: stato, licenza_motivo: motivo || null, licenza_dal: new Date().toISOString(), licenza_per: stato === 'attiva' ? null : per }, { merge: true })
+  const scritta = await scriviLicenza(slug)
+  if (!scritta.ok) throw new HttpsError('failed-precondition', scritta.perche)
 }
 
 // Dal backoffice: Sospendi, Riattiva, Chiudi. Solo col claim admin.
@@ -296,22 +838,400 @@ exports.impostaStatoIstanza = onCall(OPTS, async (req) => {
   if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(slug || '')) throw new HttpsError('invalid-argument', 'Slug non valido.')
   if (!STATI_LICENZA.includes(stato)) throw new HttpsError('invalid-argument', 'Stato non valido.')
   await scriviStatoIstanza(slug, stato, motivo ? String(motivo).slice(0, 200) : null)
+  // Chiuso dall'admin: i dati si conservano 90 giorni (REQ-FLOTTA-025).
+  // Una sospensione sua è una pausa, e non fa partire niente.
+  if (stato === 'chiusa') await conservaDati(slug, motivo ? String(motivo).slice(0, 200) : 'chiuso dall’amministratore')
+  if (stato === 'attiva') await annullaConservazione(slug, req.auth.token.email || req.auth.uid)
   return { ok: true }
 })
 
-// Ogni mattina: chi non paga da più dei giorni di grazia si sospende, chi
-// ha disdetto si chiude, chi è tornato a pagare si riattiva.
-exports.sospendiMorosi = onSchedule({ ...OPTS, schedule: '0 6 * * *', timeZone: 'Europe/Rome' }, async () => {
-  const clienti = (await db.collection('clienti').get()).docs.map((d) => d.data())
-  const istanze = Object.fromEntries((await db.collection('istanze').get()).docs.map((d) => [d.id, d.data()]))
-  for (const { cliente, stato, motivo } of daSospendere(clienti, istanze)) {
+// L'ADMIN ELIMINA UN CLIENTE SENZA ISTANZA (REQ-FLOTTA-059): chi si è
+// registrato e non ha mai attivato, o la cui istanza è già stata eliminata
+// col suo progetto. Via i suoi documenti nella regia e l'account di Auth;
+// un'istanza viva o un'attivazione in corso lo impediscono
+// (lib/eliminazione-cliente.js). Serve al diritto alla cancellazione e al
+// collaudo dei rilasci, che si registra sul test e poi deve sparire.
+exports.eliminaCliente = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const slug = String(req.data?.slug || '')
+  if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(slug)) throw new HttpsError('invalid-argument', 'Slug non valido.')
+  const cliente = await clienteDi(slug)
+  if (!cliente) throw new HttpsError('not-found', 'Nessun cliente con questo identificativo.')
+  const [istanza, richiesta] = await Promise.all([db.doc(`istanze/${slug}`).get(), db.doc(`richieste/${slug}`).get()])
+  const perche = eliminazioneCliente.percheNonEliminabile({ istanza: istanza.data() || null, richiesta: richiesta.data() || null })
+  if (perche) throw new HttpsError('failed-precondition', perche)
+  const temi = await db.collection(`clienti/${cliente.uid}/temi_su_misura`).get()
+  const batch = db.batch()
+  for (const percorso of eliminazioneCliente.documentiDaCancellare(cliente.uid, slug)) batch.delete(db.doc(percorso))
+  for (const d of temi.docs) batch.delete(d.ref)
+  await batch.commit()
+  // L'account: se non c'è più, va bene così.
+  await getAuth()
+    .deleteUser(cliente.uid)
+    .catch((e) => {
+      if (e?.code !== 'auth/user-not-found') throw e
+    })
+  console.log(`[cliente] eliminato ${slug} (${cliente.uid}) dall’admin ${req.auth.uid}`)
+  return { ok: true }
+})
+
+// ── ISTANZA E TITOLARE SCOLLEGATI (REQ-FLOTTA-086) ─────────────────────
+// Daniele, 13/11/2026: «fai il tasto di collegamento nel backoffice, ma
+// deve apparire solo se per qualche motivo istanza e regia risultano
+// scollegati». L'istanza passa al titolare del suo slug; con lei la
+// richiesta e il cassetto AI, se hanno l'uid vecchio o nessuno. Tutto in
+// una transazione: o si scrive tutto o niente, e due clic insieme non
+// collegano due volte (il secondo trova l'istanza già collegata).
+exports.collegaIstanza = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const slug = String(req.data?.slug || '')
+  if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(slug)) throw new HttpsError('invalid-argument', 'Slug non valido.')
+  const refIstanza = db.doc(`istanze/${slug}`)
+  const refRichiesta = db.doc(`richieste/${slug}`)
+  const refCassetto = db.doc(`ai/${slug}`)
+  const esito = await db.runTransaction(async (t) => {
+    let docCliente
     try {
-      await scriviStatoIstanza(cliente.slug, stato, motivo)
-      console.log(`[licenza] ${cliente.slug} → ${stato}`)
+      docCliente = await registrazione.clientePerSlug(db, slug, t)
     } catch (e) {
-      console.error(`[licenza] ${cliente.slug}:`, e?.message || e)
+      if (e instanceof registrazione.SlugAmbiguo) throw new HttpsError('failed-precondition', e.message)
+      throw e
+    }
+    const [istanza, richiesta, cassetto] = await Promise.all([t.get(refIstanza), t.get(refRichiesta), t.get(refCassetto)])
+    // L'uid del titolare è l'id del suo documento: è quello con cui entra.
+    const piano = collegamento.pianoCollegamento({
+      cliente: docCliente ? { ...docCliente.data(), uid: docCliente.id } : null,
+      istanza: istanza.data() || null,
+      richiesta: richiesta.data() || null,
+      cassetto: cassetto.data() || null,
+      da: req.auth.token.email || req.auth.uid,
+      adesso: new Date(),
+    })
+    if (!piano.ok) throw new HttpsError(piano.codice, piano.perche)
+    t.set(refIstanza, piano.istanza, { merge: true })
+    if (piano.richiesta) t.set(refRichiesta, piano.richiesta, { merge: true })
+    if (piano.cassetto) t.set(refCassetto, piano.cassetto, { merge: true })
+    return piano
+  })
+  console.log(`[collegamento] ${slug}: ${esito.vecchio || 'nessun uid'} → ${esito.nuovo}, dall’admin ${req.auth.uid}`)
+  return { ok: true, vecchio: esito.vecchio, nuovo: esito.nuovo, richiesta: Boolean(esito.richiesta), cassetto: Boolean(esito.cassetto) }
+})
+
+// La dashboard ascolta istanze e richieste con la query sul suo uid, che le
+// regole permettono e che torna vuota senza errore. Vuota può voler dire
+// «non c'è» o «c'è, ma è legata a un altro account»: lo dice la regia. Solo
+// per il locale di chi chiama: niente slug in ingresso, lo slug è quello di
+// clienti/{uid}, che il titolare non può cambiare; nessun uid altrui in
+// risposta. Così non si impara niente di locali che non sono propri.
+// Daniele, 13/11/2026, sull'alternativa di aprire le regole: «non va bene
+// serve una soluzione piu sicura e piu robusta». La dashboard la chiama una
+// volta, e solo con la query dell'istanza vuota.
+exports.statoMiaApp = onCall({ ...OPTS, maxInstances: 5 }, async (req) => {
+  const uid = req.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  const cliente = (await db.doc(`clienti/${uid}`).get()).data()
+  if (!cliente?.slug || !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(cliente.slug)) return { app: 'nessuna' }
+  const istanza = (await db.doc(`istanze/${cliente.slug}`).get()).data() || null
+  return { app: collegamento.appDelTitolare(uid, istanza) }
+})
+
+// Il ritorno al Free di chi non paga, e il suo piano quando torna a pagare.
+// La licenza dell'app cambia piano, moduli e limiti; i dati restano.
+async function ripiegaAlFree(cliente, azione) {
+  const ref = db.doc(`istanze/${cliente.slug}`)
+  const ist = (await ref.get()).data()
+  if (!ist?.progetto || !scriveLicenza(ist)) return
+  const ripiega = azione === 'ripiega'
+  const adesso = new Date().toISOString()
+  await ref.set(
+    { ripiego_free: ripiega ? { dal: adesso, piano_prima: cliente.piano || null } : null, licenza_piano: ripiega ? 'free' : cliente.piano || null, licenza_scritta_il: adesso },
+    { merge: true }
+  )
+  await scriviLicenza(cliente.slug)
+}
+
+// ── LE SCADENZE A EVENTI (REQ-FLOTTA-023) ──────────────────────────────
+// Niente giri quotidiani: il locale cambia stato quando cambia lo stato del
+// suo abbonamento (Stripe, o un compito alla scadenza di un pagamento a
+// mano), e ogni altra scadenza (prova, eliminazione, condizioni degli
+// aggiornamenti) ha un compito alla sua data. La logica sta in
+// lib/scadenze.js.
+
+// I giorni di grazia di un pagamento a mano: impostazioni/regia.giorni_grazia.
+async function giorniDiGrazia() {
+  const v = Number((await db.doc('impostazioni/regia').get()).data()?.giorni_grazia)
+  return Number.isFinite(v) && v >= 0 ? v : scadenze.GIORNI_DI_GRAZIA
+}
+
+// Cosa succede al locale per un cambio di stato dell'abbonamento.
+// Un locale fermo per il pagamento conserva i dati 90 giorni, poi si
+// cancellano; se torna a pagare, la cancellazione si annulla
+// (REQ-FLOTTA-025). Al Free non si cancella niente.
+async function eseguiAzionePagamento(cliente, { azione, motivo }) {
+  if (azione === 'sospendi' || azione === 'chiudi') {
+    await scriviStatoIstanza(cliente.slug, azione === 'sospendi' ? 'sospesa' : 'chiusa', motivo, { per: 'pagamento' })
+    return conservaDati(cliente.slug, motivo)
+  }
+  if (azione === 'riattiva') {
+    // Pagato prima del momento della sospensione (REQ-FLOTTA-095): il locale
+    // non si è mai fermato, e «è di nuovo attivo» sarebbe falso.
+    const fermo = orari.fermoDavvero((await db.doc(`istanze/${cliente.slug}`).get()).data())
+    await scriviStatoIstanza(cliente.slug, 'attiva', null)
+    await annullaConservazione(cliente.slug, 'pagamento')
+    if (!fermo) return null
+    return accodaEmail(comunica.emailStato(cliente, azione), { slug: cliente.slug, motivo: azione })
+  }
+  await ripiegaAlFree(cliente, azione)
+  return accodaEmail(comunica.emailStato(cliente, azione), { slug: cliente.slug, motivo: azione })
+}
+
+// ── LA CONSERVAZIONE DEI DATI DI UN LOCALE FERMO (REQ-FLOTTA-025) ──────
+// Un'eliminazione programmata a 90 giorni (lib/conservazione.js), con un
+// avviso subito, uno a 7 giorni e uno il giorno prima: per email (la coda
+// `mail` dell'estensione Trigger Email di Firebase), nella dashboard e
+// nell'app (licenza.cancellazione).
+async function conservaDati(slug, motivo) {
+  const ref = db.doc(`istanze/${slug}`)
+  if (!conserva.daConservare((await ref.get()).data())) return
+  const richiesta = conserva.conservazioneChiesta({ motivo })
+  // update, non set con merge: l'eliminazione di prima (annullata) si
+  // sostituisce intera, senza lasciare campi suoi.
+  await ref.update({ eliminazione: richiesta })
+  await programma('eliminazione', slug, richiesta.quando).catch((e) => console.error(`[conservazione] ${slug}, la cancellazione:`, e?.message || e))
+  await avvisiDellaCancellazione(slug, richiesta.quando)
+}
+
+// Una cancellazione appena programmata, da chiunque: il primo avviso
+// subito, i compiti per gli altri, e la licenza che lo dice all'app.
+async function avvisiDellaCancellazione(slug, quando) {
+  for (const a of conserva.orariAvvisi(quando)) {
+    await programma('avviso_dati', slug, a.il).catch((e) => console.error(`[conservazione] ${slug}, l'avviso a ${a.giorni} giorni:`, e?.message || e))
+  }
+  await avvisaCancellazione(slug, null).catch((e) => console.error(`[conservazione] ${slug}, il primo avviso:`, e?.message || e))
+  await scriviLicenza(slug).catch((e) => console.error(`[conservazione] ${slug}, la licenza:`, e?.message || e))
+}
+
+// Un avviso al titolare. `giorni`: null il primo, poi 7 e 1. Un compito
+// ripetuto non manda due email: l'avviso si segna sull'eliminazione.
+async function avvisaCancellazione(slug, giorni) {
+  const ref = db.doc(`istanze/${slug}`)
+  const ist = (await ref.get()).data()
+  if (ist?.eliminazione?.stato !== 'programmata') return
+  const chiave = `${ist.eliminazione.quando}:${giorni ?? 'subito'}`
+  if (conserva.giaAvvisato(ist, chiave)) return
+  const posta = conserva.emailAvviso(await clienteDi(slug), ist, giorni)
+  await accodaEmail(posta, { slug, motivo: 'cancellazione_dati' })
+  await ref.update({ 'eliminazione.avvisi': FieldValue.arrayUnion({ chiave, giorni, il: new Date().toISOString(), email: Boolean(posta) }) })
+}
+
+// Un'email nella coda `mail`: la manda l'estensione Trigger Email di
+// Firebase, con l'SMTP di Resend (REQ-FLOTTA-027). Senza l'estensione resta
+// in coda e parte quando c'è. Un errore qui non ferma niente.
+async function accodaEmail(posta, { slug = null, motivo } = {}) {
+  if (!posta) return
+  await db
+    .collection('mail')
+    .add({ ...posta, slug, motivo, creata_il: new Date().toISOString() })
+    .catch((e) => console.error(`[email] ${slug}, ${motivo}:`, e?.message || e))
+}
+
+// Il locale torna a lavorare: la conservazione si annulla.
+async function annullaConservazione(slug, da) {
+  const ref = db.doc(`istanze/${slug}`)
+  const ist = (await ref.get()).data()
+  if (!conserva.daAnnullare(ist)) return
+  await ref.update({ eliminazione: { ...ist.eliminazione, stato: 'annullata', annullata_il: new Date().toISOString(), annullata_da: da } })
+  await scriviLicenza(slug).catch((e) => console.error(`[conservazione] ${slug}, la licenza:`, e?.message || e))
+}
+
+// Un compito per una scadenza: arriva alla data (o fra 29 giorni, e si
+// riprogramma). Lo stesso compito non si programma due volte.
+async function programma(tipo, chiave, quando) {
+  const orario = scadenze.orarioCompito(quando)
+  const coda = funzioniAdmin().taskQueue('locations/europe-west1/functions/scadenza')
+  try {
+    await coda.enqueue({ tipo, chiave, quando: new Date(quando).toISOString() }, { scheduleTime: orario, id: scadenze.idCompito(tipo, chiave, quando, orario) })
+  } catch (e) {
+    if (e?.code === 'functions/task-already-exists') return
+    throw e
+  }
+}
+
+// L'esecutore dei compiti. Ognuno ricontrolla prima di fare: una scadenza
+// spostata o annullata nel frattempo lascia il compito senza effetto.
+exports.scadenza = onTaskDispatched(
+  { ...OPTS, retryConfig: { maxAttempts: 5, minBackoffSeconds: 60 }, rateLimits: { maxConcurrentDispatches: 5 }, secrets: [GITHUB_DISPATCH_TOKEN, STRIPE_SECRET_KEY] },
+  async (req) => {
+    const { tipo, chiave, quando } = req.data || {}
+    if (!scadenze.TIPI.includes(tipo) || !chiave || !Number.isFinite(Date.parse(quando))) return
+    const adesso = new Date()
+    if (scadenze.daRiprogrammare(quando, adesso)) return programma(tipo, chiave, quando)
+    // Un promemoria di un pagamento a mano (REQ-FLOTTA-027).
+    if (tipo === 'promemoria') {
+      const doc = await docClientePerSlug(chiave)
+      const cliente = doc?.data()
+      const qualeTipo = cliente && comunica.promemoriaDelCompito(cliente, new Date(quando).toISOString())
+      if (!qualeTipo) return
+      const chiaveAvviso = comunica.chiavePromemoria(cliente, qualeTipo)
+      if (comunica.giaMandato(cliente, chiaveAvviso)) return
+      const validaFino = scadenze.scadenzaPagamento(cliente, await giorniDiGrazia())
+      await accodaEmail(comunica.emailPromemoria(cliente, qualeTipo, { validaFino }), { slug: chiave, motivo: `promemoria_${qualeTipo}` })
+      await doc.ref.update({ avvisi_pagamento: FieldValue.arrayUnion(chiaveAvviso) })
+      return
+    }
+    if (tipo === 'pagamento' || tipo === 'prova') {
+      const doc = await docClientePerSlug(chiave)
+      if (!doc) return
+      if (tipo === 'pagamento') {
+        const cliente = doc.data()
+        if (!scadenze.pagamentoScaduto(cliente, quando, { adesso, giorniGrazia: await giorniDiGrazia() })) return
+        // Con Stripe si chiede a Stripe com'è davvero: un rinnovo pagato il
+        // cui evento si è perso sposta la scadenza invece di fermare il
+        // locale. Se Stripe non risponde, la grazia è finita lo stesso.
+        if (cliente.abbonamento.origine === 'stripe') {
+          const sub = await stripeClient()
+            ?.subscriptions.retrieve(cliente.abbonamento.stripe_subscription)
+            .catch((e) => console.error(`[scadenze] ${chiave}, Stripe:`, e?.message || e))
+          await doc.ref.update({ ...scadenze.esitoControlloStripe(cliente, sub || null, { statiStripe: STATI_STRIPE, fineDelPeriodo }), 'abbonamento.aggiornato_il': adesso.toISOString() })
+          console.log(`[scadenze] ${chiave}: controllato su Stripe`)
+          return
+        }
+        // Il cambio di stato fa il resto (licenzaSegueIlPiano).
+        await doc.ref.update({ 'abbonamento.stato': 'non pagato', 'abbonamento.aggiornato_il': adesso.toISOString() })
+        console.log(`[scadenze] ${chiave}: pagamento scaduto`)
+        return
+      }
+      const via = prove.proveDaTogliere(doc.data(), adesso)
+      if (via.length) await doc.ref.update(Object.fromEntries(via.map((id) => [`prove.${id}`, FieldValue.delete()])))
+      return
+    }
+    const ref = db.doc(`istanze/${chiave}`)
+    let ist = (await ref.get()).data()
+    if (!ist) return
+    // Il taglio della giornata: la licenza che toglie qualcosa arriva ora,
+    // se aspetta ancora questo taglio (REQ-FLOTTA-024).
+    if (tipo === 'taglio') {
+      if (ist.riduzione_al_taglio?.dal !== new Date(quando).toISOString()) return
+      const scritta = await scriviLicenza(chiave, { subito: true })
+      console.log(`[taglio] ${chiave}: ${scritta.ok ? 'licenza scritta' : scritta.perche}`)
+      return
+    }
+    // La sospensione per pagamento al suo momento, fuori dall'orario di
+    // servizio (REQ-FLOTTA-095): solo se aspetta ancora questo momento. Chi
+    // ha pagato nel frattempo ha la licenza attiva e sospensione_al vuoto.
+    if (tipo === 'sospensione') {
+      if (!orari.compitoSospensioneValido(ist, quando)) return
+      const scritta = await scriviLicenza(chiave)
+      console.log(`[sospensione] ${chiave}: ${scritta.ok ? 'licenza scritta' : scritta.perche}`)
+      return
+    }
+    // Un avviso prima della cancellazione dei dati (REQ-FLOTTA-025).
+    if (tipo === 'avviso_dati') {
+      const giorni = conserva.avvisoDelCompito(ist, new Date(quando).toISOString())
+      if (giorni != null) await avvisaCancellazione(chiave, giorni)
+      return
+    }
+    if (tipo === 'eliminazione') {
+      // Novanta giorni da fermo per il pagamento: un locale ancora sospeso
+      // si chiude, poi si cancella come gli altri.
+      if (conserva.daAnnullare(ist) && Date.parse(ist.eliminazione.quando) <= adesso.getTime() && ist.licenza_stato === 'sospesa') {
+        await scriviStatoIstanza(chiave, 'chiusa', 'dati non conservati oltre 90 giorni', { per: 'pagamento' })
+        ist = (await ref.get()).data()
+      }
+      if (!elim.daEliminareOggi({ [chiave]: ist }, adesso).length) return
+      const perche = await lanciaEliminazione(chiave)
+      console.log(`[scadenze] ${chiave}, eliminazione: ${perche || 'partita'}`)
+      return
+    }
+    const patch = aggiornamenti.promozione(ist, adesso)
+    if (!patch) return
+    await ref.set(patch, { merge: true })
+    await scriviLicenza(chiave)
+  }
+)
+
+// Un pagamento fuori da Stripe (bonifico): fino a quando è pagato. Se il
+// locale era fermo per il pagamento, torna a lavorare (il cambio di stato).
+exports.registraPagamento = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const doc = await docClientePerSlug(req.data?.slug)
+  if (!doc) throw new HttpsError('not-found', 'Cliente sconosciuto.')
+  if (doc.data().abbonamento?.origine !== 'manuale') throw new HttpsError('failed-precondition', 'Vale per i piani pagati fuori da Stripe.')
+  const data = scadenze.dataPagata(req.data?.pagato_fino_al)
+  if (!data) throw new HttpsError('invalid-argument', 'Scrivi la data fino a cui è pagato: AAAA-MM-GG.')
+  // L'importo incassato (REQ-FLOTTA-041), facoltativo: se c'è, va nel libro
+  // dei movimenti. Si controlla prima di scrivere la data, così un importo
+  // sbagliato non lascia il pagamento registrato a metà.
+  const incasso =
+    req.data?.importo != null && String(req.data.importo).trim() !== ''
+      ? movimenti.movimentoManuale({ uid: doc.id, slug: doc.data().slug, importo: req.data.importo, iva: listino.iva, descrizione: `Abbonamento pagato fino al ${data}`, da: req.auth.token.email || req.auth.uid })
+      : null
+  if (incasso?.errore) throw new HttpsError('invalid-argument', incasso.errore)
+  await doc.ref.update({
+    'abbonamento.pagato_fino_al': data,
+    'abbonamento.stato': 'attivo',
+    'abbonamento.pagamento_registrato_il': new Date().toISOString(),
+    'abbonamento.pagamento_registrato_da': req.auth.token.email || req.auth.uid,
+  })
+  if (incasso) await scriviMovimento(incasso)
+  const dopo = (await doc.ref.get()).data()
+  await accodaEmail(comunica.emailPagamentoRicevuto(dopo), { slug: dopo.slug, motivo: 'pagamento_ricevuto' })
+  return { ok: true, pagato_fino_al: data, movimento: incasso?.id || null }
+})
+
+// Una volta, dopo il primo deploy di REQ-FLOTTA-023: i compiti per le
+// scadenze che c'erano già (pagamenti a mano, prove, eliminazioni,
+// condizioni), e il «perché» delle sospensioni per il pagamento di prima.
+// Rifarlo non fa danni: lo stesso compito non si programma due volte.
+// UN ACCOUNT PER PERSONA (REQ-FLOTTA-083): i clienti nati prima non hanno
+// la forma base dell'email, e il controllo dei doppioni non li vede. L'admin
+// la fa scrivere una volta dal backoffice; rifatto non cambia niente.
+exports.allineaEmail = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const clienti = (await db.collection('clienti').get()).docs.map((d) => ({ id: d.id, ...d.data() }))
+  const da = registrazione.emailDaAllineare(clienti)
+  for (let i = 0; i < da.length; i += 400) {
+    const batch = db.batch()
+    for (const { id, email_norma } of da.slice(i, i + 400)) batch.set(db.doc(`clienti/${id}`), { email_norma }, { merge: true })
+    await batch.commit()
+  }
+  return { ok: true, allineati: da.length, totale: clienti.length }
+})
+
+exports.programmaScadenze = onCall({ ...OPTS, timeoutSeconds: 540 }, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const [clienti, istanze, grazia] = await Promise.all([db.collection('clienti').get().then((q) => q.docs.map((d) => d.data())), tutteLeIstanze(), giorniDiGrazia()])
+  let programmati = 0
+  const errori = []
+  const prova = async (descrizione, fn) => {
+    try {
+      await fn()
+      programmati += 1
+    } catch (e) {
+      errori.push(`${descrizione}: ${String(e?.message || e).slice(0, 120)}`)
     }
   }
+  for (const c of clienti) {
+    if (!c.slug) continue
+    const s = scadenze.scadenzaPagamento(c, grazia)
+    if (s && c.abbonamento.stato === 'attivo') await prova(`${c.slug} pagamento`, () => programma('pagamento', c.slug, s))
+    for (const p of comunica.orariPromemoria(c)) await prova(`${c.slug} promemoria ${p.tipo}`, () => programma('promemoria', c.slug, p.il))
+    for (const [id, p] of Object.entries(c.prove || {})) await prova(`${c.slug} prova ${id}`, () => programma('prova', c.slug, p.scade_il))
+  }
+  for (const [slug, ist] of Object.entries(istanze)) {
+    if (ist.eliminazione?.stato === 'programmata') {
+      await prova(`${slug} eliminazione`, () => programma('eliminazione', slug, ist.eliminazione.quando))
+      for (const a of conserva.orariAvvisi(ist.eliminazione.quando)) await prova(`${slug} avviso a ${a.giorni} giorni`, () => programma('avviso_dati', slug, a.il))
+    }
+    if (ist.condizioni_prossime?.dal) await prova(`${slug} condizioni`, () => programma('condizioni', slug, ist.condizioni_prossime.dal))
+    if (ist.riduzione_al_taglio?.dal) await prova(`${slug} taglio`, () => programma('taglio', slug, ist.riduzione_al_taglio.dal))
+    // La sospensione per pagamento che aspetta il suo momento (REQ-FLOTTA-095).
+    if (ist.sospensione_al?.dal) await prova(`${slug} sospensione`, () => programma('sospensione', slug, ist.sospensione_al.dal))
+    if (ist.licenza_stato === 'sospesa' && !ist.licenza_per && /pagamento non ricevuto/.test(ist.licenza_motivo || '')) {
+      await db.doc(`istanze/${slug}`).set({ licenza_per: 'pagamento' }, { merge: true })
+    }
+  }
+  return { ok: true, programmati, errori }
 })
 
 // ── GLI AGGIORNAMENTI DELLA FLOTTA (REQ-FLOTTA-009) ───────────────────
@@ -325,11 +1245,27 @@ async function lanciaAggiornamento(slug, ref, { rilascio = null, ritorno = false
   const istRef = db.doc(`istanze/${slug}`)
   const ist = (await istRef.get()).data()
   if (!ist || ist.stato !== 'attiva') return 'L’istanza non è attiva.'
-  // Un locale registrato come esistente (la Tana, REQ-AI-003) ha i suoi
-  // rilasci e il suo progetto: il workflow della flotta non lo tocca mai.
-  if (ist.origine === 'esistente') return 'Questa installazione si aggiorna dal suo repository, non dalla flotta.'
-  const cliente = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]?.data()
-  const res = await dispatchGitHub(WORKFLOW_AGGIORNA, dispatchAggiornamento({ slug, nome_locale: cliente?.nome_locale }, { ref: REF, app: ref, ambiente: AMBIENTE_FLOTTA, profilo: profilo || ist.profilo || 'completo' }))
+  // Un locale simulato (REQ-FLOTTA-072) non ha un progetto da aggiornare.
+  if (ist.simulata) return 'Locale simulato: non ha un progetto da aggiornare.'
+  // Un locale registrato come esistente (la Tana, REQ-AI-003) si aggiorna
+  // dal suo repository, finché l'admin non lo affida alla regia
+  // (REQ-FLOTTA-018): allora il workflow della flotta pubblica sul SUO
+  // progetto, con la sua cartella in clienti/ e le sue chiavi della build.
+  if (!rilasci.daFlotta(ist)) return 'Questa installazione si aggiorna dal suo repository, non dalla flotta.'
+  const esistente = ist.origine === 'esistente'
+  const cliente = (await docClientePerSlug(slug))?.data()
+  // Il titolare diventa admin a ogni deploy (REQ-FLOTTA-029); un locale
+  // esistente (la Tana) ha i suoi admin, e la regia non ne aggiunge.
+  const datiIstanza = { slug, nome_locale: cliente?.nome_locale, email: esistente ? '' : cliente?.email || '', uid: esistente ? '' : cliente?.uid || '', ...(esistente ? { progetto: ist.progetto, cliente: ist.cliente, build: ist.build } : {}) }
+  // PRIMA DEL DEPLOY, LA LICENZA PROTETTA (BUG-125 di tana-drink): con
+  // l'app nuova un locale senza licenza/attuale si ferma. L'app arriva a un
+  // locale solo da qui (rilasci, «Aggiorna subito», ritorni, il Free che
+  // compra), quindi scriverla qui vuol dire che nessun locale la riceve
+  // senza la sua licenza, senza aspettare «Allinea tutte». Se non si
+  // scrive, l'aggiornamento non parte.
+  const licenza = await scriviLicenza(slug).catch((e) => ({ ok: false, perche: e?.message || String(e) }))
+  if (!licenza.ok) return `La licenza non si è scritta (${licenza.perche}): l’aggiornamento non parte.`
+  const res = await dispatchGitHub(WORKFLOW_AGGIORNA, dispatchAggiornamento(datiIstanza, { ref: REF, app: ref, ambiente: AMBIENTE_FLOTTA, profilo: profilo || ist.profilo || 'completo' }))
   const adesso = new Date()
   if (res.status !== 204) {
     // Non è partito: si segna fallito, così il rilascio si ferma e si vede.
@@ -367,7 +1303,8 @@ exports.aggiornaIstanza = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN] }, 
 
 // ── I RILASCI A ONDATE (REQ-FLOTTA-012) ───────────────────────────────
 // Un rilascio alla volta. Azioni dell'admin:
-//   crea {ref}            fotografa le ondate per il tag vX.Y.Z
+//   crea {ref, obbligatorio} fotografa le ondate per il tag vX.Y.Z;
+//                         obbligatorio: arriva a tutti (REQ-FLOTTA-020)
 //   avanza {ref}          avvia l'ondata successiva (la prima, o riprende
 //                         un rilascio fermo quando l'ondata è a posto)
 //   riprova {ref, slug}   rilancia un aggiornamento fallito
@@ -376,6 +1313,7 @@ exports.aggiornaIstanza = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN] }, 
 //   annulla {ref}         il rilascio si chiude qui (i locali restano
 //                         come sono)
 //   gruppo {slug, gruppo} prova, pilota o generale
+//   modalita {slug, modalita} obbligatori, a_scelta o null (REQ-FLOTTA-020)
 // Un'ondata grande lancia molti workflow uno dopo l'altro: tempo lungo.
 exports.gestisciRilascio = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN], timeoutSeconds: 540 }, async (req) => {
   if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
@@ -395,6 +1333,17 @@ exports.gestisciRilascio = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN], t
       await db.doc(`istanze/${slug}`).set({ gruppo_rilascio: gruppo }, { merge: true })
       return { ok: true }
     }
+    // Come si aggiorna questo locale, al di là delle regole (REQ-FLOTTA-020):
+    // 'obbligatori', 'a_scelta', o null per seguire le regole.
+    if (azione === 'modalita') {
+      const modalita = req.data?.modalita ?? null
+      if (modalita !== null && !aggiornamenti.MODALITA.includes(modalita)) no('Modalità non valida.')
+      const ist = (await db.doc(`istanze/${slug}`).get()).data()
+      if (!ist) no('Istanza non trovata.')
+      await db.doc(`istanze/${slug}`).set({ modalita_aggiornamenti: modalita }, { merge: true })
+      await scriviLicenza(slug)
+      return { ok: true }
+    }
     if (azione === 'indietro') {
       const ist = (await db.doc(`istanze/${slug}`).get()).data()
       const versione = rilasci.versioneDiRitorno(ist)
@@ -411,7 +1360,7 @@ exports.gestisciRilascio = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN], t
       const esiste = (await rilascioRef.get()).data()
       if (esiste && esiste.stato !== 'annullato') no(`Il rilascio ${tag} c’è già.`)
       const istanze = await tutteLeIstanze()
-      const nuovo = rilasci.nuovoRilascio(tag, istanze, { da: req.auth.token.email || req.auth.uid })
+      const nuovo = rilasci.nuovoRilascio(tag, istanze, { da: req.auth.token.email || req.auth.uid, obbligatorio: req.data?.obbligatorio === true })
       await rilascioRef.set(rilasci.conRiepilogo(nuovo, istanze))
       return { ok: true }
     }
@@ -423,13 +1372,33 @@ exports.gestisciRilascio = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN], t
       // Prima si scrive il rilascio, poi si lancia: un secondo clic trova
       // l'ondata già partita e si ferma.
       await rilascioRef.set(rilasci.conRiepilogo(avanti, istanze))
+      // Ognuno secondo la sua regola (REQ-FLOTTA-020): si pubblica, si
+      // propone al titolare, o il suo piano non lo comprende.
       const nonPartiti = []
+      const proposti = []
+      const esclusi = []
+      let changelog = null
       for (const s of daLanciare) {
+        const cosa = aggiornamenti.cosaFareNelRilascio(istanze[s], await clienteDi(s), avanti)
+        if (cosa === 'escludi') {
+          esclusi.push(s)
+          continue
+        }
+        if (cosa === 'proponi') {
+          // Le note si leggono una volta per ondata; senza, la proposta
+          // esce lo stesso, col solo numero di versione.
+          if (changelog === null) changelog = await changelogAl(tag).catch((e) => (console.error('[aggiornamenti] note:', e?.message || e), ''))
+          await proponiAggiornamento(s, tag, { rilascio: tag, changelog })
+          proposti.push(s)
+          continue
+        }
         const perche = await lanciaAggiornamento(s, tag, { rilascio: tag })
         if (perche) nonPartiti.push(`${s}: ${perche}`)
       }
+      if (esclusi.length) await rilascioRef.set({ non_inclusi: FieldValue.arrayUnion(...esclusi) }, { merge: true })
       await ricalcolaRilasci()
-      return { ok: true, ondata: avanti.ondate[avanti.ondata].nome, lanciati: daLanciare.length - nonPartiti.length, nonPartiti }
+      const lanciati = daLanciare.length - nonPartiti.length - proposti.length - esclusi.length
+      return { ok: true, ondata: avanti.ondate[avanti.ondata].nome, lanciati, proposti: proposti.length, esclusi: esclusi.length, nonPartiti }
     }
     if (azione === 'riprova') {
       if (!rilascio.ondate.some((o) => o.slugs.includes(slug))) no('Questo locale non è nel rilascio.')
@@ -454,40 +1423,760 @@ exports.gestisciRilascio = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN], t
   }
 })
 
+// ── GLI AGGIORNAMENTI OBBLIGATORI O A SCELTA (REQ-FLOTTA-020) ─────────
+// Le regole le decide l'admin (impostazioni/aggiornamenti); ogni locale le
+// prende al suo rinnovo, con un avviso prima. La logica sta in
+// lib/aggiornamenti.js; qui si legge, si scrive e si lancia.
+
+async function regoleAggiornamenti() {
+  return aggiornamenti.regolePulite((await db.doc('impostazioni/aggiornamenti').get()).data())
+}
+
+// IL CLIENTE DI UNO SLUG (audit 09/11/2026, finding 4): ogni ricerca per
+// slug passa da qui, che chiede due documenti e si ferma se li trova tutti
+// e due, invece di lavorare «sul primo» come faceva `limit(1)`. Torna il
+// documento (ref, id, data()) o null; lo slug ambiguo è un errore che la
+// callable riporta com'è, e un trigger scrive nel log.
+async function docClientePerSlug(slug) {
+  try {
+    return await registrazione.clientePerSlug(db, slug)
+  } catch (e) {
+    if (e instanceof registrazione.SlugAmbiguo) throw new HttpsError('failed-precondition', e.message)
+    throw e
+  }
+}
+
+// Col suo uid, che è l'id del documento: serve per le sue sottoraccolte.
+async function clienteDi(slug) {
+  const d = await docClientePerSlug(slug)
+  return d ? { uid: d.id, ...d.data() } : null
+}
+
+// I temi su misura del locale (REQ-FLOTTA-040), per la licenza: con gli
+// stili a ricetta pubblicati, che servono a controllarli. Si leggono gli
+// stili solo se il locale ha temi: quasi nessuno ne ha.
+async function temiSuMisuraDi(cliente) {
+  if (!cliente?.uid) return {}
+  const temiSuMisura = (await db.collection(`clienti/${cliente.uid}/temi_su_misura`).get()).docs.map((d) => d.data())
+  if (!temiSuMisura.length) return { temiSuMisura }
+  const docsStili = (await db.collection('stili').get()).docs.map((d) => d.data())
+  return { temiSuMisura, stiliRicetta: stili.catalogoStili(docsStili).map((s) => s.id) }
+}
+
+// Il CHANGELOG di tana-drink a un tag.
+async function changelogAl(tag) {
+  const res = await fetch(`https://raw.githubusercontent.com/${APP_REPO}/${tag}/CHANGELOG.md`)
+  if (!res.ok) throw new Error(`CHANGELOG di ${tag}: GitHub ${res.status}`)
+  return res.text()
+}
+
+// ── LA LICENZA DI UN LOCALE, IN UN POSTO SOLO (BUG-125 di tana-drink) ──
+// Ogni cambio della licenza passa da qui: piano, moduli, prove, stato,
+// ritorno al Free, aggiornamenti. Chi la cambia scrive prima i dati della
+// regia (cliente, istanza), poi chiama questa, che CALCOLA la licenza intera
+// da quei dati (licenzaProtetta) e la scrive:
+// - in licenza/attuale, che l'app legge e nessuno dall'app scrive;
+// - in settings/bar.licenza, finché tutti i locali non hanno l'app che legge
+//   solo licenza/attuale. Poi questa riga si toglie, e il campo si cancella.
+// Mai copiata da settings/bar: lì un bartender la può aver riscritta.
+// Sull'istanza restano la regola degli aggiornamenti, che la dashboard del
+// titolare legge, e l'esito. Un locale esistente che non riceve la licenza
+// dalla regia (la Tana) ha solo la regola.
+const LICENZA_PROTETTA = 'licenza/attuale'
+const riceveLicenza = (ist) => Boolean(ist?.progetto) && ist.stato === 'attiva' && scriveLicenza(ist)
+
+// UNA LICENZA CHE TOGLIE QUALCOSA aspetta il taglio della giornata del
+// locale (REQ-FLOTTA-024, lib/taglio.js): fino ad allora resta quella di
+// prima più quello che la nuova aggiunge, e un compito «taglio» scrive la
+// nuova. `subito`: il taglio è arrivato, o il locale nasce adesso.
+//
+// licenza/attuale non si cancella mai (tana-drink, 01/11/2026): senza
+// documento l'app si ferma, e le sue regole lo leggono come «nessun
+// limite». Un locale si ferma con lo stato, sospesa o chiusa.
+async function scriviLicenza(slug, { subito = false, tentativo = 1 } = {}) {
+  const ref = db.doc(`istanze/${slug}`)
+  const ist = (await ref.get()).data()
+  if (!ist) return { ok: false, perche: 'Istanza non trovata.' }
+  const cliente = await clienteDi(slug)
+  const opzioni = { slug, regiaUrl: REGIA_URL, sceltaUrl: SCELTA_URL, giorniGrazia: await giorniDiGrazia(), ...(await temiSuMisuraDi(cliente)) }
+  const { modalita, inclusi, motivo } = licenzaProtetta(ist, cliente, opzioni).aggiornamenti
+  await ref.set({ regola_aggiornamenti: { modalita, inclusi, motivo } }, { merge: true })
+  if (!riceveLicenza(ist)) return { ok: true, scritta: false }
+  // Senza cliente la licenza sarebbe quella di un piano base inventato.
+  if (!cliente) return { ok: false, perche: 'Nessun cliente per questo locale: la licenza non si calcola.' }
+  const istanza = firestoreDi(ist.progetto)
+  const [scritta, bar] = await Promise.all([istanza.doc(LICENZA_PROTETTA).get(), istanza.doc('settings/bar').get()])
+  // valida_fino cade al momento della sospensione per pagamento, fuori
+  // dall'orario di servizio (REQ-FLOTTA-095); senza orari al taglio della
+  // giornata del locale (REQ-FLOTTA-024).
+  const lic = licenzaProtetta(ist, cliente, { ...opzioni, oraTaglio: taglio.oraDelTaglio(bar.data()) })
+  const statoDal = orari.momentoDelloStato(ist, cliente, { oraTaglio: taglio.oraDelTaglio(bar.data()), giorniGrazia: opzioni.giorniGrazia })
+  const { licenza, riduzioni, sospensione } = taglio.licenzaDaScrivere(scritta.exists ? scritta.data() : null, lic, { subito, statoDal })
+  let alTaglio = null
+  let perche = null
+  // Lo stato che ferma il locale per il pagamento aspetta il suo momento,
+  // fuori dall'orario di servizio (REQ-FLOTTA-095): un compito suo.
+  const sospensioneAl = sospensione ? { dal: sospensione, stato: lic.stato } : null
+  if (sospensione) {
+    await programma('sospensione', slug, sospensione).catch((e) => {
+      perche = `La sospensione al suo momento non si è programmata: ${String(e?.message || e).slice(0, 160)}`
+    })
+  }
+  if (riduzioni.length) {
+    alTaglio = { dal: taglio.prossimoTaglio(new Date(), taglio.oraDelTaglio(bar.data())).toISOString(), cosa: riduzioni }
+    // Senza il compito la riduzione non arriverebbe mai: la licenza di
+    // prima si scrive lo stesso (non toglie niente), e il problema si vede
+    // sulla scheda del locale. «Allinea» riprova.
+    await programma('taglio', slug, alTaglio.dal).catch((e) => {
+      perche = `La riduzione al taglio non si è programmata: ${String(e?.message || e).slice(0, 160)}`
+    })
+  }
+  // Lo stato dell'istanza cambiato mentre si calcolava (il compito
+  // «sospensione» e un «riattiva» insieme, REQ-FLOTTA-095): si ricalcola
+  // dall'inizio invece di scrivere una licenza vecchia. Tre giri al massimo.
+  if (orari.statoCambiato(ist, (await ref.get()).data()) && tentativo < 3) return scriviLicenza(slug, { subito, tentativo: tentativo + 1 })
+  // Con valida_fino_ts, la scadenza che le regole sanno leggere.
+  const doc = perIlDatabase(licenza, (d) => Timestamp.fromDate(d))
+  await istanza.doc(LICENZA_PROTETTA).set(doc)
+  // mergeFields: il campo licenza si sostituisce intero, il resto di
+  // settings/bar (le impostazioni del locale) non si tocca.
+  await istanza.doc('settings/bar').set({ licenza: doc }, { mergeFields: ['licenza'] })
+  await ref.update({ licenza_protetta: { ok: !perche, perche, controllata_il: lic.scritta_il }, riduzione_al_taglio: alTaglio, sospensione_al: sospensioneAl })
+  return { ok: true, scritta: true }
+}
+
+// La verifica di un locale: licenza/attuale c'è, è uguale a
+// settings/bar.licenza ed è quella che dicono i dati della regia.
+async function verificaLicenza(slug) {
+  const ref = db.doc(`istanze/${slug}`)
+  const ist = (await ref.get()).data()
+  const istanza = firestoreDi(ist.progetto)
+  const [protetta, bar] = await Promise.all([istanza.doc(LICENZA_PROTETTA).get(), istanza.doc('settings/bar').get()])
+  const cliente = await clienteDi(slug)
+  const calcolata = licenzaProtetta(ist, cliente, { slug, regiaUrl: REGIA_URL, sceltaUrl: SCELTA_URL, giorniGrazia: await giorniDiGrazia(), oraTaglio: taglio.oraDelTaglio(bar.data()), ...(await temiSuMisuraDi(cliente)) })
+  // Con una riduzione che aspetta il taglio, quella giusta è la licenza di
+  // prima più le aggiunte (REQ-FLOTTA-024).
+  // E con la sospensione per pagamento che aspetta il suo momento, lo
+  // stato di prima (REQ-FLOTTA-095).
+  const statoDal = orari.momentoDelloStato(ist, cliente, { oraTaglio: taglio.oraDelTaglio(bar.data()), giorniGrazia: await giorniDiGrazia() })
+  const attesa = (ist.riduzione_al_taglio || statoDal) && protetta.exists ? taglio.licenzaDaScrivere(protetta.data(), calcolata, { subito: !ist.riduzione_al_taglio, statoDal }).licenza : calcolata
+  let perche = null
+  if (!protetta.exists) perche = 'Manca licenza/attuale: con l’app nuova il locale si ferma.'
+  else if (!stessaLicenza(protetta.data(), bar.data()?.licenza)) perche = 'licenza/attuale è diversa da settings/bar.licenza.'
+  else if (!stessaLicenza(protetta.data(), attesa)) perche = 'La licenza non è quella che dicono i dati della regia.'
+  else if (!scadenzaCoerente(protetta.data())) perche = 'Manca valida_fino_ts, o non è valida_fino: per le regole la licenza non scadrebbe.'
+  await ref.set({ licenza_protetta: { ok: !perche, perche, controllata_il: new Date().toISOString() } }, { merge: true })
+  return { slug, ok: !perche, perche }
+}
+
+// Tutti i locali che ricevono la licenza: «allinea» la riscrive e verifica,
+// «verifica» guarda soltanto. L'esito resta in controlli/licenze, che legge
+// solo l'admin. Prima del rilascio dell'app con BUG-125, i problemi devono
+// essere zero.
+async function controllaLicenze({ allinea = false } = {}) {
+  const istanze = await tutteLeIstanze()
+  const slugs = Object.entries(istanze)
+    .filter(([, ist]) => riceveLicenza(ist))
+    .map(([slug]) => slug)
+    .sort()
+  const problemi = []
+  for (const slug of slugs) {
+    try {
+      if (allinea) {
+        const scritta = await scriviLicenza(slug)
+        if (!scritta.ok) {
+          problemi.push({ slug, perche: scritta.perche })
+          continue
+        }
+      }
+      const v = await verificaLicenza(slug)
+      if (!v.ok) problemi.push({ slug, perche: v.perche })
+    } catch (e) {
+      problemi.push({ slug, perche: String(e?.message || e).slice(0, 200) })
+    }
+  }
+  const esito = { controllata_il: new Date().toISOString(), allineata: allinea, totale: slugs.length, pronte: slugs.length - problemi.length, problemi }
+  await db.doc('controlli/licenze').set(esito)
+  return esito
+}
+
+exports.gestisciLicenze = onCall({ ...OPTS, timeoutSeconds: 540 }, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const azione = req.data?.azione
+  if (!['allinea', 'verifica'].includes(azione)) throw new HttpsError('invalid-argument', 'Azione sconosciuta.')
+  return controllaLicenze({ allinea: azione === 'allinea' })
+})
+
+// La proposta di un rilascio al titolare, con le note dalla sua versione.
+async function proponiAggiornamento(slug, tag, { rilascio = null, changelog = '' } = {}) {
+  const ref = db.doc(`istanze/${slug}`)
+  const ist = (await ref.get()).data()
+  const note = aggiornamenti.noteTra(changelog, ist?.versione, tag)
+  await ref.update({ proposta_aggiornamento: aggiornamenti.nuovaProposta(tag, { rilascio, note }) })
+  await scriviLicenza(slug).catch((e) => console.error(`[aggiornamenti] ${slug}:`, e?.message || e))
+}
+
+// La scelta del titolare, dall'app o dalla dashboard: «aggiorna» lancia il
+// workflow come un'ondata, «salta» lascia il locale dov'è. Ritorna null, o
+// il perché se l'aggiornamento non è partito.
+// La stessa scelta che arriva due volte (il titolare riprova se la risposta
+// tarda) non fa danni: «aggiorna» si prende la proposta in una transazione
+// prima di lanciare, e il secondo trova GIA_SCELTA. Con un lancio non
+// partito la presa si lascia, e si può riprovare.
+const GIA_SCELTA = 'Questa scelta è già stata fatta.'
+async function applicaScelta(slug, scelta, { il = new Date().toISOString(), da = null } = {}) {
+  const ref = db.doc(`istanze/${slug}`)
+  const ist = (await ref.get()).data()
+  const p = ist?.proposta_aggiornamento
+  if (!p?.attesa) return GIA_SCELTA
+  // Il piano può aver smesso di comprenderli dopo la proposta.
+  if (scelta === 'aggiorna' && !aggiornamenti.regolaDi(ist, await clienteDi(slug)).inclusi) return 'Il piano del locale non comprende più gli aggiornamenti.'
+  const fatta = { scelta, scelta_il: il, scelta_da: da, scelta_letta_il: il }
+  if (scelta === 'aggiorna') {
+    const presa = await db.runTransaction(async (tx) => {
+      const ora = (await tx.get(ref)).data()?.proposta_aggiornamento
+      if (!aggiornamenti.puoPrendere(ora, p.tag, new Date())) return false
+      tx.update(ref, { 'proposta_aggiornamento.presa_il': new Date().toISOString() })
+      return true
+    })
+    if (!presa) return GIA_SCELTA
+    const perche = await lanciaAggiornamento(slug, p.tag, { rilascio: p.rilascio })
+    if (perche) {
+      await ref.update({ 'proposta_aggiornamento.presa_il': null })
+      return perche
+    }
+    await ref.update({ proposta_aggiornamento: { ...p, ...fatta, attesa: false, presa_il: null } })
+  } else {
+    await ref.update({ proposta_aggiornamento: { ...p, ...fatta, saltata_il: il } })
+  }
+  await scriviLicenza(slug).catch((e) => console.error(`[aggiornamenti] ${slug}:`, e?.message || e))
+  await ricalcolaRilasci().catch((e) => console.error('[rilasci] ricalcolo dopo una scelta:', e?.message || e))
+  return null
+}
+
+// L'admin cambia le regole: chi è già attivo le prende al suo rinnovo (o
+// dopo il preavviso) e riceve l'avviso adesso, nell'app e nella dashboard.
+exports.impostaRegoleAggiornamenti = onCall({ ...OPTS, timeoutSeconds: 540 }, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const regole = aggiornamenti.regolePulite(req.data)
+  const adesso = new Date()
+  await db.doc('impostazioni/aggiornamenti').set({ ...regole, cambiato_il: adesso.toISOString(), cambiato_da: req.auth.token.email || req.auth.uid })
+  const [istanze, clienti] = await Promise.all([tutteLeIstanze(), db.collection('clienti').get().then((q) => q.docs.map((d) => d.data()))])
+  const perSlug = Object.fromEntries(clienti.map((c) => [c.slug, c]))
+  let avvisati = 0
+  const nonScritti = []
+  for (const [slug, ist] of Object.entries(istanze)) {
+    const patch = aggiornamenti.cambioPerIstanza(ist, perSlug[slug], regole, adesso)
+    if (!patch) continue
+    await db.doc(`istanze/${slug}`).set(patch, { merge: true })
+    if (patch.avviso_aggiornamenti) avvisati += 1
+    if (patch.condizioni_prossime?.dal) await programma('condizioni', slug, patch.condizioni_prossime.dal).catch((e) => console.error(`[scadenze] ${slug}, condizioni:`, e?.message || e))
+    try {
+      await scriviLicenza(slug)
+    } catch (e) {
+      nonScritti.push(slug)
+      console.error(`[aggiornamenti] ${slug}:`, e?.message || e)
+    }
+  }
+  return { ok: true, avvisati, nonScritti }
+})
+
+// La scelta dalla dashboard del titolare: la stessa che può fare nell'app.
+exports.sceltaAggiornamento = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN] }, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  const cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data()
+  if (!cliente?.slug) throw new HttpsError('failed-precondition', 'Nessun locale collegato a questo account.')
+  const ist = (await db.doc(`istanze/${cliente.slug}`).get()).data()
+  const scelta = aggiornamenti.sceltaValida({ tag: String(req.data?.tag || ''), scelta: req.data?.scelta, il: new Date().toISOString() }, ist?.proposta_aggiornamento)
+  if (!scelta) throw new HttpsError('failed-precondition', 'Questa proposta non è più valida: ricarica la pagina.')
+  const perche = await applicaScelta(cliente.slug, scelta, { da: req.auth.token.email || req.auth.uid })
+  if (perche) throw new HttpsError('failed-precondition', perche)
+  return { ok: true, scelta }
+})
+
+// La scelta dall'app: il titolare tocca «Aggiorna» o «Salta» e l'app chiama
+// qui col suo token d'accesso (Authorization: Bearer <ID token>, corpo
+// { tag, scelta }). La regia riconosce il locale dal progetto del token, lo
+// verifica con quel progetto, controlla che sia il titolare (admin e lo
+// stesso account del cliente, REQ-FLOTTA-050) e applica la scelta subito. Niente chiavi nel browser e niente giri a tempo; va bene
+// anche per il Free, che non ha Functions. Il token è nell'intestazione e
+// non ci sono cookie, quindi la chiamata si apre a qualunque origine.
+exports.sceltaDallApp = onRequest({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN], cors: false }, async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*')
+  res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+  res.set('Access-Control-Allow-Methods', 'POST')
+  if (req.method === 'OPTIONS') return res.status(204).send('')
+  if (req.method !== 'POST') return res.status(405).json({ errore: 'Solo POST.' })
+  const token = aggiornamenti.bearerDi(req.get('authorization'))
+  const progetto = aggiornamenti.progettoDelToken(token)
+  if (!progetto) return res.status(401).json({ errore: 'Serve l’accesso.' })
+  const trovata = (await db.collection('istanze').where('progetto', '==', progetto).limit(1).get()).docs[0]
+  const ist = trovata?.data()
+  if (!ist || !riceveLicenza(ist)) return res.status(404).json({ errore: 'Locale sconosciuto.' })
+  let chi
+  try {
+    chi = await getAuth(appDi(progetto)).verifyIdToken(token)
+  } catch {
+    return res.status(401).json({ errore: 'Accesso non valido: entra di nuovo.' })
+  }
+  if (!aggiornamenti.eTitolare(chi)) return res.status(403).json({ errore: 'La sceglie il titolare.' })
+  // E non un altro admin del locale (audit del 09/11/2026, finding 17):
+  // la versione dell'app la decide chi ha l'abbonamento, come dalla
+  // dashboard, dove sceglie il suo account nella regia.
+  const cliente = await clienteDi(trovata.id)
+  if (!passa.stessoTitolare(chi, cliente)) return res.status(403).json({ errore: 'Solo il titolare del locale può scegliere gli aggiornamenti.' })
+  const corpo = aggiornamenti.corpoScelta(req.body)
+  if (!corpo) return res.status(400).json({ errore: 'Scelta non valida.' })
+  const scelta = aggiornamenti.sceltaValida({ ...corpo, il: new Date().toISOString() }, ist.proposta_aggiornamento)
+  if (!scelta) return res.status(409).json({ errore: 'Questa proposta non è più valida.' })
+  const perche = await applicaScelta(trovata.id, scelta, { da: chi.email || chi.uid })
+  if (perche === GIA_SCELTA) return res.status(409).json({ errore: GIA_SCELTA })
+  if (perche) return res.status(502).json({ errore: perche })
+  return res.status(200).json({ ok: true, scelta })
+})
+
+// ── IL PASSAGGIO FRA LA REGIA E L'APP DEL LOCALE (REQ-FLOTTA-030) ──────
+// Le regole in lib/passaggio.js. I codici stanno in passaggi/{impronta}:
+// li scrivono e li cancellano solo le Functions.
+
+// I dati del titolare (nome, indirizzo, telefono, intestazione fiscale)
+// nelle impostazioni dell'app, solo dove sono vuoti. Un errore non ferma
+// niente: si riprova al prossimo deploy.
+async function scriviDatiDelLocale(slug) {
+  try {
+    const ist = (await db.doc(`istanze/${slug}`).get()).data()
+    if (!riceveLicenza(ist)) return
+    const cliente = await clienteDi(slug)
+    if (!cliente) return
+    const bar = firestoreDi(ist.progetto).doc('settings/bar')
+    const patch = passa.soloIVuoti((await bar.get()).data(), passa.datiDelLocale(cliente))
+    if (Object.keys(patch).length) await bar.set(patch, { merge: true })
+  } catch (e) {
+    console.error(`[dati del locale] ${slug}:`, e?.message || e)
+  }
+}
+
+// Un codice nuovo per un passaggio: l'impronta nel database, il codice
+// solo nella risposta.
+async function creaPassaggio(dati) {
+  const codice = passa.nuovoCodice()
+  await db.doc(`passaggi/${passa.impronta(codice)}`).set(passa.nuovoPassaggio(dati))
+  return codice
+}
+
+// «Apri la tua app»: il titolare, entrato nella regia, passa nella sua app.
+exports.passaggioVersoApp = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Prima conferma la tua email.')
+  const cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data()
+  const ist = cliente?.slug ? (await db.doc(`istanze/${cliente.slug}`).get()).data() : null
+  if (ist?.simulata) throw new HttpsError('failed-precondition', 'Questo locale è simulato, sul sito di test: non c’è un’app da aprire.')
+  if (!ist?.progetto || ist.stato !== 'attiva' || !ist.url) throw new HttpsError('failed-precondition', 'La tua app non è ancora attiva.')
+  // La demo non ha titolare né accessi veri (REQ-FLOTTA-019).
+  if (eDemo(ist)) throw new HttpsError('failed-precondition', 'La demo si apre dal suo indirizzo, senza accesso.')
+  const utente = await getAuth(appDi(ist.progetto))
+    .getUserByEmail(cliente.email)
+    .catch((e) => (e?.code === 'auth/user-not-found' ? null : Promise.reject(e)))
+  const ok = passa.titolareNelLocale(utente, cliente)
+  if (!ok.ok) throw new HttpsError('failed-precondition', ok.perche)
+  const codice = await creaPassaggio({ verso: 'app', progetto: ist.progetto, uid: utente.uid, url: ist.url })
+  return { url: `${ist.url.replace(/\/$/, '')}/#accesso-regia=${codice}` }
+})
+
+// «Area clienti»: dall'app, il titolare passa nella regia. Come la
+// presentazione: POST con `Authorization: Bearer <ID token>` del locale,
+// appena rinnovato. Risponde { url } da aprire.
+exports.passaggioVersoRegia = onRequest({ ...OPTS, cors: false }, async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*')
+  res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+  res.set('Access-Control-Allow-Methods', 'POST')
+  if (req.method === 'OPTIONS') return res.status(204).send('')
+  if (req.method !== 'POST') return res.status(405).json({ errore: 'Solo POST.' })
+  if (!REGIA_URL) return res.status(503).json({ errore: 'La regia non sa il suo indirizzo.' })
+  const token = aggiornamenti.bearerDi(req.get('authorization'))
+  const progetto = aggiornamenti.progettoDelToken(token)
+  if (!progetto) return res.status(401).json({ errore: 'Serve l’accesso.' })
+  const trovata = (await db.collection('istanze').where('progetto', '==', progetto).limit(1).get()).docs[0]
+  const ist = trovata?.data()
+  if (!ist || ist.stato === 'eliminata') return res.status(404).json({ errore: 'Locale sconosciuto.' })
+  let chi
+  try {
+    chi = await getAuth(appDi(progetto)).verifyIdToken(token)
+  } catch {
+    return res.status(401).json({ errore: 'Accesso non valido: entra di nuovo.' })
+  }
+  const cliente = await clienteDi(trovata.id)
+  const ok = passa.titolareDallApp(chi, cliente)
+  if (!ok.ok) return res.status(403).json({ errore: ok.perche })
+  const codice = await creaPassaggio({ verso: 'regia', uid: cliente.uid, url: REGIA_URL })
+  return res.status(200).json({ url: `${REGIA_URL.replace(/\/$/, '')}/accesso#accesso-regia=${codice}` })
+})
+
+// Lo scambio: il codice, una volta sola e solo dal suo sito, diventa un
+// accesso firmato per il progetto giusto. `{ codice }` → `{ token }`.
+exports.scambiaPassaggio = onRequest({ ...OPTS, cors: false }, async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*')
+  res.set('Access-Control-Allow-Headers', 'Content-Type')
+  res.set('Access-Control-Allow-Methods', 'POST')
+  if (req.method === 'OPTIONS') return res.status(204).send('')
+  if (req.method !== 'POST') return res.status(405).json({ errore: 'Solo POST.' })
+  const codice = passa.codiceDelCorpo(req.body)
+  if (!codice) return res.status(400).json({ errore: 'Codice non valido.' })
+  const ref = db.doc(`passaggi/${passa.impronta(codice)}`)
+  // Una volta sola: lo si legge e lo si cancella nella stessa transazione.
+  const esito = await db.runTransaction(async (tx) => {
+    const doc = (await tx.get(ref)).data() || null
+    const v = passa.passaggioValido(doc, { origin: req.get('origin') })
+    if (doc) tx.delete(ref)
+    return { ...v, doc }
+  })
+  if (!esito.ok) return res.status(403).json({ errore: esito.perche })
+  const { verso, progetto, uid } = esito.doc
+  try {
+    const token = await getAuth(verso === 'app' ? appDi(progetto) : undefined).createCustomToken(uid)
+    return res.status(200).json({ token })
+  } catch (e) {
+    console.error(`[passaggio] verso ${verso} ${progetto || 'regia'}:`, e?.message || e)
+    return res.status(503).json({ errore: 'L’accesso non si è firmato: riprova fra poco.' })
+  }
+})
+
+// ── IL CATALOGO DEI TEMI (REQ-FLOTTA-032, REQ-MENU-023 di tana-drink) ──
+// I temi stanno in temi/{id}, con lo stato bozza, pubblicato o ritirato.
+// Le regole in lib/temi.js.
+
+// Il catalogo pubblico: GET, senza token, con il CORS aperto, perché lo
+// legge l'app dal dominio di ogni locale, anche la Tana, che alla regia non
+// è collegata per la licenza. → 200 { temi: [...] } (solo i pubblicati).
+// L'app lo legge all'apertura del marketplace, mai a tempo: cinque minuti
+// di cache bastano.
+exports.catalogoTemi = onRequest({ ...OPTS, cors: false }, async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*')
+  res.set('Access-Control-Allow-Methods', 'GET')
+  if (req.method === 'OPTIONS') return res.status(204).send('')
+  if (req.method !== 'GET') return res.status(405).json({ errore: 'Solo GET.' })
+  // Tutti i documenti, non solo i pubblicati: uno ritirato nel database
+  // deve coprire quello del repository con lo stesso id.
+  const [docsTemi, docsStili] = await Promise.all(['temi', 'stili'].map((c) => db.collection(c).get().then((q) => q.docs.map((d) => d.data()))))
+  // Gli stili a ricetta (REQ-FLOTTA-034): un tema li può usare solo se
+  // sono pubblicati.
+  const catalogoStili = stili.catalogoStili(docsStili)
+  res.set('Cache-Control', 'public, max-age=300')
+  return res.status(200).json({ temi: temi.catalogoPubblico(docsTemi, undefined, { stiliRicetta: catalogoStili.map((s) => s.id) }), stili: catalogoStili })
+})
+
+// Il backoffice: salvare, pubblicare, ritirare un tema. Solo l'admin.
+exports.gestisciTemi = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const azione = req.data?.azione
+  const id = String((azione === 'salva' ? req.data?.tema?.id : req.data?.id) || '').trim().toLowerCase()
+  if (!/^[a-z0-9][a-z0-9-]{1,40}$/.test(id)) throw new HttpsError('invalid-argument', 'Identificativo del tema non valido.')
+  const ref = db.doc(`temi/${id}`)
+  // Un tema del repository senza copia nel database: si ritira (o si
+  // ripubblica) scrivendone la copia, che vince sul repository.
+  const nelDatabase = (await ref.get()).data() || null
+  const delRepository = temi.dalRepository(id)
+  if (azione === 'salva' && req.data?.nuovo === true && (nelDatabase || delRepository)) throw new HttpsError('already-exists', `Il tema ${id} esiste già.`)
+  const prima = nelDatabase || (azione !== 'salva' && delRepository ? { ...delRepository } : null)
+  const docsStili = (await db.collection('stili').get()).docs.map((d) => d.data())
+  const stiliRicetta = stili.catalogoStili(docsStili).map((s) => s.id)
+  const esito = temi.azioneSuTema(prima, azione, req.data?.tema, { da: req.auth.token.email || req.auth.uid, stiliRicetta })
+  if (esito.errore) throw new HttpsError('failed-precondition', esito.errore)
+  await ref.set(esito.doc)
+  return { ok: true, tema: esito.doc }
+})
+
+// Gli stili a ricetta del repository si ritirano (e si ripubblicano) dal
+// backoffice scrivendone la copia nel database, come i temi. Solo l'admin.
+exports.gestisciStili = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const azione = req.data?.azione
+  if (!['pubblica', 'ritira'].includes(azione)) throw new HttpsError('invalid-argument', 'Azione sconosciuta.')
+  const id = String(req.data?.id || '').trim().toLowerCase()
+  const ref = db.doc(`stili/${id}`)
+  const prima = (await ref.get()).data() || stili.stileDalRepository(id)
+  if (!prima) throw new HttpsError('not-found', 'Stile sconosciuto.')
+  if (azione === 'pubblica' && stili.stilePulito(prima).errore) throw new HttpsError('failed-precondition', `Non si pubblica: ${stili.stilePulito(prima).errore}`)
+  if (azione === 'ritira' && prima.stato !== 'pubblicato') throw new HttpsError('failed-precondition', 'Si ritira solo uno stile pubblicato.')
+  const ora = new Date().toISOString()
+  const doc = { ...prima, stato: azione === 'pubblica' ? 'pubblicato' : 'ritirato', [azione === 'pubblica' ? 'pubblicato_il' : 'ritirato_il']: ora, aggiornato_il: ora, aggiornato_da: req.auth.token.email || req.auth.uid }
+  await ref.set(doc)
+  return { ok: true, stile: doc }
+})
+
+// ── I TEMI SU MISURA DI UN LOCALE (REQ-FLOTTA-040) ─────────────────────
+// L'utente, 06/11/2026: un servizio premium col mockup di Canva e il
+// credito AI, e i temi fatti da noi su richiesta. Stanno in
+// clienti/{uid}/temi_su_misura/{id} (il titolare li legge, l'admin pure;
+// li scrivono solo queste Functions) e arrivano all'app con la licenza
+// (licenza.temi_su_misura), che si riscrive a ogni cambio. Le regole in
+// lib/temi.js; il mockup non si salva da nessuna parte.
+
+// Il titolare carica il mockup: la regia chiede al modello col credito del
+// suo cassetto (come richiestaAI, ma dal sito e col suo account), controlla
+// la proposta come ogni tema e la mette subito fra i suoi temi, pubblicata.
+// Una proposta che non regge (colori illeggibili) non si scrive, e il
+// tentativo resta addebitato: lo si dice.
+// Poche istanze e poche richieste per istanza (REQ-FLOTTA-088): un tema si
+// chiede di rado, dal sito, e un mockup in PDF pesa fino a 20 MB in memoria
+// più volte (corpo, base64, richiesta al modello). Tre richieste insieme
+// per istanza starebbero strette nei 512 MiB.
+exports.temaDaMockup = onCall({ ...OPTS_AI, maxInstances: 2, concurrency: 2 }, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Prima conferma la tua email.')
+  const uid = req.auth.uid
+  const cliente = (await db.doc(`clienti/${uid}`).get()).data()
+  if (!cliente?.slug) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
+  // Il Free non ha l'AI (REQ-FLOTTA-087), nemmeno dal sito.
+  if (!(await aiDelLocale(cliente.slug))) throw new HttpsError('failed-precondition', ai.SENZA_AI_NEL_PIANO)
+  let messaggio
+  try {
+    messaggio = ai.preparaMessaggio({ ...(req.data || {}), tipo: 'tema' })
+  } catch (e) {
+    if (e instanceof ai.RichiestaNonValida) throw new HttpsError('invalid-argument', e.message)
+    throw e
+  }
+  const esito = await interrogaClaude(cliente.slug, messaggio)
+  if (!esito.ok) throw new HttpsError([402, 429].includes(esito.http) ? 'resource-exhausted' : esito.http === 503 ? 'unavailable' : 'failed-precondition', esito.errore)
+  const { tema, errore } = temi.temaDalMockup(esito.risultato, { struttura: messaggio.struttura })
+  if (errore) {
+    throw new HttpsError('failed-precondition', `La proposta del modello non si può usare (${errore.replace(/\.$/, '')}). Il tentativo è costato ${esito.costo_eur} €: riprova, magari con una nota in più.`)
+  }
+  const ora = new Date().toISOString()
+  const doc = {
+    ...tema,
+    stato: 'pubblicato',
+    creato_il: ora,
+    pubblicato_il: ora,
+    aggiornato_il: ora,
+    aggiornato_da: uid,
+    mockup: { media_type: String(req.data?.media_type || ''), struttura: messaggio.struttura, costo_eur: esito.costo_eur },
+  }
+  // La licenza la riscrive licenzaSegueITemiSuMisura: questa Function gira
+  // con l'account AI, che nei progetti dei locali non entra.
+  await db.doc(`clienti/${uid}/temi_su_misura/${tema.id}`).set(doc)
+  return { ok: true, tema: doc, costo_eur: esito.costo_eur, credito_eur: esito.credito_eur }
+})
+
+// Ogni cambio di un tema su misura riscrive la licenza del locale: qui, e
+// non dentro le due Functions che li scrivono, perché il tema dal mockup
+// gira con l'account AI, che nei progetti dei locali non entra.
+exports.licenzaSegueITemiSuMisura = onDocumentWritten({ ...OPTS, document: 'clienti/{uid}/temi_su_misura/{id}' }, async (event) => {
+  const cliente = (await db.doc(`clienti/${event.params.uid}`).get()).data()
+  if (!cliente?.slug) return
+  await scriviLicenza(cliente.slug).catch((e) => console.error(`[temi] ${cliente.slug}, la licenza:`, e?.message || e))
+})
+
+// L'admin scrive, pubblica e ritira un tema su misura dalla scheda del
+// locale (`slug`); il titolare, dalla dashboard, toglie e rimette i suoi
+// (ritira e pubblica), ma non li scrive: il tema lo fa il fornitore, o il
+// modello dal mockup.
+exports.gestisciTemiSuMisura = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  const admin = req.auth.token?.admin === true
+  const azione = req.data?.azione
+  if (!admin && !['pubblica', 'ritira'].includes(azione)) throw new HttpsError('permission-denied', 'Il tema lo scrive il fornitore: dalla dashboard si toglie e si rimette.')
+  const cliente = admin && req.data?.slug ? await clienteDi(String(req.data.slug)) : await db.doc(`clienti/${req.auth.uid}`).get().then((d) => (d.exists ? { uid: d.id, ...d.data() } : null))
+  if (!cliente?.slug) throw new HttpsError('not-found', 'Nessun locale per questo account.')
+  const id = String((azione === 'salva' ? req.data?.tema?.id : req.data?.id) || '').trim().toLowerCase()
+  if (!/^[a-z0-9][a-z0-9-]{1,40}$/.test(id)) throw new HttpsError('invalid-argument', 'Identificativo del tema non valido.')
+  const ref = db.doc(`clienti/${cliente.uid}/temi_su_misura/${id}`)
+  const prima = (await ref.get()).data() || null
+  if (azione === 'salva' && req.data?.nuovo === true && prima) throw new HttpsError('already-exists', `Il tema ${id} esiste già.`)
+  const docsStili = (await db.collection('stili').get()).docs.map((d) => d.data())
+  const stiliRicetta = stili.catalogoStili(docsStili).map((s) => s.id)
+  const esito = temi.azioneSuTemaSuMisura(prima, azione, req.data?.tema, { da: req.auth.token.email || req.auth.uid, stiliRicetta, origine: 'fornitore' })
+  if (esito.errore) throw new HttpsError('failed-precondition', esito.errore)
+  // La licenza la riscrive licenzaSegueITemiSuMisura.
+  await ref.set(esito.doc)
+  return { ok: true, tema: esito.doc }
+})
+
+// Il titolare chiede un tema al fornitore: una richiesta di contatto
+// (REQ-FLOTTA-017) in contatti/<uid>_tema, che l'admin trova in «Richieste»
+// e lavora dalla scheda del locale. Una nuova sostituisce la precedente.
+exports.chiediTemaSuMisura = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Prima conferma la tua email.')
+  // Una richiesta al fornitore è una porta della vendita come le altre
+  // (REQ-FLOTTA-043; audit del 09/11/2026, finding 26).
+  await solOSitoAperto()
+  const cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data()
+  const r = contatti.richiestaTemaSuMisura(cliente && { uid: req.auth.uid, ...cliente }, req.data)
+  if (!r.ok) throw new HttpsError('failed-precondition', r.perche)
+  await db.doc(`contatti/${contatti.idRichiestaTema(req.auth.uid)}`).set(r.documento)
+  return { ok: true }
+})
+
+// ── IL SITO SI PRESENTA ALLA REGIA (REQ-FLOTTA-026) ────────────────────
+// Al primo avvio di ogni versione l'app chiama qui, col token di chi ha
+// fatto l'accesso nel progetto del locale: `POST`, `Authorization: Bearer
+// <ID token>`, corpo `{ versione }`. La regia riconosce il progetto fra le
+// sue istanze, verifica il token con quel progetto, si segna la versione e,
+// se il sito non ha la licenza, la riscrive: l'attivazione la scrive prima
+// dell'app, e senza sessione l'app non si può presentare. Basta un
+// utente qualunque del locale: la licenza la decide la regia, non chi
+// chiama. Risposte: 200 { ok, licenza: 'scritta' | 'presente' |
+// 'non_dalla_regia' | 'non_attiva' }; 400 corpo sbagliato; 401 token
+// mancante o non valido; 404 progetto che la regia non conosce; 503 la
+// licenza non si è scritta (si riprova aprendo l'app).
+exports.presentazione = onRequest({ ...OPTS, cors: false }, async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*')
+  res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+  res.set('Access-Control-Allow-Methods', 'POST')
+  if (req.method === 'OPTIONS') return res.status(204).send('')
+  if (req.method !== 'POST') return res.status(405).json({ errore: 'Solo POST.' })
+  const token = aggiornamenti.bearerDi(req.get('authorization'))
+  const progetto = aggiornamenti.progettoDelToken(token)
+  if (!progetto) return res.status(401).json({ errore: 'Serve l’accesso.' })
+  const trovata = (await db.collection('istanze').where('progetto', '==', progetto).limit(1).get()).docs[0]
+  if (!trovata || trovata.data().stato === 'eliminata') return res.status(404).json({ errore: 'Installazione non registrata nella regia.' })
+  // Il token si verifica, ma di chi lo porta non si tiene niente
+  // (REQ-FLOTTA-051): basta che sia qualcuno del locale.
+  try {
+    await getAuth(appDi(progetto)).verifyIdToken(token)
+  } catch {
+    return res.status(401).json({ errore: 'Accesso non valido: entra di nuovo.' })
+  }
+  const corpo = presenta.corpoPresentazione(req.body)
+  if (!corpo) return res.status(400).json({ errore: 'Versione non valida.' })
+  const slug = trovata.id
+  const ist = trovata.data()
+  // Chi apre l'app è un dipendente qualunque del locale: il suo uid non
+  // serve alla regia e non si salva (REQ-FLOTTA-051).
+  if (presenta.daRegistrare(ist, corpo.versione)) await trovata.ref.update(presenta.registroPresentazione(ist, { versione: corpo.versione }))
+  const riceve = riceveLicenza(ist)
+  const esiste = riceve ? (await firestoreDi(progetto).doc(LICENZA_PROTETTA).get()).exists : false
+  const cosa = presenta.cosaFareConLaLicenza(ist, { esiste, riceve })
+  if (cosa !== 'scrivi') return res.status(200).json({ ok: true, licenza: cosa })
+  // Nessuno ci lavora ancora: la prima licenza si scrive subito, niente taglio.
+  const scritta = await scriviLicenza(slug, { subito: true }).catch((e) => ({ ok: false, perche: e?.message || String(e) }))
+  if (!scritta.ok) {
+    console.error(`[presentazione] ${slug}: la licenza non si è scritta: ${scritta.perche}`)
+    return res.status(503).json({ errore: 'La licenza non si è scritta: riprova fra poco.' })
+  }
+  console.log(`[presentazione] ${slug} ${corpo.versione}: licenza scritta`)
+  return res.status(200).json({ ok: true, licenza: 'scritta' })
+})
+
 // ── IL PIANO CHE CAMBIA (REQ-FLOTTA-010) ──────────────────────────────
+
+// Le righe nuove al posto delle vecchie, con l'intervallo che la
+// subscription ha già (mensile o annuale). Un Fondatore che passa a un
+// piano che l'offerta non copre perde lo sconto (REQ-FLOTTA-031): il
+// coupon si toglie e il segno sulla subscription pure.
+async function aggiornaSubscription(stripe, sub, uid, scelta) {
+  const attuale = await stripe.subscriptions.retrieve(sub)
+  const conIntervallo = { ...scelta, intervallo: intervalloDi(attuale) }
+  const togli = fondatori.scontoDaTogliere(attuale.metadata, sceltaPulita(conIntervallo).piano)
+  // L'IVA anche qui (REQ-FLOTTA-035): ogni riga nuova porta l'aliquota, e
+  // il conguaglio dei giorni la calcola su quelle. È anche l'aliquota
+  // predefinita della subscription, per le subscription nate prima.
+  const aliquotaIva = await aliquotaIvaSuStripe(stripe)
+  await prodottiSuStripe(stripe, conIntervallo)
+  await stripe.subscriptions.update(sub, {
+    items: [...attuale.items.data.map((i) => ({ id: i.id, deleted: true })), ...righeSubscription(conIntervallo, { aliquotaIva })],
+    default_tax_rates: [aliquotaIva],
+    metadata: { ...metadatiDi(uid, conIntervallo), ...(togli ? { fondatore: '' } : {}) },
+    proration_behavior: 'create_prorations',
+  })
+  if (togli) {
+    await stripe.subscriptions.deleteDiscount(sub)
+    await db.doc(`clienti/${uid}`).set({ abbonamento: { fondatore: { tolto_il: new Date().toISOString(), perche: `piano ${scelta.piano}` } } }, { merge: true })
+  }
+}
 // Il titolare cambia piano, moduli o terminali: con Stripe si aggiorna la
 // subscription (gli importi si conguagliano) e il webhook riporta la
 // scelta sul cliente; senza Stripe (piano a mano) si scrive subito. In
 // tutti e due i casi la licenza dell'istanza segue (sotto).
+// GESTIRE L'ABBONAMENTO DA SOLI (REQ-FLOTTA-023, 02/11/2026): il portale
+// clienti di Stripe, per disdire a fine periodo, cambiare la carta e
+// scaricare le fatture. I termini lo promettono («si disdice dalla propria
+// pagina»); prima l'unico tasto era chiudere e cancellare il locale. Il
+// ritorno è sempre la dashboard della regia, mai un indirizzo dal browser.
+exports.portaleAbbonamento = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  const cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data()
+  const customer = cliente?.abbonamento?.origine === 'stripe' ? cliente.abbonamento.stripe_customer : null
+  if (!customer) throw new HttpsError('failed-precondition', 'Il tuo abbonamento non passa da Stripe: per cambiarlo o disdirlo scrivici.')
+  const stripe = stripeClient()
+  if (!stripe || !REGIA_URL) throw new HttpsError('unavailable', 'La gestione dell’abbonamento non è disponibile al momento: scrivici.')
+  const sessione = await stripe.billingPortal.sessions.create({ customer, return_url: `${REGIA_URL}/dashboard` })
+  return { url: sessione.url }
+})
+
+// IL PAGAMENTO DEL RINNOVO DI UN LOCALE SOSPESO (REQ-FLOTTA-090). Daniele,
+// 13/11/2026: «dobbiamo portare l'utente alla schermata di pagamento per il
+// rinnovo in qualche modo (se prevediamo di accettare pagamenti altrimenti
+// sito sospeso e si danno le info di contatto)». La pagina più diretta è
+// quella della fattura aperta di Stripe (`hosted_invoice_url`): pagata
+// quella, invoice.paid riporta l'abbonamento ad attivo e il locale si
+// riattiva da solo (REQ-FLOTTA-023, scadenze.azioneDiPagamento). La
+// fattura si cerca qui, sulla subscription scritta sul cliente che chiama:
+// dal browser non arriva nessun id, così nessuno apre la fattura di un
+// altro. Senza fattura aperta (già pagata, o Stripe non l'ha ancora fatta)
+// il portale clienti, per cambiare la carta. Coi pagamenti online spenti
+// (REQ-FLOTTA-017) niente Stripe: il sito mostra i contatti.
+exports.pagamentoRinnovo = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  const cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data()
+  if (!cliente) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
+  if (!contatti.pagamentiOnline(await vendita())) throw new HttpsError('failed-precondition', PAGAMENTI_SPENTI)
+  const stripeSuo = cliente.abbonamento?.origine === 'stripe'
+  const customer = stripeSuo ? cliente.abbonamento.stripe_customer : null
+  if (!customer) throw new HttpsError('failed-precondition', 'Il tuo abbonamento non passa da Stripe: per rinnovarlo scrivici.')
+  const stripe = stripeClient()
+  if (!stripe || !REGIA_URL) throw new HttpsError('unavailable', 'La gestione dell’abbonamento non è disponibile al momento: scrivici.')
+  const sub = cliente.abbonamento.stripe_subscription
+  if (sub) {
+    const subscription = await stripe.subscriptions.retrieve(sub, { expand: ['latest_invoice'] }).catch((e) => {
+      // Una subscription che Stripe non trova più: si va al portale.
+      console.error(`[rinnovo] ${cliente.slug}, la subscription:`, e?.message || e)
+      return null
+    })
+    // La subscription deve essere di questo cliente: un dato sbagliato sul
+    // documento non deve aprire la fattura di un altro.
+    const suo = subscription && (typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id) === customer
+    const url = suo ? fatturaDelRinnovo(subscription) : null
+    if (url) return { url, via: 'fattura' }
+  }
+  const sessione = await stripe.billingPortal.sessions.create({ customer, return_url: rinnovoUrl(REGIA_URL) })
+  return { url: sessione.url, via: 'portale' }
+})
+
 exports.cambiaScelta = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (req) => {
   if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
   const uid = req.auth.uid
   const cliente = (await db.doc(`clienti/${uid}`).get()).data()
   if (!cliente) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
+  await solOSitoAperto()
   const scelta = { piano: req.data?.piano, moduli: req.data?.moduli, terminali: req.data?.terminali }
   const fuori = free.moduliFuoriVendita(cliente, scelta, await vendita())
   if (fuori.length) throw new HttpsError('failed-precondition', `Non più in vendita: ${fuori.join(', ')}.`)
+  // Un modulo senza la sua base non si aggiunge nemmeno da qui (tana-drink REQ-LIC-015).
+  const basi = prove.problemaBasi(sceltaPulita(scelta))
+  if (basi) throw new HttpsError('failed-precondition', basi)
   const sub = cliente.abbonamento?.stripe_subscription
   const stripe = stripeClient()
   if (sub && stripe) {
-    const attuale = await stripe.subscriptions.retrieve(sub)
-    await stripe.subscriptions.update(sub, {
-      items: [...attuale.items.data.map((i) => ({ id: i.id, deleted: true })), ...righeCheckout(scelta)],
-      metadata: metadatiDi(uid, scelta),
-      proration_behavior: 'create_prorations',
-    })
+    await aggiornaSubscription(stripe, sub, uid, scelta)
     return { ok: true, via: 'stripe' }
   }
   // Da Free a un piano a pagamento si passa solo dal Checkout (REQ-FLOTTA-015):
   // il ramo qui sotto scrive il piano senza pagamento, ed era la strada per
   // avere il Base gratis. Resta per i clienti creati a mano dall'admin.
   if (cliente.abbonamento?.origine === 'gratuito') throw new HttpsError('failed-precondition', 'Per passare a un piano a pagamento scegli il piano e vai al pagamento.')
+  // Un piano a mano (REQ-FLOTTA-046, audit 09/11/2026, finding 5): si scrive
+  // subito solo una riduzione; un aumento è una richiesta all'assistenza,
+  // e la licenza non cambia finché l'admin non accende. Il sito legge `via`.
   if (cliente.abbonamento?.origine === 'manuale') {
-    const pulita = metadatiDi(uid, scelta)
-    await db.doc(`clienti/${uid}`).set(
-      { piano: pulita.piano, moduli: pulita.moduli ? pulita.moduli.split(',') : [], terminali: Number(pulita.terminali) || 1 },
-      { merge: true }
-    )
+    const d = decisioneManuale({ uid, ...cliente }, scelta)
+    if (d.via === 'richiesta') {
+      await db.doc(`contatti/${uid}`).set(d.documento)
+      console.log(`[cambio piano] ${cliente.slug}: aumento su un piano a mano, chiesto all'assistenza`)
+      return { ok: true, via: 'richiesta' }
+    }
+    await db.doc(`clienti/${uid}`).set(d.patch, { merge: true })
     return { ok: true, via: 'manuale' }
   }
   throw new HttpsError('failed-precondition', 'Prima serve un abbonamento: scegli un piano e paga.')
@@ -495,20 +2184,74 @@ exports.cambiaScelta = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (
 
 // La licenza dell'istanza segue il cliente: quando piano, moduli o
 // terminali cambiano e l'istanza è attiva, si riscrive settings/bar.licenza.
+// Anche gli aggiornamenti la seguono (REQ-FLOTTA-020): con «solo finché si
+// paga» sono compresi o no secondo il piano e il pagamento.
 exports.licenzaSegueIlPiano = onDocumentUpdated({ ...OPTS, document: 'clienti/{uid}', secrets: [GITHUB_DISPATCH_TOKEN] }, async (event) => {
   const prima = event.data?.before?.data()
   const dopo = event.data?.after?.data()
-  if (!dopo?.slug || !sceltaCambiata(prima, dopo)) return
+  if (!dopo?.slug) return
+  // L'abbonamento ha cambiato stato: cosa fa al locale (REQ-FLOTTA-023).
+  if (prima?.abbonamento?.stato !== dopo.abbonamento?.stato) {
+    const azione = scadenze.azioneDiPagamento(prima, dopo, (await db.doc(`istanze/${dopo.slug}`).get()).data())
+    if (azione) await eseguiAzionePagamento(dopo, azione).catch((e) => console.error(`[scadenze] ${dopo.slug}, ${azione.azione}:`, e?.message || e))
+  }
+  // Un pagamento a mano con una scadenza nuova: il suo compito.
+  const grazia = await giorniDiGrazia()
+  const scadenza = dopo.abbonamento?.stato === 'attivo' ? scadenze.scadenzaPagamento(dopo, grazia) : null
+  if (scadenza && scadenza !== scadenze.scadenzaPagamento(prima, grazia)) {
+    await programma('pagamento', dopo.slug, scadenza).catch((e) => console.error(`[scadenze] ${dopo.slug}, il compito del pagamento:`, e?.message || e))
+    for (const p of comunica.orariPromemoria(dopo)) {
+      await programma('promemoria', dopo.slug, p.il).catch((e) => console.error(`[scadenze] ${dopo.slug}, il promemoria:`, e?.message || e))
+    }
+  }
+  // Lo stato o la scadenza del pagamento sono cambiati: la licenza (stato,
+  // valida_fino) si riscrive anche se piano e moduli sono quelli di prima.
+  const scadenzaSpostata = scadenze.scadenzaPagamento(prima, grazia) !== scadenze.scadenzaPagamento(dopo, grazia)
+  // Gli orari di servizio e l'ora dell'attivazione decidono valida_fino
+  // (REQ-FLOTTA-095): cambiati, la licenza si riscrive.
+  const momentoSpostato =
+    JSON.stringify(prima?.orari_servizio?.giorni ?? null) !== JSON.stringify(dopo.orari_servizio?.giorni ?? null) || orari.oraDiAttivazione(prima) !== orari.oraDiAttivazione(dopo)
+  if ((prima?.abbonamento?.stato !== dopo.abbonamento?.stato || scadenzaSpostata || momentoSpostato) && !sceltaCambiata(prima, dopo)) {
+    await scriviLicenza(dopo.slug).catch((e) => console.error(`[aggiornamenti] ${dopo.slug}:`, e?.message || e))
+    return
+  }
+  if (!sceltaCambiata(prima, dopo)) return
   const ist = (await db.doc(`istanze/${dopo.slug}`).get()).data()
   if (!ist?.progetto || ist.stato !== 'attiva' || !scriveLicenza(ist)) return
-  await firestoreDi(ist.progetto).doc('settings/bar').update(patchLicenzaPiano(dopo))
+  // Tornato al Free perché non paga: il piano suo torna col pagamento
+  // (ripiegaAlFree), non con un cambio di scelta.
+  if (ist.ripiego_free) return
   await db.doc(`istanze/${dopo.slug}`).set({ licenza_piano: dopo.piano, licenza_scritta_il: new Date().toISOString() }, { merge: true })
+  await scriviLicenza(dopo.slug).catch((e) => console.error(`[licenza] ${dopo.slug}:`, e?.message || e))
   // Un locale Free che compra (REQ-FLOTTA-015): la licenza ha già tolto i
   // limiti; ora arrivano Functions, Storage e segreti, col profilo completo.
+  // Col deploy automatico spento (REQ-FLOTTA-011) non parte da solo: la
+  // richiesta aspetta l'admin, nel backoffice, come un'attivazione.
   if (free.serveProfiloCompleto(ist, dopo)) {
+    const impostazioni = (await db.doc('impostazioni/regia').get()).data() || {}
+    if (impostazioni.deploy_automatico !== true) {
+      await db.doc(`istanze/${dopo.slug}`).set({ profilo_completo_da_autorizzare: { chiesto_il: new Date().toISOString(), piano: dopo.piano } }, { merge: true })
+      console.log(`[free] ${dopo.slug} verso il profilo completo: aspetta l'admin`)
+      return
+    }
     const perche = await lanciaAggiornamento(dopo.slug, REF_APP, { profilo: 'completo' })
     console.log(`[free] ${dopo.slug} verso il profilo completo: ${perche || 'partito'}`)
   }
+})
+
+// L'admin autorizza il profilo completo di un Free che ha comprato: parte
+// l'aggiornamento con Functions, Storage e segreti. Se non parte, la
+// richiesta resta e lo si dice.
+exports.autorizzaProfiloCompleto = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN] }, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const slug = String(req.data?.slug || '')
+  const ref = db.doc(`istanze/${slug}`)
+  const ist = (await ref.get()).data()
+  if (!ist?.profilo_completo_da_autorizzare) throw new HttpsError('failed-precondition', 'Non c’è niente da autorizzare per questo locale.')
+  const perche = await lanciaAggiornamento(slug, REF_APP, { profilo: 'completo' })
+  if (perche) throw new HttpsError('failed-precondition', perche)
+  await ref.update({ profilo_completo_da_autorizzare: FieldValue.delete(), profilo_completo_autorizzato_il: new Date().toISOString() })
+  return { ok: true }
 })
 
 // ── IL PIANO FREE E LA VENDITA (REQ-FLOTTA-015) ───────────────────────
@@ -519,6 +2262,18 @@ async function vendita() {
   return free.venditaPulita((await db.doc('vendita/listino').get()).data())
 }
 
+// IL SITO CHIUSO (REQ-FLOTTA-043): finché l'admin non apre il sito al
+// pubblico, in produzione (drink-regia) le Functions della vendita
+// rifiutano: il sito mostra solo l'anteprima, e questa è la porta vera.
+// Sul test vale solo se l'admin lo spegne apposta (free.sitoChiuso).
+const SITO_IN_PRODUZIONE = PROGETTO_REGIA === 'drink-regia'
+async function sitoChiusoOra() {
+  return free.sitoChiuso(await vendita(), SITO_IN_PRODUZIONE)
+}
+async function solOSitoAperto() {
+  if (await sitoChiusoOra()) throw new HttpsError('failed-precondition', free.SITO_CHIUSO)
+}
+
 // ── PAGAMENTI ONLINE SPENTI: LA RICHIESTA DI CONTATTO (REQ-FLOTTA-017) ─
 // Il titolare sceglie il piano e lascia un recapito; l'admin lo contatta,
 // concorda il pagamento e attiva il piano con «Cambia piano» fuori da
@@ -527,6 +2282,7 @@ const PAGAMENTI_SPENTI = 'I pagamenti online non sono ancora attivi: chiedi di e
 exports.chiediContatto = onCall(OPTS, async (req) => {
   if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
   if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Prima conferma la tua email.')
+  await solOSitoAperto()
   const cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data()
   const r = contatti.richiestaContatto(cliente && { uid: req.auth.uid, ...cliente }, req.data, await vendita())
   if (!r.ok) throw new HttpsError('failed-precondition', r.perche)
@@ -540,12 +2296,112 @@ exports.chiediContatto = onCall(OPTS, async (req) => {
 exports.scegliFree = onCall(OPTS, async (req) => {
   if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
   if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Prima conferma la tua email.')
+  await solOSitoAperto()
   const cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data()
   const ist = cliente?.slug ? (await db.doc(`istanze/${cliente.slug}`).get()).data() : null
   const puo = free.puoScegliereFree(cliente, ist, await vendita())
   if (!puo.ok) throw new HttpsError('failed-precondition', puo.perche)
   await db.doc(`clienti/${req.auth.uid}`).set(free.sceltaFree(), { merge: true })
   return { ok: true }
+})
+
+// ── GLI ORARI DI SERVIZIO (REQ-FLOTTA-095) ─────────────────────────────
+// Daniele, 13/11/2026: «Orario di servizio che non può cambiare se non
+// previa approvazione nostra [...]. Se invece è semplicemente sbagliato,
+// possiamo dare una settimana di tempo per cambiarlo». Il titolare li
+// corregge da sé nei 7 giorni (correggiOrari), dopo chiede il cambio con un
+// motivo (chiediCambioOrari) e l'admin decide (decidiCambioOrari). Il
+// browser non scrive mai orari_servizio: le regole non glielo lasciano.
+function erroreOrari(e) {
+  if (e instanceof orari.OrariRifiutati) return new HttpsError(e.codice, e.message, e.dettagli || undefined)
+  return e
+}
+
+exports.correggiOrari = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  const uid = req.auth.uid
+  try {
+    return { orari_servizio: await orari.cambiaOrari(db, uid, (c) => orari.correzioneDelTitolare(c, req.data?.giorni, { uid })) }
+  } catch (e) {
+    throw erroreOrari(e)
+  }
+})
+
+// La richiesta all'admin per email (Daniele, 13/11/2026: «A me arriva solo
+// la richiesta, poi rispondo io a mano al momento»): agli account col claim
+// admin, una volta sola per richiesta (l'id del documento viene dalla
+// richiesta). Gli utenti si leggono a pagine: le richieste sono rare.
+async function avvisaAdminDellaRichiesta(uid, richiesta) {
+  const utenti = []
+  let pagina
+  do {
+    const r = await getAuth().listUsers(1000, pagina)
+    utenti.push(...r.users)
+    pagina = r.pageToken
+  } while (pagina)
+  const posta = comunica.emailRichiestaOrari((await db.doc(`clienti/${uid}`).get()).data(), richiesta, comunica.indirizziAdmin(utenti))
+  if (!posta) return console.warn(`[orari] ${uid}: nessun account admin con l’email, la richiesta si vede solo nel backoffice`)
+  await comunica.accodaUnaVolta(db, comunica.idEmailRichiestaOrari(uid, richiesta), { ...posta, uid, motivo: 'richiesta_orari', creata_il: new Date().toISOString() })
+}
+
+exports.chiediCambioOrari = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  const uid = req.auth.uid
+  let os
+  try {
+    os = await orari.cambiaOrari(db, uid, (c) => orari.richiestaDiCambio(c, req.data?.giorni, req.data?.motivo, { uid }))
+  } catch (e) {
+    throw erroreOrari(e)
+  }
+  // Salvata la richiesta, l'email: se non parte, la richiesta resta e
+  // l'admin la trova nel backoffice.
+  await avvisaAdminDellaRichiesta(uid, os.richiesta).catch((e) => console.error(`[orari] ${uid}, l’email all’admin:`, e?.message || e))
+  return { orari_servizio: os }
+})
+
+// L'admin scrive o corregge gli orari di qualunque locale, in qualunque
+// momento (Daniele, 13/11/2026: «si»). Il controllo del claim e dell'uid
+// sta in lib/orari-servizio.js (orariDellAdmin). Le scadenze si ricalcolano
+// da licenzaSegueIlPiano, come per ogni cambio degli orari.
+exports.scriviOrariAdmin = onCall(OPTS, async (req) => {
+  try {
+    return { orari_servizio: await orari.orariDellAdmin(db, req.auth, req.data) }
+  } catch (e) {
+    throw erroreOrari(e)
+  }
+})
+
+exports.decidiCambioOrari = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const admin = req.auth.token.email || req.auth.uid
+  try {
+    const scelta = { esito: req.data?.esito, admin, nota: req.data?.nota }
+    return { orari_servizio: await orari.cambiaOrari(db, String(req.data?.uid || ''), (c) => orari.decisioneSullaRichiesta(c, scelta)) }
+  } catch (e) {
+    throw erroreOrari(e)
+  }
+})
+
+// ── LA REGISTRAZIONE DEL TITOLARE (REQ-FLOTTA-045) ────────────────────
+// Audit del 09/11/2026, finding 4: il documento clienti/{uid} non lo scrive
+// più il browser (le regole non hanno più la `create`), lo scrive questa
+// Function in transazione, dopo aver visto che lo slug è libero. L'uid e
+// l'email sono quelli dell'account, mai quelli mandati; i dati del locale,
+// della fatturazione e del referente arrivano come li raccoglie il sito, e
+// lo slug solo se il titolare ne ha scelto uno diverso perché il suo era
+// preso (`already-exists`, con `details.campo === 'slug'`). Col sito
+// chiuso non si registra nessuno: chiude anche il finding 26.
+exports.registraCliente = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  await solOSitoAperto()
+  try {
+    const cliente = await registrazione.registraCliente(db, { uid: req.auth.uid, email: req.auth.token?.email, dati: req.data })
+    console.log(`[registrazione] ${cliente.slug} (${req.auth.uid})`)
+    return { ok: true, slug: cliente.slug, cliente }
+  } catch (e) {
+    if (e instanceof registrazione.RegistrazioneRifiutata) throw new HttpsError(e.codice, e.message, e.dettagli || undefined)
+    throw e
+  }
 })
 
 // ── L'ADMIN CREA UN LOCALE DA SÉ (REQ-FLOTTA-011) ─────────────────────
@@ -560,8 +2416,7 @@ exports.creaCliente = onCall(OPTS, async (req) => {
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').replace(/-{2,}/g, '-').slice(0, 30).replace(/-+$/g, '')
   if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(slug)) throw new HttpsError('invalid-argument', 'Nome del locale troppo corto o non valido.')
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(email || ''))) throw new HttpsError('invalid-argument', 'Email non valida.')
-  const esiste = await db.collection('clienti').where('slug', '==', slug).limit(1).get()
-  if (!esiste.empty) throw new HttpsError('already-exists', `Esiste già un locale con identificativo ${slug}.`)
+  if (await docClientePerSlug(slug)) throw new HttpsError('already-exists', `Esiste già un locale con identificativo ${slug}.`)
   const auth = getAuth()
   let utente
   try {
@@ -577,6 +2432,9 @@ exports.creaCliente = onCall(OPTS, async (req) => {
     uid: utente.uid,
     versione_schema: 2,
     email: String(email).toLowerCase(),
+    // La forma base dell'email (REQ-FLOTTA-083), per i doppioni. Col «+»
+    // (le prove dell'admin) non si riserva.
+    ...(String(email).includes('+') ? {} : { email_norma: registrazione.emailNorma(email) }),
     nome_locale: nome,
     slug,
     locale: { tipo: 'altro', indirizzo: {}, telefono: '', sito: '' },
@@ -606,10 +2464,42 @@ exports.creaCliente = onCall(OPTS, async (req) => {
 
 // Caricato qui e non in cima, come Stripe: le altre Functions non ne hanno
 // bisogno e partono più leggere.
+//
+// CON LA FEDERAZIONE DELLE IDENTITÀ (l'utente, 06/11/2026: un workspace
+// Anthropic per la regia, niente chiave statica): le Functions AI girano
+// con un account di servizio Google dedicato (AI_SERVICE_ACCOUNT, creato
+// da scripts/account-ai.mjs), il server dei metadati di Cloud Run dà un
+// token firmato per quell'account, e l'SDK lo scambia da sé con un token
+// Anthropic di breve durata, legato alla regola di federazione e
+// all'account di servizio Anthropic scritti in functions/.env.<progetto>
+// (identificativi, non segreti: docs/handover.md §7, «Cassetto AI»). Senza
+// la regola configurata resta la chiave del segreto: gli emulatori, e il
+// tempo di passare.
+const METADATA_IDENTITY = 'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=https://api.anthropic.com&format=full'
+const federazioneAnthropic = () =>
+  process.env.ANTHROPIC_FEDERATION_RULE_ID
+    ? {
+        federationRuleId: process.env.ANTHROPIC_FEDERATION_RULE_ID,
+        organizationId: process.env.ANTHROPIC_ORGANIZATION_ID,
+        serviceAccountId: process.env.ANTHROPIC_SERVICE_ACCOUNT_ID,
+        workspaceId: process.env.ANTHROPIC_WORKSPACE_ID || undefined,
+      }
+    : null
+
 const claude = () => {
   const sdk = require('@anthropic-ai/sdk')
   const Anthropic = sdk.default || sdk
-  return { Anthropic, client: new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() }) }
+  const federazione = federazioneAnthropic()
+  if (!federazione) return { Anthropic, client: new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() }) }
+  const { oidcFederationProvider } = require('@anthropic-ai/sdk/lib/credentials/oidc-federation')
+  const identityTokenProvider = async () => {
+    const res = await fetch(METADATA_IDENTITY, { headers: { 'Metadata-Flavor': 'Google' } })
+    if (!res.ok) throw new Error(`Il server dei metadati non dà il token: ${res.status}`)
+    return res.text()
+  }
+  // L'SDK tiene il token Anthropic in cache e lo rinnova prima che scada.
+  const credentials = oidcFederationProvider({ ...federazione, identityTokenProvider, baseURL: 'https://api.anthropic.com', fetch })
+  return { Anthropic, client: new Anthropic({ credentials }) }
 }
 
 // Una ricarica (Stripe o a mano) diventa credito una volta sola: il
@@ -654,13 +2544,91 @@ async function cassettoDi(slug) {
 // un risultato usabile (il consumo resta addebitato), 503 se Claude non
 // risponde. È HTTP e non callable perché a chiamarla è il server
 // dell'installazione, non un utente di questo sito.
+// IL LOCALE DAL GETTONE DI GOOGLE (REQ-FLOTTA-077): firma, emittente,
+// scadenza e destinatario li controlla Google; il locale lo trova
+// lib/identita-locale.js dal nome del progetto dell'account ai-locale.
+const oauthGoogle = new OAuth2Client()
+
+// Il locale ha l'AI nel suo piano? (REQ-FLOTTA-087) L'istanza e il cliente,
+// la regola in lib/ai.js (aiConcessa): una sola, per richiestaAI, il tema
+// dal mockup, la ricarica dal sito e quella dell'admin.
+async function aiDelLocale(slug) {
+  const [istanza, cliente] = await Promise.all([db.doc(`istanze/${slug}`).get(), clienteDi(slug)])
+  return ai.aiConcessa(istanza.data() || null, cliente)
+}
+const verificaGettone = async (gettone, audience) => (await oauthGoogle.verifyIdToken({ idToken: gettone, audience })).getPayload()
+const istanzePerProgetto = async (progetto) =>
+  (await db.collection('istanze').where('progetto', '==', progetto).limit(2).get()).docs.map((d) => ({ id: d.id, data: d.data() }))
+
+// CAPACITÀ (REQ-FLOTTA-088): 10 istanze per tutta la flotta, 3 richieste
+// insieme per istanza, cioè 30 posti; un locale ne usa al massimo
+// ai.MAX_CONTEMPORANEE (2). Tre e non le 80 predefinite: una fattura in PDF
+// pesa fino a 20 MB, e in memoria sta più volte (corpo, base64 ripulito,
+// richiesta al modello), quindi con 512 MiB tre fatture grandi insieme sono
+// il massimo prudente. Le descrizioni sono piccole, ma non si sa prima chi
+// arriva.
 exports.richiestaAI = onRequest(
-  { ...OPTS, secrets: [ANTHROPIC_API_KEY], cors: false, timeoutSeconds: 300, memory: '512MiB', maxInstances: 10 },
+  { ...OPTS_AI, secrets: [...OPTS_AI.secrets, AI_CHAT_SECRET], cors: false, maxInstances: 10, concurrency: 3 },
   async (req, res) => {
     if (req.method !== 'POST') return res.status(405).json({ errore: 'Solo POST.' })
-    const chi = ai.leggiBearer(req.get('authorization'))
-    const riservato = chi ? (await db.doc(`ai/${chi.slug}/riservato/chiave`).get()).data() : null
-    if (!chi || !ai.chiaveGiusta(chi.segreto, riservato?.impronta)) return res.status(401).json({ errore: 'Chiave della regia non valida.' })
+    // IL GETTONE DI GOOGLE (REQ-FLOTTA-077): l'unica strada. La «Chiave AI»
+    // di prima non c'è più (REQ-FLOTTA-079).
+    const gettone = identita.tokenDaBearer(req.get('authorization'))
+    const slug = gettone
+      ? await identita
+          .localeDalGettone(gettone, { progettoRegia: PROGETTO_REGIA, verifica: verificaGettone, cercaPerProgetto: istanzePerProgetto })
+          .catch((e) => {
+            console.warn('[ai] gettone rifiutato:', identita.motivoBreve(e))
+            return null
+          })
+      : null
+    if (!slug) return res.status(401).json({ errore: 'Locale non riconosciuto.' })
+
+    // IL FREE NON HA L'AI (REQ-FLOTTA-087): per ogni richiesta, il credito
+    // compreso. Un locale tornato al Free conserva la sua Function AI
+    // finché non si ridistribuisce: il blocco vero è qui, non nell'app.
+    if (!(await aiDelLocale(slug))) return res.status(402).json({ codice: 'piano', errore: ai.SENZA_AI_NEL_PIANO })
+
+    // IL CREDITO (REQ-FLOTTA-085): una lettura del cassetto, niente modello
+    // e niente addebito. Con se e dove si ricarica (REQ-FLOTTA-091), letto
+    // qui sul server con le stesse condizioni di creaRicaricaAI.
+    if (req.body?.tipo === 'credito') {
+      const [cassetto, istanza, listino, sitoChiuso] = await Promise.all([
+        db.doc(`ai/${slug}`).get(),
+        db.doc(`istanze/${slug}`).get(),
+        vendita(),
+        sitoChiusoOra(),
+      ])
+      const ricarica = ai.ricaricaDelLocale({ istanza: istanza.data() || null, vendita: listino, sitoChiuso, regiaUrl: REGIA_URL })
+      const { ok, http, ...corpo } = ai.rispostaCredito(cassetto.data(), new Date(), ricarica)
+      return res.status(ok ? 200 : http).json(ok ? { ok, ...corpo } : corpo)
+    }
+
+    // LA CHAT DEL GESTIONALE (REQ-FLOTTA-094): la conversazione intera a
+    // ogni giro, coi turni del modello firmati dalla regia. Limiti e modello
+    // sono dell'admin (impostazioni/regia, letti a ogni richiesta), il
+    // credito passa da interrogaClaude come per le altre richieste. Se le
+    // impostazioni non si leggono valgono i predefiniti: non è un motivo per
+    // fermare la chat.
+    if (req.body?.tipo === 'chat') {
+      const impostazioni = await db
+        .doc('impostazioni/regia')
+        .get()
+        .then((s) => s.data() || {})
+        .catch((e) => {
+          console.warn(`[ai] ${slug} chat: le impostazioni della regia non si leggono, valgono i predefiniti:`, e?.message || e)
+          return {}
+        })
+      const { ok, http, ...corpo } = await aiChat.interrogaChat({
+        slug,
+        corpo: req.body,
+        segreto: AI_CHAT_SECRET.value(),
+        limiti: aiChat.limitiChat(impostazioni),
+        modello: ai.modelloPer('chat', impostazioni),
+        interroga: (messaggio) => interrogaClaude(slug, messaggio, { impostazioni }),
+      })
+      return res.status(http).json(ok ? { ok, ...corpo } : corpo)
+    }
 
     let messaggio
     try {
@@ -669,52 +2637,91 @@ exports.richiestaAI = onRequest(
       if (e instanceof ai.RichiestaNonValida) return res.status(400).json({ errore: e.message })
       throw e
     }
+    // Il tema dal mockup (REQ-FLOTTA-040) si chiede dal sito, col suo
+    // account: da qui le due richieste dell'app e basta.
+    if (!ai.TIPI_INSTALLAZIONE.includes(messaggio.tipo)) return res.status(400).json({ errore: 'Da un’installazione si chiedono «descrizione», «fattura» e «credito».' })
 
-    const cassettoRef = db.doc(`ai/${chi.slug}`)
-    const prima = (await cassettoRef.get()).data()
-    const via = ai.puoChiedere(prima, ai.stimaMassimaMicroeuro(messaggio))
-    if (!via.ok) {
-      return res.status(402).json({ errore: via.perche, codice: via.codice, credito_eur: ai.inEuro(prima?.credito_microeuro) })
+    const esito = await interrogaClaude(slug, messaggio)
+    if (!esito.ok) {
+      const { ok: _no, http, ...corpo } = esito
+      return res.status(http).json(corpo)
     }
-
-    const { Anthropic, client } = claude()
-    let risposta
-    try {
-      risposta = await client.beta.messages.stream(ai.parametriClaude(messaggio)).finalMessage()
-    } catch (e) {
-      // Niente addebito: se la chiamata non è arrivata in fondo non c'è una
-      // usage da scalare. Il tipo dell'errore dice di chi è il problema.
-      const tipo = e instanceof Anthropic.APIError ? e.type || e.status : 'rete'
-      if (tipo === 'billing_error') {
-        // IL NOSTRO credito presso Anthropic è finito: va ricaricato dalla
-        // Console (o la ricarica automatica non è scattata). Riga cercabile
-        // nei log: «[ai] CREDITO ANTHROPIC».
-        console.error('[ai] CREDITO ANTHROPIC esaurito o pagamento rifiutato:', e.message)
-      } else {
-        console.error(`[ai] ${chi.slug} ${messaggio.tipo}: ${tipo}`, e?.message)
-      }
-      const riprova =
-        e instanceof Anthropic.RateLimitError || e instanceof Anthropic.InternalServerError || e instanceof Anthropic.APIConnectionError
-      return res.status(503).json({
-        errore: riprova ? 'Il servizio AI è occupato: riprova tra poco.' : 'Il servizio AI non è disponibile in questo momento.',
-        codice: 'servizio',
-      })
-    }
-
-    const costo = ai.costoMicroeuro(risposta)
-    const letta = ai.leggiRisposta(risposta)
-    const residuo = await db.runTransaction(async (t) => {
-      const snap = await t.get(cassettoRef)
-      const patch = ai.addebito(snap.data(), costo)
-      t.update(cassettoRef, patch)
-      t.set(cassettoRef.collection('consumi').doc(), ai.rigaConsumo({ tipo: messaggio.tipo, risposta, costo, esito: letta.ok ? 'ok' : letta.codice }))
-      return patch.credito_microeuro
-    })
-    const conti = { costo_eur: ai.inEuro(costo), credito_eur: ai.inEuro(residuo) }
-    if (!letta.ok) return res.status(422).json({ errore: letta.perche, codice: letta.codice, ...conti })
-    res.status(200).json({ ok: true, tipo: messaggio.tipo, risultato: letta.risultato, ...conti })
+    res.status(200).json({ ok: true, tipo: messaggio.tipo, risultato: esito.risultato, costo_eur: esito.costo_eur, credito_eur: esito.credito_eur })
   }
 )
+
+// UNA RICHIESTA AL MODELLO SUL CREDITO DI UN'INSTALLAZIONE, in un posto
+// solo, per richiestaAI e per il tema dal mockup (REQ-FLOTTA-040): la
+// prenotazione del credito, la chiamata, la correzione e la riga dei
+// consumi. → { ok: true, risultato, costo_eur, credito_eur }, oppure {
+// ok: false, http, errore, codice, ... } con il codice HTTP che
+// richiestaAI risponde (402 credito, 429 occupato, 503 servizio, 422
+// risposta inutilizzabile: addebitata).
+//
+// CON LA PRENOTAZIONE (REQ-FLOTTA-088, audit del 13/11/2026): prima della
+// chiamata, in transazione, la stima massima esce dal credito e la
+// richiesta si segna nel cassetto; dopo, in transazione, si corregge col
+// costo vero. Qui solo Firestore e il client: l'ordine delle cose e cosa
+// succede quando un passo fallisce stanno in lib/ai.js
+// (interrogaConPrenotazione, revisione del 13/11/2026), dove si provano.
+async function interrogaClaude(slug, messaggio, { impostazioni: giaLette } = {}) {
+  const cassettoRef = db.doc(`ai/${slug}`)
+  // L'id della prenotazione: uno casuale di Firestore, fissato fuori dalla
+  // transazione perché un nuovo tentativo della transazione usi lo stesso.
+  const id = cassettoRef.collection('consumi').doc().id
+  // IL MODELLO DEL TIPO (REQ-FLOTTA-092): si rilegge a ogni richiesta, così
+  // una scelta dell'admin vale dalla richiesta dopo. Se le impostazioni non
+  // si leggono vale il predefinito del listino: non è un motivo per
+  // fermare l'AI dei locali. La chat le ha già lette per i suoi limiti:
+  // le passa, e valgono le stesse (REQ-FLOTTA-094).
+  const regia = db.doc('impostazioni/regia')
+  const impostazioni =
+    giaLette ||
+    (await regia
+      .get()
+      .then((s) => s.data() || {})
+      .catch((e) => {
+        console.warn(`[ai] ${slug}: le impostazioni della regia non si leggono, vale il modello predefinito:`, e?.message || e)
+        return {}
+      }))
+  return ai.interrogaConPrenotazione({
+    slug,
+    messaggio,
+    modello: ai.modelloPer(messaggio.tipo, impostazioni),
+    crea: claude,
+    // Una lettura del cassetto prima del conteggio (revisione della PR
+    // #237): spento o senza credito, niente conteggio. Decide comunque la
+    // transazione della prenotazione.
+    leggiCassetto: () => cassettoRef.get().then((s) => (s.exists ? s.data() : null)),
+    prenota: (stima) =>
+      db.runTransaction(async (t) => {
+        const adesso = new Date()
+        const snap = await t.get(cassettoRef)
+        const esito = ai.prenota(snap.exists ? snap.data() : null, { id, stima, tipo: messaggio.tipo, adesso })
+        if (esito.patch) t.update(cassettoRef, esito.patch)
+        // Le prenotazioni rimaste appese: consumate alla stima, e lo
+        // storico lo dice.
+        for (const p of esito.scadute) t.set(cassettoRef.collection('consumi').doc(), ai.rigaInterrotta(p, adesso))
+        return esito
+      }),
+    // La correzione: in transazione, sul cassetto com'è adesso. `riga` è
+    // la riga dei consumi, da scrivere solo se la prenotazione c'era ancora.
+    chiudi: (costo, riga) =>
+      db.runTransaction(async (t) => {
+        const snap = await t.get(cassettoRef)
+        const { trovata, patch } = ai.chiudiPrenotazione(snap.data(), { id, costo, adesso: new Date() })
+        if (!trovata) {
+          // Già chiusa come interrotta, alla stima: il locale ha pagato il
+          // caso peggiore, che copre il costo vero. Non si corregge due volte.
+          console.warn(`[ai] ${slug}: la prenotazione ${id} era già scaduta`)
+          return Number(snap.data()?.credito_microeuro) || 0
+        }
+        t.update(cassettoRef, patch)
+        if (riga) t.set(cassettoRef.collection('consumi').doc(), riga)
+        return patch.credito_microeuro
+      }),
+  })
+}
 
 // Il titolare ricarica il credito AI dalla dashboard: una sessione di
 // Checkout per un pacchetto del listino (piani.json → ai.pacchetti). Il
@@ -726,16 +2733,20 @@ exports.creaRicaricaAI = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async
   if (!cliente?.slug) throw new HttpsError('not-found', 'Nessun locale registrato per questo account.')
   const p = ai.pacchetto(req.data?.pacchetto)
   if (!p) throw new HttpsError('invalid-argument', 'Pacchetto di ricarica sconosciuto.')
+  // Un Free non compra credito che la regia poi non gli lascerebbe usare
+  // (REQ-FLOTTA-087).
+  if (!(await aiDelLocale(cliente.slug))) throw new HttpsError('failed-precondition', ai.SENZA_AI_NEL_PIANO)
+  await solOSitoAperto()
   // Anche la ricarica passa da Stripe: coi pagamenti spenti la fa l'admin.
   if (!contatti.pagamentiOnline(await vendita())) throw new HttpsError('failed-precondition', PAGAMENTI_SPENTI)
-  const ritorno = String(req.data?.ritorno || '').replace(/\/$/, '')
-  if (!/^https?:\/\//.test(ritorno)) throw new HttpsError('invalid-argument', 'Indirizzo di ritorno non valido.')
+  const ritorno = ritornoPulito(req.data?.ritorno)
   const stripe = stripeClient()
   if (!stripe) throw new HttpsError('failed-precondition', 'Il pagamento online non è ancora attivo: scrivici all’email del prodotto.')
   const metadata = ai.metadatiRicarica({ uid, slug: cliente.slug, p })
+  const aliquotaIva = await aliquotaIvaSuStripe(stripe)
   const sessione = await stripe.checkout.sessions.create({
     mode: 'payment',
-    line_items: [ai.rigaRicarica(p)],
+    line_items: [ai.rigaRicarica(p, { aliquotaIva })],
     customer: cliente.abbonamento?.stripe_customer || undefined,
     customer_email: cliente.abbonamento?.stripe_customer ? undefined : cliente.email,
     client_reference_id: uid,
@@ -748,6 +2759,42 @@ exports.creaRicaricaAI = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async
   return { url: sessione.url }
 })
 
+// IL MODELLO AI PER TIPO DI RICHIESTA (REQ-FLOTTA-092). Daniele,
+// 13/11/2026, su Sonnet: «Per tutto». L'admin sceglie dal backoffice il
+// modello di un tipo, fra quelli che hanno un prezzo nel listino; si
+// salvano solo i tipi arrivati, con merge, in impostazioni/regia.ai_modelli.
+// interrogaClaude rilegge la scelta a ogni richiesta e la ricontrolla.
+exports.gestisciModelliAI = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  let scelta
+  try {
+    scelta = ai.validaModelliAI(req.data?.ai_modelli)
+  } catch (e) {
+    if (e instanceof ai.RichiestaNonValida) throw new HttpsError('invalid-argument', e.message)
+    throw e
+  }
+  await db.doc('impostazioni/regia').set({ ai_modelli: scelta, aggiornate_il: new Date().toISOString() }, { merge: true })
+  return { ok: true, ai_modelli: scelta }
+})
+
+// I LIMITI DELLA CHAT AI (REQ-FLOTTA-094). Daniele, 13/11/2026: «rendi
+// questi parametri configurabili da backoffice di admin». Come i modelli
+// (REQ-FLOTTA-092): solo l'admin, solo voci conosciute dentro i loro
+// tetti, e si scrive con merge solo quello che cambia. richiestaAI li
+// rilegge a ogni chat e li ricontrolla (aiChat.limitiChat).
+exports.gestisciLimitiChat = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  let scelta
+  try {
+    scelta = aiChat.validaLimitiChat(req.data?.limiti_chat)
+  } catch (e) {
+    if (e instanceof ai.RichiestaNonValida) throw new HttpsError('invalid-argument', e.message)
+    throw e
+  }
+  await db.doc('impostazioni/regia').set({ limiti_chat: scelta, aggiornate_il: new Date().toISOString() }, { merge: true })
+  return { ok: true, limiti_chat: scelta }
+})
+
 // Dal backoffice, sul cassetto di un'installazione: ricarica a mano (la
 // Tana la ricarichiamo noi), tetto mensile, acceso o spento, e la chiave
 // che l'installazione usa per chiamare `richiestaAI`. La chiave si vede
@@ -757,19 +2804,38 @@ exports.gestisciCassettoAI = onCall(OPTS, async (req) => {
   const { slug, azione } = req.data || {}
   if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(slug || '')) throw new HttpsError('invalid-argument', 'Slug non valido.')
   const importo = Number(req.data?.importo)
+  // Niente credito, pagato o regalato, a un locale Free (REQ-FLOTTA-087):
+  // resterebbe nel cassetto senza potersi usare. Tetto e interruttore sì:
+  // non danno niente.
+  const daCredito = ['ricarica', 'omaggio'].includes(azione)
+  if (daCredito && !(await aiDelLocale(slug))) throw new HttpsError('failed-precondition', ai.SENZA_AI_NEL_PIANO)
   const ref = await cassettoDi(slug)
   const ora = new Date().toISOString()
   if (azione === 'ricarica') {
     if (!Number.isFinite(importo) || importo <= 0 || importo > 1000) throw new HttpsError('invalid-argument', 'Importo tra 0 e 1000 €.')
     const cassetto = (await ref.get()).data()
+    const sessione = `manuale-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     const esito = await accreditaRicarica(
-      {
-        slug,
-        uid: cassetto.uid,
-        sessione: `manuale-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        importo_microeuro: ai.daEuro(importo),
-      },
+      { slug, uid: cassetto.uid, sessione, importo_microeuro: ai.daEuro(importo) },
       { origine: 'manuale', nota: req.data?.nota ? String(req.data.nota).slice(0, 200) : null, da: req.auth.uid }
+    )
+    // Un credito pagato fuori da Stripe è un incasso (REQ-FLOTTA-041); un
+    // omaggio, sotto, no.
+    if (esito === 'accreditata' && cassetto.uid) {
+      await scriviMovimento(movimenti.movimentoManuale({ uid: cassetto.uid, slug, importo, iva: listino.iva, tipo: 'ricarica_ai', descrizione: 'Credito AI accreditato fuori da Stripe', riferimento: `ricarica-${sessione}`, da: req.auth.token.email || req.auth.uid }))
+    }
+    return { ok: true, esito }
+  }
+  // Un OMAGGIO (l'utente, 06/11/2026: «regalare crediti a un cassetto AI
+  // di un gestore»): credito senza pagamento, segnato come tale, così il
+  // titolare lo vede fra le ricariche e i conti di fine anno non lo
+  // scambiano per un incasso. Importi piccoli: un regalo, non un listino.
+  if (azione === 'omaggio') {
+    if (!Number.isFinite(importo) || importo <= 0 || importo > ai.MAX_OMAGGIO) throw new HttpsError('invalid-argument', `Un omaggio va da 0 a ${ai.MAX_OMAGGIO} €.`)
+    const cassetto = (await ref.get()).data()
+    const esito = await accreditaRicarica(
+      { slug, uid: cassetto.uid, sessione: `omaggio-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, importo_microeuro: ai.daEuro(importo) },
+      { origine: 'omaggio', nota: req.data?.nota ? String(req.data.nota).slice(0, 200) : null, da: req.auth.uid }
     )
     return { ok: true, esito }
   }
@@ -782,12 +2848,6 @@ exports.gestisciCassettoAI = onCall(OPTS, async (req) => {
     await ref.update({ attivo: azione === 'accendi', aggiornato_il: ora })
     return { ok: true }
   }
-  if (azione === 'chiave') {
-    const { bearer, impronta } = ai.nuovaChiave(slug)
-    await db.doc(`ai/${slug}/riservato/chiave`).set({ impronta, creata_il: ora, da: req.auth.uid })
-    await ref.update({ chiave_creata_il: ora })
-    return { ok: true, chiave: bearer }
-  }
   throw new HttpsError('invalid-argument', 'Azione sconosciuta.')
 })
 
@@ -795,6 +2855,100 @@ exports.gestisciCassettoAI = onCall(OPTS, async (req) => {
 // segnata «interna» ed «esistente», cassetto AI vuoto. Nessuna richiesta di
 // attivazione: è quella che farebbe partire il workflow. Il perché sta in
 // lib/esistente.js.
+// Un locale esistente già registrato passa agli aggiornamenti dalla regia,
+// o torna a pubblicare da sé, senza rifare la registrazione
+// (REQ-FLOTTA-018). `build` si riscrive per intero: una chiave tolta sparisce.
+exports.impostaAggiornamentiEsistente = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const slug = String(req.data?.slug || '')
+  const ref = db.doc(`istanze/${slug}`)
+  const ist = (await ref.get()).data()
+  if (!ist || ist.origine !== 'esistente') throw new HttpsError('failed-precondition', 'Vale solo per un locale registrato come esistente.')
+  let g
+  try {
+    g = gestioneEsistente(req.data, { slug, progetto: ist.progetto })
+  } catch (e) {
+    if (e instanceof DatiNonValidi) throw new HttpsError('invalid-argument', e.message)
+    throw e
+  }
+  await ref.update({ ...g, aggiornata_il: new Date().toISOString() })
+  // La licenza appena collegata si scrive subito: se la regia non può
+  // scrivere in quel progetto (manca il permesso), si torna indietro e lo
+  // si dice, invece di lasciare un locale «collegato» senza licenza.
+  if (g.licenza_dalla_regia && !scriveLicenza(ist)) {
+    const scritta = await scriviLicenza(slug).catch((e) => ({ ok: false, perche: e?.message || String(e) }))
+    if (!scritta.ok) {
+      await ref.update({ licenza_dalla_regia: false })
+      throw new HttpsError('failed-precondition', `La licenza non si è scritta nel progetto ${ist.progetto}: ${String(scritta.perche).slice(0, 200)}. Serve roles/datastore.user per la regia su quel progetto.`)
+    }
+  }
+  return { ok: true, ...g }
+})
+
+// ── I CODICI SCONTO (REQ-FLOTTA-028) ───────────────────────────────────
+// I codici stanno in sconti/{CODICE}: li crea e li disattiva l'admin, e li
+// applica lui a un cliente. La logica sta in lib/sconti.js.
+exports.gestisciSconti = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const azione = req.data?.azione
+  if (azione === 'crea') {
+    const s = sconti.scontoPulito(req.data)
+    if (s.errore) throw new HttpsError('invalid-argument', s.errore)
+    const ref = db.doc(`sconti/${s.codice}`)
+    // Un codice non si riscrive: chi lo ha già applicato ha quelle condizioni.
+    if ((await ref.get()).exists) throw new HttpsError('already-exists', `Il codice ${s.codice} esiste già.`)
+    await ref.set({ ...s, usi: 0, creato_il: new Date().toISOString(), creato_da: req.auth.token.email || req.auth.uid })
+    return { ok: true, codice: s.codice }
+  }
+  // Il limite di usi si cambia anche dopo: le condizioni dello sconto no.
+  // Sotto gli usi già fatti vuol dire esaurito, e chi lo ha lo tiene.
+  if (azione === 'limite') {
+    const codice = String(req.data?.codice || '').trim().toUpperCase()
+    const ref = db.doc(`sconti/${codice}`)
+    if (!sconti.CODICE.test(codice) || !(await ref.get()).exists) throw new HttpsError('not-found', 'Codice sconosciuto.')
+    const l = sconti.limitePulito(req.data?.usi_massimi)
+    if (l.errore) throw new HttpsError('invalid-argument', l.errore)
+    await ref.update({ usi_massimi: l.usi_massimi, limite_cambiato_il: new Date().toISOString() })
+    return { ok: true, usi_massimi: l.usi_massimi }
+  }
+  if (azione === 'disattiva') {
+    const codice = String(req.data?.codice || '').trim().toUpperCase()
+    const ref = db.doc(`sconti/${codice}`)
+    if (!sconti.CODICE.test(codice) || !(await ref.get()).exists) throw new HttpsError('not-found', 'Codice sconosciuto.')
+    // Chi lo ha già lo tiene: disattivato vuol dire che non si applica più.
+    await ref.update({ attivo: false, disattivato_il: new Date().toISOString() })
+    return { ok: true }
+  }
+  throw new HttpsError('invalid-argument', 'Azione sconosciuta.')
+})
+
+// Applica un codice a un cliente, o lo toglie (codice vuoto).
+exports.applicaSconto = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const doc = await docClientePerSlug(req.data?.slug)
+  if (!doc) throw new HttpsError('not-found', 'Cliente sconosciuto.')
+  const codice = String(req.data?.codice || '').trim().toUpperCase()
+  if (!codice) {
+    await doc.ref.update(sconti.scontoTolto(doc.data()).patch)
+    return { ok: true, sconto: null }
+  }
+  if (!sconti.CODICE.test(codice)) throw new HttpsError('failed-precondition', 'Codice sconosciuto o disattivato.')
+  const refCodice = db.doc(`sconti/${codice}`)
+  // In transazione col codice: anche l'admin consuma un uso, e l'ultimo
+  // lo prende uno solo.
+  const esito = await db.runTransaction(async (t) => {
+    const [cliente, s] = (await Promise.all([t.get(doc.ref), t.get(refCodice)])).map((x) => x.data())
+    const e = sconti.scontoApplicato(cliente, s, new Date(), doc.id)
+    if (e.errore) return e
+    t.update(doc.ref, e.patch)
+    if (e.uso) t.update(refCodice, sconti.usoConfermato(s, doc.id))
+    return e
+  })
+  if (esito.errore) throw new HttpsError('failed-precondition', esito.errore)
+  return { ok: true, sconto: esito.patch.sconto }
+
+})
+
 exports.registraLocaleEsistente = onCall(OPTS, async (req) => {
   if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
   let d
@@ -804,11 +2958,8 @@ exports.registraLocaleEsistente = onCall(OPTS, async (req) => {
     if (e instanceof DatiNonValidi) throw new HttpsError('invalid-argument', e.message)
     throw e
   }
-  const [stessoSlug, istanza] = await Promise.all([
-    db.collection('clienti').where('slug', '==', d.slug).limit(1).get(),
-    db.doc(`istanze/${d.slug}`).get(),
-  ])
-  if (!stessoSlug.empty || istanza.exists) throw new HttpsError('already-exists', `Esiste già un locale con identificativo ${d.slug}.`)
+  const [stessoSlug, istanza] = await Promise.all([docClientePerSlug(d.slug), db.doc(`istanze/${d.slug}`).get()])
+  if (stessoSlug || istanza.exists) throw new HttpsError('already-exists', `Esiste già un locale con identificativo ${d.slug}.`)
   const auth = getAuth()
   const utente = await auth.getUserByEmail(d.email).catch(() => auth.createUser({ email: d.email, emailVerified: true }))
   if ((await db.doc(`clienti/${utente.uid}`).get()).exists) {
@@ -824,6 +2975,45 @@ exports.registraLocaleEsistente = onCall(OPTS, async (req) => {
   return { uid: utente.uid, slug: d.slug }
 })
 
+// ── I TEMI DEI LOCALI (REQ-FLOTTA-039, richiesta da tana-drink) ────────
+// Gli stili esclusivi o comprati stanno in clienti/{uid}.temi, e la licenza
+// li nomina in `temi`: licenzaSegueIlPiano la riscrive come per un modulo.
+// Li assegna l'admin, perché un esclusivo non si compra. Il contratto in
+// docs/temi-dei-locali.md.
+exports.impostaTemi = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const slug = String(req.data?.slug || '')
+  const temiNuovi = temi.temiPuliti(req.data?.temi)
+  if (!temiNuovi) throw new HttpsError('invalid-argument', 'I temi in licenza sono id di stili: minuscole, cifre e trattini.')
+  const doc = await docClientePerSlug(slug)
+  if (!doc) throw new HttpsError('not-found', 'Cliente sconosciuto.')
+  await doc.ref.update({ temi: temiNuovi })
+  // Nei log l'uid, non l'email (REQ-FLOTTA-051).
+  console.log(`[temi] ${slug}: ${temiNuovi.join(', ') || 'nessuno'} (${req.auth.uid})`)
+  return { ok: true, temi: temiNuovi }
+})
+
+// Quello che il locale ha installato dall'app (gli stili gratis, i temi del
+// marketplace, lo stile in uso): la regia lo LEGGE dal suo settings/bar al
+// momento e non lo salva. È un dato operativo del locale, e letto adesso è
+// esatto per costruzione: niente sincronizzazione che resta indietro.
+// L'account delle Functions ha già datastore.user sul progetto, per la
+// licenza.
+exports.temiDelLocale = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const slug = String(req.data?.slug || '')
+  const ist = (await db.doc(`istanze/${slug}`).get()).data()
+  if (!ist?.progetto) throw new HttpsError('failed-precondition', 'Il locale non ha ancora un progetto.')
+  let bar
+  try {
+    bar = (await firestoreDi(ist.progetto).doc('settings/bar').get()).data()
+  } catch (e) {
+    console.error(`[temi] ${slug}, settings/bar:`, e?.message || e)
+    throw new HttpsError('unavailable', 'Il progetto del locale non risponde: riprova fra poco.')
+  }
+  return temi.installatiDalLocale(bar)
+})
+
 // ── L'ELIMINAZIONE DI UN LOCALE (REQ-FLOTTA-014) ───────────────────────
 //
 // Decisioni dell'utente del 29/10/2026. Il TITOLARE, dalla sua dashboard,
@@ -835,8 +3025,15 @@ exports.registraLocaleEsistente = onCall(OPTS, async (req) => {
 // l'eliminazione. Le regole stanno in lib/eliminazione.js.
 
 async function lanciaEliminazione(slug) {
-  const res = await dispatchGitHub(WORKFLOW_ELIMINA, elim.dispatchEliminazione(slug, { ref: REF, ambiente: AMBIENTE_FLOTTA }))
   const ref = db.doc(`istanze/${slug}`)
+  // Un locale simulato (REQ-FLOTTA-072): niente progetto da archiviare e
+  // cancellare, si segna eliminato e basta.
+  const ist = (await ref.get()).data() || null
+  if (ist?.simulata) {
+    await ref.set(elim.eliminazioneSimulata(ist), { merge: true })
+    return null
+  }
+  const res = await dispatchGitHub(WORKFLOW_ELIMINA, elim.dispatchEliminazione(slug, { ref: REF, ambiente: AMBIENTE_FLOTTA }))
   if (res.status !== 204) {
     await ref.set({ eliminazione: { stato: 'fallita', errore: `GitHub ${res.status}: il workflow non è partito`, finito_il: new Date().toISOString() } }, { merge: true })
     return `GitHub ${res.status}`
@@ -866,7 +3063,7 @@ exports.gestisciEliminazione = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN
   if (admin) {
     slug = String(req.data?.slug || '')
     if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(slug)) throw new HttpsError('invalid-argument', 'Slug non valido.')
-    cliente = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]?.data() || null
+    cliente = (await docClientePerSlug(slug))?.data() || null
   } else {
     cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data() || null
     slug = cliente?.slug
@@ -878,10 +3075,12 @@ exports.gestisciEliminazione = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN
   if (azione === 'chiedi' && !admin) {
     const puo = elim.puoChiedereTitolare(ist)
     if (!puo.ok) throw new HttpsError('failed-precondition', puo.perche)
-    if (!elim.confermaValida(ist, conferma)) throw new HttpsError('invalid-argument', `Per confermare scrivi ${ist.progetto}.`)
+    if (!elim.confermaValida(ist, conferma)) throw new HttpsError('invalid-argument', `Per confermare scrivi ${ist.simulata ? ist.slug : ist.progetto}.`)
     const richiesta = elim.richiestaTitolare(ist, { da: req.auth.token.email || req.auth.uid, adesso })
-    await scriviStatoIstanza(slug, 'chiusa', 'chiusura chiesta dal titolare')
+    await scriviStatoIstanza(slug, 'chiusa', 'chiusura chiesta dal titolare', { per: 'titolare' })
     await istRef.set({ eliminazione: richiesta }, { merge: true })
+    await programma('eliminazione', slug, richiesta.quando).catch((e) => console.error(`[scadenze] ${slug}, eliminazione:`, e?.message || e))
+    await avvisiDellaCancellazione(slug, richiesta.quando)
     await disdettaAFinePeriodo(cliente, true).catch((e) => console.error(`[eliminazione] ${slug}, disdetta:`, e?.message || e))
     return { ok: true, quando: richiesta.quando }
   }
@@ -889,10 +3088,14 @@ exports.gestisciEliminazione = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN
   if (azione === 'chiedi' && admin) {
     const puo = elim.puoEliminare(ist)
     if (!puo.ok) throw new HttpsError('failed-precondition', puo.perche)
-    if (!elim.confermaValida(ist, conferma)) throw new HttpsError('invalid-argument', `Per confermare scrivi ${ist.progetto}.`)
+    if (!elim.confermaValida(ist, conferma)) throw new HttpsError('invalid-argument', `Per confermare scrivi ${ist.simulata ? ist.slug : ist.progetto}.`)
     const richiesta = elim.eliminazioneChiesta(ist, { subito: Boolean(subito), da: req.auth.token.email || req.auth.uid, adesso })
     await istRef.set({ eliminazione: richiesta }, { merge: true })
-    if (!subito) return { ok: true, quando: richiesta.quando }
+    if (!subito) {
+      await programma('eliminazione', slug, richiesta.quando).catch((e) => console.error(`[scadenze] ${slug}, eliminazione:`, e?.message || e))
+      await avvisiDellaCancellazione(slug, richiesta.quando)
+      return { ok: true, quando: richiesta.quando }
+    }
     const perche = await lanciaEliminazione(slug)
     if (perche) throw new HttpsError('unavailable', `Il backup e l’eliminazione non sono partiti: ${perche}.`)
     return { ok: true, quando: richiesta.quando }
@@ -905,21 +3108,15 @@ exports.gestisciEliminazione = onCall({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN
     await istRef.set({ eliminazione: { ...e, stato: 'annullata', annullata_il: adesso.toISOString(), annullata_da: req.auth.token.email || req.auth.uid } }, { merge: true })
     // Una chiusura chiesta dal titolare si annulla tornando com'era.
     if (e.richiedente === 'titolare') {
-      await scriviStatoIstanza(slug, e.licenza_prima || 'attiva', e.licenza_prima === 'sospesa' ? 'pagamento non ricevuto' : null)
+      await scriviStatoIstanza(slug, e.licenza_prima || 'attiva', e.licenza_prima === 'sospesa' ? 'pagamento non ricevuto' : null, { per: 'pagamento' })
       await disdettaAFinePeriodo(cliente, false).catch((err) => console.error(`[eliminazione] ${slug}, disdetta:`, err?.message || err))
     }
+    // La licenza non annuncia più la cancellazione.
+    await scriviLicenza(slug).catch((err) => console.error(`[eliminazione] ${slug}, la licenza:`, err?.message || err))
     return { ok: true }
   }
 
   throw new HttpsError('invalid-argument', 'Azione sconosciuta.')
-})
-
-// Ogni mattina: le cancellazioni programmate arrivate alla data partono.
-exports.eliminazioniProgrammate = onSchedule({ ...OPTS, schedule: '0 5 * * *', timeZone: 'Europe/Rome', secrets: [GITHUB_DISPATCH_TOKEN] }, async () => {
-  for (const slug of elim.daEliminareOggi(await tutteLeIstanze())) {
-    const perche = await lanciaEliminazione(slug).catch((e) => e?.message || String(e))
-    console.log(`[eliminazione] ${slug}: ${perche || 'partita'}`)
-  }
 })
 
 // L'archivio di un locale eliminato lo scarica SOLO il suo titolare
@@ -933,8 +3130,11 @@ exports.scaricaArchivio = onCall(OPTS, async (req) => {
   if (!cliente?.slug || cliente.uid && cliente.uid !== req.auth.uid) throw new HttpsError('permission-denied', 'Nessun locale collegato a questo account.')
   const ist = (await db.doc(`istanze/${cliente.slug}`).get()).data()
   if (!elim.archivioScaricabile(ist)) throw new HttpsError('not-found', 'Non c’è un archivio da scaricare, o è scaduto.')
-  const { bucket, zip } = ist.eliminazione.archivio
-  const [url] = await getStorage().bucket(bucket).file(zip).getSignedUrl({
+  // Il bucket è quello della regia, mai quello scritto sull'istanza (audit
+  // del 09/11/2026, finding 12): il callback non lo manda più.
+  if (!ARCHIVIO_BUCKET) throw new HttpsError('failed-precondition', 'L’archivio non è raggiungibile al momento: scrivici.')
+  const { zip } = ist.eliminazione.archivio
+  const [url] = await getStorage().bucket(ARCHIVIO_BUCKET).file(zip).getSignedUrl({
     version: 'v4',
     action: 'read',
     expires: Date.now() + 15 * 60 * 1000,
@@ -945,7 +3145,7 @@ exports.scaricaArchivio = onCall(OPTS, async (req) => {
 
 // ── LE PROVE DEI MODULI E «CAMBIA PIANO» DELL'ADMIN (REQ-FLOTTA-016) ───
 const prove = require('./lib/prove.js')
-const { cambioAdmin } = require('./lib/cambiopiano.js')
+const { cambioAdmin, decisioneManuale } = require('./lib/cambiopiano.js')
 
 // Il titolare accende la prova di un modulo: quali si provano e per quanti
 // giorni lo decide l'admin (vendita/listino). Una volta sola per modulo.
@@ -955,29 +3155,145 @@ exports.provaModulo = onCall(OPTS, async (req) => {
   const ref = db.doc(`clienti/${req.auth.uid}`)
   const cliente = (await ref.get()).data()
   if (!cliente?.slug) throw new HttpsError('failed-precondition', 'Nessun locale collegato a questo account.')
+  await solOSitoAperto()
   const ist = (await db.doc(`istanze/${cliente.slug}`).get()).data()
-  const id = String(req.data?.modulo || '')
+  const p = await accendiProva(ref, cliente, ist, String(req.data?.modulo || ''), await vendita())
+  if (p.errore) throw new HttpsError('failed-precondition', p.errore)
+  return { ok: true, scade_il: p.scade_il }
+})
+
+// LA PROVA DI UN MODULO, una sola regola per le due porte: la dashboard
+// (provaModulo) e l'app del locale (moduloDallApp). → { scade_il } o
+// { errore }. Scritta la prova, licenzaSegueIlPiano accende il modulo.
+async function accendiProva(ref, cliente, ist, id, inVendita) {
   const adesso = new Date()
-  const puo = prove.puoProvare(cliente, ist, id, await vendita(), adesso)
-  if (!puo.ok) throw new HttpsError('failed-precondition', puo.perche)
+  const puo = prove.puoProvare(cliente, ist, id, inVendita, adesso)
+  if (!puo.ok) return { errore: puo.perche }
   await ref.update({
     [`prove.${id}`]: { dal: adesso.toISOString(), scade_il: puo.scade_il, giorni: puo.giorni },
     prove_fatte: FieldValue.arrayUnion(id),
   })
-  return { ok: true, scade_il: puo.scade_il }
+  // Alla fine della prova il modulo si spegne (REQ-FLOTTA-023).
+  await programma('prova', cliente.slug, puo.scade_il).catch((e) => console.error(`[scadenze] ${cliente.slug}, prova:`, e?.message || e))
+  return { scade_il: puo.scade_il }
+}
+
+// ── I MODULI COMPRATI DALL'APP DEL LOCALE (REQ-FLOTTA-037) ────────────
+// Da tana-drink (REQ-LIC-012): «Marketplace → Moduli» nel gestionale. Le
+// regole in lib/moduliapp.js; il contratto dal lato dell'app è in
+// tana-drink/docs/marketplace-moduli.md.
+const moduliApp = require('./lib/moduliapp.js')
+
+// Il listino per l'app: GET, pubblico, CORS aperto (lo legge il browser
+// dal dominio del locale). → 200 { moduli: [{ id, prezzo, prova_giorni }] },
+// solo quelli in vendita. L'app lo legge quando si apre «Moduli», mai a
+// tempo: un minuto di cache basta, e un modulo tolto dalla vendita sparisce
+// presto.
+exports.catalogoModuli = onRequest({ ...OPTS, cors: false }, async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*')
+  res.set('Access-Control-Allow-Methods', 'GET')
+  if (req.method === 'OPTIONS') return res.status(204).send('')
+  if (req.method !== 'GET') return res.status(405).json({ errore: 'Solo GET.' })
+  res.set('Cache-Control', 'public, max-age=60')
+  return res.status(200).json(moduliApp.catalogoModuli(await vendita()))
 })
 
-// Ogni mattina: le prove scadute, o dei moduli ormai comprati, si tolgono;
-// la licenza segue da sola (licenzaSegueIlPiano).
-exports.proveScadute = onSchedule({ ...OPTS, schedule: '30 5 * * *', timeZone: 'Europe/Rome' }, async () => {
-  const adesso = new Date()
-  for (const d of (await db.collection('clienti').get()).docs) {
-    const via = prove.proveDaTogliere(d.data(), adesso)
-    if (!via.length) continue
-    await d.ref.update(Object.fromEntries(via.map((id) => [`prove.${id}`, FieldValue.delete()])))
-    console.log(`[prove] ${d.data().slug}: tolte ${via.join(', ')}`)
+// Prova, aggiungi, disdici dall'app: POST con `Authorization: Bearer <ID
+// token>` di chi ha fatto l'accesso nell'app, corpo { modulo, azione,
+// ritorno }. I controlli in quest'ordine: l'installazione (401 senza token
+// valido, 404 sconosciuta o eliminata), il titolare (il ruolo `admin`
+// dell'app, 403), il ritorno sui domini dell'installazione (400), il
+// modulo nel listino e in vendita (409; per disdire basta che esista), e
+// che l'admin sia proprio il cliente della regia (stesso uid o email
+// verificata uguale, 403: audit del 09/11/2026, finding 17).
+// Risposte: 200 { ok: true } (aggiunto), { ok: true, scade_il } (prova),
+// { ok: true, dal } (disdetto), { ok: true, in_attesa: true } (richiesta
+// all'assistenza); { ok: false, errore } col motivo, che l'app mostra al
+// titolare così com'è. Su un abbonamento Stripe aggiungere e disdire
+// cambiano la subscription come «Cambia piano» (aggiornaSubscription, col
+// conguaglio e l'IVA): il webhook riporta la scelta sul cliente, e la
+// licenza segue. Su un piano gestito a mano la regia scrive una richiesta
+// di contatto (REQ-FLOTTA-017) e l'admin accende o spegne il modulo dal
+// backoffice. Nessun Checkout da qui, e la licenza non cambia mai per un
+// ritorno dal browser.
+exports.moduloDallApp = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY], cors: false }, async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*')
+  res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+  res.set('Access-Control-Allow-Methods', 'POST')
+  if (req.method === 'OPTIONS') return res.status(204).send('')
+  const no = (stato, errore) => res.status(stato).json({ ok: false, errore })
+  if (req.method !== 'POST') return no(405, 'Solo POST.')
+  if (await sitoChiusoOra()) return no(409, free.SITO_CHIUSO)
+  const token = aggiornamenti.bearerDi(req.get('authorization'))
+  const progetto = aggiornamenti.progettoDelToken(token)
+  if (!progetto) return no(401, 'Serve l’accesso.')
+  const trovata = (await db.collection('istanze').where('progetto', '==', progetto).limit(1).get()).docs[0]
+  const ist = trovata?.data()
+  // La demo non ha titolare né abbonamento (REQ-FLOTTA-019).
+  if (!ist || ist.stato === 'eliminata' || eDemo(ist)) return no(404, 'Installazione non registrata nella regia.')
+  let chi
+  try {
+    chi = await getAuth(appDi(progetto)).verifyIdToken(token)
+  } catch {
+    return no(401, 'Accesso non valido: rientrare e riprovare.')
   }
+  if (!aggiornamenti.eTitolare(chi)) return no(403, 'I moduli li gestisce il titolare.')
+  const corpo = moduliApp.corpoModulo(req.body)
+  if (!corpo) return no(400, 'Richiesta non valida.')
+  if (!moduliApp.ritornoValido(corpo.ritorno, ist)) return no(400, 'Indirizzo di ritorno non valido.')
+  const inVendita = await vendita()
+  if (corpo.azione !== 'disdici') {
+    const fuori = moduliApp.moduloInVendita(corpo.modulo, inVendita)
+    if (fuori) return no(409, fuori)
+  }
+  // Due clienti con lo stesso slug: nessun cambio, piuttosto che la
+  // subscription di un altro locale (audit 09/11/2026, finding 4).
+  let docCliente
+  try {
+    docCliente = await docClientePerSlug(trovata.id)
+  } catch (e) {
+    if (e instanceof HttpsError) return no(409, e.message)
+    throw e
+  }
+  if (!docCliente) return no(404, 'Nessun abbonamento registrato per questo locale.')
+  const cliente = docCliente.data()
+  // Il titolare, non un altro admin del locale (audit del 09/11/2026,
+  // finding 17): prova, aggiunta e disdetta toccano l'abbonamento del
+  // cliente, e la prova si consuma una volta sola per modulo.
+  if (!passa.stessoTitolare(chi, { uid: docCliente.id, ...cliente })) return no(403, 'Solo il titolare del locale può gestire i moduli.')
+  if (corpo.azione === 'prova') {
+    const p = await accendiProva(docCliente.ref, cliente, ist, corpo.modulo, inVendita)
+    if (p.errore) return no(409, p.errore)
+    return res.status(200).json({ ok: true, scade_il: p.scade_il })
+  }
+  const adesso = new Date()
+  const d = corpo.azione === 'aggiungi' ? moduliApp.sceltaPerAggiungere(cliente, ist, corpo.modulo, inVendita) : moduliApp.sceltaPerDisdire(cliente, ist, corpo.modulo, adesso)
+  if (d.errore) return no(409, d.errore)
+  if (d.modo === 'richiesta') {
+    const refRichiesta = db.doc(`contatti/${moduliApp.idRichiesta(docCliente.id, corpo.modulo)}`)
+    const r = moduliApp.richiestaDallApp({ uid: docCliente.id, ...cliente }, { ...corpo, scelta: d.scelta }, chi.email || chi.uid, (await refRichiesta.get()).data(), adesso)
+    if (r.errore) return no(409, r.errore)
+    await refRichiesta.set(r.documento)
+    console.log(`[moduli dall'app] ${trovata.id}: ${corpo.azione} ${corpo.modulo} chiesto all'assistenza (${passa.improntaUtente(chi)})`)
+    return res.status(200).json({ ok: true, in_attesa: true })
+  }
+  const stripe = stripeClient()
+  if (!stripe) return no(503, 'Il pagamento online non è disponibile al momento: riprovare più tardi.')
+  try {
+    await aggiornaSubscription(stripe, cliente.abbonamento.stripe_subscription, docCliente.id, d.scelta)
+  } catch (e) {
+    console.error(`[moduli dall'app] ${trovata.id}, ${corpo.azione} ${corpo.modulo}:`, e?.message || e)
+    return no(502, 'Il cambio non è passato: riprovare fra poco.')
+  }
+  // Chi, quando e da dove, come i cambi dell'admin. Dal 09/11/2026 «chi» è
+  // sempre il titolare (stessoTitolare, sopra): resta scritto perché lo
+  // storico dice da quale account e da quale lato è arrivato il cambio.
+  const storico = { il: adesso.toISOString(), da: chi.email || chi.uid, modo: 'app', azione: corpo.azione, modulo: corpo.modulo, ...d.scelta }
+  await docCliente.ref.update({ storico_piano: FieldValue.arrayUnion(storico) }).catch((e) => console.error(`[moduli dall'app] ${trovata.id}, storico:`, e?.message || e))
+  console.log(`[moduli dall'app] ${trovata.id}: ${corpo.azione} ${corpo.modulo} (${passa.improntaUtente(chi)})`)
+  return res.status(200).json(corpo.azione === 'aggiungi' ? { ok: true } : { ok: true, dal: moduliApp.dalGiorno(adesso) })
 })
+
 
 // L'admin cambia piano, moduli e terminali di un locale: con Stripe
 // (l'abbonamento si aggiorna, il webhook scrive il cliente) o fuori da
@@ -985,7 +3301,7 @@ exports.proveScadute = onSchedule({ ...OPTS, schedule: '30 5 * * *', timeZone: '
 exports.cambiaPianoAdmin = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, async (req) => {
   if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
   const slug = String(req.data?.slug || '')
-  const doc = (await db.collection('clienti').where('slug', '==', slug).limit(1).get()).docs[0]
+  const doc = await docClientePerSlug(slug)
   if (!doc) throw new HttpsError('not-found', 'Cliente sconosciuto.')
   const cliente = doc.data()
   const c = cambioAdmin(cliente, req.data, { da: req.auth.token.email || req.auth.uid })
@@ -993,13 +3309,7 @@ exports.cambiaPianoAdmin = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, asy
   if (req.data.modo === 'stripe') {
     const stripe = stripeClient()
     if (!stripe) throw new HttpsError('failed-precondition', 'Stripe non è configurato.')
-    const sub = cliente.abbonamento.stripe_subscription
-    const attuale = await stripe.subscriptions.retrieve(sub)
-    await stripe.subscriptions.update(sub, {
-      items: [...attuale.items.data.map((i) => ({ id: i.id, deleted: true })), ...righeCheckout(c.scelta)],
-      metadata: metadatiDi(cliente.uid, c.scelta),
-      proration_behavior: 'create_prorations',
-    })
+    await aggiornaSubscription(stripe, cliente.abbonamento.stripe_subscription, cliente.uid, c.scelta)
   } else {
     await doc.ref.set(c.cliente, { merge: true })
   }

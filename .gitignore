@@ -4,6 +4,10 @@ dist
 .env.*
 !functions/.env
 coverage
+# I test end-to-end (REQ-DEV-004): la build di prova, i rapporti e le tracce.
+dist-e2e
+e2e/rapporto
+e2e/risultati
 .firebase
 *.log
 !functions/.env.*

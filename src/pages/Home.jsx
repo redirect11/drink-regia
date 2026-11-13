@@ -1,232 +1,898 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { NOME_PRODOTTO, SLOGAN, DESCRIZIONE, URL_DEMO, EMAIL_CONTATTI } from '../lib/prodotto.js'
-import { MODULI, TERMINALE_IN_PIU, ATTIVAZIONE, euro } from '../lib/piani.js'
+import { NOME_PRODOTTO, NOME_ESTESO, URL_DEMO, EMAIL_CONTATTI } from '../lib/prodotto.js'
+import {
+  MODULI,
+  PIANI,
+  TERMINALE_IN_PIU,
+  ATTIVAZIONE,
+  ANNUALE,
+  FONDATORI,
+  PROVA_GIORNI,
+  ASSISTENZA,
+  STAMPANTE,
+  IVA,
+  conIva,
+  prezzoAnnuale,
+} from '../lib/piani.js'
 import { osservaVendita } from '../lib/db.js'
 import { venditaPulita, pianiInVendita, moduloVisibile } from '../lib/vendita.js'
+import {
+  applicaLingua,
+  importo,
+  interpola,
+  linguaDaProporre,
+  percorsoDellaLingua,
+  plurale,
+  salvaPreferenza,
+} from '../lib/lingua.js'
+import { osservaComparsa } from '../lib/comparsa.js'
+import { TESTI, testi } from '../i18n/index.js'
 
-// LA PRIMA PAGINA (REQ-FLOTTA-002): una landing page intera — cosa fa il
-// prodotto, per chi, come si attiva, i piani coi prezzi, le domande che
-// un titolare fa prima di pagare. L'utente, 22/10/2026: «deve essere una
-// landing page con menu e tutto il resto, una roba seria». Seria vuol
-// dire curata, non gridata: registro del mestiere, niente toni da
-// venditore (DESIGN.md, guardrail 3).
+// LA PRIMA PAGINA (REQ-FLOTTA-002), secondo DESIGN.md. L'utente, 29/10/2026:
+// «dovrebbe essere più moderna… con slogan migliori… sia in inglese che in
+// italiano». Un percorso invece di un elenco: la promessa (hero), i
+// cinque gesti del locale coi loro filmati, le funzioni coi loro
+// moduli, i tre passi, i prezzi, le domande, l'ultima azione. I testi stanno
+// in src/i18n (uno per lingua); qui c'è solo la struttura. I numeri vengono
+// dal listino e dalla vendita decisa dall'admin, mai scritti a mano.
+//
+// L'ASPETTO DEL 07/11/2026 (DESIGN.md §4, la direzione dell'utente: «sembri
+// il sito curato di un prodotto reale, nato e usato in un locale, non un
+// template generico»): dall'11/11/2026 tutta su fondo scuro (la
+// prima schermata, i gesti, la chiusura), il lime per azioni e dettagli (dal 11/11/2026);
+// niente luci sfocate, niente card tutte uguali con l'icona, composizioni
+// che si alternano (testo accanto a un pannello, righe numerate, una
+// tabella). Niente schermate finte: le vere arriveranno quando ci saranno
+// (DESIGN.md §9.5), e intanto lo spazio lo tengono tipografia e griglia.
 
-// Le funzioni, raccontate come le vede chi sta al banco. Le icone sono
-// tratti semplici inline: niente font di icone, niente richieste esterne.
+// Le funzioni e i moduli che le portano: la struttura, uguale nelle due
+// lingue. Una funzione senza moduli sta nel piano Base; una con moduli si
+// vede se almeno uno è in vendita (REQ-FLOTTA-015). Fino all'11/11/2026
+// ognuna portava l'etichetta del suo piano o modulo; Daniele: «pure sotto
+// le funzioni non mettere i moduli o piano base. Quello viene dopo». Qui
+// si spiega cosa fa il prodotto; cosa si compra lo dicono i prezzi.
 const FUNZIONI = [
-  {
-    titolo: 'Comande e conti',
-    testo: 'Si apre un conto, si aggiungono i drink, si incassa. La comanda arriva al banco e si stampa da sola.',
-    icona: 'M4 4h16v4H4zM4 10h16v10H4zM8 14h8',
-  },
-  {
-    titolo: 'Funziona senza rete',
-    testo: 'Con il Wi-Fi che cade a mezzanotte la cassa continua a battere: i dati si sincronizzano dopo, da soli.',
-    icona: 'M2 9c5-5 15-5 20 0M5 12c4-3 10-3 14 0M8 15c2-2 6-2 8 0M12 19h0',
-  },
-  {
-    titolo: 'Scontrino sulla stampante del bar',
-    testo: 'Stampante termica Epson al banco: il conto esce in un secondo, con logo e indirizzo del locale.',
-    icona: 'M6 3h12v7H6zM4 10h16v8H4zM7 18v3h10v-3',
-  },
-  {
-    titolo: 'Menù digitale e ordini dal tavolo',
-    testo: 'Il QR sul tavolo apre il menù sul telefono del cliente, che ordina e segue lo stato dell’ordine.',
-    icona: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM18 18h3v3h-3',
-  },
-  {
-    titolo: 'Magazzino che si scala da solo',
-    testo: 'Ogni drink venduto scarica gli ingredienti della ricetta. Giacenze, scorte minime, inventario, fatture dei fornitori.',
-    icona: 'M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10',
-  },
-  {
-    titolo: 'Statistiche e bilancio',
-    testo: 'Incassi per serata, venduto per fascia oraria, confronto tra periodi, bilancio per macro-categorie.',
-    icona: 'M4 20V10M10 20V4M16 20v-7M22 20H2',
-  },
+  { id: 'conti', moduli: [] },
+  { id: 'menu', moduli: ['menu_tavoli', 'ordini_cliente'] },
+  { id: 'magazzino', moduli: ['magazzino'] },
+  { id: 'statistiche', moduli: ['statistiche'] },
 ]
+// Le due funzioni più piccole, in una riga a due colonne: ognuna è un modulo.
+const MINORI = [{ id: 'staff' }, { id: 'sumup' }]
+const SPUNTA = 'M5 12l5 5 9-11'
+const PAUSA = 'M9 6v12M15 6v12'
+const PLAY = 'M8 5.5v13l10.5-6.5z'
 
-const PASSI = [
-  ['Registra il locale', 'Nome, dati di fatturazione, un referente. Cinque minuti, con l’email verificata.'],
-  ['Scegli piano e moduli', 'Il piano Base per cassa e comande; i moduli si aggiungono quando servono, anche dopo.'],
-  ['L’installazione è tua', 'Nasce in automatico, con il suo indirizzo e i suoi dati. Si entra dal tablet e si comincia.'],
-]
-
-const DOMANDE = [
-  [
-    'I miei dati stanno insieme a quelli di altri locali?',
-    'No. Ogni locale ha un’installazione separata, con il suo database e il suo indirizzo. Nessun altro locale la vede, e noi la tocchiamo solo per manutenzione e aggiornamenti, come scritto nei termini.',
-  ],
-  [
-    'Lo scontrino è fiscale?',
-    'No. Lo scontrino esce su una stampante termica ed è un conto di cortesia. Per lo scontrino fiscale serve un registratore telematico, che resta del locale: l’app non lo sostituisce.',
-  ],
-  [
-    'Che cosa serve per cominciare?',
-    'Un tablet o un telefono con un browser moderno. Per lo scontrino, una stampante termica Epson in rete. Per i pagamenti con carta, un lettore SumUp.',
-  ],
-  [
-    'Cosa succede se la rete cade?',
-    'La cassa continua a lavorare: conti, comande e incassi restano sul dispositivo e si sincronizzano quando la rete torna. È la prima regola con cui l’app è stata scritta.',
-  ],
-  [
-    'Posso cambiare piano o disdire?',
-    'Il piano e i moduli si cambiano dalla propria pagina, e l’abbonamento è mensile. Alla disdetta l’installazione resta consultabile per il tempo scritto nei termini, poi viene chiusa.',
-  ],
-  [
-    'Chi fa gli aggiornamenti?',
-    'Noi. L’app è la stessa per tutti i locali e migliora ogni mese; gli aggiornamenti arrivano alla tua installazione senza che tu debba fare niente.',
-  ],
-]
-
-function Icona({ d }) {
+function Icona({ d, className = 'icona' }) {
   return (
-    <svg className="icona" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
       <path d={d} />
     </svg>
   )
 }
 
-export default function Home({ utente }) {
+const nomeModulo = (t, m) => t.moduli[m.id]?.nome || m.nome
+const descrizioneModulo = (t, m) => t.moduli[m.id]?.descrizione || m.descrizione
+const nomePiano = (t, p) => t.prezzi.piani[p.id]?.nome || p.nome
+
+function descrizionePiano(t, p) {
+  const testo = t.prezzi.piani[p.id]?.descrizione
+  if (!testo) return p.descrizione
+  return interpola(testo, {
+    terminali: plurale(p.terminali || 1, t.prezzi.terminali),
+    prodotti: p.limiti?.prodotti_max,
+    conti: p.limiti?.conti_aperti_max,
+  })
+}
+
+// L'avviso che propone l'altra lingua a chi ha il browser in quella lingua
+// (DESIGN.md §6): mai un reindirizzamento, e scritto nella lingua che
+// propone. Chi sceglie, da qui o dal selettore, non lo rivede più.
+function AvvisoLingua({ lingua, proposta, chiudi }) {
+  const tp = TESTI[proposta].avvisoLingua
+  return (
+    <aside className="avviso-lingua" lang={proposta} aria-label={tp.etichetta}>
+      <p>{tp.testo}</p>
+      <div className="avviso-lingua-azioni">
+        <Link to={percorsoDellaLingua(proposta)} hrefLang={proposta} onClick={() => salvaPreferenza(proposta)}>
+          {tp.vai}
+        </Link>
+        <button
+          type="button"
+          className="link"
+          onClick={() => {
+            salvaPreferenza(lingua)
+            chiudi()
+          }}
+        >
+          {tp.resta}
+        </button>
+      </div>
+    </aside>
+  )
+}
+
+// Il titolo in due tempi: la prima frase nel colore del testo, la seconda
+// con l'evidenziatore lime. Si taglia alla prima frase, così
+// i testi in src/i18n restano una frase intera per lingua; un titolo di una
+// frase sola resta tutto di un colore.
+function dueTempi(testo) {
+  const taglio = testo.search(/[.?]\s/)
+  if (taglio < 0) return { prima: testo, seconda: '' }
+  return { prima: testo.slice(0, taglio + 1), seconda: testo.slice(taglio + 2) }
+}
+
+// I FILMATI DELLA PRIMA PAGINA (11/11/2026, l'utente: «una pagina moderna…
+// nella parte sopra c'è il video in background e uno slogan davanti»).
+// Cinque filmati brevi in public/video, muti e in ciclo, uno per gesto:
+// fanno da sfondo alla prima schermata, a turno. Sono decorazione, non
+// contenuto: nascosti a chi usa un lettore di schermo.
+// QUANDO GIRANO. Chi chiede meno movimento (prefers-reduced-motion) o di
+// risparmiare dati vede il fermo immagine, che è anche quello che si vede
+// finché il codice non è partito: per questo il video non si scarica
+// prima. E chi li vede girare li può fermare, col tasto di pausa fra i
+// comandi del carosello, che ferma anche lo scorrimento:
+// partono da soli e non finiscono mai, e un movimento così accanto a un
+// testo deve potersi fermare (WCAG 2.2.2; rilievo del revisore, 11/11/2026).
+// `possibile` dice se il sistema li lascia girare, `acceso` se chi guarda
+// non li ha fermati.
+function useFilmati() {
+  const [possibile, setPossibile] = useState(false)
+  const [acceso, setAcceso] = useState(true)
+  useEffect(() => {
+    const fermo = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    const risparmio = navigator.connection?.saveData
+    setPossibile(!fermo && !risparmio)
+  }, [])
+  return { possibile, girano: possibile && acceso, cambia: () => setAcceso((a) => !a) }
+}
+
+function Filmato({ nome, className, gira }) {
+  const fermo = `/video/${nome}.jpg`
+  if (!gira) return <img className={className} src={fermo} alt="" decoding="async" />
+  return (
+    <video className={className} poster={fermo} autoPlay muted loop playsInline preload="metadata" aria-hidden="true" tabIndex={-1}>
+      <source src={`/video/${nome}.mp4`} type="video/mp4" />
+    </video>
+  )
+}
+
+// I CINQUE GESTI, IN UN CAROSELLO (11/11/2026, REQ-FLOTTA-061). Il lavoro
+// di un locale sono cinque gesti, e l'app sta dentro ognuno: Ordina,
+// Prepara, Incassa, Conta, Riordina, nell'ordine del servizio, che è lo
+// slogan «Dalla comanda alla cassa». La prima versione (REQ-FLOTTA-060)
+// li metteva in cinque fasce una sotto l'altra; Daniele, vista sul sito di
+// test: «fai un carosello sopra a tutto dove sta il primo video… invece
+// di scorrerle in verticale le facciamo scorrere in automatico in
+// orizzontale». Ora ogni gesto è una diapositiva della prima schermata:
+// il suo filmato fa da sfondo, la parola e una riga corta stanno in basso,
+// e titolo, bottoni e scheda dei fatti restano fermi davanti.
+//
+// I MODULI DI OGNI GESTO seguono la vendita decisa dall'admin, come le
+// funzioni più sotto (REQ-FLOTTA-015): un gesto che vive solo di moduli
+// (i numeri, la scorta) non si vede se nessuno dei suoi è in vendita.
+// Le etichette dei moduli sotto la frase («Nel piano Base», «Modulo…»)
+// non ci sono più: Daniele, 11/11/2026, «non hanno senso lì: l'utente
+// deve prima capire di che si parla». Piani e moduli li dicono l'elenco
+// delle funzioni e la tabella dei prezzi, più sotto. Per questo la
+// riga di «Ordina» e «Incassa» non promette il menù con QR o il lettore
+// di carte, e «Conta», che ha due moduli, ha una frase per modulo: si
+// legge quella del primo in vendita.
+const GESTI = [
+  { id: 'sala', moduli: ['menu_tavoli', 'ordini_cliente'], base: true },
+  { id: 'banco', moduli: [], base: true },
+  { id: 'conto', moduli: ['sumup'], base: true },
+  { id: 'numeri', moduli: ['statistiche', 'staff'], base: false },
+  { id: 'scorta', moduli: ['magazzino'], base: false },
+]
+// Ogni quanto il carosello passa al gesto dopo, da solo, e quanto dura la
+// dissolvenza (REQ-FLOTTA-074). I filmati durano 8 secondi: il passo più
+// la dissolvenza fanno 8, così ognuno si vede per intero, da capo alla
+// fine. Prima erano 4 secondi di scorrimento laterale; Daniele, 12/11/2026:
+// «troppo veloce, e la transizione proprio tra un video e l'altro».
+const PASSO_CAROSELLO_MS = 6500
+const DISSOLVENZA_MS = 1500
+
+// UN PEZZO CHE SI APRE (REQ-FLOTTA-063): il confronto fra i piani e ogni
+// modulo dell'elenco. Daniele, 11/11/2026: i moduli a pagamento «nascosti,
+// che si possono aprire… con qualche animazione ben integrata nella UI».
+// Il comando è un bottone che dice lo stato (aria-expanded) e comanda la
+// sua regione. L'animazione è l'altezza che passa da zero a quella del
+// contenuto (una griglia da 0fr a 1fr, src/index.css): il contenuto resta
+// nel documento, così l'altezza si può animare, ma da chiuso è `inert` e
+// nascosto ai lettori di schermo, quindi non ci si arriva né con Tab né
+// con un lettore. Chi ha chiesto meno movimento lo vede aprirsi di colpo.
+// `inert` è scritto come stringa vuota perché React 18 non lo conosce e lo
+// passa com'è; da React 19 è un booleano, e la stringa vuota varrebbe
+// falso: all'aggiornamento va scritto `inert={!aperto}`. Il test che
+// cerca l'attributo se ne accorge.
+function Apribile({ id, comando, className = '', children }) {
+  const [aperto, setAperto] = useState(false)
+  return (
+    <div className={`apribile ${className}`.trim()} data-aperto={aperto}>
+      <button type="button" className="apribile-comando" aria-expanded={aperto} aria-controls={id} onClick={() => setAperto((a) => !a)}>
+        {comando}
+        <span className="apribile-segno" aria-hidden="true" />
+      </button>
+      <div id={id} className="apribile-corpo" aria-hidden={!aperto} inert={aperto ? undefined : ''}>
+        <div className="apribile-dentro">{children}</div>
+      </div>
+    </div>
+  )
+}
+
+// L'aliquota del listino, scritta una volta («IVA esclusa, al 22%»).
+const IVA_PERCENTO = `${IVA}%`
+
+export default function Home({ utente, lingua = 'it' }) {
+  const t = testi(lingua)
+  const euro = (n) => importo(n, lingua)
+  // Il listino del 02/11/2026 (DEC-0005): ogni prezzo è l'imponibile
+  // «+ IVA», perché la vendita è fra imprese e la fattura parte da lì; il
+  // totale IVA inclusa sta accanto, calcolato (conIva), perché è quello
+  // che esce dal conto del locale. Nessun numero scritto a mano.
+  const piuIva = (n) => interpola(t.prezzi.piuIva, { prezzo: euro(n) })
+  const ivaInclusa = (n) => interpola(t.prezzi.ivaInclusa, { prezzo: euro(conIva(n)) })
+  // Dalla pagina inglese, registrazione e account sono ancora in italiano:
+  // il link lo dice al browser (hreflang) e la pagina lo scrive.
+  const versoItaliano = lingua === 'it' ? {} : { hrefLang: 'it' }
+
   // Il Free e i moduli si mostrano solo se sono in vendita (REQ-FLOTTA-015).
   const [vendita, setVendita] = useState(() => venditaPulita(null))
   useEffect(() => osservaVendita((v) => setVendita(venditaPulita(v))), [])
+
+  const [proposta, setProposta] = useState(() => linguaDaProporre(lingua))
+
+  useEffect(
+    () =>
+      applicaLingua(document, {
+        lingua,
+        titolo: `${NOME_PRODOTTO} — ${t.meta.titolo}`,
+        descrizione: t.meta.descrizione,
+        origine: window.location.origin,
+      }),
+    [lingua, t]
+  )
+
+  const titolo = dueTempi(t.hero.titolo)
+  const radice = useRef(null)
+  useEffect(() => osservaComparsa(radice.current), [])
+
+  const piani = pianiInVendita(vendita)
+  // Cosa la pagina dice dell'attivazione lo decide l'admin dal backoffice
+  // (REQ-FLOTTA-073, Daniele, 12/11/2026: «sono io a decidere dal
+  // backoffice se si vede la cosa dell'attivazione automatica oppure no»).
+  // Prima la dicevano automatica i pagamenti online o il Free accesi
+  // (REQ-FLOTTA-017); se lo è davvero lo decidono il deploy automatico e,
+  // sul test, l'attivazione simulata.
+  const automatica = vendita.mostra_attivazione_automatica
+  const daPrezzo = Math.min(...Object.values(PIANI).filter((p) => !p.gratuito).map((p) => p.prezzo))
+  const moduliVisibili = MODULI.filter((m) => moduloVisibile(vendita, m.id))
+  const funzioni = FUNZIONI.filter((f) => !f.moduli.length || f.moduli.some((id) => moduloVisibile(vendita, id)))
+  const minori = MINORI.filter((f) => moduloVisibile(vendita, f.id))
+  const gesti = GESTI.filter((g) => g.base || g.moduli.some((id) => moduloVisibile(vendita, id)))
+  const filmati = useFilmati()
+  // Una frase sola (REQ-FLOTTA-061): per un gesto con più moduli, quella
+  // del primo modulo in vendita.
+  const rigaGesto = (g) => {
+    const voce = t.gesti.voci[g.id]
+    if (!voce.frasi) return voce.testo
+    const primo = g.moduli.find((id) => moduloVisibile(vendita, id) && voce.frasi[id])
+    return primo ? voce.frasi[primo] : ''
+  }
+  // IL CAROSELLO. `scelto` è il gesto che si vede; se la vendita cambia a
+  // pagina aperta e i gesti diventano meno, si resta sull'ultimo. Avanza
+  // da solo finché i filmati girano (cioè: il sistema lo permette e
+  // nessuno ha premuto la pausa), e aspetta quando il puntatore è sopra la
+  // parola e i comandi, o quando ci arriva il fuoco da tastiera: chi li sta
+  // usando non deve vedersi cambiare la diapositiva sotto le mani.
+  // Prima aspettava col puntatore su tutta la prima schermata, e su un
+  // computer il mouse è quasi sempre lì: non scorreva mai (REQ-FLOTTA-069,
+  // Daniele, 12/11/2026: «il carosello dovrebbe scorrere da solo»).
+  const [scelto, setScelto] = useState(0)
+  // Due motivi per aspettare, ognuno col suo stato (rilievo del revisore,
+  // 11/11/2026): con uno solo, l'ultimo evento vinceva, e il mouse che
+  // usciva faceva ripartire lo scorrimento anche col fuoco ancora su un
+  // comando. Il puntatore conta solo se è un mouse: al tocco «entra» ma non
+  // «esce» mai, e lo scorrimento restava fermo per sempre.
+  const [puntatoreSopra, setPuntatoreSopra] = useState(false)
+  const [fuocoDentro, setFuocoDentro] = useState(false)
+  // Il fuoco che un clic lascia sul bottone non è qualcuno che legge: si
+  // riconosce dall'istante del clic appena prima. Senza, dopo un clic su un
+  // punto lo scorrimento restava fermo finché il fuoco non usciva.
+  const ultimoClic = useRef(-Infinity)
+  const inPausa = puntatoreSopra || fuocoDentro
+  const indice = Math.min(scelto, gesti.length - 1)
+  const quanti = gesti.length
+  const vai = (i) => setScelto(((i % quanti) + quanti) % quanti)
+  const scorre = filmati.girano && !inPausa && quanti > 1
+  useEffect(() => {
+    if (!scorre) return undefined
+    // Riparte a ogni cambio di diapositiva (per questo `indice` è fra le
+    // dipendenze): chi ne ha scelta una a mano la vede per quattro secondi
+    // interi, non per quel che restava del giro.
+    const giro = setTimeout(() => setScelto((i) => (Math.min(i, quanti - 1) + 1) % quanti), PASSO_CAROSELLO_MS)
+    return () => clearTimeout(giro)
+  }, [scorre, quanti, indice])
+  const gesto = gesti[indice]
+  // LA DISSOLVENZA (REQ-FLOTTA-074): per un secondo e mezzo la diapositiva
+  // di prima resta sotto, ferma e col suo filmato, mentre la nuova compare
+  // sopra. Poi si spegne.
+  const [uscente, setUscente] = useState(null)
+  const ultimoIndice = useRef(indice)
+  useEffect(() => {
+    if (ultimoIndice.current === indice) return undefined
+    setUscente(ultimoIndice.current)
+    ultimoIndice.current = indice
+    const fine = setTimeout(() => setUscente(null), DISSOLVENZA_MS)
+    return () => clearTimeout(fine)
+  }, [indice])
+  const { base, completo } = PIANI
+  const inclusiNelBase = new Set(base.include)
+  const inclusiNelCompleto = new Set(completo.include)
+  // Quanto conviene il Completo: il Base con tutti i moduli in vendita che il
+  // Completo include, contro il prezzo del Completo. Calcolato dal listino
+  // (DESIGN.md §5.6), e detto solo se è vero. Quelli già nel Base (il menù
+  // digitale) non si pagano due volte.
+  const totaleSulBase =
+    base.prezzo +
+    moduliVisibili.filter((m) => inclusiNelCompleto.has(m.id) && !inclusiNelBase.has(m.id)).reduce((s, m) => s + m.prezzo, 0)
+  const nomeBase = nomePiano(t, base)
+  const nomeCompleto = nomePiano(t, completo)
+  // L'offerta Fondatori (DEC-0005), per i piani che il listino elenca e
+  // che sono in vendita. Sobria: i numeri e la regola, mai i posti rimasti
+  // (sarebbe urgenza, e la pagina non ha il conteggio, che sta sul server).
+  const pianiFondatori = piani.filter((p) => FONDATORI?.prezzi?.[p.id] != null)
+  const fondatori =
+    FONDATORI?.posti > 0 && pianiFondatori.length > 0
+      ? interpola(t.prezzi.fondatori.testo, {
+          posti: FONDATORI.posti,
+          piani: pianiFondatori
+            .map((p) =>
+              interpola(t.prezzi.fondatori.piano, {
+                nome: nomePiano(t, p),
+                prezzo: piuIva(FONDATORI.prezzi[p.id]),
+                lordo: ivaInclusa(FONDATORI.prezzi[p.id]),
+                mesi: FONDATORI.mesi,
+                listino: piuIva(p.prezzo),
+              })
+            )
+            .join('; '),
+          attivazione: FONDATORI.attivazione
+            ? interpola(t.prezzi.fondatori.attivazione, { prezzo: piuIva(FONDATORI.attivazione) })
+            : t.prezzi.fondatori.attivazioneGratuita,
+        })
+      : null
+  // IL CONFRONTO FRA I PIANI (REQ-FLOTTA-063). Le colonne sono i piani in
+  // vendita. Le righe del «lavoro di ogni giorno» nascono dai limiti del
+  // listino (functions/piani.json): un piano senza un limite scritto non
+  // ce l'ha, e la cella lo dice («Senza limite», «Sì», «Tutto»). Nessun
+  // numero scritto a mano.
+  const c = t.prezzi.confronto
+  const limite = (p, chiave) => p.limiti?.[chiave]
+  const righeLavoro = [
+    // Gli stati di servizio (in preparazione, pronto, servito) e la stampa:
+    // il Free non li ha (REQ-FLOTTA-080). `comande: false` per l'app vuol
+    // dire proprio niente stati di servizio (tana-drink, REQ-LIC-005).
+    { id: 'comande', valore: (p) => (limite(p, 'comande') === false ? c.no : c.si) },
+    { id: 'stampa', valore: (p) => (limite(p, 'stampa') === false ? c.no : c.si) },
+    { id: 'prodotti', valore: (p) => (limite(p, 'prodotti_max') ? interpola(c.finoA, { n: limite(p, 'prodotti_max') }) : c.senzaLimite) },
+    { id: 'conti', valore: (p) => (limite(p, 'conti_aperti_max') ? interpola(c.finoA, { n: limite(p, 'conti_aperti_max') }) : c.senzaLimite) },
+    { id: 'utenti', valore: (p) => (limite(p, 'utenti_max') === 1 ? c.soloTitolare : limite(p, 'utenti_max') ? interpola(c.finoA, { n: limite(p, 'utenti_max') }) : c.senzaLimite) },
+    { id: 'sconti', valore: (p) => (limite(p, 'sconti') === false ? c.no : c.si) },
+    { id: 'storico', valore: (p) => (limite(p, 'storico_giorni') ? interpola(c.giorni, { n: limite(p, 'storico_giorni') }) : c.tutto) },
+    // La scritta col nome del prodotto in fondo allo scontrino e al menù
+    // (REQ-FLOTTA-068): la porta chi ha `marchio` nel listino, oggi il Free.
+    // Col nome per esteso, perché è quello che l'app stampa (tana-drink,
+    // src/lib/limiti.js, rigaMarchio).
+    { id: 'marchio', valore: (p) => (limite(p, 'marchio') ? interpola(c.marchio, { nome: NOME_ESTESO }) : c.nessuna) },
+    { id: 'terminali', valore: (p) => String(p.terminali || 1) },
+  ]
+  // Una riga che dice la stessa cosa per tutti i piani in colonna non è un
+  // confronto: senza il Free in vendita, Base e Completo hanno comande,
+  // prodotti, conti, utenti, sconti e storico uguali, e sei righe identiche
+  // nasconderebbero l'unica cosa che conta, i moduli. I terminali restano
+  // sempre: sono un numero che chi compra vuole leggere.
+  // LE COLONNE DEL CONFRONTO: i piani in vendita, più il Free fuori
+  // vendita, come un piano normale, finché l'admin non lo nasconde
+  // (REQ-FLOTTA-071, Daniele, 12/11/2026). Solo qui: non ha la sua scheda
+  // e non si sceglie, perché non si può attivare.
+  const freeFuoriVendita = !vendita.free && !vendita.nascondi_free
+  const pianiConfronto = freeFuoriVendita ? Object.values(PIANI) : piani
+  const righeDaMostrare = righeLavoro.filter((r) => r.id === 'terminali' || new Set(pianiConfronto.map((p) => r.valore(p))).size > 1)
+  // Un modulo, in un piano: compreso, da comprare a parte, o (nel piano
+  // gratuito, che non ha moduli) non disponibile.
+  const cellaModulo = (p, m) => {
+    if ((p.include || []).includes(m.id)) return 'incluso'
+    if (p.gratuito) return 'no'
+    return 'prezzo'
+  }
+
+
+  // Un'azione principale per schermata (DESIGN.md §2): chi è già dentro va
+  // alla sua dashboard, gli altri all'attivazione.
+  const azionePrincipale = (testo) =>
+    utente ? (
+      <Link className="btn grande" to="/dashboard">
+        {testo.dashboard}
+      </Link>
+    ) : (
+      <Link className="btn grande" to="/registrati" {...versoItaliano}>
+        {testo.attiva}
+      </Link>
+    )
+
   return (
-    <main className="landing">
-      <section className="hero">
-        <div className="hero-testo">
-          <p className="occhiello">Gestionale per bar e cocktail bar</p>
-          <h1>{NOME_PRODOTTO}</h1>
-          <p className="slogan">{SLOGAN}</p>
-          <p className="muted hero-descrizione">{DESCRIZIONE}</p>
-          <div className="azioni">
-            {utente ? (
-              <Link className="btn" to="/dashboard">
-                La mia dashboard
-              </Link>
-            ) : (
-              <>
-                <Link className="btn" to="/registrati">
-                  Registra il tuo locale
-                </Link>
-                <a className="btn ghost" href={URL_DEMO} target="_blank" rel="noreferrer">
-                  Guarda l’installazione dimostrativa
-                </a>
-              </>
-            )}
-          </div>
-          <ul className="fatti" aria-label="In breve">
-            <li>Un’installazione per ogni locale</li>
-            <li>Lavora senza rete</li>
-            <li>Attivazione automatica</li>
-          </ul>
-        </div>
-        <figure className="hero-figura">
-          <img src="/hero.jpg" alt="Il banco di un cocktail bar" width="1600" height="600" />
-        </figure>
-      </section>
+    <main className="landing" ref={radice}>
+      {proposta && <AvvisoLingua lingua={lingua} proposta={proposta} chiudi={() => setProposta(null)} />}
 
-      <section id="funzioni" className="sezione">
-        <h2>Funzioni</h2>
-        <p className="muted sezione-sotto">Nata al banco di un cocktail bar, con il locale pieno. Ogni funzione risponde a una serata vera.</p>
-        <div className="griglia-funzioni">
-          {FUNZIONI.map((f) => (
-            <article className="card funzione" key={f.titolo}>
-              <Icona d={f.icona} />
-              <h3>{f.titolo}</h3>
-              <p className="muted">{f.testo}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section id="come-funziona" className="sezione">
-        <h2>Come funziona</h2>
-        <ol className="passi-landing">
-          {PASSI.map(([titolo, testo], i) => (
-            <li key={titolo}>
-              <span className="numero" aria-hidden="true">
-                {i + 1}
-              </span>
-              <h3>{titolo}</h3>
-              <p className="muted">{testo}</p>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      <section id="prezzi" className="sezione">
-        <h2>Piani e prezzi</h2>
-        <p className="muted sezione-sotto">
-          Importi al mese, IVA esclusa. L’attivazione si paga una volta: {euro(ATTIVAZIONE)}.
-        </p>
-        <div className="piani">
-          {pianiInVendita(vendita).map((p) => (
-            <article className={`card piano${p.id === 'completo' ? ' in-evidenza' : ''}`} key={p.id} aria-label={`Piano ${p.nome}`}>
-              {p.id === 'completo' && <span className="etichetta">Tutto incluso</span>}
-              <h3>{p.nome}</h3>
-              <p className="prezzo">
-                {euro(p.prezzo)} <span className="muted small">/ mese</span>
-              </p>
-              <p className="muted">{p.descrizione}</p>
-              {!utente && (
-                <Link className={`btn block${p.id === 'completo' ? '' : ' ghost'}`} to="/registrati">
-                  Parti con {p.nome}
-                </Link>
-              )}
-            </article>
-          ))}
-        </div>
-        <h3>Moduli in più sul piano Base</h3>
-        <table className="moduli">
-          <tbody>
-            {MODULI.filter((m) => moduloVisibile(vendita, m.id)).map((m) => (
-              <tr key={m.id}>
-                <th scope="row">{m.nome}</th>
-                <td className="muted">{m.descrizione}</td>
-                <td className="prezzo-riga">{euro(m.prezzo)} / mese</td>
-              </tr>
+      {/* LA PRIMA SCHERMATA È UN CAROSELLO. Sotto, i cinque filmati in fila,
+          che passano uno all'altro in dissolvenza; sopra un velo scuro;
+          davanti, ferme, le cose che non cambiano: cosa è, cosa fare e la
+          scheda coi fatti. In basso la parola del gesto che si vede, la
+          sua riga, e i comandi: indietro, avanti, i cinque
+          punti, e il tasto di pausa e play, che ferma anche i filmati.
+          Gira solo il filmato della diapositiva che si vede: gli altri
+          sono fermi immagine, così non si scaricano cinque filmati
+          insieme. La parola del gesto è annunciata ai lettori di schermo
+          solo quando si cambia a mano, non a ogni giro. */}
+      <section className="hero" aria-labelledby="hero-titolo">
+        <div className="carosello" aria-hidden="true">
+          <ol className="diapositive">
+            {gesti.map((g, i) => (
+              <li key={g.id} className="diapositiva" data-gesto={g.id} data-visibile={i === indice} data-uscente={i === uscente}>
+                <Filmato nome={g.id} className="hero-sfondo" gira={filmati.girano && (i === indice || i === uscente)} />
+              </li>
             ))}
-            <tr>
-              <th scope="row">Terminale in più</th>
-              <td className="muted">Un altro tablet o telefono che batte sulla stessa cassa.</td>
-              <td className="prezzo-riga">{euro(TERMINALE_IN_PIU)} / mese</td>
-            </tr>
-          </tbody>
-        </table>
-        <p className="muted small">
-          Lo scontrino esce su una stampante termica: non è uno scontrino fiscale. Per quello serve un registratore
-          telematico, che resta del locale.
-        </p>
-      </section>
-
-      <section id="domande" className="sezione">
-        <h2>Domande frequenti</h2>
-        <div className="domande">
-          {DOMANDE.map(([d, r]) => (
-            <details key={d}>
-              <summary>{d}</summary>
-              <p className="muted">{r}</p>
-            </details>
-          ))}
+          </ol>
+        </div>
+        <div className="hero-velo" />
+        <div className="contenitore hero-griglia">
+          <div className="hero-testo">
+            <p className="occhiello hero-occhiello">{t.hero.occhiello}</p>
+            <h1 id="hero-titolo">
+              {titolo.prima}
+              {titolo.seconda && (
+                <>
+                  {' '}
+                  <span className="titolo-accento"><span>{titolo.seconda}</span></span>
+                </>
+              )}
+            </h1>
+            <p className="hero-sotto">{t.hero.sottotitolo}</p>
+            <div className="azioni">
+              {azionePrincipale(t.hero)}
+              <a className="btn ghost grande" href={URL_DEMO} target="_blank" rel="noreferrer">
+                {t.hero.demo} <span className="solo-lettori">{t.hero.nuovaScheda}</span>
+              </a>
+            </div>
+            {t.soloItaliano && <p className="nota-lingua">{t.soloItaliano}</p>}
+          </div>
+          <aside className="hero-scheda">
+            <p className="scheda-titolo">{t.hero.fatti}</p>
+            <ul className="fatti" aria-label={t.hero.fatti}>
+              {vendita.free && <li>{t.hero.free}</li>}
+              <li>{interpola(t.hero.da, { prezzo: piuIva(daPrezzo) })}</li>
+              <li>{t.hero.mensile}</li>
+              {PROVA_GIORNI > 0 && <li>{interpola(t.hero.prova, { giorni: PROVA_GIORNI })}</li>}
+              <li>{automatica ? t.hero.automatica : t.hero.concordata}</li>
+            </ul>
+          </aside>
+        </div>
+        <div className="contenitore">
+          <div
+            id="gesti"
+            className="gesti"
+            role="group"
+            aria-roledescription={t.gesti.carosello}
+            aria-label={t.gesti.titolo}
+            onPointerEnter={(e) => e.pointerType !== 'touch' && setPuntatoreSopra(true)}
+            onPointerLeave={() => setPuntatoreSopra(false)}
+            onPointerDown={() => {
+              ultimoClic.current = Date.now()
+            }}
+            // Il tasto di pausa e play non fa aspettare: chi preme play vuole
+            // che scorra, anche se il fuoco resta lì.
+            onFocus={(e) => setFuocoDentro(Date.now() - ultimoClic.current > 500 && !e.target.closest('.gesto-pausa'))}
+            onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && setFuocoDentro(false)}
+          >
+            <div className="gesto-testo" aria-live={scorre ? 'off' : 'polite'} aria-atomic="true">
+              {/* La chiave rifà nascere solo il contenuto, che compare in
+                  dissolvenza: la regione che si annuncia resta la stessa. */}
+              <div className="gesto-entra" key={gesto.id}>
+                <p className="gesto-parola">{t.gesti.voci[gesto.id].parola}</p>
+                <p className="gesto-riga">{rigaGesto(gesto)}</p>
+              </div>
+            </div>
+            <div className="gesto-comandi">
+              <button type="button" className="gesto-freccia" aria-label={t.gesti.precedente} onClick={() => vai(indice - 1)}>
+                <span aria-hidden="true">‹</span>
+              </button>
+              <ol className="gesto-punti">
+                {gesti.map((g, i) => (
+                  <li key={g.id}>
+                    <button
+                      type="button"
+                      className="gesto-punto"
+                      aria-label={interpola(t.gesti.vaiA, { parola: t.gesti.voci[g.id].parola, n: i + 1, totale: quanti })}
+                      aria-current={i === indice ? 'true' : undefined}
+                      onClick={() => vai(i)}
+                    />
+                  </li>
+                ))}
+              </ol>
+              <button type="button" className="gesto-freccia" aria-label={t.gesti.successiva} onClick={() => vai(indice + 1)}>
+                <span aria-hidden="true">›</span>
+              </button>
+              {filmati.possibile && (
+                // Un tasto tondo come le frecce (REQ-FLOTTA-069, Daniele: «metti
+                // un tasto play pausa»). Il nome dice cosa fa adesso, e per
+                // questo non porta anche aria-pressed.
+                <button
+                  type="button"
+                  className="gesto-freccia gesto-pausa"
+                  aria-label={filmati.girano ? t.gesti.ferma : t.gesti.riprendi}
+                  onClick={filmati.cambia}
+                >
+                  <Icona d={filmati.girano ? PAUSA : PLAY} />
+                </button>
+              )}
+            </div>
+          </div>
+          <p className="nota nota-filmati">{t.gesti.nota}</p>
         </div>
       </section>
 
-      <section id="contatti" className="sezione contatti card">
-        <h2>Vuoi vederlo con il tuo menù?</h2>
-        <p className="muted">
-          Scrivici: ti rispondiamo con una dimostrazione sul tuo listino e un preventivo chiaro, senza impegno.
-        </p>
-        <div className="azioni">
-          <a className="btn" href={`mailto:${EMAIL_CONTATTI}`}>
-            Scrivi a {EMAIL_CONTATTI}
-          </a>
-          {!utente && (
-            <Link className="btn ghost" to="/registrati">
-              Registra il tuo locale
-            </Link>
+      {/* LE FUNZIONI: il testo da una parte e, dall'altra, il pannello di
+          cosa comprende; le righe si alternano. Quando ci saranno le
+          schermate vere dell'app, prenderanno il posto del pannello. */}
+      <section id="funzioni" className="sezione" aria-labelledby="funzioni-titolo">
+        <div className="contenitore">
+          <header className="sezione-testa" data-comparsa>
+            <p className="occhiello">{t.funzioni.occhiello}</p>
+            <h2 id="funzioni-titolo">{t.funzioni.titolo}</h2>
+            <p className="sezione-sotto">{t.funzioni.sotto}</p>
+          </header>
+          <div className="funzioni">
+            {funzioni.map((f, i) => {
+              const v = t.funzioni.voci[f.id]
+              return (
+                <article className="funzione" key={f.id} aria-labelledby={`funzione-${f.id}`} data-comparsa>
+                  <div className="funzione-testo">
+                    <p className="occhiello">
+                      <span className="numero-funzione" aria-hidden="true">
+                        {String(i + 1).padStart(2, '0')}
+                      </span>
+                      {v.occhiello}
+                    </p>
+                    <h3 id={`funzione-${f.id}`}>{v.titolo}</h3>
+                    <p>{v.testo}</p>
+                  </div>
+                  {/* Sempre aperto (Daniele, 11/11/2026: «i box cosa comprende
+                      dovrebbero essere sempre aperti»): per un pomeriggio
+                      è stato un elemento che si apriva. */}
+                  <div className="funzione-riquadro">
+                    <p className="scheda-titolo">{t.funzioni.punti}</p>
+                    <ul className="punti" aria-label={t.funzioni.punti}>
+                      {v.punti.map((p) => (
+                        <li key={p}>
+                          <Icona d={SPUNTA} className="icona spunta" />
+                          {p}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+          {minori.length > 0 && (
+            <ul className="funzioni-minori" data-comparsa>
+              {minori.map((f) => (
+                <li key={f.id} className="minore">
+                  <p className="minore-testo">{t.funzioni.minori[f.id]}</p>
+                </li>
+              ))}
+            </ul>
           )}
+        </div>
+      </section>
+
+      {/* I TRE PASSI: numerati, in fila, divisi da un filo. */}
+      <section id="come-funziona" className="sezione" aria-labelledby="passi-titolo" data-comparsa>
+        <div className="contenitore">
+          <h2 id="passi-titolo" className="titolo-sezione">
+            {t.passi.titolo}
+          </h2>
+          <ol className="passi-landing">
+            {t.passi.voci.map((p, i) => (
+              <li key={p.titolo}>
+                <span className="numero" aria-hidden="true">
+                  {i + 1}
+                </span>
+                <h3>{p.titolo}</h3>
+                <p>{interpola(automatica || !p.concordata ? p.testo : p.concordata, { base: nomeBase })}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      <section id="prezzi" className="sezione" aria-labelledby="prezzi-titolo">
+        <div className="contenitore">
+          <header className="sezione-testa" data-comparsa>
+            <h2 id="prezzi-titolo">{t.prezzi.titolo}</h2>
+            <p className="sezione-sotto">
+              {interpola(t.prezzi.sotto, { iva: IVA_PERCENTO, attivazione: piuIva(ATTIVAZIONE), lordo: ivaInclusa(ATTIVAZIONE) })}
+            </p>
+            {PROVA_GIORNI > 0 && <p className="sezione-sotto">{interpola(t.prezzi.prova, { giorni: PROVA_GIORNI })}</p>}
+          </header>
+          <div className="piani">
+            {piani.map((p) => {
+              const nome = nomePiano(t, p)
+              const evidenza = p.id === 'completo'
+              return (
+                <article
+                  className={`piano${evidenza ? ' in-evidenza' : ''}`}
+                  key={p.id}
+                  aria-label={interpola(t.prezzi.piano, { nome })}
+                >
+                  <div className="piano-testa">
+                    <h3>{nome}</h3>
+                    {evidenza && <span className="etichetta">{t.prezzi.tuttoIncluso}</span>}
+                  </div>
+                  {p.gratuito ? (
+                    <p className="prezzo">
+                      {euro(0)} <span className="prezzo-mese">{t.prezzi.alMese}</span>
+                    </p>
+                  ) : (
+                    <>
+                      <p className="prezzo">
+                        {euro(p.prezzo)} <span className="prezzo-mese">{t.prezzi.piuIvaAlMese}</span>
+                      </p>
+                      <p className="prezzo-lordo">{ivaInclusa(p.prezzo)}</p>
+                      {ANNUALE?.mensilita > 0 && (
+                        <p className="prezzo-anno">
+                          {interpola(t.prezzi.annuale, {
+                            prezzo: piuIva(prezzoAnnuale(p.prezzo)),
+                            lordo: ivaInclusa(prezzoAnnuale(p.prezzo)),
+                            mesi: ANNUALE.mensilita,
+                          })}
+                        </p>
+                      )}
+                    </>
+                  )}
+                  <p className="piano-descrizione">{descrizionePiano(t, p)}</p>
+                  {!utente && (
+                    <Link className={`btn block${evidenza ? '' : ' ghost'}`} to="/registrati" {...versoItaliano}>
+                      {interpola(t.prezzi.inizia, { nome })}
+                    </Link>
+                  )}
+                </article>
+              )
+            })}
+          </div>
+          {fondatori && (
+            <section className="fondatori" aria-labelledby="fondatori-titolo">
+              <h3 id="fondatori-titolo">{t.prezzi.fondatori.titolo}</h3>
+              <p>{fondatori}</p>
+              <p className="nota-piccola">{t.prezzi.fondatori.regola}</p>
+            </section>
+          )}
+          {/* Dal 02/11/2026 Base e Completo hanno gli stessi 3 terminali: la
+              frase non li nomina più, perché non sono una differenza. Il
+              confronto resta vero col Base a 32,70 € (anche a 25 €, coi
+              Fondatori): si mostra solo se lo è. */}
+          {totaleSulBase > completo.prezzo && (
+            <p className="convenienza">
+              {interpola(t.prezzi.convenienza, {
+                base: nomeBase,
+                totale: piuIva(totaleSulBase),
+                completo: nomeCompleto,
+                completo_prezzo: piuIva(completo.prezzo),
+              })}
+            </p>
+          )}
+          {/* IL CONFRONTO FRA I PIANI, CHE SI APRE (REQ-FLOTTA-063). Una
+              colonna per piano in vendita. Prima cosa cambia nel lavoro di
+              ogni giorno, poi i moduli: «Incluso» dove il piano li
+              comprende, il prezzo dove si comprano a parte, «Non
+              disponibile» nel piano gratuito. I prezzi sono al mese e IVA
+              esclusa, e lo dice la riga sotto la tabella. */}
+          <Apribile id="confronto-piani" className="confronto" comando={<span className="apribile-titolo">{c.apri}</span>}>
+            <div className="tabella-confronto">
+              <table className="confronto-tabella">
+                <caption className="solo-lettori">{c.didascalia}</caption>
+                <thead>
+                  <tr>
+                    <td />
+                    {pianiConfronto.map((p) => (
+                      <th scope="col" key={p.id} className={p.id === 'completo' ? 'in-evidenza' : undefined}>
+                        {nomePiano(t, p)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="gruppo">
+                    <th scope="rowgroup" colSpan={pianiConfronto.length + 1}>
+                      {c.gruppoLavoro}
+                    </th>
+                  </tr>
+                  {righeDaMostrare.map((r) => (
+                    <tr key={r.id}>
+                      <th scope="row">{c.righe[r.id]}</th>
+                      {pianiConfronto.map((p) => (
+                        <td key={p.id}>{r.valore(p)}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+                {/* Un <tbody> per gruppo: l'intestazione di gruppo vale per le
+                    righe del suo, e un lettore di schermo non attribuisce «Il
+                    lavoro di ogni giorno» ai moduli. */}
+                <tbody>
+                  <tr className="gruppo">
+                    <th scope="rowgroup" colSpan={pianiConfronto.length + 1}>
+                      {c.gruppoModuli}
+                    </th>
+                  </tr>
+                  {moduliVisibili.map((m) => (
+                    <tr key={m.id}>
+                      <th scope="row">{nomeModulo(t, m)}</th>
+                      {pianiConfronto.map((p) => {
+                        const cosa = cellaModulo(p, m)
+                        return (
+                          <td key={p.id}>
+                            {cosa === 'incluso' && (
+                              <span className="incluso">
+                                <Icona d={SPUNTA} className="icona spunta" />
+                                {t.prezzi.tabella.incluso}
+                              </span>
+                            )}
+                            {cosa === 'no' && <span className="non-incluso">{c.nonDisponibile}</span>}
+                            {cosa === 'prezzo' && (
+                              <>
+                                {piuIva(m.prezzo)}
+                                <span className="iva-inclusa">{ivaInclusa(m.prezzo)}</span>
+                              </>
+                            )}
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  ))}
+                  <tr>
+                    <th scope="row">{t.prezzi.tabella.terminale}</th>
+                    {pianiConfronto.map((p) => (
+                      <td key={p.id}>
+                        {p.gratuito ? (
+                          <span className="non-incluso">{c.nonDisponibile}</span>
+                        ) : (
+                          <>
+                            {piuIva(TERMINALE_IN_PIU)}
+                            <span className="iva-inclusa">{ivaInclusa(TERMINALE_IN_PIU)}</span>
+                          </>
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p className="nota confronto-nota">{c.nota}</p>
+          </Apribile>
+
+          {/* I MODULI, UNO PER UNO, A SCOMPARSA. Una riga per modulo col nome
+              e quanto costa; si apre a dire cosa fa. Prima era una tabella
+              sempre aperta, e in testa ai prezzi c'erano nove righe di
+              moduli prima ancora di aver capito i piani. */}
+          <h3 className="tabella-titolo">{t.prezzi.tabella.titolo}</h3>
+          <ul className="moduli-elenco">
+            {moduliVisibili.map((m) => (
+              <li key={m.id}>
+                <Apribile
+                  id={`modulo-${m.id}`}
+                  className="modulo"
+                  comando={
+                    <>
+                      <span className="apribile-titolo">{nomeModulo(t, m)}</span>{' '}
+                      <span className="modulo-prezzo">
+                        {inclusiNelBase.has(m.id) ? interpola(c.nelPiano, { piano: nomeBase }) : `${piuIva(m.prezzo)} ${t.prezzi.alMese}`}
+                      </span>
+                    </>
+                  }
+                >
+                  <p className="modulo-cosa">{descrizioneModulo(t, m)}</p>
+                  <p className="modulo-dove">
+                    {inclusiNelBase.has(m.id)
+                      ? interpola(c.inclusoInTutti, { base: nomeBase, completo: nomeCompleto })
+                      : interpola(inclusiNelCompleto.has(m.id) ? c.aParteEIncluso : c.aParte, {
+                          base: nomeBase,
+                          completo: nomeCompleto,
+                          prezzo: piuIva(m.prezzo),
+                          lordo: ivaInclusa(m.prezzo),
+                        })}
+                  </p>
+                </Apribile>
+              </li>
+            ))}
+            <li>
+              <Apribile
+                id="modulo-terminale"
+                className="modulo"
+                comando={
+                  <>
+                    <span className="apribile-titolo">{t.prezzi.tabella.terminale}</span>{' '}
+                    <span className="modulo-prezzo">
+                      {piuIva(TERMINALE_IN_PIU)} {t.prezzi.alMese}
+                    </span>
+                  </>
+                }
+              >
+                <p className="modulo-cosa">{t.prezzi.tabella.terminaleTesto}</p>
+                <p className="modulo-dove">
+                  {interpola(c.terminaliNelPiano, {
+                    base: nomeBase,
+                    completo: nomeCompleto,
+                    n_base: plurale(base.terminali || 1, t.prezzi.tabella.terminaliInclusi),
+                    n_completo: plurale(completo.terminali || 1, t.prezzi.tabella.terminaliInclusi),
+                    lordo: ivaInclusa(TERMINALE_IN_PIU),
+                  })}
+                </p>
+              </Apribile>
+            </li>
+          </ul>
+          <p className="nota">{t.prezzi.notaScontrino}</p>
+          {/* Il tetto dell'assistenza e le stampanti a preventivo (DEC-0005):
+              detti qui, prima della firma, e ripetuti nei Termini. */}
+          {ASSISTENZA?.ore_mese > 0 && (
+            <p className="nota">{interpola(t.prezzi.assistenza, { ore: plurale(ASSISTENZA.ore_mese, t.prezzi.ore) })}</p>
+          )}
+          {STAMPANTE?.modalita === 'preventivo' && <p className="nota">{t.prezzi.stampante}</p>}
+          {t.soloItaliano && <p className="nota">{t.soloItaliano}</p>}
+        </div>
+      </section>
+
+      <section id="domande" className="sezione" aria-labelledby="domande-titolo" data-comparsa>
+        {/* Da tablet in su il titolo resta a sinistra e le domande scorrono a destra. */}
+        <div className="contenitore domande-griglia">
+          <h2 id="domande-titolo">{t.domande.titolo}</h2>
+          <div className="domande">
+            {t.domande.voci.map(([d, r]) => (
+              <details key={d}>
+                <summary>{d}</summary>
+                <p>{r}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* LA CHIUSURA: la seconda sezione scura, a tutta larghezza. */}
+      <section id="contatti" className="chiusura" aria-labelledby="chiusura-titolo" data-comparsa>
+        <div className="contenitore chiusura-griglia">
+          <div>
+            <h2 id="chiusura-titolo">{t.chiusura.titolo}</h2>
+            <p>{t.chiusura.testo}</p>
+          </div>
+          <div className="azioni">
+            {azionePrincipale(t.chiusura)}
+            <a className="btn ghost grande" href={`mailto:${EMAIL_CONTATTI}`}>
+              {t.chiusura.scrivici}
+            </a>
+          </div>
         </div>
       </section>
     </main>

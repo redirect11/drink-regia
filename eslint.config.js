@@ -3,9 +3,9 @@ import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 
 export default [
-  { ignores: ['dist', 'coverage', 'node_modules', 'functions/node_modules'] },
+  { ignores: ['dist', 'dist-e2e', 'coverage', 'node_modules', 'functions/node_modules', 'e2e/rapporto', 'e2e/risultati'] },
   {
-    files: ['src/**/*.{js,jsx}', 'tests/**/*.{js,jsx}', 'functions/**/*.js'],
+    files: ['src/**/*.{js,jsx}', 'tests/**/*.{js,jsx}', 'functions/**/*.js', 'e2e/**/*.js', 'scripts/lib-semina.mjs'],
     languageOptions: {
       ecmaVersion: 2021,
       // __APP_VERSION__ la definisce Vite (vite.config.js, vitest.config.mjs).

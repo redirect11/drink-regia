@@ -17,6 +17,7 @@ const db = vi.hoisted(() => ({
 vi.mock('../src/lib/db.js', () => db)
 
 import ChiudiLocale from '../src/pages/ChiudiLocale.jsx'
+import { Termini, Privacy } from '../src/pages/Legali.jsx'
 
 const attiva = { stato: 'attiva', progetto: 'drinkpos-prova-bar', licenza_stato: 'attiva' }
 
@@ -53,6 +54,18 @@ describe('chiudere il locale dalla dashboard', () => {
     expect(screen.queryByRole('button', { name: 'Annulla la cancellazione' })).toBeNull()
   })
 
+  // REQ-FLOTTA-025: fermo per il pagamento, i dati restano 90 giorni.
+  it('fermo per il pagamento: fino a quando restano i dati, e che pagando non si cancella', () => {
+    render(
+      <ChiudiLocale
+        istanza={{ ...attiva, licenza_stato: 'sospesa', eliminazione: { stato: 'programmata', quando: '2027-01-31T10:00:00Z', richiedente: 'conservazione', motivo: 'pagamento non ricevuto' } }}
+      />
+    )
+    expect(screen.getByText(/L’app del locale è ferma \(pagamento non ricevuto\)/)).toHaveTextContent('31 gennaio 2027')
+    expect(screen.getByText(/basta riattivare l’abbonamento/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Annulla la cancellazione' })).toBeNull()
+  })
+
   it('un locale chiuso da noi, interno o esistente: niente sezione', () => {
     const { container, rerender } = render(<ChiudiLocale istanza={{ ...attiva, licenza_stato: 'chiusa' }} />)
     expect(container).toBeEmptyDOMElement()
@@ -74,5 +87,20 @@ describe('chiudere il locale dalla dashboard', () => {
     render(<ChiudiLocale istanza={{ stato: 'eliminata', eliminata_il: '2026-01-01T00:00:00Z', eliminazione: { stato: 'eliminata', archivio: { zip: 'a.zip' }, scade_il: '2026-02-01T00:00:00Z' } }} />)
     expect(screen.getByText(/non è più disponibile/)).toBeInTheDocument()
     expect(screen.queryByRole('button')).toBeNull()
+  })
+})
+
+// I termini e l'informativa dicono la conservazione dei dati di un locale
+// fermo (REQ-FLOTTA-025): 90 giorni, gli avvisi, e il Free che non perde niente.
+describe("i termini dicono la conservazione dei dati", () => {
+  it("90 giorni, tre avvisi, e al Free i dati restano", () => {
+    const { unmount } = render(<Termini />)
+    const testo = document.body.textContent
+    expect(testo).toMatch(/conservati per 90 giorni e poi cancellati definitivamente/)
+    expect(testo).toMatch(/quando la cancellazione viene programmata, 7 giorni prima e il giorno prima/)
+    expect(testo).toMatch(/continua a lavorare con il piano Free e i suoi dati non vengono cancellati/)
+    unmount()
+    render(<Privacy />)
+    expect(document.body.textContent).toMatch(/quei dati sono conservati per 90 giorni, con un avviso al titolare/)
   })
 })

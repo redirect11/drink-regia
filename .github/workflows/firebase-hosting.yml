@@ -1,24 +1,32 @@
 name: Deploy to Firebase
 
-# DOVE VA (decisione dell'utente del 30/10/2026):
-#   push su `develop`             → TEST (drink-regia-test), subito
-#   tag su un commit di `main`    → PRODUZIONE (drink-regia)
-#   tag fuori da `main`           → nessun deploy: si ferma e lo dice
-#   lancio a mano su un ramo      → TEST, per provare un ramo di lavoro
-# In produzione si va solo col tag su main: né un push né un lancio a mano
-# ci arrivano, nemmeno su main. Il test segue develop, cioè quello che
-# andrà nel prossimo rilascio. I segreti stanno nelle GitHub Environments
+# DOVE VA (decisione dell'utente del 09/11/2026: «i rilasci solo su tag»):
+#   tag su un commit NON in `main`  → TEST (drink-regia-test), poi il COLLAUDO:
+#                                     le prove in sola lettura e quelle che
+#                                     scrivono (registrazione, licenza,
+#                                     aggiornamento di un locale di prova)
+#   tag su un commit di `main`      → PRODUZIONE (drink-regia), solo se un
+#                                     collaudo è riuscito sul test per un
+#                                     commit che questo contiene: il
+#                                     collaudo non si ripete in produzione
+#   lancio a mano su un ramo        → TEST, senza collaudo: per provare un ramo
+#   push                            → niente: lint, test e build (test.yml)
+# Prima (30/10/2026) un push su develop pubblicava sul test da solo: il test
+# cambiava sotto le mani di chi ci stava provando, e un rilascio non era un
+# gesto. Ora a pubblicare è sempre il tag, come in tana-drink
+# (docs/gitflow.md là): `vX.Y.Z-beta` su develop per il test, `vX.Y.Z` su
+# main per la produzione. I segreti stanno nelle GitHub Environments
 # «production» e «test», con gli stessi nomi.
 on:
   push:
-    branches:
-      - develop
     tags:
       - '**'
   workflow_dispatch:
 
 permissions:
   contents: read
+  # La garanzia legge i run passati di questo workflow.
+  actions: read
 
 concurrency:
   group: firebase-deploy
@@ -29,8 +37,8 @@ jobs:
     name: Lint e test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
@@ -44,8 +52,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       ambiente: ${{ steps.scelta.outputs.ambiente }}
+      collaudo: ${{ steps.scelta.outputs.collaudo }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
       - id: scelta
@@ -55,14 +64,17 @@ jobs:
             git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
             if git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
               echo "ambiente=production" >> "$GITHUB_OUTPUT"
-              echo "Il tag ${GITHUB_REF_NAME} è su main → PRODUZIONE."
+              echo "collaudo=false" >> "$GITHUB_OUTPUT"
+              echo "Il tag ${GITHUB_REF_NAME} è su main → PRODUZIONE, se il collaudo sul test è riuscito."
             else
-              echo "::error::Il tag ${GITHUB_REF_NAME} non è su main: in produzione va solo un tag su main, e il test segue develop. Nessun deploy."
-              exit 1
+              echo "ambiente=test" >> "$GITHUB_OUTPUT"
+              echo "collaudo=true" >> "$GITHUB_OUTPUT"
+              echo "Il tag ${GITHUB_REF_NAME} non è su main → TEST, poi il collaudo."
             fi
           else
             echo "ambiente=test" >> "$GITHUB_OUTPUT"
-            echo "${GITHUB_REF_NAME} è un ramo → TEST."
+            echo "collaudo=false" >> "$GITHUB_OUTPUT"
+            echo "${GITHUB_REF_NAME} è un ramo, lanciato a mano → TEST, senza collaudo."
           fi
 
   prova:
@@ -76,9 +88,54 @@ jobs:
       versione: ${{ github.ref_name }}
     secrets: inherit
 
+  # Dopo il deploy sul test: le prove Playwright in sola lettura sempre; con
+  # un tag anche il collaudo che scrive (e2e.yml). Il nome del job lo dice,
+  # ed è quello che la garanzia cerca.
+  collaudo:
+    name: Prove sul sito di test
+    needs: [destinazione, prova]
+    if: needs.destinazione.outputs.ambiente == 'test'
+    uses: ./.github/workflows/e2e.yml
+    with:
+      collaudo: ${{ needs.destinazione.outputs.collaudo == 'true' }}
+    secrets: inherit
+
+  # LA GARANZIA: in produzione va solo codice che ha passato il collaudo sul
+  # test. Si cerca, fra i run riusciti di questo workflow, uno il cui commit
+  # sta nella storia di questo (il tag -beta su develop, poi fuso in main) e
+  # in cui il passo «Collaudo sul test» (e2e.yml) è verde. Senza, il deploy
+  # non parte e lo dice: si tagga una -beta su develop e si aspetta il
+  # collaudo.
+  garanzia:
+    name: Collaudo riuscito sul test
+    needs: destinazione
+    if: needs.destinazione.outputs.ambiente == 'production'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      - name: Cerca il collaudo
+        run: |
+          trovato=""
+          for riga in $(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/firebase-hosting.yml/runs?event=push&status=success&per_page=100" --jq '.workflow_runs[] | "\(.id):\(.head_sha)"'); do
+            id="${riga%%:*}"; sha="${riga##*:}"
+            [ "$sha" = "$GITHUB_SHA" ] && continue
+            git merge-base --is-ancestor "$sha" "$GITHUB_SHA" 2>/dev/null || continue
+            esito=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?per_page=100" --jq '[.jobs[].steps[]? | select(.name == "Collaudo sul test") | .conclusion] | first // "nessuno"')
+            if [ "$esito" = "success" ]; then trovato="$sha (run $id)"; break; fi
+          done
+          if [ -z "$trovato" ]; then
+            echo "::error::Nessun collaudo riuscito sul test per un commit contenuto in ${GITHUB_REF_NAME}. Tagga una versione -beta su develop, aspetta che «Collaudo sul test» sia verde, poi ritagga su main."
+            exit 1
+          fi
+          echo "Collaudo riuscito sul test: $trovato → si pubblica in produzione."
+
   produzione:
     name: Produzione
-    needs: destinazione
+    needs: [destinazione, garanzia]
     if: needs.destinazione.outputs.ambiente == 'production'
     uses: ./.github/workflows/deploy.yml
     with:

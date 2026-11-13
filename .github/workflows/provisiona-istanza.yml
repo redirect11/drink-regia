@@ -2,15 +2,32 @@ name: Provisiona istanza
 
 # L'ATTIVAZIONE DI UN'ISTANZA (REQ-FLOTTA-006, docs/flotta-nella-regia.md).
 # La lancia la regia (Function avviaProvisioning) con lo slug del locale, o
-# una persona dalla pagina Actions. Fa, nell'ordine:
-#   1. terraform apply in infra/istanza → il progetto drinkpos-<slug> con
-#      Firestore, Hosting, web app, Auth (o lo completa, se l'utente lo ha
-#      creato a mano perché non c'è un'Organizzazione Google Cloud);
-#   2. l'app di tana-drink al `ref` chiesto, in app/: la cartella
-#      clienti/<slug>/ e la build CLIENTE=<slug>;
-#   3. il deploy di regole, indici, Functions e hosting sul progetto nuovo;
-#   4. la licenza e il nome del locale nelle impostazioni dell'istanza;
-#   5. l'esito alla regia (sempre, anche se qualcosa è andato storto).
+# una persona dalla pagina Actions. Quattro job, in fila:
+#   1. `controlla`: gli input e la versione dell'app di tana-drink al `ref`
+#      chiesto (è un rilascio? sta su main?). Senza credenziali.
+#   2. `prepara`: terraform apply in infra/istanza → il progetto
+#      drinkpos-<slug> con Firestore, Hosting, web app, Auth (o lo completa,
+#      se l'utente lo ha creato a mano perché non c'è un'Organizzazione
+#      Google Cloud). Con la chiave, ma senza il codice dell'app.
+#   3. `compila`: l'app di tana-drink allo SHA controllato, la cartella
+#      clienti/<slug>/ e la build CLIENTE=<slug>, impacchettata in un
+#      artifact. Senza credenziali e senza environment.
+#   4. `pubblica`: la licenza (licenza/attuale) e il nome del locale nel
+#      database, prima dell'app; il deploy di regole, indici, Functions e
+#      hosting; il titolare admin; l'esito alla regia (sempre, anche se
+#      qualcosa è andato storto). Con la chiave.
+#
+# PERCHÉ QUATTRO JOB (REQ-FLOTTA-047, audit del 09/11/2026, punto 6): fino
+# al 09/11 un job solo faceva tutto, e `npm ci` e `npm run build` dell'app
+# giravano con la chiave del provisioning in GOOGLE_APPLICATION_CREDENTIALS.
+# Una dipendenza compromessa nel lockfile di tana-drink (un postinstall, un
+# plugin di Vite) l'avrebbe letta e portata via: è la chiave che è
+# proprietaria di tutti i locali. Ora il codice dell'app gira solo nel job
+# `compila`, che non ha né environment né secret; i job con la chiave non
+# scaricano l'app e non ne installano niente. La build ha bisogno della
+# configurazione web del progetto, che la dà il Terraform: per questo
+# `prepara` viene prima e la passa come output (è pubblica per disegno: è
+# quella che finisce nel pacchetto che il browser scarica).
 #
 # Sta nella regia dal 29/10/2026: prima stava in tana-drink, che oggi dà
 # solo l'app. Ogni regia ha il suo environment, scelto da `ambiente`:
@@ -21,7 +38,7 @@ name: Provisiona istanza
 #
 # Gli input arrivano da fuori: entrano nei passi solo come variabili
 # d'ambiente, mai scritti dentro un comando, e si controllano per primi
-# (audit del 22/10/2026, C1).
+# (audit del 22/10/2026, C1). Lo stesso vale per gli output dei job.
 on:
   workflow_dispatch:
     inputs:
@@ -45,6 +62,11 @@ on:
         default: ''
       uid:
         description: 'Il titolare nella regia (clienti/{uid})'
+        required: false
+        type: string
+        default: ''
+      email:
+        description: 'L’email del titolare: diventa l’admin del locale (REQ-FLOTTA-029)'
         required: false
         type: string
         default: ''
@@ -75,24 +97,40 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  # IL TIPO DI LOCALE che arriva all'app (REQ-FLOTTA-065, tana-drink
+  # REQ-VENUE-007). Per ora sempre «bar», a tutti: Daniele, 12/11/2026,
+  # «tutti i tipi vanno a bar finché non decido altrimenti». Il tipo
+  # scelto alla registrazione resta salvato nella scheda del cliente com'è.
+  TIPO_LOCALE: bar
   SLUG: ${{ inputs.slug }}
   NOME: ${{ inputs.nome_locale }}
   PIANO: ${{ inputs.piano }}
   MODULI: ${{ inputs.moduli }}
   UID_TITOLARE: ${{ inputs.uid }}
+  EMAIL_TITOLARE: ${{ inputs.email }}
   REF_APP: ${{ inputs.ref }}
   AMBIENTE: ${{ inputs.ambiente }}
   PROFILO: ${{ inputs.profilo }}
   PROGETTO: drinkpos-${{ inputs.slug }}
   # I segreti che le Functions dell'app di tana-drink dichiarano
   # (defineSecret): contratto con tana-drink, docs/handover.md §7.
+  # La «Chiave AI» (REGIA_AI_KEY) non c'è più: l'AI del locale passa dal
+  # gettone di Google del suo account ai-locale (REQ-FLOTTA-079).
   SEGRETI_APP: SUMUP_API_KEY
 
 jobs:
-  provisiona:
-    name: Attiva ${{ inputs.slug }} (${{ inputs.ambiente }})
+  # 1. I CONTROLLI, senza credenziali: fermarsi qui non costa niente, nessun
+  #    progetto è ancora nato. L'app si scarica soltanto (git non esegue il
+  #    suo codice) per sapere se la versione va bene per questa regia.
+  controlla:
+    name: Controlla ${{ inputs.slug }} (${{ inputs.ambiente }})
     runs-on: ubuntu-latest
-    environment: ${{ inputs.ambiente == 'test' && 'flotta-test' || 'flotta' }}
+    outputs:
+      # Lo SHA controllato: è quello che `compila` compila e che `pubblica`
+      # riferisce alla regia (REQ-FLOTTA-048). Un ramo che si muove fra un
+      # job e l'altro non cambia quello che si pubblica.
+      commit: ${{ steps.app.outputs.commit }}
+      ramo: ${{ steps.app.outputs.ramo }}
     steps:
       - name: Input validi
         run: |
@@ -100,6 +138,8 @@ jobs:
           [[ "$PIANO" =~ ^(free|base|completo)$ ]] || { echo "::error::Piano non valido."; exit 1; }
           [[ "$MODULI" =~ ^[a-z_,]*$ ]] || { echo "::error::Moduli non validi."; exit 1; }
           [[ "$UID_TITOLARE" =~ ^[A-Za-z0-9]*$ ]] || { echo "::error::uid non valido."; exit 1; }
+          # L'email del titolare (REQ-FLOTTA-029): vuota, o un'email.
+          [[ -z "$EMAIL_TITOLARE" || "$EMAIL_TITOLARE" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]{2,}$ ]] || { echo "::error::Email del titolare non valida."; exit 1; }
           [[ "$REF_APP" =~ ^[A-Za-z0-9._/-]{1,100}$ ]] || { echo "::error::ref non valido."; exit 1; }
           [[ "$AMBIENTE" =~ ^(produzione|test)$ ]] || { echo "::error::ambiente non valido."; exit 1; }
           [[ "$PROFILO" =~ ^(completo|leggero)$ ]] || { echo "::error::profilo non valido."; exit 1; }
@@ -121,23 +161,9 @@ jobs:
             exit 1
           fi
 
-      - name: La configurazione dell'environment
-        env:
-          TFSTATE_BUCKET: ${{ vars.TFSTATE_BUCKET }}
-          REGIA_SA_EMAIL: ${{ vars.REGIA_SA_EMAIL }}
-          REGIA_URL: ${{ vars.REGIA_URL }}
-          REGIA_CALLBACK_URL: ${{ vars.REGIA_CALLBACK_URL }}
-        run: |
-          for v in TFSTATE_BUCKET REGIA_SA_EMAIL REGIA_URL REGIA_CALLBACK_URL; do
-            if [ -z "${!v}" ]; then echo "::error::Manca la variabile $v nell'environment (infra/README.md)."; exit 1; fi
-          done
-
-      # La regia: il Terraform, lo script della licenza e la sua mappa.
-      - uses: actions/checkout@v4
-
       # L'app dei locali, alla versione chiesta. tana-drink è pubblico.
       # Con tutta la storia: serve a sapere se la versione sta su main.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           repository: redirect11/tana-drink
           ref: ${{ inputs.ref }}
@@ -151,6 +177,7 @@ jobs:
       # cliente, cosa che la 1.9.x non sa: meglio fermarsi qui che dopo
       # aver creato il progetto.
       - name: La versione dell'app va bene per questa regia?
+        id: app
         working-directory: app
         run: |
           if [ ! -f scripts/genera-cliente.mjs ]; then
@@ -164,15 +191,41 @@ jobs:
               exit 1
             fi
           fi
+          # Il ramo che l'app mostra accanto alla versione (vite.config.js di
+          # tana-drink lo prende da GIT_BRANCH, come fa il deploy della Tana):
+          # col checkout di un tag git non lo sa da sé.
+          git fetch --no-tags -q origin +refs/heads/main:refs/remotes/origin/main +refs/heads/develop:refs/remotes/origin/develop
+          if git merge-base --is-ancestor HEAD origin/main; then RAMO=main
+          elif git merge-base --is-ancestor HEAD origin/develop; then RAMO=develop
+          else RAMO="$REF_APP"; fi
+          echo "ramo=$RAMO" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: |
-            functions/package-lock.json
-            app/package-lock.json
-            app/functions/package-lock.json
+  # 2. IL PROGETTO, col Terraform. Qui c'è la chiave e non c'è l'app: su
+  #    questo runner gira solo il codice della regia e Terraform.
+  prepara:
+    name: Prepara il progetto di ${{ inputs.slug }}
+    needs: controlla
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.ambiente == 'test' && 'flotta-test' || 'flotta' }}
+    outputs:
+      # L'indirizzo del sito. La configurazione web (VITE_FIREBASE_*) va al
+      # job compila in un artifact: come output GitHub la scartava.
+      url: ${{ steps.web.outputs.url }}
+    steps:
+      - name: La configurazione dell'environment
+        env:
+          TFSTATE_BUCKET: ${{ vars.TFSTATE_BUCKET }}
+          REGIA_SA_EMAIL: ${{ vars.REGIA_SA_EMAIL }}
+          REGIA_URL: ${{ vars.REGIA_URL }}
+          REGIA_CALLBACK_URL: ${{ vars.REGIA_CALLBACK_URL }}
+        run: |
+          for v in TFSTATE_BUCKET REGIA_SA_EMAIL REGIA_URL REGIA_CALLBACK_URL; do
+            if [ -z "${!v}" ]; then echo "::error::Manca la variabile $v nell'environment (infra/README.md)."; exit 1; fi
+          done
+
+      # La regia: il Terraform.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Credenziali di provisioning
         env:
@@ -183,7 +236,7 @@ jobs:
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
           echo "PROVISIONING_SA_EMAIL=$(node -e "console.log(JSON.parse(process.argv[1]).client_email)" "$SA_JSON")" >> "$GITHUB_ENV"
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
           terraform_version: '1.9.8'
           terraform_wrapper: false
@@ -244,20 +297,196 @@ jobs:
           TF_VAR_profilo: ${{ inputs.profilo }}
         run: terraform apply -input=false -auto-approve
 
-      - name: Il .env della build dal progetto nuovo
+      # Quello che la build deve sapere del progetto nuovo, in una riga di
+      # JSON, in un artifact per il job `compila`: come output GitHub la
+      # scartava («may contain secret», 09/11/2026). Niente di segreto: la
+      # chiave API di Firebase è pubblica per disegno e sta già nel
+      # pacchetto che il browser scarica.
+      - name: La configurazione web del progetto nuovo
+        id: web
         working-directory: infra/istanza
         run: |
-          terraform output -json config_web | node -e '
-            const c = JSON.parse(require("fs").readFileSync(0, "utf8"));
-            require("fs").writeFileSync(process.argv[1], Object.entries(c).map(([k, v]) => `${k}=${v}`).join("\n") + "\n");
-          ' "$GITHUB_WORKSPACE/app/.env"
-          echo "URL_ISTANZA=$(terraform output -raw url)" >> "$GITHUB_ENV"
+          terraform output -json config_web | node -e 'process.stdout.write(JSON.stringify(JSON.parse(require("fs").readFileSync(0, "utf8"))))' > "$RUNNER_TEMP/config-web.json"
+          echo "url=$(terraform output -raw url)" >> "$GITHUB_OUTPUT"
 
-      - name: Dipendenze
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: config-web
+          path: ${{ runner.temp }}/config-web.json
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Pulizia credenziali
+        if: always()
+        run: rm -f "$RUNNER_TEMP/sa.json"
+
+  # 3. LA BUILD, senza credenziali e senza environment: è l'unico job in cui
+  #    gira codice di tana-drink (npm ci coi postinstall, genera-cliente,
+  #    Vite coi suoi plugin), e qui non c'è niente da portare via.
+  compila:
+    name: Compila l'app per ${{ inputs.slug }}
+    needs: [controlla, prepara]
+    runs-on: ubuntu-latest
+    steps:
+      # Lo stesso commit che `controlla` ha approvato, non il ref di nuovo.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: redirect11/tana-drink
+          ref: ${{ needs.controlla.outputs.commit }}
+          path: app
+          fetch-depth: 0
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            app/package-lock.json
+            app/functions/package-lock.json
+
+      # La configurazione web arriva dal job prepara in un artifact: come
+      # output GitHub la scartava («Skip output since it may contain
+      # secret»: la riga di JSON somiglia a un valore mascherato, e il job
+      # compila restava senza; 09/11/2026, tre aggiornamenti falliti).
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: config-web
+          path: ${{ runner.temp }}/config-web
+
+      - name: Il .env della build dal progetto nuovo
         run: |
-          npm ci --prefix functions
+          node -e '
+            const c = JSON.parse(require("fs").readFileSync(process.argv[2], "utf8"));
+            if (!c.VITE_FIREBASE_PROJECT_ID || !c.VITE_FIREBASE_API_KEY) { console.error("::error::La configurazione web del progetto non è arrivata dal job prepara."); process.exit(1); }
+            require("fs").writeFileSync(process.argv[1], Object.entries(c).map(([k, v]) => `${k}=${v}`).join("\n") + "\n");
+          ' "$GITHUB_WORKSPACE/app/.env" "$RUNNER_TEMP/config-web/config-web.json"
+
+      - name: Dipendenze dell'app
+        run: |
           npm ci --prefix app
           npm ci --prefix app/functions
+
+      - name: La cartella del cliente
+        working-directory: app
+        run: |
+          # Si chiede all'app se sa leggere il tipo di locale, e quali valori
+          # accetta (REQ-FLOTTA-065): solo se risponde di sì ed elenca il
+          # tipo da mandare, la chiamata lo porta. Un'app che non lo sa (la
+          # 1.10 di oggi esce con 1, perché manca --slug) si lancia come prima.
+          SA=$(node scripts/genera-cliente.mjs --sa tipo-locale 2>/dev/null) || SA=''
+          # `--` prima degli argomenti: senza, node leggerebbe come sue le
+          # opzioni (una risposta «--version» darebbe un sì). E si vuole un
+          # elenco: dentro un testo, `includes` troverebbe «bar» in «barista».
+          if [ -n "$SA" ] && node -e 'const v = JSON.parse(process.argv[1])?.["tipo-locale"]; process.exit(Array.isArray(v) && v.includes(process.argv[2]) ? 0 : 1)' -- "$SA" "$TIPO_LOCALE" 2>/dev/null; then
+            node scripts/genera-cliente.mjs --slug "$SLUG" --nome "$NOME" --tipo-locale "$TIPO_LOCALE"
+          else
+            # Una risposta che c'è ma non è l'elenco atteso è un errore di
+            # formato dell'app: si ricade sulla chiamata di prima, ma lo si
+            # dice, sennò il giorno che tana-drink lo implementa nessuno lo
+            # vede. La risposta non si stampa: viene dal codice dell'app.
+            if [ -n "$SA" ]; then echo "::warning::L'app risponde a --sa tipo-locale, ma non con l'elenco atteso: la cartella si crea come prima."; fi
+            echo "L'app non legge il tipo di locale «$TIPO_LOCALE»: la cartella si crea come prima."
+            node scripts/genera-cliente.mjs --slug "$SLUG" --nome "$NOME"
+          fi
+
+      - name: Build
+        working-directory: app
+        env:
+          BASE_PATH: /
+          CLIENTE: ${{ inputs.slug }}
+          VITE_APP_ENV: production
+          # L'app sa di essere leggera anche prima di leggere la licenza
+          # (tana-drink, REQ-LIC-004): niente Functions, Storage, SumUp.
+          VITE_PROFILO: ${{ env.PROFILO }}
+          # A quale regia si presenta l'app al primo avvio (REQ-FLOTTA-026).
+          VITE_REGIA_PROGETTO: ${{ inputs.ambiente == 'test' && 'drink-regia-test' || 'drink-regia' }}
+          # Ramo e commit che l'app mostra accanto alla versione (vite.config.js
+          # di tana-drink): col checkout di uno SHA git non li sa da sé.
+          GIT_BRANCH: ${{ needs.controlla.outputs.ramo }}
+          GIT_COMMIT: ${{ needs.controlla.outputs.commit }}
+        run: npm run build
+
+      # REGIA_PROGETTO (REQ-FLOTTA-075): la regia che l'AI del locale chiama,
+      # dall'ambiente del workflow e mai da un input libero.
+      - name: Functions .env del progetto
+        env:
+          REGIA_PROGETTO: ${{ inputs.ambiente == 'test' && 'drink-regia-test' || 'drink-regia' }}
+        run: printf 'VENUE_NAME=%s\nREGIA_PROGETTO=%s\n' "$NOME" "$REGIA_PROGETTO" > "app/functions/.env.$PROGETTO"
+
+      # Tutto quello che il deploy chiede: dist/, regole, indici, firebase.json,
+      # functions/ con i suoi node_modules (firebase-tools li carica per
+      # scoprire le Functions) e il .env della build (il passo del titolare
+      # legge la chiave API da lì). Fuori i node_modules della radice, che
+      # servivano solo a compilare, e la storia git.
+      - name: Il pacchetto per il deploy
+        run: tar -czf app.tgz --exclude=app/node_modules --exclude=app/.git app
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: app
+          path: app.tgz
+          retention-days: 1
+          if-no-files-found: error
+
+  # 4. IL DEPLOY, con la chiave: la licenza, lo Storage, i segreti, il
+  #    deploy, il titolare, l'esito. L'app arriva già compilata.
+  pubblica:
+    name: Pubblica ${{ inputs.slug }} (${{ inputs.ambiente }})
+    # Anche se un job prima è fallito: l'esito deve arrivare alla regia
+    # (il primo passo fa fallire il job, e poi parla solo «Esito alla regia»).
+    if: ${{ !cancelled() }}
+    needs: [controlla, prepara, compila]
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.ambiente == 'test' && 'flotta-test' || 'flotta' }}
+    env:
+      URL_ISTANZA: ${{ needs.prepara.outputs.url }}
+      # Lo SHA di tana-drink che si pubblica (REQ-FLOTTA-048).
+      COMMIT_APP: ${{ needs.controlla.outputs.commit }}
+    steps:
+      - name: I job precedenti sono riusciti?
+        if: needs.compila.result != 'success'
+        env:
+          ESITI: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "::error::Un job precedente non è riuscito ($ESITI): niente deploy, l'esito va alla regia."
+          exit 1
+
+      # La regia: gli script della licenza, dello Storage, dei segreti e
+      # del titolare, con le loro dipendenze in functions/.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: app
+
+      - name: L'app compilata
+        run: tar -xzf app.tgz && rm app.tgz
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Dipendenze della regia
+        run: npm ci --prefix functions
+
+      - name: Credenziali di provisioning
+        env:
+          SA_JSON: ${{ secrets.PROVISIONING_SA_JSON }}
+        run: |
+          if [ -z "$SA_JSON" ]; then echo "::error::Manca il segreto PROVISIONING_SA_JSON (infra/README.md)."; exit 1; fi
+          echo "$SA_JSON" > "$RUNNER_TEMP/sa.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
+
+      # La licenza prima dell'app (tana-drink, 01/11/2026): il database c'è
+      # dal Terraform, e l'app che arriva dopo la trova già.
+      - name: Licenza e nome del locale nell'istanza
+        env:
+          REGIA_URL: ${{ vars.REGIA_URL }}
+        run: |
+          node scripts/licenza-istanza.mjs --project "$PROGETTO" --slug "$SLUG" \
+            --nome "$NOME" --piano "$PIANO" --moduli "$MODULI" --regia "$REGIA_URL"
 
       # Il bucket di Storage dell'app: lo può creare solo l'API di Firebase,
       # non il Terraform (scripts/storage-istanza.mjs). Senza, il deploy di
@@ -272,24 +501,6 @@ jobs:
       - name: I segreti dell'app
         if: env.PROFILO == 'completo'
         run: node scripts/segreti-istanza.mjs --project "$PROGETTO" --segreti "$SEGRETI_APP"
-
-      - name: La cartella del cliente
-        working-directory: app
-        run: node scripts/genera-cliente.mjs --slug "$SLUG" --nome "$NOME"
-
-      - name: Build
-        working-directory: app
-        env:
-          BASE_PATH: /
-          CLIENTE: ${{ inputs.slug }}
-          VITE_APP_ENV: production
-          # L'app sa di essere leggera anche prima di leggere la licenza
-          # (tana-drink, REQ-LIC-004): niente Functions, Storage, SumUp.
-          VITE_PROFILO: ${{ inputs.profilo }}
-        run: npm run build
-
-      - name: Functions .env del progetto
-        run: printf 'VENUE_NAME=%s\n' "$NOME" > "app/functions/.env.$PROGETTO"
 
       - name: Deploy regole, indici, Functions e hosting
         working-directory: app
@@ -308,18 +519,24 @@ jobs:
             sleep 90
           done
 
-      - name: Licenza e nome del locale nell'istanza
-        env:
-          REGIA_URL: ${{ vars.REGIA_URL }}
-        run: |
-          node scripts/licenza-istanza.mjs --project "$PROGETTO" --slug "$SLUG" \
-            --nome "$NOME" --piano "$PIANO" --moduli "$MODULI" --regia "$REGIA_URL"
+      # IL TITOLARE, ADMIN DEL SUO LOCALE (REQ-FLOTTA-029, l'utente il
+      # 02/11/2026: «quando viene deployato qualcosa, bisogna sempre
+      # aggiungere come utente admin chi ha richiesto la sottoscrizione»).
+      # L'account c'è, è admin, e finché non ha una password gli arriva
+      # l'email per impostarla. Si può ripetere senza danni. L'account ha
+      # lo stesso uid del titolare nella regia (M7): prima l'input `uid`
+      # arrivava e non si usava.
+      - name: Il titolare, admin del suo locale
+        if: env.EMAIL_TITOLARE != ''
+        run: node scripts/titolare-istanza.mjs --project "$PROGETTO" --uid "$UID_TITOLARE" --email "$EMAIL_TITOLARE" --env app/.env --sito "$URL_ISTANZA"
 
       - name: Versione pubblicata
         run: echo "VERSIONE=v$(node -p "require('./app/package.json').version")" >> "$GITHUB_ENV"
 
       # L'ESITO ALLA REGIA, sempre: anche un fallimento si deve vedere nella
-      # dashboard del titolare, non solo qui.
+      # dashboard del titolare, non solo qui. Porta anche `commit`, lo SHA di
+      # tana-drink pubblicato (dal job `controlla`): «main» è un riferimento
+      # mobile, lo SHA dice cosa gira davvero (REQ-FLOTTA-048).
       - name: Esito alla regia
         if: always()
         env:
@@ -334,7 +551,9 @@ jobs:
             const [url, secret, slug, stato, u, progetto, versione, errore] = process.argv.slice(1);
             fetch(url, { method: "POST", headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
               body: JSON.stringify({ slug, stato, url: u || null, progetto, versione: versione || null, errore: errore || null,
-                ambiente: "produzione", operazione: "attivazione", profilo: process.env.PROFILO || null, ref: process.env.REF_APP || null }) })
+                ambiente: "produzione", operazione: "attivazione", profilo: process.env.PROFILO || null, ref: process.env.REF_APP || null,
+                commit: process.env.COMMIT_APP || null,
+                run_id: Number(process.env.RUN_ID), inviato_il: new Date().toISOString() }) })
               .then((r) => { console.log("regia:", r.status); if (r.status >= 300) process.exit(1); })
           ' "$CALLBACK_URL" "$CALLBACK_SECRET" "$SLUG" "$STATO" "${URL_ISTANZA:-}" "$PROGETTO" "${VERSIONE:-}" "$ERR"
 

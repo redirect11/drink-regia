@@ -67,7 +67,7 @@ Gli account di servizio:
 | Account | Cosa fa | Dove sta la chiave |
 |---|---|---|
 | `provisioning@drink-regia` | crea e pubblica le istanze: Terraform, deploy, licenza, backup | segreto `PROVISIONING_SA_JSON` negli environment `flotta` e `flotta-test` |
-| runtime delle Functions della regia (`<numero>-compute@…`) | scrive la licenza nelle istanze (sospensione, piano, prove) | nessuna chiave: è il runtime di Google |
+| runtime delle Functions della regia (`runtime-regia@<regia>`, creato da `scripts/account-runtime.mjs`; finché non è acceso, `<numero>-compute@…`) | scrive la licenza nelle istanze (sospensione, piano, prove); solo i ruoli che il codice usa, niente Editor | nessuna chiave: è il runtime di Google |
 | `deploy@<istanza>` | creato in ogni istanza, per un deploy fatto da lì | nessuna chiave in giro |
 | l'account di deploy della Tana | pubblica la Tana | segreti di tana-drink |
 
@@ -106,10 +106,11 @@ dell'admin (claim `admin` sull'account), termini e privacy.
 | Famiglia | Functions |
 |---|---|
 | Attivazione | `chiediAttivazione`, `avviaProvisioning`, `rilanciaProvisioning`, `esitoProvisioning` (il callback dei workflow) |
-| Abbonamento | `creaCheckout`, `stripeWebhook`, `cambiaScelta`, `licenzaSegueIlPiano`, `sospendiMorosi` (ogni giorno) |
-| Free, vendita, prove | `scegliFree`, `chiediContatto`, `provaModulo`, `proveScadute` (ogni mattina), `cambiaPianoAdmin` |
+| Abbonamento | `creaCheckout`, `stripeWebhook`, `cambiaScelta`, `licenzaSegueIlPiano` (anche il cambio di stato dell'abbonamento), `registraPagamento` |
+| Scadenze (REQ-FLOTTA-023) | `scadenza` (un compito di Cloud Tasks per ogni scadenza: pagamento a mano, prova, eliminazione, condizioni), `programmaScadenze` |
+| Free, vendita, prove | `scegliFree`, `chiediContatto`, `provaModulo`, `cambiaPianoAdmin` |
 | Istanze | `impostaStatoIstanza`, `aggiornaIstanza`, `gestisciRilascio`, `registraLocaleEsistente`, `creaCliente` |
-| Eliminazione | `gestisciEliminazione`, `eliminazioniProgrammate` (ogni giorno), `scaricaArchivio` |
+| Eliminazione | `gestisciEliminazione`, `scaricaArchivio` |
 | Credito AI | `richiestaAI` (la chiamata dell'app), `creaRicaricaAI`, `gestisciCassettoAI` |
 
 Le Functions leggono la configurazione per progetto da
@@ -136,24 +137,29 @@ sito. Prezzi e piani li decide l'utente.
    rilegge tutto lato server e scrive la richiesta. Col deploy automatico
    acceso parte subito, altrimenti aspetta l'autorizzazione dell'admin.
    `avviaProvisioning` lancia `provisiona-istanza.yml`.
-3. **Il workflow** (`provisiona-istanza.yml`, environment `flotta` o
-   `flotta-test`):
-   1. controlla gli input, che entrano nei comandi solo come variabili
-      d'ambiente (audit del 22/10/2026, C1);
-   2. Terraform (`infra/istanza`): importa il progetto e un Firestore già
-      aperto, poi applica API, Firebase, Firestore, web app, sito,
-      accesso con email, ruoli, e col profilo completo anche gli agenti
-      di Eventarc e Pub/Sub;
-   3. col profilo completo crea lo Storage (`scripts/storage-istanza.mjs`)
-      e i segreti dell'app col segnaposto (`scripts/segreti-istanza.mjs`);
-   4. scarica l'app da tana-drink al ref chiesto, crea la cartella del
-      cliente (`genera-cliente.mjs`) e compila con `CLIENTE=<slug>`;
-   5. pubblica: `firestore,hosting` col profilo leggero,
-      `firestore,storage,functions,hosting` col completo. Il deploy si
-      riprova due volte a 90 secondi, perché i permessi degli agenti di
-      Google arrivano qualche minuto dopo;
-   6. scrive licenza e nome del locale (`scripts/licenza-istanza.mjs`);
-   7. manda l'esito alla regia, sempre, anche in caso di errore.
+3. **Il workflow** (`provisiona-istanza.yml`, quattro job; l'environment
+   `flotta` o `flotta-test` solo su `prepara` e `pubblica`, REQ-FLOTTA-047):
+   1. `controlla`, senza credenziali: gli input, che entrano nei comandi
+      solo come variabili d'ambiente (audit del 22/10/2026, C1), e la
+      versione di tana-drink al ref chiesto (un rilascio? su main?); ne
+      esporta lo SHA;
+   2. `prepara`, con la chiave e senza l'app: Terraform (`infra/istanza`)
+      importa il progetto e un Firestore già aperto, poi applica API,
+      Firebase, Firestore, web app, sito, accesso con email, ruoli, e col
+      profilo completo anche gli agenti di Eventarc e Pub/Sub; la
+      configurazione web del progetto esce come output del job;
+   3. `compila`, senza credenziali: scarica l'app da tana-drink allo SHA
+      controllato, crea la cartella del cliente (`genera-cliente.mjs`),
+      compila con `CLIENTE=<slug>` e carica il pacchetto come artifact;
+   4. `pubblica`, con la chiave: scrive licenza e nome del locale
+      (`scripts/licenza-istanza.mjs`); col profilo completo crea lo
+      Storage (`scripts/storage-istanza.mjs`) e i segreti dell'app col
+      segnaposto (`scripts/segreti-istanza.mjs`); pubblica
+      `firestore,hosting` col profilo leggero,
+      `firestore,storage,functions,hosting` col completo, riprovando due
+      volte a 90 secondi perché i permessi degli agenti di Google arrivano
+      qualche minuto dopo; il titolare admin; e l'esito alla regia,
+      sempre, anche se un job prima è fallito.
 4. **Licenza.** `settings/bar.licenza` nel Firestore dell'istanza: piano,
    moduli, limiti, prove, stato. La scrive solo la regia, e l'app la
    rispetta. Senza `limiti`, nessun limite.
@@ -163,9 +169,12 @@ sito. Prezzi e piani li decide l'utente.
    (`aggiorna-istanza.yml`). Un aggiornamento fallito non ferma il
    locale: si riprova o si torna alla versione di prima.
 6. **Sospensione e chiusura.** Le scrive la regia nella licenza: l'app si
-   ferma e lo dice. Un mancato pagamento sospende da solo
-   (`sospendiMorosi`).
+   ferma e lo dice. Un mancato pagamento sospende da solo, quando cambia lo
+   stato dell'abbonamento (REQ-FLOTTA-023).
 7. **Eliminazione** (`elimina-istanza.yml`):
+   0. il progetto è di questa regia: etichetta `ambiente` uguale a quella
+      del lancio e stato Terraform presente, altrimenti stop
+      (REQ-FLOTTA-048);
    1. backup leggibile ed export nativo di Firestore;
    2. archivio nel bucket della regia (180 giorni, lo scarica solo il
       titolare);
@@ -196,7 +205,7 @@ Terraform se nello stato manca l'API delle Functions.
 | Workflow | Quando | Cosa fa |
 |---|---|---|
 | `test.yml` | ogni push (tranne `release/**`) e ogni PR verso `develop` o `main` | lint, test, build; sulle PR anche la coverage con le soglie |
-| `firebase-hosting.yml` + `deploy.yml` | push su `develop` → **test**; tag su `main` → **produzione**; tag fuori da `main` → fermo; lancio a mano su un ramo → test | lint e test, poi `deploy.yml` con l'environment e la guardia sul progetto (se la configurazione non è del progetto di destinazione si ferma) |
+| `firebase-hosting.yml` + `deploy.yml` + `e2e.yml` | tag fuori da `main` → **test**, poi il **collaudo** (le prove che scrivono); tag su `main` → **produzione**, solo se un collaudo è riuscito sul test per quel codice; lancio a mano su un ramo → test, senza collaudo; un push non pubblica (dal 09/11/2026, REQ-DEV-009) | lint e test, poi `deploy.yml` con l'environment e la guardia sul progetto (se la configurazione non è del progetto di destinazione si ferma); dopo il test `e2e.yml`; prima della produzione «Collaudo riuscito sul test» cerca il collaudo verde nei run passati |
 | `provisiona-istanza.yml` | lo lancia la regia (o una persona) | attiva un'istanza (§4) |
 | `aggiorna-istanza.yml` | lo lancia la regia | porta una versione dell'app a un'istanza |
 | `elimina-istanza.yml` | lo lancia la regia | backup verificato, poi eliminazione |

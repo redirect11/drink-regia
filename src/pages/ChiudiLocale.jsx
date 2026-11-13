@@ -52,7 +52,9 @@ export default function ChiudiLocale({ istanza }) {
     )
   }
 
-  if (!istanza?.progetto || istanza.stato !== STATI.ATTIVA || istanza.origine === 'esistente' || istanza.interna) return null
+  // Un locale simulato (REQ-FLOTTA-072) non ha un progetto, e si chiude lo stesso.
+  if ((!istanza?.progetto && !istanza?.simulata) || istanza.stato !== STATI.ATTIVA || istanza.origine === 'esistente' || istanza.interna) return null
+  const daScrivere = istanza.simulata ? istanza.slug : istanza.progetto
 
   // Cancellazione programmata: si vede quando, e si può annullare se l'ha
   // chiesta il titolare.
@@ -60,7 +62,15 @@ export default function ChiudiLocale({ istanza }) {
     return (
       <section className="card avviso" aria-label="Cancellazione del locale">
         <h3>Cancellazione del locale</h3>
-        {e.stato === 'programmata' ? (
+        {e.stato === 'programmata' && e.richiedente === 'conservazione' ? (
+          // Fermo per il pagamento (REQ-FLOTTA-025): i dati restano 90
+          // giorni, e tornare a pagare annulla la cancellazione.
+          <p>
+            L’app del locale è ferma{e.motivo ? ` (${e.motivo})` : ''}. I dati restano conservati fino al{' '}
+            <strong>{data(e.quando)}</strong>: quel giorno l’installazione e i suoi dati verranno cancellati definitivamente, dopo
+            un backup che potrai scaricare da qui per 180 giorni. Per evitarlo basta riattivare l’abbonamento.
+          </p>
+        ) : e.stato === 'programmata' ? (
           <p>
             Il locale è chiuso e verrà cancellato definitivamente il <strong>{data(e.quando)}</strong>, dopo un backup dei dati che
             potrai scaricare da qui per 180 giorni.
@@ -102,11 +112,11 @@ export default function ChiudiLocale({ istanza }) {
           }}
         >
           <label htmlFor="conferma-chiusura">
-            Per confermare scrivi <code>{istanza.progetto}</code>
+            Per confermare scrivi <code>{daScrivere}</code>
           </label>
           <input id="conferma-chiusura" value={conferma} onChange={(ev) => setConferma(ev.target.value)} autoComplete="off" />
           <div className="azioni">
-            <button type="submit" className="btn pericolo" disabled={inCorso || conferma.trim() !== istanza.progetto}>
+            <button type="submit" className="btn pericolo" disabled={inCorso || conferma.trim() !== daScrivere}>
               Chiudi e cancella fra 30 giorni
             </button>
             <button type="button" className="btn ghost" onClick={() => setAperto(false)}>

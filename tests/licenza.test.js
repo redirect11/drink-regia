@@ -7,22 +7,29 @@ import { describe, it, expect } from 'vitest'
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
-const { moduliLicenza, patchLicenzaPiano, licenzaIniziale, sceltaCambiata, TUTTI } = require('../functions/lib/licenza.js')
+const { moduliLicenza, patchLicenzaPiano, licenzaIniziale, sceltaCambiata, licenzaProtetta, stessaLicenza, perIlDatabase, scadenzaCoerente, TUTTI } = require('../functions/lib/licenza.js')
+const { readFileSync } = require('node:fs')
 
 describe('moduliLicenza', () => {
-  it('il base senza moduli non accende niente; il magazzino porta conta, fatture e scadenzario; il completo tutto', () => {
+  // Dal 07/11/2026 (decisione dell'utente) il Base porta il menù digitale e
+  // il magazzino porta solo l'inventario: le fatture ai clienti e ai
+  // fornitori si comprano a parte.
+  it('il base accende il menù; il magazzino porta l’inventario; le fatture si comprano a parte; il completo tutto', () => {
     const spenti = Object.fromEntries(TUTTI.map((m) => [m, false]))
-    expect(moduliLicenza({ piano: 'base' })).toEqual(spenti)
+    expect(moduliLicenza({ piano: 'free' })).toEqual(spenti)
+    expect(moduliLicenza({ piano: 'base' })).toEqual({ ...spenti, menu_tavoli: true })
     expect(moduliLicenza({ piano: 'base', moduli: ['magazzino', 'staff'] })).toEqual({
       ...spenti,
+      menu_tavoli: true,
       magazzino: true,
       conta: true,
-      fatture: true,
-      scadenzario: true,
       staff: true,
     })
+    expect(moduliLicenza({ piano: 'base', moduli: ['scadenzario'] })).toEqual({ ...spenti, menu_tavoli: true, scadenzario: true })
+    expect(moduliLicenza({ piano: 'base', moduli: ['fatture'] })).toEqual({ ...spenti, menu_tavoli: true, fatture: true })
     expect(moduliLicenza({ piano: 'completo' })).toEqual(Object.fromEntries(TUTTI.map((m) => [m, true])))
-    expect(moduliLicenza({ piano: 'oro', moduli: ['x'] })).toEqual(spenti)
+    // Un piano sconosciuto vale il Base, e un modulo inventato niente.
+    expect(moduliLicenza({ piano: 'oro', moduli: ['x'] })).toEqual({ ...spenti, menu_tavoli: true })
   })
 })
 
@@ -35,6 +42,7 @@ describe('patchLicenzaPiano e sceltaCambiata', () => {
       'licenza.piano': 'base',
       'licenza.moduli': p['licenza.moduli'],
       'licenza.terminali': 2,
+      'licenza.temi': [],
       'licenza.limiti': null,
       'licenza.prove': {},
       'licenza.scritta_il': '2026-10-22T10:00:00.000Z',
@@ -46,7 +54,7 @@ describe('patchLicenzaPiano e sceltaCambiata', () => {
   it('il Free: nessun modulo, i limiti del piano; a pagamento i limiti spariscono', () => {
     const free = patchLicenzaPiano({ piano: 'free', moduli: ['magazzino'] })
     expect(Object.values(free['licenza.moduli']).every((v) => v === false)).toBe(true)
-    expect(free['licenza.limiti']).toEqual({ prodotti_max: 10, conti_aperti_max: 5, sconti: false, storico_giorni: 7, utenti_max: 1, marchio: true })
+    expect(free['licenza.limiti']).toEqual({ prodotti_max: 10, conti_aperti_max: 5, sconti: false, storico_giorni: 7, utenti_max: 1, marchio: true, comande: false, stampa: false, ai: false })
     expect(patchLicenzaPiano({ piano: 'completo' })['licenza.limiti']).toBeNull()
   })
 
@@ -69,10 +77,14 @@ describe('licenzaIniziale', () => {
     expect(p.licenza).toEqual({
       piano: 'base',
       moduli: moduliLicenza({ piano: 'base', moduli: ['staff'] }),
+      temi: [],
+      temi_su_misura: [],
       limiti: null,
       stato: 'attiva',
       slug: 'bar-mario',
       regia_url: 'https://drink-regia.web.app',
+      // Anche la prima licenza porta il rinnovo (REQ-FLOTTA-090).
+      rinnovo_url: 'https://drink-regia.web.app/dashboard/piano?rinnovo=1',
       scritta_il: '2026-10-29T10:00:00.000Z',
     })
     expect(p.venue_name).toBe('Bar Mario Centrale')
@@ -90,5 +102,243 @@ describe('licenzaIniziale', () => {
 
   it('un piano sconosciuto vale come base', () => {
     expect(licenzaIniziale({}, { ...dati, piano: 'oro' }, adesso).licenza.piano).toBe('base')
+  })
+})
+
+// LA LICENZA PROTETTA (BUG-125 di tana-drink): in licenza/attuale, che
+// dall'app nessuno scrive. La regia la CALCOLA dai suoi dati, intera, e non
+// la copia da settings/bar, dove un bartender la può aver riscritta. Stesso
+// contenuto di prima.
+describe('la licenza protetta, dai dati della regia', () => {
+  const ADESSO = new Date('2026-11-01T10:00:00Z')
+  const cliente = { slug: 'bar-mario', piano: 'base', moduli: ['staff'], terminali: 2, abbonamento: { stato: 'attivo' } }
+
+  it('piano, moduli, terminali, limiti e prove dal cliente; stato dall’istanza; la regia e gli aggiornamenti', () => {
+    const lic = licenzaProtetta({ stato: 'attiva' }, cliente, { slug: 'bar-mario', regiaUrl: 'https://drink-regia.web.app', adesso: ADESSO })
+    expect(lic).toMatchObject({
+      piano: 'base',
+      terminali: 2,
+      temi: [],
+      limiti: null,
+      prove: {},
+      stato: 'attiva',
+      motivo: null,
+      dal: null,
+      slug: 'bar-mario',
+      regia_url: 'https://drink-regia.web.app',
+      // L'indirizzo del rinnovo (REQ-FLOTTA-090): la sezione del piano nell'area del titolare.
+      rinnovo_url: 'https://drink-regia.web.app/dashboard/piano?rinnovo=1',
+      aggiornamenti: { modalita: 'obbligatori', inclusi: true, motivo: null, proposta: null, avviso: null },
+      scritta_il: ADESSO.toISOString(),
+    })
+    expect(lic.moduli).toEqual(moduliLicenza({ piano: 'base', moduli: ['staff'] }))
+    // Le stesse chiavi che il piano scriveva in settings/bar.
+    for (const k of Object.keys(patchLicenzaPiano(cliente, ADESSO))) expect(lic).toHaveProperty(k.replace('licenza.', ''))
+  })
+
+  it('valida_fino: «pagato fino al» più la grazia per un piano a mano, al taglio dopo; niente per Free, Stripe, omaggi e interne', () => {
+    const aMano = { ...cliente, abbonamento: { stato: 'attivo', origine: 'manuale', pagato_fino_al: '2026-11-30' } }
+    // Scade il 7/12 a fine giornata: si ferma al taglio dopo, le 5 di Roma
+    // dell'8 (le 4 UTC), mai a mezzanotte in pieno servizio (REQ-FLOTTA-024).
+    expect(licenzaProtetta({ stato: 'attiva' }, aMano, { adesso: ADESSO }).valida_fino).toBe('2026-12-08T04:00:00.000Z')
+    expect(licenzaProtetta({ stato: 'attiva' }, aMano, { giorniGrazia: 0, adesso: ADESSO }).valida_fino).toBe('2026-12-01T04:00:00.000Z')
+    expect(licenzaProtetta({ stato: 'attiva' }, aMano, { giorniGrazia: 0, oraTaglio: 6, adesso: ADESSO }).valida_fino).toBe('2026-12-01T05:00:00.000Z')
+    // Con Stripe (02/11/2026): la fine del periodo pagato più la grazia, al taglio dopo.
+    const stripe = { ...cliente, abbonamento: { stato: 'attivo', origine: 'stripe', pagato_fino: '2026-11-22T10:00:00.000Z' } }
+    expect(licenzaProtetta({ stato: 'attiva' }, stripe, { adesso: ADESSO }).valida_fino).toBe('2026-11-30T04:00:00.000Z')
+    expect(licenzaProtetta({ stato: 'attiva' }, { ...aMano, abbonamento: { ...aMano.abbonamento, pagato_fino_al: null } }, { adesso: ADESSO }).valida_fino).toBeNull()
+    expect(licenzaProtetta({ stato: 'attiva' }, cliente, { adesso: ADESSO }).valida_fino).toBeNull()
+    expect(licenzaProtetta({ stato: 'attiva' }, { piano: 'free', abbonamento: { stato: 'attivo', origine: 'gratuito' } }, { adesso: ADESSO }).valida_fino).toBeNull()
+    expect(licenzaProtetta({ stato: 'attiva', interna: true }, aMano, { adesso: ADESSO }).valida_fino).toBeNull()
+    expect(licenzaProtetta({ stato: 'attiva', ripiego_free: { dal: 'x' } }, aMano, { adesso: ADESSO }).valida_fino).toBeNull()
+    // Conta per «stessa licenza»: un pagamento registrato la cambia.
+    const a = licenzaProtetta({ stato: 'attiva' }, aMano, { adesso: ADESSO })
+    expect(stessaLicenza(a, { ...a, valida_fino: '2027-01-07T23:59:59.000Z' })).toBe(false)
+  })
+
+  // REQ-FLOTTA-090 (Daniele, 13/11/2026: «dobbiamo portare l'utente alla
+  // schermata di pagamento per il rinnovo»): la licenza dice all'app dove
+  // si rinnova. Un campo in più, niente tolto; dall'origine di regia_url.
+  it('rinnovo_url: la sezione del piano con ?rinnovo=1, dall’origine della regia; null senza regia; conta per la verifica', () => {
+    const conRegia = (regiaUrl) => licenzaProtetta({ stato: 'attiva', licenza_stato: 'sospesa', licenza_per: 'pagamento' }, cliente, { regiaUrl, adesso: ADESSO })
+    expect(conRegia('https://drink-regia-test.web.app').rinnovo_url).toBe('https://drink-regia-test.web.app/dashboard/piano?rinnovo=1')
+    // Una barra finale o un percorso nell'indirizzo della regia non cambiano niente.
+    expect(conRegia('https://drink-regia.web.app/').rinnovo_url).toBe('https://drink-regia.web.app/dashboard/piano?rinnovo=1')
+    expect(conRegia('https://drink-regia.web.app/qualcosa?x=1').rinnovo_url).toBe('https://drink-regia.web.app/dashboard/piano?rinnovo=1')
+    // Senza un indirizzo buono, nessun indirizzo: l'app mostra solo i contatti.
+    for (const v of [null, '', 'non un indirizzo', 'javascript:alert(1)']) expect(conRegia(v).rinnovo_url).toBeNull()
+    // Gli altri campi restano: regia_url non cambia.
+    expect(conRegia('https://drink-regia.web.app').regia_url).toBe('https://drink-regia.web.app')
+    // Una licenza scritta prima, senza rinnovo_url, per la verifica è diversa:
+    // «Allinea» la riscrive.
+    const a = conRegia('https://drink-regia.web.app')
+    const { rinnovo_url: _via, ...vecchia } = a
+    expect(stessaLicenza(a, vecchia)).toBe(false)
+    expect(licenzaIniziale({}, { piano: 'base', slug: 'bar-prova', regiaUrl: '' }, ADESSO).licenza.rinnovo_url).toBeNull()
+  })
+
+  // REQ-FLOTTA-039 (tana-drink, 05/11/2026): senza `temi` nella licenza
+  // gli esclusivi della Tana sparirebbero il giorno della licenza dalla regia.
+  it('i temi in licenza vengono dal cliente, puliti, anche tornato al Free; un cambio riscrive la licenza', () => {
+    const conTemi = { ...cliente, temi: ['Notte', 'meraviglie', 'notte'] }
+    expect(licenzaProtetta({ stato: 'attiva' }, conTemi, { adesso: ADESSO }).temi).toEqual(['meraviglie', 'notte'])
+    expect(licenzaProtetta({ stato: 'attiva', ripiego_free: { dal: 'x' } }, conTemi, { adesso: ADESSO }).temi).toEqual(['meraviglie', 'notte'])
+    expect(licenzaProtetta({ stato: 'attiva' }, { ...cliente, temi: 'notte' }, { adesso: ADESSO }).temi).toEqual([])
+    const a = licenzaProtetta({ stato: 'attiva' }, cliente, { adesso: ADESSO })
+    expect(stessaLicenza(a, { ...a, temi: ['notte'] })).toBe(false)
+    expect(sceltaCambiata(cliente, conTemi)).toBe(true)
+    expect(sceltaCambiata(conTemi, { ...cliente, temi: ['meraviglie', 'notte'] })).toBe(false)
+    expect(licenzaIniziale({}, { piano: 'completo', temi: ['notte'], slug: 'tana', regiaUrl: 'https://r' }, ADESSO).licenza.temi).toEqual(['notte'])
+    expect(licenzaIniziale({}, { piano: 'base', slug: 'bar', regiaUrl: 'https://r' }, ADESSO).licenza.temi).toEqual([])
+  })
+
+  // REQ-FLOTTA-040 (06/11/2026): i temi su misura del locale, interi, nella
+  // licenza; chi la scrive li passa dalla sottoraccolta del cliente.
+  it('i temi su misura pubblicati e validi vanno nella licenza con la ricetta; un cambio la riscrive', () => {
+    const tema = { id: 'su-misura-1', nome: 'Aurora', descrizione: '', prezzo: 0, tavolozza: { base: 'crema', colori: {} }, stile: 'riviera', stato: 'pubblicato', origine: 'mockup', creato_il: 'x' }
+    const ricetta = { versione: 1, caratteri: { titolo: 'bebas-neue', voce: 'inter', testo: 'inter' }, titoli: { maiuscolo: false, corsivo: false, allineamento: 'sinistra', dimensione: 'normale', spaziatura: 'normale' }, intestazione: 'nessuna', voce: { forma: 'riga', prezzo: 'puntini', separatore: 'nessuno', immagine: 'tonda' }, cornice: 'nessuna', angoli: 'morbidi', sfondo: 'tinta', impaginazione: 'per-categoria' }
+    const docs = [{ ...tema, id: 'su-misura-2', nome: 'Bosco', ricetta }, tema, { ...tema, id: 'su-misura-3', stato: 'ritirato' }, { ...tema, id: 'su-misura-4', stile: 'notte' }]
+    const lic = licenzaProtetta({ stato: 'attiva' }, cliente, { adesso: ADESSO, temiSuMisura: docs })
+    expect(lic.temi_su_misura).toEqual([
+      { id: 'su-misura-1', nome: 'Aurora', descrizione: '', prezzo: 0, tavolozza: { base: 'crema', colori: {} }, stile: 'riviera' },
+      { id: 'su-misura-2', nome: 'Bosco', descrizione: '', prezzo: 0, tavolozza: { base: 'crema', colori: {} }, stile: 'riviera', ricetta },
+    ])
+    expect(licenzaProtetta({ stato: 'attiva' }, cliente, { adesso: ADESSO }).temi_su_misura).toEqual([])
+    const a = licenzaProtetta({ stato: 'attiva' }, cliente, { adesso: ADESSO })
+    expect(stessaLicenza(a, { ...a, temi_su_misura: lic.temi_su_misura })).toBe(false)
+    expect(stessaLicenza(lic, { ...lic, scritta_il: 'altra' })).toBe(true)
+  })
+
+  it('sospesa o chiusa porta il motivo e la data; attiva no', () => {
+    const ist = { stato: 'attiva', licenza_stato: 'sospesa', licenza_motivo: 'pagamento non ricevuto', licenza_dal: '2026-10-30T06:00:00Z' }
+    expect(licenzaProtetta(ist, cliente, { adesso: ADESSO })).toMatchObject({ stato: 'sospesa', motivo: 'pagamento non ricevuto', dal: '2026-10-30T06:00:00Z' })
+    const riattivata = { ...ist, licenza_stato: 'attiva' }
+    expect(licenzaProtetta(riattivata, cliente, { adesso: ADESSO }).motivo).toBeNull()
+  })
+
+  it('tornato al Free per un pagamento mancato: la licenza è quella del Free, coi suoi limiti', () => {
+    const lic = licenzaProtetta({ stato: 'attiva', ripiego_free: { dal: '2026-10-30' } }, cliente, { adesso: ADESSO })
+    expect(lic.piano).toBe('free')
+    expect(lic.limiti).not.toBeNull()
+    expect(Object.values(lic.moduli).some(Boolean)).toBe(false)
+  })
+
+  it('stessa licenza: non contano la data di scrittura, la data dello stato e l’ordine delle chiavi', () => {
+    const a = licenzaProtetta({ stato: 'attiva' }, cliente, { adesso: ADESSO })
+    const b = { ...licenzaProtetta({ stato: 'attiva' }, cliente, { adesso: new Date('2026-11-02T10:00:00Z') }), dal: 'x' }
+    b.moduli = Object.fromEntries(Object.entries(b.moduli).reverse())
+    expect(stessaLicenza(a, b)).toBe(true)
+    expect(stessaLicenza(a, { ...a, piano: 'completo' })).toBe(false)
+    expect(stessaLicenza(a, { ...a, moduli: { ...a.moduli, magazzino: true } })).toBe(false)
+    expect(stessaLicenza(a, null)).toBe(false)
+  })
+
+  it('ogni aggiornamento dalla regia la scrive prima del deploy, e senza non parte', () => {
+    const src = readFileSync('functions/index.js', 'utf8')
+    const corpo = src.slice(src.indexOf('async function lanciaAggiornamento('), src.indexOf('async function tutteLeIstanze('))
+    const scritta = corpo.indexOf('await scriviLicenza(slug)')
+    expect(scritta).toBeGreaterThan(0)
+    expect(scritta).toBeLessThan(corpo.indexOf('dispatchGitHub('))
+    expect(corpo).toMatch(/if \(!licenza\.ok\) return /)
+  })
+
+  it('l’attivazione la scrive in licenza/attuale prima della consegna', () => {
+    const script = readFileSync('scripts/licenza-istanza.mjs', 'utf8')
+    const protetta = script.indexOf("db.doc('licenza/attuale').set(patch.licenza)")
+    expect(protetta).toBeGreaterThan(0)
+    expect(protetta).toBeLessThan(script.indexOf("db.doc('settings/bar').set(patch, { merge: true })"))
+  })
+})
+
+// Le regole che tana-drink chiede alla regia (01/11/2026), per ogni licenza.
+describe("il contratto con l'app", () => {
+  const listino = require('../functions/piani.json')
+  const piani = Object.keys(listino.piani)
+
+  it('moduli nomina tutti i moduli, sempre: uno che manca per l’app vale «non incluso»', () => {
+    for (const piano of piani) {
+      for (const moduli of [[], ['magazzino'], ['staff', 'sumup']]) {
+        const lic = licenzaProtetta({ stato: 'attiva' }, { slug: 'bar-mario', piano, moduli, abbonamento: { stato: 'attivo' } })
+        expect(Object.keys(lic.moduli).sort()).toEqual([...TUTTI].sort())
+        expect(Object.values(lic.moduli).every((v) => typeof v === 'boolean')).toBe(true)
+      }
+    }
+  })
+
+  it('gli sconti si spengono solo con limiti.sconti: false, un booleano', () => {
+    for (const piano of piani) {
+      const sconti = listino.piani[piano].limiti?.sconti
+      expect(sconti === undefined || typeof sconti === 'boolean').toBe(true)
+    }
+    expect(listino.piani.free.limiti.sconti).toBe(false)
+  })
+
+  it("l'attivazione scrive la licenza prima dell'app, e mai partendo da settings/bar.licenza", () => {
+    const wf = readFileSync('.github/workflows/provisiona-istanza.yml', 'utf8')
+    const licenza = wf.indexOf('node scripts/licenza-istanza.mjs')
+    expect(licenza).toBeGreaterThan(0)
+    expect(licenza).toBeLessThan(wf.indexOf('npx firebase-tools deploy'))
+    const script = readFileSync('scripts/licenza-istanza.mjs', 'utf8')
+    expect(script).toContain("db.doc('licenza/attuale').get()")
+    expect(script).toContain('licenza: protetta.exists ? protetta.data() : undefined')
+  })
+
+  it('le Functions non cancellano mai licenza/attuale: un locale si ferma con lo stato', () => {
+    const codice = readFileSync('functions/index.js', 'utf8')
+    expect(codice).not.toMatch(/LICENZA_PROTETTA\)\.delete|licenza\/attuale'\)\.delete/)
+  })
+})
+
+// L'utente, 02/11/2026: senza licenza valida il prodotto non parte; con
+// l'opzione della regia diventa Free; e il titolare sa quando i suoi dati
+// verranno cancellati (REQ-FLOTTA-025).
+describe('cosa succede alla scadenza, e la cancellazione dei dati', () => {
+  const cliente = { slug: 'bar-mario', piano: 'base', abbonamento: { stato: 'attivo', origine: 'manuale' } }
+
+  it('alla_scadenza: «free» con «solo finché si paga», se no «ferma»', () => {
+    expect(licenzaProtetta({ stato: 'attiva' }, cliente).alla_scadenza).toBe('ferma')
+    expect(licenzaProtetta({ stato: 'attiva', condizioni_aggiornamenti: { solo_finche_paga: true } }, cliente).alla_scadenza).toBe('free')
+    expect(licenzaProtetta({ stato: 'attiva', interna: true, condizioni_aggiornamenti: { solo_finche_paga: true } }, cliente).alla_scadenza).toBe('ferma')
+  })
+
+  it('cancellazione: la data e chi l’ha voluta, solo con una cancellazione programmata', () => {
+    const programmata = { stato: 'attiva', eliminazione: { stato: 'programmata', quando: '2027-01-31T10:00:00.000Z', richiedente: 'conservazione' } }
+    expect(licenzaProtetta(programmata, cliente).cancellazione).toEqual({ il: '2027-01-31T10:00:00.000Z', richiedente: 'conservazione' })
+    expect(licenzaProtetta({ ...programmata, eliminazione: { ...programmata.eliminazione, stato: 'annullata' } }, cliente).cancellazione).toBeNull()
+    expect(licenzaProtetta({ stato: 'attiva' }, cliente).cancellazione).toBeNull()
+    // Cambia la licenza: si riscrive quando la cancellazione si programma o si annulla.
+    expect(stessaLicenza(licenzaProtetta(programmata, cliente), licenzaProtetta({ stato: 'attiva' }, cliente))).toBe(false)
+  })
+})
+
+// tana-drink, 02/11/2026: le regole leggono la scadenza solo da
+// valida_fino_ts come Timestamp; senza, lato server la licenza non scade.
+describe('la scadenza per le regole: valida_fino_ts', () => {
+  // Un Timestamp finto: quello vero (firebase-admin) ha toMillis().
+  const ts = (d) => ({ toMillis: () => d.getTime() })
+
+  it('stesso istante di valida_fino come Timestamp, o null se non scade', () => {
+    const scade = perIlDatabase({ piano: 'base', valida_fino: '2026-12-08T04:00:00.000Z' }, ts)
+    expect(scade.valida_fino).toBe('2026-12-08T04:00:00.000Z')
+    expect(scade.valida_fino_ts.toMillis()).toBe(Date.parse('2026-12-08T04:00:00.000Z'))
+    expect(perIlDatabase({ piano: 'base', valida_fino: null }, ts).valida_fino_ts).toBeNull()
+  })
+
+  it('la verifica vuole i due campi d’accordo', () => {
+    expect(scadenzaCoerente(perIlDatabase({ valida_fino: '2026-12-08T04:00:00.000Z' }, ts))).toBe(true)
+    expect(scadenzaCoerente({ valida_fino: null, valida_fino_ts: null })).toBe(true)
+    expect(scadenzaCoerente({ valida_fino: null })).toBe(true)
+    // Una licenza scritta prima di valida_fino_ts: per le regole non scadrebbe.
+    expect(scadenzaCoerente({ valida_fino: '2026-12-08T04:00:00.000Z' })).toBe(false)
+    expect(scadenzaCoerente({ valida_fino: '2026-12-08T04:00:00.000Z', valida_fino_ts: '2026-12-08T04:00:00.000Z' })).toBe(false)
+    expect(scadenzaCoerente({ valida_fino: '2026-12-08T04:00:00.000Z', valida_fino_ts: ts(new Date('2026-12-09T04:00:00.000Z')) })).toBe(false)
+    expect(scadenzaCoerente({ valida_fino: null, valida_fino_ts: ts(new Date()) })).toBe(false)
+  })
+
+  it('le Functions la scrivono con valida_fino_ts, in licenza/attuale e in settings/bar', () => {
+    const codice = readFileSync('functions/index.js', 'utf8')
+    expect(codice).toContain('perIlDatabase(licenza, (d) => Timestamp.fromDate(d))')
+    expect(codice).toContain('await istanza.doc(LICENZA_PROTETTA).set(doc)')
+    expect(codice).toContain("set({ licenza: doc }, { mergeFields: ['licenza'] })")
   })
 })

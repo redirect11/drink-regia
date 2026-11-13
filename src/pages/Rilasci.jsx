@@ -1,12 +1,18 @@
+import { useState } from 'react'
 import { NOMI_ONDATE, TAG, rilascioAperto, contiDetti } from '../lib/rilasci.js'
 
 // I RILASCI A ONDATE (REQ-FLOTTA-012): un tag di tana-drink arriva ai
 // locali un'ondata alla volta — prova, interne, pilota, tutti gli altri —
 // e ogni ondata la avvia l'admin quando quella prima è finita senza
 // errori. Le regole le applica la Function; qui si vede e si decide.
+//
+// Un rilascio OBBLIGATORIO (REQ-FLOTTA-020: sicurezza, compatibilità con la
+// regia) arriva a tutti, anche a chi aggiorna a scelta o non ha gli
+// aggiornamenti nel piano: lo si dice quando lo si crea.
 export default function Rilasci({ rilasci, onAzione }) {
   const aperto = rilascioAperto(rilasci)
   const ultimo = aperto || rilasci?.[0] || null
+  const [obbligatorio, setObbligatorio] = useState(false)
 
   const nuovo = () => {
     const ref = window.prompt('Il tag di tana-drink da portare ai locali (vX.Y.Z):', '')
@@ -15,7 +21,8 @@ export default function Rilasci({ rilasci, onAzione }) {
       window.alert('Serve un tag vX.Y.Z: un ramo come main cambia fra un’ondata e l’altra.')
       return
     }
-    onAzione('crea', { ref: ref.trim() })
+    onAzione('crea', { ref: ref.trim(), obbligatorio })
+    setObbligatorio(false)
   }
 
   return (
@@ -28,12 +35,19 @@ export default function Rilasci({ rilasci, onAzione }) {
           </button>
         )}
       </div>
+      {!aperto && (
+        <label className="riga small">
+          <input type="checkbox" checked={obbligatorio} onChange={(e) => setObbligatorio(e.target.checked)} />
+          Il prossimo rilascio è obbligatorio: sicurezza o compatibilità, arriva a tutti
+        </label>
+      )}
       {!ultimo ? (
         <p className="muted small">Nessun rilascio ancora. Un rilascio porta un tag di tana-drink ai locali, un’ondata alla volta.</p>
       ) : (
         <>
           <p>
             <strong>{ultimo.ref}</strong> · <span data-testid="stato-rilascio">{ultimo.stato}</span>
+            {ultimo.obbligatorio && <span className="small"> · obbligatorio</span>}
             {ultimo.fermato_perche && <span className="errore small"> · {ultimo.fermato_perche}</span>}
           </p>
           <ol className="ondate">
