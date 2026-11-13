@@ -5,8 +5,9 @@ import { statoIstanza, statoDetto, puoAttivare, urlDi, progettoDi, riduzioneDett
 import { PIANI, MODULI, prezzoMensile, prezzoAnnuale, prezzoFondatori, conIva, euro } from '../lib/piani.js'
 import { prezzoConSconto, scontoDetto } from '../lib/sconti.js'
 import { nomeStile } from '../lib/temi.js'
-import { BASE_TITOLARE, SEZIONI_TITOLARE, indirizzoSezione } from '../lib/areaTitolare.js'
+import { BASE_TITOLARE, sezioniTitolare, indirizzoSezione } from '../lib/areaTitolare.js'
 import { EMAIL_CONTATTI } from '../lib/prodotto.js'
+import { aiNelPiano } from '../lib/ai.js'
 import SceltaPiano from './SceltaPiano.jsx'
 import CreditoAI from './CreditoAI.jsx'
 import TemiSuMisura from './TemiSuMisura.jsx'
@@ -104,6 +105,9 @@ export default function Dashboard({ utente, chiuso = false }) {
 
   const illeggibile = errori.istanza || (errori.richiesta && !istanza) || (!istanza && app === 'scollegata')
   const stato = statoIstanza(istanza, richiesta, { illeggibile })
+  // Il Free non ha l'AI (REQ-FLOTTA-087): né la sezione del credito né il
+  // tema dal mockup.
+  const ai = aiNelPiano(cliente, istanza)
   // I dati del locale stanno per essere cancellati: si dice per primo.
   const cancellazione = ['programmata', 'in coda', 'in corso'].includes(istanza?.eliminazione?.stato)
 
@@ -118,25 +122,29 @@ export default function Dashboard({ utente, chiuso = false }) {
           Identificativo: <code>{cliente.slug}</code> · progetto <code>{istanza?.simulata ? 'simulato' : istanza?.progetto || progettoDi(cliente.slug)}</code>
         </p>
       </header>
-      <SottoMenu />
+      <SottoMenu ai={ai} />
       <Routes>
-        <Route index element={<Panoramica utente={utente} cliente={cliente} istanza={istanza} richiesta={richiesta} stato={stato} illeggibile={illeggibile} />} />
+        <Route index element={<Panoramica utente={utente} cliente={cliente} istanza={istanza} richiesta={richiesta} stato={stato} illeggibile={illeggibile} ai={ai} />} />
         <Route path="piano" element={<PianoEModuli cliente={cliente} istanza={istanza} />} />
         {/* Senza app attiva e senza credito il riquadro del credito non ha
             niente da dire (CreditoAI): la sezione dice perché è vuota. */}
         <Route
           path="credito-ai"
           element={
-            <CreditoAI
-              slug={cliente.slug}
-              istanzaAttiva={stato === STATI.ATTIVA}
-              senza={
-                <section className="card" aria-label="Credito AI">
-                  <h3>Credito AI</h3>
-                  <p className="muted">Il credito serve alle funzioni AI dell’app: si ricarica da qui quando l’app è attiva.</p>
-                </section>
-              }
-            />
+            !ai ? (
+              <Navigate to={BASE_TITOLARE} replace />
+            ) : (
+              <CreditoAI
+                slug={cliente.slug}
+                istanzaAttiva={stato === STATI.ATTIVA}
+                senza={
+                  <section className="card" aria-label="Credito AI">
+                    <h3>Credito AI</h3>
+                    <p className="muted">Il credito serve alle funzioni AI dell’app: si ricarica da qui quando l’app è attiva.</p>
+                  </section>
+                }
+              />
+            )
           }
         />
         <Route path="locale" element={<IlLocale cliente={cliente} />} />
@@ -151,10 +159,10 @@ export default function Dashboard({ utente, chiuso = false }) {
 // IL SOTTO-MENÙ, lo stesso del backoffice (index.css, .sotto-menu): la voce
 // attiva con aria-current, che mette NavLink. `end`: la panoramica è
 // /dashboard e non deve restare accesa nelle sezioni sotto.
-function SottoMenu() {
+function SottoMenu({ ai }) {
   return (
     <nav className="sotto-menu" aria-label="Sezioni dell’area del titolare">
-      {SEZIONI_TITOLARE.map((s) => (
+      {sezioniTitolare({ ai }).map((s) => (
         <NavLink key={s.id || 'panoramica'} to={indirizzoSezione(s.id)} end>
           {s.nome}
         </NavLink>
@@ -230,7 +238,7 @@ const abbonamentoFermo = (cliente) => Boolean(cliente.abbonamento?.stato) && cli
 // riquadro sta subito sotto il precedente, qualunque altezza abbia. A
 // sinistra, più larga, l'app e quello che si compila; a destra il
 // riepilogo del piano.
-function Panoramica({ utente, cliente, istanza, richiesta, stato, illeggibile }) {
+function Panoramica({ utente, cliente, istanza, richiesta, stato, illeggibile, ai }) {
   const { search } = useLocation()
   // Il ritorno da Stripe arriva su /dashboard (le Functions scrivono lì
   // success_url e cancel_url): si va alla sezione dove se ne parla, con lo
@@ -246,7 +254,7 @@ function Panoramica({ utente, cliente, istanza, richiesta, stato, illeggibile })
         {/* Le versioni nuove e le condizioni degli aggiornamenti (REQ-FLOTTA-020). */}
         {attiva && <AggiornamentiLocale istanza={istanza} />}
         {/* I temi su misura (REQ-FLOTTA-040) arrivano all'app con la licenza: con l'app attiva. */}
-        {attiva && <TemiSuMisura uid={utente.uid} slug={cliente.slug} />}
+        {attiva && <TemiSuMisura uid={utente.uid} slug={cliente.slug} ai={ai} />}
       </div>
       <div className="pila accanto">
         <RiepilogoPiano cliente={cliente} />

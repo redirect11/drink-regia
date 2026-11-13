@@ -22,4 +22,10 @@ export const SEZIONI_TITOLARE = [
   { id: 'chiudi', nome: 'Chiudi il locale' },
 ]
 
+// Le sezioni che un locale vede. Il Free non ha l'AI (REQ-FLOTTA-087;
+// Daniele, 13/11/2026: «I free non hanno l'ai»): senza la sezione del
+// credito, non ricarica un credito che la regia poi non gli lascerebbe
+// spendere.
+export const sezioniTitolare = ({ ai = true } = {}) => SEZIONI_TITOLARE.filter((s) => ai || s.id !== 'credito-ai')
+
 export const indirizzoSezione = (id) => (id ? `${BASE_TITOLARE}/${id}` : BASE_TITOLARE)

@@ -294,7 +294,7 @@ describe('i temi su misura', () => {
     const mockup = codice.slice(codice.indexOf('exports.temaDaMockup'), codice.indexOf('exports.licenzaSegueITemiSuMisura'))
     // Le opzioni delle Functions AI: il segreto della chiave e, con la
     // federazione, l'account di servizio dedicato.
-    expect(mockup).toContain('onCall(OPTS_AI,')
+    expect(mockup).toContain('onCall({ ...OPTS_AI,')
     const opts = codice.slice(codice.indexOf('const OPTS_AI'), codice.indexOf('const OPTS_AI') + 400)
     expect(opts).toContain('secrets: [ANTHROPIC_API_KEY]')
     expect(opts).toContain('serviceAccount: process.env.AI_SERVICE_ACCOUNT')

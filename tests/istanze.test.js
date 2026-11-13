@@ -89,8 +89,13 @@ describe('istanzaScollegata (backoffice)', () => {
   const c = { uid: 'NUOVO', slug: 'prova-free' }
   it('un’istanza legata a un altro uid, o senza uid, è scollegata', () => {
     expect(istanzaScollegata(c, { stato: 'attiva', uid: 'VECCHIO' })).toBe(true)
-    expect(istanzaScollegata(c, { stato: 'attiva', uid: '' })).toBe(true)
-    expect(istanzaScollegata(c, { stato: 'errore' })).toBe(true)
+    expect(istanzaScollegata(c, { stato: 'attiva', uid: '', progetto: 'drinkpos-prova-free' })).toBe(true)
+    expect(istanzaScollegata(c, { stato: 'errore', progetto: 'drinkpos-prova-free' })).toBe(true)
+  })
+
+  it('un lancio fallito senza uid e senza progetto non è da collegare, come per la regia', () => {
+    expect(istanzaScollegata(c, { stato: 'errore' })).toBe(false)
+    expect(istanzaScollegata(c, { stato: 'attiva', uid: '' })).toBe(false)
   })
 
   it('collegata, senza istanza, eliminata, o senza cliente: no', () => {

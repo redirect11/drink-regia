@@ -126,7 +126,7 @@ beforeEach(() => {
     { uid: 'c', slug: 'bar-nuovo', nome_locale: 'Bar Nuovo', email: 'c@x.it', creato_il: '2026-10-03' },
   ])
   db.elencoIstanze.mockResolvedValue({
-    'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', versione: 'v1.10.0' },
+    'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', versione: 'v1.10.0', uid: 'a' },
     'bar-rotto': { stato: 'errore', errore: 'quota progetti' },
   })
   db.elencoRichieste.mockResolvedValue({})
@@ -1120,7 +1120,9 @@ describe('il bottone Aggiorna dice cosa fa', () => {
     mostra()
     const attivo = await apri('Bar Attivo')
     const tasto = within(attivo).getByRole('button', { name: 'Aggiorna subito' })
-    expect(tasto).toHaveAccessibleDescription(/solo questo locale, all’ultima versione dell’app, per una correzione urgente/)
+    // Dal 13/11/2026 (REQ-FLOTTA-089) la frase sta da sola nell'aiuto che si
+    // apre, e comincia con la maiuscola.
+    expect(tasto).toHaveAccessibleDescription(/solo questo locale, all’ultima versione dell’app, per una correzione urgente/i)
     expect(tasto).toHaveAccessibleDescription(/A tutti i locali la porta un rilascio, a ondate/)
     expect(within(attivo).getByRole('link', { name: 'Rilasci' })).toHaveAttribute('href', '/backoffice/rilasci')
     // Il nome del ramo non è scritto nella pagina: lo decide la Function.
@@ -1315,8 +1317,10 @@ describe('le licenze protette nel backoffice', () => {
     const attivo = await apri('Bar Attivo')
     expect(within(attivo).getByTestId('presentazione')).toHaveTextContent(/^v1\.10\.4 · dal 0?2\/11\/2026 · ultima volta il 0?3\/11\/2026$/)
     // Senza l'esito di un deploy della regia (la Tana da GitHub), anche la
-    // colonna Versione dice quella dell'app, e lo dice.
-    expect(attivo).toHaveTextContent(/Versionev1\.10\.4detta dall’app/)
+    // versione installata è quella dell'app, e lo dice. Dal 13/11/2026 sta
+    // nel blocco App (REQ-FLOTTA-089), non più nella colonna «Versione».
+    expect(within(attivo).getByTestId('versione-bar-attivo')).toHaveTextContent(/^v1\.10\.4$/)
+    expect(within(attivo).getByRole('region', { name: 'App' })).toHaveTextContent(/installata v1\.10\.4 · detta dall’app/)
   })
 })
 
@@ -1571,5 +1575,170 @@ describe('il segno che gira dell’aggiornamento', () => {
     const { readFileSync } = await import('node:fs')
     const css = readFileSync('src/index.css', 'utf8').replace(/\r\n/g, '\n')
     expect(css).toMatch(/\.spinner \{[^}]*flex: none;[^}]*width: 12px; height: 12px;[^}]*border-radius: 50%;/)
+  })
+})
+
+// REQ-FLOTTA-089 (Daniele, 13/11/2026: «è tutto troppo caotico e formattato
+// male andrebbe fatto meglio», poi «sistema la scheda come dicevi»): in
+// testa nome, stato, piano e versione e gli avvisi da trattare; sei blocchi
+// sempre nello stesso ordine, ciascuno coi suoi tasti; Sospendi e Chiudi da
+// soli in fondo; il Free senza il blocco Credito AI.
+describe('la scheda del locale in blocchi', () => {
+  const BLOCCHI = ['Titolare', 'Piano', 'App', 'Aggiornamenti', 'Aspetto', 'Credito AI']
+  const blocchi = (scheda) => [...scheda.querySelectorAll('section.blocco')].map((s) => s.querySelector('h4')?.textContent)
+  const blocco = (scheda, nome) => within(scheda).getByRole('region', { name: nome })
+  const nomiTasti = (el) => within(el).queryAllByRole('button').map((b) => b.textContent)
+  // Senza temi su misura: il mock di un test di prima resta acceso.
+  beforeEach(() => db.elencoTemiSuMisura.mockResolvedValue([]))
+
+  it('in testa nome, stato, piano e versione; poi i sei blocchi, sempre in quest’ordine', async () => {
+    db.elencoCassettiAI.mockResolvedValue({ 'bar-attivo': { credito_microeuro: 2_000_000 } })
+    mostra()
+    const attivo = await apri('Bar Attivo')
+    const testa = attivo.querySelector('.locale-testa')
+    expect(within(testa).getByRole('heading', { name: 'Bar Attivo' })).toBeInTheDocument()
+    expect(testa).toHaveTextContent('bar-attivo')
+    expect(within(testa).getByText('Attiva')).toHaveClass('stato-ok')
+    expect(testa).toHaveTextContent('Completo · v1.10.0')
+    expect(blocchi(attivo)).toEqual(BLOCCHI)
+    // Senza niente da trattare non c'è l'elenco degli avvisi.
+    expect(within(attivo).queryByRole('list', { name: 'Da trattare' })).toBeNull()
+  })
+
+  it('ogni tasto sta nel blocco della cosa che cambia', async () => {
+    db.elencoCassettiAI.mockResolvedValue({ 'bar-attivo': { credito_microeuro: 2_000_000 } })
+    mostra()
+    const attivo = await apri('Bar Attivo')
+    expect(nomiTasti(blocco(attivo, 'Piano'))).toEqual(['Cambia piano…', 'Sconto…'])
+    const agg = blocco(attivo, 'Aggiornamenti')
+    expect(within(agg).getByRole('button', { name: 'Aggiorna subito' })).toBeInTheDocument()
+    expect(within(agg).getByRole('combobox', { name: 'Aggiornamenti di Bar Attivo' })).toBeInTheDocument()
+    expect(within(agg).getByRole('combobox', { name: 'Gruppo di rilascio di Bar Attivo' })).toBeInTheDocument()
+    expect(nomiTasti(blocco(attivo, 'Aspetto'))).toEqual(['Temi…', 'Nuovo tema su misura…'])
+    expect(nomiTasti(blocco(attivo, 'Credito AI'))).toEqual(['Ricarica AI', 'Regala AI', 'Tetto AI', 'Spegni AI'])
+    expect(within(blocco(attivo, 'App')).getByText('drinkpos-bar-attivo')).toBeInTheDocument()
+    // «Cambia piano…» apre il modulo dentro il suo blocco.
+    await userEvent.setup().click(within(blocco(attivo, 'Piano')).getByRole('button', { name: 'Cambia piano…' }))
+    expect(within(blocco(attivo, 'Piano')).getByRole('form', { name: 'Cambia piano di Bar Attivo' })).toBeInTheDocument()
+  })
+
+  it('Sospendi e Chiudi stanno da soli in fondo, fuori dai blocchi, sotto una riga', async () => {
+    mostra()
+    const attivo = await apri('Bar Attivo')
+    const fondo = attivo.querySelector('.locale-fondo')
+    expect(fondo).not.toBeNull()
+    expect(nomiTasti(fondo)).toEqual(['Sospendi', 'Chiudi'])
+    expect(fondo.closest('section')).toBeNull()
+    // Dopo i blocchi, ultimo nella scheda.
+    const ultimoBlocco = [...attivo.querySelectorAll('section.blocco')].at(-1)
+    expect(ultimoBlocco.compareDocumentPosition(fondo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    const css = readFileSync('src/index.css', 'utf8').replace(/\r\n/g, '\n')
+    expect(css).toMatch(/\.locale-fondo \{[^}]*border-top: 1px solid var\(--line\);/)
+    // Nessun tasto sparso: ogni tasto della scheda sta in un blocco, negli
+    // avvisi o in fondo.
+    for (const b of within(attivo).getAllByRole('button')) {
+      expect(b.closest('section.blocco, .locale-avvisi, .locale-fondo'), b.textContent).not.toBeNull()
+    }
+  })
+
+  it('il Free non ha il blocco Credito AI', async () => {
+    db.elencoClienti.mockResolvedValue([{ uid: 'f', slug: 'prova-free', nome_locale: 'Prova Free', email: 'f@x.it', piano: 'free', creato_il: '2026-11-01' }])
+    db.elencoIstanze.mockResolvedValue({ 'prova-free': { stato: 'attiva', progetto: 'drinkpos-prova-free', versione: 'v1.10.40-beta', profilo: 'leggero' } })
+    db.elencoCassettiAI.mockResolvedValue({ 'prova-free': { credito_microeuro: 0 } })
+    mostra()
+    const free = await apri('Prova Free')
+    expect(free.querySelector('.locale-testa')).toHaveTextContent('Free · v1.10.40-beta')
+    expect(blocchi(free)).toEqual(BLOCCHI.filter((b) => b !== 'Credito AI'))
+    expect(within(blocco(free, 'Piano')).getByText(/^Free · 0\s?€$/)).toBeInTheDocument()
+    expect(within(free).queryByRole('button', { name: /AI$/ })).toBeNull()
+  })
+
+  it('gli avvisi stanno in testa, ciascuno col suo tasto', async () => {
+    db.elencoClienti.mockResolvedValue([
+      { uid: 'a', slug: 'bar-attivo', nome_locale: 'Bar Attivo', email: 'a@x.it', piano: 'base', creato_il: '2026-10-01', abbonamento: { origine: 'manuale', stato: 'non pagato', pagato_fino_al: '2026-10-31' } },
+      { uid: 'b', slug: 'bar-rotto', nome_locale: 'Bar Rotto', email: 'b@x.it', piano: 'base', creato_il: '2026-10-02' },
+    ])
+    db.elencoIstanze.mockResolvedValue({
+      'bar-attivo': {
+        stato: 'attiva',
+        progetto: 'drinkpos-bar-attivo',
+        versione: 'v1.10.0',
+        uid: 'qualcun-altro',
+        licenza_protetta: { ok: false, perche: 'licenza/attuale manca.' },
+        aggiornamento: { ref: 'v1.11.0', stato: 'fallito', errore: 'deploy interrotto', versione_precedente: 'v1.10.0' },
+      },
+      'bar-rotto': { stato: 'errore', errore: 'quota progetti' },
+    })
+    mostra()
+    const attivo = await apri('Bar Attivo')
+    const avvisi = within(attivo).getByRole('list', { name: 'Da trattare' })
+    expect(avvisi.closest('section')).toBeNull()
+    expect(avvisi).toHaveTextContent('aggiornamento a v1.11.0 fallito: deploy interrotto')
+    // L'app legata a un altro account ha il suo tasto (REQ-FLOTTA-086).
+    expect(nomiTasti(avvisi)).toEqual(['Riprova', 'Torna a v1.10.0', 'Collega l’app al titolare'])
+    expect(avvisi).toHaveTextContent('licenza/attuale manca.')
+    expect(avvisi).toHaveTextContent('non pagato')
+    expect(avvisi).toHaveTextContent('L’app è legata a un altro account')
+    // Gli avvisi vengono prima dei blocchi.
+    expect(avvisi.compareDocumentPosition(blocco(attivo, 'Titolare')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(blocco(attivo, 'Titolare')).toHaveTextContent('account dell’app: diverso')
+
+    const rotto = await apri('Bar Rotto')
+    const suoi = within(rotto).getByRole('list', { name: 'Da trattare' })
+    expect(suoi).toHaveTextContent('Attivazione non riuscita: quota progetti')
+    expect(nomiTasti(suoi)).toEqual(['Rilancia'])
+  })
+
+  it('l’app legata all’account del titolare: «collegato», e nessun avviso', async () => {
+    db.elencoIstanze.mockResolvedValue({ 'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', uid: 'a' } })
+    mostra()
+    const attivo = await apri('Bar Attivo')
+    expect(blocco(attivo, 'Titolare')).toHaveTextContent('account dell’app: collegato')
+    expect(within(attivo).queryByRole('list', { name: 'Da trattare' })).toBeNull()
+  })
+
+  it('la spiegazione di «Aggiorna subito» è un aiuto che si apre, anche da tastiera', async () => {
+    mostra()
+    const attivo = await apri('Bar Attivo')
+    const agg = blocco(attivo, 'Aggiornamenti')
+    const tasto = within(agg).getByRole('button', { name: 'Aggiorna subito' })
+    const aiuto = agg.querySelector('details.aiuto')
+    expect(aiuto).not.toBeNull()
+    expect(aiuto.open).toBe(false)
+    expect(aiuto.querySelector('summary')).toHaveAccessibleName('Cosa fa «Aggiorna subito»')
+    expect(aiuto).toHaveTextContent(/solo questo locale, all’ultima versione dell’app, per una correzione urgente/i)
+    // Il lettore di schermo la legge col tasto, chiusa o aperta.
+    expect(tasto).toHaveAccessibleDescription(/solo questo locale, all’ultima versione dell’app/i)
+  })
+
+  it('sul telefono i blocchi vanno in una colonna; larghi, al massimo tre per riga', () => {
+    const css = readFileSync('src/index.css', 'utf8').replace(/\r\n/g, '\n')
+    // min(100%, 18rem): sotto i 18rem di larghezza un blocco prende tutta
+    // la riga; tre blocchi da 18rem più gli spazi stanno nei 1120px, quattro no.
+    expect(css).toMatch(/\.locale-blocchi \{[^}]*display: grid;[^}]*grid-template-columns: repeat\(auto-fit, minmax\(min\(100%, 18rem\), 1fr\)\);/)
+  })
+})
+
+// IL FREE NON HA L'AI (REQ-FLOTTA-087). Daniele, 13/11/2026: «I free non
+// hanno l'ai». L'admin non regala né ricarica credito che il locale non
+// potrebbe usare: niente tasti dell'AI e niente riga del credito.
+describe('il backoffice e un locale Free', () => {
+  it('niente «Ricarica AI», «Regala AI», «Tetto AI» né la riga del credito', async () => {
+    db.elencoClienti.mockResolvedValue([{ uid: 'f', slug: 'bar-free', nome_locale: 'Bar Free', email: 'f@x.it', piano: 'free', creato_il: '2026-10-01' }])
+    db.elencoIstanze.mockResolvedValue({ 'bar-free': { stato: 'attiva', progetto: 'drinkpos-bar-free', versione: 'v1.10.0' } })
+    db.elencoCassettiAI.mockResolvedValue({ 'bar-free': { credito_microeuro: 2_000_000 } })
+    mostra()
+    const free = await apri('Bar Free')
+    for (const nome of ['Ricarica AI', 'Regala AI', 'Tetto AI']) expect(within(free).queryByRole('button', { name: nome })).toBeNull()
+    expect(within(free).queryByTestId('credito-bar-free')).toBeNull()
+    expect(within(free).queryByText('Credito AI')).toBeNull()
+  })
+
+  it('un locale tornato al Free perché non paga è come un Free', async () => {
+    db.elencoClienti.mockResolvedValue([{ uid: 'r', slug: 'bar-ripiego', nome_locale: 'Bar Ripiego', email: 'r@x.it', piano: 'base', creato_il: '2026-10-01' }])
+    db.elencoIstanze.mockResolvedValue({ 'bar-ripiego': { stato: 'attiva', progetto: 'drinkpos-bar-ripiego', ripiego_free: { dal: '2026-11-01T00:00:00Z' }, licenza_piano: 'free' } })
+    mostra()
+    const locale = await apri('Bar Ripiego')
+    expect(within(locale).queryByRole('button', { name: 'Ricarica AI' })).toBeNull()
   })
 })

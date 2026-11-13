@@ -51,6 +51,10 @@ export function statoIstanza(istanza, richiesta, { illeggibile = false } = {}) {
 // istanza eliminata non ha più niente da far vedere.
 export function istanzaScollegata(cliente, istanza) {
   if (!cliente?.uid || !istanza || istanza.stato === STATI.ELIMINATA) return false
+  // Un lancio fallito senza uid e senza progetto non è un'app da collegare:
+  // il titolare lo vede dalla sua richiesta e rilancia (come appDelTitolare
+  // in functions/lib/collegamento.js).
+  if (!istanza.uid && !istanza.progetto) return false
   return (istanza.uid || '') !== cliente.uid
 }
 

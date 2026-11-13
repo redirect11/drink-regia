@@ -293,3 +293,34 @@ describe('«Chiudi il locale»', () => {
     expect(screen.queryByRole('region', { name: 'L’app' })).toBeNull()
   })
 })
+
+// IL FREE NON HA L'AI (REQ-FLOTTA-087). Daniele, 13/11/2026: «I free non
+// hanno l'ai». Niente sezione del credito: si ricaricherebbe un credito che
+// la regia poi rifiuta di spendere.
+describe('l’area di un titolare Free e l’AI', () => {
+  beforeEach(() => {
+    stato.cliente = { ...stato.cliente, piano: 'free', moduli: [], terminali: 1, abbonamento: { stato: 'attivo', origine: 'gratuito' } }
+    stato.istanza = { stato: 'attiva', progetto: 'drinkpos-bar-prova', url: 'https://drinkpos-bar-prova.web.app' }
+  })
+
+  it('il sotto-menù non ha «Credito AI», e il suo indirizzo porta alla panoramica', () => {
+    mostra('/dashboard/credito-ai')
+    expect(within(menu()).queryByRole('link', { name: 'Credito AI' })).toBeNull()
+    expect(within(menu()).getByRole('link', { name: 'Panoramica' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.queryByRole('region', { name: 'Credito AI' })).toBeNull()
+  })
+
+  it('anche chi è tornato al Free perché non paga non vede il credito AI', () => {
+    stato.cliente = { ...structuredClone(CLIENTE), piano: 'base' }
+    stato.istanza = { ...stato.istanza, ripiego_free: { dal: '2026-11-01T00:00:00Z', piano_prima: 'base' }, licenza_piano: 'free' }
+    mostra()
+    expect(within(menu()).queryByRole('link', { name: 'Credito AI' })).toBeNull()
+  })
+
+  it('il tema dal mockup non si chiede: dice che il Free non comprende le funzioni AI', () => {
+    mostra()
+    const temi = screen.getByRole('region', { name: 'Temi su misura' })
+    expect(within(temi).queryByRole('form', { name: 'Un tema dal tuo mockup' })).toBeNull()
+    expect(temi).toHaveTextContent('Il piano Free non comprende le funzioni AI')
+  })
+})

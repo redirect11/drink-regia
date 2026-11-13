@@ -39,7 +39,7 @@ describe('quando compare', () => {
   })
 
   it('istanza senza uid: lo stesso, e dice che non è legata a nessun account', () => {
-    render(<CollegaIstanza cliente={cliente} istanza={{ stato: 'errore' }} />)
+    render(<CollegaIstanza cliente={cliente} istanza={{ stato: 'attiva', progetto: 'drinkpos-prova-free' }} />)
     expect(screen.getByRole('alert')).toHaveTextContent(/nessun account/)
     expect(screen.getByRole('button', TASTO)).toBeInTheDocument()
   })
@@ -93,12 +93,14 @@ describe('il tasto', () => {
 })
 
 describe('nella scheda del locale', () => {
-  it('sta in cima alla scheda, prima dei dati', () => {
+  it('sta fra gli avvisi in testa alla scheda, prima dei blocchi (REQ-FLOTTA-089)', () => {
     const bo = readFileSync('src/pages/Backoffice.jsx', 'utf8')
     expect(bo).toContain("import CollegaIstanza from './CollegaIstanza.jsx'")
     const scheda = bo.slice(bo.indexOf('function SchedaLocale('))
     expect(scheda.indexOf('<CollegaIstanza cliente={c} istanza={istanza} onFatto={az.carica} />')).toBeGreaterThan(-1)
-    expect(scheda.indexOf('<CollegaIstanza')).toBeLessThan(scheda.indexOf('<dl className="locale-dati">'))
+    // Fra gli avvisi, che la scheda mostra prima dei sei blocchi.
+    expect(scheda.indexOf('<CollegaIstanza')).toBeLessThan(scheda.indexOf('const avvisi = [') === -1 ? -1 : scheda.indexOf('].filter(Boolean)'))
+    expect(scheda.indexOf('<CollegaIstanza')).toBeGreaterThan(scheda.indexOf('const avvisi = ['))
   })
 
   it('db.js chiama la callable collegaIstanza con lo slug', () => {
