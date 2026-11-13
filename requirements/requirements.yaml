@@ -4291,8 +4291,10 @@ requirements:
       alla chiusura, così il servizio non si interrompe mai a metà;
       nell'ora prima dell'apertura a un'ora prima dell'apertura, e se quel
       momento è già passato alla chiusura; (8) fra «non pagato» e la
-      sospensione il locale lavora ancora fino a circa un giorno: è
-      accettato, una conseguenza nota; (9) i locali aperti 24 ore, o con
+      sospensione il locale lavora ancora fino a quasi due giorni: è
+      accettato, una conseguenza nota (alla revisione del 13/11/2026 si
+      diceva «circa un giorno», che era sbagliato; Daniele: «Tenere la
+      regola così e accettare fino a quasi due giorni … ok»); (9) i locali aperti 24 ore, o con
       meno di un'ora fra la chiusura e l'apertura dopo, si registrano: se
       gli orari non lasciano un momento fuori servizio adatto, la
       sospensione cade all'ora dell'attivazione anche in servizio, e il
@@ -4445,6 +4447,13 @@ requirements:
       titolare subito. Gli orari restano nella regia: la licenza non li
       porta (se tana-drink li vuole, un campo nuovo è una decisione a
       parte).
+      LE DECISIONI DI DANIELE DEL 13/11/2026 sulla revisione, con le sue
+      frasi: (1) l'email della richiesta di cambio, «A me arriva solo la
+      richiesta, poi rispondo io a mano al momento» (criterio 2); (2) gli
+      orari scritti dall'admin, «si» (criterio 2); (3) il giorno aperto 24
+      ore, «se è h24 fai 0 - 24» (criterio 1); (4) il ritardo della
+      sospensione, «Tenere la regola così e accettare fino a quasi due
+      giorni … ok» (sotto, conseguenza nota).
       FATTO IL 13/11/2026 (ramo feature/orari-di-servizio, #233). La logica
       in functions/lib/orari-servizio.js, con la copia per il sito in
       src/lib/orari.js (un test le confronta). Le callable correggiOrari,
@@ -4465,7 +4474,17 @@ requirements:
       un test sull'emulatore prova che il titolare non scrive
       `orari_servizio`.
       CONSEGUENZA NOTA (punto 8): fra «non pagato» e la sospensione il
-      locale lavora ancora fino a circa un giorno. PUNTI DEBOLI. L'ora di
+      locale lavora ancora FINO A QUASI DUE GIORNI (revisione del 13/11/2026,
+      D4; Daniele: «Tenere la regola così e accettare fino a quasi due
+      giorni … ok»). Due esempi, provati in tests/orari-servizio.test.js:
+      servizio 18:00–02:00, attivato alle 21:30, «non pagato» deciso alle
+      21:31: le 21:30 del giorno dopo sono in servizio, la chiusura è alle
+      2 del giorno dopo ancora, 28,5 ore; servizio dalle 10 alle 08 del
+      giorno dopo, attivato alle 10:01, deciso alle 10:02: 24 ore fino
+      all'ora dell'attivazione, in servizio, e 22 fino alla chiusura,
+      circa 46 ore. Con Stripe la scadenza cade all'ora dell'attivazione
+      (D1), quindi di solito resta solo lo spostamento alla chiusura.
+      PUNTI DEBOLI. L'ora di
       `abbonamento.dal` con Stripe è quella in cui la regia lavora
       l'evento, non quella del pagamento (di solito pochi secondi).
       «Adatto» guarda solo la chiusura del servizio in cui cade l'ora: un

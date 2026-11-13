@@ -453,6 +453,21 @@ describe('il momento della sospensione per pagamento', () => {
     expect(momento('2026-09-01T19:00:00.000Z', '2026-10-24T09:00:00Z', { ...tutti(CHIUSO), sab: aperto('00:00', '24:00') })).toBe('2026-10-24T22:00:00.000Z')
   })
 
+  // Revisione del 13/11/2026, D4: la regola non cambia, e fra «non
+  // pagato» e la sospensione il locale lavora ancora fino a quasi due
+  // giorni. Daniele: «Tenere la regola così e accettare fino a quasi due
+  // giorni … ok». I due esempi della voce, coi loro numeri.
+  it('D4: fra la decisione e la sospensione fino a quasi due giorni (28,5 ore; circa 46 ore con un servizio dalle 10 alle 08)', () => {
+    const ore = (attivazione, adesso, giorni) => (Date.parse(momento(attivazione, adesso, giorni)) - Date.parse(adesso)) / 3600000
+    // Servizio 18–02, attivato alle 21:30, deciso alle 21:31 di mercoledì:
+    // le 21:30 di giovedì sono in servizio, la chiusura è venerdì alle 2.
+    expect(ore('2026-09-01T19:30:00.000Z', '2026-11-18T20:31:00.000Z')).toBeCloseTo(28.48, 2)
+    // Servizio dalle 10 alle 08 del giorno dopo, attivato alle 10:01, deciso
+    // alle 10:02: le 10:01 di domani sono in servizio, la chiusura è alle 8
+    // del giorno dopo ancora.
+    expect(ore('2026-11-02T09:01:00.000Z', '2026-11-18T09:02:00.000Z', tutti(aperto('10:00', '08:00')))).toBeCloseTo(45.97, 2)
+  })
+
   // Criterio 5: i locali di prima.
   it('senza orari (o con orari non validi) resta il taglio della giornata di oggi', () => {
     const adesso = new Date('2026-11-18T09:00:00Z')
