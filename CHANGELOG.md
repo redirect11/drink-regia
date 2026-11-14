@@ -6,6 +6,10 @@ data.
 
 ## 0.4.0 (in lavorazione)
 
+- La flotta: anche «provisiona» (su un progetto che esiste già) e
+  «prepara l'AI di un locale esistente» si fermano se il progetto non ha
+  l'etichetta ambiente della regia che li lancia, come già «aggiorna» ed
+  «elimina» (REQ-FLOTTA-100).
 - I collaboratori di un locale. Il titolare, nella sezione
   «Collaboratori» della sua area, aggiunge per email chi lavora con lui
   (al massimo 5); l'amministratore fa lo stesso dalla scheda del locale,
