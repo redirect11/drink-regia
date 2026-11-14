@@ -4534,6 +4534,39 @@ requirements:
     test_cases:
       - tests/App.test.jsx
 
+  - id: REQ-FLOTTA-097
+    title: "«Aggiungi locale» nel backoffice: prima si sceglie fra nuovo ed esistente, poi un modulo solo"
+    area: "src/pages/Backoffice.jsx (SceltaAggiunta, rotte aggiungi, aggiungi/nuovo, aggiungi/esistente), src/lib/backoffice.js (SEZIONI), src/index.css (.scelta-aggiunta)"
+    description: >
+      Daniele, 14/11/2026, registrando la Tana nella regia di produzione:
+      «puoi farla meglio la cosa del nuovo locale. Prima cosa chiamala
+      aggiungi locale e poi puoi scegliere tra nuovo ed esistente, vedi tu
+      come ma non mettere tutti e due i box nella stessa pagina che confonde
+      molto». Fino a qui la sezione «Nuovo locale» (/backoffice/nuovo)
+      mostrava uno sotto l'altro due moduli con gli stessi primi campi (nome
+      ed email del titolare): uno crea un cliente e la sua attivazione,
+      l'altro registra un locale che ha già app e progetto e non tocca
+      niente. Sbagliare modulo vuol dire avviare un'attivazione per un
+      locale che esiste, o il contrario.
+      CRITERI. (1) La voce del sotto-menù si chiama «Aggiungi locale» e porta
+      a /backoffice/aggiungi, dove non c'è nessun modulo: solo la scelta fra
+      «Nuovo locale» e «Locale esistente», ognuna con una riga che dice
+      quando si usa. (2) La scelta apre /backoffice/aggiungi/nuovo o
+      /backoffice/aggiungi/esistente, con un modulo solo, e la voce del
+      sotto-menù resta attiva; un collegamento riporta alla scelta. La
+      scelta sta nell'indirizzo: si torna indietro col browser e la si
+      ricarica; una scelta che non c'è riporta alla scelta. (3) I due moduli
+      restano quelli di prima, campi e chiamate comprese, e fatti riportano
+      all'elenco dei locali. (4) Il vecchio indirizzo /backoffice/nuovo
+      porta alla scelta.
+    status: todo
+    generate_issue: true
+    labels: [regia, backoffice]
+    priority: P2
+    test_cases:
+      - tests/Backoffice.test.jsx
+      - tests/App.test.jsx
+
   - id: REQ-FLOTTA-092
     title: "Il modello AI si sceglie per tipo di richiesta dal backoffice: Sonnet per tutti, all'inizio"
     area: "functions/piani.json (ai.prezzi_usd_per_milione), functions/lib/ai.js (TIPI_MODELLO, modelliDelListino, modelloPer, validaModelliAI, interrogaConPrenotazione), functions/index.js (interrogaClaude, gestisciModelliAI), src/lib/db.js (impostaModelliAI), src/pages/Backoffice.jsx (Vendita), firestore.rules (impostazioni)"
