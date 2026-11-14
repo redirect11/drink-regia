@@ -4702,7 +4702,7 @@ requirements:
       CRITERI. (1) La scheda si apre anche se mostra un aggiornamento
       fallito col suo «Riprova». (2) Il «Riprova» della lettura fallita si
       preme solo se la scheda non c'è, come prima.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [metodo, regia]
     priority: P1
