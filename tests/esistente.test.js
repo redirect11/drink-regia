@@ -125,12 +125,25 @@ describe('gli aggiornamenti dalla regia', () => {
     expect(() => gestioneEsistente({ cliente: 'demo' }, { slug: 'bar-mario', progetto: 'drinkpos-bar-mario' })).toThrow(/va solo su drinkpos-demo/)
     expect(() => gestioneEsistente({ cliente: 'tana' }, { slug: 'drinkpos-demo', progetto: 'drinkpos-demo' })).toThrow(/riceve solo la cartella/)
     expect(gestioneEsistente({ cliente: 'demo', aggiornamenti_dalla_regia: true, licenza_dalla_regia: true }, { slug: 'drinkpos-demo', progetto: 'drinkpos-demo' })).toMatchObject({ cliente: 'demo', aggiornamenti_dalla_regia: true, licenza_dalla_regia: false })
-    expect(() => datiEsistente({ ...TANA, progetto: 'drinkpos-demo', url: 'https://drinkpos-demo.web.app' })).toThrow(/riceve solo la cartella/)
+    expect(() => datiEsistente({ ...TANA, progetto: 'drinkpos-demo', url: 'https://drinkpos-demo.web.app', cliente: 'tana' })).toThrow(/riceve solo la cartella/)
     expect(eDemo({ progetto: 'drinkpos-demo' })).toBe(true)
     expect(eDemo({ progetto: 'drinkpos-bar', cliente: 'demo' })).toBe(true)
     expect(eDemo({ progetto: 'tana-drink', cliente: 'tana' })).toBe(false)
     // Anche se qualcuno l'avesse spuntata prima.
     expect(scriveLicenza({ stato: 'attiva', progetto: 'drinkpos-demo', licenza_dalla_regia: true })).toBe(false)
+  })
+
+  // REQ-FLOTTA-105 (Daniele, 14/11/2026, spostando la demo in produzione): il
+  // modulo «Locale esistente» non manda la cartella. Sul progetto della demo
+  // la cartella è demo da sola; altrove resta l'identificativo.
+  it('la demo si registra dal modulo: su drinkpos-demo, senza cartella, la cartella è demo', () => {
+    expect(gestioneEsistente({}, { slug: 'drinkpos-demo', progetto: 'drinkpos-demo' }).cliente).toBe('demo')
+    const demo = datiEsistente({ nome_locale: 'Demo', slug: 'drinkpos-demo', email: 'demo@example.it', progetto: 'drinkpos-demo', url: 'https://drinkpos-demo.web.app' })
+    expect(demo.gestione).toMatchObject({ cliente: 'demo', licenza_dalla_regia: false })
+    // Il resto della regola non cambia.
+    expect(() => gestioneEsistente({ cliente: 'tana' }, { slug: 'drinkpos-demo', progetto: 'drinkpos-demo' })).toThrow(/riceve solo la cartella/)
+    expect(() => gestioneEsistente({ cliente: 'demo' }, { slug: 'bar-mario', progetto: 'drinkpos-bar-mario' })).toThrow(/va solo su drinkpos-demo/)
+    expect(gestioneEsistente({}, { slug: 'tana-drink', progetto: 'tana-drink' }).cliente).toBe('tana-drink')
   })
 
   it('la regia non fa passare nessuno nella demo', () => {
