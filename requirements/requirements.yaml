@@ -4847,6 +4847,41 @@ requirements:
     test_cases:
       - tests/App.test.jsx
 
+  - id: REQ-FLOTTA-107
+    title: "Le interfacce fra la regia e l'app documentate in un posto solo, e la regola per cambiarle senza rompere i locali"
+    area: "docs/contratto-regia-app.md, CLAUDE.md (regole di lavoro), .claude/agents/revisore.md, docs/handover.md §7, tests/contratto.test.js"
+    description: >
+      Daniele, 14/11/2026, discutendo come evitare che un aggiornamento
+      installi un'app che non parla con la regia: «l'unico modo per essere
+      incompatibili è che tana drink o regia usino api vecchie quindi io
+      direi di iniziare a documentare le api e un modo per fare questo
+      cambio quando cambiano le api», e poi «ogni modifica che va fatta
+      bisogna sempre verificare se rischiamo di cambiare una interfaccia ed
+      aggiornare il documento». Le interfacce erano descritte a pezzi
+      (handover §7, i documenti di tana-drink), e alcune solo nel codice.
+      CRITERI. (1) docs/contratto-regia-app.md elenca ogni interfaccia fra
+      la regia e l'app (documenti scritti in un progetto e letti dall'altro,
+      Function HTTP, frammenti degli indirizzi, variabili della build,
+      input dei workflow, script di tana-drink che i workflow chiamano,
+      callback, identità e ruoli): per ognuna chi chiama, cosa manda, cosa
+      riceve, dove sta nel codice dei due lati, da quando c'è, se è attiva
+      o deprecata, quale documento la descrive. (2) Dice come si cambia
+      un'interfaccia: un cambio compatibile si fa e si documenta nella
+      stessa PR; uno incompatibile mai sul posto, la versione nuova
+      accanto alla vecchia, e la vecchia si toglie solo quando nessun
+      locale la usa più, con una voce sua. (3) Elenca le interfacce
+      deprecate e le incoerenze note fra i due lati. (4) CLAUDE.md e il
+      revisore chiedono, a ogni modifica, se tocca un'interfaccia, e il
+      documento aggiornato nella stessa PR. (5) Un test fa rosso se una
+      Function HTTP della regia o un input dei workflow che pubblicano
+      l'app non hanno la loro voce.
+    status: todo
+    generate_issue: true
+    labels: [regia, contratto-tana-drink, metodo]
+    priority: P1
+    test_cases:
+      - tests/contratto.test.js
+
   - id: REQ-FLOTTA-092
     title: "Il modello AI si sceglie per tipo di richiesta dal backoffice: Sonnet per tutti, all'inizio"
     area: "functions/piani.json (ai.prezzi_usd_per_milione), functions/lib/ai.js (TIPI_MODELLO, modelliDelListino, modelloPer, validaModelliAI, interrogaConPrenotazione), functions/index.js (interrogaClaude, gestisciModelliAI), src/lib/db.js (impostaModelliAI), src/pages/Backoffice.jsx (Vendita), firestore.rules (impostazioni)"
