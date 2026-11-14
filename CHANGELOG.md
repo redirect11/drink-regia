@@ -6,6 +6,14 @@ data.
 
 ## 0.5.0 (in lavorazione)
 
+- Nel backoffice c'è la sezione «Salute»: con «Controlla adesso» mostra,
+  per ogni locale, l'ultima presentazione dell'app con la versione
+  pubblicata accanto, gli errori delle ultime 24 ore e i permessi che
+  mancano alla regia sul progetto del locale, con la riga che li dà; poi
+  gli errori per Function. L'account della regia legge i suoi registri
+  con `roles/logging.viewer`, da dare con `scripts/account-runtime.mjs`
+  (REQ-FLOTTA-109).
+
 ## 0.4.2 (14/11/2026, correzione)
 
 - L'anteprima del sito chiuso è più corta («Stiamo preparando il sito.»,

@@ -4815,7 +4815,8 @@ requirements:
       la riga lo nomina, senza email); serve roles/logging.viewer
       all'account della regia sul suo progetto, ed è l'unico ruolo nuovo.
       (c) I permessi: per ogni locale con un progetto (non la demo, non i
-      simulati, non gli eliminati) la regia chiede a Google, con
+      simulati, non la semina della regia di test, non gli eliminati) la
+      regia chiede a Google, con
       testIamPermissions, se ha i permessi dei tre ruoli che Terraform le
       dà; non legge i dati del locale e non crea credenziali, e non le
       serve nessun ruolo per chiederlo.
@@ -4824,7 +4825,7 @@ requirements:
       adesso». (3) Per ogni locale: giudizio (problema se manca un
       permesso; attenzione se ci sono errori, se non si è mai presentato o
       se la versione presentata è diversa da quella pubblicata; in ordine
-      altrimenti; non controllato per demo e simulati), la versione
+      altrimenti; non controllato per demo, simulati e semina), la versione
       presentata e quando, i ruoli che mancano con la riga di
       scripts/account-runtime.mjs che li dà. (4) Gli errori delle 24 ore
       per Function e le ultime righe. (5) Registri non leggibili: la
@@ -4832,7 +4833,7 @@ requirements:
       Function è solo dell'admin e non tocca i progetti dei locali.
       INTERFACCE CON L'APP: nessuna; la regia legge i suoi dati e chiede a
       Google i suoi permessi.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [regia, backoffice, flotta]
     priority: P2

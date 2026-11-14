@@ -46,10 +46,11 @@ const ai = require('./lib/ai.js')
 const aiChat = require('./lib/ai-chat.js')
 const identita = require('./lib/identita-locale.js')
 const stampanti = require('./lib/stampanti.js')
-const { OAuth2Client } = require('google-auth-library')
+const { OAuth2Client, GoogleAuth } = require('google-auth-library')
 const elim = require('./lib/eliminazione.js')
 const conserva = require('./lib/conservazione.js')
 const presenta = require('./lib/presentazione.js')
+const salute = require('./lib/salute.js')
 const passa = require('./lib/passaggio.js')
 const collab = require('./lib/collaboratori.js')
 const temi = require('./lib/temi.js')
@@ -3395,4 +3396,62 @@ exports.cambiaPianoAdmin = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, asy
   }
   await doc.ref.update({ storico_piano: FieldValue.arrayUnion(c.storico) })
   return { ok: true, modo: req.data.modo }
+})
+
+// ── LA SALUTE DELLA FLOTTA (REQ-FLOTTA-109) ────────────────────────────
+// Daniele, 14/11/2026, dopo la verifica a mano del 500 di
+// drinkpos-prova-e2e: «dove le vedi queste cose?». La sezione «Salute» del
+// backoffice chiede qui, quando l'admin preme il tasto (mai a tempo), per
+// ogni locale l'ultima presentazione, gli errori delle 24 ore e i permessi
+// che mancano. I conti sono in lib/salute.js.
+// - I PERMESSI: testIamPermissions risponde coi permessi che la regia ha
+//   sul progetto del locale e sul suo account dell'SDK. Non legge niente
+//   del locale, non crea credenziali e non chiede un ruolo in più.
+// - GLI ERRORI: i registri della regia stessa, con roles/logging.viewer
+//   sul suo progetto (scripts/account-runtime.mjs). Senza quel ruolo la
+//   sezione dice che i registri non si leggono, non «zero errori».
+const googleAuth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-platform'] })
+async function chiediAGoogle(url, corpo) {
+  const client = await googleAuth.getClient()
+  const r = await client.request({ url, method: 'POST', data: corpo, timeout: 15000 })
+  return r.data
+}
+// Una domanda che non ha risposta torna null: «non lo so», non «manca».
+async function permessiDelLocale(progetto) {
+  const prova = (url, permissions) =>
+    chiediAGoogle(url, { permissions })
+      .then((d) => d?.permissions || [])
+      .catch((e) => {
+        console.warn(`[salute] ${progetto}: i permessi non si sono potuti chiedere: ${e?.message || e}`)
+        return null
+      })
+  const [progettoConcessi, firmaConcessi] = await Promise.all([
+    prova(`https://cloudresourcemanager.googleapis.com/v1/projects/${progetto}:testIamPermissions`, salute.PERMESSI_PROGETTO),
+    prova(`https://iam.googleapis.com/v1/projects/${progetto}/serviceAccounts/firebase-adminsdk-fbsvc@${progetto}.iam.gserviceaccount.com:testIamPermissions`, salute.PERMESSI_FIRMA),
+  ])
+  return { progetto: progettoConcessi, firma: firmaConcessi }
+}
+async function registriDelleUltime24Ore() {
+  const da = new Date(Date.now() - 24 * 3600 * 1000).toISOString()
+  try {
+    const d = await chiediAGoogle('https://logging.googleapis.com/v2/entries:list', {
+      resourceNames: [`projects/${PROGETTO_REGIA}`],
+      filter: `timestamp>="${da}" AND resource.type="cloud_run_revision" AND (httpRequest.status>=500 OR severity>=ERROR)`,
+      orderBy: 'timestamp desc',
+      pageSize: 500,
+    })
+    return { leggibili: true, voci: d?.entries || [] }
+  } catch (e) {
+    const status = e?.response?.status || e?.status
+    return { leggibili: false, perche: status === 403 ? 'manca roles/logging.viewer all’account della regia' : `Google ha risposto: ${e?.message || e}` }
+  }
+}
+exports.saluteDellaFlotta = onCall({ ...OPTS, timeoutSeconds: 120 }, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const istanze = (await db.collection('istanze').get()).docs.map((d) => ({ slug: d.id, ...d.data() }))
+  const [permessi, registri] = await Promise.all([
+    Promise.all(istanze.filter(salute.daControllare).map(async (ist) => [ist.slug, await permessiDelLocale(ist.progetto)])).then(Object.fromEntries),
+    registriDelleUltime24Ore(),
+  ])
+  return salute.rapporto({ istanze, permessi, registri })
 })

@@ -18,12 +18,14 @@ const ADESSO = new Date('2026-11-14T20:00:00.000Z')
 const oreFa = (n) => new Date(ADESSO.getTime() - n * 3600000).toISOString()
 
 describe('quali locali si controllano', () => {
-  it('quelli con un progetto, attivi o sospesi; non la demo, i simulati, gli eliminati, quelli senza progetto', () => {
+  it('quelli con un progetto, attivi o sospesi; non la demo, i simulati, la semina, gli eliminati, quelli senza progetto', () => {
     expect(s.daControllare({ slug: 'prova-bar', progetto: 'drinkpos-prova-bar', stato: 'attiva' })).toBe(true)
     expect(s.daControllare({ slug: 'tana-drink', progetto: 'tana-drink', stato: 'attiva', licenza_dalla_regia: false })).toBe(true)
     expect(s.daControllare({ slug: 'moroso', progetto: 'drinkpos-moroso', stato: 'sospesa' })).toBe(true)
     expect(s.daControllare({ slug: 'drinkpos-demo', progetto: 'drinkpos-demo', stato: 'attiva' })).toBe(false)
     expect(s.daControllare({ slug: 'finto', progetto: 'drinkpos-finto', stato: 'attiva', simulata: true })).toBe(false)
+    // La semina della regia di test: un nome di progetto senza progetto.
+    expect(s.daControllare({ slug: 'base-mix-moduli', progetto: 'drinkpos-base-mix-moduli', stato: 'attiva', semina: true })).toBe(false)
     expect(s.daControllare({ slug: 'via', progetto: 'drinkpos-via', stato: 'eliminata' })).toBe(false)
     expect(s.daControllare({ slug: 'nuovo', stato: 'in corso' })).toBe(false)
     expect(s.daControllare(null)).toBe(false)

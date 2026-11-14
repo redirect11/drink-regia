@@ -59,6 +59,9 @@ const RUOLI_PROGETTO = [
   'roles/eventarc.eventReceiver',
   'roles/run.invoker',
   'roles/cloudtasks.enqueuer',
+  // La sezione «Salute» del backoffice legge i registri della regia stessa
+  // (REQ-FLOTTA-109): solo lettura, solo sul progetto della regia.
+  'roles/logging.viewer',
 ]
 // Su sé stesso: firmare (token di accesso, URL firmati) e agire come sé
 // (i task della coda delle scadenze portano un token OIDC suo).

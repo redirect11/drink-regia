@@ -86,7 +86,14 @@ con i soli ruoli che il codice usa e senza Editor; l'account predefinito
 di Compute Engine resta solo finché quello dedicato non è acceso
 (`RUNTIME_SERVICE_ACCOUNT` in `functions/.env.<progetto>`). Cambiare la
 variabile e rilanciare «Aggiorna istanza» su ogni locale fa convergere il
-Terraform: il nuovo account entra, il vecchio esce.
+Terraform: il nuovo account entra, il vecchio esce. Un locale dove non è
+successo (il 14/11/2026 `drinkpos-prova-e2e`, rimasto al vecchio account:
+la presentazione rispondeva 500, REQ-FLOTTA-108) lo segnala la sezione
+«Salute» del backoffice coi ruoli che mancano e la riga di
+`scripts/account-runtime.mjs --locale` che li dà (REQ-FLOTTA-109).
+Per leggere i registri della regia la sezione chiede all'account anche
+`roles/logging.viewer`, sul solo progetto della regia: lo dà lo stesso
+script, rilanciato su ciascuna regia.
 
 Il segreto `GITHUB_DISPATCH_TOKEN` delle Functions di ciascuna regia è un
 token fine-grained con **Actions: Read and write** su `redirect11/drink-regia`

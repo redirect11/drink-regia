@@ -46,6 +46,7 @@ const db = vi.hoisted(() => ({
   gestisciCassettoAI: vi.fn(async () => ({ ok: true })),
   registraLocaleEsistente: vi.fn(async () => ({ uid: 't', slug: 'tana-drink' })),
   gestisciCollaboratori: vi.fn(async () => ({ collaboratori: [], massimo: 5 })),
+  saluteDellaFlotta: vi.fn(async () => ({ controllato_il: null, registri: { leggibili: true, per_function: [], righe: [] }, locali: [] })),
   impostaAggiornamentiEsistente: vi.fn(async () => ({ ok: true })),
   elencoRilasci: vi.fn(async () => []),
   gestisciRilascio: vi.fn(async () => ({ ok: true })),
