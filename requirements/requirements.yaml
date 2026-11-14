@@ -2654,6 +2654,14 @@ requirements:
       levare Editor all'account predefinito è una decisione di una persona.
       Resta da fare (audit, finding 3.3): separare l'account che tocca i
       locali da quello delle sole Functions di vendita.
+      IN PRODUZIONE DAL 14/11/2026 (Daniele: «iniziamo»): script lanciato
+      con `--locale tana-drink`, REGIA_SA_EMAIL dell'environment flotta
+      cambiata da 600871952552-compute@developer.gserviceaccount.com a
+      runtime-regia@drink-regia, riga accesa in functions/.env.drink-regia;
+      vale dal primo deploy in produzione che la porta. Dà alla regia di
+      produzione i due permessi che l'account predefinito non aveva:
+      leggere gli account della Tana («Apri la tua app») e firmare come sé
+      stesso («Area clienti» dall'app).
     status: implemented
     generate_issue: true
     issue_a_posteriori: true
