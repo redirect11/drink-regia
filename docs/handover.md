@@ -360,8 +360,7 @@ canale di anteprima col via libera.
 
 | Cosa | Stato |
 |---|---|
-| Hosting `drink-regia.web.app` | pubblicato una volta (hosting + regole), **senza la landing page nuova né il fix C2** |
-| Functions | **nessuna pubblicata** |
+| Produzione `drink-regia`, dal 13/11/2026 | **la 0.3.0** (tag `v0.3.0`, PR #244): sito, regole, indici e 64 Functions in `europe-west1`. **Sito chiuso al pubblico** (`vendita/listino.sito_aperto` assente: anteprima, solo «Accedi», niente prezzi; si apre dal backoffice, Vendita). **Firestore `(default)` in `europe-west1`**, ricreato vuoto il 13/11/2026 (era in `nam5`, Stati Uniti; Daniele: «si hai il via libera»). Segreti delle Functions: `AI_CHAT_SECRET` casuale; `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `GITHUB_DISPATCH_TOKEN` col segnaposto `non-configurato` (Daniele: «Di stripe se blocchiamo vendite e registrazione lo lasciamo in sviluppo»); `ANTHROPIC_API_KEY` segnaposto, AI spenta finché non la si attiva con tana-drink. Nessun dato: la Tana e il claim admin si fanno dal backoffice e con `scripts/admin-regia.mjs` (§7, e `docs/la-tana-nella-regia.md` di tana-drink). Le email non partono: manca il dominio per Resend. |
 | Progetto di test `drink-regia-test` | **creato il 29/10/2026**, su Blaze col secondo account di fatturazione («Il mio account di fatturazione 2», solo prove). API, Firestore `europe-west1`, Auth email, SA del deploy con i ruoli di docs/actions-come-tana-drink.md §3. Sito, regole e 17 Functions pubblicati dal tag `v0.1.0-prova.3` (ramo `feature/rilasci-a-ondate`). Segreti delle Functions: `PROVISIONING_CALLBACK_SECRET` (lo stesso della produzione: tana-drink ne conosce uno), Stripe **sandbox**; `ANTHROPIC_API_KEY` e `GITHUB_DISPATCH_TOKEN` **segnaposto** (il cassetto AI e le attivazioni vere non partono finché non si mettono quelli veri). Dal ramo `feature/ai-chat` (REQ-FLOTTA-094) `richiestaAI` lega anche **`AI_CHAT_SECRET`** (la firma dei turni della chat, almeno 32 caratteri casuali): va creato prima del primo tag beta che lo porta, se no il deploy di `richiestaAI` si ferma; in produzione solo col via libera di Daniele. |
 | Environment GitHub `test` | **creato il 29/10/2026**: i quattro `VITE_FIREBASE_*` e `FIREBASE_SERVICE_ACCOUNT` |
 | Approvazione sulla produzione | **non disponibile**: GitHub Free non dà i «Required reviewers» a un repository privato (provato il 29/10/2026, errore 422). Oggi protegge solo il job «Dove va» (un tag fuori da `main` va sul test). Decisione dell'utente: GitHub Pro, o accettare il controllo del workflow |
@@ -1419,6 +1418,23 @@ moduli, la licenza nell'istanza e la Tana.
 ---
 
 ## 8. Cose da sapere, imparate sbagliando
+
+- **Il primo deploy in un progetto nuovo, 13/11/2026 (`v0.3.0` su
+  `drink-regia`).** (1) Le Functions coi trigger Firestore falliscono la
+  prima volta con «Permission denied while using the Eventarc Service
+  Agent»: è l'agente di Eventarc appena nato, i permessi arrivano in
+  qualche minuto. Si rilancia il job fallito (`gh run rerun <id>
+  --failed`) e passa. (2) **Prima di qualunque dato, si guarda la
+  posizione di Firestore** (`firebase firestore:databases:get
+  "(default)"`): quella di produzione era `nam5` (Stati Uniti), creata
+  dalla Console il 22/10 senza sceglierla, e non si cambia. Vuota, si è
+  cancellata e ricreata in `europe-west1`: il nome `(default)` torna
+  libero dopo circa 5 minuti. (3) Dopo, il deploy si ferma con «A
+  firestore trigger location must match the firestore database region»:
+  le quattro Functions coi trigger (`avviaProvisioning`,
+  `rilanciaProvisioning`, `licenzaSegueIlPiano`,
+  `licenzaSegueITemiSuMisura`) vanno cancellate con `firebase
+  functions:delete … --region europe-west1` e il deploy le ricrea.
 
 - `drink-demo` come id di progetto Google era già di qualcun altro: da
   qui il prefisso `drinkpos-`. Gli id sono globali, si controlla prima.

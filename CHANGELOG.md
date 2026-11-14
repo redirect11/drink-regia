@@ -4,6 +4,8 @@ Una voce per ogni cambiamento visibile, nello stesso commit del
 cambiamento. La versione in cima è quella in lavorazione finché non ha la
 data.
 
+## 0.4.0 (in lavorazione)
+
 ## 0.3.0 (13/11/2026, la seconda in produzione: col sito chiuso al pubblico, comprende tutto il lavoro dopo la 0.2.1)
 
 - Col sito chiuso al pubblico, anche i termini di servizio sono la
