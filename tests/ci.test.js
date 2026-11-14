@@ -320,6 +320,7 @@ describe('il collaudo rimette in ordine il locale di prova', () => {
     }
   })
   it('«Sospendi» rimette il locale attivo e chiude l’app anche dopo un errore, senza coprirlo', () => {
-    expect(sospendi).toMatch(/\} finally \{\n\s*await riattivaSeSospeso\(articolo\)\.catch\(\(\) => \{\}\)\n\s*await app\.close\(\)\.catch\(\(\) => \{\}\)\n\s*\}/)
+    // Fra «finally {» e il ripristino possono esserci solo righe di commento.
+    expect(sospendi).toMatch(/\} finally \{\n(\s*\/\/[^\n]*\n)*\s*await riattivaSeSospeso\(articolo\)\.catch\(\(\) => \{\}\)\n\s*await app\.close\(\)\.catch\(\(\) => \{\}\)\n\s*\}/)
   })
 })
