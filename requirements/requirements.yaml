@@ -4575,7 +4575,7 @@ requirements:
       email, verificata, admin. (5) Togliere un collaboratore cancella
       membri/{uid} e il segno nel token; l'account resta, senza locale.
       Le Functions rifiutano chi non è il titolare (o l'admin, REQ-FLOTTA-099).
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [regia, dashboard]
     priority: P2
@@ -4602,7 +4602,7 @@ requirements:
       accetta solo da chi ha il claim admin: un titolare che lo mandasse
       lavora comunque sul suo locale. (3) Le regole dell'aggiunta sono le
       stesse del titolare.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [regia, backoffice]
     priority: P2

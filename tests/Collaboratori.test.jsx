@@ -34,6 +34,8 @@ const LUCA = { uid: 'col-1', email: 'luca@example.it', aggiunto_il: '2026-11-14T
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // Un test che cambia la risposta (il rifiuto) non la lascia ai successivi.
+  db.gestisciCollaboratori.mockImplementation(async (azione) => (azione === 'elenco' ? { collaboratori: stato.elenco, massimo: 5 } : { ok: true }))
   stato.elenco = []
   stato.vista = null
 })

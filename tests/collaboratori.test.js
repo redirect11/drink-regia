@@ -104,6 +104,22 @@ describe('il segno nel token', () => {
   })
 })
 
+describe('i collaboratori di un locale', () => {
+  it('si leggono da membri/ per slug', async () => {
+    const chieste = []
+    const db = {
+      collection: (nome) => ({
+        where: (campo, op, valore) => {
+          chieste.push([nome, campo, op, valore])
+          return { get: async () => ({ docs: [{ data: () => membro() }] }) }
+        },
+      }),
+    }
+    expect(await c.membriDelLocale(db, 'bar-mario')).toEqual([membro()])
+    expect(chieste).toEqual([['membri', 'slug', '==', 'bar-mario']])
+  })
+})
+
 describe('quello che vede il collaboratore', () => {
   const istanza = { stato: 'attiva', url: 'https://bar-mario.example.it', presentazione: { versione: 'v1.10.43' }, build: { VITE_X: 'chiave' }, uid: 'tit-1' }
 

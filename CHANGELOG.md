@@ -6,6 +6,17 @@ data.
 
 ## 0.4.0 (in lavorazione)
 
+- I collaboratori di un locale. Il titolare, nella sezione
+  «Collaboratori» della sua area, aggiunge per email chi lavora con lui
+  (al massimo 5); l'amministratore fa lo stesso dalla scheda del locale,
+  con «Collaboratori…». La regia crea l'account senza password: il
+  collaboratore entra con «Password dimenticata» o con Google, anche col
+  sito chiuso, e vede il locale, il piano e l'app, che apre col suo
+  account admin nel gestionale (stessa email, verificata). Abbonamento,
+  pagamenti, piano e chiusura restano del titolare. Un account ha un
+  locale solo, da titolare o da collaboratore (REQ-FLOTTA-098,
+  REQ-FLOTTA-099).
+
 ## 0.3.0 (13/11/2026, la seconda in produzione: col sito chiuso al pubblico, comprende tutto il lavoro dopo la 0.2.1)
 
 - Col sito chiuso al pubblico, anche i termini di servizio sono la

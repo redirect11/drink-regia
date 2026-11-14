@@ -57,6 +57,7 @@ import { statoCredito, euroCent, aiNelPiano, MODELLI_AI, TIPI_MODELLO_DETTI, mod
 import { GRUPPI, TAG, aggiornamentoDetto, runNellErrore } from '../lib/rilasci.js'
 import { BASE, SEZIONI, VISTE, aggiornamentoFallito, aggiornaLaRegia, contiDelBackoffice, filtraLocali, profiloDaAutorizzare } from '../lib/backoffice.js'
 import Rilasci from './Rilasci.jsx'
+import Collaboratori from './Collaboratori.jsx'
 import Commerciale from './Commerciale.jsx'
 import CollegaIstanza from './CollegaIstanza.jsx'
 import { OrariNelBackoffice } from './OrariServizio.jsx'
@@ -634,6 +635,8 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
   const daFlotta = istanza?.origine !== 'esistente'
   const aggiornabile = aggiornaLaRegia(istanza)
   const [gestioneAperta, setGestioneAperta] = useState(false)
+  // I collaboratori (REQ-FLOTTA-099): l'elenco si legge solo quando si apre.
+  const [collaboratoriAperti, setCollaboratoriAperti] = useState(false)
   const licenza = istanza?.licenza_stato || 'attiva'
   const { tono, testo: statoTesto } = statoBreve(riga)
   const attiva = stato === STATI.ATTIVA
@@ -750,6 +753,13 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
           {/* Gli orari di servizio del locale (REQ-FLOTTA-095): stanno col titolare, che li dichiara; i blocchi restano sei (REQ-FLOTTA-089). */}
           <h5 className="blocco-sotto">Orari di servizio</h5>
           <OrariNelBackoffice cliente={c} onFatto={az.carica} onErrore={az.onErrore} />
+          {/* I collaboratori del locale (REQ-FLOTTA-099): lo stesso riquadro del titolare, per questo locale. */}
+          <div className="gruppo-azioni">
+            <button type="button" className="btn ghost small" aria-expanded={collaboratoriAperti} onClick={() => setCollaboratoriAperti((v) => !v)}>
+              Collaboratori…
+            </button>
+          </div>
+          {collaboratoriAperti && <Collaboratori slug={c.slug} />}
         </Blocco>
 
         <Blocco id={id('piano')} titolo="Piano">
