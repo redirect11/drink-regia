@@ -4685,6 +4685,30 @@ requirements:
     test_cases:
       - tests/flotta.test.js
 
+  - id: REQ-FLOTTA-101
+    title: "Il collaudo apre la scheda del locale di prova anche quando mostra un aggiornamento fallito"
+    area: "e2e/collaudo-licenza.spec.js (scheda), tests/ci.test.js"
+    description: >
+      Collaudo di v0.4.0-beta.1, 14/11/2026. Il primo giro si è fermato
+      su «Aggiorna subito» di prova-bar per un permesso mancante nel
+      progetto del locale (l'agente Eventarc, dato poi da Daniele). Il
+      secondo giro si è fermato prima, su «Sospendi»: la funzione che apre
+      la scheda aspetta «la scheda oppure il Riprova della lettura
+      fallita» (REQ-FLOTTA-064), e la scheda, con l'aggiornamento fallito
+      rimasto dal giro prima, ha anche lei un bottone «Riprova».
+      Playwright trova due elementi e in modalità rigorosa si ferma: un
+      collaudo fallito faceva fallire tutti quelli dopo, finché qualcuno
+      non ripuliva la scheda a mano.
+      CRITERI. (1) La scheda si apre anche se mostra un aggiornamento
+      fallito col suo «Riprova». (2) Il «Riprova» della lettura fallita si
+      preme solo se la scheda non c'è, come prima.
+    status: todo
+    generate_issue: true
+    labels: [metodo, regia]
+    priority: P1
+    test_cases:
+      - tests/ci.test.js
+
   - id: REQ-FLOTTA-092
     title: "Il modello AI si sceglie per tipo di richiesta dal backoffice: Sonnet per tutti, all'inizio"
     area: "functions/piani.json (ai.prezzi_usd_per_milione), functions/lib/ai.js (TIPI_MODELLO, modelliDelListino, modelloPer, validaModelliAI, interrogaConPrenotazione), functions/index.js (interrogaClaude, gestisciModelliAI), src/lib/db.js (impostaModelliAI), src/pages/Backoffice.jsx (Vendita), firestore.rules (impostazioni)"

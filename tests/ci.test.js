@@ -268,3 +268,19 @@ describe('test.yml: il rapporto di coverage non decide se una PR è buona', () =
     for (const p of vincolanti) expect(p['continue-on-error'], p.name || p.run).toBeUndefined()
   })
 })
+
+// REQ-FLOTTA-101 (collaudo di v0.4.0-beta.1, 14/11/2026): la scheda del
+// locale di prova si apre anche quando mostra un aggiornamento fallito. Il
+// suo «Riprova» e quello della lettura fallita hanno lo stesso nome: si
+// aspetta il primo dei due, e si preme il secondo solo senza la scheda.
+describe('il collaudo apre la scheda anche con un aggiornamento fallito', () => {
+  const spec = readFileSync(join(process.cwd(), 'e2e/collaudo-licenza.spec.js'), 'utf8')
+  const scheda = spec.slice(spec.indexOf('async function scheda(page)'), spec.indexOf('const stato = '))
+  it('aspetta la scheda o il Riprova senza pretendere che sia uno solo', () => {
+    expect(scheda).toContain('await expect(articolo.or(riprova).first()).toBeVisible()')
+    expect(scheda).not.toMatch(/expect\(articolo\.or\(riprova\)\)\.toBeVisible/)
+  })
+  it('preme Riprova solo se la scheda non c’è', () => {
+    expect(scheda).toMatch(/if \(await articolo\.isVisible\(\)\) break\n\s*await riprova\.first\(\)\.click\(\)/)
+  })
+})
