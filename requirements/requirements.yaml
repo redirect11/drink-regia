@@ -4568,6 +4568,83 @@ requirements:
       - tests/Backoffice.test.jsx
       - tests/App.test.jsx
 
+  - id: REQ-FLOTTA-098
+    title: "I collaboratori di un locale: li aggiunge il titolare, vedono il locale e aprono l'app, l'abbonamento resta del titolare"
+    area: "functions/lib/collaboratori.js, functions/lib/passaggio.js (membroNelLocale), functions/index.js (gestisciCollaboratori, vistaCollaboratore, passaggioVersoApp), src/pages/Collaboratori.jsx, src/pages/DashboardCollaboratore.jsx, src/pages/Dashboard.jsx, src/lib/areaTitolare.js, src/lib/db.js (gestisciCollaboratori, vistaCollaboratore, osservaUtente)"
+    description: >
+      Daniele, 14/11/2026, dopo aver registrato la Tana col titolare Flavio:
+      «se invece volessi fare in modo che anche altri admin possano fare il
+      claim e vedere la dashboard. Ad esempio un collaboratore di flavio. Lui
+      si registra e in qualche modo dovremmo poterlo collegare ad un admin
+      del locale». Alla proposta (il titolare resta uno, quello che paga; i
+      collaboratori li aggiunge lui; niente collegamento automatico di un
+      admin del locale, perché in tana-drink ogni admin crea altri admin,
+      REQ-FLOTTA-050): «implementa 1 e 2».
+      COME SI AGGIUNGE. Il titolare, in /dashboard/collaboratori, scrive
+      l'email del collaboratore. La regia crea l'account se non c'è (senza
+      password, come per un locale esistente) e lo collega al locale:
+      documento membri/{uid}, scritto solo dalle Functions, e il segno
+      `collabora: <slug>` nei claim dell'account, che alla dashboard dice
+      subito quale vista mostrare. Il collaboratore entra dalla pagina di
+      accesso con «Password dimenticata» (l'email di Firebase dimostra che
+      la casella è sua) o con Google: va anche col sito chiuso, perché
+      l'accesso c'è sempre. Nessun link da mandare e nessuna email della
+      regia: non serve il dominio.
+      CRITERI. (1) L'area del titolare ha la sezione «Collaboratori»: chi
+      c'è, con la data; aggiungi per email; togli, dopo la conferma. Il
+      riquadro dice cosa fa un collaboratore, cosa resta del titolare, e
+      che per aprire l'app gli serve nel gestionale un account admin con la
+      stessa email. (2) Non si aggiunge: un'email non valida o col «+»
+      (REQ-FLOTTA-083); il titolare stesso, anche in un'altra forma della
+      stessa Gmail; il titolare di un altro locale; chi è già collaboratore,
+      di questo o di un altro locale (un account, un locale); oltre 5
+      collaboratori per locale. (3) Il collaboratore, entrato, vede la sua
+      vista: nome del locale, piano, stato e versione dell'app, l'indirizzo
+      e «Apri l'app» se è attiva; niente abbonamento, pagamenti, fatture,
+      dati del titolare, chiavi della build, cambio piano, chiusura. La
+      vista la dà la Function vistaCollaboratore, che rilegge membri/{uid}:
+      il segno nel token decide solo quale pagina mostrare. Tolto, vede che
+      non collabora più. (4) «Apri l'app» (passaggioVersoApp) per un
+      collaboratore cerca nel progetto del locale il SUO account: stessa
+      email, verificata, admin. (5) Togliere un collaboratore cancella
+      membri/{uid} e il segno nel token; l'account resta, senza locale.
+      Le Functions rifiutano chi non è il titolare (o l'admin, REQ-FLOTTA-099).
+    status: implemented
+    generate_issue: true
+    labels: [regia, dashboard]
+    priority: P2
+    test_cases:
+      - tests/collaboratori.test.js
+      - tests/Collaboratori.test.jsx
+      - tests/passaggio.test.js
+      - tests/AreaTitolare.test.jsx
+      - tests/db.test.js
+
+  - id: REQ-FLOTTA-099
+    title: "I collaboratori di un locale anche dal backoffice: l'admin li aggiunge e li toglie dalla scheda"
+    area: "functions/index.js (gestisciCollaboratori), src/pages/Backoffice.jsx (SchedaLocale, blocco Collaboratori), src/pages/Collaboratori.jsx"
+    description: >
+      Daniele, 14/11/2026, «implementa 1 e 2»: il secondo modo di collegare
+      un collaboratore è l'admin della regia, dal backoffice, per i casi in
+      cui il titolare non lo fa da sé (la Tana appena registrata, un
+      titolare che chiede aiuto). Stesse regole di REQ-FLOTTA-098: è la
+      stessa Function, con lo slug del locale, e solo col claim admin.
+      CRITERI. (1) Nella scheda di ogni locale, il blocco «Collaboratori»
+      con «Collaboratori…» apre lo stesso riquadro del titolare per quel
+      locale: elenco (con chi li ha aggiunti, titolare o admin), aggiungi
+      per email, togli. (2) Lo slug va in ogni chiamata, e la Function lo
+      accetta solo da chi ha il claim admin: un titolare che lo mandasse
+      lavora comunque sul suo locale. (3) Le regole dell'aggiunta sono le
+      stesse del titolare.
+    status: implemented
+    generate_issue: true
+    labels: [regia, backoffice]
+    priority: P2
+    test_cases:
+      - tests/Backoffice.test.jsx
+      - tests/Collaboratori.test.jsx
+      - tests/collaboratori.test.js
+
   - id: REQ-FLOTTA-092
     title: "Il modello AI si sceglie per tipo di richiesta dal backoffice: Sonnet per tutti, all'inizio"
     area: "functions/piani.json (ai.prezzi_usd_per_milione), functions/lib/ai.js (TIPI_MODELLO, modelliDelListino, modelloPer, validaModelliAI, interrogaConPrenotazione), functions/index.js (interrogaClaude, gestisciModelliAI), src/lib/db.js (impostaModelliAI), src/pages/Backoffice.jsx (Vendita), firestore.rules (impostazioni)"

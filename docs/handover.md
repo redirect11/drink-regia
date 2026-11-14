@@ -738,6 +738,11 @@ ma l'ordine aggiornato è quello del 09/11.
      sui tre locali di test e sulla Tana);
    - su ogni regia, all'account della regia, `roles/iam.serviceAccountTokenCreator`
      su sé stesso: per firmare l'accesso alla regia dall'app.
+   **Dal 14/11/2026 anche i collaboratori (REQ-FLOTTA-098)**: «Apri l'app»
+   di un collaboratore cerca nel progetto del locale il SUO account (la
+   sua email, verificata, admin), non quello del titolare. Per l'app non
+   cambia niente: riceve un accesso per un account suo, come prima.
+   «Area clienti» resta del solo titolare.
    **Da fare**: in tana-drink la pagina che riceve il codice, «Area
    clienti», i campi nuovi; poi l'identità centrale (Identity Platform
    nella regia, il banco che entra con l'account della regia).

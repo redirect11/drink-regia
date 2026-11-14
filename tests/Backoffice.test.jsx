@@ -45,6 +45,7 @@ const db = vi.hoisted(() => ({
   elencoCassettiAI: vi.fn(async () => ({})),
   gestisciCassettoAI: vi.fn(async () => ({ ok: true })),
   registraLocaleEsistente: vi.fn(async () => ({ uid: 't', slug: 'tana-drink' })),
+  gestisciCollaboratori: vi.fn(async () => ({ collaboratori: [], massimo: 5 })),
   impostaAggiornamentiEsistente: vi.fn(async () => ({ ok: true })),
   elencoRilasci: vi.fn(async () => []),
   gestisciRilascio: vi.fn(async () => ({ ok: true })),
@@ -619,6 +620,23 @@ describe('il backoffice e il credito AI', () => {
     expect(db.aggiornaIstanza).toHaveBeenCalledWith('tana-drink')
     expect(within(tana).queryByRole('button', { name: 'Sospendi' })).toBeNull()
     expect(within(tana).queryByRole('button', { name: 'Chiudi' })).toBeNull()
+  })
+
+  // REQ-FLOTTA-099 (Daniele, 14/11/2026, «implementa 1 e 2»): l'admin
+  // aggiunge e toglie i collaboratori di un locale dalla sua scheda, con lo
+  // stesso riquadro del titolare. L'elenco si legge solo quando lo si apre.
+  it('«Collaboratori…» apre il riquadro dei collaboratori di quel locale', async () => {
+    const user = userEvent.setup()
+    db.gestisciCollaboratori.mockResolvedValue({ collaboratori: [{ uid: 'c1', email: 'luca@example.it', aggiunto_il: '2026-11-14T09:00:00.000Z', aggiunto_da: 'admin' }], massimo: 5 })
+    mostra()
+    const attivo = await apri('Bar Attivo')
+    expect(db.gestisciCollaboratori).not.toHaveBeenCalled()
+    await user.click(within(attivo).getByRole('button', { name: 'Collaboratori…' }))
+    const riquadro = within(attivo).getByRole('region', { name: 'Collaboratori' })
+    expect(await within(riquadro).findByText('luca@example.it')).toBeInTheDocument()
+    expect(db.gestisciCollaboratori).toHaveBeenCalledWith('elenco', { slug: 'bar-attivo' })
+    await user.click(within(attivo).getByRole('button', { name: 'Collaboratori…' }))
+    expect(within(attivo).queryByRole('region', { name: 'Collaboratori' })).toBeNull()
   })
 
   it('«Pubblicazione e licenza…» affida la Tana alla regia con la sua cartella e le chiavi della build', async () => {

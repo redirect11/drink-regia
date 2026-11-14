@@ -51,6 +51,7 @@ const elim = require('./lib/eliminazione.js')
 const conserva = require('./lib/conservazione.js')
 const presenta = require('./lib/presentazione.js')
 const passa = require('./lib/passaggio.js')
+const collab = require('./lib/collaboratori.js')
 const temi = require('./lib/temi.js')
 const stili = require('./lib/stili.js')
 const comunica = require('./lib/comunicazioni.js')
@@ -1769,15 +1770,19 @@ exports.passaggioVersoApp = onCall(OPTS, async (req) => {
   if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
   if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Prima conferma la tua email.')
   const cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data()
-  const ist = cliente?.slug ? (await db.doc(`istanze/${cliente.slug}`).get()).data() : null
+  // Un collaboratore (REQ-FLOTTA-098) entra col SUO account nel locale: il
+  // documento membri/{uid} dice quale locale e con quale email.
+  const membro = cliente ? null : (await db.doc(`membri/${req.auth.uid}`).get()).data() || null
+  const slug = cliente?.slug || membro?.slug
+  const ist = slug ? (await db.doc(`istanze/${slug}`).get()).data() : null
   if (ist?.simulata) throw new HttpsError('failed-precondition', 'Questo locale è simulato, sul sito di test: non c’è un’app da aprire.')
   if (!ist?.progetto || ist.stato !== 'attiva' || !ist.url) throw new HttpsError('failed-precondition', 'La tua app non è ancora attiva.')
   // La demo non ha titolare né accessi veri (REQ-FLOTTA-019).
   if (eDemo(ist)) throw new HttpsError('failed-precondition', 'La demo si apre dal suo indirizzo, senza accesso.')
   const utente = await getAuth(appDi(ist.progetto))
-    .getUserByEmail(cliente.email)
+    .getUserByEmail(cliente ? cliente.email : membro.email)
     .catch((e) => (e?.code === 'auth/user-not-found' ? null : Promise.reject(e)))
-  const ok = passa.titolareNelLocale(utente, cliente)
+  const ok = cliente ? passa.titolareNelLocale(utente, cliente) : passa.membroNelLocale(utente, membro)
   if (!ok.ok) throw new HttpsError('failed-precondition', ok.perche)
   const codice = await creaPassaggio({ verso: 'app', progetto: ist.progetto, uid: utente.uid, url: ist.url })
   return { url: `${ist.url.replace(/\/$/, '')}/#accesso-regia=${codice}` }
@@ -2973,6 +2978,81 @@ exports.registraLocaleEsistente = onCall(OPTS, async (req) => {
   batch.set(db.doc(`ai/${d.slug}`), ai.nuovoCassetto({ slug: d.slug, uid: utente.uid, interna: d.interna, adesso }))
   await batch.commit()
   return { uid: utente.uid, slug: d.slug }
+})
+
+// ── I COLLABORATORI DI UN LOCALE (REQ-FLOTTA-098, REQ-FLOTTA-099) ─────
+// Le regole in lib/collaboratori.js. Il titolare lavora sul suo locale;
+// l'admin su quello dello slug che manda. Uno slug da chi non è admin non
+// conta: il titolare resta sul suo.
+async function localeDeiCollaboratori(req) {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  if (req.auth.token?.admin === true && req.data?.slug) {
+    const cliente = await clienteDi(String(req.data.slug))
+    if (!cliente) throw new HttpsError('not-found', 'Cliente sconosciuto.')
+    return { cliente, da: 'admin' }
+  }
+  if (req.auth.token?.email_verified !== true) throw new HttpsError('permission-denied', 'Prima conferma la tua email.')
+  const cliente = (await db.doc(`clienti/${req.auth.uid}`).get()).data()
+  if (!cliente?.slug) throw new HttpsError('failed-precondition', 'Solo il titolare del locale gestisce i collaboratori.')
+  return { cliente: { ...cliente, uid: req.auth.uid }, da: 'titolare' }
+}
+const membriDi = (slug) => collab.membriDelLocale(db, slug)
+const comeHttps = (e) => (e instanceof collab.CollaboratoreRifiutato ? new HttpsError(e.code, e.message) : e)
+
+exports.gestisciCollaboratori = onCall(OPTS, async (req) => {
+  const { cliente, da } = await localeDeiCollaboratori(req)
+  const azione = req.data?.azione
+  const auth = getAuth()
+  if (azione === 'elenco') return { collaboratori: collab.elencoCollaboratori(await membriDi(cliente.slug)), massimo: collab.MASSIMO }
+  if (azione === 'aggiungi') {
+    let email
+    try {
+      email = collab.emailCollaboratore(req.data?.email)
+    } catch (e) {
+      throw comeHttps(e)
+    }
+    const esistente = await auth.getUserByEmail(email).catch((e) => (e?.code === 'auth/user-not-found' ? null : Promise.reject(e)))
+    const [clienteDellAccount, membroDellAccount, membri] = await Promise.all([
+      esistente ? db.doc(`clienti/${esistente.uid}`).get().then((d) => d.data() || null) : null,
+      esistente ? db.doc(`membri/${esistente.uid}`).get().then((d) => d.data() || null) : null,
+      membriDi(cliente.slug),
+    ])
+    const perche = collab.problemaAggiunta({ email, titolare: cliente, membri, clienteDellAccount, membroDellAccount })
+    if (perche) throw new HttpsError('failed-precondition', perche)
+    // Come per un locale esistente: l'account nasce senza password. La
+    // prima la sceglie da «Password dimenticata», che arriva a quella
+    // casella (così si vede che è sua), o entra con Google.
+    const utente = esistente || (await auth.createUser({ email, emailVerified: true }))
+    await db.doc(`membri/${utente.uid}`).set(collab.nuovoMembro({ uid: utente.uid, email, slug: cliente.slug, da }))
+    await auth.setCustomUserClaims(utente.uid, collab.claimConLocale(utente.customClaims, cliente.slug))
+    // Nei log gli uid, non le email (REQ-FLOTTA-051).
+    console.log(`[collaboratori] ${cliente.slug}: aggiunto ${utente.uid} da ${da} ${req.auth.uid}`)
+    return { ok: true, uid: utente.uid, account_nuovo: !esistente }
+  }
+  if (azione === 'togli') {
+    const uid = String(req.data?.uid || '')
+    const ref = db.doc(`membri/${uid || '-'}`)
+    const membro = uid ? (await ref.get()).data() : null
+    if (!membro || membro.slug !== cliente.slug) throw new HttpsError('not-found', 'Non è un collaboratore di questo locale.')
+    await ref.delete()
+    // L'account resta, senza locale; il segno si toglie, gli altri claim no.
+    const utente = await auth.getUser(uid).catch(() => null)
+    if (utente) await auth.setCustomUserClaims(uid, collab.claimSenzaLocale(utente.customClaims))
+    console.log(`[collaboratori] ${cliente.slug}: tolto ${uid} da ${da} ${req.auth.uid}`)
+    return { ok: true }
+  }
+  throw new HttpsError('invalid-argument', 'Azione sconosciuta.')
+})
+
+// Quello che il collaboratore vede, riletto da membri/{uid}: il segno nel
+// token sceglie solo la pagina. { membro: false } se non collabora più.
+exports.vistaCollaboratore = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Serve l’accesso.')
+  const membro = (await db.doc(`membri/${req.auth.uid}`).get()).data() || null
+  if (!membro) return { membro: false }
+  const [cliente, istanza] = await Promise.all([clienteDi(membro.slug), db.doc(`istanze/${membro.slug}`).get().then((d) => d.data() || null)])
+  const vista = collab.vistaCollaboratore({ membro, cliente, istanza })
+  return vista ? { membro: true, ...vista } : { membro: false }
 })
 
 // ── I TEMI DEI LOCALI (REQ-FLOTTA-039, richiesta da tana-drink) ────────

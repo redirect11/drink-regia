@@ -645,6 +645,9 @@ input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--
 .scelta-piani { display: grid; gap: 8px; margin: 8px 0; }
 .opzione { display: block; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; margin: 4px 0; color: var(--text); font-size: 1rem; cursor: pointer; }
 .opzione.scelta { border-color: var(--accent); }
+/* I collaboratori (REQ-FLOTTA-098): una riga per persona, «Togli» in fondo. */
+.elenco-collaboratori { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 6px; }
+.elenco-collaboratori li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 /* «Aggiungi locale» (REQ-FLOTTA-097): ogni strada è un collegamento grande
    quanto la riga, col nome sopra e quando si usa sotto. */
 .scelta-aggiunta { display: grid; gap: 8px; margin-top: 8px; }

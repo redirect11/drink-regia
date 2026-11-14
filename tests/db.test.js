@@ -132,6 +132,10 @@ const FUNCTIONS = [
   ['gestisciRilascio', ['avanza', { id: 'r1' }], 'gestisciRilascio', { azione: 'avanza', id: 'r1' }],
   ['gestisciCassettoAI', ['bar', 'ricarica', { importo: 5 }], 'gestisciCassettoAI', { slug: 'bar', azione: 'ricarica', importo: 5 }],
   ['registraLocaleEsistente', [{ slug: 'tana' }], 'registraLocaleEsistente', { slug: 'tana' }],
+  // I collaboratori (REQ-FLOTTA-098, REQ-FLOTTA-099).
+  ['gestisciCollaboratori', ['aggiungi', { email: 'luca@example.it' }], 'gestisciCollaboratori', { azione: 'aggiungi', email: 'luca@example.it' }],
+  ['gestisciCollaboratori', ['elenco'], 'gestisciCollaboratori', { azione: 'elenco' }],
+  ['vistaCollaboratore', [], 'vistaCollaboratore', {}],
   ['impostaAggiornamentiEsistente', [{ slug: 'tana-drink', aggiornamenti_dalla_regia: true }], 'impostaAggiornamentiEsistente', { slug: 'tana-drink', aggiornamenti_dalla_regia: true }],
   ['gestisciEliminazione', ['chiedi', { slug: 'bar' }], 'gestisciEliminazione', { azione: 'chiedi', slug: 'bar' }],
   ['scaricaArchivio', [], 'scaricaArchivio', {}],
@@ -279,7 +283,7 @@ describe('l’accesso', () => {
     const visti = []
     db.osservaUtente((u) => visti.push(u))
     await vi.waitFor(() => expect(visti).toHaveLength(2))
-    expect(visti).toEqual([null, { uid: 'u1', email: 'a@b.it', emailVerificata: true, admin: true }])
+    expect(visti).toEqual([null, { uid: 'u1', email: 'a@b.it', emailVerificata: true, admin: true, collabora: null }])
   })
 
   it('senza Firebase nessun utente, e si esce senza errori', async () => {
