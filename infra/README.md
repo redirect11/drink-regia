@@ -100,7 +100,7 @@ tags»; Daniele: «ok procedi basta che non facciamo guai»):
 |---|---|---|
 | `flotta` | solo il ramo `main` | la chiave dei locali di produzione la usa solo codice passato da una PR; la regia lancia sempre da `main` (`FLOTTA_REF`) |
 | `flotta-test` | rami `main` e `develop` | come sopra, con `develop` per provare i workflow prima del rilascio |
-| `production` | solo i tag `v*` | il sito di produzione si pubblica da un tag (`firebase-hosting.yml`), e GitHub confronta la regola col tag, non col ramo |
+| `production` | solo i tag `v*`, e l'approvazione di Daniele | il sito di produzione si pubblica da un tag (`firebase-hosting.yml`), e GitHub confronta la regola col tag, non col ramo; l'ultimo passo aspetta l'ok di Daniele, come in tana-drink |
 | `test` | nessuna | il lancio a mano di «Deploy to Firebase» e di Playwright da un ramo qualunque va sul test |
 
 Un workflow della flotta lanciato a mano da un altro ramo viene rifiutato
