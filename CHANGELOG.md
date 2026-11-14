@@ -4,6 +4,8 @@ Una voce per ogni cambiamento visibile, nello stesso commit del
 cambiamento. La versione in cima è quella in lavorazione finché non ha la
 data.
 
+## 0.5.0 (in lavorazione)
+
 ## 0.4.0 (14/11/2026, la terza in produzione: «Aggiungi locale», i collaboratori, le Functions con un account senza Editor, la flotta protetta da etichette e regole)
 
 - La flotta: anche «provisiona» (su un progetto che esiste già) e
