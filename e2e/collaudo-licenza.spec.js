@@ -32,14 +32,19 @@ test.beforeEach(({ page }) => {
 // inciampo di rete del runner, come nel collaudo del v0.3.0-beta.10), si
 // preme «Riprova» fino a tre volte: una lettura mancata non è un difetto
 // del rilascio. Se dopo tre volte non legge, il test fallisce, e fa bene.
+// REQ-FLOTTA-101: anche la scheda ha un «Riprova», quello di un
+// aggiornamento fallito, e in modalità rigorosa due elementi fermano
+// l'attesa. Si aspetta il primo dei due; se la scheda c'è si esce, e il
+// «Riprova» si preme solo quando la scheda non c'è, cioè quello della
+// lettura fallita.
 async function scheda(page) {
   await page.goto(`/backoffice/locali?locale=${LOCALE}`)
   const articolo = page.getByRole('article').filter({ hasText: LOCALE }).first()
   const riprova = page.getByRole('button', { name: 'Riprova' })
   for (let giri = 0; giri < 3; giri++) {
-    await expect(articolo.or(riprova)).toBeVisible()
+    await expect(articolo.or(riprova).first()).toBeVisible()
     if (await articolo.isVisible()) break
-    await riprova.click()
+    await riprova.first().click()
   }
   await expect(articolo).toBeVisible()
   return articolo
