@@ -38,6 +38,8 @@ export const DOMINIO_ISTANZE = 'drink.app'
 // menù pubblico, che la prima pagina può mostrare.
 export const URL_DEMO = 'https://drinkpos-demo.web.app'
 
-// Il contatto del prodotto. Segnaposto sul dominio delle istanze, come il
-// dominio: si cambia quando c'è quello vero.
-export const EMAIL_CONTATTI = `info@${DOMINIO_ISTANZE}`
+// Il contatto del prodotto, sul suo dominio (REQ-FLOTTA-106, Daniele,
+// 14/11/2026: «Per informazioni info@lime-smartorders.it»). Era un
+// segnaposto sul dominio delle istanze: ora è un valore suo, e il dominio
+// delle istanze, che costruisce gli indirizzi dei locali, si decide a parte.
+export const EMAIL_CONTATTI = 'info@lime-smartorders.it'

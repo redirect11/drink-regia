@@ -66,8 +66,9 @@ export default {
   anteprima: {
     occhiello: 'Gestionale per bar e ristoranti',
     titolo: 'Il sito apre a breve.',
-    testo: 'Lime è il gestionale per bar e ristoranti nato in un cocktail bar: comande, cassa, menù con QR, magazzino, personale e statistiche in un’app sola. Stiamo preparando il sito: prezzi, registrazione e attivazione arrivano qui.',
-    contatto: 'Per sapere quando apre, o per vederlo prima, scrivici a',
+    testo: 'Lime è il gestionale per bar e ristoranti nato in un cocktail bar: comande, cassa, menù con QR, magazzino, personale e statistiche in un’app sola. Stiamo preparando il sito.',
+    // Daniele, 14/11/2026 (REQ-FLOTTA-106): «Per informazioni», col contatto.
+    contatto: 'Per informazioni',
     accedi: 'Area riservata',
   },
   hero: {

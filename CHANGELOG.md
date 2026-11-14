@@ -4,6 +4,12 @@ Una voce per ogni cambiamento visibile, nello stesso commit del
 cambiamento. La versione in cima è quella in lavorazione finché non ha la
 data.
 
+## 0.4.2 (14/11/2026, correzione)
+
+- L'anteprima del sito chiuso è più corta («Stiamo preparando il sito.»,
+  «Per informazioni»), e il contatto del prodotto è
+  info@lime-smartorders.it in tutto il sito (REQ-FLOTTA-106).
+
 ## 0.4.1 (14/11/2026, correzione)
 
 - La demo si registra dal modulo «Locale esistente»: sul progetto
