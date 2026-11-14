@@ -273,8 +273,9 @@ requirements:
       (/backoffice/rilasci: i rilasci a ondate e gli aggiornamenti falliti
       tutti insieme, con Riprova e Torna indietro), «Vendita»
       (/backoffice/vendita: pagamenti online, Free, moduli e giorni di
-      prova), «Nuovo locale» (/backoffice/nuovo: nuovo ed esistente; fatto,
-      si torna all'elenco). Il controllo del claim admin vale per ogni
+      prova), «Aggiungi locale» (/backoffice/aggiungi: prima la scelta fra
+      nuovo ed esistente, poi un modulo solo, REQ-FLOTTA-097; fatto, si
+      torna all'elenco). Il controllo del claim admin vale per ogni
       sotto-rotta; un indirizzo che non c'è porta a «Locali». Il sotto-menù è
       un `nav` con aria-label, la voce attiva ha aria-current, e sul
       telefono la riga scorre di lato dentro sé stessa senza far scorrere la
@@ -4532,6 +4533,39 @@ requirements:
     labels: [regia, produzione]
     priority: P1
     test_cases:
+      - tests/App.test.jsx
+
+  - id: REQ-FLOTTA-097
+    title: "«Aggiungi locale» nel backoffice: prima si sceglie fra nuovo ed esistente, poi un modulo solo"
+    area: "src/pages/Backoffice.jsx (SceltaAggiunta, rotte aggiungi, aggiungi/nuovo, aggiungi/esistente), src/lib/backoffice.js (SEZIONI), src/index.css (.scelta-aggiunta)"
+    description: >
+      Daniele, 14/11/2026, registrando la Tana nella regia di produzione:
+      «puoi farla meglio la cosa del nuovo locale. Prima cosa chiamala
+      aggiungi locale e poi puoi scegliere tra nuovo ed esistente, vedi tu
+      come ma non mettere tutti e due i box nella stessa pagina che confonde
+      molto». Fino a qui la sezione «Nuovo locale» (/backoffice/nuovo)
+      mostrava uno sotto l'altro due moduli con gli stessi primi campi (nome
+      ed email del titolare): uno crea un cliente e la sua attivazione,
+      l'altro registra un locale che ha già app e progetto e non tocca
+      niente. Sbagliare modulo vuol dire avviare un'attivazione per un
+      locale che esiste, o il contrario.
+      CRITERI. (1) La voce del sotto-menù si chiama «Aggiungi locale» e porta
+      a /backoffice/aggiungi, dove non c'è nessun modulo: solo la scelta fra
+      «Nuovo locale» e «Locale esistente», ognuna con una riga che dice
+      quando si usa. (2) La scelta apre /backoffice/aggiungi/nuovo o
+      /backoffice/aggiungi/esistente, con un modulo solo, e la voce del
+      sotto-menù resta attiva; un collegamento riporta alla scelta. La
+      scelta sta nell'indirizzo: si torna indietro col browser e la si
+      ricarica; una scelta che non c'è riporta alla scelta. (3) I due moduli
+      restano quelli di prima, campi e chiamate comprese, e fatti riportano
+      all'elenco dei locali. (4) Il vecchio indirizzo /backoffice/nuovo
+      porta alla scelta.
+    status: implemented
+    generate_issue: true
+    labels: [regia, backoffice]
+    priority: P2
+    test_cases:
+      - tests/Backoffice.test.jsx
       - tests/App.test.jsx
 
   - id: REQ-FLOTTA-092

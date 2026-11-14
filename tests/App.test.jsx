@@ -160,7 +160,7 @@ describe('il piè di pagina', () => {
 // …): il controllo del claim admin in App.jsx deve valere per tutte, non
 // solo per /backoffice.
 describe('le sotto-rotte del backoffice', () => {
-  const SOTTO = ['/backoffice', '/backoffice/locali', '/backoffice/richieste', '/backoffice/rilasci', '/backoffice/vendita', '/backoffice/nuovo']
+  const SOTTO = ['/backoffice', '/backoffice/locali', '/backoffice/richieste', '/backoffice/rilasci', '/backoffice/vendita', '/backoffice/aggiungi']
 
   it.each(SOTTO)('%s: chi non è dentro, o non è admin, torna alla prima pagina', async (percorso) => {
     for (const utente of [null, { uid: 'u1', admin: false }]) {

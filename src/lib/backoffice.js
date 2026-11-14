@@ -10,9 +10,23 @@ import { STATI } from './istanze.js'
 
 export const BASE = '/backoffice'
 
+// LE DUE STRADE DI «AGGIUNGI LOCALE» (REQ-FLOTTA-097). Daniele, 14/11/2026:
+// «non mettere tutti e due i box nella stessa pagina che confonde molto».
+// I due moduli cominciano con gli stessi campi, e sbagliare vuol dire
+// avviare un'attivazione per un locale che esiste già, o il contrario:
+// la riga sotto il nome dice quando si usa ognuno.
+export const AGGIUNTE = [
+  { id: 'nuovo', nome: 'Nuovo locale', quando: 'Crea il cliente col suo piano e, se vuoi, avvia subito l’attivazione su un progetto nuovo.' },
+  {
+    id: 'esistente',
+    nome: 'Locale esistente',
+    quando: 'Ha già la sua app e il suo progetto, come la Tana: si registra qui senza attivazione e la regia non tocca il suo progetto.',
+  },
+]
+
 // L'ordine è quello di chi amministra: prima i locali, che si guardano
 // ogni giorno, poi quello che aspetta una risposta, poi i rilasci; la
-// vendita e i locali nuovi si toccano di rado.
+// vendita e i locali da aggiungere si toccano di rado.
 // «Commerciale» (REQ-FLOTTA-041) sta subito dopo i locali: è la vista di
 // chi vende, e la si guarda ogni giorno quanto l'elenco.
 export const SEZIONI = [
@@ -22,7 +36,9 @@ export const SEZIONI = [
   { id: 'rilasci', nome: 'Rilasci' },
   { id: 'vendita', nome: 'Vendita' },
   { id: 'temi', nome: 'Temi' },
-  { id: 'nuovo', nome: 'Nuovo locale' },
+  // «Aggiungi locale» (REQ-FLOTTA-097): prima si sceglie fra nuovo ed
+  // esistente, poi si vede un modulo solo.
+  { id: 'aggiungi', nome: 'Aggiungi locale' },
 ]
 
 // Un locale registrato come esistente (la Tana) non passa per la flotta:
