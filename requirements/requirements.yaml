@@ -4794,6 +4794,45 @@ requirements:
       - tests/AccessoGoogle.test.jsx
       - tests/AreaTitolare.test.jsx
 
+  - id: REQ-FLOTTA-110
+    title: "I registri strutturati delle Functions: una riga JSON per chiamata con funzione, locale, esito e durata, gli errori col loro stack, nessun dato personale"
+    area: "functions/lib/registro.js, functions/index.js (onRequest e onCall col registro; res.locals.slug nelle Functions dei locali), tests/registro.test.js"
+    description: >
+      Daniele, 14/11/2026: «la dashboard la vorrei piu sofisticata per il
+      logging e il monitoring. Roba piu seria»; scelti grafici nel tempo,
+      log consultabili, allarmi e la vista della flotta; poi, saputo che
+      gli allarmi di Google costano: «no allora niente allarmi google. Noi
+      che possiamo fare internamente?», e gli avvisi «Solo nel backoffice».
+      È la prima di tre fasi (poi la sentinella, REQ-FLOTTA-111, e la
+      Salute completa, REQ-FLOTTA-112): prima le Functions scrivevano righe
+      di testo libere, e una parte degli errori non scriveva niente (il 500
+      muto della presentazione, REQ-FLOTTA-108). Grafici, filtri per locale
+      e la sentinella hanno bisogno di righe con dei campi.
+      CRITERI. (1) Ogni chiamata a una Function HTTP (tranne il preflight
+      OPTIONS) o callable scrive una riga JSON con funzione, tipo, locale
+      (slug), esito (ok, rifiutata, errore), status o codice, durata in ms
+      e, per la presentazione, la versione dell'app. (2) Un errore inatteso
+      scrive una riga ERROR con lo stack in testa al messaggio, che Error
+      Reporting raggruppa; una Function HTTP risponde 500 invece di
+      restare appesa; una callable restituisce l'errore com'era. (3)
+      Nessun dato personale: niente uid, email o corpo della richiesta; le
+      email nei messaggi d'errore si mascherano; slug e versione entrano
+      solo se hanno la loro forma. (4) Nessuna Function scavalca il
+      registro: onRequest e onCall di index.js sono quelle col registro, e
+      il nome della Function lo dà Google (FUNCTION_TARGET). (5) Le
+      Functions che parlano con i locali (presentazione, richiestaAI,
+      sceltaDallApp, moduloDallApp, esitoProvisioning) dicono al registro
+      di quale locale si tratta.
+      INTERFACCE CON L'APP: nessuna; le risposte non cambiano, tranne un
+      errore inatteso di una Function HTTP, che diventa un 500 con
+      { errore } (l'app già ritenta ogni risposta diversa da 200).
+    status: todo
+    generate_issue: true
+    labels: [regia, flotta, sicurezza]
+    priority: P2
+    test_cases:
+      - tests/registro.test.js
+
   - id: REQ-FLOTTA-109
     title: "La sezione «Salute» del backoffice: per ogni locale l'ultima presentazione, gli errori delle 24 ore e i permessi che mancano"
     area: "functions/lib/salute.js, functions/index.js (saluteDellaFlotta), src/pages/Salute.jsx, src/lib/backoffice.js (SEZIONI), src/lib/db.js, scripts/account-runtime.mjs (roles/logging.viewer)"
