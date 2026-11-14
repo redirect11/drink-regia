@@ -4727,7 +4727,7 @@ requirements:
       (che mostrava «Installazione sospesa» col motivo a tutti) passa
       ancora, finché il locale di prova non è aggiornato. (3) Riattivato
       il locale, nessuno dei due avvisi resta.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [metodo, regia, licenza]
     priority: P1

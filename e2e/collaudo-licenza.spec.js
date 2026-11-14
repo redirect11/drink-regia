@@ -62,17 +62,24 @@ test('«Sospendi» scrive la licenza nel locale e l’app lo dice; «Riattiva» 
   await articolo.getByRole('button', { name: 'Sospendi' }).click()
   await expect(stato(articolo)).toContainText(`sospesa · ${MOTIVO}`)
 
-  // L'app del locale legge licenza/attuale e si ferma, col motivo.
+  // L'app del locale legge licenza/attuale e si ferma. Chi la apre senza
+  // entrare è il pubblico: da REQ-LIC-018 di tana-drink (Daniele,
+  // 13/11/2026: «chi entra nel locale non deve leggere che il titolare non
+  // ha pagato») legge solo che il menù non è disponibile, mai il motivo
+  // (REQ-FLOTTA-102). Un'app di prima mostrava a tutti «Installazione
+  // sospesa» col motivo: passa finché il locale di prova non è aggiornato.
   const app = await context.newPage()
   await app.goto(APP)
   const avviso = app.getByRole('alert')
-  await expect(avviso).toContainText('Installazione sospesa', { timeout: 60_000 })
-  await expect(avviso).toContainText(`Motivo: ${MOTIVO}`)
+  await expect(avviso).toContainText(/Menù non disponibile|Installazione sospesa/, { timeout: 60_000 })
+  if (/Menù non disponibile/.test(await avviso.textContent())) {
+    await expect(avviso).not.toContainText(MOTIVO)
+  }
 
   await articolo.getByRole('button', { name: 'Riattiva' }).click()
   await expect(stato(articolo)).toHaveText('Attiva')
   await app.reload()
-  await expect(app.getByText('Installazione sospesa')).toHaveCount(0, { timeout: 60_000 })
+  await expect(app.getByText(/Menù non disponibile|Installazione sospesa/)).toHaveCount(0, { timeout: 60_000 })
   await app.close()
 })
 
