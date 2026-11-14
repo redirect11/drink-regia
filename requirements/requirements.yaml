@@ -1567,6 +1567,9 @@ requirements:
       codice non vale per nessuno nuovo, nemmeno dall'admin; il limite si
       alza o si toglie da «Limite…» nel backoffice, le condizioni dello
       sconto restano quelle.
+      DAL 14/11/2026 (tana-drink 1.10.49, REQ-FLOTTA-104): «Area clienti»
+      dall'app è un collegamento a /dashboard, senza token;
+      passaggioVersoRegia resta per le app di prima.
     status: implemented
 
     generate_issue: true
@@ -4781,7 +4784,7 @@ requirements:
       app più vecchie della 1.10.49 (la Tana in produzione è alla 1.10.43):
       si toglie quando tutti i locali l'avranno passata, con una voce sua.
       «Apri la tua app», dalla regia all'app, non cambia.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [regia, contratto-tana-drink]
     priority: P2
