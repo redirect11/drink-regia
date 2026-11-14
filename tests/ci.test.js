@@ -281,6 +281,7 @@ describe('il collaudo apre la scheda anche con un aggiornamento fallito', () => 
     expect(scheda).not.toMatch(/expect\(articolo\.or\(riprova\)\)\.toBeVisible/)
   })
   it('preme Riprova solo se la scheda non c’è', () => {
-    expect(scheda).toMatch(/if \(await articolo\.isVisible\(\)\) break\n\s*await riprova\.first\(\)\.click\(\)/)
+    // \r?: su Windows il file estratto ha gli a capo \r\n.
+    expect(scheda).toMatch(/if \(await articolo\.isVisible\(\)\) break\r?\n\s*await riprova\.first\(\)\.click\(\)/)
   })
 })
