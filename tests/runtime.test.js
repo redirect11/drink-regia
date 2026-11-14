@@ -34,7 +34,7 @@ describe('l’account di runtime delle Functions', () => {
   it('test e produzione girano con l’account dedicato: la riga è accesa in tutti e due', () => {
     for (const progetto of ['drink-regia-test', 'drink-regia']) {
       const env = readFileSync(`functions/.env.${progetto}`, 'utf8')
-      expect(env).toMatch(new RegExp(`^RUNTIME_SERVICE_ACCOUNT=runtime-regia@${progetto}\.iam\.gserviceaccount\.com$`, 'm'))
+      expect(env).toMatch(new RegExp(`^RUNTIME_SERVICE_ACCOUNT=runtime-regia@${progetto}\\.iam\\.gserviceaccount\\.com$`, 'm'))
     }
   })
 
