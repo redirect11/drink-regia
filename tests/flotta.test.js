@@ -981,3 +981,41 @@ describe('l’AI di un locale esistente: il permesso del deploy e il workflow su
     for (const x of job.steps) expect(String(x.run || '')).not.toContain('${{')
   })
 })
+
+// L'ETICHETTA ANCHE PER PROVISIONARE E PER L'AI (REQ-FLOTTA-100). Daniele,
+// 14/11/2026: «ok procedi basta che non facciamo guai». Provisionare un
+// progetto che esiste già lo importa e lo riscrive; preparare l'AI dà
+// permessi: tutti e due solo su un progetto di questa regia.
+describe('provisiona-istanza.yml e prepara-ai-locale.yml: il progetto deve avere l’etichetta ambiente di questa regia', () => {
+  const prepara = load(leggi('.github/workflows/prepara-ai-locale.yml'))
+  const NOME = 'Il progetto è di questa regia?'
+
+  it('provisiona: dopo le credenziali e prima di Terraform; un progetto nuovo passa, uno esistente di un’altra regia no', () => {
+    expect(jobDelPasso(provisiona, NOME)).toBe(provisiona.jobs.prepara)
+    const nomi = provisiona.jobs.prepara.steps.map((s) => s.name || s.uses)
+    expect(nomi.indexOf(NOME)).toBe(nomi.indexOf('Credenziali di provisioning') + 1)
+    expect(nomi.indexOf(NOME)).toBeLessThan(nomi.indexOf('Terraform init'))
+    expect(nomi.indexOf(NOME)).toBeLessThan(nomi.indexOf('Importa il progetto se esiste già'))
+    expect(nomi.indexOf(NOME)).toBeLessThan(nomi.indexOf('Terraform apply'))
+    const run = passo(provisiona, NOME).run
+    expect(run).toContain(`if ! ETICHETTA=$(gcloud projects describe "$PROGETTO" --format='value(labels.ambiente)' 2>/dev/null); then`)
+    expect(run).toMatch(/if \[ "\$ETICHETTA" != "\$AMBIENTE" \]; then\n\s*echo "::error::[^\n]*"\n\s*exit 1\n\s*fi/)
+    expect(passo(provisiona, 'Credenziali di provisioning').run).toContain('gcloud auth activate-service-account --key-file="$RUNNER_TEMP/sa.json" --quiet')
+    // Un errore qui arriva alla regia: il job dell'esito gira lo stesso.
+    expect(provisiona.jobs.pubblica.if).toBe('${{ !cancelled() }}')
+    expect(String(run)).not.toContain('${{')
+  })
+
+  it('prepara-ai-locale: dopo le credenziali e prima dello script, col rimedio nel messaggio', () => {
+    const job = prepara.jobs.prepara
+    expect(job.env.AMBIENTE).toBe('${{ inputs.ambiente }}')
+    const nomi = job.steps.map((s) => s.name || s.uses)
+    expect(nomi.indexOf(NOME)).toBe(nomi.indexOf('Credenziali di provisioning') + 1)
+    expect(nomi.indexOf(NOME)).toBeLessThan(nomi.indexOf("L'account dell'AI e il permesso del deploy"))
+    const run = job.steps.find((s) => s.name === NOME).run
+    expect(run).toContain(`ETICHETTA=$(gcloud projects describe "$PROGETTO" --format='value(labels.ambiente)')`)
+    expect(run).toMatch(/if \[ "\$ETICHETTA" != "\$AMBIENTE" \]; then\n\s*echo "::error::[^\n]*"\n\s*exit 1\n\s*fi/)
+    expect(run).toContain('gcloud projects update $PROGETTO --update-labels ambiente=$AMBIENTE')
+    expect(job.steps.find((s) => s.name === 'Credenziali di provisioning').run).toContain('gcloud auth activate-service-account --key-file="$RUNNER_TEMP/sa.json" --quiet')
+  })
+})

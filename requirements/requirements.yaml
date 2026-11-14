@@ -4568,6 +4568,38 @@ requirements:
       - tests/Backoffice.test.jsx
       - tests/App.test.jsx
 
+  - id: REQ-FLOTTA-100
+    title: "L'etichetta ambiente anche prima di provisionare un progetto che esiste già e prima di preparare l'AI di un locale esistente"
+    area: ".github/workflows/provisiona-istanza.yml (job prepara: Credenziali di provisioning, Il progetto è di questa regia?), .github/workflows/prepara-ai-locale.yml (Credenziali di provisioning, Il progetto è di questa regia?)"
+    description: >
+      Daniele, 14/11/2026, sull'isolamento fra test e produzione della
+      flotta: «ok procedi basta che non facciamo guai». REQ-FLOTTA-048 fa
+      leggere l'etichetta `ambiente` del progetto ad aggiorna-istanza ed
+      elimina-istanza; restavano scoperti due workflow che usano la stessa
+      chiave di provisioning delle due regie. provisiona-istanza, senza
+      ORG_ID, importa nello stato un progetto che esiste già e l'apply lo
+      riscrive, etichetta compresa: la regia di test che provisionasse lo
+      slug di un locale di produzione se ne prendeva il controllo.
+      prepara-ai-locale dava permessi su un progetto qualunque. Le etichette
+      di tana-drink (produzione) e tana-drink-test (test) le ha messe la
+      regia il 14/11/2026, col via di Daniele.
+      CRITERI. (1) provisiona-istanza, nel job prepara, subito dopo le
+      credenziali e prima di Terraform: se il progetto esiste e la sua
+      etichetta `ambiente` non è quella dell'input, si ferma senza toccare
+      niente; se non esiste, va avanti e lo crea il Terraform con
+      l'etichetta giusta. L'esito arriva comunque alla regia (il job
+      pubblica gira anche dopo un errore). (2) prepara-ai-locale, subito
+      dopo le credenziali e prima dello script: senza l'etichetta giusta si
+      ferma, con nel messaggio il comando per dargliela. (3) In tutti e due
+      `gcloud` usa la chiave del provisioning, e gli input entrano nei
+      comandi solo come variabili d'ambiente.
+    status: todo
+    generate_issue: true
+    labels: [flotta, sicurezza]
+    priority: P1
+    test_cases:
+      - tests/flotta.test.js
+
   - id: REQ-FLOTTA-092
     title: "Il modello AI si sceglie per tipo di richiesta dal backoffice: Sonnet per tutti, all'inizio"
     area: "functions/piani.json (ai.prezzi_usd_per_milione), functions/lib/ai.js (TIPI_MODELLO, modelliDelListino, modelloPer, validaModelliAI, interrogaConPrenotazione), functions/index.js (interrogaClaude, gestisciModelliAI), src/lib/db.js (impostaModelliAI), src/pages/Backoffice.jsx (Vendita), firestore.rules (impostazioni)"
