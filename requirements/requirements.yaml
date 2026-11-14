@@ -273,8 +273,9 @@ requirements:
       (/backoffice/rilasci: i rilasci a ondate e gli aggiornamenti falliti
       tutti insieme, con Riprova e Torna indietro), «Vendita»
       (/backoffice/vendita: pagamenti online, Free, moduli e giorni di
-      prova), «Nuovo locale» (/backoffice/nuovo: nuovo ed esistente; fatto,
-      si torna all'elenco). Il controllo del claim admin vale per ogni
+      prova), «Aggiungi locale» (/backoffice/aggiungi: prima la scelta fra
+      nuovo ed esistente, poi un modulo solo, REQ-FLOTTA-097; fatto, si
+      torna all'elenco). Il controllo del claim admin vale per ogni
       sotto-rotta; un indirizzo che non c'è porta a «Locali». Il sotto-menù è
       un `nav` con aria-label, la voce attiva ha aria-current, e sul
       telefono la riga scorre di lato dentro sé stessa senza far scorrere la
@@ -4559,7 +4560,7 @@ requirements:
       restano quelli di prima, campi e chiamate comprese, e fatti riportano
       all'elenco dei locali. (4) Il vecchio indirizzo /backoffice/nuovo
       porta alla scelta.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [regia, backoffice]
     priority: P2
