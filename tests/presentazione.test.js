@@ -82,4 +82,28 @@ describe('la licenza del sito che si presenta', () => {
     expect(corpo).toContain("scriviLicenza(slug, { subito: true })")
     expect(corpo.indexOf('verifyIdToken')).toBeLessThan(corpo.indexOf('scriviLicenza'))
   })
+
+  // REQ-FLOTTA-108 (verifica del 14/11/2026): drinkpos-prova-e2e senza i
+  // ruoli del nuovo account della regia di test riceveva un 500 muto.
+  it('la licenza che non si legge è un 503 col motivo nel registro, e nessun errore resta muto', () => {
+    const codice = readFileSync('functions/index.js', 'utf8').replace(/\r\n/g, '\n')
+    const inizio = codice.indexOf('exports.presentazione = onRequest')
+    const corpo = codice.slice(inizio, codice.indexOf('// ── IL PIANO CHE CAMBIA', inizio))
+    const lettura = corpo.indexOf('.doc(LICENZA_PROTETTA).get()')
+    expect(lettura).toBeGreaterThan(0)
+    // La lettura sta in un try, e il suo catch scrive il motivo e risponde 503.
+    const prima = corpo.slice(0, lettura)
+    expect(prima.lastIndexOf('try {')).toBeGreaterThan(prima.lastIndexOf('}'))
+    const dopo = corpo.slice(lettura)
+    expect(dopo).toMatch(/catch \(e\) \{\n\s+console\.error\(`\[presentazione\] \$\{slug\}: la licenza non si legge: /)
+    expect(dopo.slice(0, dopo.indexOf('const cosa ='))).toContain('res.status(503)')
+    // Il resto: un errore inatteso si scrive col suo dettaglio prima del 500.
+    expect(corpo).toContain("console.error('[presentazione] errore inatteso:', e)")
+    expect(corpo).toContain('res.status(500)')
+  })
+
+  it('il contratto dice che il 503 vale anche per la licenza che non si legge', () => {
+    const doc = readFileSync('docs/contratto-regia-app.md', 'utf8')
+    expect(doc).toContain('`503` licenza che non si legge o non si scrive')
+  })
 })

@@ -122,7 +122,9 @@ scritta solo se manca (`scritta_da: 'deploy'`). La Tana ha `regia_url: null`.
   progetto.
 - Risposte: `200 { ok, licenza: 'scritta'|'presente'|'non_dalla_regia'|'non_attiva' }`;
   `400` versione; `401` token; `404` locale non registrato o eliminato; `405`;
-  `503` licenza non scritta.
+  `503` licenza che non si legge o non si scrive (REQ-FLOTTA-108: prima la
+  lettura fallita era un `500`; per l'app non cambia niente, ogni risposta
+  diversa da `200` si riprova alla prossima apertura); `500` errore inatteso.
 - La regia salva `istanze/{slug}.presentazione { versione, il, prima_il }`: è
   la versione installata che si vede nella scheda, e quella che decide quando
   si può togliere un'interfaccia deprecata.
