@@ -4817,7 +4817,7 @@ requirements:
       dice che il 503 vale anche per la licenza che non si legge: per l'app
       non cambia niente, ogni risposta diversa da 200 si riprova alla
       prossima apertura.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [regia, flotta, test]
     priority: P2
