@@ -16,6 +16,11 @@ data.
   pagamenti, piano e chiusura restano del titolare. Un account ha un
   locale solo, da titolare o da collaboratore (REQ-FLOTTA-098,
   REQ-FLOTTA-099).
+- Nel backoffice la voce «Nuovo locale» diventa «Aggiungi locale»: prima
+  si sceglie fra «Nuovo locale» e «Locale esistente», ognuno con la riga
+  che dice quando si usa, poi si vede un modulo solo. I moduli non
+  cambiano; il vecchio indirizzo /backoffice/nuovo porta alla scelta
+  (REQ-FLOTTA-097).
 
 ## 0.3.0 (13/11/2026, la seconda in produzione: col sito chiuso al pubblico, comprende tutto il lavoro dopo la 0.2.1)
 
