@@ -206,6 +206,13 @@ describe('il sito chiuso', () => {
     expect(screen.getByRole('link', { name: 'Area riservata' })).toHaveAttribute('href', '/accedi')
     // L'email c'è nella pagina e nel piè di pagina.
     for (const l of screen.getAllByRole('link', { name: /info@/ })) expect(l).toHaveAttribute('href', expect.stringMatching(/^mailto:/))
+    // REQ-FLOTTA-106 (Daniele, 14/11/2026): l'anteprima più corta, e il
+    // contatto sul dominio del prodotto.
+    expect(screen.getByText(/Stiamo preparando il sito\.$/)).toBeInTheDocument()
+    expect(screen.queryByText(/prezzi, registrazione e attivazione/)).toBeNull()
+    expect(screen.getByText(/^Per informazioni/)).toBeInTheDocument()
+    for (const l of screen.getAllByRole('link', { name: 'info@lime-smartorders.it' })) expect(l).toHaveAttribute('href', 'mailto:info@lime-smartorders.it')
+    expect(screen.queryByText(/drink\.app/)).toBeNull()
     // Il menù ha solo «Accedi»: niente sezioni, niente «Attiva il tuo locale».
     const menu = screen.getByRole('navigation', { name: 'Principale' })
     expect(within(menu).getByRole('link', { name: 'Accedi' })).toBeInTheDocument()
@@ -215,6 +222,8 @@ describe('il sito chiuso', () => {
     unmount()
     mostra('/en')
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('The site opens soon.')
+    expect(screen.getByText(/We are getting the site ready\.$/)).toBeInTheDocument()
+    expect(screen.getByText(/^For information/)).toBeInTheDocument()
   })
 
   // REQ-FLOTTA-104 (da tana-drink, 14/11/2026): «Area clienti» dall'app
