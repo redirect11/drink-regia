@@ -14,6 +14,11 @@ data.
   con `roles/logging.viewer`, da dare con `scripts/account-runtime.mjs`
   (REQ-FLOTTA-109).
 
+- La presentazione di un locale non risponde più 500 senza traccia: se la
+  regia non riesce a leggere la licenza nel progetto del locale risponde
+  503 e scrive il motivo nel registro, e ogni altro errore inatteso finisce
+  nel registro col suo dettaglio (REQ-FLOTTA-108).
+
 ## 0.4.2 (14/11/2026, correzione)
 
 - L'anteprima del sito chiuso è più corta («Stiamo preparando il sito.»,

@@ -4843,6 +4843,36 @@ requirements:
       - tests/Backoffice.test.jsx
       - tests/runtime.test.js
 
+  - id: REQ-FLOTTA-108
+    title: "La presentazione non risponde mai 500 senza dire perché: la licenza che non si legge è un 503 col motivo nel registro"
+    area: "functions/index.js (presentazione), docs/contratto-regia-app.md (interfaccia 4), tests/presentazione.test.js"
+    description: >
+      Verifica del 14/11/2026, chiesta da Daniele («un 500 non deve esserci.
+      verifica questo»): le prove automatiche di tana-drink, dal sito di
+      prova drinkpos-prova-e2e, ricevevano 500 dalla presentazione della
+      regia di test (14:45, 15:35, 16:01, 17:38), e nel registro non restava
+      nessun errore. La causa: dal 09/11 le Functions della regia di test
+      girano con runtime-regia@drink-regia-test (REQ-FLOTTA-058), e su
+      drinkpos-prova-e2e i ruoli erano rimasti al vecchio account predefinito.
+      La presentazione registrava la versione e poi leggeva licenza/attuale
+      nel progetto del locale fuori da ogni controllo: il permesso negato
+      diventava un 500 muto. I ruoli li ha dati la regia il 14/11 col via di
+      Daniele («fallo»); questa voce è la parte del codice.
+      CRITERI. (1) Se la lettura della licenza nel progetto del locale non
+      riesce, la presentazione risponde 503 e scrive nel registro il locale e
+      il motivo, come quando la licenza non si scrive. (2) Qualunque altro
+      errore inatteso finisce nel registro col suo dettaglio prima del 500,
+      così Error Reporting lo raccoglie. (3) Il contratto (interfaccia 4)
+      dice che il 503 vale anche per la licenza che non si legge: per l'app
+      non cambia niente, ogni risposta diversa da 200 si riprova alla
+      prossima apertura.
+    status: implemented
+    generate_issue: true
+    labels: [regia, flotta, test]
+    priority: P2
+    test_cases:
+      - tests/presentazione.test.js
+
   - id: REQ-FLOTTA-105
     title: "La demo si registra dal modulo «Locale esistente»: sul progetto drinkpos-demo la cartella è demo da sola"
     area: "functions/lib/esistente.js (gestioneEsistente), tests/esistente.test.js"

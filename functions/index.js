@@ -2026,12 +2026,24 @@ exports.chiediTemaSuMisura = onCall(OPTS, async (req) => {
 // 'non_dalla_regia' | 'non_attiva' }; 400 corpo sbagliato; 401 token
 // mancante o non valido; 404 progetto che la regia non conosce; 503 la
 // licenza non si è scritta (si riprova aprendo l'app).
+// NESSUN 500 MUTO (REQ-FLOTTA-108): un errore inatteso si scrive nel
+// registro col suo dettaglio, così Error Reporting lo raccoglie; prima il
+// permesso negato su drinkpos-prova-e2e diventava un 500 senza traccia.
 exports.presentazione = onRequest({ ...OPTS, cors: false }, async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*')
   res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type')
   res.set('Access-Control-Allow-Methods', 'POST')
   if (req.method === 'OPTIONS') return res.status(204).send('')
   if (req.method !== 'POST') return res.status(405).json({ errore: 'Solo POST.' })
+  try {
+    return await presentaIlSito(req, res)
+  } catch (e) {
+    console.error('[presentazione] errore inatteso:', e)
+    return res.status(500).json({ errore: 'Errore della regia: riprova fra poco.' })
+  }
+})
+
+async function presentaIlSito(req, res) {
   const token = aggiornamenti.bearerDi(req.get('authorization'))
   const progetto = aggiornamenti.progettoDelToken(token)
   if (!progetto) return res.status(401).json({ errore: 'Serve l’accesso.' })
@@ -2052,7 +2064,18 @@ exports.presentazione = onRequest({ ...OPTS, cors: false }, async (req, res) => 
   // serve alla regia e non si salva (REQ-FLOTTA-051).
   if (presenta.daRegistrare(ist, corpo.versione)) await trovata.ref.update(presenta.registroPresentazione(ist, { versione: corpo.versione }))
   const riceve = riceveLicenza(ist)
-  const esiste = riceve ? (await firestoreDi(progetto).doc(LICENZA_PROTETTA).get()).exists : false
+  // La licenza si legge nel progetto del locale, coi ruoli che Terraform dà
+  // all'account della regia: se mancano (REQ-FLOTTA-108) è un 503 col
+  // motivo, e l'app si ripresenta alla prossima apertura.
+  let esiste = false
+  if (riceve) {
+    try {
+      esiste = (await firestoreDi(progetto).doc(LICENZA_PROTETTA).get()).exists
+    } catch (e) {
+      console.error(`[presentazione] ${slug}: la licenza non si legge: ${e?.message || e}`)
+      return res.status(503).json({ errore: 'La regia non riesce a leggere la licenza: riprova fra poco.' })
+    }
+  }
   const cosa = presenta.cosaFareConLaLicenza(ist, { esiste, riceve })
   if (cosa !== 'scrivi') return res.status(200).json({ ok: true, licenza: cosa })
   // Nessuno ci lavora ancora: la prima licenza si scrive subito, niente taglio.
@@ -2063,7 +2086,7 @@ exports.presentazione = onRequest({ ...OPTS, cors: false }, async (req, res) => 
   }
   console.log(`[presentazione] ${slug} ${corpo.versione}: licenza scritta`)
   return res.status(200).json({ ok: true, licenza: 'scritta' })
-})
+}
 
 // ── IL PIANO CHE CAMBIA (REQ-FLOTTA-010) ──────────────────────────────
 
