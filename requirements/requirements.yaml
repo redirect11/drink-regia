@@ -4875,7 +4875,7 @@ requirements:
       documento aggiornato nella stessa PR. (5) Un test fa rosso se una
       Function HTTP della regia o un input dei workflow che pubblicano
       l'app non hanno la loro voce.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [regia, contratto-tana-drink, metodo]
     priority: P1

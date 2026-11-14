@@ -41,7 +41,7 @@ describe('il documento delle interfacce fra la regia e l’app', () => {
 
   it('dice come si cambia un’interfaccia: mai sul posto, la nuova accanto alla vecchia', () => {
     const doc = leggi(DOC)
-    expect(doc).toMatch(/^## Come si cambia un’interfaccia$/m)
+    expect(doc).toMatch(/^## Come si cambia un['’]interfaccia$/m)
     expect(doc).toContain('mai sul posto')
     expect(doc).toMatch(/^## Le interfacce deprecate$/m)
     expect(doc).toContain('`passaggioVersoRegia`')
