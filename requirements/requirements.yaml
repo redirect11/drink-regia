@@ -4794,6 +4794,32 @@ requirements:
       - tests/AccessoGoogle.test.jsx
       - tests/AreaTitolare.test.jsx
 
+  - id: REQ-FLOTTA-105
+    title: "La demo si registra dal modulo «Locale esistente»: sul progetto drinkpos-demo la cartella è demo da sola"
+    area: "functions/lib/esistente.js (gestioneEsistente), tests/esistente.test.js"
+    description: >
+      Daniele, 14/11/2026, spostando la demo dalla regia di test a quella di
+      produzione: il modulo «Locale esistente» (nome Demo, identificativo e
+      progetto drinkpos-demo) rispondeva «drinkpos-demo riceve solo la
+      cartella «demo». [400]». Il modulo non manda la cartella, e
+      gestioneEsistente la prendeva dall'identificativo; «demo» come
+      identificativo non passa (da 6 a 30 caratteri). La regola della demo
+      (REQ-FLOTTA-019, revisione del 02/11/2026, B5 e B7) è nata dopo che la
+      demo era stata registrata sul test, e da allora nessuno l'aveva più
+      registrata col modulo. Daniele: «hotfix adesso».
+      CRITERI. (1) Sul progetto drinkpos-demo, senza cartella, la cartella è
+      demo. (2) Resta tutto il resto della regola: la demo con un'altra
+      cartella scritta apposta, o un altro progetto con la cartella demo, si
+      rifiutano; la regia non scrive mai la licenza della demo. (3) Un
+      locale esistente qualunque, senza cartella, continua a prendere
+      l'identificativo.
+    status: implemented
+    generate_issue: true
+    labels: [regia, backoffice, demo]
+    priority: P1
+    test_cases:
+      - tests/esistente.test.js
+
   - id: REQ-FLOTTA-092
     title: "Il modello AI si sceglie per tipo di richiesta dal backoffice: Sonnet per tutti, all'inizio"
     area: "functions/piani.json (ai.prezzi_usd_per_milione), functions/lib/ai.js (TIPI_MODELLO, modelliDelListino, modelloPer, validaModelliAI, interrogaConPrenotazione), functions/index.js (interrogaClaude, gestisciModelliAI), src/lib/db.js (impostaModelliAI), src/pages/Backoffice.jsx (Vendita), firestore.rules (impostazioni)"

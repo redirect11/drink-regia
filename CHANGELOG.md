@@ -6,6 +6,12 @@ data.
 
 ## 0.5.0 (in lavorazione)
 
+## 0.4.1 (14/11/2026, correzione)
+
+- La demo si registra dal modulo «Locale esistente»: sul progetto
+  drinkpos-demo la cartella è «demo» da sola. Prima il modulo rispondeva
+  «drinkpos-demo riceve solo la cartella «demo»» (REQ-FLOTTA-105).
+
 ## 0.4.0 (14/11/2026, la terza in produzione: «Aggiungi locale», i collaboratori, le Functions con un account senza Editor, la flotta protetta da etichette e regole)
 
 - La flotta: anche «provisiona» (su un progetto che esiste già) e
