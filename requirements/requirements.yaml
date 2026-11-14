@@ -4804,7 +4804,7 @@ requirements:
       info@lime-smartorders.it in tutto il sito (anteprima, piè di pagina,
       dashboard, credito AI, scelta del piano, dati del locale), come
       link mailto. (3) Il dominio delle istanze non cambia.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [regia, sito, produzione]
     priority: P1

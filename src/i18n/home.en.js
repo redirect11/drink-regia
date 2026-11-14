@@ -58,8 +58,8 @@ export default {
   anteprima: {
     occhiello: 'Management for bars and restaurants',
     titolo: 'The site opens soon.',
-    testo: 'Lime is the management system for bars and restaurants born in a cocktail bar: orders, till, QR menu, stock, staff and statistics in a single app. We are getting the site ready: prices, sign-up and activation will be here.',
-    contatto: 'To hear when it opens, or to see it before, write to',
+    testo: 'Lime is the management system for bars and restaurants born in a cocktail bar: orders, till, QR menu, stock, staff and statistics in a single app. We are getting the site ready.',
+    contatto: 'For information',
     accedi: 'Sign in',
   },
   hero: {
