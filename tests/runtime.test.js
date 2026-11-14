@@ -29,6 +29,15 @@ describe('l’account di runtime delle Functions', () => {
     }
   })
 
+  // Accesa sul test il 09/11/2026 e in produzione il 14/11/2026 (Daniele:
+  // «iniziamo»), dopo lo script e REGIA_SA_EMAIL nei due environment.
+  it('test e produzione girano con l’account dedicato: la riga è accesa in tutti e due', () => {
+    for (const progetto of ['drink-regia-test', 'drink-regia']) {
+      const env = readFileSync(`functions/.env.${progetto}`, 'utf8')
+      expect(env).toMatch(new RegExp(`^RUNTIME_SERVICE_ACCOUNT=runtime-regia@${progetto}\\.iam\\.gserviceaccount\\.com$`, 'm'))
+    }
+  })
+
   it('lo script dà solo i ruoli che il codice usa: niente Editor, niente Owner', () => {
     expect(script).not.toMatch(/roles\/(editor|owner)/)
     for (const ruolo of ['roles/datastore.user', 'roles/firebaseauth.admin', 'roles/logging.logWriter', 'roles/eventarc.eventReceiver', 'roles/run.invoker', 'roles/cloudtasks.enqueuer']) {

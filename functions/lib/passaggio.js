@@ -85,6 +85,20 @@ function titolareNelLocale(utente, cliente) {
   return { ok: true, perche: null }
 }
 
+// Il collaboratore (REQ-FLOTTA-098) entra nell'app col SUO account nel
+// locale, con la stessa regola del titolare: stessa email, verificata,
+// admin. Il conto qui è col documento membri/{uid}, non col cliente. Un
+// account senza email verificata non basta: la regia non sa chi l'ha
+// scritta, e in tana-drink un admin crea account con l'email che vuole.
+function membroNelLocale(utente, membro) {
+  if (!utente) return { ok: false, perche: 'Nel locale non c’è un account con la tua email: chiedi al titolare di crearlo, come admin.' }
+  if (utente.disabled) return { ok: false, perche: 'Il tuo account nel locale è disattivato.' }
+  if (!emailUguali(utente.email, membro?.email)) return { ok: false, perche: 'L’account del locale non è il tuo.' }
+  if (!utente.emailVerified) return { ok: false, perche: 'Nel locale l’email del tuo account non è verificata: entra nell’app con Google, o chiedi al titolare.' }
+  if (utente.customClaims?.role !== 'admin') return { ok: false, perche: 'Nel locale il tuo account non è admin.' }
+  return { ok: true, perche: null }
+}
+
 // Chi chiede di passare alla regia dall'app è il titolare, con un token
 // appena rinnovato? (dall'app alla regia; `token` è il token decodificato)
 function titolareDallApp(token, cliente, adesso = new Date()) {
@@ -167,6 +181,7 @@ module.exports = {
   codiceDelCorpo,
   passaggioValido,
   titolareNelLocale,
+  membroNelLocale,
   titolareDallApp,
   stessoTitolare,
   improntaUtente,

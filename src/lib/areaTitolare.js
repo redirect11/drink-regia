@@ -19,6 +19,8 @@ export const SEZIONI_TITOLARE = [
   { id: 'piano', nome: 'Piano e moduli' },
   { id: 'credito-ai', nome: 'Credito AI' },
   { id: 'locale', nome: 'Il locale' },
+  // Chi altro vede il locale e apre l'app (REQ-FLOTTA-098).
+  { id: 'collaboratori', nome: 'Collaboratori' },
   { id: 'chiudi', nome: 'Chiudi il locale' },
 ]
 

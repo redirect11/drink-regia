@@ -59,6 +59,22 @@ describe('il passaggio', () => {
   })
 })
 
+// I COLLABORATORI (REQ-FLOTTA-098): dalla regia all'app col LORO account
+// nel locale, con la stessa regola del titolare (verificato e admin).
+describe('il collaboratore', () => {
+  const membro = { uid: 'col-1', email: 'luca@example.it', slug: 'bar' }
+  const nelLocale = (extra = {}) => ({ uid: 'loc-9', email: 'Luca@Example.it', emailVerified: true, disabled: false, customClaims: { role: 'admin' }, ...extra })
+
+  it('dalla regia all’app: il suo account nel locale, verificato e admin', () => {
+    expect(p.membroNelLocale(nelLocale(), membro).ok).toBe(true)
+    expect(p.membroNelLocale(null, membro).perche).toMatch(/Nel locale non c’è un account con la tua email/)
+    expect(p.membroNelLocale(nelLocale({ disabled: true }), membro).perche).toMatch(/disattivato/)
+    expect(p.membroNelLocale(nelLocale({ emailVerified: false }), membro).perche).toMatch(/non è verificata/)
+    expect(p.membroNelLocale(nelLocale({ email: 'mario@example.it' }), membro).perche).toMatch(/non è il tuo/)
+    expect(p.membroNelLocale(nelLocale({ customClaims: { role: 'bartender' } }), membro).perche).toMatch(/non è admin/)
+  })
+})
+
 describe('il titolare', () => {
   const nelLocale = (extra = {}) => ({ uid: 'loc-1', email: 'Mario@Example.it', emailVerified: true, disabled: false, customClaims: { role: 'admin' }, ...extra })
 

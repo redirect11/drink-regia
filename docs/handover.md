@@ -360,7 +360,7 @@ canale di anteprima col via libera.
 
 | Cosa | Stato |
 |---|---|
-| Produzione `drink-regia`, dal 13/11/2026 | **la 0.3.0** (tag `v0.3.0`, PR #244): sito, regole, indici e 64 Functions in `europe-west1`. **Sito chiuso al pubblico** (`vendita/listino.sito_aperto` assente: anteprima, solo «Accedi», niente prezzi; si apre dal backoffice, Vendita). **Firestore `(default)` in `europe-west1`**, ricreato vuoto il 13/11/2026 (era in `nam5`, Stati Uniti; Daniele: «si hai il via libera»). Segreti delle Functions: `AI_CHAT_SECRET` casuale; `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `GITHUB_DISPATCH_TOKEN` col segnaposto `non-configurato` (Daniele: «Di stripe se blocchiamo vendite e registrazione lo lasciamo in sviluppo»); `ANTHROPIC_API_KEY` segnaposto, AI spenta finché non la si attiva con tana-drink. Nessun dato: la Tana e il claim admin si fanno dal backoffice e con `scripts/admin-regia.mjs` (§7, e `docs/la-tana-nella-regia.md` di tana-drink). Le email non partono: manca il dominio per Resend. |
+| Produzione `drink-regia`, dal 13/11/2026 | **la 0.3.0** (tag `v0.3.0`, PR #244): sito, regole, indici e 64 Functions in `europe-west1`. **Sito chiuso al pubblico** (`vendita/listino.sito_aperto` assente: anteprima, solo «Accedi», niente prezzi; si apre dal backoffice, Vendita). **Firestore `(default)` in `europe-west1`**, ricreato vuoto il 13/11/2026 (era in `nam5`, Stati Uniti; Daniele: «si hai il via libera»). Segreti delle Functions: `AI_CHAT_SECRET` casuale; `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `GITHUB_DISPATCH_TOKEN` col segnaposto `non-configurato` (Daniele: «Di stripe se blocchiamo vendite e registrazione lo lasciamo in sviluppo»); `ANTHROPIC_API_KEY` segnaposto, che non si usa: le Functions AI parlano con Anthropic con la **federazione delle identità** (`ai-regia@drink-regia`, regola `gcp-drink-regia` e account di servizio Anthropic `drink-regia` nell'area di lavoro «drink», dal 06/11/2026, `functions/.env.drink-regia`), quindi niente chiave da mettere; l'AI della Tana si accende con `REGIA_PROGETTO=drink-regia` in tana-drink e dal backoffice (AI accesa e credito). **Account delle Functions**: `runtime-regia@drink-regia` dal 14/11/2026 (REQ-FLOTTA-058: script con `--locale tana-drink`, `REGIA_SA_EMAIL` dell'environment flotta cambiata, riga accesa), vale dal primo deploy che porta la riga; fino ad allora girano con l'account predefinito. Nessun dato: la Tana e il claim admin si fanno dal backoffice e con `scripts/admin-regia.mjs` (§7, e `docs/la-tana-nella-regia.md` di tana-drink). Le email non partono: manca il dominio per Resend. |
 | Progetto di test `drink-regia-test` | **creato il 29/10/2026**, su Blaze col secondo account di fatturazione («Il mio account di fatturazione 2», solo prove). API, Firestore `europe-west1`, Auth email, SA del deploy con i ruoli di docs/actions-come-tana-drink.md §3. Sito, regole e 17 Functions pubblicati dal tag `v0.1.0-prova.3` (ramo `feature/rilasci-a-ondate`). Segreti delle Functions: `PROVISIONING_CALLBACK_SECRET` (lo stesso della produzione: tana-drink ne conosce uno), Stripe **sandbox**; `ANTHROPIC_API_KEY` e `GITHUB_DISPATCH_TOKEN` **segnaposto** (il cassetto AI e le attivazioni vere non partono finché non si mettono quelli veri). Dal ramo `feature/ai-chat` (REQ-FLOTTA-094) `richiestaAI` lega anche **`AI_CHAT_SECRET`** (la firma dei turni della chat, almeno 32 caratteri casuali): va creato prima del primo tag beta che lo porta, se no il deploy di `richiestaAI` si ferma; in produzione solo col via libera di Daniele. |
 | Environment GitHub `test` | **creato il 29/10/2026**: i quattro `VITE_FIREBASE_*` e `FIREBASE_SERVICE_ACCOUNT` |
 | Approvazione sulla produzione | **non disponibile**: GitHub Free non dà i «Required reviewers» a un repository privato (provato il 29/10/2026, errore 422). Oggi protegge solo il job «Dove va» (un tag fuori da `main` va sul test). Decisione dell'utente: GitHub Pro, o accettare il controllo del workflow |
@@ -738,6 +738,11 @@ ma l'ordine aggiornato è quello del 09/11.
      sui tre locali di test e sulla Tana);
    - su ogni regia, all'account della regia, `roles/iam.serviceAccountTokenCreator`
      su sé stesso: per firmare l'accesso alla regia dall'app.
+   **Dal 14/11/2026 anche i collaboratori (REQ-FLOTTA-098)**: «Apri l'app»
+   di un collaboratore cerca nel progetto del locale il SUO account (la
+   sua email, verificata, admin), non quello del titolare. Per l'app non
+   cambia niente: riceve un accesso per un account suo, come prima.
+   «Area clienti» resta del solo titolare.
    **Da fare**: in tana-drink la pagina che riceve il codice, «Area
    clienti», i campi nuovi; poi l'identità centrale (Identity Platform
    nella regia, il banco che entra con l'account della regia).
@@ -940,6 +945,39 @@ ma l'ordine aggiornato è quello del 09/11.
    dell'apertura**: accendere l'interruttore dal backoffice di produzione,
    nient'altro; prima, i segreti Stripe e il token GitHub (voce 7), e
    «Pagamenti online» se si vuole il Checkout.
+46. **Le email della regia: DECISIONE APERTA (Daniele, 14/11/2026)**.
+   Daniele: «segnamoci che dobbiamo rendere una decisione. Intanto
+   continuiamo con firebase». Due cose da decidere:
+   - **Il dominio del prodotto** (proposta: `lime-smartorders`, su
+     register.it, con le caselle delle persone, `info@` e le sue).
+   - **Il servizio che spedisce le email automatiche**, su un
+     sottodominio (es. `notifiche.<dominio>`) con SPF, DKIM e DMARC.
+     Resend no («non voglio usare resend»); serve un piano gratuito sotto
+     un certo volume. Proposta: **Brevo** (300 al giorno, Francia),
+     riserva **Mailjet** (6.000 al mese e 200 al giorno, Francia); scartati
+     SMTP2GO (1.000 al mese) e MailerSend (500 al mese); SendGrid non ha
+     più il piano gratuito. Numeri del 14/11/2026, da ricontrollare sulle
+     pagine dei prezzi.
+   **Cosa non cambia**: la regia scrive già le sue email nella coda
+   `mail` per l'estensione Firebase **Trigger Email** (`accodaEmail`,
+   voce 28). Scelto il servizio, si installa l'estensione con il suo SMTP
+   (chiave nel Secret Manager, regione `europe-west1` come Firestore):
+   cambiare servizio è cambiare l'SMTP, non il codice. Dopo, il requisito
+   delle email nostre: «Password dimenticata» con il link dell'Admin SDK
+   (`generatePasswordResetLink`) in un'email nostra, l'email di benvenuto
+   per il locale esistente e per i collaboratori (REQ-FLOTTA-098), la
+   verifica dell'email; ripiego sull'email di Firebase finché l'SMTP non
+   c'è.
+   **Intanto, Firebase.** Il testo, l'oggetto e il mittente delle sue
+   email non si cambiano: l'API risponde `EMAIL_TEMPLATE_UPDATE_NOT_ALLOWED`
+   (provato su `drink-regia-test` il 14/11/2026). Si cambia la lingua
+   (`notification.defaultLocale`): **`it` sul test dal 14/11/2026**,
+   provata con «Password dimenticata»: email in italiano, nella posta in
+   arrivo; **in produzione ancora `en`**, da scrivere col via di Daniele.
+   Il nome che l'email mostra (`%APP_NAME%`, oggi `drink-regia-test` e
+   `drink-regia`) viene dal branding della Google Auth Platform
+   (console.cloud.google.com/auth/branding): lo cambia Daniele, Google può
+   chiedere una verifica.
 
 ---
 
