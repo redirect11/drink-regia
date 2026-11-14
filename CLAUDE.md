@@ -54,6 +54,12 @@ verso clienti o esterni; scelte fiscali, legali, privacy; cancellazione di rami,
 - **Merge e tag**: i merge su `develop` e `main` li fa Daniele, dalla pull request. I tag che
   pubblicano sul test li mette l'agente quando Daniele lo chiede in chat, dopo il suo merge. Il tag
   o il rilascio che manda in produzione solo col via libera esplicito di Daniele.
+- **Le interfacce con l'app**: prima di ogni modifica ci si chiede se tocca un'interfaccia fra la
+  regia e l'app (licenza, `settings/bar`, Function HTTP, passaggio, AI, input dei workflow, script
+  di tana-drink che i workflow chiamano, callback, ruoli). Se sì, si aggiorna
+  `docs/contratto-regia-app.md` nella stessa PR e lo si dice nella descrizione. Un cambio
+  incompatibile non si fa mai sul posto: la versione nuova accanto alla vecchia, e la vecchia si
+  toglie solo quando nessun locale la usa più (Daniele, 14/11/2026, REQ-FLOTTA-107).
 - **I test sono la specifica**: ogni requisito ha un criterio di accettazione ed è il requisito a
   citare i suoi test nel registro; ogni file di test dev'essere citato da almeno un requisito. Ogni funzione ha i suoi test, nello stesso ramo e nella stessa PR; niente PR
   senza test che passano. Lint, test e build verdi.

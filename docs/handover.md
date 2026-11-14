@@ -985,6 +985,12 @@ ma l'ordine aggiornato è quello del 09/11.
 
 ## 7. I contratti condivisi con tana-drink
 
+**Dal 14/11/2026 il riferimento è [contratto-regia-app.md](contratto-regia-app.md)**
+(REQ-FLOTTA-107): ogni interfaccia fra la regia e l'app, la regola per
+cambiarle senza rompere i locali, le deprecate e le incoerenze note. Qui
+sotto restano la storia e i dettagli di come ci si è arrivati; se le due
+cose non coincidono, vale il documento.
+
 Se cambia uno di questi, cambia anche l'altro lato, **nello stesso
 giorno**, e lo si scrive all'utente perché lo porti nell'altra sessione.
 
@@ -1039,7 +1045,9 @@ moduli, la licenza nell'istanza e la Tana.
 - **Callback della Tana** `esitoProvisioning`: bearer
   `PROVISIONING_CALLBACK_SECRET`, corpo con `slug`, `stato`, `progetto`,
   `url`, `errore`, `versione`, `ref`, `ambiente`, `operazione` (sotto,
-  «Rilasci a ondate»). È l'unico esito che arriva ancora da tana-drink.
+  «Rilasci a ondate»). **Superato**: il 14/11/2026 nessun workflow di
+  tana-drink 1.10.x lo manda più; la versione della Tana arriva dalla
+  presentazione (contratto-regia-app.md, interfaccia 4).
   Dal 09/11/2026 (REQ-FLOTTA-049, audit finding 12) la regia non si fida
   del corpo: `progetto` deve essere quello scritto sull'istanza, `url`
   deve stare sui domini dell'installazione, e i nostri workflow mandano
