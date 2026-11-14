@@ -92,6 +92,25 @@ Il segreto `GITHUB_DISPATCH_TOKEN` delle Functions di ciascuna regia è un
 token fine-grained con **Actions: Read and write** su `redirect11/drink-regia`
 soltanto.
 
+**Da quale ramo o tag si usano gli environment** (impostato il 14/11/2026
+con l'API di GitHub, Settings → Environments → «Deployment branches and
+tags»; Daniele: «ok procedi basta che non facciamo guai»):
+
+| Environment | Regola | Perché |
+|---|---|---|
+| `flotta` | solo il ramo `main` | la chiave dei locali di produzione la usa solo codice passato da una PR; la regia lancia sempre da `main` (`FLOTTA_REF`) |
+| `flotta-test` | rami `main` e `develop` | come sopra, con `develop` per provare i workflow prima del rilascio |
+| `production` | solo i tag `v*` | il sito di produzione si pubblica da un tag (`firebase-hosting.yml`), e GitHub confronta la regola col tag, non col ramo |
+| `test` | nessuna | il lancio a mano di «Deploy to Firebase» e di Playwright da un ramo qualunque va sul test |
+
+Un workflow della flotta lanciato a mano da un altro ramo viene rifiutato
+prima di partire: è voluto. Per togliere una regola: `gh api -X PUT
+repos/redirect11/drink-regia/environments/<nome>` con
+`deployment_branch_policy` vuoto. L'approvazione su `flotta` non c'è,
+apposta: ogni aggiornamento chiederebbe due approvazioni (i job «prepara» e
+«pubblica») e la regia, che segna «in corso» al lancio e non ha un tempo
+massimo, lascerebbe la scheda bloccata finché nessuno approva.
+
 ## Prerequisiti, una volta, a mano
 
 1. **Account di fatturazione** (Blaze): il service account di
