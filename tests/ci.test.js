@@ -285,3 +285,19 @@ describe('il collaudo apre la scheda anche con un aggiornamento fallito', () => 
     expect(scheda).toMatch(/if \(await articolo\.isVisible\(\)\) break\r?\n\s*await riprova\.first\(\)\.click\(\)/)
   })
 })
+
+// REQ-FLOTTA-102 (collaudo del rilascio 0.4.0, 14/11/2026): da REQ-LIC-018
+// di tana-drink il pubblico, a locale sospeso, legge solo «Menù non
+// disponibile», mai il motivo. Il collaudo guarda l'app da pubblico.
+describe('il collaudo di «Sospendi» guarda l’app da pubblico', () => {
+  const spec = readFileSync(join(process.cwd(), 'e2e/collaudo-licenza.spec.js'), 'utf8').replace(/\r\n/g, '\n')
+  const prova = spec.slice(spec.indexOf('«Sospendi» scrive la licenza'), spec.indexOf('«Aggiorna subito» porta il locale'))
+  it('aspetta «Menù non disponibile» (o la schermata di prima) e controlla che il motivo non si veda', () => {
+    expect(prova).toContain("await expect(avviso).toContainText(/Menù non disponibile|Installazione sospesa/, { timeout: 60_000 })")
+    expect(prova).toContain('await expect(avviso).not.toContainText(MOTIVO)')
+    expect(prova).not.toContain('await expect(avviso).toContainText(`Motivo: ${MOTIVO}`)')
+  })
+  it('riattivato, nessuno dei due avvisi resta', () => {
+    expect(prova).toContain("await expect(app.getByText(/Menù non disponibile|Installazione sospesa/)).toHaveCount(0, { timeout: 60_000 })")
+  })
+})
