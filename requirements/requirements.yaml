@@ -4777,7 +4777,7 @@ requirements:
       rifiutano; la regia non scrive mai la licenza della demo. (3) Un
       locale esistente qualunque, senza cartella, continua a prendere
       l'identificativo.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [regia, backoffice, demo]
     priority: P1
