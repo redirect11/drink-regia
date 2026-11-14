@@ -4593,7 +4593,7 @@ requirements:
       ferma, con nel messaggio il comando per dargliela. (3) In tutti e due
       `gcloud` usa la chiave del provisioning, e gli input entrano nei
       comandi solo come variabili d'ambiente.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [flotta, sicurezza]
     priority: P1

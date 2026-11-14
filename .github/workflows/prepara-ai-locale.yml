@@ -36,6 +36,7 @@ jobs:
     environment: ${{ inputs.ambiente == 'test' && 'flotta-test' || 'flotta' }}
     env:
       PROGETTO: ${{ inputs.progetto }}
+      AMBIENTE: ${{ inputs.ambiente }}
     steps:
       # Gli input arrivano da fuori: si controllano per primi, ed entrano
       # nei comandi solo come variabili d'ambiente.
@@ -62,6 +63,19 @@ jobs:
           if [ -z "$SA_JSON" ]; then echo "::error::Manca il segreto PROVISIONING_SA_JSON (infra/README.md)."; exit 1; fi
           echo "$SA_JSON" > "$RUNNER_TEMP/sa.json"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
+          gcloud auth activate-service-account --key-file="$RUNNER_TEMP/sa.json" --quiet
+
+      # IL PROGETTO È DI QUESTA REGIA? (REQ-FLOTTA-100): lo script dà
+      # permessi sul progetto, e la chiave è la stessa per le due regie. Un
+      # locale esistente l'etichetta la riceve una volta a mano (la Tana e
+      # la Tana di test l'hanno dal 14/11/2026).
+      - name: Il progetto è di questa regia?
+        run: |
+          ETICHETTA=$(gcloud projects describe "$PROGETTO" --format='value(labels.ambiente)')
+          if [ "$ETICHETTA" != "$AMBIENTE" ]; then
+            echo "::error::$PROGETTO ha l'etichetta ambiente «${ETICHETTA:-nessuna}», non «$AMBIENTE»: non è un locale di questa regia, non lo tocco. Se lo è, gliela dà un amministratore: gcloud projects update $PROGETTO --update-labels ambiente=$AMBIENTE"
+            exit 1
+          fi
 
       - name: L'account dell'AI e il permesso del deploy
         run: node scripts/account-ai-locale.mjs --project "$PROGETTO" --deploy "firebase-adminsdk-fbsvc@$PROGETTO.iam.gserviceaccount.com"

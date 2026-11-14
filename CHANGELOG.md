@@ -6,6 +6,10 @@ data.
 
 ## 0.4.0 (in lavorazione)
 
+- La flotta: anche «provisiona» (su un progetto che esiste già) e
+  «prepara l'AI di un locale esistente» si fermano se il progetto non ha
+  l'etichetta ambiente della regia che li lancia, come già «aggiorna» ed
+  «elimina» (REQ-FLOTTA-100).
 - Nel backoffice la voce «Nuovo locale» diventa «Aggiungi locale»: prima
   si sceglie fra «Nuovo locale» e «Locale esistente», ognuno con la riga
   che dice quando si usa, poi si vede un modulo solo. I moduli non
