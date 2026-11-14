@@ -44,7 +44,10 @@ stessa PR**, e la descrizione della PR lo dice.
 
 ## Le interfacce
 
-Convenzioni. «Regia» e «app» indicano il codice dei due repository. Le
+Convenzioni. «Regia» e «app» indicano il codice dei due repository. Ogni
+Function HTTP della regia, per un errore inatteso, risponde `500 { errore }`
+(dal 14/11/2026, REQ-FLOTTA-110: prima poteva restare senza risposta fino al
+timeout); l'app tratta ogni risposta diversa da `200` come da riprovare. Le
 Function della regia stanno in `europe-west1`:
 `https://europe-west1-<drink-regia|drink-regia-test>.cloudfunctions.net/<nome>`.
 L'app costruisce gli indirizzi con `urlFunzioneRegia` (`src/lib/funzioniRegia.js`),

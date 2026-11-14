@@ -4826,7 +4826,7 @@ requirements:
       INTERFACCE CON L'APP: nessuna; le risposte non cambiano, tranne un
       errore inatteso di una Function HTTP, che diventa un 500 con
       { errore } (l'app già ritenta ogni risposta diversa da 200).
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [regia, flotta, sicurezza]
     priority: P2
