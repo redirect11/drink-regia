@@ -67,7 +67,11 @@ const CARTELLA_DEMO = 'demo'
 const eDemo = (istanza) => istanza?.progetto === PROGETTO_DEMO || istanza?.cliente === CARTELLA_DEMO
 
 function gestioneEsistente(dati, { slug, progetto = null }) {
-  const cliente = String(dati?.cliente || '').trim() || slug
+  // Sul progetto della demo, senza cartella, la cartella è la sua
+  // (REQ-FLOTTA-105): il modulo «Locale esistente» non la manda, e «demo»
+  // come identificativo è troppo corto. Una cartella scritta apposta passa
+  // comunque dalla regola qui sotto.
+  const cliente = String(dati?.cliente || '').trim() || (progetto === PROGETTO_DEMO ? CARTELLA_DEMO : slug)
   if (!CARTELLA.test(cliente)) throw new DatiNonValidi(`Cartella del cliente «${cliente}» non valida: minuscole, cifre e trattini.`)
   if (progetto && (cliente === CARTELLA_DEMO) !== (progetto === PROGETTO_DEMO)) {
     throw new DatiNonValidi(progetto === PROGETTO_DEMO ? `${PROGETTO_DEMO} riceve solo la cartella «${CARTELLA_DEMO}».` : `La cartella «${CARTELLA_DEMO}» va solo su ${PROGETTO_DEMO}.`)
