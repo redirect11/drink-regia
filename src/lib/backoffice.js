@@ -34,6 +34,9 @@ export const SEZIONI = [
   { id: 'commerciale', nome: 'Commerciale' },
   { id: 'richieste', nome: 'Richieste' },
   { id: 'rilasci', nome: 'Rilasci' },
+  // «Salute» (REQ-FLOTTA-109): presentazioni, errori e permessi dei locali;
+  // si guarda quando qualcosa non va.
+  { id: 'salute', nome: 'Salute' },
   { id: 'vendita', nome: 'Vendita' },
   { id: 'temi', nome: 'Temi' },
   // «Aggiungi locale» (REQ-FLOTTA-097): prima si sceglie fra nuovo ed

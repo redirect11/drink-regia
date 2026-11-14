@@ -216,6 +216,8 @@ export const correggiOrari = (giorni) => chiama('correggiOrari', { giorni })
 // l'admin. La vista di chi collabora la dà la regia.
 export const gestisciCollaboratori = (azione, dati = {}) => chiama('gestisciCollaboratori', { azione, ...dati })
 export const vistaCollaboratore = () => chiama('vistaCollaboratore', {})
+// La salute della flotta (REQ-FLOTTA-109): solo l'admin, quando preme il tasto.
+export const saluteDellaFlotta = () => chiama('saluteDellaFlotta', {})
 export const chiediCambioOrari = (giorni, motivo) => chiama('chiediCambioOrari', { giorni, motivo })
 export const decidiCambioOrari = (uid, esito, nota = null) => chiama('decidiCambioOrari', { uid, esito, nota })
 // L'admin scrive o corregge gli orari di un locale (Daniele, 13/11/2026: «si»).

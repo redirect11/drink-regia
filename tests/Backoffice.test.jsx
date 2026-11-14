@@ -46,6 +46,7 @@ const db = vi.hoisted(() => ({
   gestisciCassettoAI: vi.fn(async () => ({ ok: true })),
   registraLocaleEsistente: vi.fn(async () => ({ uid: 't', slug: 'tana-drink' })),
   gestisciCollaboratori: vi.fn(async () => ({ collaboratori: [], massimo: 5 })),
+  saluteDellaFlotta: vi.fn(async () => ({ controllato_il: null, registri: { leggibili: true, per_function: [], righe: [] }, locali: [] })),
   impostaAggiornamentiEsistente: vi.fn(async () => ({ ok: true })),
   elencoRilasci: vi.fn(async () => []),
   gestisciRilascio: vi.fn(async () => ({ ok: true })),
@@ -963,7 +964,7 @@ describe('i pagamenti online e le richieste di contatto', () => {
 describe('le sezioni del backoffice', () => {
   const menu = async () => screen.findByRole('navigation', { name: 'Sezioni del backoffice' })
 
-  it('il sotto-menù ha sette voci, ognuna col suo indirizzo, e /backoffice porta a «Locali»', async () => {
+  it('il sotto-menù ha otto voci, ognuna col suo indirizzo, e /backoffice porta a «Locali»', async () => {
     mostra('/backoffice')
     const nav = await menu()
     const voci = within(nav).getAllByRole('link')
@@ -974,6 +975,8 @@ describe('le sezioni del backoffice', () => {
       ['Commerciale', '/backoffice/commerciale'],
       ['Richieste', '/backoffice/richieste'],
       ['Rilasci', '/backoffice/rilasci'],
+      // «Salute» (REQ-FLOTTA-109): dopo i rilasci, si guarda quando qualcosa non va.
+      ['Salute', '/backoffice/salute'],
       ['Vendita', '/backoffice/vendita'],
       ['Temi', '/backoffice/temi'],
       ['Aggiungi locale', '/backoffice/aggiungi'],

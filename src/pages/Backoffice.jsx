@@ -59,6 +59,7 @@ import { AGGIUNTE, BASE, SEZIONI, VISTE, aggiornamentoFallito, aggiornaLaRegia, 
 import Rilasci from './Rilasci.jsx'
 import Collaboratori from './Collaboratori.jsx'
 import Commerciale from './Commerciale.jsx'
+import Salute from './Salute.jsx'
 import CollegaIstanza from './CollegaIstanza.jsx'
 import { OrariNelBackoffice } from './OrariServizio.jsx'
 import { MODALITA, regolaDetta, propostaDetta } from '../lib/aggiornamenti.js'
@@ -418,6 +419,7 @@ export default function Backoffice() {
             }
           />
           <Route path="temi" element={<CatalogoTemi onErrore={setErrore} />} />
+          <Route path="salute" element={<Salute onErrore={setErrore} />} />
           {/* «Aggiungi locale» (REQ-FLOTTA-097): la scelta, poi un modulo
               solo. La scelta sta nell'indirizzo, così il tasto indietro del
               browser torna alla scelta; una scelta che non c'è, o il vecchio

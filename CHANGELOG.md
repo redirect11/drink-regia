@@ -6,6 +6,14 @@ data.
 
 ## 0.5.0 (in lavorazione)
 
+- Nel backoffice c'è la sezione «Salute»: con «Controlla adesso» mostra,
+  per ogni locale, l'ultima presentazione dell'app con la versione
+  pubblicata accanto, gli errori delle ultime 24 ore e i permessi che
+  mancano alla regia sul progetto del locale, con la riga che li dà; poi
+  gli errori per Function. L'account della regia legge i suoi registri
+  con `roles/logging.viewer`, da dare con `scripts/account-runtime.mjs`
+  (REQ-FLOTTA-109).
+
 - La presentazione di un locale non risponde più 500 senza traccia: se la
   regia non riesce a leggere la licenza nel progetto del locale risponde
   503 e scrive il motivo nel registro, e ogni altro errore inatteso finisce

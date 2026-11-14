@@ -513,6 +513,8 @@ input[aria-invalid='true'], select[aria-invalid='true'] { border-color: var(--er
 .legale h2 { margin-top: 24px; }
 input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; }
 .errore { color: var(--errore); }
+/* Elenchi senza pallini, come i ruoli che mancano nella «Salute» (REQ-FLOTTA-109). */
+.senza-punti { list-style: none; padding: 0; margin: 4px 0; }
 /* ── Il backoffice: un locale per scheda (l'utente, 29/10/2026: «puoi
    migliorare la visualizzazione?»). La tabella a otto colonne stringeva
    tutto e mandava i pulsanti fuori dalla pagina. In alto nome e stato
