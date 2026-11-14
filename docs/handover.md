@@ -742,7 +742,9 @@ ma l'ordine aggiornato è quello del 09/11.
    di un collaboratore cerca nel progetto del locale il SUO account (la
    sua email, verificata, admin), non quello del titolare. Per l'app non
    cambia niente: riceve un accesso per un account suo, come prima.
-   «Area clienti» resta del solo titolare.
+   «Area clienti» dall'app, dalla 1.10.49, è un collegamento a `/dashboard`
+   (§7, REQ-FLOTTA-104): ci entra chi ha un account nella regia,
+   titolare o collaboratore.
    **Da fare**: in tana-drink la pagina che riceve il codice, «Area
    clienti», i campi nuovi; poi l'identità centrale (Identity Platform
    nella regia, il banco che entra con l'account della regia).
@@ -1148,10 +1150,21 @@ moduli, la licenza nell'istanza e la Tana.
   col corpo `{ "codice": "…" }`: `200 { token }` da usare con
   `signInWithCustomToken`; `400` codice non valido; `403` scaduto, già
   usato o da un altro sito; `503` firma non riuscita. Verso la regia: il
-  titolare (ruolo admin) fa `POST …/passaggioVersoRegia` con
-  `Authorization: Bearer <ID token>` appena rinnovato (`getIdToken(true)`),
-  e apre l'`url` della risposta (`200 { url }`; `401`, `403` non è il
-  titolare o il token è vecchio, `404`). **I dati del titolare** in
+  **dalla 1.10.49 di tana-drink (14/11/2026, REQ-FLOTTA-104) «Area
+  clienti» è un collegamento**: l'app apre in una scheda nuova
+  `<regia_url della licenza, se https, altrimenti
+  https://<VITE_REGIA_PROGETTO>.web.app>/dashboard`, senza token, e il
+  tasto lo vedono tutti gli admin del locale. La regia tiene `/dashboard`
+  come ingresso dell'area: con un accesso fatto mostra l'area, senza porta
+  a `/accedi` e da lì torna a `/dashboard` (tests/AreaClienti.test.jsx,
+  App.test.jsx, AccessoGoogle.test.jsx). Chi entra lo decide l'accesso
+  della regia: titolare, collaboratore, o nessuno. Le app di prima della
+  1.10.49 fanno ancora `POST …/passaggioVersoRegia` con `Authorization:
+  Bearer <ID token>` appena rinnovato (`getIdToken(true)`) e aprono l'`url`
+  della risposta (`200 { url }`; `401`, `403` non è il titolare o il token
+  è vecchio, `404`): la Function resta finché tutti i locali non hanno
+  passato la 1.10.49. Il contratto di tana-drink è nel suo
+  docs/passaggio-dalla-regia.md, sezione 2. **I dati del titolare** in
   `settings/bar`, a ogni deploy, solo se vuoti: `venue_name`,
   `venue_legal_name`, `venue_address`, `venue_postal_city`, `venue_city`,
   e i nuovi `venue_phone`, `venue_vat_number`, `venue_tax_code`,
