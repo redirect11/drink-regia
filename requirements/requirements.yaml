@@ -4794,6 +4794,54 @@ requirements:
       - tests/AccessoGoogle.test.jsx
       - tests/AreaTitolare.test.jsx
 
+  - id: REQ-FLOTTA-109
+    title: "La sezione «Salute» del backoffice: per ogni locale l'ultima presentazione, gli errori delle 24 ore e i permessi che mancano"
+    area: "functions/lib/salute.js, functions/index.js (saluteDellaFlotta), src/pages/Salute.jsx, src/lib/backoffice.js (SEZIONI), src/lib/db.js, scripts/account-runtime.mjs (roles/logging.viewer)"
+    description: >
+      Daniele, 14/11/2026. Dopo la verifica a mano del 500 di
+      drinkpos-prova-e2e (REQ-FLOTTA-108), fatta leggendo con script i
+      registri di Google, l'IAM e Firestore: «dove le vedi queste cose?
+      Dovremmo fare un modulo per il sito di stonebit per il monitoring».
+      Sulla proposta in tre passi (allarmi di Google, una sezione «Salute»
+      nel backoffice, poi un modulo di Stonebit che legga la Salute di ogni
+      regia) ha scelto gli ultimi due: «quete due». Il modulo di Stonebit
+      tocca più prodotti e va al CTO-agente tramite Daniele; questa voce è
+      la sezione nella regia, da cui quel modulo leggerà.
+      COME. Una Function solo dell'admin (saluteDellaFlotta), chiamata
+      quando l'admin preme «Controlla adesso», mai a tempo. (a) La
+      presentazione: dall'istanza, con la versione pubblicata dalla regia
+      accanto. (b) Gli errori: i registri della regia stessa nelle ultime
+      24 ore (risposte 5xx per Function e righe d'errore, col locale quando
+      la riga lo nomina, senza email); serve roles/logging.viewer
+      all'account della regia sul suo progetto, ed è l'unico ruolo nuovo.
+      (c) I permessi: per ogni locale con un progetto (non la demo, non i
+      simulati, non gli eliminati) la regia chiede a Google, con
+      testIamPermissions, se ha i permessi dei tre ruoli che Terraform le
+      dà; non legge i dati del locale e non crea credenziali, e non le
+      serve nessun ruolo per chiederlo.
+      CRITERI. (1) «Salute» è una sezione del backoffice, col suo
+      indirizzo. (2) Niente parte finché l'admin non preme «Controlla
+      adesso». (3) Per ogni locale: giudizio (problema se manca un
+      permesso; attenzione se ci sono errori, se non si è mai presentato o
+      se la versione presentata è diversa da quella pubblicata; in ordine
+      altrimenti; non controllato per demo e simulati), la versione
+      presentata e quando, i ruoli che mancano con la riga di
+      scripts/account-runtime.mjs che li dà. (4) Gli errori delle 24 ore
+      per Function e le ultime righe. (5) Registri non leggibili: la
+      sezione lo dice col perché, invece di mostrare zero errori. (6) La
+      Function è solo dell'admin e non tocca i progetti dei locali.
+      INTERFACCE CON L'APP: nessuna; la regia legge i suoi dati e chiede a
+      Google i suoi permessi.
+    status: todo
+    generate_issue: true
+    labels: [regia, backoffice, flotta]
+    priority: P2
+    test_cases:
+      - tests/salute.test.js
+      - tests/Salute.test.jsx
+      - tests/Backoffice.test.jsx
+      - tests/runtime.test.js
+
   - id: REQ-FLOTTA-105
     title: "La demo si registra dal modulo «Locale esistente»: sul progetto drinkpos-demo la cartella è demo da sola"
     area: "functions/lib/esistente.js (gestioneEsistente), tests/esistente.test.js"
