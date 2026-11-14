@@ -4751,7 +4751,7 @@ requirements:
       blocco che gira comunque, e un suo errore non copre quello della
       prova. (3) La pagina dell'app aperta dalla prova si chiude anche dopo
       un errore.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [metodo, regia]
     priority: P1
