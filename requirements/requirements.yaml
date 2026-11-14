@@ -4709,6 +4709,55 @@ requirements:
     test_cases:
       - tests/ci.test.js
 
+  - id: REQ-FLOTTA-102
+    title: "Il collaudo di «Sospendi» guarda l'app da pubblico: «Menù non disponibile», mai il motivo"
+    area: "e2e/collaudo-licenza.spec.js («Sospendi» … «Riattiva»), tests/ci.test.js"
+    description: >
+      Collaudo del rilascio 0.4.0 (v0.4.0-beta.3, 14/11/2026). Alle 13:10
+      prova-bar è passata all'ultima versione di tana-drink, che porta
+      REQ-LIC-018 (Daniele, 13/11/2026: «chi entra nel locale non deve
+      leggere che il titolare non ha pagato»): a locale fermo il pubblico
+      legge solo «Menù non disponibile», il personale «Locale fermo», il
+      titolare il motivo. Il collaudo apre l'app senza entrare, cioè da
+      pubblico, e cercava ancora «Installazione sospesa» col motivo: è
+      rimasto indietro rispetto all'app.
+      CRITERI. (1) Sospeso il locale, l'app aperta senza accesso dice che
+      il menù non è disponibile e NON mostra il motivo della sospensione:
+      è il controllo di REQ-LIC-018 visto dalla regia. (2) Un'app di prima
+      (che mostrava «Installazione sospesa» col motivo a tutti) passa
+      ancora, finché il locale di prova non è aggiornato. (3) Riattivato
+      il locale, nessuno dei due avvisi resta.
+    status: implemented
+    generate_issue: true
+    labels: [metodo, regia, licenza]
+    priority: P1
+    test_cases:
+      - tests/ci.test.js
+
+  - id: REQ-FLOTTA-103
+    title: "Il collaudo rimette in ordine il locale di prova: all'inizio e anche quando una prova si ferma a metà"
+    area: "e2e/collaudo-licenza.spec.js (riattivaSeSospeso, «Sospendi», «Aggiorna subito»), tests/ci.test.js"
+    description: >
+      Daniele, 14/11/2026, dopo che il collaudo del rilascio 0.4.0 si era
+      fermato perché un giro precedente aveva lasciato prova-bar sospeso:
+      «si ma perchè succede?», e alla spiegazione (le prove cambiano
+      davvero il locale di prova, e se si fermano a metà non lo rimettono
+      com'era): «mettilo ora in ogni caso». Quel giorno era successo due
+      volte: un aggiornamento fallito (REQ-FLOTTA-101) e una sospensione
+      rimasta, che Daniele ha tolto a mano con «Riattiva».
+      CRITERI. (1) Prima di cominciare, «Sospendi» e «Aggiorna subito»
+      riattivano il locale se lo trovano sospeso. (2) «Sospendi» rimette il
+      locale attivo anche quando si ferma a metà: il ripristino sta in un
+      blocco che gira comunque, e un suo errore non copre quello della
+      prova. (3) La pagina dell'app aperta dalla prova si chiude anche dopo
+      un errore.
+    status: implemented
+    generate_issue: true
+    labels: [metodo, regia]
+    priority: P1
+    test_cases:
+      - tests/ci.test.js
+
   - id: REQ-FLOTTA-092
     title: "Il modello AI si sceglie per tipo di richiesta dal backoffice: Sonnet per tutti, all'inizio"
     area: "functions/piani.json (ai.prezzi_usd_per_milione), functions/lib/ai.js (TIPI_MODELLO, modelliDelListino, modelloPer, validaModelliAI, interrogaConPrenotazione), functions/index.js (interrogaClaude, gestisciModelliAI), src/lib/db.js (impostaModelliAI), src/pages/Backoffice.jsx (Vendita), firestore.rules (impostazioni)"
