@@ -55,8 +55,9 @@ import CatalogoTemi, { EditorTema } from './CatalogoTemi.jsx'
 import { contattoDi } from '../lib/clienti.js'
 import { statoCredito, euroCent, aiNelPiano, MODELLI_AI, TIPI_MODELLO_DETTI, modelloScelto, VOCI_LIMITI_CHAT, limiteChatScelto, tettoLimiteChat, limiteChatValido } from '../lib/ai.js'
 import { GRUPPI, TAG, aggiornamentoDetto, runNellErrore } from '../lib/rilasci.js'
-import { BASE, SEZIONI, VISTE, aggiornamentoFallito, aggiornaLaRegia, contiDelBackoffice, filtraLocali, profiloDaAutorizzare } from '../lib/backoffice.js'
+import { AGGIUNTE, BASE, SEZIONI, VISTE, aggiornamentoFallito, aggiornaLaRegia, contiDelBackoffice, filtraLocali, profiloDaAutorizzare } from '../lib/backoffice.js'
 import Rilasci from './Rilasci.jsx'
+import Collaboratori from './Collaboratori.jsx'
 import Commerciale from './Commerciale.jsx'
 import CollegaIstanza from './CollegaIstanza.jsx'
 import { OrariNelBackoffice } from './OrariServizio.jsx'
@@ -75,7 +76,7 @@ const PRODUZIONE = import.meta.env.VITE_APP_ENV === 'production'
 //
 // IN SEZIONI (l'utente, 30/10/2026: «puoi separare le varie sezioni del
 // backoffice magari in sotto menu? Così è tutto troppo caotico»): Locali,
-// Richieste, Rilasci, Vendita, Nuovo locale, ognuna col suo indirizzo
+// Richieste, Rilasci, Vendita, Aggiungi locale, ognuna col suo indirizzo
 // sotto /backoffice (src/lib/backoffice.js). I dati si leggono qui, una
 // volta per tutte le sezioni: passare da una all'altra non rilegge niente,
 // e i contatori del sotto-menù li hanno già.
@@ -417,15 +418,29 @@ export default function Backoffice() {
             }
           />
           <Route path="temi" element={<CatalogoTemi onErrore={setErrore} />} />
+          {/* «Aggiungi locale» (REQ-FLOTTA-097): la scelta, poi un modulo
+              solo. La scelta sta nell'indirizzo, così il tasto indietro del
+              browser torna alla scelta; una scelta che non c'è, o il vecchio
+              /backoffice/nuovo, riportano lì. */}
+          <Route path="aggiungi" element={<SceltaAggiunta />} />
           <Route
-            path="nuovo"
+            path="aggiungi/nuovo"
             element={
-              <>
+              <ModuloAggiunta>
                 <NuovoLocale onFatto={creato} onErrore={setErrore} />
-                <LocaleEsistente onFatto={creato} onErrore={setErrore} />
-              </>
+              </ModuloAggiunta>
             }
           />
+          <Route
+            path="aggiungi/esistente"
+            element={
+              <ModuloAggiunta>
+                <LocaleEsistente onFatto={creato} onErrore={setErrore} />
+              </ModuloAggiunta>
+            }
+          />
+          <Route path="aggiungi/*" element={<Navigate to={`${BASE}/aggiungi`} replace />} />
+          <Route path="nuovo" element={<Navigate to={`${BASE}/aggiungi`} replace />} />
           {/* Un indirizzo che non c'è (un link vecchio) porta all'elenco, non a una pagina vuota. */}
           <Route path="*" element={<Navigate to={`${BASE}/locali`} replace />} />
         </Routes>
@@ -634,6 +649,8 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
   const daFlotta = istanza?.origine !== 'esistente'
   const aggiornabile = aggiornaLaRegia(istanza)
   const [gestioneAperta, setGestioneAperta] = useState(false)
+  // I collaboratori (REQ-FLOTTA-099): l'elenco si legge solo quando si apre.
+  const [collaboratoriAperti, setCollaboratoriAperti] = useState(false)
   const licenza = istanza?.licenza_stato || 'attiva'
   const { tono, testo: statoTesto } = statoBreve(riga)
   const attiva = stato === STATI.ATTIVA
@@ -750,6 +767,13 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
           {/* Gli orari di servizio del locale (REQ-FLOTTA-095): stanno col titolare, che li dichiara; i blocchi restano sei (REQ-FLOTTA-089). */}
           <h5 className="blocco-sotto">Orari di servizio</h5>
           <OrariNelBackoffice cliente={c} onFatto={az.carica} onErrore={az.onErrore} />
+          {/* I collaboratori del locale (REQ-FLOTTA-099): lo stesso riquadro del titolare, per questo locale. */}
+          <div className="gruppo-azioni">
+            <button type="button" className="btn ghost small" aria-expanded={collaboratoriAperti} onClick={() => setCollaboratoriAperti((v) => !v)}>
+              Collaboratori…
+            </button>
+          </div>
+          {collaboratoriAperti && <Collaboratori slug={c.slug} />}
         </Blocco>
 
         <Blocco id={id('piano')} titolo="Piano">
@@ -1547,6 +1571,37 @@ function NuovoLocale({ onFatto, onErrore }) {
         {inCorso ? 'Un momento…' : 'Crea il locale'}
       </button>
     </form>
+  )
+}
+
+// «AGGIUNGI LOCALE» (REQ-FLOTTA-097): solo la scelta, nessun modulo. Ogni
+// strada è un collegamento al suo indirizzo, col nome e la riga che dice
+// quando si usa.
+function SceltaAggiunta() {
+  return (
+    <section className="card" aria-labelledby="aggiungi-titolo">
+      <h3 id="aggiungi-titolo">Aggiungi locale</h3>
+      <nav className="scelta-aggiunta" aria-label="Che locale aggiungi">
+        {AGGIUNTE.map((a) => (
+          <Link key={a.id} to={`${BASE}/aggiungi/${a.id}`} className="opzione">
+            <strong>{a.nome}</strong>
+            <span className="muted small">{a.quando}</span>
+          </Link>
+        ))}
+      </nav>
+    </section>
+  )
+}
+
+// Il modulo scelto, solo, col collegamento per tornare alla scelta.
+function ModuloAggiunta({ children }) {
+  return (
+    <>
+      <p className="small">
+        <Link to={`${BASE}/aggiungi`}>← Cambia scelta</Link>
+      </p>
+      {children}
+    </>
   )
 }
 

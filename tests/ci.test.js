@@ -268,3 +268,59 @@ describe('test.yml: il rapporto di coverage non decide se una PR è buona', () =
     for (const p of vincolanti) expect(p['continue-on-error'], p.name || p.run).toBeUndefined()
   })
 })
+
+// REQ-FLOTTA-101 (collaudo di v0.4.0-beta.1, 14/11/2026): la scheda del
+// locale di prova si apre anche quando mostra un aggiornamento fallito. Il
+// suo «Riprova» e quello della lettura fallita hanno lo stesso nome: si
+// aspetta il primo dei due, e si preme il secondo solo senza la scheda.
+describe('il collaudo apre la scheda anche con un aggiornamento fallito', () => {
+  const spec = readFileSync(join(process.cwd(), 'e2e/collaudo-licenza.spec.js'), 'utf8')
+  const scheda = spec.slice(spec.indexOf('async function scheda(page)'), spec.indexOf('const stato = '))
+  it('aspetta la scheda o il Riprova senza pretendere che sia uno solo', () => {
+    expect(scheda).toContain('await expect(articolo.or(riprova).first()).toBeVisible()')
+    expect(scheda).not.toMatch(/expect\(articolo\.or\(riprova\)\)\.toBeVisible/)
+  })
+  it('preme Riprova solo se la scheda non c’è', () => {
+    // \r?: su Windows il file estratto ha gli a capo \r\n.
+    expect(scheda).toMatch(/if \(await articolo\.isVisible\(\)\) break\r?\n\s*await riprova\.first\(\)\.click\(\)/)
+  })
+})
+
+// REQ-FLOTTA-102 (collaudo del rilascio 0.4.0, 14/11/2026): da REQ-LIC-018
+// di tana-drink il pubblico, a locale sospeso, legge solo «Menù non
+// disponibile», mai il motivo. Il collaudo guarda l'app da pubblico.
+describe('il collaudo di «Sospendi» guarda l’app da pubblico', () => {
+  const spec = readFileSync(join(process.cwd(), 'e2e/collaudo-licenza.spec.js'), 'utf8').replace(/\r\n/g, '\n')
+  const prova = spec.slice(spec.indexOf('«Sospendi» scrive la licenza'), spec.indexOf('«Aggiorna subito» porta il locale'))
+  it('aspetta «Menù non disponibile» (o la schermata di prima) e controlla che il motivo non si veda', () => {
+    expect(prova).toContain("await expect(avviso).toContainText(/Menù non disponibile|Installazione sospesa/, { timeout: 60_000 })")
+    expect(prova).toContain('await expect(avviso).not.toContainText(MOTIVO)')
+    expect(prova).not.toContain('await expect(avviso).toContainText(`Motivo: ${MOTIVO}`)')
+  })
+  it('riattivato, nessuno dei due avvisi resta', () => {
+    expect(prova).toContain("await expect(app.getByText(/Menù non disponibile|Installazione sospesa/)).toHaveCount(0, { timeout: 60_000 })")
+  })
+})
+
+// REQ-FLOTTA-103 (Daniele, 14/11/2026: «mettilo ora in ogni caso»): le
+// prove del collaudo cambiano davvero il locale di prova. Lo rimettono in
+// ordine all'inizio, e «Sospendi» lo riattiva anche quando si ferma a metà.
+describe('il collaudo rimette in ordine il locale di prova', () => {
+  const spec = readFileSync(join(process.cwd(), 'e2e/collaudo-licenza.spec.js'), 'utf8').replace(/\r\n/g, '\n')
+  const sospendi = spec.slice(spec.indexOf('«Sospendi» scrive la licenza'), spec.indexOf('«Aggiorna subito» porta il locale'))
+  const aggiorna = spec.slice(spec.indexOf('«Aggiorna subito» porta il locale'))
+  it('c’è la funzione che riattiva un locale sospeso', () => {
+    expect(spec).toContain('async function riattivaSeSospeso(articolo)')
+    expect(spec).toMatch(/if \(!testo\.startsWith\('sospesa'\)\) return/)
+  })
+  it('tutte e due le prove la usano prima di cominciare', () => {
+    for (const prova of [sospendi, aggiorna]) {
+      expect(prova.indexOf('await riattivaSeSospeso(articolo)')).toBeGreaterThan(-1)
+      expect(prova.indexOf('await riattivaSeSospeso(articolo)')).toBeLessThan(prova.indexOf("getByRole('button', { name:"))
+    }
+  })
+  it('«Sospendi» rimette il locale attivo e chiude l’app anche dopo un errore, senza coprirlo', () => {
+    // Fra «finally {» e il ripristino possono esserci solo righe di commento.
+    expect(sospendi).toMatch(/\} finally \{\n(\s*\/\/[^\n]*\n)*\s*await riattivaSeSospeso\(articolo\)\.catch\(\(\) => \{\}\)\n\s*await app\.close\(\)\.catch\(\(\) => \{\}\)\n\s*\}/)
+  })
+})

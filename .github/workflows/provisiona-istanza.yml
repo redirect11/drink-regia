@@ -235,6 +235,28 @@ jobs:
           echo "$SA_JSON" > "$RUNNER_TEMP/sa.json"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
           echo "PROVISIONING_SA_EMAIL=$(node -e "console.log(JSON.parse(process.argv[1]).client_email)" "$SA_JSON")" >> "$GITHUB_ENV"
+          gcloud auth activate-service-account --key-file="$RUNNER_TEMP/sa.json" --quiet
+
+      # IL PROGETTO È DI QUESTA REGIA? (REQ-FLOTTA-100, come aggiorna ed
+      # elimina da REQ-FLOTTA-048). Le due regie usano la stessa chiave, e
+      # più sotto un progetto che esiste già si importa nello stato e
+      # l'apply lo riscrive, etichetta compresa: la regia di test che
+      # provisionasse lo slug di un locale di produzione se ne prendeva il
+      # controllo. Un progetto che non c'è (o che questa chiave non vede)
+      # va avanti: lo crea il Terraform, con l'etichetta di questa regia, o
+      # l'apply si ferma da sé su «already exists». Se si ferma qui, il job
+      # pubblica dice comunque l'esito alla regia.
+      - name: Il progetto è di questa regia?
+        run: |
+          if ! ETICHETTA=$(gcloud projects describe "$PROGETTO" --format='value(labels.ambiente)' 2>/dev/null); then
+            echo "$PROGETTO non esiste ancora: lo crea il Terraform, con l'etichetta ambiente «$AMBIENTE»."
+            exit 0
+          fi
+          if [ "$ETICHETTA" != "$AMBIENTE" ]; then
+            echo "::error::$PROGETTO esiste già con l'etichetta ambiente «${ETICHETTA:-nessuna}», non «$AMBIENTE»: non è un locale di questa regia, non lo tocco."
+            exit 1
+          fi
+          echo "$PROGETTO esiste già ed è di questa regia ($AMBIENTE)."
 
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:

@@ -70,6 +70,8 @@ const db = vi.hoisted(() => ({
   provaModulo: vi.fn(),
   esci: vi.fn(),
   completaRegistrazione: vi.fn(),
+  // I collaboratori (REQ-FLOTTA-098) hanno i loro test in Collaboratori.test.jsx.
+  gestisciCollaboratori: vi.fn(async () => ({ collaboratori: [], massimo: 5 })),
 }))
 vi.mock('../src/lib/db.js', () => db)
 
@@ -93,6 +95,7 @@ const SEZIONI = [
   ['Piano e moduli', '/dashboard/piano'],
   ['Credito AI', '/dashboard/credito-ai'],
   ['Il locale', '/dashboard/locale'],
+  ['Collaboratori', '/dashboard/collaboratori'],
   ['Chiudi il locale', '/dashboard/chiudi'],
 ]
 
@@ -127,7 +130,7 @@ beforeEach(() => {
 })
 
 describe('l’area del titolare: il sotto-menù', () => {
-  it('ha cinque voci, ognuna col suo indirizzo; la panoramica è quella attiva su /dashboard', () => {
+  it('ha sei voci, ognuna col suo indirizzo; la panoramica è quella attiva su /dashboard', () => {
     mostra()
     const voci = within(menu()).getAllByRole('link')
     expect(voci.map((a) => [a.textContent, a.getAttribute('href')])).toEqual(SEZIONI)
@@ -151,6 +154,11 @@ describe('l’area del titolare: il sotto-menù', () => {
 
     await user.click(within(menu()).getByRole('link', { name: 'Il locale' }))
     expect(screen.getByRole('region', { name: 'Dati del locale' })).toBeInTheDocument()
+
+    // REQ-FLOTTA-098: chi altro vede il locale e apre l'app.
+    await user.click(within(menu()).getByRole('link', { name: 'Collaboratori' }))
+    expect(screen.getByRole('region', { name: 'Collaboratori' })).toBeInTheDocument()
+    expect(db.gestisciCollaboratori).toHaveBeenCalledWith('elenco', {})
 
     await user.click(within(menu()).getByRole('link', { name: 'Chiudi il locale' }))
     expect(screen.getByRole('region', { name: 'Chiudi il locale' })).toBeInTheDocument()

@@ -45,6 +45,7 @@ const db = vi.hoisted(() => ({
   elencoCassettiAI: vi.fn(async () => ({})),
   gestisciCassettoAI: vi.fn(async () => ({ ok: true })),
   registraLocaleEsistente: vi.fn(async () => ({ uid: 't', slug: 'tana-drink' })),
+  gestisciCollaboratori: vi.fn(async () => ({ collaboratori: [], massimo: 5 })),
   impostaAggiornamentiEsistente: vi.fn(async () => ({ ok: true })),
   elencoRilasci: vi.fn(async () => []),
   gestisciRilascio: vi.fn(async () => ({ ok: true })),
@@ -410,12 +411,14 @@ describe('il backoffice governa i deploy', () => {
     expect(db.rifiutaRichiesta).toHaveBeenCalledWith('bar-nuovo', 'dati incompleti')
   })
 
-  // Il modulo è la sezione «Nuovo locale»: niente bottone per aprirlo; fatto,
-  // si torna all'elenco dei locali (30/10/2026).
+  // Il modulo si apre da «Aggiungi locale», scegliendo «Nuovo locale», e
+  // nella pagina è solo (REQ-FLOTTA-097); fatto, si torna all'elenco dei
+  // locali (30/10/2026).
   it('«Nuovo locale» crea il cliente con piano, moduli e attivazione subito', async () => {
     const user = userEvent.setup()
-    mostra('/backoffice/nuovo')
+    mostra('/backoffice/aggiungi/nuovo')
     const modulo = await screen.findByRole('form', { name: 'Nuovo locale' })
+    expect(screen.queryByRole('form', { name: 'Locale esistente' })).toBeNull()
     await user.type(within(modulo).getByLabelText('Nome del locale'), 'Bar Creato')
     await user.type(within(modulo).getByLabelText('Email del titolare'), 'creato@example.it')
     await user.click(within(modulo).getByLabelText(/Personale e ore/))
@@ -471,8 +474,9 @@ describe('il backoffice e il credito AI', () => {
 
   it('«Locale esistente» registra la Tana senza provisioning', async () => {
     const user = userEvent.setup()
-    mostra('/backoffice/nuovo')
+    mostra('/backoffice/aggiungi/esistente')
     const modulo = await screen.findByRole('form', { name: 'Locale esistente' })
+    expect(screen.queryByRole('form', { name: 'Nuovo locale' })).toBeNull()
     await user.type(within(modulo).getByLabelText('Nome del locale'), 'La Tana del Coniglio')
     await user.type(within(modulo).getByLabelText('Identificativo'), 'tana-drink')
     await user.type(within(modulo).getByLabelText('Email del titolare'), 'tana@example.it')
@@ -492,6 +496,7 @@ describe('il backoffice e il credito AI', () => {
       interna: true,
       temi: ['notte', 'meraviglie'],
     })
+    await waitFor(() => expect(screen.getByTestId('dove')).toHaveTextContent('/backoffice/locali'))
   })
 
   // REQ-FLOTTA-039 (richiesta da tana-drink): «la regia deve sempre
@@ -615,6 +620,23 @@ describe('il backoffice e il credito AI', () => {
     expect(db.aggiornaIstanza).toHaveBeenCalledWith('tana-drink')
     expect(within(tana).queryByRole('button', { name: 'Sospendi' })).toBeNull()
     expect(within(tana).queryByRole('button', { name: 'Chiudi' })).toBeNull()
+  })
+
+  // REQ-FLOTTA-099 (Daniele, 14/11/2026, «implementa 1 e 2»): l'admin
+  // aggiunge e toglie i collaboratori di un locale dalla sua scheda, con lo
+  // stesso riquadro del titolare. L'elenco si legge solo quando lo si apre.
+  it('«Collaboratori…» apre il riquadro dei collaboratori di quel locale', async () => {
+    const user = userEvent.setup()
+    db.gestisciCollaboratori.mockResolvedValue({ collaboratori: [{ uid: 'c1', email: 'luca@example.it', aggiunto_il: '2026-11-14T09:00:00.000Z', aggiunto_da: 'admin' }], massimo: 5 })
+    mostra()
+    const attivo = await apri('Bar Attivo')
+    expect(db.gestisciCollaboratori).not.toHaveBeenCalled()
+    await user.click(within(attivo).getByRole('button', { name: 'Collaboratori…' }))
+    const riquadro = within(attivo).getByRole('region', { name: 'Collaboratori' })
+    expect(await within(riquadro).findByText('luca@example.it')).toBeInTheDocument()
+    expect(db.gestisciCollaboratori).toHaveBeenCalledWith('elenco', { slug: 'bar-attivo' })
+    await user.click(within(attivo).getByRole('button', { name: 'Collaboratori…' }))
+    expect(within(attivo).queryByRole('region', { name: 'Collaboratori' })).toBeNull()
   })
 
   it('«Pubblicazione e licenza…» affida la Tana alla regia con la sua cartella e le chiavi della build', async () => {
@@ -954,7 +976,7 @@ describe('le sezioni del backoffice', () => {
       ['Rilasci', '/backoffice/rilasci'],
       ['Vendita', '/backoffice/vendita'],
       ['Temi', '/backoffice/temi'],
-      ['Nuovo locale', '/backoffice/nuovo'],
+      ['Aggiungi locale', '/backoffice/aggiungi'],
     ])
     await waitFor(() => expect(screen.getByTestId('dove')).toHaveTextContent('/backoffice/locali'))
     expect(within(nav).getByRole('link', { name: /^Locali/ })).toHaveAttribute('aria-current', 'page')
@@ -984,12 +1006,53 @@ describe('le sezioni del backoffice', () => {
     expect(screen.getByLabelText('Deploy automatico')).toBeInTheDocument()
     expect(screen.getByText('Nessuna attivazione da autorizzare.')).toBeInTheDocument()
     expect(screen.getByText('Nessuna richiesta di contatto.')).toBeInTheDocument()
-    await user.click(within(nav).getByRole('link', { name: 'Nuovo locale' }))
+    await user.click(within(nav).getByRole('link', { name: 'Aggiungi locale' }))
+    await user.click(within(screen.getByRole('navigation', { name: 'Che locale aggiungi' })).getByRole('link', { name: /Nuovo locale/ }))
     expect(screen.getByRole('form', { name: 'Nuovo locale' })).toBeInTheDocument()
-    expect(screen.getByRole('form', { name: 'Locale esistente' })).toBeInTheDocument()
 
     expect(db.elencoClienti).toHaveBeenCalledTimes(1)
     expect(db.elencoContatti).toHaveBeenCalledTimes(1)
+  })
+
+  // REQ-FLOTTA-097 (Daniele, 14/11/2026: «non mettere tutti e due i box
+  // nella stessa pagina che confonde molto»): prima la scelta, poi un
+  // modulo solo, e la scelta sta nell'indirizzo.
+  it('«Aggiungi locale» fa scegliere fra nuovo ed esistente, e mostra un modulo alla volta', async () => {
+    const user = userEvent.setup()
+    mostra('/backoffice/aggiungi')
+    const scelta = await screen.findByRole('navigation', { name: 'Che locale aggiungi' })
+    expect(screen.queryByRole('form', { name: 'Nuovo locale' })).toBeNull()
+    expect(screen.queryByRole('form', { name: 'Locale esistente' })).toBeNull()
+    const voci = within(scelta).getAllByRole('link')
+    expect(voci.map((v) => v.getAttribute('href'))).toEqual(['/backoffice/aggiungi/nuovo', '/backoffice/aggiungi/esistente'])
+    expect(within(scelta).getByRole('link', { name: /Nuovo locale/ })).toHaveTextContent(/attivazione/)
+    expect(within(scelta).getByRole('link', { name: /Locale esistente/ })).toHaveTextContent(/già la sua app/)
+
+    await user.click(within(scelta).getByRole('link', { name: /Locale esistente/ }))
+    expect(screen.getByTestId('dove')).toHaveTextContent('/backoffice/aggiungi/esistente')
+    expect(screen.getByRole('form', { name: 'Locale esistente' })).toBeInTheDocument()
+    expect(screen.queryByRole('form', { name: 'Nuovo locale' })).toBeNull()
+    expect(screen.queryByRole('navigation', { name: 'Che locale aggiungi' })).toBeNull()
+    // La voce del sotto-menù resta attiva anche dentro la scelta.
+    expect(within(await menu()).getByRole('link', { name: 'Aggiungi locale' })).toHaveAttribute('aria-current', 'page')
+
+    await user.click(screen.getByRole('link', { name: /Cambia scelta/ }))
+    expect(screen.getByTestId('dove')).toHaveTextContent(/^\/backoffice\/aggiungi$/)
+    await user.click(within(screen.getByRole('navigation', { name: 'Che locale aggiungi' })).getByRole('link', { name: /Nuovo locale/ }))
+    expect(screen.getByRole('form', { name: 'Nuovo locale' })).toBeInTheDocument()
+    expect(screen.queryByRole('form', { name: 'Locale esistente' })).toBeNull()
+  })
+
+  it('il vecchio indirizzo /backoffice/nuovo porta alla scelta', async () => {
+    mostra('/backoffice/nuovo')
+    expect(await screen.findByRole('navigation', { name: 'Che locale aggiungi' })).toBeInTheDocument()
+    expect(screen.getByTestId('dove')).toHaveTextContent(/^\/backoffice\/aggiungi$/)
+  })
+
+  it('una scelta che non c’è riporta alla scelta', async () => {
+    mostra('/backoffice/aggiungi/boh')
+    expect(await screen.findByRole('navigation', { name: 'Che locale aggiungi' })).toBeInTheDocument()
+    expect(screen.getByTestId('dove')).toHaveTextContent(/^\/backoffice\/aggiungi$/)
   })
 
   it('un indirizzo che non c’è porta a «Locali»', async () => {

@@ -12,6 +12,8 @@ import SceltaPiano from './SceltaPiano.jsx'
 import CreditoAI from './CreditoAI.jsx'
 import TemiSuMisura from './TemiSuMisura.jsx'
 import ChiudiLocale from './ChiudiLocale.jsx'
+import Collaboratori from './Collaboratori.jsx'
+import DashboardCollaboratore from './DashboardCollaboratore.jsx'
 import ProveModuli from './ProveModuli.jsx'
 import AggiornamentiLocale from './AggiornamentiLocale.jsx'
 import IlLocale from './IlLocale.jsx'
@@ -97,6 +99,10 @@ export default function Dashboard({ utente, chiuso = false }) {
   // questo nessuna voce del menù resta accesa (revisione del 13/11/2026).
   if (pathname === `${BASE_TITOLARE}/`) return <Navigate to={`${BASE_TITOLARE}${search}`} replace />
   if (cliente === undefined) return <main className="pagina stretta muted">Carico…</main>
+  // Un collaboratore (REQ-FLOTTA-098) non ha un locale suo: vede quello con
+  // cui collabora, anche col sito chiuso. Il segno nel token sceglie la
+  // pagina; la vista la rilegge la regia.
+  if (!cliente && utente.collabora) return <DashboardCollaboratore />
   // Un account senza locale (entrato con Google la prima volta, o una
   // registrazione interrotta) completa qui i dati (REQ-FLOTTA-038).
   // L'amministratore della regia non ha un locale.
@@ -164,6 +170,7 @@ export default function Dashboard({ utente, chiuso = false }) {
             </>
           }
         />
+        <Route path="collaboratori" element={<Collaboratori />} />
         <Route path="chiudi" element={<ChiudiLocale istanza={istanza} />} />
         {/* Un indirizzo che non c'è (un link vecchio) porta alla panoramica, non a una pagina vuota. */}
         <Route path="*" element={<Navigate to={BASE_TITOLARE} replace />} />

@@ -29,11 +29,12 @@ export function osservaUtente(cb) {
     cb(null)
     return () => {}
   }
-  // Col token si legge il claim admin (REQ-FLOTTA-005).
+  // Col token si leggono il claim admin (REQ-FLOTTA-005) e il segno del
+  // collaboratore (REQ-FLOTTA-098), che sceglie la vista della dashboard.
   return onIdTokenChanged(auth, async (u) => {
     if (!u) return cb(null)
     const t = await u.getIdTokenResult()
-    cb({ uid: u.uid, email: u.email, emailVerificata: u.emailVerified === true, admin: t.claims.admin === true })
+    cb({ uid: u.uid, email: u.email, emailVerificata: u.emailVerified === true, admin: t.claims.admin === true, collabora: t.claims.collabora || null })
   })
 }
 
@@ -210,6 +211,11 @@ async function chiama(nome, dati) {
   return data
 }
 export const correggiOrari = (giorni) => chiama('correggiOrari', { giorni })
+// I collaboratori di un locale (REQ-FLOTTA-098, REQ-FLOTTA-099): `azione`
+// elenco, aggiungi ({ email }) o togli ({ uid }); lo `slug` lo manda solo
+// l'admin. La vista di chi collabora la dà la regia.
+export const gestisciCollaboratori = (azione, dati = {}) => chiama('gestisciCollaboratori', { azione, ...dati })
+export const vistaCollaboratore = () => chiama('vistaCollaboratore', {})
 export const chiediCambioOrari = (giorni, motivo) => chiama('chiediCambioOrari', { giorni, motivo })
 export const decidiCambioOrari = (uid, esito, nota = null) => chiama('decidiCambioOrari', { uid, esito, nota })
 // L'admin scrive o corregge gli orari di un locale (Daniele, 13/11/2026: «si»).

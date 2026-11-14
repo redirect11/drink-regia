@@ -273,8 +273,9 @@ requirements:
       (/backoffice/rilasci: i rilasci a ondate e gli aggiornamenti falliti
       tutti insieme, con Riprova e Torna indietro), «Vendita»
       (/backoffice/vendita: pagamenti online, Free, moduli e giorni di
-      prova), «Nuovo locale» (/backoffice/nuovo: nuovo ed esistente; fatto,
-      si torna all'elenco). Il controllo del claim admin vale per ogni
+      prova), «Aggiungi locale» (/backoffice/aggiungi: prima la scelta fra
+      nuovo ed esistente, poi un modulo solo, REQ-FLOTTA-097; fatto, si
+      torna all'elenco). Il controllo del claim admin vale per ogni
       sotto-rotta; un indirizzo che non c'è porta a «Locali». Il sotto-menù è
       un `nav` con aria-label, la voce attiva ha aria-current, e sul
       telefono la riga scorre di lato dentro sé stessa senza far scorrere la
@@ -2653,6 +2654,14 @@ requirements:
       levare Editor all'account predefinito è una decisione di una persona.
       Resta da fare (audit, finding 3.3): separare l'account che tocca i
       locali da quello delle sole Functions di vendita.
+      IN PRODUZIONE DAL 14/11/2026 (Daniele: «iniziamo»): script lanciato
+      con `--locale tana-drink`, REGIA_SA_EMAIL dell'environment flotta
+      cambiata da 600871952552-compute@developer.gserviceaccount.com a
+      runtime-regia@drink-regia, riga accesa in functions/.env.drink-regia;
+      vale dal primo deploy in produzione che la porta. Dà alla regia di
+      produzione i due permessi che l'account predefinito non aveva:
+      leggere gli account della Tana («Apri la tua app») e firmare come sé
+      stesso («Area clienti» dall'app).
     status: implemented
     generate_issue: true
     issue_a_posteriori: true
@@ -4533,6 +4542,221 @@ requirements:
     priority: P1
     test_cases:
       - tests/App.test.jsx
+
+  - id: REQ-FLOTTA-097
+    title: "«Aggiungi locale» nel backoffice: prima si sceglie fra nuovo ed esistente, poi un modulo solo"
+    area: "src/pages/Backoffice.jsx (SceltaAggiunta, rotte aggiungi, aggiungi/nuovo, aggiungi/esistente), src/lib/backoffice.js (SEZIONI), src/index.css (.scelta-aggiunta)"
+    description: >
+      Daniele, 14/11/2026, registrando la Tana nella regia di produzione:
+      «puoi farla meglio la cosa del nuovo locale. Prima cosa chiamala
+      aggiungi locale e poi puoi scegliere tra nuovo ed esistente, vedi tu
+      come ma non mettere tutti e due i box nella stessa pagina che confonde
+      molto». Fino a qui la sezione «Nuovo locale» (/backoffice/nuovo)
+      mostrava uno sotto l'altro due moduli con gli stessi primi campi (nome
+      ed email del titolare): uno crea un cliente e la sua attivazione,
+      l'altro registra un locale che ha già app e progetto e non tocca
+      niente. Sbagliare modulo vuol dire avviare un'attivazione per un
+      locale che esiste, o il contrario.
+      CRITERI. (1) La voce del sotto-menù si chiama «Aggiungi locale» e porta
+      a /backoffice/aggiungi, dove non c'è nessun modulo: solo la scelta fra
+      «Nuovo locale» e «Locale esistente», ognuna con una riga che dice
+      quando si usa. (2) La scelta apre /backoffice/aggiungi/nuovo o
+      /backoffice/aggiungi/esistente, con un modulo solo, e la voce del
+      sotto-menù resta attiva; un collegamento riporta alla scelta. La
+      scelta sta nell'indirizzo: si torna indietro col browser e la si
+      ricarica; una scelta che non c'è riporta alla scelta. (3) I due moduli
+      restano quelli di prima, campi e chiamate comprese, e fatti riportano
+      all'elenco dei locali. (4) Il vecchio indirizzo /backoffice/nuovo
+      porta alla scelta.
+    status: implemented
+    generate_issue: true
+    labels: [regia, backoffice]
+    priority: P2
+    test_cases:
+      - tests/Backoffice.test.jsx
+      - tests/App.test.jsx
+
+  - id: REQ-FLOTTA-098
+    title: "I collaboratori di un locale: li aggiunge il titolare, vedono il locale e aprono l'app, l'abbonamento resta del titolare"
+    area: "functions/lib/collaboratori.js, functions/lib/passaggio.js (membroNelLocale), functions/index.js (gestisciCollaboratori, vistaCollaboratore, passaggioVersoApp), src/pages/Collaboratori.jsx, src/pages/DashboardCollaboratore.jsx, src/pages/Dashboard.jsx, src/lib/areaTitolare.js, src/lib/db.js (gestisciCollaboratori, vistaCollaboratore, osservaUtente)"
+    description: >
+      Daniele, 14/11/2026, dopo aver registrato la Tana col titolare Flavio:
+      «se invece volessi fare in modo che anche altri admin possano fare il
+      claim e vedere la dashboard. Ad esempio un collaboratore di flavio. Lui
+      si registra e in qualche modo dovremmo poterlo collegare ad un admin
+      del locale». Alla proposta (il titolare resta uno, quello che paga; i
+      collaboratori li aggiunge lui; niente collegamento automatico di un
+      admin del locale, perché in tana-drink ogni admin crea altri admin,
+      REQ-FLOTTA-050): «implementa 1 e 2».
+      COME SI AGGIUNGE. Il titolare, in /dashboard/collaboratori, scrive
+      l'email del collaboratore. La regia crea l'account se non c'è (senza
+      password, come per un locale esistente) e lo collega al locale:
+      documento membri/{uid}, scritto solo dalle Functions, e il segno
+      `collabora: <slug>` nei claim dell'account, che alla dashboard dice
+      subito quale vista mostrare. Il collaboratore entra dalla pagina di
+      accesso con «Password dimenticata» (l'email di Firebase dimostra che
+      la casella è sua) o con Google: va anche col sito chiuso, perché
+      l'accesso c'è sempre. Nessun link da mandare e nessuna email della
+      regia: non serve il dominio.
+      CRITERI. (1) L'area del titolare ha la sezione «Collaboratori»: chi
+      c'è, con la data; aggiungi per email; togli, dopo la conferma. Il
+      riquadro dice cosa fa un collaboratore, cosa resta del titolare, e
+      che per aprire l'app gli serve nel gestionale un account admin con la
+      stessa email. (2) Non si aggiunge: un'email non valida o col «+»
+      (REQ-FLOTTA-083); il titolare stesso, anche in un'altra forma della
+      stessa Gmail; il titolare di un altro locale; chi è già collaboratore,
+      di questo o di un altro locale (un account, un locale); oltre 5
+      collaboratori per locale. (3) Il collaboratore, entrato, vede la sua
+      vista: nome del locale, piano, stato e versione dell'app, l'indirizzo
+      e «Apri l'app» se è attiva; niente abbonamento, pagamenti, fatture,
+      dati del titolare, chiavi della build, cambio piano, chiusura. La
+      vista la dà la Function vistaCollaboratore, che rilegge membri/{uid}:
+      il segno nel token decide solo quale pagina mostrare. Tolto, vede che
+      non collabora più. (4) «Apri l'app» (passaggioVersoApp) per un
+      collaboratore cerca nel progetto del locale il SUO account: stessa
+      email, verificata, admin. (5) Togliere un collaboratore cancella
+      membri/{uid} e il segno nel token; l'account resta, senza locale.
+      Le Functions rifiutano chi non è il titolare (o l'admin, REQ-FLOTTA-099).
+    status: implemented
+    generate_issue: true
+    labels: [regia, dashboard]
+    priority: P2
+    test_cases:
+      - tests/collaboratori.test.js
+      - tests/Collaboratori.test.jsx
+      - tests/passaggio.test.js
+      - tests/AreaTitolare.test.jsx
+      - tests/db.test.js
+
+  - id: REQ-FLOTTA-099
+    title: "I collaboratori di un locale anche dal backoffice: l'admin li aggiunge e li toglie dalla scheda"
+    area: "functions/index.js (gestisciCollaboratori), src/pages/Backoffice.jsx (SchedaLocale, blocco Collaboratori), src/pages/Collaboratori.jsx"
+    description: >
+      Daniele, 14/11/2026, «implementa 1 e 2»: il secondo modo di collegare
+      un collaboratore è l'admin della regia, dal backoffice, per i casi in
+      cui il titolare non lo fa da sé (la Tana appena registrata, un
+      titolare che chiede aiuto). Stesse regole di REQ-FLOTTA-098: è la
+      stessa Function, con lo slug del locale, e solo col claim admin.
+      CRITERI. (1) Nella scheda di ogni locale, il blocco «Collaboratori»
+      con «Collaboratori…» apre lo stesso riquadro del titolare per quel
+      locale: elenco (con chi li ha aggiunti, titolare o admin), aggiungi
+      per email, togli. (2) Lo slug va in ogni chiamata, e la Function lo
+      accetta solo da chi ha il claim admin: un titolare che lo mandasse
+      lavora comunque sul suo locale. (3) Le regole dell'aggiunta sono le
+      stesse del titolare.
+    status: implemented
+    generate_issue: true
+    labels: [regia, backoffice]
+    priority: P2
+    test_cases:
+      - tests/Backoffice.test.jsx
+      - tests/Collaboratori.test.jsx
+      - tests/collaboratori.test.js
+
+  - id: REQ-FLOTTA-100
+    title: "L'etichetta ambiente anche prima di provisionare un progetto che esiste già e prima di preparare l'AI di un locale esistente"
+    area: ".github/workflows/provisiona-istanza.yml (job prepara: Credenziali di provisioning, Il progetto è di questa regia?), .github/workflows/prepara-ai-locale.yml (Credenziali di provisioning, Il progetto è di questa regia?)"
+    description: >
+      Daniele, 14/11/2026, sull'isolamento fra test e produzione della
+      flotta: «ok procedi basta che non facciamo guai». REQ-FLOTTA-048 fa
+      leggere l'etichetta `ambiente` del progetto ad aggiorna-istanza ed
+      elimina-istanza; restavano scoperti due workflow che usano la stessa
+      chiave di provisioning delle due regie. provisiona-istanza, senza
+      ORG_ID, importa nello stato un progetto che esiste già e l'apply lo
+      riscrive, etichetta compresa: la regia di test che provisionasse lo
+      slug di un locale di produzione se ne prendeva il controllo.
+      prepara-ai-locale dava permessi su un progetto qualunque. Le etichette
+      di tana-drink (produzione) e tana-drink-test (test) le ha messe la
+      regia il 14/11/2026, col via di Daniele.
+      CRITERI. (1) provisiona-istanza, nel job prepara, subito dopo le
+      credenziali e prima di Terraform: se il progetto esiste e la sua
+      etichetta `ambiente` non è quella dell'input, si ferma senza toccare
+      niente; se non esiste, va avanti e lo crea il Terraform con
+      l'etichetta giusta. L'esito arriva comunque alla regia (il job
+      pubblica gira anche dopo un errore). (2) prepara-ai-locale, subito
+      dopo le credenziali e prima dello script: senza l'etichetta giusta si
+      ferma, con nel messaggio il comando per dargliela. (3) In tutti e due
+      `gcloud` usa la chiave del provisioning, e gli input entrano nei
+      comandi solo come variabili d'ambiente.
+    status: implemented
+    generate_issue: true
+    labels: [flotta, sicurezza]
+    priority: P1
+    test_cases:
+      - tests/flotta.test.js
+
+  - id: REQ-FLOTTA-101
+    title: "Il collaudo apre la scheda del locale di prova anche quando mostra un aggiornamento fallito"
+    area: "e2e/collaudo-licenza.spec.js (scheda), tests/ci.test.js"
+    description: >
+      Collaudo di v0.4.0-beta.1, 14/11/2026. Il primo giro si è fermato
+      su «Aggiorna subito» di prova-bar per un permesso mancante nel
+      progetto del locale (l'agente Eventarc, dato poi da Daniele). Il
+      secondo giro si è fermato prima, su «Sospendi»: la funzione che apre
+      la scheda aspetta «la scheda oppure il Riprova della lettura
+      fallita» (REQ-FLOTTA-064), e la scheda, con l'aggiornamento fallito
+      rimasto dal giro prima, ha anche lei un bottone «Riprova».
+      Playwright trova due elementi e in modalità rigorosa si ferma: un
+      collaudo fallito faceva fallire tutti quelli dopo, finché qualcuno
+      non ripuliva la scheda a mano.
+      CRITERI. (1) La scheda si apre anche se mostra un aggiornamento
+      fallito col suo «Riprova». (2) Il «Riprova» della lettura fallita si
+      preme solo se la scheda non c'è, come prima.
+    status: implemented
+    generate_issue: true
+    labels: [metodo, regia]
+    priority: P1
+    test_cases:
+      - tests/ci.test.js
+
+  - id: REQ-FLOTTA-102
+    title: "Il collaudo di «Sospendi» guarda l'app da pubblico: «Menù non disponibile», mai il motivo"
+    area: "e2e/collaudo-licenza.spec.js («Sospendi» … «Riattiva»), tests/ci.test.js"
+    description: >
+      Collaudo del rilascio 0.4.0 (v0.4.0-beta.3, 14/11/2026). Alle 13:10
+      prova-bar è passata all'ultima versione di tana-drink, che porta
+      REQ-LIC-018 (Daniele, 13/11/2026: «chi entra nel locale non deve
+      leggere che il titolare non ha pagato»): a locale fermo il pubblico
+      legge solo «Menù non disponibile», il personale «Locale fermo», il
+      titolare il motivo. Il collaudo apre l'app senza entrare, cioè da
+      pubblico, e cercava ancora «Installazione sospesa» col motivo: è
+      rimasto indietro rispetto all'app.
+      CRITERI. (1) Sospeso il locale, l'app aperta senza accesso dice che
+      il menù non è disponibile e NON mostra il motivo della sospensione:
+      è il controllo di REQ-LIC-018 visto dalla regia. (2) Un'app di prima
+      (che mostrava «Installazione sospesa» col motivo a tutti) passa
+      ancora, finché il locale di prova non è aggiornato. (3) Riattivato
+      il locale, nessuno dei due avvisi resta.
+    status: implemented
+    generate_issue: true
+    labels: [metodo, regia, licenza]
+    priority: P1
+    test_cases:
+      - tests/ci.test.js
+
+  - id: REQ-FLOTTA-103
+    title: "Il collaudo rimette in ordine il locale di prova: all'inizio e anche quando una prova si ferma a metà"
+    area: "e2e/collaudo-licenza.spec.js (riattivaSeSospeso, «Sospendi», «Aggiorna subito»), tests/ci.test.js"
+    description: >
+      Daniele, 14/11/2026, dopo che il collaudo del rilascio 0.4.0 si era
+      fermato perché un giro precedente aveva lasciato prova-bar sospeso:
+      «si ma perchè succede?», e alla spiegazione (le prove cambiano
+      davvero il locale di prova, e se si fermano a metà non lo rimettono
+      com'era): «mettilo ora in ogni caso». Quel giorno era successo due
+      volte: un aggiornamento fallito (REQ-FLOTTA-101) e una sospensione
+      rimasta, che Daniele ha tolto a mano con «Riattiva».
+      CRITERI. (1) Prima di cominciare, «Sospendi» e «Aggiorna subito»
+      riattivano il locale se lo trovano sospeso. (2) «Sospendi» rimette il
+      locale attivo anche quando si ferma a metà: il ripristino sta in un
+      blocco che gira comunque, e un suo errore non copre quello della
+      prova. (3) La pagina dell'app aperta dalla prova si chiude anche dopo
+      un errore.
+    status: implemented
+    generate_issue: true
+    labels: [metodo, regia]
+    priority: P1
+    test_cases:
+      - tests/ci.test.js
 
   - id: REQ-FLOTTA-092
     title: "Il modello AI si sceglie per tipo di richiesta dal backoffice: Sonnet per tutti, all'inizio"
