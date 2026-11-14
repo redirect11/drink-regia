@@ -301,3 +301,25 @@ describe('il collaudo di «Sospendi» guarda l’app da pubblico', () => {
     expect(prova).toContain("await expect(app.getByText(/Menù non disponibile|Installazione sospesa/)).toHaveCount(0, { timeout: 60_000 })")
   })
 })
+
+// REQ-FLOTTA-103 (Daniele, 14/11/2026: «mettilo ora in ogni caso»): le
+// prove del collaudo cambiano davvero il locale di prova. Lo rimettono in
+// ordine all'inizio, e «Sospendi» lo riattiva anche quando si ferma a metà.
+describe('il collaudo rimette in ordine il locale di prova', () => {
+  const spec = readFileSync(join(process.cwd(), 'e2e/collaudo-licenza.spec.js'), 'utf8').replace(/\r\n/g, '\n')
+  const sospendi = spec.slice(spec.indexOf('«Sospendi» scrive la licenza'), spec.indexOf('«Aggiorna subito» porta il locale'))
+  const aggiorna = spec.slice(spec.indexOf('«Aggiorna subito» porta il locale'))
+  it('c’è la funzione che riattiva un locale sospeso', () => {
+    expect(spec).toContain('async function riattivaSeSospeso(articolo)')
+    expect(spec).toMatch(/if \(!testo\.startsWith\('sospesa'\)\) return/)
+  })
+  it('tutte e due le prove la usano prima di cominciare', () => {
+    for (const prova of [sospendi, aggiorna]) {
+      expect(prova.indexOf('await riattivaSeSospeso(articolo)')).toBeGreaterThan(-1)
+      expect(prova.indexOf('await riattivaSeSospeso(articolo)')).toBeLessThan(prova.indexOf("getByRole('button', { name:"))
+    }
+  })
+  it('«Sospendi» rimette il locale attivo e chiude l’app anche dopo un errore, senza coprirlo', () => {
+    expect(sospendi).toMatch(/\} finally \{\n\s*await riattivaSeSospeso\(articolo\)\.catch\(\(\) => \{\}\)\n\s*await app\.close\(\)\.catch\(\(\) => \{\}\)\n\s*\}/)
+  })
+})

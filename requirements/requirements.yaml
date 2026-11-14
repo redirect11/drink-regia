@@ -4734,6 +4734,30 @@ requirements:
     test_cases:
       - tests/ci.test.js
 
+  - id: REQ-FLOTTA-103
+    title: "Il collaudo rimette in ordine il locale di prova: all'inizio e anche quando una prova si ferma a metà"
+    area: "e2e/collaudo-licenza.spec.js (riattivaSeSospeso, «Sospendi», «Aggiorna subito»), tests/ci.test.js"
+    description: >
+      Daniele, 14/11/2026, dopo che il collaudo del rilascio 0.4.0 si era
+      fermato perché un giro precedente aveva lasciato prova-bar sospeso:
+      «si ma perchè succede?», e alla spiegazione (le prove cambiano
+      davvero il locale di prova, e se si fermano a metà non lo rimettono
+      com'era): «mettilo ora in ogni caso». Quel giorno era successo due
+      volte: un aggiornamento fallito (REQ-FLOTTA-101) e una sospensione
+      rimasta, che Daniele ha tolto a mano con «Riattiva».
+      CRITERI. (1) Prima di cominciare, «Sospendi» e «Aggiorna subito»
+      riattivano il locale se lo trovano sospeso. (2) «Sospendi» rimette il
+      locale attivo anche quando si ferma a metà: il ripristino sta in un
+      blocco che gira comunque, e un suo errore non copre quello della
+      prova. (3) La pagina dell'app aperta dalla prova si chiude anche dopo
+      un errore.
+    status: todo
+    generate_issue: true
+    labels: [metodo, regia]
+    priority: P1
+    test_cases:
+      - tests/ci.test.js
+
   - id: REQ-FLOTTA-092
     title: "Il modello AI si sceglie per tipo di richiesta dal backoffice: Sonnet per tutti, all'inizio"
     area: "functions/piani.json (ai.prezzi_usd_per_milione), functions/lib/ai.js (TIPI_MODELLO, modelliDelListino, modelloPer, validaModelliAI, interrogaConPrenotazione), functions/index.js (interrogaClaude, gestisciModelliAI), src/lib/db.js (impostaModelliAI), src/pages/Backoffice.jsx (Vendita), firestore.rules (impostazioni)"
