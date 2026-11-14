@@ -4820,6 +4820,33 @@ requirements:
     test_cases:
       - tests/esistente.test.js
 
+  - id: REQ-FLOTTA-106
+    title: "L'anteprima più corta, e il contatto del prodotto è info@lime-smartorders.it"
+    area: "src/i18n/home.it.js, src/i18n/home.en.js (anteprima), src/lib/prodotto.js (EMAIL_CONTATTI), tests/App.test.jsx"
+    description: >
+      Daniele, 14/11/2026: «in produzione puoi cambiare Stiamo preparando il
+      sito: prezzi, registrazione e attivazione arrivano qui. Per sapere
+      quando apre, o per vederlo prima, scrivici a info@drink.app in
+      Stiamo preparando il sito. Per informazioni info@lime-smartorders.it».
+      Il dominio del prodotto c'è (lime-smartorders.it, su register.it, con
+      la posta di register.it). L'email del sito era un segnaposto sul
+      dominio delle istanze (`info@${DOMINIO_ISTANZE}`, cioè info@drink.app):
+      diventa un valore suo, e il dominio delle istanze resta com'è, perché
+      costruisce gli indirizzi dei locali e va deciso a parte.
+      CRITERI. (1) L'anteprima dice «Stiamo preparando il sito.» al posto
+      della frase su prezzi, registrazione e attivazione, e «Per
+      informazioni» col contatto al posto di «Per sapere quando apre, o per
+      vederlo prima, scrivici a»; lo stesso in inglese. (2) Il contatto è
+      info@lime-smartorders.it in tutto il sito (anteprima, piè di pagina,
+      dashboard, credito AI, scelta del piano, dati del locale), come
+      link mailto. (3) Il dominio delle istanze non cambia.
+    status: implemented
+    generate_issue: true
+    labels: [regia, sito, produzione]
+    priority: P1
+    test_cases:
+      - tests/App.test.jsx
+
   - id: REQ-FLOTTA-092
     title: "Il modello AI si sceglie per tipo di richiesta dal backoffice: Sonnet per tutti, all'inizio"
     area: "functions/piani.json (ai.prezzi_usd_per_milione), functions/lib/ai.js (TIPI_MODELLO, modelliDelListino, modelloPer, validaModelliAI, interrogaConPrenotazione), functions/index.js (interrogaClaude, gestisciModelliAI), src/lib/db.js (impostaModelliAI), src/pages/Backoffice.jsx (Vendita), firestore.rules (impostazioni)"
