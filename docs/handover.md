@@ -940,6 +940,39 @@ ma l'ordine aggiornato è quello del 09/11.
    dell'apertura**: accendere l'interruttore dal backoffice di produzione,
    nient'altro; prima, i segreti Stripe e il token GitHub (voce 7), e
    «Pagamenti online» se si vuole il Checkout.
+46. **Le email della regia: DECISIONE APERTA (Daniele, 14/11/2026)**.
+   Daniele: «segnamoci che dobbiamo rendere una decisione. Intanto
+   continuiamo con firebase». Due cose da decidere:
+   - **Il dominio del prodotto** (proposta: `lime-smartorders`, su
+     register.it, con le caselle delle persone, `info@` e le sue).
+   - **Il servizio che spedisce le email automatiche**, su un
+     sottodominio (es. `notifiche.<dominio>`) con SPF, DKIM e DMARC.
+     Resend no («non voglio usare resend»); serve un piano gratuito sotto
+     un certo volume. Proposta: **Brevo** (300 al giorno, Francia),
+     riserva **Mailjet** (6.000 al mese e 200 al giorno, Francia); scartati
+     SMTP2GO (1.000 al mese) e MailerSend (500 al mese); SendGrid non ha
+     più il piano gratuito. Numeri del 14/11/2026, da ricontrollare sulle
+     pagine dei prezzi.
+   **Cosa non cambia**: la regia scrive già le sue email nella coda
+   `mail` per l'estensione Firebase **Trigger Email** (`accodaEmail`,
+   voce 28). Scelto il servizio, si installa l'estensione con il suo SMTP
+   (chiave nel Secret Manager, regione `europe-west1` come Firestore):
+   cambiare servizio è cambiare l'SMTP, non il codice. Dopo, il requisito
+   delle email nostre: «Password dimenticata» con il link dell'Admin SDK
+   (`generatePasswordResetLink`) in un'email nostra, l'email di benvenuto
+   per il locale esistente e per i collaboratori (REQ-FLOTTA-098), la
+   verifica dell'email; ripiego sull'email di Firebase finché l'SMTP non
+   c'è.
+   **Intanto, Firebase.** Il testo, l'oggetto e il mittente delle sue
+   email non si cambiano: l'API risponde `EMAIL_TEMPLATE_UPDATE_NOT_ALLOWED`
+   (provato su `drink-regia-test` il 14/11/2026). Si cambia la lingua
+   (`notification.defaultLocale`): **`it` sul test dal 14/11/2026**,
+   provata con «Password dimenticata»: email in italiano, nella posta in
+   arrivo; **in produzione ancora `en`**, da scrivere col via di Daniele.
+   Il nome che l'email mostra (`%APP_NAME%`, oggi `drink-regia-test` e
+   `drink-regia`) viene dal branding della Google Auth Platform
+   (console.cloud.google.com/auth/branding): lo cambia Daniele, Google può
+   chiedere una verifica.
 
 ---
 
