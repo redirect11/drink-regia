@@ -1567,6 +1567,9 @@ requirements:
       codice non vale per nessuno nuovo, nemmeno dall'admin; il limite si
       alza o si toglie da «Limite…» nel backoffice, le condizioni dello
       sconto restano quelle.
+      DAL 14/11/2026 (tana-drink 1.10.49, REQ-FLOTTA-104): «Area clienti»
+      dall'app è un collegamento a /dashboard, senza token;
+      passaggioVersoRegia resta per le app di prima.
     status: implemented
 
     generate_issue: true
@@ -4757,6 +4760,39 @@ requirements:
     priority: P1
     test_cases:
       - tests/ci.test.js
+
+  - id: REQ-FLOTTA-104
+    title: "«Area clienti» dall'app è un collegamento a /dashboard: la regia tiene /dashboard come ingresso dell'area"
+    area: "src/App.jsx (rotta /dashboard/*), src/pages/Accedi.jsx, src/pages/EntraConGoogle.jsx, functions/index.js (passaggioVersoRegia, tenuta), docs/handover.md §7"
+    description: >
+      Da tana-drink, 14/11/2026: dalla 1.10.49 il tasto «Area clienti»
+      dell'app non chiama più passaggioVersoRegia (REQ-FLOTTA-030): apre in
+      una scheda nuova `<regia_url della licenza, se https, altrimenti
+      https://<VITE_REGIA_PROGETTO>.web.app>/dashboard`, senza token, e lo
+      vedono tutti gli admin del locale. Daniele: «non può portarlo
+      semplicemente all'app dove lui poi deve fare il login, ma se lo ha già
+      fatto si ritrova già nella sua area? Perché tutta questa
+      complicazione?». Il contratto di tana-drink è in
+      docs/passaggio-dalla-regia.md, sezione 2. A decidere chi entra è
+      l'accesso della regia: il titolare vede il suo locale, un
+      collaboratore (REQ-FLOTTA-098) la sua vista, chi non ha un account si
+      ferma all'accesso. Daniele, alla proposta: «procedi».
+      CRITERI. (1) /dashboard senza accesso porta all'accesso, anche col
+      sito chiuso al pubblico. (2) Dopo l'accesso, con la password o con
+      Google, si arriva a /dashboard. (3) Con un accesso già fatto /dashboard
+      mostra l'area (REQ-FLOTTA-084). (4) passaggioVersoRegia resta per le
+      app più vecchie della 1.10.49 (la Tana in produzione è alla 1.10.43):
+      si toglie quando tutti i locali l'avranno passata, con una voce sua.
+      «Apri la tua app», dalla regia all'app, non cambia.
+    status: implemented
+    generate_issue: true
+    labels: [regia, contratto-tana-drink]
+    priority: P2
+    test_cases:
+      - tests/AreaClienti.test.jsx
+      - tests/App.test.jsx
+      - tests/AccessoGoogle.test.jsx
+      - tests/AreaTitolare.test.jsx
 
   - id: REQ-FLOTTA-092
     title: "Il modello AI si sceglie per tipo di richiesta dal backoffice: Sonnet per tutti, all'inizio"
