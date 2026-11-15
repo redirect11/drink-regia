@@ -5076,7 +5076,7 @@ requirements:
       scriva su un cliente. (4) «Aggiorna subito» e le altre azioni
       dell'istanza funzionano. (5) Senza istanze orfane il gruppo non c'è.
       INTERFACCE CON L'APP: nessuna.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [regia, backoffice]
     priority: P3

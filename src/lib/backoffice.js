@@ -6,7 +6,7 @@
 // condivide il link). Qui solo le regole, senza React: quali sezioni, cosa
 // contano i loro contatori, come si filtra l'elenco dei locali.
 
-import { STATI } from './istanze.js'
+import { STATI, statoIstanza } from './istanze.js'
 
 export const BASE = '/backoffice'
 
@@ -101,7 +101,31 @@ export const VISTE = [
 export function filtraLocali(righe, { vista = 'tutti', cerca = '' } = {}) {
   const v = VISTE.find((x) => x.id === vista) || VISTE[0]
   const q = cerca.trim().toLowerCase()
-  const trovato = ({ cliente: c }) =>
-    !q || [c.nome_locale, c.slug, c.email, c.fatturazione?.ragione_sociale].some((t) => String(t || '').toLowerCase().includes(q))
+  // Anche il progetto: un'istanza senza cliente (REQ-FLOTTA-113) si
+  // cerca spesso così (drinkpos-prova-e2e).
+  const trovato = ({ cliente: c, istanza }) =>
+    !q || [c.nome_locale, c.slug, c.email, c.fatturazione?.ragione_sociale, istanza?.progetto].some((t) => String(t || '').toLowerCase().includes(q))
   return righe.filter((r) => v.vale(r) && trovato(r))
+}
+
+// LE ISTANZE SENZA CLIENTE (REQ-FLOTTA-113). Daniele, 15/11/2026: «nei
+// locali prova-e2e non esiste». L'elenco parte dai clienti, una riga per
+// account; un'istanza che nessun cliente ha (prova-e2e, quella degli e2e
+// di tana-drink) non c'era. Qui diventano righe come le altre, con un
+// cliente fatto del solo identificativo e `senzaCliente`, così la scheda
+// sa di non mostrare quello che scrive su un cliente. Restano fuori da
+// `righe`: non sono clienti, e non devono entrare nei conti.
+export function istanzeSenzaCliente(istanze, clienti) {
+  const loro = new Set((clienti || []).map((c) => c.slug))
+  return Object.entries(istanze || {})
+    .filter(([slug]) => !loro.has(slug))
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([slug, istanza]) => ({
+      cliente: { slug, nome_locale: slug },
+      istanza,
+      richiesta: null,
+      cassetto: null,
+      stato: statoIstanza(istanza, null),
+      senzaCliente: true,
+    }))
 }

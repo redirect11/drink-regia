@@ -6,6 +6,10 @@ data.
 
 ## 0.5.0 (in lavorazione)
 
+- Nei «Locali» del backoffice, in fondo, il gruppo «Istanze senza cliente»:
+  le istanze che nessun cliente ha (prova-e2e, quella degli e2e) con la
+  scheda dell'istanza, senza i blocchi del cliente. Non entrano nei conti dei
+  locali (REQ-FLOTTA-113, #284).
 - **La versione per dispositivo** (REQ-FLOTTA-112, #282). L'app manda alla
   presentazione un codice casuale del dispositivo (tana-drink, dalla
   1.10.51-beta). La regia tiene la versione di ogni dispositivo: la
