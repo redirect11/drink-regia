@@ -195,7 +195,14 @@ describe('il backoffice', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     db.elencoIstanze.mockResolvedValue({
       'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', versione: 'v1.10.0', uid: 'a' },
-      'prova-e2e': { stato: 'attiva', progetto: 'drinkpos-prova-e2e', versione: 'v1.10.29-beta', prova: { attiva: false, il: '2026-11-15T10:30:00Z' } },
+      'prova-e2e': {
+        stato: 'attiva',
+        progetto: 'drinkpos-prova-e2e',
+        versione: 'v1.10.29-beta',
+        prova: { attiva: false, il: '2026-11-15T10:30:00Z' },
+        // Scritta dalle anteprime prima della REQ-FLOTTA-114: non è vera.
+        presentazione: { versione: 'v1.10.50-beta', il: '2026-11-15T07:53:42Z', prima_il: '2026-11-14T17:38:36Z' },
+      },
     })
     mostra()
     const gruppo = await screen.findByRole('table', { name: 'Istanze senza cliente' })
@@ -205,6 +212,10 @@ describe('il backoffice', () => {
     expect(riga).toHaveTextContent('v1.10.29-beta')
     const scheda = await apri('prova-e2e')
     expect(within(scheda).getByText(/Disattivata dal 15\/11\/2026: le prove e2e sono finite/)).toBeInTheDocument()
+    // La versione vera è quella installata; quella delle anteprime non si mostra.
+    expect(within(scheda).getByTestId('versione-prova-e2e')).toHaveTextContent('v1.10.29-beta')
+    expect(scheda).not.toHaveTextContent('v1.10.50-beta')
+    expect(riga).not.toHaveTextContent('v1.10.50-beta')
     await user.click(within(scheda).getByRole('button', { name: 'Non è più un’istanza di prova' }))
     expect(db.segnaIstanzaDiProva).toHaveBeenCalledWith('prova-e2e', false)
   })

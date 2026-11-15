@@ -135,7 +135,7 @@ scritta solo se manca (`scritta_da: 'deploy'`). La Tana ha `regia_url: null`.
   lettura fallita era un `500`; per l'app non cambia niente, ogni risposta
   diversa da `200` si riprova alla prossima apertura); `500` errore inatteso.
 - La regia salva `istanze/{slug}.presentazione { versione, minima, il,
-  prima_il, dispositivi, anteprima? }`:
+  prima_il, dispositivi }`:
   - `dispositivi { <codice>: { versione, il } }`: le app senza codice contano
     come un dispositivo solo, `senza_codice`; un dispositivo si riscrive al
     più ogni 6 ore a versione invariata, esce dal conto dopo 30 giorni senza
@@ -143,11 +143,13 @@ scritta solo se manca (`scritta_da: 'deploy'`). La Tana ha `regia_url: null`.
   - `versione`: la più alta fra i dispositivi, quella che si vede nella scheda;
   - `presentazione.minima`: la più bassa, quella che decide quando si può
     togliere un'interfaccia deprecata;
-  - `anteprima { versione, il }`: l'ultima presentazione da un canale di
-    anteprima, riconosciuto dall'`Origin` della richiesta
-    (`<sito>--<canale>.web.app` o `.firebaseapp.com`; i domini propri dei
-    locali mai). Non cambia `versione` né `minima`: tana-drink usa i canali
-    solo per gli e2e (15/11/2026).
+- Una presentazione da un canale di anteprima, riconosciuto dall'`Origin`
+  della richiesta (`<sito>--<canale>.web.app` o `.firebaseapp.com`; i domini
+  propri dei locali mai), riceve la stessa risposta, licenza compresa, ma
+  la regia non la segna: tana-drink usa i canali solo per gli e2e, e la versione
+  che conta è quella installata davvero (Daniele, 15/11/2026: «Regia non si
+  caga le anteprime», REQ-FLOTTA-114; dal REQ-FLOTTA-112 al 114 si segnava a
+  parte).
 - App: `src/lib/presentazione.js` (una volta per versione per dispositivo, e
   col codice al più una volta al giorno; di nuovo se manca la licenza),
   `src/lib/api.js`, `src/App.jsx`.
@@ -351,6 +353,24 @@ Il deploy della Tana (`.github/workflows/deploy.yml` di tana-drink) mette
 `drink-regia` in produzione e `drink-regia-test` altrove; i test e2e
 `drink-regia-test`. Da qui vengono gli indirizzi delle interfacce 4, 6, 7, 8
 e 9.
+
+### 15. L’istanza di prova: `istanzaDiProva` (prove e2e di tana-drink → regia, HTTP)
+
+- `POST …/istanzaDiProva`, `Authorization: Bearer <ID token di un utente del
+  progetto>`, come la presentazione; corpo `{ attiva }`, `true` all'inizio
+  delle prove e `false` alla fine (anche se le prove falliscono).
+- Risposte: `200 { ok, attiva }`; `400` corpo; `401` token; `403` istanza non
+  segnata di prova, o con un cliente; `404` istanza sconosciuta o eliminata;
+  `405`.
+- Vale solo per un'istanza che l'admin ha segnato di prova dalla scheda
+  (`segnaIstanzaDiProva`, solo admin, mai per un'istanza con cliente). La
+  regia salva `istanze/{slug}.prova { attiva, il }`, e il backoffice la dice
+  «In prova» o «Disattivata». Spenta non cambia la licenza né la
+  presentazione.
+- Chi la chiama: `e2e.yml` di tana-drink, su drinkpos-prova-e2e. Finché non la
+  chiama, l'istanza resta com'è.
+- Da REQ-FLOTTA-114 (Daniele, 15/11/2026: «disattivare l'istanza e2e alla
+  fine delle prove e nel backoffice la si vede come disattivata»).
 
 ## Le interfacce deprecate
 

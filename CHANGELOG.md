@@ -6,6 +6,12 @@ data.
 
 ## 0.5.0 (in lavorazione)
 
+- L'istanza di prova (REQ-FLOTTA-114, #286). La regia non segna più le
+  presentazioni dalle anteprime degli e2e: mostra sempre la versione
+  installata davvero. L'admin segna come istanza di prova un'istanza senza
+  cliente (prova-e2e). Le prove e2e di tana-drink la accendono e la spengono
+  con `istanzaDiProva`, e il backoffice la dice «In prova» o «Disattivata».
+  La sentinella non guarda un'istanza di prova spenta.
 - Nei «Locali» del backoffice, in fondo, il gruppo «Istanze senza cliente»:
   le istanze che nessun cliente ha (prova-e2e, quella degli e2e) con la
   scheda dell'istanza, senza i blocchi del cliente. Non entrano nei conti dei

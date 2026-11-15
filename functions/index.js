@@ -60,6 +60,7 @@ const { OAuth2Client, GoogleAuth } = require('google-auth-library')
 const elim = require('./lib/eliminazione.js')
 const conserva = require('./lib/conservazione.js')
 const presenta = require('./lib/presentazione.js')
+const prova = require('./lib/istanzaDiProva.js')
 const salute = require('./lib/salute.js')
 const sentinella = require('./lib/sentinella.js')
 const passa = require('./lib/passaggio.js')
@@ -2078,13 +2079,15 @@ async function presentaIlSito(req, res) {
   // Chi apre l'app è un dipendente qualunque del locale: il suo uid non
   // serve alla regia e non si salva (REQ-FLOTTA-051). Il codice del
   // dispositivo è casuale (REQ-FLOTTA-112). Una presentazione da un canale
-  // di anteprima (gli e2e di tana-drink) si segna a parte. In una
-  // transazione: due dispositivi che si presentano insieme non si cancellano.
+  // di anteprima (gli e2e di tana-drink) non si segna: «Regia non si caga
+  // le anteprime» (Daniele, 15/11/2026, REQ-FLOTTA-114); la risposta e la
+  // licenza restano, perché le prove le usano. In una transazione: due
+  // dispositivi che si presentano insieme non si cancellano.
   const anteprima = presenta.daAnteprima(req.get('origin'))
-  if (presenta.daRegistrare(ist, { ...corpo, anteprima })) {
+  if (!anteprima && presenta.daRegistrare(ist, corpo)) {
     await db.runTransaction(async (t) => {
       const attuale = (await t.get(trovata.ref)).data()
-      if (presenta.daRegistrare(attuale, { ...corpo, anteprima })) t.update(trovata.ref, presenta.registroPresentazione(attuale, { ...corpo, anteprima }))
+      if (presenta.daRegistrare(attuale, corpo)) t.update(trovata.ref, presenta.registroPresentazione(attuale, corpo))
     })
   }
   const riceve = riceveLicenza(ist)
@@ -2111,6 +2114,49 @@ async function presentaIlSito(req, res) {
   console.log(`[presentazione] ${slug} ${corpo.versione}: licenza scritta`)
   return res.status(200).json({ ok: true, licenza: 'scritta' })
 }
+
+// ── L'ISTANZA DI PROVA (REQ-FLOTTA-114) ────────────────────────────────
+// Daniele, 15/11/2026: «disattivare l'istanza e2e alla fine delle prove e
+// nel backoffice la si vede come disattivata». Le prove e2e di tana-drink
+// la accendono all'inizio e la spengono alla fine: `POST`, `Authorization:
+// Bearer <ID token>` di un utente del progetto, come la presentazione,
+// corpo `{ attiva }`. Vale solo per un'istanza che l'admin ha segnato di
+// prova e che non ha un cliente. Risposte: 200 { ok, attiva }; 400 corpo;
+// 401 token; 403 non di prova o con cliente; 404 sconosciuta; 405.
+exports.istanzaDiProva = onRequest({ ...OPTS, cors: false }, async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).json({ errore: 'Solo POST.' })
+  const token = aggiornamenti.bearerDi(req.get('authorization'))
+  const progetto = aggiornamenti.progettoDelToken(token)
+  if (!progetto) return res.status(401).json({ errore: 'Serve l’accesso.' })
+  const trovata = (await db.collection('istanze').where('progetto', '==', progetto).limit(1).get()).docs[0]
+  if (!trovata) return res.status(404).json({ errore: 'Installazione non registrata nella regia.' })
+  res.locals.slug = trovata.id
+  try {
+    await getAuth(appDi(progetto)).verifyIdToken(token)
+  } catch {
+    return res.status(401).json({ errore: 'Accesso non valido: entra di nuovo.' })
+  }
+  const corpo = prova.corpoProva(req.body)
+  if (!corpo) return res.status(400).json({ errore: 'Serve { attiva: true | false }.' })
+  const ist = trovata.data()
+  const puo = prova.puoCambiare(ist, await clienteDi(trovata.id))
+  if (!puo.ok) return res.status(puo.status).json({ errore: puo.perche })
+  await trovata.ref.update(prova.registroProva(corpo.attiva))
+  return res.status(200).json({ ok: true, attiva: corpo.attiva })
+})
+
+// L'admin segna di prova un'istanza senza cliente, o la toglie da prova.
+// Segnata, parte spenta: la accendono le prove.
+exports.segnaIstanzaDiProva = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const slug = String(req.data?.slug || '')
+  const ref = db.doc(`istanze/${slug}`)
+  const snap = slug && !slug.includes('/') ? await ref.get() : null
+  if (!snap?.exists) throw new HttpsError('not-found', 'Istanza sconosciuta.')
+  if (await clienteDi(slug)) throw new HttpsError('failed-precondition', 'Ha un cliente: non è un’istanza di prova.')
+  await ref.update(req.data?.prova === true ? prova.registroProva(false) : { prova: FieldValue.delete() })
+  return { ok: true }
+})
 
 // ── IL PIANO CHE CAMBIA (REQ-FLOTTA-010) ──────────────────────────────
 

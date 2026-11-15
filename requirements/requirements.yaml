@@ -5124,7 +5124,7 @@ requirements:
       (le risposte non cambiano); nuova l'interfaccia 15, istanzaDiProva,
       fra le prove e2e di tana-drink e la regia: è un'aggiunta, e finché
       tana-drink non la chiama l'istanza resta com'è.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [regia, flotta, backoffice]
     priority: P3
