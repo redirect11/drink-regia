@@ -5049,6 +5049,51 @@ requirements:
       - tests/Backoffice.test.jsx
       - tests/contratto.test.js
 
+  - id: REQ-FLOTTA-115
+    title: "La comunicazione fra la regia e i locali in sicurezza: le regole e l'inventario delle interfacce nel contratto"
+    area: "docs/contratto-regia-app.md (La sicurezza delle interfacce), .claude/agents/revisore.md, tests/contratto.test.js"
+    description: >
+      Daniele, 15/11/2026, dopo aver visto che chiunque si registri su un
+      locale ha un ID token valido del progetto, e che la presentazione e
+      l'istanza di prova si accontentano di quello: «il gestore e nessun
+      altro su altre istanze puo cambiare qualcosa che interagisca con il
+      backend di regia direttamente. Dobbiamo mettere tutta la
+      comunicazione tra regia e drink in sicurezza». Niente ruoli degli
+      utenti del locale e niente GitHub nel meccanismo («Non voglio
+      nemmeno legarmi a github»), e un contratto che regga anche un
+      backend diverso da Firebase («Se vogliamo passare da firebase a un
+      altro backend poi cosa succede?»). Sulla proposta (contratto sullo
+      standard, Google oggi, la chiave del locale per l'on premise, le
+      interfacce 1, 2 e 3 segnate come legate a Firestore): «Ok procediamo
+      così».
+      COSA. Questa voce scrive le regole e l'inventario; il codice viene
+      dopo, a passi, ognuno con la sua voce. Le regole: (1) nessuna persona
+      di un locale chiama la regia per cambiare qualcosa: restano dirette
+      solo le letture pubbliche senza dati e i collegamenti; (2) il server
+      del locale si presenta con un gettone firmato (JWT) da un emittente
+      registrato per quel locale, destinato alla regia e di breve durata, e
+      il gettone vale solo per il suo locale: oggi l'emittente è Google
+      (l'account di servizio dedicato del progetto, come l'AI dal
+      12/11/2026), per l'on premise sarà una chiave del locale, senza
+      cambiare il contratto; (3) la regia scrive nei locali col suo
+      account; (4) la versione installata la regia la legge dal sito vero
+      (versione.json), non se la fa dire dai dispositivi.
+      CRITERI. (1) Il contratto ha la sezione «La sicurezza delle
+      interfacce» con le quattro regole. (2) Un inventario con una riga per
+      ogni interfaccia (anche la deprecata passaggioVersoRegia): chi
+      chiama, con quale identità oggi, se rispetta le regole, cosa cambia.
+      (3) Le interfacce 1, 2 e 3 segnate come legate a Firestore del
+      locale. (4) Il percorso a passi, con quello che chiede a tana-drink.
+      (5) Un test fa rosso se un'interfaccia nuova non ha la sua riga.
+      INTERFACCE CON L'APP: nessuna cambia con questa voce; il percorso le
+      cambierà, ognuna con la sua voce e la regola «mai sul posto».
+    status: implemented
+    generate_issue: true
+    labels: [regia, contratto-tana-drink, sicurezza]
+    priority: P1
+    test_cases:
+      - tests/contratto.test.js
+
   - id: REQ-FLOTTA-113
     title: "Le istanze senza cliente nei «Locali»: in fondo all'elenco, nel loro gruppo, con la scheda dell'istanza"
     area: "src/lib/backoffice.js (istanzeSenzaCliente, filtraLocali), src/pages/Backoffice.jsx (SezioneLocali, SchedaLocale)"
