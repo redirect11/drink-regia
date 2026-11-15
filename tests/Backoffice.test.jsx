@@ -161,6 +161,38 @@ describe('il backoffice', () => {
     expect(within(riga.closest('tbody')).getByRole('button', { name: 'Bar Attivo' })).toHaveAttribute('aria-expanded', 'true')
   })
 
+  // REQ-FLOTTA-113: un'istanza senza cliente (prova-e2e) in fondo, nel suo
+  // gruppo, con la scheda dell'istanza; i blocchi del cliente non ci sono.
+  it('le istanze senza cliente stanno in fondo, nel loro gruppo, con la scheda dell’istanza', async () => {
+    db.elencoIstanze.mockResolvedValue({
+      'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', versione: 'v1.10.0', uid: 'a' },
+      'prova-e2e': { stato: 'attiva', progetto: 'drinkpos-prova-e2e', url: 'https://drinkpos-prova-e2e.web.app', versione: 'v1.10.29-beta' },
+    })
+    mostra()
+    const gruppo = await screen.findByRole('table', { name: 'Istanze senza cliente' })
+    expect(screen.getByRole('heading', { name: 'Istanze senza cliente (1)' })).toBeInTheDocument()
+    const riga = within(gruppo).getByRole('row', { name: /prova-e2e/ })
+    expect(riga).toHaveTextContent('v1.10.29-beta')
+    expect(riga).toHaveTextContent('senza cliente')
+    // Non sono locali di clienti: il conto e la tabella dei locali restano quelli.
+    expect(screen.getByTestId('quanti-locali')).toHaveTextContent('3 locali')
+    expect(within(screen.getByRole('table', { name: 'Locali' })).queryByText('prova-e2e')).toBeNull()
+    const scheda = await apri('prova-e2e')
+    expect(within(scheda).getByText('drinkpos-prova-e2e')).toBeInTheDocument()
+    expect(within(scheda).getByText(/Nessun cliente collegato/)).toBeInTheDocument()
+    expect(within(scheda).getByRole('button', { name: 'Aggiorna subito' })).toBeInTheDocument()
+    for (const tasto of ['Cambia piano…', 'Sconto…', 'Collaboratori…', 'Sospendi', 'Chiudi']) expect(within(scheda).queryByRole('button', { name: tasto })).toBeNull()
+    for (const titolo of ['Titolare', 'Piano', 'Aspetto', 'Credito AI']) expect(within(scheda).queryByRole('heading', { name: titolo })).toBeNull()
+    await userEvent.setup().click(within(scheda).getByRole('button', { name: 'Aggiorna subito' }))
+    expect(db.aggiornaIstanza).toHaveBeenCalledWith('prova-e2e')
+  })
+
+  it('senza istanze orfane il gruppo non c’è', async () => {
+    mostra()
+    await screen.findByRole('table', { name: 'Locali' })
+    expect(screen.queryByRole('table', { name: 'Istanze senza cliente' })).toBeNull()
+  })
+
   it('un’attivazione fallita si rilancia', async () => {
     const user = userEvent.setup()
     mostra()
