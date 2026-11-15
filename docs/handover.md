@@ -208,7 +208,10 @@ git tag vX.Y.Z-beta && git push origin vX.Y.Z-beta
 #    prova a mano quello che il collaudo non copre, su https://drink-regia-test.web.app
 # 5. PR develop -> main (sempre dal ramo di release, mai da altro), col via libera
 # 6. tag su main: «Collaudo riuscito sul test» ritrova il collaudo del passo 3
-#    e pubblica in produzione; senza, si ferma e lo dice
+#    e pubblica in produzione; senza, si ferma e lo dice. Vale solo un
+#    collaudo dello stesso codice (REQ-FLOTTA-118): fra la beta e il tag su
+#    main possono cambiare solo docs/, requirements/, tests/, .claude/ e i
+#    .md; un ritocco al codice dopo la beta chiede un'altra beta
 git checkout main && git pull
 git tag vX.Y.Z && git push origin vX.Y.Z
 # 7. SUBITO DOPO, sul nuovo ramo di lavoro: package.json alla prossima con -beta

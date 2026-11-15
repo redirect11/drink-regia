@@ -6,6 +6,10 @@ data.
 
 ## 0.5.0 (in lavorazione)
 
+- La garanzia della produzione vale solo per lo stesso codice collaudato
+  sul test: fra il commit della beta e il tag su main possono cambiare solo
+  documenti, registro e test. Prima bastava un collaudo qualunque nella
+  storia del tag (REQ-FLOTTA-118, #293).
 - L'istanza di prova (REQ-FLOTTA-114, #286). La regia non segna più le
   presentazioni dalle anteprime degli e2e: mostra sempre la versione
   installata davvero. L'admin segna come istanza di prova un'istanza senza
