@@ -36,7 +36,31 @@ export const BASI = [
   { id: 'pico-chiaro', nome: 'Pico chiaro', colori: colori('#fbfbfc', '#ffffff', '#ffffff', '#0172ad', '#0172ad', '#373c44', '#646b79') },
   { id: 'chiaro', nome: 'Chiaro', colori: colori('#f2f2f7', '#ffffff', '#ffffff', '#c2185b', '#a8790a', '#17171f', '#5c5c6b') },
   { id: 'crema', nome: 'Crema', colori: colori('#f6f1e7', '#fffaf0', '#fffdf7', '#a3552b', '#8c6d1f', '#241d12', '#6f6353') },
+  // Il tema di Lime - SmartOrders (REQ-FLOTTA-117): i colori del sito della
+  // regia (index.css, «LA PALETTE LIME»), ripresi da tana-drink in
+  // src/lib/themes.js. Se cambiano qui, va detto a tana-drink (REQ-DEV-025).
+  { id: 'lime-scuro', nome: 'Lime scuro', colori: colori('#0c0f0a', '#141911', '#1c2318', '#b4ec2b', '#c6f25a', '#eef2e6', '#9aa38e') },
+  { id: 'lime-chiaro', nome: 'Lime chiaro', colori: colori('#f7f9f1', '#fefffa', '#fefffa', '#2f6b0f', '#2f6b0f', '#161b10', '#525c47') },
 ]
+
+// Da quale versione dell'app una base si vede. Le altre ci sono da sempre.
+const BASI_DALLA = { 'lime-scuro': [1, 10, 52], 'lime-chiaro': [1, 10, 52] }
+const numeri = (versione) => {
+  const m = /^v?(\d+)\.(\d+)\.(\d+)/.exec(String(versione || ''))
+  return m ? m.slice(1).map(Number) : null
+}
+// La versione che serve, se il locale ne ha una più vecchia; altrimenti
+// null. La beta della 1.10.52 conta come 1.10.52: Lime c'è già. Una
+// versione che non si sa non avvisa: l'avviso è un aiuto, non un blocco.
+export function baseNonVista(base, versione) {
+  const serve = BASI_DALLA[base]
+  const ha = numeri(versione)
+  if (!serve || !ha) return null
+  for (let i = 0; i < 3; i++) {
+    if (ha[i] !== serve[i]) return ha[i] < serve[i] ? serve.join('.') : null
+  }
+  return null
+}
 
 // Gli stili del menù per tutti. «notte» è esclusivo della Tana: non c'è.
 export const STILI = [

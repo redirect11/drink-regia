@@ -5078,7 +5078,7 @@ requirements:
       INTERFACCE CON L'APP: cambio compatibile del vocabolario condiviso
       («Le copie da tenere allineate»): due valori nuovi, che l'app dalla
       1.10.52 conosce e quelle prima ignorano.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [regia, temi, contratto-tana-drink]
     priority: P3

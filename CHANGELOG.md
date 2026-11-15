@@ -6,6 +6,10 @@ data.
 
 ## 0.5.0 (in lavorazione)
 
+- Le basi `lime-scuro` e `lime-chiaro` nel vocabolario dei temi, coi
+  colori del sito: temi del catalogo e su misura su Lime. La scheda del
+  locale avvisa se un tema su misura su base Lime non si vede, perché il
+  locale ha l'app più vecchia della 1.10.52 (REQ-FLOTTA-117, #292).
 - La mappa delle dipendenze della regia da Firebase e Google Cloud
   (`docs/dipendenze-firebase.md`): per ogni porta dove è usata, quanto è
   intrecciata, cosa vorrebbe dire reimplementarla altrove e dove manca il

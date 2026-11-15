@@ -48,7 +48,7 @@ import {
 import { venditaPulita } from '../lib/vendita.js'
 import { stampantiDette } from '../lib/stampanti.js'
 
-import { ESCLUSIVI, nomeStile, nomeImpaginazione, ORIGINI_DETTE, STATI_DETTI, temaVuoto } from '../lib/temi.js'
+import { ESCLUSIVI, nomeStile, nomeImpaginazione, ORIGINI_DETTE, STATI_DETTI, temaVuoto, baseNonVista } from '../lib/temi.js'
 import { statoIstanza, statoDetto, STATI, progettoDi, riduzioneDetta, hrefSicuro, istanzaScollegata } from '../lib/istanze.js'
 import { PIANI, MODULI, prezzoMensile, euro, baseMancante, senzaOrfani } from '../lib/piani.js'
 import { prezzoConSconto, scontoDetto, usiDetti, CODICE_VALIDO, REGOLA_CODICE, LIMITE_PER_IL_CENTO, generaCodice } from '../lib/sconti.js'
@@ -1053,7 +1053,7 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
             <span data-testid={`temi-${c.slug}`}>{(c.temi || []).length ? c.temi.map(nomeStile).join(', ') : 'nessuno'}</span>
           </div>
           <TemiInLicenza cliente={c} onErrore={az.onErrore} onFatto={az.carica} />
-          <TemiSuMisuraLocale cliente={c} onErrore={az.onErrore} />
+          <TemiSuMisuraLocale cliente={c} versione={istanza?.versione} onErrore={az.onErrore} />
           {istanza?.progetto && attiva && <InstallatiDallApp cliente={c} />}
         </Blocco>
         )}
@@ -2338,7 +2338,7 @@ function ModuliDelPiano({ cliente: c }) {
 // titolare e quelli fatti da noi. L'admin ne scrive uno nuovo (l'editor
 // del catalogo, con la struttura del menù e la ricetta), lo pubblica e lo
 // ritira; la licenza del locale lo segue.
-function TemiSuMisuraLocale({ cliente: c, onErrore }) {
+function TemiSuMisuraLocale({ cliente: c, versione, onErrore }) {
   const [temi, setTemi] = useState([])
   const [giro, setGiro] = useState(0)
   const [aperto, setAperto] = useState(null)
@@ -2361,6 +2361,9 @@ function TemiSuMisuraLocale({ cliente: c, onErrore }) {
       return false
     }
   }
+  // Un tema su base Lime in un locale con l'app più vecchia della 1.10.52
+  // non compare (REQ-FLOTTA-117): la scheda lo dice, con la versione.
+  const nonVisti = temi.map((t) => ({ t, serve: baseNonVista(t.tavolozza?.base, versione) })).filter((x) => x.serve)
   // Una riga col loro elenco, poi i tasti: uno per tema e «Nuovo…».
   return (
     <>
@@ -2374,6 +2377,11 @@ function TemiSuMisuraLocale({ cliente: c, onErrore }) {
             : 'nessuno'}
         </span>
       </div>
+      {nonVisti.length > 0 && (
+        <div className="small avviso" data-testid={`su-misura-non-visti-${c.slug}`}>
+          {nonVisti.map(({ t, serve }) => `«${t.nome}» non si vede nell’app del locale (${versione}): la base Lime c’è dalla ${serve}.`).join(' ')}
+        </div>
+      )}
       <div className="gruppo-azioni">
         {temi.map((t) => (
           <Fragment key={t.id}>
