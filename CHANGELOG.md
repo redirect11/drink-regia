@@ -4,7 +4,7 @@ Una voce per ogni cambiamento visibile, nello stesso commit del
 cambiamento. La versione in cima è quella in lavorazione finché non ha la
 data.
 
-## 0.5.0 (in lavorazione)
+## 0.5.0 (15/11/2026, la quarta in produzione: la sentinella e la Salute, la versione per dispositivo, le istanze senza cliente e quella di prova, le regole di sicurezza delle interfacce, le basi Lime, la garanzia sullo stesso codice)
 
 - Le basi `lime-scuro` e `lime-chiaro` nel vocabolario dei temi, coi
   colori del sito: temi del catalogo e su misura su Lime. La scheda del
