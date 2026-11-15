@@ -10,6 +10,14 @@ data.
   colori del sito: temi del catalogo e su misura su Lime. La scheda del
   locale avvisa se un tema su misura su base Lime non si vede, perché il
   locale ha l'app più vecchia della 1.10.52 (REQ-FLOTTA-117, #292).
+- L'istanza di prova (REQ-FLOTTA-114, #286). La regia non segna più le
+  presentazioni dalle anteprime degli e2e: mostra sempre la versione
+  installata davvero. L'admin segna come istanza di prova un'istanza senza
+  cliente (prova-e2e). Le prove e2e di tana-drink la accendono e la spengono
+  con `istanzaDiProva`, presentandosi col gettone di Google dell'account di
+  deploy del progetto di prova (nessun utente del progetto: le regole di
+  REQ-FLOTTA-115), e il backoffice la dice «In prova» o «Disattivata».
+  La sentinella non guarda un'istanza di prova spenta.
 - La mappa delle dipendenze della regia da Firebase e Google Cloud
   (`docs/dipendenze-firebase.md`): per ogni porta dove è usata, quanto è
   intrecciata, cosa vorrebbe dire reimplementarla altrove e dove manca il

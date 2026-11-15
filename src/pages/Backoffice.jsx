@@ -44,6 +44,7 @@ import {
   elencoTemiSuMisura,
   gestisciTemiSuMisura,
   elencoAllarmi,
+  segnaIstanzaDiProva,
 } from '../lib/db.js'
 import { venditaPulita } from '../lib/vendita.js'
 import { stampantiDette } from '../lib/stampanti.js'
@@ -566,6 +567,7 @@ function SezioneLocali({ righe, senzaCliente = [], az, lanciati, inAvvio = {} })
               {r.istanza?.interna && ' · interna'}
               {r.istanza?.origine === 'esistente' && ' · esistente'}
               {r.senzaCliente && ' · senza cliente'}
+              {r.istanza?.prova && ' · di prova'}
             </div>
           </th>
           <td>
@@ -825,6 +827,22 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
               Nessun cliente collegato: è un’istanza di servizio (per esempio quella degli e2e di tana-drink). Titolare, piano, aspetto e credito AI
               stanno sul cliente, e qui non ci sono.
             </div>
+            {/* L'istanza di prova (REQ-FLOTTA-114): la accendono e la spengono le prove e2e. */}
+            {istanza?.prova?.attiva === false && <div className="small">Disattivata dal {giorno(istanza.prova.il)}: le prove e2e sono finite.</div>}
+            {istanza?.prova?.attiva === true && <div className="small">In prova dal {giorno(istanza.prova.il)}.</div>}
+            <div className="gruppo-azioni">
+              <button
+                type="button"
+                className="btn ghost small"
+                onClick={() =>
+                  segnaIstanzaDiProva(c.slug, !istanza?.prova)
+                    .then(az.carica)
+                    .catch((e) => az.onErrore(e.message))
+                }
+              >
+                {istanza?.prova ? 'Non è più un’istanza di prova' : 'Segna come istanza di prova'}
+              </button>
+            </div>
           </Blocco>
         )}
         {!senzaCliente && (
@@ -929,9 +947,11 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
             </p>
           )}
           {agg?.stato === 'riuscito' && <div className="muted small">{aggiornamentoDetto(agg)}</div>}
-          {istanza?.presentazione?.versione && (
+          {istanza?.presentazione?.versione && !istanza?.prova && (
             // REQ-FLOTTA-026: la versione che l'app stessa ha detto alla regia,
             // da qualunque deploy sia arrivata (anche da GitHub, come la Tana).
+            // Non per un'istanza di prova (REQ-FLOTTA-114): lì si presentano
+            // solo le anteprime, e la versione vera è quella installata.
             <div className="small">
               <span className="muted">ultimo contatto: </span>
               <span data-testid="presentazione">
@@ -943,13 +963,6 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
                   {dispositiviDetti(istanza.presentazione)}
                 </div>
               )}
-            </div>
-          )}
-          {istanza?.presentazione?.anteprima && (
-            // Le anteprime degli e2e di tana-drink: non sono la versione
-            // installata, e si dicono a parte (REQ-FLOTTA-112).
-            <div className="small muted" data-testid="anteprima">
-              anteprima: {istanza.presentazione.anteprima.versione} il {giorno(istanza.presentazione.anteprima.il)}
             </div>
           )}
           {!daFlotta && !senzaCliente && (
@@ -1806,6 +1819,9 @@ const TONO = {
 // Lo stato di un locale in due parole e col suo colore: sospeso o chiuso
 // vince sullo stato dell'istanza.
 function statoBreve({ istanza, stato }) {
+  // L'istanza di prova (REQ-FLOTTA-114): accesa durante le prove e2e,
+  // spenta alla fine.
+  if (istanza?.prova && stato === STATI.ATTIVA) return istanza.prova.attiva ? { tono: 'ok', testo: 'In prova' } : { tono: 'neutro', testo: 'Disattivata' }
   const licenza = istanza?.licenza_stato || 'attiva'
   if (licenza !== 'attiva') return { tono: 'avviso', testo: `${licenza}${istanza.licenza_motivo ? ` · ${istanza.licenza_motivo}` : ''}` }
   return { tono: TONO[stato] || 'neutro', testo: STATO_BREVE[stato] || statoDetto(stato) }

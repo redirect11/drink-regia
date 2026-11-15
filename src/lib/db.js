@@ -220,6 +220,9 @@ export const vistaCollaboratore = () => chiama('vistaCollaboratore', {})
 export const saluteDellaFlotta = () => chiama('saluteDellaFlotta', {})
 // La sentinella (REQ-FLOTTA-111): un giro a mano, solo l'admin.
 export const giroSentinella = () => chiama('giroSentinella', {})
+// L'istanza di prova (REQ-FLOTTA-114): l'admin segna, o toglie, un'istanza
+// senza cliente come istanza di prova.
+export const segnaIstanzaDiProva = (slug, prova) => chiama('segnaIstanzaDiProva', { slug, prova })
 export const chiediCambioOrari = (giorni, motivo) => chiama('chiediCambioOrari', { giorni, motivo })
 export const decidiCambioOrari = (uid, esito, nota = null) => chiama('decidiCambioOrari', { uid, esito, nota })
 // L'admin scrive o corregge gli orari di un locale (Daniele, 13/11/2026: «si»).

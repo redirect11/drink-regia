@@ -5200,6 +5200,66 @@ requirements:
       - tests/istanzeSenzaCliente.test.js
       - tests/Backoffice.test.jsx
 
+  - id: REQ-FLOTTA-114
+    title: "L'istanza di prova: la regia non segna le anteprime, e le prove e2e accendono e spengono prova-e2e, che nel backoffice si vede «Disattivata»"
+    area: "functions/lib/istanzaDiProva.js, functions/lib/presentazione.js, functions/index.js (presentazione, istanzaDiProva, segnaIstanzaDiProva), functions/lib/sentinella.js, functions/lib/salute.js, src/pages/Backoffice.jsx, src/lib/db.js, docs/contratto-regia-app.md (interfacce 4 e 15)"
+    description: >
+      Daniele, 15/11/2026, su prova-e2e (l'istanza su cui tana-drink fa
+      girare gli e2e, dalle copie usa e getta dei canali di anteprima):
+      «teniamola ma deve rispondere sempre con la versione realmente
+      installata. Regia non si caga le anteprime. Quello che possiamo fare
+      è disattivare l'istanza e2e alla fine delle prove e nel backoffice la
+      si vede come disattivata».
+      LE ANTEPRIME. Una presentazione da un canale di anteprima (Origin
+      <sito>--<canale>.web.app o .firebaseapp.com, REQ-FLOTTA-112) risponde
+      come sempre, licenza compresa, ma la regia non la segna da nessuna
+      parte: prima si segnava in presentazione.anteprima e si vedeva nella
+      scheda. La versione che la regia mostra è quella installata davvero.
+      L'ISTANZA DI PROVA. L'admin segna come istanza di prova un'istanza
+      senza cliente (REQ-FLOTTA-113), dalla sua scheda (segnaIstanzaDiProva,
+      solo admin; la Function rifiuta un'istanza che ha un cliente). Le prove
+      e2e di tana-drink la accendono all'inizio e la spengono alla fine con
+      istanzaDiProva: POST col gettone di Google dell'account di deploy del
+      progetto (deploy@<progetto>, destinatario regia-prova:<regia>), corpo
+      { attiva }; la regia la accetta solo per un'istanza segnata di prova e
+      senza cliente. Prima versione col token di un utente qualunque del
+      progetto: riscritta prima del merge con le regole di REQ-FLOTTA-115
+      (Daniele, 15/11/2026: «il gestore e nessun altro su altre istanze puo
+      cambiare qualcosa che interagisca con il backend di regia
+      direttamente»), perché in un progetto dei locali chiunque si registra. Si segna istanze/{slug}.
+      prova { attiva, il }. Spenta non cambia la licenza né le risposte
+      della presentazione: è uno stato della regia.
+      NEL BACKOFFICE la riga e la scheda dicono «Disattivata» (e da quando)
+      o «In prova», e «di prova» sotto l'identificativo; la scheda ha
+      «Segna come istanza di prova» e «Non è più un’istanza di prova».
+      LA SENTINELLA non guarda il sito di un'istanza di prova spenta, e non
+      controlla le presentazioni di un'istanza di prova: si presenta solo
+      dalle anteprime, che non si segnano.
+      CRITERI. (1) Nessuna anteprima nel registro. (2) istanzaDiProva
+      accetta solo { attiva } booleano, col gettone di Google di
+      deploy@<progetto> destinato a regia-prova:<regia> (401 per un utente
+      del progetto, per l'account dell'AI o per un altro destinatario), per
+      un'istanza di prova senza cliente non eliminata (403 / 404 altrimenti).
+      (3) Solo l'admin segna un'istanza di prova, e mai una con cliente. (4)
+      «Disattivata» e «In prova» nel backoffice. (5) La sentinella non apre
+      allarmi su un'istanza di prova spenta o sulle sue presentazioni.
+      INTERFACCE CON L'APP: l'interfaccia 4 non segna più le anteprime
+      (le risposte non cambiano); nuova l'interfaccia 15, istanzaDiProva,
+      fra le prove e2e di tana-drink e la regia: è un'aggiunta, e finché
+      tana-drink non la chiama l'istanza resta com'è.
+    status: implemented
+    generate_issue: true
+    labels: [regia, flotta, backoffice]
+    priority: P3
+    test_cases:
+      - tests/istanzaDiProva.test.js
+      - tests/presentazione.test.js
+      - tests/salute.test.js
+      - tests/sentinella.test.js
+      - tests/Backoffice.test.jsx
+      - tests/db.test.js
+      - tests/contratto.test.js
+
   - id: REQ-FLOTTA-105
     title: "La demo si registra dal modulo «Locale esistente»: sul progetto drinkpos-demo la cartella è demo da sola"
     area: "functions/lib/esistente.js (gestioneEsistente), tests/esistente.test.js"
