@@ -522,6 +522,30 @@ describe('i documenti della regia', () => {
     }
   })
 
+  // La sentinella (REQ-FLOTTA-111): gli allarmi dal server (la memoria del
+  // browser direbbe «nessun allarme»), lo stato del giro e le soglie da
+  // due documenti, le soglie scritte in impostazioni/sentinella, il giro a
+  // mano dalla sua Function.
+  it('la sentinella: allarmi dal server, stato, soglie e il giro a mano', async () => {
+    fb.documenti.allarmi = [['sito--bar', { aperto: true }]]
+    expect(await db.elencoAllarmi()).toEqual([{ id: 'sito--bar', aperto: true }])
+    expect(fb.dalServer).toEqual(['allarmi'])
+    expect(await db.statoSentinella()).toBe(null)
+    expect(await db.leggiSoglieSentinella()).toEqual({})
+    fb.documenti['sentinella/stato'] = { ultimo_giro_il: 'x' }
+    fb.documenti['impostazioni/sentinella'] = { errori: 5 }
+    expect(await db.statoSentinella()).toEqual({ ultimo_giro_il: 'x' })
+    expect(await db.leggiSoglieSentinella()).toEqual({ errori: 5 })
+    await db.salvaSoglieSentinella({ errori: 4 })
+    expect(fb.scritti.at(-1)).toMatchObject({ come: 'set', percorso: 'impostazioni/sentinella', dati: { errori: 4 }, opz: { merge: true } })
+    await db.giroSentinella()
+    expect(fb.chiamate.at(-1)).toEqual({ nome: 'giroSentinella', dati: {} })
+    fb.configurata = false
+    for (const f of [db.elencoAllarmi, db.statoSentinella, db.leggiSoglieSentinella, () => db.salvaSoglieSentinella({})]) {
+      await expect(f()).rejects.toThrow('VITE_FIREBASE')
+    }
+  })
+
   it('se il server non risponde la lettura fallisce, e lo dice in italiano', async () => {
     fb.serverGiu = true
     for (const elenco of [db.elencoClienti, db.elencoIstanze, db.elencoRichieste]) {

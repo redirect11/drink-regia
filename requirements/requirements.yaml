@@ -4938,6 +4938,7 @@ requirements:
       - tests/Sentinella.test.jsx
       - tests/regole/registri.test.js
       - tests/ci.test.js
+      - tests/db.test.js
 
   - id: REQ-FLOTTA-105
     title: "La demo si registra dal modulo «Locale esistente»: sul progetto drinkpos-demo la cartella è demo da sola"
