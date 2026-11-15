@@ -185,6 +185,7 @@ describe('deploy.yml: l’environment scritto a chiare lettere e la guardia sul 
 describe('ogni action è ferma a un commit, non a un tag', () => {
   const cartella = join(process.cwd(), '.github/workflows')
   const workflow = readdirSync(cartella).filter((f) => f.endsWith('.yml'))
+  const SENZA_ACTION = ['guardiano.yml']
 
   it.each(workflow)('%s: ogni `uses:` ha uno SHA di 40 caratteri e la versione nel commento', (nome) => {
     const righe = leggi(nome)
@@ -192,7 +193,11 @@ describe('ogni action è ferma a un commit, non a un tag', () => {
       .filter((r) => /^\s*(- )?uses:/.test(r))
       // I workflow riusabili del repository stesso si chiamano per percorso.
       .filter((r) => !/uses:\s*\.\//.test(r))
-    expect(righe.length).toBeGreaterThan(0)
+    // Il guardiano della regia (REQ-FLOTTA-111) non usa nessuna action:
+    // solo curl, niente da fermare. Gli altri ne hanno almeno una, e il
+    // conto a zero vorrebbe dire che il filtro qui sopra non le vede più.
+    if (SENZA_ACTION.includes(nome)) expect(righe).toEqual([])
+    else expect(righe.length).toBeGreaterThan(0)
     for (const r of righe) {
       expect(r.trim()).toMatch(/^(- )?uses: [\w.-]+\/[\w.-]+@[0-9a-f]{40} # v\d+(\.\d+)*$/)
     }

@@ -43,6 +43,7 @@ import {
   temiDelLocale,
   elencoTemiSuMisura,
   gestisciTemiSuMisura,
+  elencoAllarmi,
 } from '../lib/db.js'
 import { venditaPulita } from '../lib/vendita.js'
 import { stampantiDette } from '../lib/stampanti.js'
@@ -60,6 +61,7 @@ import Rilasci from './Rilasci.jsx'
 import Collaboratori from './Collaboratori.jsx'
 import Commerciale from './Commerciale.jsx'
 import Salute from './Salute.jsx'
+import Sentinella from './Sentinella.jsx'
 import CollegaIstanza from './CollegaIstanza.jsx'
 import { OrariNelBackoffice } from './OrariServizio.jsx'
 import { MODALITA, regolaDetta, propostaDetta } from '../lib/aggiornamenti.js'
@@ -90,6 +92,10 @@ export default function Backoffice() {
   // Le richieste di contatto (REQ-FLOTTA-017): lette qui e non nella loro
   // sezione, perché il contatore di «Richieste» le conta da ogni sezione.
   const [contatti, setContatti] = useState([])
+  // Gli allarmi della sentinella (REQ-FLOTTA-111), per il contatore di
+  // «Salute»: letti qui come i contatti, e riletti dalla sezione dopo un
+  // giro a mano (Sentinella riceve setAllarmi, che non cambia mai).
+  const [allarmi, setAllarmi] = useState([])
   // Lo slug -> il ref che «Aggiorna subito» ha lanciato, per dirlo sulla scheda.
   const [lanciati, setLanciati] = useState({})
   // Gli slug per cui la Function sta ancora lanciando il workflow.
@@ -109,6 +115,10 @@ export default function Backoffice() {
         elencoRilasci().catch(() => []),
       ])
       setRilasci(elencoR)
+      // Come i cassetti: un allarme che non si legge non ferma il backoffice.
+      elencoAllarmi()
+        .then(setAllarmi)
+        .catch(() => {})
       setRighe(
         clienti
           .map((c) => ({ cliente: c, istanza: istanze[c.slug] || null, richiesta: richieste[c.slug] || null, cassetto: cassetti[c.slug] || null }))
@@ -367,7 +377,7 @@ export default function Backoffice() {
   return (
     <main className="pagina larga">
       <h2>Backoffice</h2>
-      <SottoMenu conti={contiDelBackoffice(righe, contatti)} />
+      <SottoMenu conti={contiDelBackoffice(righe, contatti, allarmi)} />
       {errore && <p className="errore">{errore}</p>}
 
       <div className="bo-sezione">
@@ -419,7 +429,15 @@ export default function Backoffice() {
             }
           />
           <Route path="temi" element={<CatalogoTemi onErrore={setErrore} />} />
-          <Route path="salute" element={<Salute onErrore={setErrore} />} />
+          <Route
+            path="salute"
+            element={
+              <>
+                <Sentinella onErrore={setErrore} onAllarmi={setAllarmi} />
+                <Salute onErrore={setErrore} />
+              </>
+            }
+          />
           {/* «Aggiungi locale» (REQ-FLOTTA-097): la scelta, poi un modulo
               solo. La scelta sta nell'indirizzo, così il tasto indietro del
               browser torna alla scelta; una scelta che non c'è, o il vecchio

@@ -4929,7 +4929,7 @@ requirements:
       dato personale negli allarmi. (6) Il guardiano non ha segreti.
       INTERFACCE CON L'APP: nessuna; la sentinella apre i siti dei locali
       come un visitatore e legge i dati della regia.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [regia, backoffice, flotta]
     priority: P2
@@ -4937,6 +4937,7 @@ requirements:
       - tests/sentinella.test.js
       - tests/Sentinella.test.jsx
       - tests/regole/registri.test.js
+      - tests/ci.test.js
 
   - id: REQ-FLOTTA-105
     title: "La demo si registra dal modulo «Locale esistente»: sul progetto drinkpos-demo la cartella è demo da sola"

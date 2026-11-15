@@ -342,6 +342,10 @@ e 9.
 
 - `stripeWebhook`: gli eventi di Stripe (abbonamenti, pagamenti).
 - `traccia`: il conteggio delle visite del sito della regia (REQ-FLOTTA-042).
+- `sentinellaViva`: la prova di vita della sentinella per il guardiano esterno
+  (`.github/workflows/guardiano.yml`, REQ-FLOTTA-111): `GET`, risponde solo
+  `{ viva, minuti }`. La sentinella apre i siti dei locali come un visitatore
+  qualunque: per l'app non è un'interfaccia.
 
 Tutte le altre Function HTTP della regia sono interfacce con l'app o con i
 workflow, e sono descritte sopra: `presentazione`, `sceltaDallApp`,
