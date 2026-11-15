@@ -4912,6 +4912,73 @@ requirements:
     test_cases:
       - tests/presentazione.test.js
 
+  - id: REQ-FLOTTA-111
+    title: "La sentinella: ogni 15 minuti la regia guarda siti, errori, presentazioni e permessi, e quello che non va diventa un allarme nel backoffice"
+    area: "functions/lib/sentinella.js, functions/index.js (sentinella, giroSentinella, sentinellaViva), firestore.rules (allarmi, sentinella), src/pages/Sentinella.jsx, src/lib/backoffice.js (contiDelBackoffice), src/lib/db.js, .github/workflows/guardiano.yml"
+    description: >
+      Daniele, 14/11/2026: «la dashboard la vorrei piu sofisticata per il
+      logging e il monitoring. Roba piu seria»; saputo che gli allarmi di
+      Google costano 0,10 $ per condizione al mese: «no allora niente
+      allarmi google. Noi che possiamo fare internamente?». Sul canale degli
+      avvisi: «Solo nel backoffice». È la fase 2 del piano; la fase 1 sono i
+      registri strutturati (REQ-FLOTTA-110), la 3 la Salute completa.
+      PERCHÉ A TEMPO. Il 31/10/2026 le scadenze sono passate dai giri
+      quotidiani agli eventi («Non mi piace la temporizzazione di questi
+      check», REQ-FLOTTA-023). Qui un evento non c'è: un sito che cade non
+      avvisa nessuno. È l'unica Function a tempo della regia, un lavoro di
+      Cloud Scheduler (i primi tre per conto di fatturazione sono gratuiti;
+      il 15/11/2026 nessuna regia ne aveva).
+      COME. Una Function programmata (sentinella), ogni 15 minuti, ora di
+      Roma; un giro fallito non si ripete. Controlla: (a) i siti: la regia e
+      i locali attivi con un indirizzo (non la demo, i simulati, la semina,
+      i sospesi, gli eliminati); 4xx, 5xx o nessuna risposta entro la soglia
+      è un problema, e si conferma al giro dopo, perché un intoppo di un
+      momento non apra un allarme; (b) gli errori: le righe dei registri
+      strutturati dal giro prima (mai più indietro di un'ora), contate per
+      Function una per chiamata (la riga dello stack non conta due volte);
+      le Function senza registro contano le loro righe d'errore; dalla
+      soglia in su è un allarme, col dettaglio dell'ultimo errore senza
+      email; (c) le presentazioni: un locale attivo che non si è mai
+      presentato, o (se la regia lo aggiorna) presenta una versione diversa
+      da quella pubblicata, da più ore della soglia dopo l'ultimo
+      aggiornamento; (d) i permessi, una volta l'ora, come la Salute
+      (REQ-FLOTTA-109); una domanda senza risposta non è un permesso che
+      manca. GLI ALLARMI stanno in allarmi/{chiave}: la chiave dice il
+      controllo e il soggetto, quindi un problema ha sempre lo stesso
+      documento; si apre una volta, si aggiorna quando si rivede, si chiude
+      quando quel controllo, fatto, non lo trova più; un controllo che non
+      si è potuto fare non chiude niente; un problema che torna riapre lo
+      stesso documento e conta le volte. Lo stato del giro sta in
+      sentinella/stato. Li scrivono solo le Functions, li legge l'admin.
+      LE SOGLIE (errori per giro, ore di una presentazione ferma, secondi di
+      attesa di un sito) in impostazioni/sentinella, dal backoffice; la
+      Function le riporta dentro i loro intervalli. IL GUARDIANO: se cade
+      la regia, il backoffice non mostra niente. Un workflow GitHub, ogni
+      mezz'ora, senza segreti e senza permessi, controlla che il sito di
+      ogni regia risponda e che la sentinella abbia fatto un giro negli
+      ultimi 45 minuti (sentinellaViva, pubblica, risponde solo coi
+      minuti); se no il workflow è rosso.
+      CRITERI. (1) Una sola Function a tempo, ogni 15 minuti. (2) Gli
+      allarmi non si ripetono e si chiudono da soli. (3) Nella sezione
+      «Salute», in cima: gli allarmi aperti (il più grave prima, da quando,
+      quante volte), l'ultimo giro e i controlli non riusciti col perché,
+      la sentinella ferma da più di 45 minuti, i chiusi degli ultimi 7
+      giorni, le soglie, «Fai un giro adesso» (solo l'admin). (4) Il
+      sotto-menù conta gli allarmi aperti accanto a «Salute». (5) Nessun
+      dato personale negli allarmi. (6) Il guardiano non ha segreti.
+      INTERFACCE CON L'APP: nessuna; la sentinella apre i siti dei locali
+      come un visitatore e legge i dati della regia.
+    status: implemented
+    generate_issue: true
+    labels: [regia, backoffice, flotta]
+    priority: P2
+    test_cases:
+      - tests/sentinella.test.js
+      - tests/Sentinella.test.jsx
+      - tests/regole/registri.test.js
+      - tests/ci.test.js
+      - tests/db.test.js
+
   - id: REQ-FLOTTA-105
     title: "La demo si registra dal modulo «Locale esistente»: sul progetto drinkpos-demo la cartella è demo da sola"
     area: "functions/lib/esistente.js (gestioneEsistente), tests/esistente.test.js"

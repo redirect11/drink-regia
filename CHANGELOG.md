@@ -25,6 +25,15 @@ data.
   503 e scrive il motivo nel registro, e ogni altro errore inatteso finisce
   nel registro col suo dettaglio (REQ-FLOTTA-108).
 
+- La sentinella: ogni 15 minuti la regia controlla il suo sito e quelli dei
+  locali attivi, gli errori dei suoi registri, le presentazioni ferme dopo
+  un aggiornamento e, una volta l'ora, i suoi permessi sui locali. Quello
+  che non va diventa un allarme in cima alla sezione «Salute», con il
+  contatore nel sotto-menù; l'allarme si chiude da solo quando il
+  controllo torna in ordine. Le soglie si cambiano da lì. Un workflow
+  GitHub ogni mezz'ora controlla da fuori che la regia e la sentinella
+  rispondano (REQ-FLOTTA-111).
+
 ## 0.4.2 (14/11/2026, correzione)
 
 - L'anteprima del sito chiuso è più corta («Stiamo preparando il sito.»,

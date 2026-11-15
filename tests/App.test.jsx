@@ -37,6 +37,11 @@ vi.mock('../src/lib/db.js', () => ({
   elencoTemi: vi.fn(async () => []),
   gestisciTemi: vi.fn(async () => ({ ok: true })),
   elencoSconti: vi.fn(async () => []),
+  elencoAllarmi: vi.fn(async () => []),
+  statoSentinella: vi.fn(async () => null),
+  leggiSoglieSentinella: vi.fn(async () => ({})),
+  salvaSoglieSentinella: vi.fn(async () => {}),
+  giroSentinella: vi.fn(async () => ({ ultimo_giro_il: null, aperti: 0 })),
   gestisciSconti: vi.fn(async () => ({ ok: true })),
   applicaSconto: vi.fn(async () => ({ ok: true })),
   // La prima pagina legge la vendita (REQ-FLOTTA-015): qui quella di partenza.

@@ -64,8 +64,12 @@ export const profiloDaAutorizzare = (r) => Boolean(r.istanza?.profilo_completo_d
 // un'eliminazione non riuscita in «Locali», le attivazioni da autorizzare
 // e i contatti aperti in «Richieste», gli aggiornamenti falliti in
 // «Rilasci».
-export function contiDelBackoffice(righe, contatti) {
+// Gli allarmi aperti della sentinella (REQ-FLOTTA-111) in «Salute»: è il
+// solo posto dove arrivano gli avvisi (Daniele, 14/11/2026: «Solo nel
+// backoffice»).
+export function contiDelBackoffice(righe, contatti, allarmi = []) {
   return {
+    salute: (allarmi || []).filter((a) => a.aperto === true).length,
     locali: righe.filter((r) => r.stato === STATI.ERRORE || eliminazioneFallita(r)).length,
     richieste:
       righe.filter((r) => r.stato === STATI.DA_APPROVARE || profiloDaAutorizzare(r)).length + (contatti || []).filter((c) => c.stato === 'aperta').length,

@@ -43,6 +43,8 @@ const { chiaveStripeVera, ritornoAmmesso, righeSubscription, prodottiDi, paramet
 const fondatori = require('./lib/fondatori.js')
 const acquisto = require('./lib/acquisto.js')
 const { onTaskDispatched } = require('firebase-functions/v2/tasks')
+// L'unica Function a tempo della regia: la sentinella (REQ-FLOTTA-111).
+const { onSchedule } = require('firebase-functions/v2/scheduler')
 const { getFunctions: funzioniAdmin } = require('firebase-admin/functions')
 const { STATI: STATI_LICENZA } = require('./lib/sospensione.js')
 const scadenze = require('./lib/scadenze.js')
@@ -59,6 +61,7 @@ const elim = require('./lib/eliminazione.js')
 const conserva = require('./lib/conservazione.js')
 const presenta = require('./lib/presentazione.js')
 const salute = require('./lib/salute.js')
+const sentinella = require('./lib/sentinella.js')
 const passa = require('./lib/passaggio.js')
 const collab = require('./lib/collaboratori.js')
 const temi = require('./lib/temi.js')
@@ -3491,4 +3494,128 @@ exports.saluteDellaFlotta = onCall({ ...OPTS, timeoutSeconds: 120 }, async (req)
     registriDelleUltime24Ore(),
   ])
   return salute.rapporto({ istanze, permessi, registri })
+})
+
+// ── LA SENTINELLA (REQ-FLOTTA-111) ─────────────────────────────────────
+// Daniele, 14/11/2026: «niente allarmi google. Noi che possiamo fare
+// internamente?», e sul canale degli avvisi: «Solo nel backoffice». Ogni
+// 15 minuti: i siti (la regia e i locali attivi), gli errori dei registri
+// della regia dal giro prima, le presentazioni ferme, e una volta l'ora i
+// permessi. Quello che non va diventa un allarme in allarmi/{chiave}, che
+// si chiude da sé quando il controllo torna in ordine; lo stato del giro
+// sta in sentinella/stato. I conti sono in lib/sentinella.js.
+// È a tempo perché un sito che cade non manda eventi (REQ-FLOTTA-023 aveva
+// tolto i giri delle scadenze, che un evento lo hanno).
+
+// Un sito, come lo apre un visitatore: un rimando va bene (il sito c'è),
+// e non si segue, così non si finisce su un dominio di altri.
+async function apriSito(url, secondi) {
+  try {
+    const r = await fetch(url, { method: 'GET', redirect: 'manual', signal: AbortSignal.timeout(secondi * 1000), headers: { 'User-Agent': 'sentinella-regia' } })
+    return { status: r.status, errore: null }
+  } catch (e) {
+    return { status: null, errore: e?.name === 'TimeoutError' ? 'timeout' : String(e?.message || e) }
+  }
+}
+
+// Le righe d'errore dei registri della regia da `da` a ora: quelle dei
+// registri strutturati (esito «errore») e quelle d'errore delle Function
+// senza registro. Come la Salute: senza roles/logging.viewer si dice.
+async function registriDellaSentinella(da) {
+  try {
+    const d = await chiediAGoogle('https://logging.googleapis.com/v2/entries:list', {
+      resourceNames: [`projects/${PROGETTO_REGIA}`],
+      filter: `timestamp>="${da}" AND resource.type="cloud_run_revision" AND (jsonPayload.esito="errore" OR severity>=ERROR)`,
+      orderBy: 'timestamp desc',
+      pageSize: 1000,
+    })
+    return { ok: true, voci: d?.entries || [] }
+  } catch (e) {
+    const status = e?.response?.status || e?.status
+    return { ok: false, perche: status === 403 ? 'manca roles/logging.viewer all’account della regia' : `Google ha risposto: ${e?.message || e}` }
+  }
+}
+
+async function giroDellaSentinella() {
+  const inizio = Date.now()
+  const adesso = new Date()
+  const ora = adesso.toISOString()
+  const statoRef = db.doc('sentinella/stato')
+  const [statoSnap, soglieSnap, istanzeSnap, allarmiSnap] = await Promise.all([
+    statoRef.get(),
+    db.doc('impostazioni/sentinella').get(),
+    db.collection('istanze').get(),
+    db.collection('allarmi').get(),
+  ])
+  const stato = statoSnap.data() || null
+  const soglie = sentinella.soglie(soglieSnap.data())
+  const istanze = istanzeSnap.docs.map((d) => ({ slug: d.id, ...d.data() }))
+  const allarmi = allarmiSnap.docs.map((d) => ({ id: d.id, ...d.data() }))
+  const daFare = sentinella.controlliDelGiro(stato, adesso)
+  const controlli = { ...(stato?.controlli || {}) }
+  const segnali = []
+  const fatto = (nome, esito) => {
+    controlli[nome] = { ok: esito.ok, il: ora, perche: esito.ok ? null : esito.perche }
+  }
+
+  const regia = REGIA_URL || (PROGETTO_REGIA ? `https://${PROGETTO_REGIA}.web.app` : null)
+  const siti = sentinella.sitiDaGuardare({ regia, istanze })
+  const esitiSiti = await Promise.all(siti.map(async (s) => ({ ...s, ...(await apriSito(s.url, soglie.sito_secondi)) })))
+  segnali.push(...sentinella.segnaliSiti(esitiSiti, soglie))
+  fatto('siti', { ok: true })
+
+  const registri = await registriDellaSentinella(sentinella.finestraErrori(stato?.ultimo_giro_il, adesso))
+  if (registri.ok) segnali.push(...sentinella.segnaliErrori(registri.voci, soglie))
+  fatto('errori', registri)
+
+  segnali.push(...sentinella.segnaliPresentazioni(istanze, soglie, adesso))
+  fatto('presentazioni', { ok: true })
+
+  if (daFare.includes('permessi')) {
+    const daChiedere = istanze.filter(salute.daControllare)
+    const permessi = Object.fromEntries(await Promise.all(daChiedere.map(async (ist) => [ist.slug, await permessiDelLocale(ist.progetto)])))
+    // Se Google non ha risposto per nessuno, il controllo non è riuscito:
+    // non deve chiudere gli allarmi dei permessi.
+    const risposte = Object.values(permessi).filter((p) => Array.isArray(p.progetto) || Array.isArray(p.firma)).length
+    const ok = daChiedere.length === 0 || risposte > 0
+    if (ok) segnali.push(...sentinella.segnaliPermessi(istanze, permessi))
+    fatto('permessi', { ok, perche: 'Google non ha risposto sui permessi' })
+  }
+
+  // Solo i controlli fatti in questo giro, e riusciti, chiudono allarmi.
+  const eseguiti = Object.entries(controlli)
+    .filter(([, c]) => c.il === ora && c.ok)
+    .map(([nome]) => nome)
+  const confermati = sentinella.conferma(segnali, { inOsservazione: stato?.in_osservazione || {}, aperti: allarmi.filter((a) => a.aperto).map((a) => a.id), adesso })
+  const scritture = sentinella.aggiornaAllarmi({ allarmi, segnali: confermati.segnali, eseguiti, adesso })
+
+  const batch = db.batch()
+  for (const w of scritture) batch.set(db.doc(`allarmi/${w.id}`), w.dati, { merge: true })
+  const aperti = allarmi.filter((a) => a.aperto).length + scritture.filter((w) => w.dati.aperto === true).length - scritture.filter((w) => w.dati.aperto === false).length
+  const nuovoStato = { ultimo_giro_il: ora, durata_ms: Date.now() - inizio, controlli, in_osservazione: confermati.in_osservazione, soglie, aperti }
+  batch.set(statoRef, nuovoStato)
+  await batch.commit()
+  console.log(JSON.stringify({ severity: 'INFO', message: `sentinella: ${aperti} allarmi aperti`, funzione: 'sentinella', tipo: 'giro', esito: 'ok', durata_ms: nuovoStato.durata_ms, aperti, scritture: scritture.length }))
+  return nuovoStato
+}
+
+exports.sentinella = onSchedule({ ...OPTS, schedule: 'every 15 minutes', timeZone: 'Europe/Rome', retryCount: 0, timeoutSeconds: 300 }, async () => {
+  await giroDellaSentinella()
+})
+
+// «Fai un giro adesso» dal backoffice: lo stesso giro, solo per l'admin.
+exports.giroSentinella = onCall({ ...OPTS, timeoutSeconds: 300 }, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const stato = await giroDellaSentinella()
+  return { ultimo_giro_il: stato.ultimo_giro_il, aperti: stato.aperti }
+})
+
+// LA PROVA DI VITA per il guardiano esterno (.github/workflows/guardiano.yml):
+// se a cadere è la regia, il backoffice non può dirlo. Risponde a tutti,
+// e solo coi minuti dall'ultimo giro: niente allarmi, niente locali.
+exports.sentinellaViva = onRequest({ ...OPTS, cors: false, maxInstances: 2 }, async (req, res) => {
+  if (req.method !== 'GET') return res.status(405).json({ errore: 'Solo GET.' })
+  const v = sentinella.viva((await db.doc('sentinella/stato').get()).data(), new Date())
+  res.set('Cache-Control', 'no-store')
+  return res.status(v.viva ? 200 : 503).json(v)
 })
