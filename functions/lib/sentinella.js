@@ -21,11 +21,8 @@
 // quello di prima contando le volte.
 
 const { daControllare, ruoliMancanti } = require('./salute.js')
-// Le email che finiscono in un messaggio d'errore si mascherano, come nei
-// registri (functions/lib/registro.js, REQ-FLOTTA-110, che arriva in
-// develop con la sua PR: quando ci sono tutte e due, una sola copia).
-const EMAIL = /[^\s@"'<>«»()]+@[^\s@"'<>«»()]+\.[A-Za-z]{2,}/g
-const senzaEmail = (testo) => String(testo ?? '').replace(EMAIL, '«email»')
+// Le email in un messaggio d'errore si mascherano come nei registri.
+const { senzaEmail } = require('./registro.js')
 
 const MINUTO = 60 * 1000
 const ORA = 60 * MINUTO
