@@ -5049,6 +5049,40 @@ requirements:
       - tests/Backoffice.test.jsx
       - tests/contratto.test.js
 
+  - id: REQ-FLOTTA-116
+    title: "La mappa delle dipendenze della regia da Firebase e Google Cloud: le porte da reimplementare per cambiare backend"
+    area: "docs/dipendenze-firebase.md, tests/dipendenzeFirebase.test.js"
+    description: >
+      Daniele, 15/11/2026, dopo aver scelto un contratto con l'app scritto
+      sullo standard e non su Google (REQ-FLOTTA-115): «Un agente dovrebbe
+      segnarsi da qualche parte tutte le integrazioni forti che abbiamo con
+      firebase così che un giorno se cambiamo (ad esempio andiamo diretti
+      su aws, o google cloude docker o simili) dobbiamo solo reimplementare
+      delle interfacce». È la metà della regia di quello che tana-drink fa
+      con le porte e gli adattatori (docs/on-premise.md).
+      COSA. Un documento che, per ogni porta (identità delle persone,
+      database, Function, lavori pianificati, segreti, identità dei server
+      dei locali, log, hosting, creazione dei progetti dei locali, accesso
+      ai progetti dei locali), dice cosa fa per la regia, dove è usata,
+      quanto è intrecciata, cosa vorrebbe dire reimplementarla altrove e
+      se oggi c'è un punto unico o se «manca la porta». Questa voce non
+      cambia il codice: le porte che mancano si fanno ognuna con la sua
+      voce, quando servono.
+      CRITERI. (1) docs/dipendenze-firebase.md esiste e dice la regola: chi
+      aggiunge una dipendenza da Firebase o Google Cloud aggiorna la mappa
+      nella stessa PR. (2) Cita ogni file del codice (src, functions,
+      scripts) che usa un SDK di Firebase o di Google Cloud, ogni workflow
+      che parla con Google, e il Terraform in infra/. (3) Separa le
+      dipendenze che legano anche il contratto con l'app. (4) Un test fa
+      rosso se un file o un workflow nuovo che usa Firebase non è citato.
+      INTERFACCE CON L'APP: nessuna.
+    status: todo
+    generate_issue: true
+    labels: [regia, metodo]
+    priority: P3
+    test_cases:
+      - tests/dipendenzeFirebase.test.js
+
   - id: REQ-FLOTTA-113
     title: "Le istanze senza cliente nei «Locali»: in fondo all'elenco, nel loro gruppo, con la scheda dell'istanza"
     area: "src/lib/backoffice.js (istanzeSenzaCliente, filtraLocali), src/pages/Backoffice.jsx (SezioneLocali, SchedaLocale)"
