@@ -5049,6 +5049,41 @@ requirements:
       - tests/Backoffice.test.jsx
       - tests/contratto.test.js
 
+  - id: REQ-FLOTTA-113
+    title: "Le istanze senza cliente nei «Locali»: in fondo all'elenco, nel loro gruppo, con la scheda dell'istanza"
+    area: "src/lib/backoffice.js (istanzeSenzaCliente, filtraLocali), src/pages/Backoffice.jsx (SezioneLocali, SchedaLocale)"
+    description: >
+      Daniele, 15/11/2026, cercando prova-e2e nel backoffice del test: «nei
+      locali prova-e2e non esiste». L'elenco dei «Locali» parte dai
+      clienti, una riga per account; un'istanza senza cliente (prova-e2e,
+      quella degli e2e di tana-drink) si vedeva solo nella «Salute». Sulla
+      proposta di mostrarle «in fondo all'elenco, in un gruppo «Istanze
+      senza cliente», con la stessa scheda degli altri»: «si».
+      COME. Sotto la tabella dei locali, un gruppo «Istanze senza cliente
+      (N)» con le stesse colonne (piano e titolare vuoti, «senza cliente»
+      sotto l'identificativo) e la stessa scheda, aperta dal nome. Nella
+      scheda restano la testa, gli avvisi dell'istanza, i blocchi App e
+      Aggiornamenti (tutte azioni che chiedono solo l'identificativo); i
+      blocchi del cliente (Titolare, Piano, Aspetto, Credito AI) e i gesti
+      in fondo (Sospendi, Chiudi, Elimina) lasciano il posto a una riga,
+      perché scrivono sul cliente o parlano al titolare, che qui non c'è.
+      Ricerca e vista valgono anche per loro; la ricerca trova anche il
+      progetto, per tutti i locali. Non entrano nei conti dei locali, nella
+      vista «Commerciale» né nei numeri del sotto-menù: non sono clienti.
+      CRITERI. (1) Ogni istanza senza cliente compare una volta, nel
+      gruppo, in ordine di identificativo. (2) La tabella e il conto dei
+      locali restano dei clienti. (3) La scheda non mostra niente che
+      scriva su un cliente. (4) «Aggiorna subito» e le altre azioni
+      dell'istanza funzionano. (5) Senza istanze orfane il gruppo non c'è.
+      INTERFACCE CON L'APP: nessuna.
+    status: implemented
+    generate_issue: true
+    labels: [regia, backoffice]
+    priority: P3
+    test_cases:
+      - tests/istanzeSenzaCliente.test.js
+      - tests/Backoffice.test.jsx
+
   - id: REQ-FLOTTA-105
     title: "La demo si registra dal modulo «Locale esistente»: sul progetto drinkpos-demo la cartella è demo da sola"
     area: "functions/lib/esistente.js (gestioneEsistente), tests/esistente.test.js"
