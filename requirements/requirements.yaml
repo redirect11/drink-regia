@@ -5049,6 +5049,43 @@ requirements:
       - tests/Backoffice.test.jsx
       - tests/contratto.test.js
 
+  - id: REQ-FLOTTA-117
+    title: "Le basi lime-scuro e lime-chiaro nel vocabolario dei temi, e l'avviso per i locali con l'app prima della 1.10.52"
+    area: "functions/lib/temi.js (BASI), src/lib/temi.js (BASI, baseNonVista), src/pages/Backoffice.jsx (TemiSuMisuraLocale), docs/contratto-regia-app.md (Le copie da tenere allineate)"
+    description: >
+      tana-drink, 15/11/2026 (REQ-UI-033 e REQ-DEV-025, dalla 1.10.52-beta):
+      Daniele ha deciso che Lime - SmartOrders ha un tema suo, scuro e
+      chiaro, tema di partenza della demo e dei locali nuovi. Le due
+      tavolozze (lime-scuro, lime-chiaro) entrano in THEME_PRESETS
+      dell'app, e chiedono di aggiungerle a BASI nella regia: oggi un tema
+      del catalogo o su misura su base Lime è rifiutato come base
+      sconosciuta. Un'app fino alla 1.10.51 scarta un tema con una base che
+      non ha: il tema non compare.
+      COME. Le due basi in BASI, nelle Functions e nell'anteprima del sito,
+      coi colori che tana-drink ha ripreso dal sito della regia (src/
+      index.css, «LA PALETTE LIME»; secondo messaggio del 15/11/2026, che
+      sostituisce i valori del primo). Il catalogo pubblico non si filtra per
+      versione: l'app vecchia scarta da sola. Per i temi su misura, che
+      sono di un locale solo, la scheda del backoffice avvisa quando il
+      locale ha una versione installata (quella pubblicata dalla regia)
+      più vecchia della 1.10.52.
+      CRITERI. (1) lime-scuro e lime-chiaro in BASI, uguali nella regia e
+      nel sito, coi colori della tabella di tana-drink. (2) Un tema su base
+      Lime passa le regole. (3) baseNonVista dice la versione che serve
+      per una base Lime e una versione più vecchia, null altrimenti (la
+      beta della 1.10.52 vede Lime). (4) La scheda avvisa per i temi su
+      misura su base Lime di un locale con l'app più vecchia.
+      INTERFACCE CON L'APP: cambio compatibile del vocabolario condiviso
+      («Le copie da tenere allineate»): due valori nuovi, che l'app dalla
+      1.10.52 conosce e quelle prima ignorano.
+    status: todo
+    generate_issue: true
+    labels: [regia, temi, contratto-tana-drink]
+    priority: P3
+    test_cases:
+      - tests/temi.test.js
+      - tests/Backoffice.test.jsx
+
   - id: REQ-FLOTTA-116
     title: "La mappa delle dipendenze della regia da Firebase e Google Cloud: le porte da reimplementare per cambiare backend"
     area: "docs/dipendenze-firebase.md, tests/dipendenzeFirebase.test.js"

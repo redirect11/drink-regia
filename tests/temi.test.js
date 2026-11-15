@@ -10,7 +10,7 @@
 import { describe, it, expect } from 'vitest'
 import { createRequire } from 'node:module'
 import { readFileSync } from 'node:fs'
-import { BASI as BASI_SITO, STILI as STILI_SITO, ESCLUSIVI as ESCLUSIVI_SITO, CHIAVI_COLORE as CHIAVI_SITO, coloriDelTema, temaVuoto, nomeStile } from '../src/lib/temi.js'
+import { BASI as BASI_SITO, STILI as STILI_SITO, ESCLUSIVI as ESCLUSIVI_SITO, CHIAVI_COLORE as CHIAVI_SITO, coloriDelTema, temaVuoto, nomeStile, baseNonVista } from '../src/lib/temi.js'
 
 const require = createRequire(import.meta.url)
 const t = require('../functions/lib/temi.js')
@@ -57,6 +57,39 @@ describe('un tema da pubblicare', () => {
     expect(nomeStile('carte')).toBe('Carte')
     expect(CHIAVI_SITO.map((c) => c.key)).toEqual(t.CHIAVI_COLORE)
     for (const b of BASI_SITO) expect(Object.keys(b.colori)).toEqual(t.CHIAVI_COLORE)
+  })
+})
+
+// IL TEMA LIME (REQ-FLOTTA-117). tana-drink, 15/11/2026 (REQ-UI-033,
+// REQ-DEV-025, dalla 1.10.52-beta): Lime - SmartOrders ha un tema suo, scuro
+// e chiaro, e le due tavolozze entrano nel vocabolario. Un'app fino alla
+// 1.10.51 scarta un tema con una base che non conosce: il tema non compare.
+describe('le basi Lime', () => {
+  it('lime-scuro e lime-chiaro, coi colori di tana-drink, nella regia e nell’anteprima del sito', () => {
+    expect(t.BASI).toContain('lime-scuro')
+    expect(t.BASI).toContain('lime-chiaro')
+    const base = (id) => BASI_SITO.find((b) => b.id === id)
+    // I colori sono quelli del sito della regia (src/index.css, «LA PALETTE
+    // LIME»), ripresi da tana-drink in src/lib/themes.js (15/11/2026).
+    expect(base('lime-scuro').colori).toEqual({ '--bg': '#0c0f0a', '--bg-2': '#141911', '--card': '#1c2318', '--accent': '#b4ec2b', '--accent-2': '#c6f25a', '--text': '#eef2e6', '--muted': '#9aa38e' })
+    expect(base('lime-chiaro').colori).toEqual({ '--bg': '#f7f9f1', '--bg-2': '#fefffa', '--card': '#fefffa', '--accent': '#2f6b0f', '--accent-2': '#2f6b0f', '--text': '#161b10', '--muted': '#525c47' })
+    expect(base('lime-scuro').nome).toBe('Lime scuro')
+    expect(base('lime-chiaro').nome).toBe('Lime chiaro')
+    // Un tema su base Lime passa le regole.
+    expect(t.temaPulito({ id: 'verde-sera', nome: 'Verde sera', descrizione: '', tavolozza: { base: 'lime-chiaro', colori: {} }, stile: 'classico' }).errore).toBeUndefined()
+  })
+
+  it('una base Lime non si vede in un’app più vecchia della 1.10.52; la beta della 1.10.52 la vede', () => {
+    expect(baseNonVista('lime-scuro', 'v1.10.51')).toBe('1.10.52')
+    expect(baseNonVista('lime-chiaro', 'v1.9.3')).toBe('1.10.52')
+    expect(baseNonVista('lime-scuro', 'v1.10.52-beta')).toBeNull()
+    expect(baseNonVista('lime-scuro', 'v1.10.52')).toBeNull()
+    expect(baseNonVista('lime-scuro', 'v1.11.0')).toBeNull()
+    expect(baseNonVista('lime-scuro', 'v2.0.0')).toBeNull()
+    // Le basi di sempre le vede ogni app; una versione che non si sa non avvisa.
+    expect(baseNonVista('tana-scuro', 'v1.5.0')).toBeNull()
+    expect(baseNonVista('lime-scuro', null)).toBeNull()
+    expect(baseNonVista('lime-scuro', 'sconosciuta')).toBeNull()
   })
 })
 
