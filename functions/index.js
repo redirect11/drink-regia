@@ -1891,6 +1891,10 @@ const catalogoTemiInMemoria = inMemoria(MEMORIA_CATALOGHI_MS, async () => {
   return { temi: temi.catalogoPubblico(docsTemi, undefined, { stiliRicetta: catalogoStili.map((s) => s.id) }), stili: catalogoStili }
 })
 const listinoInMemoria = inMemoria(MEMORIA_CATALOGHI_MS, () => vendita())
+// moduloDallApp guarda se il sito è chiuso prima di leggere il gettone:
+// lo guarda nel listino in memoria, così una chiamata senza credenziali
+// non costa una lettura. L'apertura del sito arriva entro un minuto.
+const sitoChiusoInMemoria = async () => free.sitoChiuso(await listinoInMemoria(), SITO_IN_PRODUZIONE)
 
 exports.catalogoTemi = onRequest({ ...OPTS, cors: false, maxInstances: 3 }, async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*')
@@ -3425,7 +3429,7 @@ exports.moduloDallApp = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY], cors:
   if (req.method === 'OPTIONS') return res.status(204).send('')
   const no = (stato, errore) => res.status(stato).json({ ok: false, errore })
   if (req.method !== 'POST') return no(405, 'Solo POST.')
-  if (await sitoChiusoOra()) return no(409, free.SITO_CHIUSO)
+  if (await sitoChiusoInMemoria()) return no(409, free.SITO_CHIUSO)
   const token = aggiornamenti.bearerDi(req.get('authorization'))
   const progetto = aggiornamenti.progettoDelToken(token)
   if (!progetto) return no(401, 'Serve l’accesso.')
@@ -3695,9 +3699,13 @@ exports.giroSentinella = onCall({ ...OPTS, timeoutSeconds: 300 }, async (req) =>
 // LA PROVA DI VITA per il guardiano esterno (.github/workflows/guardiano.yml):
 // se a cadere è la regia, il backoffice non può dirlo. Risponde a tutti,
 // e solo coi minuti dall'ultimo giro: niente allarmi, niente locali.
+// Risponde a chiunque, quindi lo stato lo legge dalla memoria di un minuto
+// (REQ-FLOTTA-119): il guardiano guarda se l'ultimo giro ha meno di 45
+// minuti, e un minuto in più non cambia la risposta.
+const statoSentinellaInMemoria = inMemoria(MEMORIA_CATALOGHI_MS, () => db.doc('sentinella/stato').get().then((d) => d.data()))
 exports.sentinellaViva = onRequest({ ...OPTS, cors: false, maxInstances: 2 }, async (req, res) => {
   if (req.method !== 'GET') return res.status(405).json({ errore: 'Solo GET.' })
-  const v = sentinella.viva((await db.doc('sentinella/stato').get()).data(), new Date())
+  const v = sentinella.viva(await statoSentinellaInMemoria(), new Date())
   res.set('Cache-Control', 'no-store')
   return res.status(v.viva ? 200 : 503).json(v)
 })

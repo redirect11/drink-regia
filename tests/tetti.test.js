@@ -50,6 +50,25 @@ describe('la memoria di un minuto (functions/lib/memoria.js)', () => {
     expect(caricate).toBe(1)
   })
 
+  it('un errore arriva a tutte le chiamate insieme, con una lettura sola', async () => {
+    let volte = 0
+    const leggi = inMemoria(60000, async () => {
+      volte++
+      throw new Error('Firestore non risponde')
+    }, { adesso: () => 0 })
+    const esiti = await Promise.allSettled([leggi(), leggi()])
+    expect(esiti.map((e) => e.status)).toEqual(['rejected', 'rejected'])
+    expect(volte).toBe(1)
+  })
+
+  it('una lettura che non risponde si abbandona, e la chiamata dopo riprova', async () => {
+    let volte = 0
+    const leggi = inMemoria(60000, () => (++volte === 1 ? new Promise(() => {}) : Promise.resolve('ok')), { adesso: () => 0, scadenzaMs: 20 })
+    await expect(leggi()).rejects.toThrow('lettura senza risposta dopo 20 ms')
+    expect(await leggi()).toBe('ok')
+    expect(volte).toBe(2)
+  })
+
   it('un errore non resta in memoria: la richiesta dopo riprova', async () => {
     let volte = 0
     const leggi = inMemoria(60000, async () => {
@@ -80,14 +99,36 @@ describe('i tetti delle Functions', () => {
       expect(f, nome).toMatch(/maxInstances: 3\b/)
       expect(f, `${nome} non legge Firestore a ogni chiamata`).not.toMatch(/db\.(collection|doc)\(|await vendita\(\)/)
     }
-    expect(codice).toMatch(/inMemoria\(MEMORIA_CATALOGHI_MS, /)
+    expect(tratto('exports.catalogoTemi = ', '\n})')).toContain('await catalogoTemiInMemoria()')
+    expect(codice).toContain('const catalogoTemiInMemoria = inMemoria(MEMORIA_CATALOGHI_MS, ')
     expect(codice).toMatch(/const MEMORIA_CATALOGHI_MS = 60 \* 1000/)
+  })
+
+  it('la prova di vita della sentinella e il sito chiuso di moduloDallApp leggono dalla memoria', () => {
+    const viva = tratto('exports.sentinellaViva = ', '\n})')
+    expect(viva).toContain('await statoSentinellaInMemoria()')
+    expect(viva).not.toMatch(/db\.(collection|doc)\(/)
+    const modulo = tratto('exports.moduloDallApp = ', '\n})')
+    expect(modulo).toContain('if (await sitoChiusoInMemoria()) return no(409, free.SITO_CHIUSO)')
+    expect(modulo).not.toContain('sitoChiusoOra()')
+    expect(codice).toContain('const sitoChiusoInMemoria = async () => free.sitoChiuso(await listinoInMemoria(), SITO_IN_PRODUZIONE)')
+  })
+
+  it('le callback dei workflow ritentano se la regia è piena', () => {
+    for (const wf of ['provisiona-istanza', 'aggiorna-istanza', 'elimina-istanza']) {
+      const y = readFileSync(`.github/workflows/${wf}.yml`, 'utf8')
+      expect(y, wf).toContain('const manda = (n) => fetch(url, {')
+      expect(y, wf).toContain('r.status === 429 && n < 5 ? attendi(n) : r')
+      expect(y, wf).toContain('manda(1).then(')
+      expect(y, wf).not.toMatch(/^\s+fetch\(url, /m)
+    }
   })
 
   it('il contratto lo dice per i due cataloghi', () => {
     for (const titolo of ['### 8. Il catalogo dei temi', '### 9. I moduli']) {
       const s = sezione(titolo)
       expect(s, titolo).toMatch(/in memoria fino a un minuto/)
+      expect(s, titolo).toMatch(/entro (sei|due)/)
       expect(s, titolo).toMatch(/`429`/)
     }
   })

@@ -7,10 +7,12 @@ data.
 ## 0.5.1 (in lavorazione)
 
 - Ogni Function della regia ha un numero massimo di istanze (10, meno
-  dove serve), e i cataloghi pubblici dei temi e dei moduli rispondono da
-  una memoria di un minuto invece di leggere il database a ogni chiamata:
-  un indirizzo bombardato apposta non fa più salire la bolletta
-  (REQ-FLOTTA-119).
+  dove serve). I cataloghi pubblici dei temi e dei moduli, la prova di vita
+  della sentinella e il controllo del sito chiuso di `moduloDallApp`
+  leggono da una memoria di un minuto invece che dal database a ogni
+  chiamata. I workflow della flotta ritentano l'esito alla regia se la
+  trovano piena. Restano da chiudere le letture che altri indirizzi fanno
+  prima di verificare il gettone (REQ-FLOTTA-121) (REQ-FLOTTA-119).
 
 ## 0.5.0 (15/11/2026, la quarta in produzione: la sentinella e la Salute, la versione per dispositivo, le istanze senza cliente e quella di prova, le regole di sicurezza delle interfacce, le basi Lime, la garanzia sullo stesso codice)
 
