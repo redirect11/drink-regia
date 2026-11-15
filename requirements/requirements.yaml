@@ -5049,6 +5049,61 @@ requirements:
       - tests/Backoffice.test.jsx
       - tests/contratto.test.js
 
+  - id: REQ-FLOTTA-120
+    title: "La sentinella a eventi: errori, presentazioni e permessi si segnalano quando succedono, il giro a tempo resta per i siti e come rete di sicurezza"
+    area: "functions/lib/sentinella.js, functions/lib/registro.js, functions/index.js (sentinella, presentazione, esitoProvisioning, scadenza), docs/dipendenze-firebase.md"
+    description: >
+      Daniele, 15/11/2026, sulla sentinella della 0.5.0 (REQ-FLOTTA-111),
+      che ogni 15 minuti guarda siti, errori, presentazioni e permessi:
+      «Tutte queste cose dovrebbero essere degli eventi che noi salviamo da
+      qualche parte e verifichiamo, logghiamo monitoriamo. Cioè perchè ogni
+      15 minuti deve girare un job? E se un sito va down a T0 aspettiamo 15
+      minuti prima di saperlo»; sui costi: «non voglio trovarmi a pagare
+      migliaia di euro per una scelta tua che però si può fare
+      diversamente»; poi «ok per tutti e 4 i punti». È la stessa scelta del
+      31/10 per le scadenze (REQ-FLOTTA-023): a eventi dove un evento c'è.
+      COSA. (a) Gli errori: quando una Function finisce in errore, il
+      registro (lib/registro.js) lo conta subito e la soglia apre
+      l'allarme in quel momento; niente inoltro dei registri verso Pub/Sub,
+      che sarebbe un servizio in più da pagare. (b) Le presentazioni: una
+      versione diversa da quella pubblicata si segnala mentre il locale si
+      presenta; il «non si è presentato» diventa una scadenza di Cloud
+      Tasks a presentazione_ore dall'aggiornamento, che apre l'allarme se
+      la presentazione non è arrivata. (c) I permessi: si controllano alla
+      fine di ogni attivazione e aggiornamento (esitoProvisioning) e al
+      primo «permesso negato» che la regia riceve da un locale. (d) I
+      siti: un sito che nessuno apre non produce eventi, quindi restano il
+      solo controllo a tempo, con la conferma al giro dopo. (e) Il giro a
+      tempo resta come rete di sicurezza per quello che un evento perso
+      lascerebbe indietro.
+      DA DECIDERE CON DANIELE prima di implementare: ogni quanto si
+      guardano i siti (oggi 15 minuti; Cloud Scheduler costa per lavoro e
+      non per esecuzione, la spesa cresce con le Functions e le letture di
+      Firestore di ogni giro), e il canale degli avvisi oltre il
+      backoffice (legato alla scelta dell'email).
+      COSTI, dalle pagine di Google del 15/11/2026: Cloud Scheduler 0,10 $
+      per lavoro ogni 31 giorni, i primi 3 gratuiti per account di
+      fatturazione; Cloud Tasks 1 milione di operazioni gratuite al mese;
+      Functions (Cloud Run) 2 milioni di chiamate, 180.000 vCPU-secondi e
+      360.000 GiB-secondi gratuiti al mese per account di fatturazione.
+      Prima di accorciare il giro va tolta la lettura di tutte le istanze a
+      ogni giro.
+      CRITERI. (1) Un errore oltre soglia apre l'allarme senza aspettare il
+      giro. (2) Una presentazione con la versione sbagliata apre l'allarme
+      subito; una mancata lo apre alla sua scadenza. (3) I permessi si
+      controllano a fine attivazione o aggiornamento e al primo 403. (4) Il
+      giro a tempo guarda i siti, alla frequenza decisa, e rifà il resto
+      come rete. (5) La mappa delle dipendenze da Firebase dice quali pezzi
+      di Google usa la sentinella.
+      INTERFACCE CON L'APP: nessuna nuova; la presentazione (4) non cambia
+      forma.
+    status: todo
+    generate_issue: true
+    labels: [regia, backoffice, produzione]
+    priority: P2
+    test_cases:
+      - tests/sentinella.test.js
+
   - id: REQ-FLOTTA-117
     title: "Le basi lime-scuro e lime-chiaro nel vocabolario dei temi, e l'avviso per i locali con l'app prima della 1.10.52"
     area: "functions/lib/temi.js (BASI), src/lib/temi.js (BASI, baseNonVista), src/pages/Backoffice.jsx (TemiSuMisuraLocale), docs/contratto-regia-app.md (Le copie da tenere allineate)"
