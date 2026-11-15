@@ -64,7 +64,17 @@ describe('i permessi che mancano', () => {
 describe('l’ultima presentazione', () => {
   it('versione, ore da allora, e la versione che la regia ha pubblicato', () => {
     const ist = { presentazione: { versione: 'v1.10.50-beta', il: oreFa(3), prima_il: oreFa(5) }, versione: 'v1.10.50-beta' }
-    expect(s.statoPresentazione(ist, ADESSO)).toEqual({ versione: 'v1.10.50-beta', il: oreFa(3), prima_il: oreFa(5), ore_fa: 3, pubblicata: 'v1.10.50-beta', diversa: false })
+    expect(s.statoPresentazione(ist, ADESSO)).toEqual({
+      versione: 'v1.10.50-beta',
+      minima: 'v1.10.50-beta',
+      dispositivi: 0,
+      anteprima: null,
+      il: oreFa(3),
+      prima_il: oreFa(5),
+      ore_fa: 3,
+      pubblicata: 'v1.10.50-beta',
+      diversa: false,
+    })
   })
 
   it('diversa da quella pubblicata (il caso di tana-drink-test alla 1.10.40), con o senza la v', () => {
@@ -78,7 +88,23 @@ describe('l’ultima presentazione', () => {
   })
 
   it('mai presentato', () => {
-    expect(s.statoPresentazione({}, ADESSO)).toEqual({ versione: null, il: null, prima_il: null, ore_fa: null, pubblicata: null, diversa: false })
+    expect(s.statoPresentazione({}, ADESSO)).toEqual({ versione: null, minima: null, dispositivi: 0, anteprima: null, il: null, prima_il: null, ore_fa: null, pubblicata: null, diversa: false })
+  })
+
+  // REQ-FLOTTA-112: la più bassa fra i dispositivi, quanti sono (solo quelli
+  // visti negli ultimi 30 giorni) e l'ultima anteprima, a parte.
+  it('i dispositivi: la versione più bassa, quanti sono, l’ultima anteprima', () => {
+    const ist = {
+      versione: 'v1.10.51-beta',
+      presentazione: {
+        versione: 'v1.10.51-beta',
+        minima: 'v1.10.40-beta',
+        il: oreFa(1),
+        dispositivi: { a: { versione: 'v1.10.51-beta', il: oreFa(1) }, b: { versione: 'v1.10.40-beta', il: oreFa(48) }, vecchio: { versione: 'v1.10.4', il: oreFa(31 * 24) } },
+        anteprima: { versione: 'v1.10.52-beta', il: oreFa(2) },
+      },
+    }
+    expect(s.statoPresentazione(ist, ADESSO)).toMatchObject({ versione: 'v1.10.51-beta', minima: 'v1.10.40-beta', dispositivi: 2, anteprima: { versione: 'v1.10.52-beta', il: oreFa(2) }, diversa: false })
   })
 })
 

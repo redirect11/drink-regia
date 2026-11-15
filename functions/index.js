@@ -2030,7 +2030,7 @@ exports.chiediTemaSuMisura = onCall(OPTS, async (req) => {
 // ── IL SITO SI PRESENTA ALLA REGIA (REQ-FLOTTA-026) ────────────────────
 // Al primo avvio di ogni versione l'app chiama qui, col token di chi ha
 // fatto l'accesso nel progetto del locale: `POST`, `Authorization: Bearer
-// <ID token>`, corpo `{ versione }`. La regia riconosce il progetto fra le
+// <ID token>`, corpo `{ versione, dispositivo? }`. La regia riconosce il progetto fra le
 // sue istanze, verifica il token con quel progetto, si segna la versione e,
 // se il sito non ha la licenza, la riscrive: l'attivazione la scrive prima
 // dell'app, e senza sessione l'app non si può presentare. Basta un
@@ -2076,8 +2076,17 @@ async function presentaIlSito(req, res) {
   res.locals.versione = corpo.versione
   const ist = trovata.data()
   // Chi apre l'app è un dipendente qualunque del locale: il suo uid non
-  // serve alla regia e non si salva (REQ-FLOTTA-051).
-  if (presenta.daRegistrare(ist, corpo.versione)) await trovata.ref.update(presenta.registroPresentazione(ist, { versione: corpo.versione }))
+  // serve alla regia e non si salva (REQ-FLOTTA-051). Il codice del
+  // dispositivo è casuale (REQ-FLOTTA-112). Una presentazione da un canale
+  // di anteprima (gli e2e di tana-drink) si segna a parte. In una
+  // transazione: due dispositivi che si presentano insieme non si cancellano.
+  const anteprima = presenta.daAnteprima(req.get('origin'))
+  if (presenta.daRegistrare(ist, { ...corpo, anteprima })) {
+    await db.runTransaction(async (t) => {
+      const attuale = (await t.get(trovata.ref)).data()
+      if (presenta.daRegistrare(attuale, { ...corpo, anteprima })) t.update(trovata.ref, presenta.registroPresentazione(attuale, { ...corpo, anteprima }))
+    })
+  }
   const riceve = riceveLicenza(ist)
   // La licenza si legge nel progetto del locale, coi ruoli che Terraform dà
   // all'account della regia: se mancano (REQ-FLOTTA-108) è un 503 col

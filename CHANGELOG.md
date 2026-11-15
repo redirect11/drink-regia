@@ -6,6 +6,15 @@ data.
 
 ## 0.5.0 (in lavorazione)
 
+- **La versione per dispositivo** (REQ-FLOTTA-112, #282). L'app manda alla
+  presentazione un codice casuale del dispositivo (tana-drink, dalla
+  1.10.51-beta). La regia tiene la versione di ogni dispositivo: la
+  `versione` è la più alta, non più l'ultima arrivata, e la `minima` è la
+  più bassa ancora in giro. Conta solo chi si è presentato negli ultimi 30
+  giorni, al massimo 50 dispositivi per locale. Le presentazioni dai canali
+  di anteprima (gli e2e) si segnano a parte. La scheda e la Salute dicono
+  quanti dispositivi ci sono e quelli indietro. La sentinella distingue una
+  versione più vecchia da una più nuova di quella pubblicata.
 - I registri delle Functions sono strutturati: ogni chiamata scrive una
   riga con funzione, locale, esito e durata, e gli errori inattesi il loro
   stack, che Error Reporting raggruppa. Niente dati personali: né uid né

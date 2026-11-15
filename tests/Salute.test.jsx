@@ -45,7 +45,7 @@ const rapporto = {
       giudizio: 'ok',
       errori: 0,
       mancanti: [],
-      presentazione: { versione: 'v1.10.50-beta', il: '2026-11-14T16:00:00.000Z', ore_fa: 4, pubblicata: 'v1.10.50-beta', diversa: false },
+      presentazione: { versione: 'v1.10.50-beta', minima: 'v1.10.40-beta', dispositivi: 3, il: '2026-11-14T16:00:00.000Z', ore_fa: 4, pubblicata: 'v1.10.50-beta', diversa: false },
     },
     {
       slug: 'drinkpos-demo',
@@ -82,6 +82,8 @@ describe('la sezione «Salute»', () => {
     expect(within(e2e).getByText(/v1\.10\.50-beta/)).toBeInTheDocument()
     expect(within(e2e).getByText(/pubblicata v1\.10\.29-beta/)).toBeInTheDocument()
     expect(within(tabella).getByRole('row', { name: /prova-bar/ })).toHaveTextContent('In ordine')
+    // REQ-FLOTTA-112: quanti dispositivi e il più indietro.
+    expect(within(tabella).getByRole('row', { name: /prova-bar/ })).toHaveTextContent('3 dispositivi · il più indietro alla v1.10.40-beta')
     expect(within(tabella).getByRole('row', { name: /drinkpos-demo/ })).toHaveTextContent('Non controllato')
   })
 

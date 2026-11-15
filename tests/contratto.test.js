@@ -47,6 +47,21 @@ describe('il documento delle interfacce fra la regia e l’app', () => {
     expect(doc).toContain('`passaggioVersoRegia`')
   })
 
+  // REQ-FLOTTA-112: la versione per dispositivo e le anteprime, concordate
+  // con tana-drink il 15/11/2026.
+  it('la presentazione dice il codice del dispositivo, la minima e le anteprime', () => {
+    const doc = leggi(DOC)
+    const quattro = doc.slice(doc.indexOf('### 4. La presentazione'), doc.indexOf('### 5.'))
+    expect(quattro).toContain('{ versione, dispositivo? }')
+    expect(quattro).toContain('`^[A-Za-z0-9_-]{22}$`')
+    expect(quattro).toContain('presentazione.minima')
+    expect(quattro).toContain('senza_codice')
+    expect(quattro).toContain('`<sito>--<canale>.web.app`')
+    expect(quattro).toContain('REQ-FLOTTA-112')
+    // Un'interfaccia deprecata si toglie guardando la minima, non l'ultima.
+    expect(doc).toContain('(`istanze/{slug}.presentazione.minima`)')
+  })
+
   it('le regole del repository e il revisore rimandano al documento', () => {
     expect(leggi('CLAUDE.md')).toContain(DOC)
     expect(leggi('.claude/agents/revisore.md')).toContain(DOC)

@@ -12,6 +12,7 @@
 // chiede a Google e passa qui le risposte.
 
 const { eDemo } = require('./esistente.js')
+const { DISPOSITIVO_SCADE } = require('./presentazione.js')
 
 // I PERMESSI CHE LA REGIA DEVE AVERE SU UN LOCALE: quelli dei tre ruoli che
 // Terraform le dà (infra/istanza/main.tf, e scripts/account-runtime.mjs
@@ -56,12 +57,19 @@ const senzaV = (v) => String(v || '').replace(/^v/, '')
 // L'ultima presentazione (REQ-FLOTTA-026) accanto alla versione che la
 // regia ha pubblicato (solo i locali della flotta ne hanno una: un locale
 // esistente pubblica da sé, e lì «diversa» non vuol dire niente).
+// Dalla REQ-FLOTTA-112 anche la più bassa fra i dispositivi, quanti sono
+// (visti negli ultimi 30 giorni) e l'ultima anteprima, che non è la
+// versione installata.
 function statoPresentazione(ist, adesso = new Date()) {
   const p = ist?.presentazione || {}
   const pubblicata = ist?.versione || null
   const il = p.il || null
+  const dispositivi = Object.values(p.dispositivi || {}).filter((d) => adesso.getTime() - Date.parse(d?.il || '') <= DISPOSITIVO_SCADE).length
   return {
     versione: p.versione || null,
+    minima: p.minima || p.versione || null,
+    dispositivi,
+    anteprima: p.anteprima || null,
     il,
     prima_il: p.prima_il || null,
     ore_fa: il ? Math.floor((adesso.getTime() - Date.parse(il)) / 3600000) : null,

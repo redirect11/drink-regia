@@ -29,6 +29,13 @@ function Presentazione({ p }) {
         {p.ore_fa != null ? ` (${p.ore_fa} h fa)` : ''}
       </span>
       {p.pubblicata && <div className={p.diversa ? 'errore small' : 'muted small'}>pubblicata {p.pubblicata}</div>}
+      {/* REQ-FLOTTA-112: quanti dispositivi si presentano, e il più indietro. */}
+      {p.dispositivi > 0 && (
+        <div className="muted small">
+          {p.dispositivi} {p.dispositivi === 1 ? 'dispositivo' : 'dispositivi'}
+          {p.minima && p.minima !== p.versione ? ` · il più indietro alla ${p.minima}` : ''}
+        </div>
+      )}
     </>
   )
 }

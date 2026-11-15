@@ -65,6 +65,7 @@ import Sentinella from './Sentinella.jsx'
 import CollegaIstanza from './CollegaIstanza.jsx'
 import { OrariNelBackoffice } from './OrariServizio.jsx'
 import { MODALITA, regolaDetta, propostaDetta } from '../lib/aggiornamenti.js'
+import { dispositiviDetti } from '../lib/dispositivi.js'
 
 // Il sito di produzione: lo dice il deploy (deploy.yml), come in App.jsx.
 const PRODUZIONE = import.meta.env.VITE_APP_ENV === 'production'
@@ -874,6 +875,19 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
               <span data-testid="presentazione">
                 {istanza.presentazione.versione} · dal {giorno(istanza.presentazione.prima_il)} · ultima volta il {giorno(istanza.presentazione.il)}
               </span>
+              {/* REQ-FLOTTA-112: i dispositivi, e quelli indietro. */}
+              {dispositiviDetti(istanza.presentazione) && (
+                <div className="muted" data-testid="dispositivi">
+                  {dispositiviDetti(istanza.presentazione)}
+                </div>
+              )}
+            </div>
+          )}
+          {istanza?.presentazione?.anteprima && (
+            // Le anteprime degli e2e di tana-drink: non sono la versione
+            // installata, e si dicono a parte (REQ-FLOTTA-112).
+            <div className="small muted" data-testid="anteprima">
+              anteprima: {istanza.presentazione.anteprima.versione} il {giorno(istanza.presentazione.anteprima.il)}
             </div>
           )}
           {!daFlotta && (
