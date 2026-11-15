@@ -208,7 +208,10 @@ git tag vX.Y.Z-beta && git push origin vX.Y.Z-beta
 #    prova a mano quello che il collaudo non copre, su https://drink-regia-test.web.app
 # 5. PR develop -> main (sempre dal ramo di release, mai da altro), col via libera
 # 6. tag su main: «Collaudo riuscito sul test» ritrova il collaudo del passo 3
-#    e pubblica in produzione; senza, si ferma e lo dice
+#    e pubblica in produzione; senza, si ferma e lo dice. Vale solo un
+#    collaudo dello stesso codice (REQ-FLOTTA-118): fra la beta e il tag su
+#    main possono cambiare solo docs/, requirements/, tests/, .claude/ e i
+#    .md; un ritocco al codice dopo la beta chiede un'altra beta
 git checkout main && git pull
 git tag vX.Y.Z && git push origin vX.Y.Z
 # 7. SUBITO DOPO, sul nuovo ramo di lavoro: package.json alla prossima con -beta
@@ -360,10 +363,10 @@ canale di anteprima col via libera.
 
 | Cosa | Stato |
 |---|---|
-| Produzione `drink-regia`, dal 13/11/2026 | **la 0.3.0** (tag `v0.3.0`, PR #244): sito, regole, indici e 64 Functions in `europe-west1`. **Sito chiuso al pubblico** (`vendita/listino.sito_aperto` assente: anteprima, solo «Accedi», niente prezzi; si apre dal backoffice, Vendita). **Firestore `(default)` in `europe-west1`**, ricreato vuoto il 13/11/2026 (era in `nam5`, Stati Uniti; Daniele: «si hai il via libera»). Segreti delle Functions: `AI_CHAT_SECRET` casuale; `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `GITHUB_DISPATCH_TOKEN` col segnaposto `non-configurato` (Daniele: «Di stripe se blocchiamo vendite e registrazione lo lasciamo in sviluppo»); `ANTHROPIC_API_KEY` segnaposto, che non si usa: le Functions AI parlano con Anthropic con la **federazione delle identità** (`ai-regia@drink-regia`, regola `gcp-drink-regia` e account di servizio Anthropic `drink-regia` nell'area di lavoro «drink», dal 06/11/2026, `functions/.env.drink-regia`), quindi niente chiave da mettere; l'AI della Tana si accende con `REGIA_PROGETTO=drink-regia` in tana-drink e dal backoffice (AI accesa e credito). **Account delle Functions**: `runtime-regia@drink-regia` dal 14/11/2026 (REQ-FLOTTA-058: script con `--locale tana-drink`, `REGIA_SA_EMAIL` dell'environment flotta cambiata, riga accesa), vale dal primo deploy che porta la riga; fino ad allora girano con l'account predefinito. Nessun dato: la Tana e il claim admin si fanno dal backoffice e con `scripts/admin-regia.mjs` (§7, e `docs/la-tana-nella-regia.md` di tana-drink). Le email non partono: manca il dominio per Resend. |
+| Produzione `drink-regia`, dal 13/11/2026 | **la 0.4.0 dal 14/11/2026** (tag `v0.4.0`, PR #258, deploy approvato da Daniele su GitHub: il primo con l'approvazione e con la regola dei tag `v*`): 66 Functions, 64 con l'account `runtime-regia@drink-regia` e le 2 dell'AI con `ai-regia@drink-regia`; `GITHUB_DISPATCH_TOKEN` vero (versione 2, messo da Daniele il 14/11), la versione 1 col segnaposto da togliere con `firebase functions:secrets:prune --project drink-regia`. Durante il deploy Cloud Run ha risposto cinque volte «quota di scritture al minuto superata»: il CLI ha riprovato da solo e le cinque Functions risultano aggiornate. Prima: **la 0.3.0** (tag `v0.3.0`, PR #244): sito, regole, indici e 64 Functions in `europe-west1`. **Sito chiuso al pubblico** (`vendita/listino.sito_aperto` assente: anteprima, solo «Accedi», niente prezzi; si apre dal backoffice, Vendita). **Firestore `(default)` in `europe-west1`**, ricreato vuoto il 13/11/2026 (era in `nam5`, Stati Uniti; Daniele: «si hai il via libera»). Segreti delle Functions: `AI_CHAT_SECRET` casuale; `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `GITHUB_DISPATCH_TOKEN` col segnaposto `non-configurato` (Daniele: «Di stripe se blocchiamo vendite e registrazione lo lasciamo in sviluppo»); `ANTHROPIC_API_KEY` segnaposto, che non si usa: le Functions AI parlano con Anthropic con la **federazione delle identità** (`ai-regia@drink-regia`, regola `gcp-drink-regia` e account di servizio Anthropic `drink-regia` nell'area di lavoro «drink», dal 06/11/2026, `functions/.env.drink-regia`), quindi niente chiave da mettere; l'AI della Tana si accende con `REGIA_PROGETTO=drink-regia` in tana-drink e dal backoffice (AI accesa e credito). **Account delle Functions**: `runtime-regia@drink-regia` dal 14/11/2026 (REQ-FLOTTA-058: script con `--locale tana-drink`, `REGIA_SA_EMAIL` dell'environment flotta cambiata, riga accesa), vale dal primo deploy che porta la riga; fino ad allora girano con l'account predefinito. Nessun dato: la Tana e il claim admin si fanno dal backoffice e con `scripts/admin-regia.mjs` (§7, e `docs/la-tana-nella-regia.md` di tana-drink). Le email non partono: manca il dominio per Resend. |
 | Progetto di test `drink-regia-test` | **creato il 29/10/2026**, su Blaze col secondo account di fatturazione («Il mio account di fatturazione 2», solo prove). API, Firestore `europe-west1`, Auth email, SA del deploy con i ruoli di docs/actions-come-tana-drink.md §3. Sito, regole e 17 Functions pubblicati dal tag `v0.1.0-prova.3` (ramo `feature/rilasci-a-ondate`). Segreti delle Functions: `PROVISIONING_CALLBACK_SECRET` (lo stesso della produzione: tana-drink ne conosce uno), Stripe **sandbox**; `ANTHROPIC_API_KEY` e `GITHUB_DISPATCH_TOKEN` **segnaposto** (il cassetto AI e le attivazioni vere non partono finché non si mettono quelli veri). Dal ramo `feature/ai-chat` (REQ-FLOTTA-094) `richiestaAI` lega anche **`AI_CHAT_SECRET`** (la firma dei turni della chat, almeno 32 caratteri casuali): va creato prima del primo tag beta che lo porta, se no il deploy di `richiestaAI` si ferma; in produzione solo col via libera di Daniele. |
 | Environment GitHub `test` | **creato il 29/10/2026**: i quattro `VITE_FIREBASE_*` e `FIREBASE_SERVICE_ACCOUNT` |
-| Approvazione sulla produzione | **non disponibile**: GitHub Free non dà i «Required reviewers» a un repository privato (provato il 29/10/2026, errore 422). Oggi protegge solo il job «Dove va» (un tag fuori da `main` va sul test). Decisione dell'utente: GitHub Pro, o accettare il controllo del workflow |
+| Approvazione sulla produzione | **attiva dal 14/11/2026** (Daniele: «dovremmo fare che l'ultimo step di deploy richiede il mio ok su produzione così come è per tana-drink»): l'environment `production` chiede l'approvazione di `redirect11` (anche se ha lanciato lui il rilascio) ed è usabile solo dai tag `v*`. Il deploy di produzione ha un job solo con quell'environment, quindi un clic per rilascio: arriva la richiesta di GitHub, si approva dalla pagina dell'esecuzione o dall'app. Il 29/10/2026 non si poteva (repository privato, errore 422); dal 10/11 il repository è pubblico. Le regole degli altri environment sono in `infra/README.md`. |
 | Segreto `PROJECT_TOKEN` (bacheca) | **manca**: lo mette l'utente |
 | Auth | email/password attivo |
 | Firestore | `europe-west1`, regole pubblicate |
@@ -742,7 +745,9 @@ ma l'ordine aggiornato è quello del 09/11.
    di un collaboratore cerca nel progetto del locale il SUO account (la
    sua email, verificata, admin), non quello del titolare. Per l'app non
    cambia niente: riceve un accesso per un account suo, come prima.
-   «Area clienti» resta del solo titolare.
+   «Area clienti» dall'app, dalla 1.10.49, è un collegamento a `/dashboard`
+   (§7, REQ-FLOTTA-104): ci entra chi ha un account nella regia,
+   titolare o collaboratore.
    **Da fare**: in tana-drink la pagina che riceve il codice, «Area
    clienti», i campi nuovi; poi l'identità centrale (Identity Platform
    nella regia, il banco che entra con l'account della regia).
@@ -983,6 +988,12 @@ ma l'ordine aggiornato è quello del 09/11.
 
 ## 7. I contratti condivisi con tana-drink
 
+**Dal 14/11/2026 il riferimento è [contratto-regia-app.md](contratto-regia-app.md)**
+(REQ-FLOTTA-107): ogni interfaccia fra la regia e l'app, la regola per
+cambiarle senza rompere i locali, le deprecate e le incoerenze note. Qui
+sotto restano la storia e i dettagli di come ci si è arrivati; se le due
+cose non coincidono, vale il documento.
+
 Se cambia uno di questi, cambia anche l'altro lato, **nello stesso
 giorno**, e lo si scrive all'utente perché lo porti nell'altra sessione.
 
@@ -1037,7 +1048,9 @@ moduli, la licenza nell'istanza e la Tana.
 - **Callback della Tana** `esitoProvisioning`: bearer
   `PROVISIONING_CALLBACK_SECRET`, corpo con `slug`, `stato`, `progetto`,
   `url`, `errore`, `versione`, `ref`, `ambiente`, `operazione` (sotto,
-  «Rilasci a ondate»). È l'unico esito che arriva ancora da tana-drink.
+  «Rilasci a ondate»). **Superato**: il 14/11/2026 nessun workflow di
+  tana-drink 1.10.x lo manda più; la versione della Tana arriva dalla
+  presentazione (contratto-regia-app.md, interfaccia 4).
   Dal 09/11/2026 (REQ-FLOTTA-049, audit finding 12) la regia non si fida
   del corpo: `progetto` deve essere quello scritto sull'istanza, `url`
   deve stare sui domini dell'installazione, e i nostri workflow mandano
@@ -1148,10 +1161,21 @@ moduli, la licenza nell'istanza e la Tana.
   col corpo `{ "codice": "…" }`: `200 { token }` da usare con
   `signInWithCustomToken`; `400` codice non valido; `403` scaduto, già
   usato o da un altro sito; `503` firma non riuscita. Verso la regia: il
-  titolare (ruolo admin) fa `POST …/passaggioVersoRegia` con
-  `Authorization: Bearer <ID token>` appena rinnovato (`getIdToken(true)`),
-  e apre l'`url` della risposta (`200 { url }`; `401`, `403` non è il
-  titolare o il token è vecchio, `404`). **I dati del titolare** in
+  **dalla 1.10.49 di tana-drink (14/11/2026, REQ-FLOTTA-104) «Area
+  clienti» è un collegamento**: l'app apre in una scheda nuova
+  `<regia_url della licenza, se https, altrimenti
+  https://<VITE_REGIA_PROGETTO>.web.app>/dashboard`, senza token, e il
+  tasto lo vedono tutti gli admin del locale. La regia tiene `/dashboard`
+  come ingresso dell'area: con un accesso fatto mostra l'area, senza porta
+  a `/accedi` e da lì torna a `/dashboard` (tests/AreaClienti.test.jsx,
+  App.test.jsx, AccessoGoogle.test.jsx). Chi entra lo decide l'accesso
+  della regia: titolare, collaboratore, o nessuno. Le app di prima della
+  1.10.49 fanno ancora `POST …/passaggioVersoRegia` con `Authorization:
+  Bearer <ID token>` appena rinnovato (`getIdToken(true)`) e aprono l'`url`
+  della risposta (`200 { url }`; `401`, `403` non è il titolare o il token
+  è vecchio, `404`): la Function resta finché tutti i locali non hanno
+  passato la 1.10.49. Il contratto di tana-drink è nel suo
+  docs/passaggio-dalla-regia.md, sezione 2. **I dati del titolare** in
   `settings/bar`, a ogni deploy, solo se vuoti: `venue_name`,
   `venue_legal_name`, `venue_address`, `venue_postal_city`, `venue_city`,
   e i nuovi `venue_phone`, `venue_vat_number`, `venue_tax_code`,
@@ -1206,7 +1230,11 @@ moduli, la licenza nell'istanza e la Tana.
   sessione (niente accessi anonimi). Non attiva un'installazione: la
   licenza c'è prima dell'app (l'attivazione della regia, o il deploy di
   tana-drink per la Tana); se manca e un dispositivo ha ancora una
-  sessione, la presentazione la fa riscrivere.
+  sessione, la presentazione la fa riscrivere. Dal 15/11/2026
+  (REQ-FLOTTA-112) il corpo porta anche `dispositivo`, un codice casuale
+  per dispositivo: la regia tiene la versione più alta e la più bassa
+  (`presentazione.minima`), e le anteprime degli e2e le segna a parte. I
+  dettagli sono in `docs/contratto-regia-app.md`, interfaccia 4.
 - **Gli aggiornamenti obbligatori o a scelta** (REQ-FLOTTA-020, dal
   31/10/2026, per intero in tana-drink, `docs/aggiornamenti-dalla-regia.md`).
   La regia scrive `settings/bar.licenza.aggiornamenti` = `{ modalita:

@@ -86,11 +86,37 @@ con i soli ruoli che il codice usa e senza Editor; l'account predefinito
 di Compute Engine resta solo finché quello dedicato non è acceso
 (`RUNTIME_SERVICE_ACCOUNT` in `functions/.env.<progetto>`). Cambiare la
 variabile e rilanciare «Aggiorna istanza» su ogni locale fa convergere il
-Terraform: il nuovo account entra, il vecchio esce.
+Terraform: il nuovo account entra, il vecchio esce. Un locale dove non è
+successo (il 14/11/2026 `drinkpos-prova-e2e`, rimasto al vecchio account:
+la presentazione rispondeva 500, REQ-FLOTTA-108) lo segnala la sezione
+«Salute» del backoffice coi ruoli che mancano e la riga di
+`scripts/account-runtime.mjs --locale` che li dà (REQ-FLOTTA-109).
+Per leggere i registri della regia la sezione chiede all'account anche
+`roles/logging.viewer`, sul solo progetto della regia: lo dà lo stesso
+script, rilanciato su ciascuna regia.
 
 Il segreto `GITHUB_DISPATCH_TOKEN` delle Functions di ciascuna regia è un
 token fine-grained con **Actions: Read and write** su `redirect11/drink-regia`
 soltanto.
+
+**Da quale ramo o tag si usano gli environment** (impostato il 14/11/2026
+con l'API di GitHub, Settings → Environments → «Deployment branches and
+tags»; Daniele: «ok procedi basta che non facciamo guai»):
+
+| Environment | Regola | Perché |
+|---|---|---|
+| `flotta` | solo il ramo `main` | la chiave dei locali di produzione la usa solo codice passato da una PR; la regia lancia sempre da `main` (`FLOTTA_REF`) |
+| `flotta-test` | rami `main` e `develop` | come sopra, con `develop` per provare i workflow prima del rilascio |
+| `production` | solo i tag `v*`, e l'approvazione di Daniele | il sito di produzione si pubblica da un tag (`firebase-hosting.yml`), e GitHub confronta la regola col tag, non col ramo; l'ultimo passo aspetta l'ok di Daniele, come in tana-drink |
+| `test` | nessuna | il lancio a mano di «Deploy to Firebase» e di Playwright da un ramo qualunque va sul test |
+
+Un workflow della flotta lanciato a mano da un altro ramo viene rifiutato
+prima di partire: è voluto. Per togliere una regola: `gh api -X PUT
+repos/redirect11/drink-regia/environments/<nome>` con
+`deployment_branch_policy` vuoto. L'approvazione su `flotta` non c'è,
+apposta: ogni aggiornamento chiederebbe due approvazioni (i job «prepara» e
+«pubblica») e la regia, che segna «in corso» al lancio e non ha un tempo
+massimo, lascerebbe la scheda bloccata finché nessuno approva.
 
 ## Prerequisiti, una volta, a mano
 

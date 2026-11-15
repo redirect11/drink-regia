@@ -216,6 +216,13 @@ export const correggiOrari = (giorni) => chiama('correggiOrari', { giorni })
 // l'admin. La vista di chi collabora la dà la regia.
 export const gestisciCollaboratori = (azione, dati = {}) => chiama('gestisciCollaboratori', { azione, ...dati })
 export const vistaCollaboratore = () => chiama('vistaCollaboratore', {})
+// La salute della flotta (REQ-FLOTTA-109): solo l'admin, quando preme il tasto.
+export const saluteDellaFlotta = () => chiama('saluteDellaFlotta', {})
+// La sentinella (REQ-FLOTTA-111): un giro a mano, solo l'admin.
+export const giroSentinella = () => chiama('giroSentinella', {})
+// L'istanza di prova (REQ-FLOTTA-114): l'admin segna, o toglie, un'istanza
+// senza cliente come istanza di prova.
+export const segnaIstanzaDiProva = (slug, prova) => chiama('segnaIstanzaDiProva', { slug, prova })
 export const chiediCambioOrari = (giorni, motivo) => chiama('chiediCambioOrari', { giorni, motivo })
 export const decidiCambioOrari = (uid, esito, nota = null) => chiama('decidiCambioOrari', { uid, esito, nota })
 // L'admin scrive o corregge gli orari di un locale (Daniele, 13/11/2026: «si»).
@@ -594,6 +601,31 @@ export async function avviaRicaricaAI(pacchetto) {
 
 // L'admin: tutti i cassetti, e le azioni su uno (ricarica a mano, tetto,
 // acceso o spento, chiave dell'installazione).
+// La sentinella (REQ-FLOTTA-111): gli allarmi (aperti e chiusi, uno per
+// problema, quindi pochi) e lo stato dell'ultimo giro, letti dal server:
+// la cache del browser direbbe «nessun allarme» anche quando ce n'è uno.
+export async function elencoAllarmi() {
+  serve()
+  const snap = await dalServer(collection(db, 'allarmi'))
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+}
+export async function statoSentinella() {
+  serve()
+  const s = await getDoc(doc(db, 'sentinella', 'stato'))
+  return s.exists() ? s.data() : null
+}
+// Le soglie le scrive l'admin; la Function le riporta comunque dentro i
+// loro intervalli (functions/lib/sentinella.js, soglie).
+export async function leggiSoglieSentinella() {
+  serve()
+  const s = await getDoc(doc(db, 'impostazioni', 'sentinella'))
+  return s.exists() ? s.data() : {}
+}
+export async function salvaSoglieSentinella(soglie) {
+  serve()
+  await setDoc(doc(db, 'impostazioni', 'sentinella'), { ...soglie, aggiornate_il: new Date().toISOString() }, { merge: true })
+}
+
 export async function elencoCassettiAI() {
   serve()
   const snap = await dalServer(collection(db, 'ai'))

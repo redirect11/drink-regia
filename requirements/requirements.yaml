@@ -1567,6 +1567,9 @@ requirements:
       codice non vale per nessuno nuovo, nemmeno dall'admin; il limite si
       alza o si toglie da «Limite…» nel backoffice, le condizioni dello
       sconto restano quelle.
+      DAL 14/11/2026 (tana-drink 1.10.49, REQ-FLOTTA-104): «Area clienti»
+      dall'app è un collegamento a /dashboard, senza token;
+      passaggioVersoRegia resta per le app di prima.
     status: implemented
 
     generate_issue: true
@@ -4758,6 +4761,533 @@ requirements:
     test_cases:
       - tests/ci.test.js
 
+  - id: REQ-FLOTTA-104
+    title: "«Area clienti» dall'app è un collegamento a /dashboard: la regia tiene /dashboard come ingresso dell'area"
+    area: "src/App.jsx (rotta /dashboard/*), src/pages/Accedi.jsx, src/pages/EntraConGoogle.jsx, functions/index.js (passaggioVersoRegia, tenuta), docs/handover.md §7"
+    description: >
+      Da tana-drink, 14/11/2026: dalla 1.10.49 il tasto «Area clienti»
+      dell'app non chiama più passaggioVersoRegia (REQ-FLOTTA-030): apre in
+      una scheda nuova `<regia_url della licenza, se https, altrimenti
+      https://<VITE_REGIA_PROGETTO>.web.app>/dashboard`, senza token, e lo
+      vedono tutti gli admin del locale. Daniele: «non può portarlo
+      semplicemente all'app dove lui poi deve fare il login, ma se lo ha già
+      fatto si ritrova già nella sua area? Perché tutta questa
+      complicazione?». Il contratto di tana-drink è in
+      docs/passaggio-dalla-regia.md, sezione 2. A decidere chi entra è
+      l'accesso della regia: il titolare vede il suo locale, un
+      collaboratore (REQ-FLOTTA-098) la sua vista, chi non ha un account si
+      ferma all'accesso. Daniele, alla proposta: «procedi».
+      CRITERI. (1) /dashboard senza accesso porta all'accesso, anche col
+      sito chiuso al pubblico. (2) Dopo l'accesso, con la password o con
+      Google, si arriva a /dashboard. (3) Con un accesso già fatto /dashboard
+      mostra l'area (REQ-FLOTTA-084). (4) passaggioVersoRegia resta per le
+      app più vecchie della 1.10.49 (la Tana in produzione è alla 1.10.43):
+      si toglie quando tutti i locali l'avranno passata, con una voce sua.
+      «Apri la tua app», dalla regia all'app, non cambia.
+    status: implemented
+    generate_issue: true
+    labels: [regia, contratto-tana-drink]
+    priority: P2
+    test_cases:
+      - tests/AreaClienti.test.jsx
+      - tests/App.test.jsx
+      - tests/AccessoGoogle.test.jsx
+      - tests/AreaTitolare.test.jsx
+
+  - id: REQ-FLOTTA-110
+    title: "I registri strutturati delle Functions: una riga JSON per chiamata con funzione, locale, esito e durata, gli errori col loro stack, nessun dato personale"
+    area: "functions/lib/registro.js, functions/index.js (onRequest e onCall col registro; res.locals.slug nelle Functions dei locali), tests/registro.test.js"
+    description: >
+      Daniele, 14/11/2026: «la dashboard la vorrei piu sofisticata per il
+      logging e il monitoring. Roba piu seria»; scelti grafici nel tempo,
+      log consultabili, allarmi e la vista della flotta; poi, saputo che
+      gli allarmi di Google costano: «no allora niente allarmi google. Noi
+      che possiamo fare internamente?», e gli avvisi «Solo nel backoffice».
+      È la prima di tre fasi (poi la sentinella, REQ-FLOTTA-111, e la
+      Salute completa): prima le Functions scrivevano righe
+      di testo libere, e una parte degli errori non scriveva niente (il 500
+      muto della presentazione, REQ-FLOTTA-108). Grafici, filtri per locale
+      e la sentinella hanno bisogno di righe con dei campi.
+      CRITERI. (1) Ogni chiamata a una Function HTTP (tranne il preflight
+      OPTIONS) o callable scrive una riga JSON con funzione, tipo, locale
+      (slug), esito (ok, rifiutata, errore), status o codice, durata in ms
+      e, per la presentazione, la versione dell'app. (2) Un errore inatteso
+      scrive una riga ERROR con lo stack in testa al messaggio, che Error
+      Reporting raggruppa; una Function HTTP risponde 500 invece di
+      restare appesa; una callable restituisce l'errore com'era. (3)
+      Nessun dato personale: niente uid, email o corpo della richiesta; le
+      email nei messaggi d'errore si mascherano; slug e versione entrano
+      solo se hanno la loro forma. (4) Nessuna Function scavalca il
+      registro: onRequest e onCall di index.js sono quelle col registro, e
+      il nome della Function lo dà Google (FUNCTION_TARGET). (5) Le
+      Functions che parlano con i locali (presentazione, richiestaAI,
+      sceltaDallApp, moduloDallApp, esitoProvisioning) dicono al registro
+      di quale locale si tratta.
+      INTERFACCE CON L'APP: nessuna; le risposte non cambiano, tranne un
+      errore inatteso di una Function HTTP, che diventa un 500 con
+      { errore } (l'app già ritenta ogni risposta diversa da 200).
+    status: implemented
+    generate_issue: true
+    labels: [regia, flotta, sicurezza]
+    priority: P2
+    test_cases:
+      - tests/registro.test.js
+
+  - id: REQ-FLOTTA-109
+    title: "La sezione «Salute» del backoffice: per ogni locale l'ultima presentazione, gli errori delle 24 ore e i permessi che mancano"
+    area: "functions/lib/salute.js, functions/index.js (saluteDellaFlotta), src/pages/Salute.jsx, src/lib/backoffice.js (SEZIONI), src/lib/db.js, scripts/account-runtime.mjs (roles/logging.viewer)"
+    description: >
+      Daniele, 14/11/2026. Dopo la verifica a mano del 500 di
+      drinkpos-prova-e2e (REQ-FLOTTA-108), fatta leggendo con script i
+      registri di Google, l'IAM e Firestore: «dove le vedi queste cose?
+      Dovremmo fare un modulo per il sito di stonebit per il monitoring».
+      Sulla proposta in tre passi (allarmi di Google, una sezione «Salute»
+      nel backoffice, poi un modulo di Stonebit che legga la Salute di ogni
+      regia) ha scelto gli ultimi due: «quete due». Il modulo di Stonebit
+      tocca più prodotti e va al CTO-agente tramite Daniele; questa voce è
+      la sezione nella regia, da cui quel modulo leggerà.
+      COME. Una Function solo dell'admin (saluteDellaFlotta), chiamata
+      quando l'admin preme «Controlla adesso», mai a tempo. (a) La
+      presentazione: dall'istanza, con la versione pubblicata dalla regia
+      accanto. (b) Gli errori: i registri della regia stessa nelle ultime
+      24 ore (risposte 5xx per Function e righe d'errore, col locale quando
+      la riga lo nomina, senza email); serve roles/logging.viewer
+      all'account della regia sul suo progetto, ed è l'unico ruolo nuovo.
+      (c) I permessi: per ogni locale con un progetto (non la demo, non i
+      simulati, non la semina della regia di test, non gli eliminati) la
+      regia chiede a Google, con
+      testIamPermissions, se ha i permessi dei tre ruoli che Terraform le
+      dà; non legge i dati del locale e non crea credenziali, e non le
+      serve nessun ruolo per chiederlo.
+      CRITERI. (1) «Salute» è una sezione del backoffice, col suo
+      indirizzo. (2) Niente parte finché l'admin non preme «Controlla
+      adesso». (3) Per ogni locale: giudizio (problema se manca un
+      permesso; attenzione se ci sono errori, se non si è mai presentato o
+      se la versione presentata è diversa da quella pubblicata; in ordine
+      altrimenti; non controllato per demo, simulati e semina), la versione
+      presentata e quando, i ruoli che mancano con la riga di
+      scripts/account-runtime.mjs che li dà. (4) Gli errori delle 24 ore
+      per Function e le ultime righe. (5) Registri non leggibili: la
+      sezione lo dice col perché, invece di mostrare zero errori. (6) La
+      Function è solo dell'admin e non tocca i progetti dei locali.
+      INTERFACCE CON L'APP: nessuna; la regia legge i suoi dati e chiede a
+      Google i suoi permessi.
+    status: implemented
+    generate_issue: true
+    labels: [regia, backoffice, flotta]
+    priority: P2
+    test_cases:
+      - tests/salute.test.js
+      - tests/Salute.test.jsx
+      - tests/Backoffice.test.jsx
+      - tests/runtime.test.js
+
+  - id: REQ-FLOTTA-108
+    title: "La presentazione non risponde mai 500 senza dire perché: la licenza che non si legge è un 503 col motivo nel registro"
+    area: "functions/index.js (presentazione), docs/contratto-regia-app.md (interfaccia 4), tests/presentazione.test.js"
+    description: >
+      Verifica del 14/11/2026, chiesta da Daniele («un 500 non deve esserci.
+      verifica questo»): le prove automatiche di tana-drink, dal sito di
+      prova drinkpos-prova-e2e, ricevevano 500 dalla presentazione della
+      regia di test (14:45, 15:35, 16:01, 17:38), e nel registro non restava
+      nessun errore. La causa: dal 09/11 le Functions della regia di test
+      girano con runtime-regia@drink-regia-test (REQ-FLOTTA-058), e su
+      drinkpos-prova-e2e i ruoli erano rimasti al vecchio account predefinito.
+      La presentazione registrava la versione e poi leggeva licenza/attuale
+      nel progetto del locale fuori da ogni controllo: il permesso negato
+      diventava un 500 muto. I ruoli li ha dati la regia il 14/11 col via di
+      Daniele («fallo»); questa voce è la parte del codice.
+      CRITERI. (1) Se la lettura della licenza nel progetto del locale non
+      riesce, la presentazione risponde 503 e scrive nel registro il locale e
+      il motivo, come quando la licenza non si scrive. (2) Qualunque altro
+      errore inatteso finisce nel registro col suo dettaglio prima del 500,
+      così Error Reporting lo raccoglie. (3) Il contratto (interfaccia 4)
+      dice che il 503 vale anche per la licenza che non si legge: per l'app
+      non cambia niente, ogni risposta diversa da 200 si riprova alla
+      prossima apertura.
+    status: implemented
+    generate_issue: true
+    labels: [regia, flotta, test]
+    priority: P2
+    test_cases:
+      - tests/presentazione.test.js
+
+  - id: REQ-FLOTTA-111
+    title: "La sentinella: ogni 15 minuti la regia guarda siti, errori, presentazioni e permessi, e quello che non va diventa un allarme nel backoffice"
+    area: "functions/lib/sentinella.js, functions/index.js (sentinella, giroSentinella, sentinellaViva), firestore.rules (allarmi, sentinella), src/pages/Sentinella.jsx, src/lib/backoffice.js (contiDelBackoffice), src/lib/db.js, .github/workflows/guardiano.yml"
+    description: >
+      Daniele, 14/11/2026: «la dashboard la vorrei piu sofisticata per il
+      logging e il monitoring. Roba piu seria»; saputo che gli allarmi di
+      Google costano 0,10 $ per condizione al mese: «no allora niente
+      allarmi google. Noi che possiamo fare internamente?». Sul canale degli
+      avvisi: «Solo nel backoffice». È la fase 2 del piano; la fase 1 sono i
+      registri strutturati (REQ-FLOTTA-110), la 3 la Salute completa.
+      PERCHÉ A TEMPO. Il 31/10/2026 le scadenze sono passate dai giri
+      quotidiani agli eventi («Non mi piace la temporizzazione di questi
+      check», REQ-FLOTTA-023). Qui un evento non c'è: un sito che cade non
+      avvisa nessuno. È l'unica Function a tempo della regia, un lavoro di
+      Cloud Scheduler (i primi tre per conto di fatturazione sono gratuiti;
+      il 15/11/2026 nessuna regia ne aveva).
+      COME. Una Function programmata (sentinella), ogni 15 minuti, ora di
+      Roma; un giro fallito non si ripete. Controlla: (a) i siti: la regia e
+      i locali attivi con un indirizzo (non la demo, i simulati, la semina,
+      i sospesi, gli eliminati); 4xx, 5xx o nessuna risposta entro la soglia
+      è un problema, e si conferma al giro dopo, perché un intoppo di un
+      momento non apra un allarme; (b) gli errori: le righe dei registri
+      strutturati dal giro prima (mai più indietro di un'ora), contate per
+      Function una per chiamata (la riga dello stack non conta due volte);
+      le Function senza registro contano le loro righe d'errore; dalla
+      soglia in su è un allarme, col dettaglio dell'ultimo errore senza
+      email; (c) le presentazioni: un locale attivo che non si è mai
+      presentato, o (se la regia lo aggiorna) presenta una versione diversa
+      da quella pubblicata, da più ore della soglia dopo l'ultimo
+      aggiornamento; (d) i permessi, una volta l'ora, come la Salute
+      (REQ-FLOTTA-109); una domanda senza risposta non è un permesso che
+      manca. GLI ALLARMI stanno in allarmi/{chiave}: la chiave dice il
+      controllo e il soggetto, quindi un problema ha sempre lo stesso
+      documento; si apre una volta, si aggiorna quando si rivede, si chiude
+      quando quel controllo, fatto, non lo trova più; un controllo che non
+      si è potuto fare non chiude niente; un problema che torna riapre lo
+      stesso documento e conta le volte. Lo stato del giro sta in
+      sentinella/stato. Li scrivono solo le Functions, li legge l'admin.
+      LE SOGLIE (errori per giro, ore di una presentazione ferma, secondi di
+      attesa di un sito) in impostazioni/sentinella, dal backoffice; la
+      Function le riporta dentro i loro intervalli. IL GUARDIANO: se cade
+      la regia, il backoffice non mostra niente. Un workflow GitHub, ogni
+      mezz'ora, senza segreti e senza permessi, controlla che il sito di
+      ogni regia risponda e che la sentinella abbia fatto un giro negli
+      ultimi 45 minuti (sentinellaViva, pubblica, risponde solo coi
+      minuti); se no il workflow è rosso.
+      CRITERI. (1) Una sola Function a tempo, ogni 15 minuti. (2) Gli
+      allarmi non si ripetono e si chiudono da soli. (3) Nella sezione
+      «Salute», in cima: gli allarmi aperti (il più grave prima, da quando,
+      quante volte), l'ultimo giro e i controlli non riusciti col perché,
+      la sentinella ferma da più di 45 minuti, i chiusi degli ultimi 7
+      giorni, le soglie, «Fai un giro adesso» (solo l'admin). (4) Il
+      sotto-menù conta gli allarmi aperti accanto a «Salute». (5) Nessun
+      dato personale negli allarmi. (6) Il guardiano non ha segreti.
+      INTERFACCE CON L'APP: nessuna; la sentinella apre i siti dei locali
+      come un visitatore e legge i dati della regia.
+    status: implemented
+    generate_issue: true
+    labels: [regia, backoffice, flotta]
+    priority: P2
+    test_cases:
+      - tests/sentinella.test.js
+      - tests/Sentinella.test.jsx
+      - tests/regole/registri.test.js
+      - tests/ci.test.js
+      - tests/db.test.js
+
+  - id: REQ-FLOTTA-112
+    title: "La versione per dispositivo: la presentazione porta un codice del dispositivo, la regia sa la versione più alta e la più bassa ancora in giro, e le anteprime degli e2e non contano"
+    area: "functions/lib/presentazione.js, functions/index.js (presentazione), functions/lib/salute.js (statoPresentazione), functions/lib/sentinella.js (segnaliPresentazioni), src/lib/dispositivi.js, src/pages/Backoffice.jsx (scheda), src/pages/Salute.jsx, docs/contratto-regia-app.md (interfaccia 4)"
+    description: >
+      Richiesta di tana-drink del 15/11/2026, su decisione di Daniele dello
+      stesso giorno: una versione per dispositivo. Il 14/11 la presentazione
+      di un tablet rimasto alla 1.10.40 aveva preso il posto della 1.10.50
+      già arrivata agli altri: la regia teneva solo l'ultima versione
+      arrivata. Concordato con tana-drink il 15/11 (risposta della regia e
+      loro conferma, REQ-FLOTTA-031 nel loro registro, dalla 1.10.51-beta).
+      IL CODICE. Il corpo della presentazione diventa { versione,
+      dispositivo? }: `dispositivo` sono 16 byte casuali in base64url senza
+      padding (22 caratteri), tenuti dall'app sul dispositivo e slegati da
+      ogni dato del locale. Un codice di forma sbagliata si ignora: la
+      chiamata vale come quelle senza codice. Quando lo manda, l'app si
+      ripresenta anche a versione invariata, al più una volta ogni 24 ore,
+      all'apertura e al ritorno in primo piano.
+      IL REGISTRO. istanze/{slug}.presentazione.dispositivi { codice:
+      { versione, il } }; le app senza codice (fino alla 1.10.50) contano
+      come un dispositivo solo, senza_codice, e il registro di prima
+      diventa quel dispositivo, con la sua data. Un dispositivo si riscrive
+      al più ogni 6 ore se la versione non cambia; uno che non si presenta
+      da 30 giorni esce dal conto, e ci torna se si ripresenta; al massimo
+      50 per locale, oltre esce quello visto meno di recente.
+      presentazione.versione è la più alta fra i dispositivi, non più
+      l'ultima arrivata; presentazione.minima la più bassa: è quella che
+      dice quando si può togliere un'interfaccia deprecata. La scrittura sta
+      in una transazione, perché due dispositivi che si presentano insieme
+      non si cancellino a vicenda.
+      LE ANTEPRIME. tana-drink usa i canali di anteprima solo per gli e2e
+      (canale e2e-<run> su drinkpos-prova-e2e, scade in un giorno): il 15/11
+      la sentinella aveva aperto un allarme su prova-e2e perché si
+      presentava con la 1.10.50 dalle anteprime, mentre il sito principale
+      era alla 1.10.29. Una presentazione da un'anteprima (Origin della
+      richiesta <sito>--<canale>.web.app o .firebaseapp.com; i domini propri
+      dei locali mai) non tocca la versione installata e si segna a parte,
+      l'ultima, in presentazione.anteprima. Lo mette il browser e la pagina
+      non lo può cambiare; un client fuori dal browser potrebbe falsificarlo,
+      ma gli serve un token valido del locale e cambierebbe solo un conteggio
+      (tana-drink, 15/11).
+      LA SENTINELLA (REQ-FLOTTA-111) distingue una versione presentata più
+      vecchia di quella pubblicata («fermo a una versione vecchia») da una
+      più nuova («una versione più nuova di quella pubblicata», arrivata da
+      fuori dalla regia).
+      CRITERI. (1) Il codice si accetta solo con la sua forma, e la versione
+      resta buona anche col codice sbagliato. (2) Versione e minima per
+      ordine di versione, la beta prima della sua uscita. (3) 6 ore, 30
+      giorni, 50 dispositivi. (4) Le anteprime non cambiano versione e
+      minima. (5) La scheda del locale dice quanti dispositivi si presentano
+      e quelli indietro, per versione, e l'ultima anteprima; la Salute dice
+      quanti dispositivi e il più indietro. (6) La sentinella dice «più
+      vecchia» o «più nuova» giusto. (7) Nessun dato personale: il codice è
+      casuale, niente uid (REQ-FLOTTA-051).
+      INTERFACCE CON L'APP: l'interfaccia 4 (presentazione) prende il campo
+      facoltativo `dispositivo`, compatibile: le app che non lo mandano
+      vanno come prima, e le risposte non cambiano. La rimozione delle
+      interfacce deprecate guarda presentazione.minima.
+    status: implemented
+    generate_issue: true
+    labels: [regia, flotta, backoffice]
+    priority: P2
+    test_cases:
+      - tests/presentazione.test.js
+      - tests/dispositivi.test.js
+      - tests/salute.test.js
+      - tests/Salute.test.jsx
+      - tests/sentinella.test.js
+      - tests/Backoffice.test.jsx
+      - tests/contratto.test.js
+
+  - id: REQ-FLOTTA-117
+    title: "Le basi lime-scuro e lime-chiaro nel vocabolario dei temi, e l'avviso per i locali con l'app prima della 1.10.52"
+    area: "functions/lib/temi.js (BASI), src/lib/temi.js (BASI, baseNonVista), src/pages/Backoffice.jsx (TemiSuMisuraLocale), docs/contratto-regia-app.md (Le copie da tenere allineate)"
+    description: >
+      tana-drink, 15/11/2026 (REQ-UI-033 e REQ-DEV-025, dalla 1.10.52-beta):
+      Daniele ha deciso che Lime - SmartOrders ha un tema suo, scuro e
+      chiaro, tema di partenza della demo e dei locali nuovi. Le due
+      tavolozze (lime-scuro, lime-chiaro) entrano in THEME_PRESETS
+      dell'app, e chiedono di aggiungerle a BASI nella regia: oggi un tema
+      del catalogo o su misura su base Lime è rifiutato come base
+      sconosciuta. Un'app fino alla 1.10.51 scarta un tema con una base che
+      non ha: il tema non compare.
+      COME. Le due basi in BASI, nelle Functions e nell'anteprima del sito,
+      coi colori che tana-drink ha ripreso dal sito della regia (src/
+      index.css, «LA PALETTE LIME»; secondo messaggio del 15/11/2026, che
+      sostituisce i valori del primo). Il catalogo pubblico non si filtra per
+      versione: l'app vecchia scarta da sola. Per i temi su misura, che
+      sono di un locale solo, la scheda del backoffice avvisa quando il
+      locale ha una versione installata (quella pubblicata dalla regia)
+      più vecchia della 1.10.52.
+      CRITERI. (1) lime-scuro e lime-chiaro in BASI, uguali nella regia e
+      nel sito, coi colori della tabella di tana-drink. (2) Un tema su base
+      Lime passa le regole. (3) baseNonVista dice la versione che serve
+      per una base Lime e una versione più vecchia, null altrimenti (la
+      beta della 1.10.52 vede Lime). (4) La scheda avvisa per i temi su
+      misura su base Lime di un locale con l'app più vecchia.
+      INTERFACCE CON L'APP: cambio compatibile del vocabolario condiviso
+      («Le copie da tenere allineate»): due valori nuovi, che l'app dalla
+      1.10.52 conosce e quelle prima ignorano.
+    status: implemented
+    generate_issue: true
+    labels: [regia, temi, contratto-tana-drink]
+    priority: P3
+    test_cases:
+      - tests/temi.test.js
+      - tests/Backoffice.test.jsx
+
+  - id: REQ-FLOTTA-118
+    title: "La garanzia della produzione vale solo per lo stesso codice collaudato sul test"
+    area: ".github/workflows/firebase-hosting.yml (garanzia), tests/ci.test.js, docs/handover.md (Il rilascio, passo per passo)"
+    description: >
+      La garanzia della produzione («Collaudo riuscito sul test») cercava un
+      run riuscito, col passo «Collaudo sul test» verde, su un commit nella
+      storia del tag. Un collaudo vecchio bastava: se dopo l'ultimo tag beta
+      arrivavano su main commit non collaudati, la garanzia passava lo
+      stesso. Daniele, 15/11/2026, sulla proposta di pretendere lo stesso
+      codice: «fai 1 2 e 3 in fila».
+      COME. Un run vale solo se, fra il suo commit e il tag di produzione,
+      non cambia niente di quello che si pubblica: git diff --quiet sui due
+      commit, esclusi soltanto docs/, requirements/, tests/, .claude/ e i
+      file .md. Un run con codice diverso si salta e la ricerca continua;
+      se nessuno vale, il deploy si ferma e dice di taggare una beta sullo
+      stesso codice.
+      CRITERI. (1) Il confronto c'è, con quelle sole esclusioni. (2) Viene
+      dopo il controllo della storia e prima di quello del collaudo, e un
+      run diverso si salta. (3) Il messaggio d'errore parla dello stesso
+      codice. (4) L'handover lo dice nel rilascio passo per passo.
+      INTERFACCE CON L'APP: nessuna.
+    status: implemented
+    generate_issue: true
+    labels: [regia, ci, rilascio]
+    priority: P2
+    test_cases:
+      - tests/ci.test.js
+
+  - id: REQ-FLOTTA-116
+    title: "La mappa delle dipendenze della regia da Firebase e Google Cloud: le porte da reimplementare per cambiare backend"
+    area: "docs/dipendenze-firebase.md, tests/dipendenzeFirebase.test.js"
+    description: >
+      Daniele, 15/11/2026, dopo aver scelto un contratto con l'app scritto
+      sullo standard e non su Google (REQ-FLOTTA-115): «Un agente dovrebbe
+      segnarsi da qualche parte tutte le integrazioni forti che abbiamo con
+      firebase così che un giorno se cambiamo (ad esempio andiamo diretti
+      su aws, o google cloude docker o simili) dobbiamo solo reimplementare
+      delle interfacce». È la metà della regia di quello che tana-drink fa
+      con le porte e gli adattatori (docs/on-premise.md).
+      COSA. Un documento che, per ogni porta (identità delle persone,
+      database, Function, lavori pianificati, segreti, identità dei server
+      dei locali, log, hosting, creazione dei progetti dei locali, accesso
+      ai progetti dei locali), dice cosa fa per la regia, dove è usata,
+      quanto è intrecciata, cosa vorrebbe dire reimplementarla altrove e
+      se oggi c'è un punto unico o se «manca la porta». Questa voce non
+      cambia il codice: le porte che mancano si fanno ognuna con la sua
+      voce, quando servono.
+      CRITERI. (1) docs/dipendenze-firebase.md esiste e dice la regola: chi
+      aggiunge una dipendenza da Firebase o Google Cloud aggiorna la mappa
+      nella stessa PR. (2) Cita ogni file del codice (src, functions,
+      scripts) che usa un SDK di Firebase o di Google Cloud, ogni workflow
+      che parla con Google, e il Terraform in infra/. (3) Separa le
+      dipendenze che legano anche il contratto con l'app. (4) Un test fa
+      rosso se un file o un workflow nuovo che usa Firebase non è citato.
+      INTERFACCE CON L'APP: nessuna.
+    status: implemented
+    generate_issue: true
+    labels: [regia, metodo]
+    priority: P3
+    test_cases:
+      - tests/dipendenzeFirebase.test.js
+
+  - id: REQ-FLOTTA-115
+    title: "La comunicazione fra la regia e i locali in sicurezza: le regole e l'inventario delle interfacce nel contratto"
+    area: "docs/contratto-regia-app.md (La sicurezza delle interfacce), .claude/agents/revisore.md, tests/contratto.test.js"
+    description: >
+      Daniele, 15/11/2026, dopo aver visto che chiunque si registri su un
+      locale ha un ID token valido del progetto, e che la presentazione e
+      l'istanza di prova si accontentano di quello: «il gestore e nessun
+      altro su altre istanze puo cambiare qualcosa che interagisca con il
+      backend di regia direttamente. Dobbiamo mettere tutta la
+      comunicazione tra regia e drink in sicurezza». Niente ruoli degli
+      utenti del locale e niente GitHub nel meccanismo («Non voglio
+      nemmeno legarmi a github»), e un contratto che regga anche un
+      backend diverso da Firebase («Se vogliamo passare da firebase a un
+      altro backend poi cosa succede?»). Sulla proposta (contratto sullo
+      standard, Google oggi, la chiave del locale per l'on premise, le
+      interfacce 1, 2 e 3 segnate come legate a Firestore): «Ok procediamo
+      così».
+      COSA. Questa voce scrive le regole e l'inventario; il codice viene
+      dopo, a passi, ognuno con la sua voce. Le regole: (1) nessuna persona
+      di un locale chiama la regia per cambiare qualcosa: restano dirette
+      solo le letture pubbliche senza dati e i collegamenti; (2) il server
+      del locale si presenta con un gettone firmato (JWT) da un emittente
+      registrato per quel locale, destinato alla regia e di breve durata, e
+      il gettone vale solo per il suo locale: oggi l'emittente è Google
+      (l'account di servizio dedicato del progetto, come l'AI dal
+      12/11/2026), per l'on premise sarà una chiave del locale, senza
+      cambiare il contratto; (3) la regia scrive nei locali col suo
+      account; (4) la versione installata la regia la legge dal sito vero
+      (versione.json), non se la fa dire dai dispositivi.
+      CRITERI. (1) Il contratto ha la sezione «La sicurezza delle
+      interfacce» con le quattro regole. (2) Un inventario con una riga per
+      ogni interfaccia (anche la deprecata passaggioVersoRegia): chi
+      chiama, con quale identità oggi, se rispetta le regole, cosa cambia.
+      (3) Le interfacce 1, 2 e 3 segnate come legate a Firestore del
+      locale. (4) Il percorso a passi, con quello che chiede a tana-drink.
+      (5) Un test fa rosso se un'interfaccia nuova non ha la sua riga.
+      INTERFACCE CON L'APP: nessuna cambia con questa voce; il percorso le
+      cambierà, ognuna con la sua voce e la regola «mai sul posto».
+    status: implemented
+    generate_issue: true
+    labels: [regia, contratto-tana-drink, sicurezza]
+    priority: P1
+    test_cases:
+      - tests/contratto.test.js
+
+  - id: REQ-FLOTTA-113
+    title: "Le istanze senza cliente nei «Locali»: in fondo all'elenco, nel loro gruppo, con la scheda dell'istanza"
+    area: "src/lib/backoffice.js (istanzeSenzaCliente, filtraLocali), src/pages/Backoffice.jsx (SezioneLocali, SchedaLocale)"
+    description: >
+      Daniele, 15/11/2026, cercando prova-e2e nel backoffice del test: «nei
+      locali prova-e2e non esiste». L'elenco dei «Locali» parte dai
+      clienti, una riga per account; un'istanza senza cliente (prova-e2e,
+      quella degli e2e di tana-drink) si vedeva solo nella «Salute». Sulla
+      proposta di mostrarle «in fondo all'elenco, in un gruppo «Istanze
+      senza cliente», con la stessa scheda degli altri»: «si».
+      COME. Sotto la tabella dei locali, un gruppo «Istanze senza cliente
+      (N)» con le stesse colonne (piano e titolare vuoti, «senza cliente»
+      sotto l'identificativo) e la stessa scheda, aperta dal nome. Nella
+      scheda restano la testa, gli avvisi dell'istanza, i blocchi App e
+      Aggiornamenti (tutte azioni che chiedono solo l'identificativo); i
+      blocchi del cliente (Titolare, Piano, Aspetto, Credito AI) e i gesti
+      in fondo (Sospendi, Chiudi, Elimina) lasciano il posto a una riga,
+      perché scrivono sul cliente o parlano al titolare, che qui non c'è.
+      Ricerca e vista valgono anche per loro; la ricerca trova anche il
+      progetto, per tutti i locali. Non entrano nei conti dei locali, nella
+      vista «Commerciale» né nei numeri del sotto-menù: non sono clienti.
+      CRITERI. (1) Ogni istanza senza cliente compare una volta, nel
+      gruppo, in ordine di identificativo. (2) La tabella e il conto dei
+      locali restano dei clienti. (3) La scheda non mostra niente che
+      scriva su un cliente. (4) «Aggiorna subito» e le altre azioni
+      dell'istanza funzionano. (5) Senza istanze orfane il gruppo non c'è.
+      INTERFACCE CON L'APP: nessuna.
+    status: implemented
+    generate_issue: true
+    labels: [regia, backoffice]
+    priority: P3
+    test_cases:
+      - tests/istanzeSenzaCliente.test.js
+      - tests/Backoffice.test.jsx
+
+  - id: REQ-FLOTTA-114
+    title: "L'istanza di prova: la regia non segna le anteprime, e le prove e2e accendono e spengono prova-e2e, che nel backoffice si vede «Disattivata»"
+    area: "functions/lib/istanzaDiProva.js, functions/lib/presentazione.js, functions/index.js (presentazione, istanzaDiProva, segnaIstanzaDiProva), functions/lib/sentinella.js, functions/lib/salute.js, src/pages/Backoffice.jsx, src/lib/db.js, docs/contratto-regia-app.md (interfacce 4 e 15)"
+    description: >
+      Daniele, 15/11/2026, su prova-e2e (l'istanza su cui tana-drink fa
+      girare gli e2e, dalle copie usa e getta dei canali di anteprima):
+      «teniamola ma deve rispondere sempre con la versione realmente
+      installata. Regia non si caga le anteprime. Quello che possiamo fare
+      è disattivare l'istanza e2e alla fine delle prove e nel backoffice la
+      si vede come disattivata».
+      LE ANTEPRIME. Una presentazione da un canale di anteprima (Origin
+      <sito>--<canale>.web.app o .firebaseapp.com, REQ-FLOTTA-112) risponde
+      come sempre, licenza compresa, ma la regia non la segna da nessuna
+      parte: prima si segnava in presentazione.anteprima e si vedeva nella
+      scheda. La versione che la regia mostra è quella installata davvero.
+      L'ISTANZA DI PROVA. L'admin segna come istanza di prova un'istanza
+      senza cliente (REQ-FLOTTA-113), dalla sua scheda (segnaIstanzaDiProva,
+      solo admin; la Function rifiuta un'istanza che ha un cliente). Le prove
+      e2e di tana-drink la accendono all'inizio e la spengono alla fine con
+      istanzaDiProva: POST col gettone di Google dell'account di deploy del
+      progetto (deploy@<progetto>, destinatario regia-prova:<regia>), corpo
+      { attiva }; la regia la accetta solo per un'istanza segnata di prova e
+      senza cliente. Prima versione col token di un utente qualunque del
+      progetto: riscritta prima del merge con le regole di REQ-FLOTTA-115
+      (Daniele, 15/11/2026: «il gestore e nessun altro su altre istanze puo
+      cambiare qualcosa che interagisca con il backend di regia
+      direttamente»), perché in un progetto dei locali chiunque si registra. Si segna istanze/{slug}.
+      prova { attiva, il }. Spenta non cambia la licenza né le risposte
+      della presentazione: è uno stato della regia.
+      NEL BACKOFFICE la riga e la scheda dicono «Disattivata» (e da quando)
+      o «In prova», e «di prova» sotto l'identificativo; la scheda ha
+      «Segna come istanza di prova» e «Non è più un’istanza di prova».
+      LA SENTINELLA non guarda il sito di un'istanza di prova spenta, e non
+      controlla le presentazioni di un'istanza di prova: si presenta solo
+      dalle anteprime, che non si segnano.
+      CRITERI. (1) Nessuna anteprima nel registro. (2) istanzaDiProva
+      accetta solo { attiva } booleano, col gettone di Google di
+      deploy@<progetto> destinato a regia-prova:<regia> (401 per un utente
+      del progetto, per l'account dell'AI o per un altro destinatario), per
+      un'istanza di prova senza cliente non eliminata (403 / 404 altrimenti).
+      (3) Solo l'admin segna un'istanza di prova, e mai una con cliente. (4)
+      «Disattivata» e «In prova» nel backoffice. (5) La sentinella non apre
+      allarmi su un'istanza di prova spenta o sulle sue presentazioni.
+      INTERFACCE CON L'APP: l'interfaccia 4 non segna più le anteprime
+      (le risposte non cambiano); nuova l'interfaccia 15, istanzaDiProva,
+      fra le prove e2e di tana-drink e la regia: è un'aggiunta, e finché
+      tana-drink non la chiama l'istanza resta com'è.
+    status: implemented
+    generate_issue: true
+    labels: [regia, flotta, backoffice]
+    priority: P3
+    test_cases:
+      - tests/istanzaDiProva.test.js
+      - tests/presentazione.test.js
+      - tests/salute.test.js
+      - tests/sentinella.test.js
+      - tests/Backoffice.test.jsx
+      - tests/db.test.js
+      - tests/contratto.test.js
+
   - id: REQ-FLOTTA-105
     title: "La demo si registra dal modulo «Locale esistente»: sul progetto drinkpos-demo la cartella è demo da sola"
     area: "functions/lib/esistente.js (gestioneEsistente), tests/esistente.test.js"
@@ -4810,6 +5340,41 @@ requirements:
     priority: P1
     test_cases:
       - tests/App.test.jsx
+
+  - id: REQ-FLOTTA-107
+    title: "Le interfacce fra la regia e l'app documentate in un posto solo, e la regola per cambiarle senza rompere i locali"
+    area: "docs/contratto-regia-app.md, CLAUDE.md (regole di lavoro), .claude/agents/revisore.md, docs/handover.md §7, tests/contratto.test.js"
+    description: >
+      Daniele, 14/11/2026, discutendo come evitare che un aggiornamento
+      installi un'app che non parla con la regia: «l'unico modo per essere
+      incompatibili è che tana drink o regia usino api vecchie quindi io
+      direi di iniziare a documentare le api e un modo per fare questo
+      cambio quando cambiano le api», e poi «ogni modifica che va fatta
+      bisogna sempre verificare se rischiamo di cambiare una interfaccia ed
+      aggiornare il documento». Le interfacce erano descritte a pezzi
+      (handover §7, i documenti di tana-drink), e alcune solo nel codice.
+      CRITERI. (1) docs/contratto-regia-app.md elenca ogni interfaccia fra
+      la regia e l'app (documenti scritti in un progetto e letti dall'altro,
+      Function HTTP, frammenti degli indirizzi, variabili della build,
+      input dei workflow, script di tana-drink che i workflow chiamano,
+      callback, identità e ruoli): per ognuna chi chiama, cosa manda, cosa
+      riceve, dove sta nel codice dei due lati, da quando c'è, se è attiva
+      o deprecata, quale documento la descrive. (2) Dice come si cambia
+      un'interfaccia: un cambio compatibile si fa e si documenta nella
+      stessa PR; uno incompatibile mai sul posto, la versione nuova
+      accanto alla vecchia, e la vecchia si toglie solo quando nessun
+      locale la usa più, con una voce sua. (3) Elenca le interfacce
+      deprecate e le incoerenze note fra i due lati. (4) CLAUDE.md e il
+      revisore chiedono, a ogni modifica, se tocca un'interfaccia, e il
+      documento aggiornato nella stessa PR. (5) Un test fa rosso se una
+      Function HTTP della regia o un input dei workflow che pubblicano
+      l'app non hanno la loro voce.
+    status: implemented
+    generate_issue: true
+    labels: [regia, contratto-tana-drink, metodo]
+    priority: P1
+    test_cases:
+      - tests/contratto.test.js
 
   - id: REQ-FLOTTA-092
     title: "Il modello AI si sceglie per tipo di richiesta dal backoffice: Sonnet per tutti, all'inizio"

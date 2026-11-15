@@ -1,0 +1,53 @@
+# IL GUARDIANO DELLA REGIA (REQ-FLOTTA-111).
+#
+# La sentinella gira dentro la regia e scrive gli allarmi nel backoffice:
+# se a cadere è la regia stessa, non lo può dire nessuno dei due. Questo
+# workflow, da fuori, ogni mezz'ora controlla per ogni regia che il sito
+# risponda e che la sentinella abbia finito un giro negli ultimi 45 minuti
+# (la Function pubblica sentinellaViva, che risponde solo coi minuti). Se
+# no, il workflow finisce rosso nella scheda Actions del repository.
+#
+# Niente segreti e niente permessi: guarda due indirizzi pubblici. Su una
+# regia dove la sentinella non è ancora arrivata (404) lo dice e non fallisce.
+
+name: Guardiano della regia
+
+on:
+  schedule:
+    - cron: '7,37 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  guarda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        regia: [drink-regia, drink-regia-test]
+    env:
+      REGIA: ${{ matrix.regia }}
+    steps:
+      - name: Il sito della regia risponde
+        run: |
+          codice=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "https://${REGIA}.web.app/")
+          echo "Sito di ${REGIA}: HTTP ${codice}"
+          if [ "${codice}" -lt 200 ] || [ "${codice}" -ge 400 ]; then
+            echo "::error::Il sito di ${REGIA} risponde HTTP ${codice}"
+            exit 1
+          fi
+
+      - name: La sentinella ha fatto il suo giro
+        run: |
+          codice=$(curl -s -o risposta.json -w '%{http_code}' --max-time 20 "https://europe-west1-${REGIA}.cloudfunctions.net/sentinellaViva")
+          echo "sentinellaViva su ${REGIA}: HTTP ${codice} $(cat risposta.json 2>/dev/null)"
+          if [ "${codice}" = "404" ]; then
+            echo "::notice::Su ${REGIA} la sentinella non c'è ancora."
+            exit 0
+          fi
+          if [ "${codice}" != "200" ]; then
+            echo "::error::La sentinella di ${REGIA} è ferma o non risponde (HTTP ${codice})"
+            exit 1
+          fi

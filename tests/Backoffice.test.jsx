@@ -46,6 +46,7 @@ const db = vi.hoisted(() => ({
   gestisciCassettoAI: vi.fn(async () => ({ ok: true })),
   registraLocaleEsistente: vi.fn(async () => ({ uid: 't', slug: 'tana-drink' })),
   gestisciCollaboratori: vi.fn(async () => ({ collaboratori: [], massimo: 5 })),
+  saluteDellaFlotta: vi.fn(async () => ({ controllato_il: null, registri: { leggibili: true, per_function: [], righe: [] }, locali: [] })),
   impostaAggiornamentiEsistente: vi.fn(async () => ({ ok: true })),
   elencoRilasci: vi.fn(async () => []),
   gestisciRilascio: vi.fn(async () => ({ ok: true })),
@@ -73,6 +74,12 @@ const db = vi.hoisted(() => ({
   elencoTemi: vi.fn(async () => []),
   gestisciTemi: vi.fn(async () => ({ ok: true })),
   elencoSconti: vi.fn(async () => []),
+  elencoAllarmi: vi.fn(async () => []),
+  statoSentinella: vi.fn(async () => null),
+  leggiSoglieSentinella: vi.fn(async () => ({})),
+  salvaSoglieSentinella: vi.fn(async () => {}),
+  giroSentinella: vi.fn(async () => ({ ultimo_giro_il: null, aperti: 0 })),
+  segnaIstanzaDiProva: vi.fn(async () => ({ ok: true })),
   gestisciSconti: vi.fn(async () => ({ ok: true })),
   applicaSconto: vi.fn(async () => ({ ok: true })),
   programmaScadenze: vi.fn(async () => ({ ok: true, programmati: 3, errori: [] })),
@@ -153,6 +160,84 @@ describe('il backoffice', () => {
     const attivo = await apri('Bar Attivo')
     expect(attivo).toHaveTextContent('drinkpos-bar-attivo')
     expect(within(riga.closest('tbody')).getByRole('button', { name: 'Bar Attivo' })).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  // REQ-FLOTTA-113: un'istanza senza cliente (prova-e2e) in fondo, nel suo
+  // gruppo, con la scheda dell'istanza; i blocchi del cliente non ci sono.
+  it('le istanze senza cliente stanno in fondo, nel loro gruppo, con la scheda dell’istanza', async () => {
+    db.elencoIstanze.mockResolvedValue({
+      'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', versione: 'v1.10.0', uid: 'a' },
+      'prova-e2e': { stato: 'attiva', progetto: 'drinkpos-prova-e2e', url: 'https://drinkpos-prova-e2e.web.app', versione: 'v1.10.29-beta' },
+    })
+    mostra()
+    const gruppo = await screen.findByRole('table', { name: 'Istanze senza cliente' })
+    expect(screen.getByRole('heading', { name: 'Istanze senza cliente (1)' })).toBeInTheDocument()
+    const riga = within(gruppo).getByRole('row', { name: /prova-e2e/ })
+    expect(riga).toHaveTextContent('v1.10.29-beta')
+    expect(riga).toHaveTextContent('senza cliente')
+    // Non sono locali di clienti: il conto e la tabella dei locali restano quelli.
+    expect(screen.getByTestId('quanti-locali')).toHaveTextContent('3 locali')
+    expect(within(screen.getByRole('table', { name: 'Locali' })).queryByText('prova-e2e')).toBeNull()
+    const scheda = await apri('prova-e2e')
+    expect(within(scheda).getByText('drinkpos-prova-e2e')).toBeInTheDocument()
+    expect(within(scheda).getByText(/Nessun cliente collegato/)).toBeInTheDocument()
+    expect(within(scheda).getByRole('button', { name: 'Aggiorna subito' })).toBeInTheDocument()
+    for (const tasto of ['Cambia piano…', 'Sconto…', 'Collaboratori…', 'Sospendi', 'Chiudi']) expect(within(scheda).queryByRole('button', { name: tasto })).toBeNull()
+    for (const titolo of ['Titolare', 'Piano', 'Aspetto', 'Credito AI']) expect(within(scheda).queryByRole('heading', { name: titolo })).toBeNull()
+    await userEvent.setup().click(within(scheda).getByRole('button', { name: 'Aggiorna subito' }))
+    expect(db.aggiornaIstanza).toHaveBeenCalledWith('prova-e2e')
+  })
+
+  // REQ-FLOTTA-114. Daniele, 15/11/2026: «disattivare l'istanza e2e alla
+  // fine delle prove e nel backoffice la si vede come disattivata».
+  it('un’istanza di prova disattivata si vede «Disattivata», e si toglie da prova', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    db.elencoIstanze.mockResolvedValue({
+      'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', versione: 'v1.10.0', uid: 'a' },
+      'prova-e2e': {
+        stato: 'attiva',
+        progetto: 'drinkpos-prova-e2e',
+        versione: 'v1.10.29-beta',
+        prova: { attiva: false, il: '2026-11-15T10:30:00Z' },
+        // Scritta dalle anteprime prima della REQ-FLOTTA-114: non è vera.
+        presentazione: { versione: 'v1.10.50-beta', il: '2026-11-15T07:53:42Z', prima_il: '2026-11-14T17:38:36Z' },
+      },
+    })
+    mostra()
+    const gruppo = await screen.findByRole('table', { name: 'Istanze senza cliente' })
+    const riga = within(gruppo).getByRole('row', { name: /prova-e2e/ })
+    expect(riga).toHaveTextContent('Disattivata')
+    expect(riga).toHaveTextContent('di prova')
+    expect(riga).toHaveTextContent('v1.10.29-beta')
+    const scheda = await apri('prova-e2e')
+    expect(within(scheda).getByText(/Disattivata dal 15\/11\/2026: le prove e2e sono finite/)).toBeInTheDocument()
+    // La versione vera è quella installata; quella delle anteprime non si mostra.
+    expect(within(scheda).getByTestId('versione-prova-e2e')).toHaveTextContent('v1.10.29-beta')
+    expect(scheda).not.toHaveTextContent('v1.10.50-beta')
+    expect(riga).not.toHaveTextContent('v1.10.50-beta')
+    await user.click(within(scheda).getByRole('button', { name: 'Non è più un’istanza di prova' }))
+    expect(db.segnaIstanzaDiProva).toHaveBeenCalledWith('prova-e2e', false)
+  })
+
+  it('un’istanza senza cliente si segna come istanza di prova; in prova si vede «In prova»', async () => {
+    const user = userEvent.setup()
+    db.elencoIstanze.mockResolvedValue({
+      'prova-e2e': { stato: 'attiva', progetto: 'drinkpos-prova-e2e', versione: 'v1.10.29-beta' },
+      'altra-prova': { stato: 'attiva', progetto: 'drinkpos-altra-prova', prova: { attiva: true, il: '2026-11-15T10:00:00Z' } },
+    })
+    mostra()
+    const gruppo = await screen.findByRole('table', { name: 'Istanze senza cliente' })
+    expect(within(gruppo).getByRole('row', { name: /altra-prova/ })).toHaveTextContent('In prova')
+    const scheda = await apri('prova-e2e')
+    await user.click(within(scheda).getByRole('button', { name: 'Segna come istanza di prova' }))
+    expect(db.segnaIstanzaDiProva).toHaveBeenCalledWith('prova-e2e', true)
+  })
+
+  it('senza istanze orfane il gruppo non c’è', async () => {
+    mostra()
+    await screen.findByRole('table', { name: 'Locali' })
+    expect(screen.queryByRole('table', { name: 'Istanze senza cliente' })).toBeNull()
   })
 
   it('un’attivazione fallita si rilancia', async () => {
@@ -524,6 +609,21 @@ describe('il backoffice e il credito AI', () => {
   // REQ-FLOTTA-040 (06/11/2026): i temi su misura del locale nella scheda;
   // l'admin ne scrive uno con la struttura del menù e la ricetta, lo
   // pubblica e lo ritira.
+  // REQ-FLOTTA-117: un tema su misura su base Lime non si vede in un locale
+  // con l'app più vecchia della 1.10.52; la scheda lo dice.
+  it('un tema su misura su base Lime, in un locale con l’app prima della 1.10.52, ha l’avviso', async () => {
+    db.elencoClienti.mockResolvedValue([{ uid: 'a', slug: 'bar-attivo', nome_locale: 'Bar Attivo', email: 'a@x.it', piano: 'base', creato_il: '2026-10-01' }])
+    db.elencoTemiSuMisura.mockResolvedValue([
+      { id: 'verde', nome: 'Verde', descrizione: '', stato: 'pubblicato', origine: 'fornitore', tavolozza: { base: 'lime-scuro', colori: {} }, stile: 'classico' },
+      { id: 'bosco', nome: 'Bosco', descrizione: '', stato: 'pubblicato', origine: 'fornitore', tavolozza: { base: 'tana-scuro', colori: {} }, stile: 'classico' },
+    ])
+    mostra()
+    const scheda = await apri('Bar Attivo')
+    const avviso = await within(scheda).findByTestId('su-misura-non-visti-bar-attivo')
+    expect(avviso).toHaveTextContent('«Verde» non si vede nell’app del locale (v1.10.0): la base Lime c’è dalla 1.10.52.')
+    expect(avviso).not.toHaveTextContent('Bosco')
+  })
+
   it('la scheda elenca i temi su misura; l’admin ne scrive uno con struttura e ricetta, lo ritira e lo pubblica', { timeout: 20000 }, async () => {
     const user = userEvent.setup()
     db.elencoClienti.mockResolvedValue([{ uid: 'a', slug: 'bar-attivo', nome_locale: 'Bar Attivo', email: 'a@x.it', piano: 'base', creato_il: '2026-10-01' }])
@@ -963,7 +1063,7 @@ describe('i pagamenti online e le richieste di contatto', () => {
 describe('le sezioni del backoffice', () => {
   const menu = async () => screen.findByRole('navigation', { name: 'Sezioni del backoffice' })
 
-  it('il sotto-menù ha sette voci, ognuna col suo indirizzo, e /backoffice porta a «Locali»', async () => {
+  it('il sotto-menù ha otto voci, ognuna col suo indirizzo, e /backoffice porta a «Locali»', async () => {
     mostra('/backoffice')
     const nav = await menu()
     const voci = within(nav).getAllByRole('link')
@@ -974,6 +1074,8 @@ describe('le sezioni del backoffice', () => {
       ['Commerciale', '/backoffice/commerciale'],
       ['Richieste', '/backoffice/richieste'],
       ['Rilasci', '/backoffice/rilasci'],
+      // «Salute» (REQ-FLOTTA-109): dopo i rilasci, si guarda quando qualcosa non va.
+      ['Salute', '/backoffice/salute'],
       ['Vendita', '/backoffice/vendita'],
       ['Temi', '/backoffice/temi'],
       ['Aggiungi locale', '/backoffice/aggiungi'],
@@ -1412,6 +1514,31 @@ describe('le licenze protette nel backoffice', () => {
     mostra()
     const attivo = await apri('Bar Attivo')
     expect(attivo).toHaveTextContent(/Programmata per il .*\(fine della conservazione dei dati: il locale è fermo\) · avvisi mandati: 1/)
+  })
+
+  // REQ-FLOTTA-112: i dispositivi che si presentano, e quelli indietro;
+  // l'anteprima degli e2e a parte, che non è la versione installata.
+  it('la scheda dice quanti dispositivi si presentano e quelli indietro; le anteprime no (REQ-FLOTTA-114)', async () => {
+    const poco = new Date(Date.now() - 3600_000).toISOString()
+    db.elencoIstanze.mockResolvedValue({
+      'bar-attivo': {
+        stato: 'attiva',
+        progetto: 'drinkpos-bar-attivo',
+        presentazione: {
+          versione: 'v1.10.50-beta',
+          minima: 'v1.10.40-beta',
+          prima_il: '2026-11-02T10:00:00Z',
+          il: poco,
+          dispositivi: { a: { versione: 'v1.10.50-beta', il: poco }, b: { versione: 'v1.10.50-beta', il: poco }, c: { versione: 'v1.10.40-beta', il: poco } },
+          anteprima: { versione: 'v1.10.52-beta', il: '2026-11-15T08:54:01Z' },
+        },
+      },
+    })
+    mostra()
+    const attivo = await apri('Bar Attivo')
+    expect(within(attivo).getByTestId('dispositivi')).toHaveTextContent(/^3 dispositivi · 1 sulla v1\.10\.40-beta$/)
+    expect(within(attivo).queryByTestId('anteprima')).toBeNull()
+    expect(attivo).not.toHaveTextContent('v1.10.52-beta')
   })
 
   // REQ-FLOTTA-026: la versione che l'app stessa ha detto alla regia.

@@ -6,7 +6,7 @@
 // condivide il link). Qui solo le regole, senza React: quali sezioni, cosa
 // contano i loro contatori, come si filtra l'elenco dei locali.
 
-import { STATI } from './istanze.js'
+import { STATI, statoIstanza } from './istanze.js'
 
 export const BASE = '/backoffice'
 
@@ -34,6 +34,9 @@ export const SEZIONI = [
   { id: 'commerciale', nome: 'Commerciale' },
   { id: 'richieste', nome: 'Richieste' },
   { id: 'rilasci', nome: 'Rilasci' },
+  // «Salute» (REQ-FLOTTA-109): presentazioni, errori e permessi dei locali;
+  // si guarda quando qualcosa non va.
+  { id: 'salute', nome: 'Salute' },
   { id: 'vendita', nome: 'Vendita' },
   { id: 'temi', nome: 'Temi' },
   // «Aggiungi locale» (REQ-FLOTTA-097): prima si sceglie fra nuovo ed
@@ -61,8 +64,12 @@ export const profiloDaAutorizzare = (r) => Boolean(r.istanza?.profilo_completo_d
 // un'eliminazione non riuscita in «Locali», le attivazioni da autorizzare
 // e i contatti aperti in «Richieste», gli aggiornamenti falliti in
 // «Rilasci».
-export function contiDelBackoffice(righe, contatti) {
+// Gli allarmi aperti della sentinella (REQ-FLOTTA-111) in «Salute»: è il
+// solo posto dove arrivano gli avvisi (Daniele, 14/11/2026: «Solo nel
+// backoffice»).
+export function contiDelBackoffice(righe, contatti, allarmi = []) {
   return {
+    salute: (allarmi || []).filter((a) => a.aperto === true).length,
     locali: righe.filter((r) => r.stato === STATI.ERRORE || eliminazioneFallita(r)).length,
     richieste:
       righe.filter((r) => r.stato === STATI.DA_APPROVARE || profiloDaAutorizzare(r)).length + (contatti || []).filter((c) => c.stato === 'aperta').length,
@@ -94,7 +101,31 @@ export const VISTE = [
 export function filtraLocali(righe, { vista = 'tutti', cerca = '' } = {}) {
   const v = VISTE.find((x) => x.id === vista) || VISTE[0]
   const q = cerca.trim().toLowerCase()
-  const trovato = ({ cliente: c }) =>
-    !q || [c.nome_locale, c.slug, c.email, c.fatturazione?.ragione_sociale].some((t) => String(t || '').toLowerCase().includes(q))
+  // Anche il progetto: un'istanza senza cliente (REQ-FLOTTA-113) si
+  // cerca spesso così (drinkpos-prova-e2e).
+  const trovato = ({ cliente: c, istanza }) =>
+    !q || [c.nome_locale, c.slug, c.email, c.fatturazione?.ragione_sociale, istanza?.progetto].some((t) => String(t || '').toLowerCase().includes(q))
   return righe.filter((r) => v.vale(r) && trovato(r))
+}
+
+// LE ISTANZE SENZA CLIENTE (REQ-FLOTTA-113). Daniele, 15/11/2026: «nei
+// locali prova-e2e non esiste». L'elenco parte dai clienti, una riga per
+// account; un'istanza che nessun cliente ha (prova-e2e, quella degli e2e
+// di tana-drink) non c'era. Qui diventano righe come le altre, con un
+// cliente fatto del solo identificativo e `senzaCliente`, così la scheda
+// sa di non mostrare quello che scrive su un cliente. Restano fuori da
+// `righe`: non sono clienti, e non devono entrare nei conti.
+export function istanzeSenzaCliente(istanze, clienti) {
+  const loro = new Set((clienti || []).map((c) => c.slug))
+  return Object.entries(istanze || {})
+    .filter(([slug]) => !loro.has(slug))
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([slug, istanza]) => ({
+      cliente: { slug, nome_locale: slug },
+      istanza,
+      richiesta: null,
+      cassetto: null,
+      stato: statoIstanza(istanza, null),
+      senzaCliente: true,
+    }))
 }

@@ -20,7 +20,7 @@
 // rilascio: di norma redirect11/tana-drink).
 
 const { onDocumentCreated, onDocumentUpdated, onDocumentWritten } = require('firebase-functions/v2/firestore')
-const { onRequest } = require('firebase-functions/v2/https')
+const { onRequest: onRequestSenzaRegistro } = require('firebase-functions/v2/https')
 const { defineSecret } = require('firebase-functions/params')
 const eventiStripe = require('./lib/eventistripe.js')
 const { initializeApp } = require('firebase-admin/app')
@@ -29,12 +29,22 @@ const { simulazioneAmmessa, documentoSimulato, preparaRichiesta, richiestaCoeren
 const rilasci = require('./lib/rilasci.js')
 const { sceltaCambiata, licenzaProtetta, stessaLicenza, perIlDatabase, scadenzaCoerente } = require('./lib/licenza.js')
 const { rinnovoUrl, fatturaDelRinnovo } = require('./lib/rinnovo.js')
-const { onCall, HttpsError } = require('firebase-functions/v2/https')
+const { onCall: onCallSenzaRegistro, HttpsError } = require('firebase-functions/v2/https')
+// I REGISTRI STRUTTURATI (REQ-FLOTTA-110): ogni Function HTTP e callable
+// scrive una riga con funzione, locale, esito e durata, e gli errori
+// inattesi col loro stack (lib/registro.js). `onRequest` e `onCall` qui
+// sono quelle col registro: nessuna dichiarazione sotto cambia, e nessuna
+// lo scavalca. Il locale lo dice il gestore in res.locals.slug.
+const registro = require('./lib/registro.js')
+const onRequest = (opzioni, gestore) => onRequestSenzaRegistro(opzioni, registro.conRegistro(gestore))
+const onCall = (opzioni, gestore) => onCallSenzaRegistro(opzioni, registro.conRegistroChiamata(gestore))
 const { FieldValue, Timestamp } = require('firebase-admin/firestore')
 const { chiaveStripeVera, ritornoAmmesso, righeSubscription, prodottiDi, parametriAliquotaIva, eAliquotaIva, CHIAVE_IDEMPOTENZA_IVA, metadatiDi, aggiornamentoDaEvento, sceltaPulita, sessioneCheckout, intervalloDi, prenotazioneDaRilasciare, fondatoreDaConfermare, DURATA_SESSIONE_MS, fineDelPeriodo, STATI_STRIPE } = require('./lib/abbonamento.js')
 const fondatori = require('./lib/fondatori.js')
 const acquisto = require('./lib/acquisto.js')
 const { onTaskDispatched } = require('firebase-functions/v2/tasks')
+// L'unica Function a tempo della regia: la sentinella (REQ-FLOTTA-111).
+const { onSchedule } = require('firebase-functions/v2/scheduler')
 const { getFunctions: funzioniAdmin } = require('firebase-admin/functions')
 const { STATI: STATI_LICENZA } = require('./lib/sospensione.js')
 const scadenze = require('./lib/scadenze.js')
@@ -46,10 +56,13 @@ const ai = require('./lib/ai.js')
 const aiChat = require('./lib/ai-chat.js')
 const identita = require('./lib/identita-locale.js')
 const stampanti = require('./lib/stampanti.js')
-const { OAuth2Client } = require('google-auth-library')
+const { OAuth2Client, GoogleAuth } = require('google-auth-library')
 const elim = require('./lib/eliminazione.js')
 const conserva = require('./lib/conservazione.js')
 const presenta = require('./lib/presentazione.js')
+const prova = require('./lib/istanzaDiProva.js')
+const salute = require('./lib/salute.js')
+const sentinella = require('./lib/sentinella.js')
 const passa = require('./lib/passaggio.js')
 const collab = require('./lib/collaboratori.js')
 const temi = require('./lib/temi.js')
@@ -292,6 +305,7 @@ exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK
   }
   const esito = esitoValido(req.body)
   if (!esito) return res.status(400).json({ errore: 'esito non valido' })
+  res.locals.slug = esito.slug
   const ref = db.doc(`istanze/${esito.slug}`)
   const prima = (await ref.get()).data() || null
   // Un esito vero per un locale simulato (REQ-FLOTTA-072, revisore,
@@ -1713,6 +1727,7 @@ exports.sceltaDallApp = onRequest({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN], c
   if (!progetto) return res.status(401).json({ errore: 'Serve l’accesso.' })
   const trovata = (await db.collection('istanze').where('progetto', '==', progetto).limit(1).get()).docs[0]
   const ist = trovata?.data()
+  if (trovata) res.locals.slug = trovata.id
   if (!ist || !riceveLicenza(ist)) return res.status(404).json({ errore: 'Locale sconosciuto.' })
   let chi
   try {
@@ -2016,7 +2031,7 @@ exports.chiediTemaSuMisura = onCall(OPTS, async (req) => {
 // ── IL SITO SI PRESENTA ALLA REGIA (REQ-FLOTTA-026) ────────────────────
 // Al primo avvio di ogni versione l'app chiama qui, col token di chi ha
 // fatto l'accesso nel progetto del locale: `POST`, `Authorization: Bearer
-// <ID token>`, corpo `{ versione }`. La regia riconosce il progetto fra le
+// <ID token>`, corpo `{ versione, dispositivo? }`. La regia riconosce il progetto fra le
 // sue istanze, verifica il token con quel progetto, si segna la versione e,
 // se il sito non ha la licenza, la riscrive: l'attivazione la scrive prima
 // dell'app, e senza sessione l'app non si può presentare. Basta un
@@ -2025,12 +2040,24 @@ exports.chiediTemaSuMisura = onCall(OPTS, async (req) => {
 // 'non_dalla_regia' | 'non_attiva' }; 400 corpo sbagliato; 401 token
 // mancante o non valido; 404 progetto che la regia non conosce; 503 la
 // licenza non si è scritta (si riprova aprendo l'app).
+// NESSUN 500 MUTO (REQ-FLOTTA-108): un errore inatteso si scrive nel
+// registro col suo dettaglio, così Error Reporting lo raccoglie; prima il
+// permesso negato su drinkpos-prova-e2e diventava un 500 senza traccia.
 exports.presentazione = onRequest({ ...OPTS, cors: false }, async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*')
   res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type')
   res.set('Access-Control-Allow-Methods', 'POST')
   if (req.method === 'OPTIONS') return res.status(204).send('')
   if (req.method !== 'POST') return res.status(405).json({ errore: 'Solo POST.' })
+  try {
+    return await presentaIlSito(req, res)
+  } catch (e) {
+    console.error('[presentazione] errore inatteso:', e)
+    return res.status(500).json({ errore: 'Errore della regia: riprova fra poco.' })
+  }
+})
+
+async function presentaIlSito(req, res) {
   const token = aggiornamenti.bearerDi(req.get('authorization'))
   const progetto = aggiornamenti.progettoDelToken(token)
   if (!progetto) return res.status(401).json({ errore: 'Serve l’accesso.' })
@@ -2046,12 +2073,36 @@ exports.presentazione = onRequest({ ...OPTS, cors: false }, async (req, res) => 
   const corpo = presenta.corpoPresentazione(req.body)
   if (!corpo) return res.status(400).json({ errore: 'Versione non valida.' })
   const slug = trovata.id
+  res.locals.slug = slug
+  res.locals.versione = corpo.versione
   const ist = trovata.data()
   // Chi apre l'app è un dipendente qualunque del locale: il suo uid non
-  // serve alla regia e non si salva (REQ-FLOTTA-051).
-  if (presenta.daRegistrare(ist, corpo.versione)) await trovata.ref.update(presenta.registroPresentazione(ist, { versione: corpo.versione }))
+  // serve alla regia e non si salva (REQ-FLOTTA-051). Il codice del
+  // dispositivo è casuale (REQ-FLOTTA-112). Una presentazione da un canale
+  // di anteprima (gli e2e di tana-drink) non si segna: «Regia non si caga
+  // le anteprime» (Daniele, 15/11/2026, REQ-FLOTTA-114); la risposta e la
+  // licenza restano, perché le prove le usano. In una transazione: due
+  // dispositivi che si presentano insieme non si cancellano.
+  const anteprima = presenta.daAnteprima(req.get('origin'))
+  if (!anteprima && presenta.daRegistrare(ist, corpo)) {
+    await db.runTransaction(async (t) => {
+      const attuale = (await t.get(trovata.ref)).data()
+      if (presenta.daRegistrare(attuale, corpo)) t.update(trovata.ref, presenta.registroPresentazione(attuale, corpo))
+    })
+  }
   const riceve = riceveLicenza(ist)
-  const esiste = riceve ? (await firestoreDi(progetto).doc(LICENZA_PROTETTA).get()).exists : false
+  // La licenza si legge nel progetto del locale, coi ruoli che Terraform dà
+  // all'account della regia: se mancano (REQ-FLOTTA-108) è un 503 col
+  // motivo, e l'app si ripresenta alla prossima apertura.
+  let esiste = false
+  if (riceve) {
+    try {
+      esiste = (await firestoreDi(progetto).doc(LICENZA_PROTETTA).get()).exists
+    } catch (e) {
+      console.error(`[presentazione] ${slug}: la licenza non si legge: ${e?.message || e}`)
+      return res.status(503).json({ errore: 'La regia non riesce a leggere la licenza: riprova fra poco.' })
+    }
+  }
   const cosa = presenta.cosaFareConLaLicenza(ist, { esiste, riceve })
   if (cosa !== 'scrivi') return res.status(200).json({ ok: true, licenza: cosa })
   // Nessuno ci lavora ancora: la prima licenza si scrive subito, niente taglio.
@@ -2062,6 +2113,59 @@ exports.presentazione = onRequest({ ...OPTS, cors: false }, async (req, res) => 
   }
   console.log(`[presentazione] ${slug} ${corpo.versione}: licenza scritta`)
   return res.status(200).json({ ok: true, licenza: 'scritta' })
+}
+
+// ── L'ISTANZA DI PROVA (REQ-FLOTTA-114) ────────────────────────────────
+// Daniele, 15/11/2026: «disattivare l'istanza e2e alla fine delle prove e
+// nel backoffice la si vede come disattivata». Le prove e2e di tana-drink
+// la accendono all'inizio e la spengono alla fine: `POST`, `Authorization:
+// Bearer <gettone di Google di deploy@<progetto>>`, destinatario
+// `regia-prova:<progetto della regia>`, corpo `{ attiva }` (le regole di
+// REQ-FLOTTA-115: nessun utente del progetto, solo l'account di deploy).
+// Vale solo per un'istanza che l'admin ha segnato di prova e che non ha un
+// cliente. Risposte: 200 { ok, attiva }; 400 corpo; 401 gettone o account;
+// 403 non di prova o con cliente; 404 eliminata; 405.
+exports.istanzaDiProva = onRequest({ ...OPTS, cors: false }, async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).json({ errore: 'Solo POST.' })
+  // IL GETTONE DI GOOGLE DELL'ACCOUNT DI DEPLOY (REQ-FLOTTA-115, regola 2):
+  // nessun utente del progetto di prova, solo chi ha la chiave del deploy.
+  const gettone = identita.tokenDaBearer(req.get('authorization'))
+  const trovata = gettone
+    ? await prova
+        .istanzaDalGettone(gettone, { progettoRegia: PROGETTO_REGIA, verifica: verificaGettone, cercaPerProgetto: istanzePerProgetto })
+        .catch((e) => {
+          console.warn('[prova] gettone rifiutato:', identita.motivoBreve(e))
+          return null
+        })
+    : null
+  if (!trovata) return res.status(401).json({ errore: 'Prove non riconosciute.' })
+  res.locals.slug = trovata.id
+  const corpo = prova.corpoProva(req.body)
+  if (!corpo) return res.status(400).json({ errore: 'Serve { attiva: true | false }.' })
+  // In una transazione (revisore, 15/11/2026): se l'admin toglie il segno
+  // di prova mentre le e2e chiamano, la chiamata non lo rimette.
+  const cliente = await clienteDi(trovata.id)
+  const ref = db.doc(`istanze/${trovata.id}`)
+  const puo = await db.runTransaction(async (t) => {
+    const esito = prova.puoCambiare((await t.get(ref)).data() || null, cliente)
+    if (esito.ok) t.update(ref, prova.registroProva(corpo.attiva))
+    return esito
+  })
+  if (!puo.ok) return res.status(puo.status).json({ errore: puo.perche })
+  return res.status(200).json({ ok: true, attiva: corpo.attiva })
+})
+
+// L'admin segna di prova un'istanza senza cliente, o la toglie da prova.
+// Segnata, parte spenta: la accendono le prove.
+exports.segnaIstanzaDiProva = onCall(OPTS, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const slug = String(req.data?.slug || '')
+  const ref = db.doc(`istanze/${slug}`)
+  const snap = slug && !slug.includes('/') ? await ref.get() : null
+  if (!snap?.exists) throw new HttpsError('not-found', 'Istanza sconosciuta.')
+  if (await clienteDi(slug)) throw new HttpsError('failed-precondition', 'Ha un cliente: non è un’istanza di prova.')
+  await ref.update(req.data?.prova === true ? prova.registroProva(false) : { prova: FieldValue.delete() })
+  return { ok: true }
 })
 
 // ── IL PIANO CHE CAMBIA (REQ-FLOTTA-010) ──────────────────────────────
@@ -2588,6 +2692,7 @@ exports.richiestaAI = onRequest(
           })
       : null
     if (!slug) return res.status(401).json({ errore: 'Locale non riconosciuto.' })
+    res.locals.slug = slug
 
     // IL FREE NON HA L'AI (REQ-FLOTTA-087): per ogni richiesta, il credito
     // compreso. Un locale tornato al Free conserva la sua Function AI
@@ -3309,6 +3414,7 @@ exports.moduloDallApp = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY], cors:
   if (!progetto) return no(401, 'Serve l’accesso.')
   const trovata = (await db.collection('istanze').where('progetto', '==', progetto).limit(1).get()).docs[0]
   const ist = trovata?.data()
+  if (trovata) res.locals.slug = trovata.id
   // La demo non ha titolare né abbonamento (REQ-FLOTTA-019).
   if (!ist || ist.stato === 'eliminata' || eDemo(ist)) return no(404, 'Installazione non registrata nella regia.')
   let chi
@@ -3395,4 +3501,186 @@ exports.cambiaPianoAdmin = onCall({ ...OPTS, secrets: [STRIPE_SECRET_KEY] }, asy
   }
   await doc.ref.update({ storico_piano: FieldValue.arrayUnion(c.storico) })
   return { ok: true, modo: req.data.modo }
+})
+
+// ── LA SALUTE DELLA FLOTTA (REQ-FLOTTA-109) ────────────────────────────
+// Daniele, 14/11/2026, dopo la verifica a mano del 500 di
+// drinkpos-prova-e2e: «dove le vedi queste cose?». La sezione «Salute» del
+// backoffice chiede qui, quando l'admin preme il tasto (mai a tempo), per
+// ogni locale l'ultima presentazione, gli errori delle 24 ore e i permessi
+// che mancano. I conti sono in lib/salute.js.
+// - I PERMESSI: testIamPermissions risponde coi permessi che la regia ha
+//   sul progetto del locale e sul suo account dell'SDK. Non legge niente
+//   del locale, non crea credenziali e non chiede un ruolo in più.
+// - GLI ERRORI: i registri della regia stessa, con roles/logging.viewer
+//   sul suo progetto (scripts/account-runtime.mjs). Senza quel ruolo la
+//   sezione dice che i registri non si leggono, non «zero errori».
+const googleAuth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-platform'] })
+async function chiediAGoogle(url, corpo) {
+  const client = await googleAuth.getClient()
+  const r = await client.request({ url, method: 'POST', data: corpo, timeout: 15000 })
+  return r.data
+}
+// Una domanda che non ha risposta torna null: «non lo so», non «manca».
+async function permessiDelLocale(progetto) {
+  const prova = (url, permissions) =>
+    chiediAGoogle(url, { permissions })
+      .then((d) => d?.permissions || [])
+      .catch((e) => {
+        console.warn(`[salute] ${progetto}: i permessi non si sono potuti chiedere: ${e?.message || e}`)
+        return null
+      })
+  const [progettoConcessi, firmaConcessi] = await Promise.all([
+    prova(`https://cloudresourcemanager.googleapis.com/v1/projects/${progetto}:testIamPermissions`, salute.PERMESSI_PROGETTO),
+    prova(`https://iam.googleapis.com/v1/projects/${progetto}/serviceAccounts/firebase-adminsdk-fbsvc@${progetto}.iam.gserviceaccount.com:testIamPermissions`, salute.PERMESSI_FIRMA),
+  ])
+  return { progetto: progettoConcessi, firma: firmaConcessi }
+}
+async function registriDelleUltime24Ore() {
+  const da = new Date(Date.now() - 24 * 3600 * 1000).toISOString()
+  try {
+    const d = await chiediAGoogle('https://logging.googleapis.com/v2/entries:list', {
+      resourceNames: [`projects/${PROGETTO_REGIA}`],
+      filter: `timestamp>="${da}" AND resource.type="cloud_run_revision" AND (httpRequest.status>=500 OR severity>=ERROR)`,
+      orderBy: 'timestamp desc',
+      pageSize: 500,
+    })
+    return { leggibili: true, voci: d?.entries || [] }
+  } catch (e) {
+    const status = e?.response?.status || e?.status
+    return { leggibili: false, perche: status === 403 ? 'manca roles/logging.viewer all’account della regia' : `Google ha risposto: ${e?.message || e}` }
+  }
+}
+exports.saluteDellaFlotta = onCall({ ...OPTS, timeoutSeconds: 120 }, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const istanze = (await db.collection('istanze').get()).docs.map((d) => ({ slug: d.id, ...d.data() }))
+  const [permessi, registri] = await Promise.all([
+    Promise.all(istanze.filter(salute.daControllare).map(async (ist) => [ist.slug, await permessiDelLocale(ist.progetto)])).then(Object.fromEntries),
+    registriDelleUltime24Ore(),
+  ])
+  return salute.rapporto({ istanze, permessi, registri })
+})
+
+// ── LA SENTINELLA (REQ-FLOTTA-111) ─────────────────────────────────────
+// Daniele, 14/11/2026: «niente allarmi google. Noi che possiamo fare
+// internamente?», e sul canale degli avvisi: «Solo nel backoffice». Ogni
+// 15 minuti: i siti (la regia e i locali attivi), gli errori dei registri
+// della regia dal giro prima, le presentazioni ferme, e una volta l'ora i
+// permessi. Quello che non va diventa un allarme in allarmi/{chiave}, che
+// si chiude da sé quando il controllo torna in ordine; lo stato del giro
+// sta in sentinella/stato. I conti sono in lib/sentinella.js.
+// È a tempo perché un sito che cade non manda eventi (REQ-FLOTTA-023 aveva
+// tolto i giri delle scadenze, che un evento lo hanno).
+
+// Un sito, come lo apre un visitatore: un rimando va bene (il sito c'è),
+// e non si segue, così non si finisce su un dominio di altri.
+async function apriSito(url, secondi) {
+  try {
+    const r = await fetch(url, { method: 'GET', redirect: 'manual', signal: AbortSignal.timeout(secondi * 1000), headers: { 'User-Agent': 'sentinella-regia' } })
+    return { status: r.status, errore: null }
+  } catch (e) {
+    return { status: null, errore: e?.name === 'TimeoutError' ? 'timeout' : String(e?.message || e) }
+  }
+}
+
+// Le righe d'errore dei registri della regia da `da` a ora: quelle dei
+// registri strutturati (esito «errore») e quelle d'errore delle Function
+// senza registro. Come la Salute: senza roles/logging.viewer si dice.
+async function registriDellaSentinella(da) {
+  try {
+    const d = await chiediAGoogle('https://logging.googleapis.com/v2/entries:list', {
+      resourceNames: [`projects/${PROGETTO_REGIA}`],
+      filter: `timestamp>="${da}" AND resource.type="cloud_run_revision" AND (jsonPayload.esito="errore" OR severity>=ERROR)`,
+      orderBy: 'timestamp desc',
+      pageSize: 1000,
+    })
+    return { ok: true, voci: d?.entries || [] }
+  } catch (e) {
+    const status = e?.response?.status || e?.status
+    return { ok: false, perche: status === 403 ? 'manca roles/logging.viewer all’account della regia' : `Google ha risposto: ${e?.message || e}` }
+  }
+}
+
+async function giroDellaSentinella() {
+  const inizio = Date.now()
+  const adesso = new Date()
+  const ora = adesso.toISOString()
+  const statoRef = db.doc('sentinella/stato')
+  const [statoSnap, soglieSnap, istanzeSnap, allarmiSnap] = await Promise.all([
+    statoRef.get(),
+    db.doc('impostazioni/sentinella').get(),
+    db.collection('istanze').get(),
+    db.collection('allarmi').get(),
+  ])
+  const stato = statoSnap.data() || null
+  const soglie = sentinella.soglie(soglieSnap.data())
+  const istanze = istanzeSnap.docs.map((d) => ({ slug: d.id, ...d.data() }))
+  const allarmi = allarmiSnap.docs.map((d) => ({ id: d.id, ...d.data() }))
+  const daFare = sentinella.controlliDelGiro(stato, adesso)
+  const controlli = { ...(stato?.controlli || {}) }
+  const segnali = []
+  const fatto = (nome, esito) => {
+    controlli[nome] = { ok: esito.ok, il: ora, perche: esito.ok ? null : esito.perche }
+  }
+
+  const regia = REGIA_URL || (PROGETTO_REGIA ? `https://${PROGETTO_REGIA}.web.app` : null)
+  const siti = sentinella.sitiDaGuardare({ regia, istanze })
+  const esitiSiti = await Promise.all(siti.map(async (s) => ({ ...s, ...(await apriSito(s.url, soglie.sito_secondi)) })))
+  segnali.push(...sentinella.segnaliSiti(esitiSiti, soglie))
+  fatto('siti', { ok: true })
+
+  const registri = await registriDellaSentinella(sentinella.finestraErrori(stato?.ultimo_giro_il, adesso))
+  if (registri.ok) segnali.push(...sentinella.segnaliErrori(registri.voci, soglie))
+  fatto('errori', registri)
+
+  segnali.push(...sentinella.segnaliPresentazioni(istanze, soglie, adesso))
+  fatto('presentazioni', { ok: true })
+
+  if (daFare.includes('permessi')) {
+    const daChiedere = istanze.filter(salute.daControllare)
+    const permessi = Object.fromEntries(await Promise.all(daChiedere.map(async (ist) => [ist.slug, await permessiDelLocale(ist.progetto)])))
+    // Se Google non ha risposto per nessuno, il controllo non è riuscito:
+    // non deve chiudere gli allarmi dei permessi.
+    const risposte = Object.values(permessi).filter((p) => Array.isArray(p.progetto) || Array.isArray(p.firma)).length
+    const ok = daChiedere.length === 0 || risposte > 0
+    if (ok) segnali.push(...sentinella.segnaliPermessi(istanze, permessi))
+    fatto('permessi', { ok, perche: 'Google non ha risposto sui permessi' })
+  }
+
+  // Solo i controlli fatti in questo giro, e riusciti, chiudono allarmi.
+  const eseguiti = Object.entries(controlli)
+    .filter(([, c]) => c.il === ora && c.ok)
+    .map(([nome]) => nome)
+  const confermati = sentinella.conferma(segnali, { inOsservazione: stato?.in_osservazione || {}, aperti: allarmi.filter((a) => a.aperto).map((a) => a.id), adesso })
+  const scritture = sentinella.aggiornaAllarmi({ allarmi, segnali: confermati.segnali, eseguiti, adesso })
+
+  const batch = db.batch()
+  for (const w of scritture) batch.set(db.doc(`allarmi/${w.id}`), w.dati, { merge: true })
+  const aperti = allarmi.filter((a) => a.aperto).length + scritture.filter((w) => w.dati.aperto === true).length - scritture.filter((w) => w.dati.aperto === false).length
+  const nuovoStato = { ultimo_giro_il: ora, durata_ms: Date.now() - inizio, controlli, in_osservazione: confermati.in_osservazione, soglie, aperti }
+  batch.set(statoRef, nuovoStato)
+  await batch.commit()
+  console.log(JSON.stringify({ severity: 'INFO', message: `sentinella: ${aperti} allarmi aperti`, funzione: 'sentinella', tipo: 'giro', esito: 'ok', durata_ms: nuovoStato.durata_ms, aperti, scritture: scritture.length }))
+  return nuovoStato
+}
+
+exports.sentinella = onSchedule({ ...OPTS, schedule: 'every 15 minutes', timeZone: 'Europe/Rome', retryCount: 0, timeoutSeconds: 300 }, async () => {
+  await giroDellaSentinella()
+})
+
+// «Fai un giro adesso» dal backoffice: lo stesso giro, solo per l'admin.
+exports.giroSentinella = onCall({ ...OPTS, timeoutSeconds: 300 }, async (req) => {
+  if (req.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo l’amministratore.')
+  const stato = await giroDellaSentinella()
+  return { ultimo_giro_il: stato.ultimo_giro_il, aperti: stato.aperti }
+})
+
+// LA PROVA DI VITA per il guardiano esterno (.github/workflows/guardiano.yml):
+// se a cadere è la regia, il backoffice non può dirlo. Risponde a tutti,
+// e solo coi minuti dall'ultimo giro: niente allarmi, niente locali.
+exports.sentinellaViva = onRequest({ ...OPTS, cors: false, maxInstances: 2 }, async (req, res) => {
+  if (req.method !== 'GET') return res.status(405).json({ errore: 'Solo GET.' })
+  const v = sentinella.viva((await db.doc('sentinella/stato').get()).data(), new Date())
+  res.set('Cache-Control', 'no-store')
+  return res.status(v.viva ? 200 : 503).json(v)
 })

@@ -114,6 +114,28 @@ describe('firebase-hosting.yml: a pubblicare è il tag; il test poi passa il col
     expect(cerca).toMatch(/\[ -z "\$trovato" \][\s\S]*::error::[\s\S]*exit 1/)
     expect(produzione.needs).toEqual(['destinazione', 'garanzia'])
   })
+
+  // REQ-FLOTTA-118 (Daniele, 15/11/2026, sulla garanzia che accettava un
+  // collaudo qualunque nella storia del tag: «fai 1 2 e 3 in fila»). Il
+  // collaudo vale solo se il codice che si pubblica è lo stesso: fra il
+  // commit collaudato e il tag possono cambiare solo documenti, registro e
+  // test, mai quello che va in produzione.
+  it('la garanzia vale solo per lo stesso codice: fra il collaudato e il tag cambiano al più documenti, registro e test', () => {
+    const cerca = hosting.jobs.garanzia.steps.find((s) => s.name === 'Cerca il collaudo').run
+    const diff = cerca.match(/git diff --quiet "\$sha" "\$GITHUB_SHA" -- \.([^|\n]*)\|\|/)
+    expect(diff, 'manca il confronto del codice fra il collaudato e il tag').not.toBeNull()
+    const esclusi = [...diff[1].matchAll(/':\(exclude\)([^']+)'/g)].map((m) => m[1]).sort()
+    expect(esclusi).toEqual(['*.md', '.claude', 'docs', 'requirements', 'tests'])
+    // Il confronto viene dopo la storia e prima del collaudo: un run con
+    // codice diverso si salta, non ferma la ricerca.
+    const storia = cerca.indexOf('merge-base --is-ancestor')
+    const confronto = cerca.indexOf('git diff --quiet')
+    const esito = cerca.indexOf('select(.name == "Collaudo sul test")')
+    expect(storia).toBeLessThan(confronto)
+    expect(confronto).toBeLessThan(esito)
+    expect(cerca.slice(confronto, esito)).toMatch(/continue/)
+    expect(cerca).toContain('stesso codice')
+  })
 })
 
 describe('e2e.yml: le prove Playwright, riusabili, col collaudo a richiesta', () => {
@@ -185,6 +207,7 @@ describe('deploy.yml: l’environment scritto a chiare lettere e la guardia sul 
 describe('ogni action è ferma a un commit, non a un tag', () => {
   const cartella = join(process.cwd(), '.github/workflows')
   const workflow = readdirSync(cartella).filter((f) => f.endsWith('.yml'))
+  const SENZA_ACTION = ['guardiano.yml']
 
   it.each(workflow)('%s: ogni `uses:` ha uno SHA di 40 caratteri e la versione nel commento', (nome) => {
     const righe = leggi(nome)
@@ -192,7 +215,11 @@ describe('ogni action è ferma a un commit, non a un tag', () => {
       .filter((r) => /^\s*(- )?uses:/.test(r))
       // I workflow riusabili del repository stesso si chiamano per percorso.
       .filter((r) => !/uses:\s*\.\//.test(r))
-    expect(righe.length).toBeGreaterThan(0)
+    // Il guardiano della regia (REQ-FLOTTA-111) non usa nessuna action:
+    // solo curl, niente da fermare. Gli altri ne hanno almeno una, e il
+    // conto a zero vorrebbe dire che il filtro qui sopra non le vede più.
+    if (SENZA_ACTION.includes(nome)) expect(righe).toEqual([])
+    else expect(righe.length).toBeGreaterThan(0)
     for (const r of righe) {
       expect(r.trim()).toMatch(/^(- )?uses: [\w.-]+\/[\w.-]+@[0-9a-f]{40} # v\d+(\.\d+)*$/)
     }

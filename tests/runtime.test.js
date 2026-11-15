@@ -40,7 +40,7 @@ describe('l’account di runtime delle Functions', () => {
 
   it('lo script dà solo i ruoli che il codice usa: niente Editor, niente Owner', () => {
     expect(script).not.toMatch(/roles\/(editor|owner)/)
-    for (const ruolo of ['roles/datastore.user', 'roles/firebaseauth.admin', 'roles/logging.logWriter', 'roles/eventarc.eventReceiver', 'roles/run.invoker', 'roles/cloudtasks.enqueuer']) {
+    for (const ruolo of ['roles/datastore.user', 'roles/firebaseauth.admin', 'roles/logging.logWriter', 'roles/eventarc.eventReceiver', 'roles/run.invoker', 'roles/cloudtasks.enqueuer', 'roles/logging.viewer']) {
       expect(script).toContain(`'${ruolo}'`)
     }
     // Firma come sé stesso (token di passaggio, URL firmati) e agisce come

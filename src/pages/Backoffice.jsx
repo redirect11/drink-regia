@@ -43,11 +43,13 @@ import {
   temiDelLocale,
   elencoTemiSuMisura,
   gestisciTemiSuMisura,
+  elencoAllarmi,
+  segnaIstanzaDiProva,
 } from '../lib/db.js'
 import { venditaPulita } from '../lib/vendita.js'
 import { stampantiDette } from '../lib/stampanti.js'
 
-import { ESCLUSIVI, nomeStile, nomeImpaginazione, ORIGINI_DETTE, STATI_DETTI, temaVuoto } from '../lib/temi.js'
+import { ESCLUSIVI, nomeStile, nomeImpaginazione, ORIGINI_DETTE, STATI_DETTI, temaVuoto, baseNonVista } from '../lib/temi.js'
 import { statoIstanza, statoDetto, STATI, progettoDi, riduzioneDetta, hrefSicuro, istanzaScollegata } from '../lib/istanze.js'
 import { PIANI, MODULI, prezzoMensile, euro, baseMancante, senzaOrfani } from '../lib/piani.js'
 import { prezzoConSconto, scontoDetto, usiDetti, CODICE_VALIDO, REGOLA_CODICE, LIMITE_PER_IL_CENTO, generaCodice } from '../lib/sconti.js'
@@ -55,13 +57,27 @@ import CatalogoTemi, { EditorTema } from './CatalogoTemi.jsx'
 import { contattoDi } from '../lib/clienti.js'
 import { statoCredito, euroCent, aiNelPiano, MODELLI_AI, TIPI_MODELLO_DETTI, modelloScelto, VOCI_LIMITI_CHAT, limiteChatScelto, tettoLimiteChat, limiteChatValido } from '../lib/ai.js'
 import { GRUPPI, TAG, aggiornamentoDetto, runNellErrore } from '../lib/rilasci.js'
-import { AGGIUNTE, BASE, SEZIONI, VISTE, aggiornamentoFallito, aggiornaLaRegia, contiDelBackoffice, filtraLocali, profiloDaAutorizzare } from '../lib/backoffice.js'
+import {
+  AGGIUNTE,
+  BASE,
+  SEZIONI,
+  VISTE,
+  aggiornamentoFallito,
+  aggiornaLaRegia,
+  contiDelBackoffice,
+  filtraLocali,
+  istanzeSenzaCliente,
+  profiloDaAutorizzare,
+} from '../lib/backoffice.js'
 import Rilasci from './Rilasci.jsx'
 import Collaboratori from './Collaboratori.jsx'
 import Commerciale from './Commerciale.jsx'
+import Salute from './Salute.jsx'
+import Sentinella from './Sentinella.jsx'
 import CollegaIstanza from './CollegaIstanza.jsx'
 import { OrariNelBackoffice } from './OrariServizio.jsx'
 import { MODALITA, regolaDetta, propostaDetta } from '../lib/aggiornamenti.js'
+import { dispositiviDetti } from '../lib/dispositivi.js'
 
 // Il sito di produzione: lo dice il deploy (deploy.yml), come in App.jsx.
 const PRODUZIONE = import.meta.env.VITE_APP_ENV === 'production'
@@ -82,6 +98,8 @@ const PRODUZIONE = import.meta.env.VITE_APP_ENV === 'production'
 // e i contatori del sotto-menù li hanno già.
 export default function Backoffice() {
   const [righe, setRighe] = useState(undefined)
+  // Le istanze senza cliente (REQ-FLOTTA-113): a parte, fuori dai conti.
+  const [senzaCliente, setSenzaCliente] = useState([])
   const [errore, setErrore] = useState(null)
   const [impostazioni, setImpostazioni] = useState({})
   // La chiave AI appena creata: si vede una volta sola, qui (REQ-AI-003).
@@ -89,6 +107,10 @@ export default function Backoffice() {
   // Le richieste di contatto (REQ-FLOTTA-017): lette qui e non nella loro
   // sezione, perché il contatore di «Richieste» le conta da ogni sezione.
   const [contatti, setContatti] = useState([])
+  // Gli allarmi della sentinella (REQ-FLOTTA-111), per il contatore di
+  // «Salute»: letti qui come i contatti, e riletti dalla sezione dopo un
+  // giro a mano (Sentinella riceve setAllarmi, che non cambia mai).
+  const [allarmi, setAllarmi] = useState([])
   // Lo slug -> il ref che «Aggiorna subito» ha lanciato, per dirlo sulla scheda.
   const [lanciati, setLanciati] = useState({})
   // Gli slug per cui la Function sta ancora lanciando il workflow.
@@ -108,6 +130,11 @@ export default function Backoffice() {
         elencoRilasci().catch(() => []),
       ])
       setRilasci(elencoR)
+      // Come i cassetti: un allarme che non si legge non ferma il backoffice.
+      elencoAllarmi()
+        .then(setAllarmi)
+        .catch(() => {})
+      setSenzaCliente(istanzeSenzaCliente(istanze, clienti))
       setRighe(
         clienti
           .map((c) => ({ cliente: c, istanza: istanze[c.slug] || null, richiesta: richieste[c.slug] || null, cassetto: cassetti[c.slug] || null }))
@@ -366,13 +393,13 @@ export default function Backoffice() {
   return (
     <main className="pagina larga">
       <h2>Backoffice</h2>
-      <SottoMenu conti={contiDelBackoffice(righe, contatti)} />
+      <SottoMenu conti={contiDelBackoffice(righe, contatti, allarmi)} />
       {errore && <p className="errore">{errore}</p>}
 
       <div className="bo-sezione">
         <Routes>
           <Route index element={<Navigate to={`${BASE}/locali`} replace />} />
-          <Route path="locali" element={<SezioneLocali righe={righe} az={az} lanciati={lanciati} inAvvio={inAvvio} />} />
+          <Route path="locali" element={<SezioneLocali righe={righe} senzaCliente={senzaCliente} az={az} lanciati={lanciati} inAvvio={inAvvio} />} />
           {/* La dashboard di chi vende (REQ-FLOTTA-041): legge le righe e i contatti già caricati qui. */}
           <Route path="commerciale" element={<Commerciale righe={righe} contatti={contatti} onErrore={setErrore} />} />
           <Route
@@ -418,6 +445,15 @@ export default function Backoffice() {
             }
           />
           <Route path="temi" element={<CatalogoTemi onErrore={setErrore} />} />
+          <Route
+            path="salute"
+            element={
+              <>
+                <Sentinella onErrore={setErrore} onAllarmi={setAllarmi} />
+                <Salute onErrore={setErrore} />
+              </>
+            }
+          />
           {/* «Aggiungi locale» (REQ-FLOTTA-097): la scelta, poi un modulo
               solo. La scelta sta nell'indirizzo, così il tasto indietro del
               browser torna alla scelta; una scelta che non c'è, o il vecchio
@@ -475,7 +511,7 @@ function SottoMenu({ conti }) {
 // Ricerca e vista stanno nell'indirizzo (?cerca=…&vista=…), così un elenco
 // filtrato si condivide; si scrivono con replace, per non riempire la
 // cronologia a ogni tasto.
-function SezioneLocali({ righe, az, lanciati, inAvvio = {} }) {
+function SezioneLocali({ righe, senzaCliente = [], az, lanciati, inAvvio = {} }) {
   const [parametri, setParametri] = useSearchParams()
   // Lo slug del locale col modulo «Cambia piano» aperto (REQ-FLOTTA-016).
   const [cambia, setCambia] = useState(null)
@@ -497,12 +533,70 @@ function SezioneLocali({ righe, az, lanciati, inAvvio = {} }) {
       { replace: true }
     )
 
-  if (righe.length === 0) return <p className="muted">Nessun cliente.</p>
+  if (righe.length === 0 && senzaCliente.length === 0) return <p className="muted">Nessun cliente.</p>
   const mostrate = filtraLocali(righe, { vista, cerca })
+  const orfane = filtraLocali(senzaCliente, { vista, cerca })
   const chiudi = () => {
     setCambia(null)
     setElimina(null)
     az.carica()
+  }
+  // Una riga e, aperta, la sua scheda: la stessa per i locali dei clienti
+  // e per le istanze senza cliente (REQ-FLOTTA-113).
+  const rigaLocale = (r) => {
+    const c = r.cliente
+    const aperta = aperto === c.slug
+    const breve = statoBreve(r)
+    return (
+      <Fragment key={c.uid || `senza-${c.slug}`}>
+        <tr className={`riga-locale tono-${breve.tono}${aperta ? ' aperta' : ''}`} onClick={() => filtra('locale', aperta ? '' : c.slug)}>
+          <th scope="row">
+            <button
+              type="button"
+              className="nome-locale"
+              aria-expanded={aperta}
+              onClick={(e) => {
+                e.stopPropagation()
+                filtra('locale', aperta ? '' : c.slug)
+              }}
+            >
+              {c.nome_locale}
+            </button>
+            <div className="muted small">
+              {c.slug}
+              {r.istanza?.interna && ' · interna'}
+              {r.istanza?.origine === 'esistente' && ' · esistente'}
+              {r.senzaCliente && ' · senza cliente'}
+              {r.istanza?.prova && ' · di prova'}
+            </div>
+          </th>
+          <td>
+            <span className={`stato stato-${breve.tono}`}>{breve.testo}</span>
+          </td>
+          <td>{c.piano ? `${PIANI[c.piano]?.nome || c.piano} · ${euro(prezzoConSconto(prezzoMensile(c), c))}` : <span className="muted">—</span>}</td>
+          <td className="col-secondaria">{r.istanza?.versione || r.istanza?.presentazione?.versione || <span className="muted">—</span>}</td>
+          <td className={licenzaBreve(r.istanza).tono === 'errore' ? 'errore small' : 'muted small'}>{licenzaBreve(r.istanza).testo}</td>
+          <td className="col-secondaria muted small">{c.email || '—'}</td>
+        </tr>
+        {aperta && (
+          <tr className="riga-dettaglio">
+            <td colSpan={6}>
+              <SchedaLocale
+                riga={r}
+                az={az}
+                lanciato={lanciati[c.slug]}
+                inAvvio={Boolean(inAvvio[c.slug])}
+                cambiaAperto={cambia === c.slug}
+                onCambia={() => setCambia(cambia === c.slug ? null : c.slug)}
+                eliminaAperto={elimina === c.slug}
+                onElimina={() => setElimina(elimina === c.slug ? null : c.slug)}
+                onFatto={chiudi}
+              />
+            </td>
+          </tr>
+        )}
+      </Fragment>
+    )
   }
 
   return (
@@ -526,7 +620,11 @@ function SezioneLocali({ righe, az, lanciati, inAvvio = {} }) {
       <p className="muted small" data-testid="quanti-locali">
         {mostrate.length === righe.length ? `${righe.length} locali` : `${mostrate.length} di ${righe.length} locali`}
       </p>
-      {mostrate.length === 0 ? (
+      {righe.length === 0 ? (
+        // Nessun cliente, ma istanze senza cliente sì (REQ-FLOTTA-113): il
+        // gruppo resta sotto.
+        <p className="muted">Nessun cliente.</p>
+      ) : mostrate.length === 0 ? (
         <p className="muted">Nessun locale con questi filtri.</p>
       ) : (
         // UNA TABELLA (l'utente, 02/11/2026: «vorrei che la lista delle
@@ -549,63 +647,35 @@ function SezioneLocali({ righe, az, lanciati, inAvvio = {} }) {
                 </th>
               </tr>
             </thead>
-            <tbody>
-              {mostrate.map((r) => {
-                const c = r.cliente
-                const aperta = aperto === c.slug
-                const breve = statoBreve(r)
-                return (
-                  <Fragment key={c.uid}>
-                    <tr className={`riga-locale tono-${breve.tono}${aperta ? ' aperta' : ''}`} onClick={() => filtra('locale', aperta ? '' : c.slug)}>
-                      <th scope="row">
-                        <button
-                          type="button"
-                          className="nome-locale"
-                          aria-expanded={aperta}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            filtra('locale', aperta ? '' : c.slug)
-                          }}
-                        >
-                          {c.nome_locale}
-                        </button>
-                        <div className="muted small">
-                          {c.slug}
-                          {r.istanza?.interna && ' · interna'}
-                          {r.istanza?.origine === 'esistente' && ' · esistente'}
-                        </div>
-                      </th>
-                      <td>
-                        <span className={`stato stato-${breve.tono}`}>{breve.testo}</span>
-                      </td>
-                      <td>{c.piano ? `${PIANI[c.piano]?.nome || c.piano} · ${euro(prezzoConSconto(prezzoMensile(c), c))}` : <span className="muted">—</span>}</td>
-                      <td className="col-secondaria">{r.istanza?.versione || r.istanza?.presentazione?.versione || <span className="muted">—</span>}</td>
-                      <td className={licenzaBreve(r.istanza).tono === 'errore' ? 'errore small' : 'muted small'}>{licenzaBreve(r.istanza).testo}</td>
-                      <td className="col-secondaria muted small">{c.email}</td>
-                    </tr>
-                    {aperta && (
-                      <tr className="riga-dettaglio">
-                        <td colSpan={6}>
-                          <SchedaLocale
-                            riga={r}
-                            az={az}
-                            lanciato={lanciati[c.slug]}
-                            inAvvio={Boolean(inAvvio[c.slug])}
-                            cambiaAperto={cambia === c.slug}
-                            onCambia={() => setCambia(cambia === c.slug ? null : c.slug)}
-                            eliminaAperto={elimina === c.slug}
-                            onElimina={() => setElimina(elimina === c.slug ? null : c.slug)}
-                            onFatto={chiudi}
-                          />
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                )
-              })}
-            </tbody>
+            <tbody>{mostrate.map(rigaLocale)}</tbody>
           </table>
         </div>
+      )}
+      {orfane.length > 0 && (
+        // Le istanze senza cliente (REQ-FLOTTA-113): in fondo, nel loro
+        // gruppo, con le stesse colonne e la stessa scheda.
+        <>
+          <h3 className="gruppo-locali">Istanze senza cliente ({orfane.length})</h3>
+          <div className="tabella-scorre">
+            <table className="tabella-locali" aria-label="Istanze senza cliente">
+              <thead>
+                <tr>
+                  <th scope="col">Istanza</th>
+                  <th scope="col">Stato</th>
+                  <th scope="col">Piano</th>
+                  <th scope="col" className="col-secondaria">
+                    Versione
+                  </th>
+                  <th scope="col">Licenza</th>
+                  <th scope="col" className="col-secondaria">
+                    Titolare
+                  </th>
+                </tr>
+              </thead>
+              <tbody>{orfane.map(rigaLocale)}</tbody>
+            </table>
+          </div>
+        </>
       )}
     </>
   )
@@ -641,6 +711,9 @@ function AzioniAggiornamento({ cliente: c, istanza, az }) {
 // (tana-drink, DESIGN.md, guardrail 2).
 function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCambia, eliminaAperto, onElimina, onFatto }) {
   const { cliente: c, istanza, stato, cassetto } = riga
+  // Un'istanza senza cliente (REQ-FLOTTA-113): niente di quello che scrive
+  // su un cliente o parla al titolare, che qui non c'è.
+  const senzaCliente = riga.senzaCliente === true
   const credito = statoCredito(cassetto)
   // Un locale registrato come esistente (la Tana) non passa per la
   // flotta: da qui niente Sospendi e Chiudi, la licenza è del suo progetto.
@@ -658,7 +731,7 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
   // Il Free non ha l'AI (REQ-FLOTTA-087; Daniele, 13/11/2026: «I free non
   // hanno l'ai»): niente blocco Credito AI, o si regalerebbe un credito che
   // la regia poi non lascia spendere. La regola è quella della regia.
-  const conAI = aiNelPiano(c, istanza)
+  const conAI = !senzaCliente && aiNelPiano(c, istanza)
   const aiVisibile = conAI && (credito || attiva)
   // Un locale pubblicato fuori dalla regia (la Tana, da GitHub) non manda
   // l'esito del deploy: la versione la dice l'app stessa quando si
@@ -722,7 +795,7 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
   // Il fondo: i gesti che fermano o cancellano.
   const eliminaCliente = (!istanza?.progetto || stato === STATI.ELIMINATA) && ![STATI.IN_CODA, STATI.IN_CORSO].includes(stato)
   const gestisciLicenza = daFlotta && attiva
-  const conFondo = eliminaCliente || gestisciLicenza || (eliminazione && !eliminazioneFallita) || eliminaAperto
+  const conFondo = !senzaCliente && (eliminaCliente || gestisciLicenza || (eliminazione && !eliminazioneFallita) || eliminaAperto)
 
   return (
     <article className={`locale tono-${tono}`} aria-label={c.nome_locale}>
@@ -748,6 +821,31 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
       )}
 
       <div className="locale-blocchi">
+        {senzaCliente && (
+          <Blocco id={id('cliente')} titolo="Cliente">
+            <div className="muted small">
+              Nessun cliente collegato: è un’istanza di servizio (per esempio quella degli e2e di tana-drink). Titolare, piano, aspetto e credito AI
+              stanno sul cliente, e qui non ci sono.
+            </div>
+            {/* L'istanza di prova (REQ-FLOTTA-114): la accendono e la spengono le prove e2e. */}
+            {istanza?.prova?.attiva === false && <div className="small">Disattivata dal {giorno(istanza.prova.il)}: le prove e2e sono finite.</div>}
+            {istanza?.prova?.attiva === true && <div className="small">In prova dal {giorno(istanza.prova.il)}.</div>}
+            <div className="gruppo-azioni">
+              <button
+                type="button"
+                className="btn ghost small"
+                onClick={() =>
+                  segnaIstanzaDiProva(c.slug, !istanza?.prova)
+                    .then(az.carica)
+                    .catch((e) => az.onErrore(e.message))
+                }
+              >
+                {istanza?.prova ? 'Non è più un’istanza di prova' : 'Segna come istanza di prova'}
+              </button>
+            </div>
+          </Blocco>
+        )}
+        {!senzaCliente && (
         <Blocco id={id('titolare')} titolo="Titolare">
           <div>{c.email}</div>
           {c.fatturazione?.ragione_sociale && (
@@ -775,7 +873,9 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
           </div>
           {collaboratoriAperti && <Collaboratori slug={c.slug} />}
         </Blocco>
+        )}
 
+        {!senzaCliente && (
         <Blocco id={id('piano')} titolo="Piano">
           <div>{c.piano ? `${piano?.nome || c.piano} · ${euro(prezzoConSconto(prezzoMensile(c), c))}` : <span className="muted">—</span>}</div>
           {scontoDetto(c) && (
@@ -813,6 +913,7 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
           </div>
           {cambiaAperto && <CambiaPiano cliente={c} onFatto={onFatto} onErrore={az.onErrore} />}
         </Blocco>
+        )}
 
         <Blocco id={id('app')} titolo="App">
           <div>
@@ -846,17 +947,25 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
             </p>
           )}
           {agg?.stato === 'riuscito' && <div className="muted small">{aggiornamentoDetto(agg)}</div>}
-          {istanza?.presentazione?.versione && (
+          {istanza?.presentazione?.versione && !istanza?.prova && (
             // REQ-FLOTTA-026: la versione che l'app stessa ha detto alla regia,
             // da qualunque deploy sia arrivata (anche da GitHub, come la Tana).
+            // Non per un'istanza di prova (REQ-FLOTTA-114): lì si presentano
+            // solo le anteprime, e la versione vera è quella installata.
             <div className="small">
               <span className="muted">ultimo contatto: </span>
               <span data-testid="presentazione">
                 {istanza.presentazione.versione} · dal {giorno(istanza.presentazione.prima_il)} · ultima volta il {giorno(istanza.presentazione.il)}
               </span>
+              {/* REQ-FLOTTA-112: i dispositivi, e quelli indietro. */}
+              {dispositiviDetti(istanza.presentazione) && (
+                <div className="muted" data-testid="dispositivi">
+                  {dispositiviDetti(istanza.presentazione)}
+                </div>
+              )}
             </div>
           )}
-          {!daFlotta && (
+          {!daFlotta && !senzaCliente && (
             <div className="gruppo-azioni">
               <button type="button" className="btn ghost small" aria-expanded={gestioneAperta} onClick={() => setGestioneAperta((v) => !v)}>
                 Pubblicazione e licenza…
@@ -950,15 +1059,17 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
           {attiva && !aggiornabile && <div className="muted small">Li porta il suo repository, non la regia.</div>}
         </Blocco>
 
+        {!senzaCliente && (
         <Blocco id={id('aspetto')} titolo="Aspetto">
           <div className="small">
             <span className="muted">temi in licenza: </span>
             <span data-testid={`temi-${c.slug}`}>{(c.temi || []).length ? c.temi.map(nomeStile).join(', ') : 'nessuno'}</span>
           </div>
           <TemiInLicenza cliente={c} onErrore={az.onErrore} onFatto={az.carica} />
-          <TemiSuMisuraLocale cliente={c} onErrore={az.onErrore} />
+          <TemiSuMisuraLocale cliente={c} versione={istanza?.versione} onErrore={az.onErrore} />
           {istanza?.progetto && attiva && <InstallatiDallApp cliente={c} />}
         </Blocco>
+        )}
 
         {conAI && (
           <Blocco id={id('ai')} titolo="Credito AI">
@@ -1708,6 +1819,9 @@ const TONO = {
 // Lo stato di un locale in due parole e col suo colore: sospeso o chiuso
 // vince sullo stato dell'istanza.
 function statoBreve({ istanza, stato }) {
+  // L'istanza di prova (REQ-FLOTTA-114): accesa durante le prove e2e,
+  // spenta alla fine.
+  if (istanza?.prova && stato === STATI.ATTIVA) return istanza.prova.attiva ? { tono: 'ok', testo: 'In prova' } : { tono: 'neutro', testo: 'Disattivata' }
   const licenza = istanza?.licenza_stato || 'attiva'
   if (licenza !== 'attiva') return { tono: 'avviso', testo: `${licenza}${istanza.licenza_motivo ? ` · ${istanza.licenza_motivo}` : ''}` }
   return { tono: TONO[stato] || 'neutro', testo: STATO_BREVE[stato] || statoDetto(stato) }
@@ -2240,7 +2354,7 @@ function ModuliDelPiano({ cliente: c }) {
 // titolare e quelli fatti da noi. L'admin ne scrive uno nuovo (l'editor
 // del catalogo, con la struttura del menù e la ricetta), lo pubblica e lo
 // ritira; la licenza del locale lo segue.
-function TemiSuMisuraLocale({ cliente: c, onErrore }) {
+function TemiSuMisuraLocale({ cliente: c, versione, onErrore }) {
   const [temi, setTemi] = useState([])
   const [giro, setGiro] = useState(0)
   const [aperto, setAperto] = useState(null)
@@ -2263,6 +2377,9 @@ function TemiSuMisuraLocale({ cliente: c, onErrore }) {
       return false
     }
   }
+  // Un tema su base Lime in un locale con l'app più vecchia della 1.10.52
+  // non compare (REQ-FLOTTA-117): la scheda lo dice, con la versione.
+  const nonVisti = temi.map((t) => ({ t, serve: baseNonVista(t.tavolozza?.base, versione) })).filter((x) => x.serve)
   // Una riga col loro elenco, poi i tasti: uno per tema e «Nuovo…».
   return (
     <>
@@ -2276,6 +2393,11 @@ function TemiSuMisuraLocale({ cliente: c, onErrore }) {
             : 'nessuno'}
         </span>
       </div>
+      {nonVisti.length > 0 && (
+        <div className="small avviso" data-testid={`su-misura-non-visti-${c.slug}`}>
+          {nonVisti.map(({ t, serve }) => `«${t.nome}» non si vede nell’app del locale (${versione}): la base Lime c’è dalla ${serve}.`).join(' ')}
+        </div>
+      )}
       <div className="gruppo-azioni">
         {temi.map((t) => (
           <Fragment key={t.id}>

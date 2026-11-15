@@ -37,6 +37,12 @@ vi.mock('../src/lib/db.js', () => ({
   elencoTemi: vi.fn(async () => []),
   gestisciTemi: vi.fn(async () => ({ ok: true })),
   elencoSconti: vi.fn(async () => []),
+  elencoAllarmi: vi.fn(async () => []),
+  statoSentinella: vi.fn(async () => null),
+  leggiSoglieSentinella: vi.fn(async () => ({})),
+  salvaSoglieSentinella: vi.fn(async () => {}),
+  giroSentinella: vi.fn(async () => ({ ultimo_giro_il: null, aperti: 0 })),
+  segnaIstanzaDiProva: vi.fn(async () => ({ ok: true })),
   gestisciSconti: vi.fn(async () => ({ ok: true })),
   applicaSconto: vi.fn(async () => ({ ok: true })),
   // La prima pagina legge la vendita (REQ-FLOTTA-015): qui quella di partenza.
@@ -224,6 +230,21 @@ describe('il sito chiuso', () => {
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('The site opens soon.')
     expect(screen.getByText(/We are getting the site ready\.$/)).toBeInTheDocument()
     expect(screen.getByText(/^For information/)).toBeInTheDocument()
+  })
+
+  // REQ-FLOTTA-104 (da tana-drink, 14/11/2026): «Area clienti» dall'app
+  // apre <regia>/dashboard senza token. Chi non è entrato passa
+  // dall'accesso, anche col sito chiuso; dopo l'accesso torna a /dashboard
+  // (AreaClienti.test.jsx, AccessoGoogle.test.jsx).
+  it('«Area clienti» dall’app: /dashboard senza accesso porta all’accesso, aperto o chiuso il sito', async () => {
+    utenteOsservato = null
+    for (const vendita of [null, { sito_aperto: false }]) {
+      venditaOsservata = vendita
+      const { unmount } = mostra('/dashboard')
+      expect(await screen.findByRole('heading', { name: 'Accedi' })).toBeInTheDocument()
+      expect(screen.getByLabelText('Password')).toBeInTheDocument()
+      unmount()
+    }
   })
 
   it('spento, anche la registrazione è l’anteprima; l’accesso e il backoffice dell’admin restano', async () => {

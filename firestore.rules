@@ -207,6 +207,18 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // La sentinella (REQ-FLOTTA-111): gli allarmi e lo stato del giro. Li
+    // scrive solo la Function, li legge l'admin nella sezione «Salute»:
+    // dentro ci sono gli slug e gli errori di tutti i locali.
+    match /allarmi/{id} {
+      allow read: if admin();
+      allow write: if false;
+    }
+    match /sentinella/{doc} {
+      allow read: if admin();
+      allow write: if false;
+    }
+
     // Le impostazioni della regia (REQ-FLOTTA-011): il deploy automatico, e
     // le regole degli aggiornamenti (REQ-FLOTTA-020). Le legge solo il
     // backoffice (src/lib/db.js: osservaImpostazioniRegia,

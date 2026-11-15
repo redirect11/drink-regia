@@ -4,6 +4,76 @@ Una voce per ogni cambiamento visibile, nello stesso commit del
 cambiamento. La versione in cima è quella in lavorazione finché non ha la
 data.
 
+## 0.5.0 (15/11/2026, la quarta in produzione: la sentinella e la Salute, la versione per dispositivo, le istanze senza cliente e quella di prova, le regole di sicurezza delle interfacce, le basi Lime, la garanzia sullo stesso codice)
+
+- Le basi `lime-scuro` e `lime-chiaro` nel vocabolario dei temi, coi
+  colori del sito: temi del catalogo e su misura su Lime. La scheda del
+  locale avvisa se un tema su misura su base Lime non si vede, perché il
+  locale ha l'app più vecchia della 1.10.52 (REQ-FLOTTA-117, #292).
+- La garanzia della produzione vale solo per lo stesso codice collaudato
+  sul test: fra il commit della beta e il tag su main possono cambiare solo
+  documenti, registro e test. Prima bastava un collaudo qualunque nella
+  storia del tag (REQ-FLOTTA-118, #293).
+- L'istanza di prova (REQ-FLOTTA-114, #286). La regia non segna più le
+  presentazioni dalle anteprime degli e2e: mostra sempre la versione
+  installata davvero. L'admin segna come istanza di prova un'istanza senza
+  cliente (prova-e2e). Le prove e2e di tana-drink la accendono e la spengono
+  con `istanzaDiProva`, presentandosi col gettone di Google dell'account di
+  deploy del progetto di prova (nessun utente del progetto: le regole di
+  REQ-FLOTTA-115), e il backoffice la dice «In prova» o «Disattivata».
+  La sentinella non guarda un'istanza di prova spenta.
+- La mappa delle dipendenze della regia da Firebase e Google Cloud
+  (`docs/dipendenze-firebase.md`): per ogni porta dove è usata, quanto è
+  intrecciata, cosa vorrebbe dire reimplementarla altrove e dove manca il
+  punto unico. Un test fa rosso se un file nuovo che usa Firebase non è
+  citato (REQ-FLOTTA-116, #290). Nessun comportamento cambia.
+- Il contratto con l'app ha le regole di sicurezza delle interfacce e
+  l'inventario di tutte, con quelle che non le rispettano ancora e il
+  percorso per arrivarci: nessuna persona di un locale cambia qualcosa
+  nella regia, il server del locale si presenta con un gettone firmato da
+  un emittente registrato per quel locale (REQ-FLOTTA-115, #288). Nessun
+  comportamento cambia con questa voce.
+- Nei «Locali» del backoffice, in fondo, il gruppo «Istanze senza cliente»:
+  le istanze che nessun cliente ha (prova-e2e, quella degli e2e) con la
+  scheda dell'istanza, senza i blocchi del cliente. Non entrano nei conti dei
+  locali (REQ-FLOTTA-113, #284).
+- **La versione per dispositivo** (REQ-FLOTTA-112, #282). L'app manda alla
+  presentazione un codice casuale del dispositivo (tana-drink, dalla
+  1.10.51-beta). La regia tiene la versione di ogni dispositivo: la
+  `versione` è la più alta, non più l'ultima arrivata, e la `minima` è la
+  più bassa ancora in giro. Conta solo chi si è presentato negli ultimi 30
+  giorni, al massimo 50 dispositivi per locale. Le presentazioni dai canali
+  di anteprima (gli e2e) si segnano a parte. La scheda e la Salute dicono
+  quanti dispositivi ci sono e quelli indietro. La sentinella distingue una
+  versione più vecchia da una più nuova di quella pubblicata.
+- I registri delle Functions sono strutturati: ogni chiamata scrive una
+  riga con funzione, locale, esito e durata, e gli errori inattesi il loro
+  stack, che Error Reporting raggruppa. Niente dati personali: né uid né
+  email, e le email nei messaggi d'errore si mascherano. È la base dei
+  grafici e della sentinella che seguono (REQ-FLOTTA-110).
+
+- Nel backoffice c'è la sezione «Salute»: con «Controlla adesso» mostra,
+  per ogni locale, l'ultima presentazione dell'app con la versione
+  pubblicata accanto, gli errori delle ultime 24 ore e i permessi che
+  mancano alla regia sul progetto del locale, con la riga che li dà; poi
+  gli errori per Function. L'account della regia legge i suoi registri
+  con `roles/logging.viewer`, da dare con `scripts/account-runtime.mjs`
+  (REQ-FLOTTA-109).
+
+- La presentazione di un locale non risponde più 500 senza traccia: se la
+  regia non riesce a leggere la licenza nel progetto del locale risponde
+  503 e scrive il motivo nel registro, e ogni altro errore inatteso finisce
+  nel registro col suo dettaglio (REQ-FLOTTA-108).
+
+- La sentinella: ogni 15 minuti la regia controlla il suo sito e quelli dei
+  locali attivi, gli errori dei suoi registri, le presentazioni ferme dopo
+  un aggiornamento e, una volta l'ora, i suoi permessi sui locali. Quello
+  che non va diventa un allarme in cima alla sezione «Salute», con il
+  contatore nel sotto-menù; l'allarme si chiude da solo quando il
+  controllo torna in ordine. Le soglie si cambiano da lì. Un workflow
+  GitHub ogni mezz'ora controlla da fuori che la regia e la sentinella
+  rispondano (REQ-FLOTTA-111).
+
 ## 0.4.2 (14/11/2026, correzione)
 
 - L'anteprima del sito chiuso è più corta («Stiamo preparando il sito.»,
