@@ -6,6 +6,11 @@ data.
 
 ## 0.5.0 (in lavorazione)
 
+- La mappa delle dipendenze della regia da Firebase e Google Cloud
+  (`docs/dipendenze-firebase.md`): per ogni porta dove è usata, quanto è
+  intrecciata, cosa vorrebbe dire reimplementarla altrove e dove manca il
+  punto unico. Un test fa rosso se un file nuovo che usa Firebase non è
+  citato (REQ-FLOTTA-116, #290). Nessun comportamento cambia.
 - Nei «Locali» del backoffice, in fondo, il gruppo «Istanze senza cliente»:
   le istanze che nessun cliente ha (prova-e2e, quella degli e2e) con la
   scheda dell'istanza, senza i blocchi del cliente. Non entrano nei conti dei

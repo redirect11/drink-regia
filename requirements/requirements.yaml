@@ -5076,7 +5076,7 @@ requirements:
       dipendenze che legano anche il contratto con l'app. (4) Un test fa
       rosso se un file o un workflow nuovo che usa Firebase non è citato.
       INTERFACCE CON L'APP: nessuna.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [regia, metodo]
     priority: P3
