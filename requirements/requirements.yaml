@@ -5070,7 +5070,7 @@ requirements:
       run diverso si salta. (3) Il messaggio d'errore parla dello stesso
       codice. (4) L'handover lo dice nel rilascio passo per passo.
       INTERFACCE CON L'APP: nessuna.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [regia, ci, rilascio]
     priority: P2
