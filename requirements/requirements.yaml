@@ -5051,7 +5051,7 @@ requirements:
 
   - id: REQ-FLOTTA-115
     title: "La comunicazione fra la regia e i locali in sicurezza: le regole e l'inventario delle interfacce nel contratto"
-    area: "docs/contratto-regia-app.md (La sicurezza delle interfacce), tests/contratto.test.js"
+    area: "docs/contratto-regia-app.md (La sicurezza delle interfacce), .claude/agents/revisore.md, tests/contratto.test.js"
     description: >
       Daniele, 15/11/2026, dopo aver visto che chiunque si registri su un
       locale ha un ID token valido del progetto, e che la presentazione e
@@ -5087,7 +5087,7 @@ requirements:
       (5) Un test fa rosso se un'interfaccia nuova non ha la sua riga.
       INTERFACCE CON L'APP: nessuna cambia con questa voce; il percorso le
       cambierà, ognuna con la sua voce e la regola «mai sul posto».
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [regia, contratto-tana-drink, sicurezza]
     priority: P1
