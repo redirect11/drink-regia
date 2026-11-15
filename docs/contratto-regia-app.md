@@ -368,12 +368,14 @@ e 9.
   --audiences=regia-prova:drink-regia-test` con quella chiave attiva, o
   `getIdTokenClient` di `google-auth-library`). La regia fa controllare a
   Google firma, emittente, scadenza e destinatario, e risale all'istanza
-  dal nome del progetto nell'indirizzo dell'account. Un ID token di un
-  utente del progetto non vale; il gettone dell'AI nemmeno (altro account,
-  altro destinatario). Dura un'ora: per la chiamata di fine giro se ne
-  chiede uno nuovo.
-- Risposte: `200 { ok, attiva }`; `400` corpo; `401` gettone non valido o di
-  un altro account; `403` istanza non segnata di prova, o con un cliente;
+  dal nome del progetto nell'indirizzo dell'account: il gettone deve avere
+  `email` ed `email_verified: true` (con `gcloud` e un account impersonato
+  serve `--include-email`). Un ID token di un utente del progetto non vale;
+  il gettone dell'AI nemmeno (altro account, altro destinatario). Dura
+  un'ora: per la chiamata di fine giro se ne chiede uno nuovo.
+- Risposte: `200 { ok, attiva }`; `400` corpo; `401` gettone non valido, di
+  un altro account, o di un progetto che nella regia non ha un'istanza (o ne
+  ha più di una); `403` istanza non segnata di prova, o con un cliente;
   `404` istanza eliminata; `405`.
 - Vale solo per un'istanza che l'admin ha segnato di prova dalla scheda
   (`segnaIstanzaDiProva`, solo admin, mai per un'istanza con cliente). La
@@ -456,7 +458,7 @@ con un backend diverso l'interfaccia va rifatta, gettone o no.
 | 12 | I workflow che pubblicano l'app | la regia, verso GitHub | `GITHUB_DISPATCH_TOKEN` | sì: non è un locale | niente |
 | 13 | Identità, ruoli e permessi | — | `role` nel locale; l'account della regia sui progetti dei locali | sì; legata a Firebase Auth e ai permessi di Google | la regia legge `role` per il passaggio e per le azioni del titolare (5, 6, 9) e lo scrive al titolare alla nascita (12): con il passo 3 la lettura per la 5 e la 9 passa al server del locale |
 | 14 | `VITE_REGIA_PROGETTO` | la build della Tana | — | sì | niente |
-| 15 | L'istanza di prova (`istanzaDiProva`) | le prove e2e di tana-drink | gettone di Google di `deploy@<progetto>`, destinatario `regia-prova:<regia>` | sì: un account del progetto, nessun utente | niente; a tana-drink, il gettone nel giro e2e |
+| 15 | L'istanza di prova (`istanzaDiProva`) | le prove e2e di tana-drink | gettone di Google di `deploy@<progetto>`, destinatario `regia-prova:<regia>` | sì, con la chiave dell'account di deploy che le e2e tengono nei loro segreti (c'era già per il deploy); il gettone dura un'ora | niente; a tana-drink, il gettone nel giro e2e |
 | — | `passaggioVersoRegia`, deprecata | il browser del titolare | ID token | no | si toglie come già previsto (sotto) |
 
 ### Il percorso

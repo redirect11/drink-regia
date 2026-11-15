@@ -2142,9 +2142,16 @@ exports.istanzaDiProva = onRequest({ ...OPTS, cors: false }, async (req, res) =>
   res.locals.slug = trovata.id
   const corpo = prova.corpoProva(req.body)
   if (!corpo) return res.status(400).json({ errore: 'Serve { attiva: true | false }.' })
-  const puo = prova.puoCambiare(trovata.data, await clienteDi(trovata.id))
+  // In una transazione (revisore, 15/11/2026): se l'admin toglie il segno
+  // di prova mentre le e2e chiamano, la chiamata non lo rimette.
+  const cliente = await clienteDi(trovata.id)
+  const ref = db.doc(`istanze/${trovata.id}`)
+  const puo = await db.runTransaction(async (t) => {
+    const esito = prova.puoCambiare((await t.get(ref)).data() || null, cliente)
+    if (esito.ok) t.update(ref, prova.registroProva(corpo.attiva))
+    return esito
+  })
   if (!puo.ok) return res.status(puo.status).json({ errore: puo.perche })
-  await db.doc(`istanze/${trovata.id}`).update(prova.registroProva(corpo.attiva))
   return res.status(200).json({ ok: true, attiva: corpo.attiva })
 })
 

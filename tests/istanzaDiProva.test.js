@@ -103,8 +103,12 @@ describe('l’istanza di prova', () => {
       expect(corpo).toContain('identita.motivoBreve(e)')
       expect(corpo).not.toContain('verifyIdToken')
       expect(corpo).not.toContain('progettoDelToken')
-      expect(corpo).toContain('prova.puoCambiare(trovata.data, await clienteDi(trovata.id))')
-      expect(corpo).toContain('prova.registroProva(corpo.attiva)')
+      // Il controllo e la scrittura nella stessa transazione, sull'istanza
+      // letta lì: il segno tolto dall'admin non torna.
+      expect(corpo).toContain('db.runTransaction(')
+      expect(corpo).toContain('prova.puoCambiare((await t.get(ref)).data() || null, cliente)')
+      expect(corpo).toContain('if (esito.ok) t.update(ref, prova.registroProva(corpo.attiva))')
+      expect(corpo).not.toMatch(/\.update\(prova\.registroProva/)
       expect(corpo).toContain('res.locals.slug = trovata.id')
     })
   })
