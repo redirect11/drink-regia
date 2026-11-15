@@ -62,6 +62,19 @@ describe('il documento delle interfacce fra la regia e l’app', () => {
     expect(doc).toContain('(`istanze/{slug}.presentazione.minima`)')
   })
 
+  // REQ-FLOTTA-114: le anteprime non si segnano, e l'istanza di prova si
+  // accende e si spegne dalle prove e2e di tana-drink.
+  it('le anteprime non contano e l’istanza di prova ha la sua interfaccia', () => {
+    const doc = leggi(DOC)
+    const quattro = doc.slice(doc.indexOf('### 4. La presentazione'), doc.indexOf('### 5.'))
+    expect(quattro).toContain('la regia non la segna')
+    expect(quattro).not.toContain('anteprima { versione, il }')
+    const prova = doc.slice(doc.indexOf('### 15. L’istanza di prova'))
+    expect(prova).toContain('`istanzaDiProva`')
+    expect(prova).toContain('{ attiva }')
+    expect(prova).toContain('REQ-FLOTTA-114')
+  })
+
   it('le regole del repository e il revisore rimandano al documento', () => {
     expect(leggi('CLAUDE.md')).toContain(DOC)
     expect(leggi('.claude/agents/revisore.md')).toContain(DOC)

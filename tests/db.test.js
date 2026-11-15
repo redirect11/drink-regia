@@ -540,6 +540,9 @@ describe('i documenti della regia', () => {
     expect(fb.scritti.at(-1)).toMatchObject({ come: 'set', percorso: 'impostazioni/sentinella', dati: { errori: 4 }, opz: { merge: true } })
     await db.giroSentinella()
     expect(fb.chiamate.at(-1)).toEqual({ nome: 'giroSentinella', dati: {} })
+    // REQ-FLOTTA-114: segnare un'istanza senza cliente come istanza di prova.
+    await db.segnaIstanzaDiProva('prova-e2e', true)
+    expect(fb.chiamate.at(-1)).toEqual({ nome: 'segnaIstanzaDiProva', dati: { slug: 'prova-e2e', prova: true } })
     fb.configurata = false
     for (const f of [db.elencoAllarmi, db.statoSentinella, db.leggiSoglieSentinella, () => db.salvaSoglieSentinella({})]) {
       await expect(f()).rejects.toThrow('VITE_FIREBASE')

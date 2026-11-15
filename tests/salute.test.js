@@ -68,7 +68,6 @@ describe('l’ultima presentazione', () => {
       versione: 'v1.10.50-beta',
       minima: 'v1.10.50-beta',
       dispositivi: 0,
-      anteprima: null,
       il: oreFa(3),
       prima_il: oreFa(5),
       ore_fa: 3,
@@ -88,12 +87,12 @@ describe('l’ultima presentazione', () => {
   })
 
   it('mai presentato', () => {
-    expect(s.statoPresentazione({}, ADESSO)).toEqual({ versione: null, minima: null, dispositivi: 0, anteprima: null, il: null, prima_il: null, ore_fa: null, pubblicata: null, diversa: false })
+    expect(s.statoPresentazione({}, ADESSO)).toEqual({ versione: null, minima: null, dispositivi: 0, il: null, prima_il: null, ore_fa: null, pubblicata: null, diversa: false })
   })
 
   // REQ-FLOTTA-112: la più bassa fra i dispositivi, quanti sono (solo quelli
   // visti negli ultimi 30 giorni) e l'ultima anteprima, a parte.
-  it('i dispositivi: la versione più bassa, quanti sono, l’ultima anteprima', () => {
+  it('i dispositivi: la versione più bassa e quanti sono', () => {
     const ist = {
       versione: 'v1.10.51-beta',
       presentazione: {
@@ -101,10 +100,12 @@ describe('l’ultima presentazione', () => {
         minima: 'v1.10.40-beta',
         il: oreFa(1),
         dispositivi: { a: { versione: 'v1.10.51-beta', il: oreFa(1) }, b: { versione: 'v1.10.40-beta', il: oreFa(48) }, vecchio: { versione: 'v1.10.4', il: oreFa(31 * 24) } },
+        // Un registro scritto prima della REQ-FLOTTA-114: l'anteprima non si mostra.
         anteprima: { versione: 'v1.10.52-beta', il: oreFa(2) },
       },
     }
-    expect(s.statoPresentazione(ist, ADESSO)).toMatchObject({ versione: 'v1.10.51-beta', minima: 'v1.10.40-beta', dispositivi: 2, anteprima: { versione: 'v1.10.52-beta', il: oreFa(2) }, diversa: false })
+    expect(s.statoPresentazione(ist, ADESSO)).toMatchObject({ versione: 'v1.10.51-beta', minima: 'v1.10.40-beta', dispositivi: 2, diversa: false })
+    expect(s.statoPresentazione(ist, ADESSO)).not.toHaveProperty('anteprima')
   })
 })
 

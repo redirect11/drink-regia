@@ -155,6 +155,16 @@ describe('le presentazioni', () => {
     expect(nuova.dettaglio).toBe('Si presenta con la v1.10.50-beta, la regia ha pubblicato la v1.10.29-beta: è arrivata da fuori dalla regia.')
   })
 
+  // REQ-FLOTTA-114: l'istanza di prova si presenta solo dalle anteprime, che
+  // la regia non segna; e spenta non è un sito da guardare.
+  it('un’istanza di prova: niente presentazioni; disattivata, niente sito', () => {
+    const spenta = istanza({ slug: 'prova-e2e', presentazione: undefined, prova: { attiva: false, il: '2026-11-15T09:00:00.000Z' } })
+    const accesa = istanza({ slug: 'prova-e2e', presentazione: undefined, prova: { attiva: true, il: '2026-11-15T09:00:00.000Z' } })
+    expect(s.segnaliPresentazioni([spenta, accesa], SOGLIE, ADESSO)).toEqual([])
+    expect(s.sitiDaGuardare({ regia: null, istanze: [spenta] })).toEqual([])
+    expect(s.sitiDaGuardare({ regia: null, istanze: [accesa] })).toEqual([{ soggetto: 'prova-e2e', url: accesa.url }])
+  })
+
   it('dentro la soglia non si dice niente: l’app si presenta alla prossima apertura', () => {
     expect(s.segnaliPresentazioni([istanza({ aggiornata_il: '2026-11-14T10:00:00.000Z', presentazione: { versione: 'v1.10.40-beta' } })], SOGLIE, ADESSO)).toEqual([])
   })
