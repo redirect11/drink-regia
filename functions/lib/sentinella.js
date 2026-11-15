@@ -61,7 +61,9 @@ const prefisso = { siti: 'sito', errori: 'errori', presentazioni: 'presentazione
 // Un locale si guarda se è attivo, ha un progetto vero (daControllare: non
 // la demo, non i simulati, non la semina, non gli eliminati). Un sospeso
 // mostra la sua pagina di sospensione e non serve nessuno.
-const attivo = (ist) => daControllare(ist) && ist.stato === 'attiva'
+// Un'istanza di prova spenta (REQ-FLOTTA-114) non è da guardare: le prove
+// e2e sono finite.
+const attivo = (ist) => daControllare(ist) && ist.stato === 'attiva' && ist.prova?.attiva !== false
 
 // ── (a) I SITI ──
 function sitiDaGuardare({ regia, istanze }) {
@@ -161,7 +163,9 @@ const aggiornatoDallaRegia = (ist) => ist?.origine !== 'esistente' || ist?.aggio
 function segnaliPresentazioni(istanze, { presentazione_ore }, adesso = new Date()) {
   const segnali = []
   for (const ist of istanze || []) {
-    if (!attivo(ist)) continue
+    // Un'istanza di prova si presenta solo dalle anteprime, che la regia
+    // non segna (REQ-FLOTTA-114): non ha presentazioni da controllare.
+    if (!attivo(ist) || ist.prova) continue
     const da = Date.parse(ist.aggiornamento?.finito_il || ist.aggiornata_il || '')
     if (!Number.isFinite(da) || adesso.getTime() - da < presentazione_ore * ORA) continue
     const presentata = ist.presentazione?.versione || null

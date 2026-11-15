@@ -79,6 +79,7 @@ const db = vi.hoisted(() => ({
   leggiSoglieSentinella: vi.fn(async () => ({})),
   salvaSoglieSentinella: vi.fn(async () => {}),
   giroSentinella: vi.fn(async () => ({ ultimo_giro_il: null, aperti: 0 })),
+  segnaIstanzaDiProva: vi.fn(async () => ({ ok: true })),
   gestisciSconti: vi.fn(async () => ({ ok: true })),
   applicaSconto: vi.fn(async () => ({ ok: true })),
   programmaScadenze: vi.fn(async () => ({ ok: true, programmati: 3, errori: [] })),
@@ -185,6 +186,52 @@ describe('il backoffice', () => {
     for (const titolo of ['Titolare', 'Piano', 'Aspetto', 'Credito AI']) expect(within(scheda).queryByRole('heading', { name: titolo })).toBeNull()
     await userEvent.setup().click(within(scheda).getByRole('button', { name: 'Aggiorna subito' }))
     expect(db.aggiornaIstanza).toHaveBeenCalledWith('prova-e2e')
+  })
+
+  // REQ-FLOTTA-114. Daniele, 15/11/2026: «disattivare l'istanza e2e alla
+  // fine delle prove e nel backoffice la si vede come disattivata».
+  it('un’istanza di prova disattivata si vede «Disattivata», e si toglie da prova', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    db.elencoIstanze.mockResolvedValue({
+      'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', versione: 'v1.10.0', uid: 'a' },
+      'prova-e2e': {
+        stato: 'attiva',
+        progetto: 'drinkpos-prova-e2e',
+        versione: 'v1.10.29-beta',
+        prova: { attiva: false, il: '2026-11-15T10:30:00Z' },
+        // Scritta dalle anteprime prima della REQ-FLOTTA-114: non è vera.
+        presentazione: { versione: 'v1.10.50-beta', il: '2026-11-15T07:53:42Z', prima_il: '2026-11-14T17:38:36Z' },
+      },
+    })
+    mostra()
+    const gruppo = await screen.findByRole('table', { name: 'Istanze senza cliente' })
+    const riga = within(gruppo).getByRole('row', { name: /prova-e2e/ })
+    expect(riga).toHaveTextContent('Disattivata')
+    expect(riga).toHaveTextContent('di prova')
+    expect(riga).toHaveTextContent('v1.10.29-beta')
+    const scheda = await apri('prova-e2e')
+    expect(within(scheda).getByText(/Disattivata dal 15\/11\/2026: le prove e2e sono finite/)).toBeInTheDocument()
+    // La versione vera è quella installata; quella delle anteprime non si mostra.
+    expect(within(scheda).getByTestId('versione-prova-e2e')).toHaveTextContent('v1.10.29-beta')
+    expect(scheda).not.toHaveTextContent('v1.10.50-beta')
+    expect(riga).not.toHaveTextContent('v1.10.50-beta')
+    await user.click(within(scheda).getByRole('button', { name: 'Non è più un’istanza di prova' }))
+    expect(db.segnaIstanzaDiProva).toHaveBeenCalledWith('prova-e2e', false)
+  })
+
+  it('un’istanza senza cliente si segna come istanza di prova; in prova si vede «In prova»', async () => {
+    const user = userEvent.setup()
+    db.elencoIstanze.mockResolvedValue({
+      'prova-e2e': { stato: 'attiva', progetto: 'drinkpos-prova-e2e', versione: 'v1.10.29-beta' },
+      'altra-prova': { stato: 'attiva', progetto: 'drinkpos-altra-prova', prova: { attiva: true, il: '2026-11-15T10:00:00Z' } },
+    })
+    mostra()
+    const gruppo = await screen.findByRole('table', { name: 'Istanze senza cliente' })
+    expect(within(gruppo).getByRole('row', { name: /altra-prova/ })).toHaveTextContent('In prova')
+    const scheda = await apri('prova-e2e')
+    await user.click(within(scheda).getByRole('button', { name: 'Segna come istanza di prova' }))
+    expect(db.segnaIstanzaDiProva).toHaveBeenCalledWith('prova-e2e', true)
   })
 
   it('senza istanze orfane il gruppo non c’è', async () => {
@@ -1456,7 +1503,7 @@ describe('le licenze protette nel backoffice', () => {
 
   // REQ-FLOTTA-112: i dispositivi che si presentano, e quelli indietro;
   // l'anteprima degli e2e a parte, che non è la versione installata.
-  it('la scheda dice quanti dispositivi si presentano, quelli indietro e l’ultima anteprima', async () => {
+  it('la scheda dice quanti dispositivi si presentano e quelli indietro; le anteprime no (REQ-FLOTTA-114)', async () => {
     const poco = new Date(Date.now() - 3600_000).toISOString()
     db.elencoIstanze.mockResolvedValue({
       'bar-attivo': {
@@ -1475,7 +1522,8 @@ describe('le licenze protette nel backoffice', () => {
     mostra()
     const attivo = await apri('Bar Attivo')
     expect(within(attivo).getByTestId('dispositivi')).toHaveTextContent(/^3 dispositivi · 1 sulla v1\.10\.40-beta$/)
-    expect(within(attivo).getByTestId('anteprima')).toHaveTextContent(/^anteprima: v1\.10\.52-beta il 15\/11\/2026$/)
+    expect(within(attivo).queryByTestId('anteprima')).toBeNull()
+    expect(attivo).not.toHaveTextContent('v1.10.52-beta')
   })
 
   // REQ-FLOTTA-026: la versione che l'app stessa ha detto alla regia.

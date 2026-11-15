@@ -57,9 +57,8 @@ const senzaV = (v) => String(v || '').replace(/^v/, '')
 // L'ultima presentazione (REQ-FLOTTA-026) accanto alla versione che la
 // regia ha pubblicato (solo i locali della flotta ne hanno una: un locale
 // esistente pubblica da sé, e lì «diversa» non vuol dire niente).
-// Dalla REQ-FLOTTA-112 anche la più bassa fra i dispositivi, quanti sono
-// (visti negli ultimi 30 giorni) e l'ultima anteprima, che non è la
-// versione installata.
+// Dalla REQ-FLOTTA-112 anche la più bassa fra i dispositivi e quanti sono
+// (visti negli ultimi 30 giorni). Le anteprime no (REQ-FLOTTA-114).
 function statoPresentazione(ist, adesso = new Date()) {
   const p = ist?.presentazione || {}
   const pubblicata = ist?.versione || null
@@ -69,7 +68,6 @@ function statoPresentazione(ist, adesso = new Date()) {
     versione: p.versione || null,
     minima: p.minima || p.versione || null,
     dispositivi,
-    anteprima: p.anteprima || null,
     il,
     prima_il: p.prima_il || null,
     ore_fa: il ? Math.floor((adesso.getTime() - Date.parse(il)) / 3600000) : null,

@@ -135,7 +135,7 @@ scritta solo se manca (`scritta_da: 'deploy'`). La Tana ha `regia_url: null`.
   lettura fallita era un `500`; per l'app non cambia niente, ogni risposta
   diversa da `200` si riprova alla prossima apertura); `500` errore inatteso.
 - La regia salva `istanze/{slug}.presentazione { versione, minima, il,
-  prima_il, dispositivi, anteprima? }`:
+  prima_il, dispositivi }`:
   - `dispositivi { <codice>: { versione, il } }`: le app senza codice contano
     come un dispositivo solo, `senza_codice`; un dispositivo si riscrive al
     più ogni 6 ore a versione invariata, esce dal conto dopo 30 giorni senza
@@ -143,11 +143,13 @@ scritta solo se manca (`scritta_da: 'deploy'`). La Tana ha `regia_url: null`.
   - `versione`: la più alta fra i dispositivi, quella che si vede nella scheda;
   - `presentazione.minima`: la più bassa, quella che decide quando si può
     togliere un'interfaccia deprecata;
-  - `anteprima { versione, il }`: l'ultima presentazione da un canale di
-    anteprima, riconosciuto dall'`Origin` della richiesta
-    (`<sito>--<canale>.web.app` o `.firebaseapp.com`; i domini propri dei
-    locali mai). Non cambia `versione` né `minima`: tana-drink usa i canali
-    solo per gli e2e (15/11/2026).
+- Una presentazione da un canale di anteprima, riconosciuto dall'`Origin`
+  della richiesta (`<sito>--<canale>.web.app` o `.firebaseapp.com`; i domini
+  propri dei locali mai), riceve la stessa risposta, licenza compresa, ma
+  la regia non la segna: tana-drink usa i canali solo per gli e2e, e la versione
+  che conta è quella installata davvero (Daniele, 15/11/2026: «Regia non si
+  caga le anteprime», REQ-FLOTTA-114; dal REQ-FLOTTA-112 al 114 si segnava a
+  parte).
 - App: `src/lib/presentazione.js` (una volta per versione per dispositivo, e
   col codice al più una volta al giorno; di nuovo se manca la licenza),
   `src/lib/api.js`, `src/App.jsx`.
@@ -352,6 +354,39 @@ Il deploy della Tana (`.github/workflows/deploy.yml` di tana-drink) mette
 `drink-regia-test`. Da qui vengono gli indirizzi delle interfacce 4, 6, 7, 8
 e 9.
 
+### 15. L’istanza di prova: `istanzaDiProva` (prove e2e di tana-drink → regia, HTTP)
+
+- `POST …/istanzaDiProva`, `Authorization: Bearer <gettone>`, corpo
+  `{ attiva }`: `true` all'inizio delle prove, `false` alla fine (anche se
+  le prove falliscono).
+- **Il gettone** (le regole di «La sicurezza delle interfacce»,
+  REQ-FLOTTA-115): un ID token **di Google** (non di Firebase Auth)
+  dell'account di servizio `deploy@<progetto>.iam.gserviceaccount.com`, con
+  destinatario (`aud`) `regia-prova:<drink-regia|drink-regia-test>`. Le e2e
+  lo chiedono a Google con la chiave dell'account di deploy che hanno già
+  (per esempio `gcloud auth print-identity-token
+  --audiences=regia-prova:drink-regia-test` con quella chiave attiva, o
+  `getIdTokenClient` di `google-auth-library`). La regia fa controllare a
+  Google firma, emittente, scadenza e destinatario, e risale all'istanza
+  dal nome del progetto nell'indirizzo dell'account: il gettone deve avere
+  `email` ed `email_verified: true` (con `gcloud` e un account impersonato
+  serve `--include-email`). Un ID token di un utente del progetto non vale;
+  il gettone dell'AI nemmeno (altro account, altro destinatario). Dura
+  un'ora: per la chiamata di fine giro se ne chiede uno nuovo.
+- Risposte: `200 { ok, attiva }`; `400` corpo; `401` gettone non valido, di
+  un altro account, o di un progetto che nella regia non ha un'istanza (o ne
+  ha più di una); `403` istanza non segnata di prova, o con un cliente;
+  `404` istanza eliminata; `405`.
+- Vale solo per un'istanza che l'admin ha segnato di prova dalla scheda
+  (`segnaIstanzaDiProva`, solo admin, mai per un'istanza con cliente). La
+  regia salva `istanze/{slug}.prova { attiva, il }`, e il backoffice la dice
+  «In prova» o «Disattivata». Spenta non cambia la licenza né la
+  presentazione.
+- Chi la chiama: `e2e.yml` di tana-drink, su drinkpos-prova-e2e. Finché non la
+  chiama, l'istanza resta com'è.
+- Da REQ-FLOTTA-114 (Daniele, 15/11/2026: «disattivare l'istanza e2e alla
+  fine delle prove e nel backoffice la si vede come disattivata»), col
+  gettone di deploy dalle regole di REQ-FLOTTA-115.
 ## La sicurezza delle interfacce
 
 REQ-FLOTTA-115. Daniele, 15/11/2026, dopo aver visto che chiunque si
@@ -423,7 +458,7 @@ con un backend diverso l'interfaccia va rifatta, gettone o no.
 | 12 | I workflow che pubblicano l'app | la regia, verso GitHub | `GITHUB_DISPATCH_TOKEN` | sì: non è un locale | niente |
 | 13 | Identità, ruoli e permessi | — | `role` nel locale; l'account della regia sui progetti dei locali | sì; legata a Firebase Auth e ai permessi di Google | la regia legge `role` per il passaggio e per le azioni del titolare (5, 6, 9) e lo scrive al titolare alla nascita (12): con il passo 3 la lettura per la 5 e la 9 passa al server del locale |
 | 14 | `VITE_REGIA_PROGETTO` | la build della Tana | — | sì | niente |
-| 15 | L'istanza di prova (`istanzaDiProva`, PR #287, non ancora su `develop`) | le prove e2e di tana-drink | nella #287: ID token di un utente qualunque del progetto di prova | **no** | passo 2 |
+| 15 | L'istanza di prova (`istanzaDiProva`) | le prove e2e di tana-drink | gettone di Google di `deploy@<progetto>`, destinatario `regia-prova:<regia>` | sì, con la chiave dell'account di deploy che le e2e tengono nei loro segreti (c'era già per il deploy); il gettone dura un'ora | niente; a tana-drink, il gettone nel giro e2e |
 | — | `passaggioVersoRegia`, deprecata | il browser del titolare | ID token | no | si toglie come già previsto (sotto) |
 
 ### Il percorso
@@ -437,10 +472,9 @@ Ogni passo ha la sua voce nel registro, in tutti e due i repository.
    presentazione diventa deprecata. Da decidere in quel passo: la regola
    per togliere un'interfaccia deprecata oggi guarda
    `presentazione.minima`, e serve un'altra fonte.
-2. **L'istanza di prova** (15): la #287 si riscrive prima del merge. Le e2e
-   chiedono a Google un gettone di `deploy@drinkpos-prova-e2e` con la
-   chiave che hanno già; la regia lo accetta solo per un'istanza segnata di
-   prova.
+2. **L'istanza di prova** (15): fatto con REQ-FLOTTA-114. Le e2e chiedono
+   a Google un gettone di `deploy@drinkpos-prova-e2e` con la chiave che
+   hanno già; la regia lo accetta solo per un'istanza segnata di prova.
 3. **Le azioni del titolare dal server del locale** (5 e 9): chiamate
    firmate nuove accanto alle vecchie; a tana-drink, le Function che
    controllano il titolare e inoltrano. Le vecchie diventano deprecate.

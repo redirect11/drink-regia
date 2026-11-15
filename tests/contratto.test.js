@@ -62,6 +62,22 @@ describe('il documento delle interfacce fra la regia e l’app', () => {
     expect(doc).toContain('(`istanze/{slug}.presentazione.minima`)')
   })
 
+  // REQ-FLOTTA-114: le anteprime non si segnano, e l'istanza di prova si
+  // accende e si spegne dalle prove e2e di tana-drink, col gettone di deploy.
+  it('le anteprime non contano e l’istanza di prova ha la sua interfaccia, col gettone di deploy', () => {
+    const doc = leggi(DOC)
+    const quattro = doc.slice(doc.indexOf('### 4. La presentazione'), doc.indexOf('### 5.'))
+    expect(quattro).toContain('la regia non la segna')
+    expect(quattro).not.toContain('anteprima { versione, il }')
+    const prova = doc.slice(doc.indexOf('### 15. L’istanza di prova'), doc.indexOf('## La sicurezza delle interfacce'))
+    expect(prova).toContain('`istanzaDiProva`')
+    expect(prova).toContain('{ attiva }')
+    expect(prova).toContain('REQ-FLOTTA-114')
+    expect(prova).toContain('`deploy@<progetto>.iam.gserviceaccount.com`')
+    expect(prova).toContain('`regia-prova:<drink-regia|drink-regia-test>`')
+    expect(prova).not.toContain('utente qualunque del progetto, anche')
+  })
+
   // REQ-FLOTTA-115: la sicurezza delle interfacce. Daniele, 15/11/2026: «il
   // gestore e nessun altro su altre istanze puo cambiare qualcosa che
   // interagisca con il backend di regia direttamente. Dobbiamo mettere tutta

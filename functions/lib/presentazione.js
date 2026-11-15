@@ -86,7 +86,9 @@ function confrontaVersioni(a, b) {
 // <sito>--<canale>.web.app o .firebaseapp.com. tana-drink li usa solo per
 // gli e2e (15/11/2026), e non sono la versione installata del locale. Si
 // riconosce dall'Origin della richiesta, che il browser mette da sé; i
-// domini propri dei locali non sono mai anteprime.
+// domini propri dei locali non sono mai anteprime. Daniele, 15/11/2026:
+// «Regia non si caga le anteprime» (REQ-FLOTTA-114): la Function risponde,
+// ma non segna niente.
 const ANTEPRIMA = /^[a-z0-9-]+--[a-z0-9-]+\.(?:web\.app|firebaseapp\.com)$/
 function daAnteprima(origine) {
   try {
@@ -109,10 +111,8 @@ function dispositiviDi(p) {
   return p?.versione ? { [SENZA_CODICE]: { versione: p.versione, il: p.il || p.prima_il || null } } : {}
 }
 
-function daRegistrare(prima, { versione, dispositivo = null, anteprima = false } = {}, adesso = new Date()) {
-  const p = prima?.presentazione
-  if (anteprima) return !recente(p?.anteprima, versione, adesso)
-  return !recente(dispositiviDi(p)[dispositivo || SENZA_CODICE], versione, adesso)
+function daRegistrare(prima, { versione, dispositivo = null } = {}, adesso = new Date()) {
+  return !recente(dispositiviDi(prima?.presentazione)[dispositivo || SENZA_CODICE], versione, adesso)
 }
 
 // Quello che si segna sull'istanza.
@@ -123,15 +123,15 @@ function daRegistrare(prima, { versione, dispositivo = null, anteprima = false }
 // - `minima`: la più bassa, quella che dice quando si può togliere
 //   un'interfaccia deprecata (docs/contratto-regia-app.md);
 // - `prima_il`: la prima volta che la versione più alta si è presentata,
-//   cioè quando è arrivata davvero al locale;
-// - `anteprima`: l'ultima presentazione da un canale di anteprima, a parte.
+//   cioè quando è arrivata davvero al locale.
+// Un registro scritto fra la REQ-FLOTTA-112 e la 114 può avere
+// `anteprima`: alla prima scrittura se ne va.
 // Niente «chi»: a presentarsi è un dipendente qualunque del locale, e il
 // suo uid è un dato del locale che alla regia non serve (audit del
 // 09/11/2026, finding 29; REQ-FLOTTA-051).
-function registroPresentazione(prima, { versione, dispositivo = null, anteprima = false, adesso = new Date() } = {}) {
+function registroPresentazione(prima, { versione, dispositivo = null, adesso = new Date() } = {}) {
   const p = prima?.presentazione
   const il = adesso.toISOString()
-  if (anteprima) return { presentazione: { ...(p || {}), anteprima: { versione, il } } }
   const dispositivi = dispositiviDi(p)
   dispositivi[dispositivo || SENZA_CODICE] = { versione, il }
   const attivi = Object.entries(dispositivi)
@@ -148,7 +148,6 @@ function registroPresentazione(prima, { versione, dispositivo = null, anteprima 
       il,
       prima_il: stessa ? p.prima_il || p.il || il : il,
       dispositivi: Object.fromEntries(attivi),
-      ...(p?.anteprima ? { anteprima: p.anteprima } : {}),
     },
   }
 }

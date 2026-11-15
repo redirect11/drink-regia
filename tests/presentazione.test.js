@@ -54,7 +54,7 @@ describe('quello che la regia si segna', () => {
       prima_il: ADESSO.toISOString(),
     })
     const codice = readFileSync('functions/index.js', 'utf8')
-    expect(codice).toContain('presenta.registroPresentazione(attuale, { ...corpo, anteprima })')
+    expect(codice).toContain('presenta.registroPresentazione(attuale, corpo)')
     // Una versione nuova riparte da capo.
     expect(p.registroPresentazione(prima, { versione: 'v1.11.0', adesso: dopo }).presentazione.prima_il).toBe(dopo.toISOString())
   })
@@ -219,20 +219,20 @@ describe('le presentazioni dai canali di anteprima (REQ-FLOTTA-112)', () => {
     }
   })
 
-  it('un’anteprima non cambia la versione installata: si segna a parte, l’ultima', () => {
+  // Daniele, 15/11/2026: «Regia non si caga le anteprime» (REQ-FLOTTA-114):
+  // prima si segnavano a parte, in presentazione.anteprima; ora niente.
+  it('un’anteprima non si segna: la versione è sempre quella installata davvero', () => {
+    const codice = readFileSync('functions/index.js', 'utf8')
+    expect(codice).toContain('if (!anteprima && presenta.daRegistrare(ist, corpo))')
     const installata = presenta(null, { versione: 'v1.10.29-beta', dispositivo: CODICE_A })
-    const dopo = presenta(installata, { versione: 'v1.10.50-beta', dispositivo: CODICE_B, anteprima: true }, giorniDopo(1))
-    expect(dopo.presentazione).toEqual({ ...installata.presentazione, anteprima: { versione: 'v1.10.50-beta', il: giorniDopo(1).toISOString() } })
-    // Un locale che si è presentato solo da un'anteprima resta «mai presentato».
-    expect(presenta(null, { versione: 'v1.10.50-beta', anteprima: true }).presentazione).toEqual({ anteprima: { versione: 'v1.10.50-beta', il: ADESSO.toISOString() } })
-    // Un'anteprima vista da poco non si riscrive: l'e2e si presenta due volte di fila.
-    expect(p.daRegistrare(dopo, { versione: 'v1.10.50-beta', anteprima: true }, new Date(giorniDopo(1).getTime() + 20_000))).toBe(false)
-    expect(p.daRegistrare(dopo, { versione: 'v1.10.51-beta', anteprima: true }, new Date(giorniDopo(1).getTime() + 20_000))).toBe(true)
+    expect(installata.presentazione).not.toHaveProperty('anteprima')
+    expect(p.registroPresentazione.length).toBeLessThanOrEqual(2)
   })
 
   it('la Function guarda l’origine della chiamata e scrive in una transazione', () => {
     const codice = readFileSync('functions/index.js', 'utf8')
     expect(codice).toContain("presenta.daAnteprima(req.get('origin'))")
     expect(codice).toMatch(/db\.runTransaction\(async \(t\) => \{\s*const attuale = \(await t\.get\(trovata\.ref\)\)\.data\(\)/)
+    expect(codice).toContain('presenta.registroPresentazione(attuale, corpo)')
   })
 })

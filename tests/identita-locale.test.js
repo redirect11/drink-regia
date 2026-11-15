@@ -54,6 +54,30 @@ describe('il gettone nell’intestazione', () => {
   })
 })
 
+// REQ-FLOTTA-114, con le regole di REQ-FLOTTA-115: le prove e2e usano
+// l'account di deploy e un altro destinatario. I gettoni dell'AI e delle
+// prove non si scambiano, in nessuno dei due sensi (revisore, 15/11/2026).
+describe('i gettoni dell’AI e delle prove non si scambiano, con gettoni veri', () => {
+  const prova = require('../functions/lib/istanzaDiProva.js')
+  const DEPLOY = 'deploy@drinkpos-bar-mario.iam.gserviceaccount.com'
+  const AUD_PROVA = prova.audienceProva(REGIA)
+  it('le prove: il gettone di deploy col loro destinatario sì', async () => {
+    expect(await prova.istanzaDalGettone(gettone({ email: DEPLOY, aud: AUD_PROVA }), opzioni())).toBe(istanza)
+  })
+  it('le prove: col destinatario dell’AI o della regia di produzione, rifiutato da Google', async () => {
+    await expect(prova.istanzaDalGettone(gettone({ email: DEPLOY, aud: AUD }), opzioni())).rejects.toThrow()
+    await expect(prova.istanzaDalGettone(gettone({ email: DEPLOY, aud: prova.audienceProva('drink-regia') }), opzioni())).rejects.toThrow()
+  })
+  it('le prove: l’account dell’AI, anche col destinatario giusto, no', async () => {
+    expect(await prova.istanzaDalGettone(gettone({ aud: AUD_PROVA }), opzioni())).toBeNull()
+    await expect(prova.istanzaDalGettone(gettone(), opzioni())).rejects.toThrow()
+  })
+  it('l’AI: il gettone di deploy non vale, né col destinatario dell’AI né con quello delle prove', async () => {
+    expect(await id.localeDalGettone(gettone({ email: DEPLOY }), opzioni())).toBeNull()
+    await expect(id.localeDalGettone(gettone({ email: DEPLOY, aud: AUD_PROVA }), opzioni())).rejects.toThrow()
+  })
+})
+
 describe('il locale dal gettone, con gettoni veri', () => {
   it('un gettone giusto dell’account ai-locale del locale: è quel locale', async () => {
     expect(await id.localeDalGettone(gettone(), opzioni())).toBe('bar-mario')
