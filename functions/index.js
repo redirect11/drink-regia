@@ -20,7 +20,7 @@
 // rilascio: di norma redirect11/tana-drink).
 
 const { onDocumentCreated, onDocumentUpdated, onDocumentWritten } = require('firebase-functions/v2/firestore')
-const { onRequest } = require('firebase-functions/v2/https')
+const { onRequest: onRequestSenzaRegistro } = require('firebase-functions/v2/https')
 const { defineSecret } = require('firebase-functions/params')
 const eventiStripe = require('./lib/eventistripe.js')
 const { initializeApp } = require('firebase-admin/app')
@@ -29,7 +29,15 @@ const { simulazioneAmmessa, documentoSimulato, preparaRichiesta, richiestaCoeren
 const rilasci = require('./lib/rilasci.js')
 const { sceltaCambiata, licenzaProtetta, stessaLicenza, perIlDatabase, scadenzaCoerente } = require('./lib/licenza.js')
 const { rinnovoUrl, fatturaDelRinnovo } = require('./lib/rinnovo.js')
-const { onCall, HttpsError } = require('firebase-functions/v2/https')
+const { onCall: onCallSenzaRegistro, HttpsError } = require('firebase-functions/v2/https')
+// I REGISTRI STRUTTURATI (REQ-FLOTTA-110): ogni Function HTTP e callable
+// scrive una riga con funzione, locale, esito e durata, e gli errori
+// inattesi col loro stack (lib/registro.js). `onRequest` e `onCall` qui
+// sono quelle col registro: nessuna dichiarazione sotto cambia, e nessuna
+// lo scavalca. Il locale lo dice il gestore in res.locals.slug.
+const registro = require('./lib/registro.js')
+const onRequest = (opzioni, gestore) => onRequestSenzaRegistro(opzioni, registro.conRegistro(gestore))
+const onCall = (opzioni, gestore) => onCallSenzaRegistro(opzioni, registro.conRegistroChiamata(gestore))
 const { FieldValue, Timestamp } = require('firebase-admin/firestore')
 const { chiaveStripeVera, ritornoAmmesso, righeSubscription, prodottiDi, parametriAliquotaIva, eAliquotaIva, CHIAVE_IDEMPOTENZA_IVA, metadatiDi, aggiornamentoDaEvento, sceltaPulita, sessioneCheckout, intervalloDi, prenotazioneDaRilasciare, fondatoreDaConfermare, DURATA_SESSIONE_MS, fineDelPeriodo, STATI_STRIPE } = require('./lib/abbonamento.js')
 const fondatori = require('./lib/fondatori.js')
@@ -293,6 +301,7 @@ exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK
   }
   const esito = esitoValido(req.body)
   if (!esito) return res.status(400).json({ errore: 'esito non valido' })
+  res.locals.slug = esito.slug
   const ref = db.doc(`istanze/${esito.slug}`)
   const prima = (await ref.get()).data() || null
   // Un esito vero per un locale simulato (REQ-FLOTTA-072, revisore,
@@ -1714,6 +1723,7 @@ exports.sceltaDallApp = onRequest({ ...OPTS, secrets: [GITHUB_DISPATCH_TOKEN], c
   if (!progetto) return res.status(401).json({ errore: 'Serve l’accesso.' })
   const trovata = (await db.collection('istanze').where('progetto', '==', progetto).limit(1).get()).docs[0]
   const ist = trovata?.data()
+  if (trovata) res.locals.slug = trovata.id
   if (!ist || !riceveLicenza(ist)) return res.status(404).json({ errore: 'Locale sconosciuto.' })
   let chi
   try {
@@ -2059,6 +2069,8 @@ async function presentaIlSito(req, res) {
   const corpo = presenta.corpoPresentazione(req.body)
   if (!corpo) return res.status(400).json({ errore: 'Versione non valida.' })
   const slug = trovata.id
+  res.locals.slug = slug
+  res.locals.versione = corpo.versione
   const ist = trovata.data()
   // Chi apre l'app è un dipendente qualunque del locale: il suo uid non
   // serve alla regia e non si salva (REQ-FLOTTA-051).
@@ -2612,6 +2624,7 @@ exports.richiestaAI = onRequest(
           })
       : null
     if (!slug) return res.status(401).json({ errore: 'Locale non riconosciuto.' })
+    res.locals.slug = slug
 
     // IL FREE NON HA L'AI (REQ-FLOTTA-087): per ogni richiesta, il credito
     // compreso. Un locale tornato al Free conserva la sua Function AI
@@ -3333,6 +3346,7 @@ exports.moduloDallApp = onRequest({ ...OPTS, secrets: [STRIPE_SECRET_KEY], cors:
   if (!progetto) return no(401, 'Serve l’accesso.')
   const trovata = (await db.collection('istanze').where('progetto', '==', progetto).limit(1).get()).docs[0]
   const ist = trovata?.data()
+  if (trovata) res.locals.slug = trovata.id
   // La demo non ha titolare né abbonamento (REQ-FLOTTA-019).
   if (!ist || ist.stato === 'eliminata' || eDemo(ist)) return no(404, 'Installazione non registrata nella regia.')
   let chi

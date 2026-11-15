@@ -6,6 +6,12 @@ data.
 
 ## 0.5.0 (in lavorazione)
 
+- I registri delle Functions sono strutturati: ogni chiamata scrive una
+  riga con funzione, locale, esito e durata, e gli errori inattesi il loro
+  stack, che Error Reporting raggruppa. Niente dati personali: né uid né
+  email, e le email nei messaggi d'errore si mascherano. È la base dei
+  grafici e della sentinella che seguono (REQ-FLOTTA-110).
+
 - Nel backoffice c'è la sezione «Salute»: con «Controlla adesso» mostra,
   per ogni locale, l'ultima presentazione dell'app con la versione
   pubblicata accanto, gli errori delle ultime 24 ore e i permessi che
