@@ -359,6 +359,11 @@ e 9.
 - `POST …/istanzaDiProva`, `Authorization: Bearer <ID token di un utente del
   progetto>`, come la presentazione; corpo `{ attiva }`, `true` all'inizio
   delle prove e `false` alla fine (anche se le prove falliscono).
+- Basta un utente qualunque del progetto, anche senza ruoli né documenti nel
+  database del locale: la regia controlla solo che il token sia valido e del
+  progetto (firma, `aud`, `iss`, scadenza), non chi è né se esiste ancora
+  dopo. Il token dura un'ora: per la chiamata di fine giro se ne prende uno
+  nuovo.
 - Risposte: `200 { ok, attiva }`; `400` corpo; `401` token; `403` istanza non
   segnata di prova, o con un cliente; `404` istanza sconosciuta o eliminata;
   `405`.
