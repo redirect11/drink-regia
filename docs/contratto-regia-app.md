@@ -421,7 +421,7 @@ con un backend diverso l'interfaccia va rifatta, gettone o no.
 | 10 | L'AI (`richiestaAI`) | il server del locale | gettone di Google di `ai-locale@<progetto>` | sì: è il modello delle regole | l'account si generalizza quando lo usano altre chiamate |
 | 11 | `esitoProvisioning` | i workflow della regia | segreto condiviso (`PROVISIONING_CALLBACK_SECRET`) | sì: non è un locale | facoltativo: il gettone di Google dell'account del provisioning, e un segreto in meno |
 | 12 | I workflow che pubblicano l'app | la regia, verso GitHub | `GITHUB_DISPATCH_TOKEN` | sì: non è un locale | niente |
-| 13 | Identità, ruoli e permessi | — | `role` nel locale; l'account della regia sui progetti dei locali | sì; legata a Firebase Auth e ai permessi di Google | la regia legge `role` solo per il passaggio (6) |
+| 13 | Identità, ruoli e permessi | — | `role` nel locale; l'account della regia sui progetti dei locali | sì; legata a Firebase Auth e ai permessi di Google | la regia legge `role` per il passaggio e per le azioni del titolare (5, 6, 9) e lo scrive al titolare alla nascita (12): con il passo 3 la lettura per la 5 e la 9 passa al server del locale |
 | 14 | `VITE_REGIA_PROGETTO` | la build della Tana | — | sì | niente |
 | 15 | L'istanza di prova (`istanzaDiProva`, PR #287, non ancora su `develop`) | le prove e2e di tana-drink | nella #287: ID token di un utente qualunque del progetto di prova | **no** | passo 2 |
 | — | `passaggioVersoRegia`, deprecata | il browser del titolare | ID token | no | si toglie come già previsto (sotto) |
