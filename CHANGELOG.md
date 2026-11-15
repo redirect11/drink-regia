@@ -10,6 +10,10 @@ data.
   colori del sito: temi del catalogo e su misura su Lime. La scheda del
   locale avvisa se un tema su misura su base Lime non si vede, perché il
   locale ha l'app più vecchia della 1.10.52 (REQ-FLOTTA-117, #292).
+- La garanzia della produzione vale solo per lo stesso codice collaudato
+  sul test: fra il commit della beta e il tag su main possono cambiare solo
+  documenti, registro e test. Prima bastava un collaudo qualunque nella
+  storia del tag (REQ-FLOTTA-118, #293).
 - L'istanza di prova (REQ-FLOTTA-114, #286). La regia non segna più le
   presentazioni dalle anteprime degli e2e: mostra sempre la versione
   installata davvero. L'admin segna come istanza di prova un'istanza senza

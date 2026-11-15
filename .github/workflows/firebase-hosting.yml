@@ -105,7 +105,11 @@ jobs:
   # sta nella storia di questo (il tag -beta su develop, poi fuso in main) e
   # in cui il passo «Collaudo sul test» (e2e.yml) è verde. Senza, il deploy
   # non parte e lo dice: si tagga una -beta su develop e si aspetta il
-  # collaudo.
+  # collaudo. Dal 15/11/2026 (REQ-FLOTTA-118) il collaudo vale solo per lo
+  # stesso codice: fra il commit collaudato e il tag possono cambiare
+  # documenti, registro e test, mai quello che si pubblica. Prima bastava un
+  # collaudo vecchio nella storia, e commit arrivati dopo l'ultima beta
+  # passavano senza collaudo.
   garanzia:
     name: Collaudo riuscito sul test
     needs: destinazione
@@ -124,14 +128,15 @@ jobs:
             id="${riga%%:*}"; sha="${riga##*:}"
             [ "$sha" = "$GITHUB_SHA" ] && continue
             git merge-base --is-ancestor "$sha" "$GITHUB_SHA" 2>/dev/null || continue
+            git diff --quiet "$sha" "$GITHUB_SHA" -- . ':(exclude)docs' ':(exclude)requirements' ':(exclude)tests' ':(exclude).claude' ':(exclude)*.md' || { echo "Il run $id ($sha) ha collaudato codice diverso da questo tag: non vale."; continue; }
             esito=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?per_page=100" --jq '[.jobs[].steps[]? | select(.name == "Collaudo sul test") | .conclusion] | first // "nessuno"')
             if [ "$esito" = "success" ]; then trovato="$sha (run $id)"; break; fi
           done
           if [ -z "$trovato" ]; then
-            echo "::error::Nessun collaudo riuscito sul test per un commit contenuto in ${GITHUB_REF_NAME}. Tagga una versione -beta su develop, aspetta che «Collaudo sul test» sia verde, poi ritagga su main."
+            echo "::error::Nessun collaudo riuscito sul test per lo stesso codice di ${GITHUB_REF_NAME}. Tagga una versione -beta su develop col codice che va in produzione, aspetta che «Collaudo sul test» sia verde, poi ritagga su main."
             exit 1
           fi
-          echo "Collaudo riuscito sul test: $trovato → si pubblica in produzione."
+          echo "Collaudo riuscito sul test per lo stesso codice: $trovato → si pubblica in produzione."
 
   produzione:
     name: Produzione
