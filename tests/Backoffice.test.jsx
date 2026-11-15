@@ -609,6 +609,21 @@ describe('il backoffice e il credito AI', () => {
   // REQ-FLOTTA-040 (06/11/2026): i temi su misura del locale nella scheda;
   // l'admin ne scrive uno con la struttura del menù e la ricetta, lo
   // pubblica e lo ritira.
+  // REQ-FLOTTA-117: un tema su misura su base Lime non si vede in un locale
+  // con l'app più vecchia della 1.10.52; la scheda lo dice.
+  it('un tema su misura su base Lime, in un locale con l’app prima della 1.10.52, ha l’avviso', async () => {
+    db.elencoClienti.mockResolvedValue([{ uid: 'a', slug: 'bar-attivo', nome_locale: 'Bar Attivo', email: 'a@x.it', piano: 'base', creato_il: '2026-10-01' }])
+    db.elencoTemiSuMisura.mockResolvedValue([
+      { id: 'verde', nome: 'Verde', descrizione: '', stato: 'pubblicato', origine: 'fornitore', tavolozza: { base: 'lime-scuro', colori: {} }, stile: 'classico' },
+      { id: 'bosco', nome: 'Bosco', descrizione: '', stato: 'pubblicato', origine: 'fornitore', tavolozza: { base: 'tana-scuro', colori: {} }, stile: 'classico' },
+    ])
+    mostra()
+    const scheda = await apri('Bar Attivo')
+    const avviso = await within(scheda).findByTestId('su-misura-non-visti-bar-attivo')
+    expect(avviso).toHaveTextContent('«Verde» non si vede nell’app del locale (v1.10.0): la base Lime c’è dalla 1.10.52.')
+    expect(avviso).not.toHaveTextContent('Bosco')
+  })
+
   it('la scheda elenca i temi su misura; l’admin ne scrive uno con struttura e ricetta, lo ritira e lo pubblica', { timeout: 20000 }, async () => {
     const user = userEvent.setup()
     db.elencoClienti.mockResolvedValue([{ uid: 'a', slug: 'bar-attivo', nome_locale: 'Bar Attivo', email: 'a@x.it', piano: 'base', creato_il: '2026-10-01' }])

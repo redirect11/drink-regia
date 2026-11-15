@@ -6,6 +6,10 @@ data.
 
 ## 0.5.0 (in lavorazione)
 
+- Le basi `lime-scuro` e `lime-chiaro` nel vocabolario dei temi, coi
+  colori del sito: temi del catalogo e su misura su Lime. La scheda del
+  locale avvisa se un tema su misura su base Lime non si vede, perché il
+  locale ha l'app più vecchia della 1.10.52 (REQ-FLOTTA-117, #292).
 - La garanzia della produzione vale solo per lo stesso codice collaudato
   sul test: fra il commit della beta e il tag su main possono cambiare solo
   documenti, registro e test. Prima bastava un collaudo qualunque nella

@@ -20,7 +20,9 @@
 // nome troppo lungo o un colore sbagliato si rifiutano, perché un tema che
 // l'app scarterebbe o taglierebbe non va pubblicato.
 
-const BASI = ['tana-scuro', 'notte-blu', 'catppuccin', 'catppuccin-chiaro', 'pico-scuro', 'pico-chiaro', 'chiaro', 'crema']
+// Le basi Lime dalla 1.10.52 dell'app (REQ-FLOTTA-117): un'app più vecchia
+// scarta un tema con una base che non conosce, e il tema non compare.
+const BASI = ['tana-scuro', 'notte-blu', 'catppuccin', 'catppuccin-chiaro', 'pico-scuro', 'pico-chiaro', 'chiaro', 'crema', 'lime-scuro', 'lime-chiaro']
 // Gli stili che ogni app conosce. Uno stile nuovo arriva con una versione
 // dell'app, e allora si aggiunge qui.
 const STILI = ['classico', 'lavagna', 'deco', 'riviera', 'giornale']

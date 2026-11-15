@@ -514,6 +514,10 @@ repository: cambiarne uno senza l'altro è un cambio di interfaccia.
 - Il vocabolario di temi e stili: regia `functions/lib/temi.js` e
   `functions/lib/stili.js` (`BASI`, `STILI`, `ESCLUSIVI`, `CARATTERI`), app
   `themes.js`, `stileMenu.js`, `stiliRicetta.js`, `marketplaceTemi.js`.
+  Le basi `lime-scuro` e `lime-chiaro` dal 15/11/2026 (REQ-FLOTTA-117; app
+  dalla 1.10.52, REQ-UI-033 e REQ-DEV-025): un'app più vecchia scarta un
+  tema con quelle basi. I loro colori sono quelli del sito della regia
+  (`src/index.css`, «LA PALETTE LIME»): se cambiano, si dice a tana-drink.
 - Il titolare nel locale: regia `functions/lib/titolare.js`, app
   `scripts/lib-titolare.js`.
 - L'ora del taglio della giornata: 5 da tutti e due i lati.
