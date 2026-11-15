@@ -5049,6 +5049,41 @@ requirements:
       - tests/Backoffice.test.jsx
       - tests/contratto.test.js
 
+  - id: REQ-FLOTTA-121
+    title: "Gli indirizzi pubblici non leggono Firestore prima di aver verificato il gettone"
+    area: "functions/index.js (sceltaDallApp, passaggioVersoRegia, presentazione, moduloDallApp, scambiaPassaggio, traccia), functions/lib/aggiornamenti.js (progettoDelToken)"
+    description: >
+      Il seguito della REQ-FLOTTA-119, dalla revisione del 15/11/2026 su
+      «ok per tutti e 4 i punti» di Daniele. Quattro indirizzi pubblici
+      (sceltaDallApp, passaggioVersoRegia, presentazione, moduloDallApp)
+      ricavano il progetto dal gettone senza verificarlo
+      (progettoDelToken) e cercano l'istanza in Firestore prima di
+      verifyIdToken: un gettone inventato costa una lettura a ogni
+      chiamata. scambiaPassaggio legge per qualunque codice ben formato;
+      traccia scrive con il solo controllo dell'intestazione Origin, che
+      fuori dal browser si inventa.
+      COME, da decidere nel ramo: la firma del gettone si verifica prima
+      della lettura (i certificati pubblici di securetoken, l'emittente
+      https://securetoken.google.com/<progetto>), e la ricerca
+      progetto → istanza passa da una memoria di un minuto per istanza,
+      anche per i progetti che non ci sono; per scambiaPassaggio e
+      traccia una forma che non costi una lettura o una scrittura a
+      chiamata senza credenziali.
+      CRITERI. (1) Un gettone non firmato o scaduto si rifiuta senza
+      leggere Firestore. (2) Lo stesso progetto, anche sconosciuto, si
+      cerca al più una volta al minuto per istanza. (3) scambiaPassaggio e
+      traccia non leggono né scrivono per una chiamata che non ha i
+      requisiti. (4) L'ordine dei controlli del contratto resta quello
+      scritto, o il contratto si aggiorna nello stesso ramo.
+      INTERFACCE CON L'APP: 4, 5, 6 e 9; la forma delle risposte non deve
+      cambiare.
+    status: todo
+    generate_issue: true
+    labels: [regia, sicurezza, produzione]
+    priority: P1
+    test_cases:
+      - tests/tetti.test.js
+
   - id: REQ-FLOTTA-119
     title: "I tetti delle Functions: un numero massimo di istanze per tutte, e i cataloghi pubblici in memoria per un minuto"
     area: "functions/index.js (OPTS, catalogoTemi, catalogoModuli), functions/lib/memoria.js, docs/contratto-regia-app.md (interfacce 8 e 9), tests/tetti.test.js"
