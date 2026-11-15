@@ -1,12 +1,13 @@
 // ── I REGISTRI DELLA REGIA SULLE REGOLE VERE (REQ-DEV-007) ───────────────
-// REGOLE PROVATE: /rilasci/{tag}, /eventi_stripe/{id}, /fondatori/{doc}, /controlli/{doc}, /temi/{id}, /stili/{id}, /sconti/{codice}, /movimenti/{id}, /traffico/{giorno}, /passaggi/{impronta}
+// REGOLE PROVATE: /rilasci/{tag}, /eventi_stripe/{id}, /fondatori/{doc}, /controlli/{doc}, /temi/{id}, /stili/{id}, /sconti/{codice}, /movimenti/{id}, /traffico/{giorno}, /passaggi/{impronta}, /allarmi/{id}, /sentinella/{doc}
 //
 // Le collezioni che scrivono solo le Functions e legge solo l'admin: i
 // rilasci a ondate (REQ-FLOTTA-012), il registro degli eventi di Stripe
 // (REQ-FLOTTA-036), i posti Fondatori (REQ-FLOTTA-021), i controlli delle
 // licenze, il catalogo dei temi (REQ-FLOTTA-032) e degli stili
 // (REQ-FLOTTA-034), i codici sconto (REQ-FLOTTA-028), il libro dei
-// movimenti (REQ-FLOTTA-041) e il traffico del sito (REQ-FLOTTA-042). Un
+// movimenti (REQ-FLOTTA-041), il traffico del sito (REQ-FLOTTA-042), gli
+// allarmi e lo stato della sentinella (REQ-FLOTTA-111). Un
 // titolare non li vede: dentro ci sono gli slug e i soldi degli altri
 // locali. Un client che li scrivesse varrebbe un posto Fondatore regalato,
 // un evento di Stripe rifatto, un incasso inventato.
@@ -39,6 +40,8 @@ const SOLO_ADMIN_LEGGE = [
   ['sconti', 'FONDATORI100', { percentuale: 100, usi: 0, creato_il: '2026-11-09T10:00:00.000Z' }, 'le Functions'],
   ['movimenti', 'm1', { tipo: 'fattura', importo: 29, uid: UID.a, il: '2026-11-09T10:00:00.000Z' }, 'il webhook e l’admin via Function'],
   ['traffico', '2026-11-09', { giorno: '2026-11-09', viste: 12, registrazioni: 1 }, 'la Function traccia'],
+  ['allarmi', 'sito--bar-centrale-a', { controllo: 'siti', livello: 'problema', aperto: true, aperto_il: '2026-11-15T10:00:00.000Z', volte: 1 }, 'la sentinella'],
+  ['sentinella', 'stato', { ultimo_giro_il: '2026-11-15T10:00:00.000Z', controlli: {} }, 'la sentinella'],
 ]
 
 describe.each(SOLO_ADMIN_LEGGE)('%s/{id}', (collezione, id, documento, chiScrive) => {
