@@ -5049,6 +5049,40 @@ requirements:
       - tests/Backoffice.test.jsx
       - tests/contratto.test.js
 
+  - id: REQ-FLOTTA-119
+    title: "I tetti delle Functions: un numero massimo di istanze per tutte, e i cataloghi pubblici in memoria per un minuto"
+    area: "functions/index.js (OPTS, catalogoTemi, catalogoModuli), functions/lib/memoria.js, docs/contratto-regia-app.md (interfacce 8 e 9), tests/tetti.test.js"
+    description: >
+      Daniele, 15/11/2026: «non voglio trovarmi a pagare migliaia di euro
+      per una scelta tua che però si può fare diversamente», poi, sul fix
+      degli indirizzi pubblici, «ok per tutti e 4 i punti». La verifica del
+      codice: nessuna Function si richiama da sola e l'AI non spende oltre
+      il credito; ma dieci indirizzi pubblici non avevano un tetto di
+      istanze (Google ne accende fino a 100) e due, catalogoTemi e
+      catalogoModuli, leggevano Firestore a ogni chiamata senza chiedere
+      niente a nessuno. Bombardati apposta, le letture si pagano.
+      COME. Le opzioni comuni (OPTS) hanno maxInstances 10, quindi ogni
+      Function ha un tetto; chi ne ha già uno suo lo tiene. I due cataloghi
+      hanno maxInstances 3 e tengono in memoria per un minuto quello che
+      leggono (functions/lib/memoria.js): una lettura al minuto per istanza
+      invece di una per chiamata; le chiamate che arrivano insieme
+      aspettano la stessa lettura, e un errore non resta in memoria.
+      CRITERI. (1) OPTS ha maxInstances 10 e ogni Function parte da OPTS o
+      OPTS_AI. (2) catalogoTemi e catalogoModuli hanno maxInstances 3 e non
+      leggono Firestore a ogni chiamata. (3) La memoria scade dopo un
+      minuto, condivide la lettura in corso e non tiene gli errori. (4) Il
+      contratto lo dice nelle interfacce 8 e 9.
+      INTERFACCE CON L'APP: 8 e 9, cambio compatibile: la forma delle
+      risposte non cambia; un tema o un modulo nuovo compare entro un
+      minuto (le risposte avevano già una cache di 5 minuti e di uno), e
+      sotto un carico anomalo la regia può rispondere 429.
+    status: todo
+    generate_issue: true
+    labels: [regia, sicurezza, produzione]
+    priority: P1
+    test_cases:
+      - tests/tetti.test.js
+
   - id: REQ-FLOTTA-117
     title: "Le basi lime-scuro e lime-chiaro nel vocabolario dei temi, e l'avviso per i locali con l'app prima della 1.10.52"
     area: "functions/lib/temi.js (BASI), src/lib/temi.js (BASI, baseNonVista), src/pages/Backoffice.jsx (TemiSuMisuraLocale), docs/contratto-regia-app.md (Le copie da tenere allineate)"
