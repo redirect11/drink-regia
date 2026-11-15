@@ -4804,7 +4804,7 @@ requirements:
       gli allarmi di Google costano: «no allora niente allarmi google. Noi
       che possiamo fare internamente?», e gli avvisi «Solo nel backoffice».
       È la prima di tre fasi (poi la sentinella, REQ-FLOTTA-111, e la
-      Salute completa, REQ-FLOTTA-112): prima le Functions scrivevano righe
+      Salute completa): prima le Functions scrivevano righe
       di testo libere, e una parte degli errori non scriveva niente (il 500
       muto della presentazione, REQ-FLOTTA-108). Grafici, filtri per locale
       e la sentinella hanno bisogno di righe con dei campi.
@@ -4978,6 +4978,76 @@ requirements:
       - tests/regole/registri.test.js
       - tests/ci.test.js
       - tests/db.test.js
+
+  - id: REQ-FLOTTA-112
+    title: "La versione per dispositivo: la presentazione porta un codice del dispositivo, la regia sa la versione più alta e la più bassa ancora in giro, e le anteprime degli e2e non contano"
+    area: "functions/lib/presentazione.js, functions/index.js (presentazione), functions/lib/salute.js (statoPresentazione), functions/lib/sentinella.js (segnaliPresentazioni), src/lib/dispositivi.js, src/pages/Backoffice.jsx (scheda), src/pages/Salute.jsx, docs/contratto-regia-app.md (interfaccia 4)"
+    description: >
+      Richiesta di tana-drink del 15/11/2026, su decisione di Daniele dello
+      stesso giorno: una versione per dispositivo. Il 14/11 la presentazione
+      di un tablet rimasto alla 1.10.40 aveva preso il posto della 1.10.50
+      già arrivata agli altri: la regia teneva solo l'ultima versione
+      arrivata. Concordato con tana-drink il 15/11 (risposta della regia e
+      loro conferma, REQ-FLOTTA-031 nel loro registro, dalla 1.10.51-beta).
+      IL CODICE. Il corpo della presentazione diventa { versione,
+      dispositivo? }: `dispositivo` sono 16 byte casuali in base64url senza
+      padding (22 caratteri), tenuti dall'app sul dispositivo e slegati da
+      ogni dato del locale. Un codice di forma sbagliata si ignora: la
+      chiamata vale come quelle senza codice. Quando lo manda, l'app si
+      ripresenta anche a versione invariata, al più una volta ogni 24 ore,
+      all'apertura e al ritorno in primo piano.
+      IL REGISTRO. istanze/{slug}.presentazione.dispositivi { codice:
+      { versione, il } }; le app senza codice (fino alla 1.10.50) contano
+      come un dispositivo solo, senza_codice, e il registro di prima
+      diventa quel dispositivo, con la sua data. Un dispositivo si riscrive
+      al più ogni 6 ore se la versione non cambia; uno che non si presenta
+      da 30 giorni esce dal conto, e ci torna se si ripresenta; al massimo
+      50 per locale, oltre esce quello visto meno di recente.
+      presentazione.versione è la più alta fra i dispositivi, non più
+      l'ultima arrivata; presentazione.minima la più bassa: è quella che
+      dice quando si può togliere un'interfaccia deprecata. La scrittura sta
+      in una transazione, perché due dispositivi che si presentano insieme
+      non si cancellino a vicenda.
+      LE ANTEPRIME. tana-drink usa i canali di anteprima solo per gli e2e
+      (canale e2e-<run> su drinkpos-prova-e2e, scade in un giorno): il 15/11
+      la sentinella aveva aperto un allarme su prova-e2e perché si
+      presentava con la 1.10.50 dalle anteprime, mentre il sito principale
+      era alla 1.10.29. Una presentazione da un'anteprima (Origin della
+      richiesta <sito>--<canale>.web.app o .firebaseapp.com; i domini propri
+      dei locali mai) non tocca la versione installata e si segna a parte,
+      l'ultima, in presentazione.anteprima. Lo mette il browser e la pagina
+      non lo può cambiare; un client fuori dal browser potrebbe falsificarlo,
+      ma gli serve un token valido del locale e cambierebbe solo un conteggio
+      (tana-drink, 15/11).
+      LA SENTINELLA (REQ-FLOTTA-111) distingue una versione presentata più
+      vecchia di quella pubblicata («fermo a una versione vecchia») da una
+      più nuova («una versione più nuova di quella pubblicata», arrivata da
+      fuori dalla regia).
+      CRITERI. (1) Il codice si accetta solo con la sua forma, e la versione
+      resta buona anche col codice sbagliato. (2) Versione e minima per
+      ordine di versione, la beta prima della sua uscita. (3) 6 ore, 30
+      giorni, 50 dispositivi. (4) Le anteprime non cambiano versione e
+      minima. (5) La scheda del locale dice quanti dispositivi si presentano
+      e quelli indietro, per versione, e l'ultima anteprima; la Salute dice
+      quanti dispositivi e il più indietro. (6) La sentinella dice «più
+      vecchia» o «più nuova» giusto. (7) Nessun dato personale: il codice è
+      casuale, niente uid (REQ-FLOTTA-051).
+      INTERFACCE CON L'APP: l'interfaccia 4 (presentazione) prende il campo
+      facoltativo `dispositivo`, compatibile: le app che non lo mandano
+      vanno come prima, e le risposte non cambiano. La rimozione delle
+      interfacce deprecate guarda presentazione.minima.
+    status: todo
+    generate_issue: true
+    labels: [regia, flotta, backoffice]
+    priority: P2
+    test_cases:
+      - tests/presentazione.test.js
+      - tests/dispositivi.test.js
+      - tests/salute.test.js
+      - tests/Salute.test.jsx
+      - tests/sentinella.test.js
+      - tests/Backoffice.test.jsx
+      - tests/contratto.test.js
 
   - id: REQ-FLOTTA-105
     title: "La demo si registra dal modulo «Locale esistente»: sul progetto drinkpos-demo la cartella è demo da sola"

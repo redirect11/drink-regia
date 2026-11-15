@@ -144,6 +144,17 @@ describe('le presentazioni', () => {
     expect(segnali[0].dettaglio).toContain('v1.10.50-beta')
   })
 
+  // REQ-FLOTTA-112: il 15/11 prova-e2e si presentava con la 1.10.50 (dalle
+  // anteprime degli e2e) e la regia aveva pubblicato la 1.10.29: l'allarme
+  // diceva «versione vecchia», ed era più nuova.
+  it('più vecchia o più nuova di quella pubblicata: lo dice giusto', () => {
+    const [vecchia] = s.segnaliPresentazioni([istanza({ presentazione: { versione: 'v1.10.40-beta', il: '2026-11-12T09:00:00.000Z' } })], SOGLIE, ADESSO)
+    expect(vecchia.titolo).toBe('prova-bar è fermo a una versione vecchia')
+    const [nuova] = s.segnaliPresentazioni([istanza({ versione: 'v1.10.29-beta', presentazione: { versione: 'v1.10.50-beta', il: '2026-11-14T09:00:00.000Z' } })], SOGLIE, ADESSO)
+    expect(nuova.titolo).toBe('prova-bar ha una versione più nuova di quella pubblicata')
+    expect(nuova.dettaglio).toBe('Si presenta con la v1.10.50-beta, la regia ha pubblicato la v1.10.29-beta: è arrivata da fuori dalla regia.')
+  })
+
   it('dentro la soglia non si dice niente: l’app si presenta alla prossima apertura', () => {
     expect(s.segnaliPresentazioni([istanza({ aggiornata_il: '2026-11-14T10:00:00.000Z', presentazione: { versione: 'v1.10.40-beta' } })], SOGLIE, ADESSO)).toEqual([])
   })

@@ -1422,6 +1422,30 @@ describe('le licenze protette nel backoffice', () => {
     expect(attivo).toHaveTextContent(/Programmata per il .*\(fine della conservazione dei dati: il locale è fermo\) · avvisi mandati: 1/)
   })
 
+  // REQ-FLOTTA-112: i dispositivi che si presentano, e quelli indietro;
+  // l'anteprima degli e2e a parte, che non è la versione installata.
+  it('la scheda dice quanti dispositivi si presentano, quelli indietro e l’ultima anteprima', async () => {
+    const poco = new Date(Date.now() - 3600_000).toISOString()
+    db.elencoIstanze.mockResolvedValue({
+      'bar-attivo': {
+        stato: 'attiva',
+        progetto: 'drinkpos-bar-attivo',
+        presentazione: {
+          versione: 'v1.10.50-beta',
+          minima: 'v1.10.40-beta',
+          prima_il: '2026-11-02T10:00:00Z',
+          il: poco,
+          dispositivi: { a: { versione: 'v1.10.50-beta', il: poco }, b: { versione: 'v1.10.50-beta', il: poco }, c: { versione: 'v1.10.40-beta', il: poco } },
+          anteprima: { versione: 'v1.10.52-beta', il: '2026-11-15T08:54:01Z' },
+        },
+      },
+    })
+    mostra()
+    const attivo = await apri('Bar Attivo')
+    expect(within(attivo).getByTestId('dispositivi')).toHaveTextContent(/^3 dispositivi · 1 sulla v1\.10\.40-beta$/)
+    expect(within(attivo).getByTestId('anteprima')).toHaveTextContent(/^anteprima: v1\.10\.52-beta il 15\/11\/2026$/)
+  })
+
   // REQ-FLOTTA-026: la versione che l'app stessa ha detto alla regia.
   it('la scheda dice la versione che l’app ha presentato, e da quando', async () => {
     db.elencoIstanze.mockResolvedValue({
