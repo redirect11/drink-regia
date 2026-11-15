@@ -352,6 +352,102 @@ Il deploy della Tana (`.github/workflows/deploy.yml` di tana-drink) mette
 `drink-regia-test`. Da qui vengono gli indirizzi delle interfacce 4, 6, 7, 8
 e 9.
 
+## La sicurezza delle interfacce
+
+REQ-FLOTTA-115. Daniele, 15/11/2026, dopo aver visto che chiunque si
+registri su un locale ha un ID token valido del progetto: «il gestore e
+nessun altro su altre istanze puo cambiare qualcosa che interagisca con il
+backend di regia direttamente. Dobbiamo mettere tutta la comunicazione tra
+regia e drink in sicurezza». Niente ruoli degli utenti del locale e niente
+GitHub nel meccanismo, e un contratto che regga anche un backend diverso da
+Firebase; sulla proposta qui sotto: «Ok procediamo così».
+
+Le regole valgono **da subito per ogni interfaccia nuova**. Quelle di oggi
+ci arrivano a passi (il percorso, sotto), ognuno con la sua voce e con la
+regola «mai sul posto».
+
+### Le regole
+
+1. **Nessuna persona di un locale** (titolare, staff, clienti registrati)
+   chiama la regia per cambiare qualcosa. Restano dirette dal browser solo
+   le letture pubbliche senza dati (i cataloghi) e i collegamenti. Quello
+   che il titolare chiede alla regia passa dal server del suo locale: il
+   server controlla chi è, e poi chiama la regia con la regola 2.
+2. **Il server del locale si presenta con un gettone firmato** (un JWT,
+   lo standard di OpenID Connect) da un
+   **emittente registrato per quel locale**, destinato alla regia e di
+   pochi minuti. Il gettone
+   **vale solo per il suo locale**: la regia ricava il locale dall'emittente e
+   dall'identità, mai da un campo del corpo. Gli emittenti:
+   - **oggi Google**: l'account di servizio dedicato del progetto del
+     locale. La regia fa controllare a Google firma, emittente, scadenza e
+     destinatario, e risale al locale dal nome del progetto nell'indirizzo
+     dell'account (`functions/lib/identita-locale.js`; è l'AI, interfaccia
+     10, dal 12/11/2026). Niente segreti da custodire.
+   - **per l'on premise** (`docs/on-premise.md`) una **chiave del locale**:
+     il server del locale genera la coppia, alla regia arriva solo la parte
+     pubblica, salvata nell'istanza; si revoca cancellandola. Stesso
+     gettone e stesse verifiche: il contratto non cambia.
+
+   Nel meccanismo non entrano i ruoli degli utenti del locale né il
+   fornitore della CI.
+3. **La regia scrive nei locali col suo account** (interfaccia 13), mai con
+   un'identità del locale.
+4. **La versione installata la regia la legge dal sito vero**:
+   `https://<progetto>.web.app/versione.json`, pubblicato dalla build
+   dell'app, letto dalla sentinella e dopo ogni aggiornamento. Le anteprime
+   hanno un altro indirizzo e non contano; un deploy fatto fuori dalla
+   regia (le e2e su prova-e2e) si vede al giro dopo. I dispositivi non la
+   dicono più.
+
+### L'inventario (15/11/2026)
+
+«Legata a Firestore» vuol dire che il trasporto è il database del locale:
+con un backend diverso l'interfaccia va rifatta, gettone o no.
+
+| N | Interfaccia | Chi chiama | Identità oggi | Rispetta le regole | Cosa cambia |
+|---|---|---|---|---|---|
+| 1 | La licenza (`licenza/attuale`) | la regia | il suo account, coi permessi sul progetto del locale | sì; legata a Firestore del locale | niente per la sicurezza |
+| 1b | La prima licenza alla nascita | i workflow della regia | l'account del provisioning | sì; legata a Firestore del locale | come la 1 |
+| 1c | La licenza della Tana senza regia | il deploy della Tana | l'account di deploy della Tana | sì: non passa dalla regia | niente |
+| 2 | I dati del titolare in `settings/bar` | la regia | il suo account | sì; legata a Firestore del locale | niente per la sicurezza |
+| 3 | Quello che la regia legge da `settings/bar` | la regia, in lettura | il suo account | sì; legata a Firestore del locale. I valori li scrive il titolare: la regia li usa come dati del suo locale, mai per gli altri | niente per la sicurezza |
+| 4 | La presentazione (`presentazione`) | il browser di chiunque abbia fatto l'accesso al locale, anche un cliente registrato | ID token di un utente qualunque del progetto | **no**: chi si registra da solo può far vedere una versione falsa | passo 1 |
+| 5 | Gli aggiornamenti a scelta (`sceltaDallApp`) | il browser del titolare | ID token col `role: 'admin'` e l'uid del cliente della regia | **no** (regola 1): il controllo regge, ma è una persona del locale che chiama la regia | passo 3 |
+| 6 | «Apri la tua app» (`scambiaPassaggio`) | il browser, col codice monouso dato dalla regia | il codice: 60 secondi, una volta, solo dall'origine del locale | in parte: non cambia niente nella regia, ma risponde con un custom token di Firebase Auth | passo 4, da decidere |
+| 7 | «Area clienti» | un collegamento | nessuna | sì | niente |
+| 8 | `catalogoTemi` | chiunque | nessuna | sì: lettura pubblica senza dati | niente |
+| 9 | `catalogoModuli`, `moduloDallApp` | chiunque; il browser del titolare | nessuna; ID token col `role: 'admin'` e l'uid del cliente | il catalogo sì; `moduloDallApp` **no** (regola 1): cambia l'abbonamento | passo 3 |
+| 10 | L'AI (`richiestaAI`) | il server del locale | gettone di Google di `ai-locale@<progetto>` | sì: è il modello delle regole | l'account si generalizza quando lo usano altre chiamate |
+| 11 | `esitoProvisioning` | i workflow della regia | segreto condiviso (`PROVISIONING_CALLBACK_SECRET`) | sì: non è un locale | facoltativo: il gettone di Google dell'account del provisioning, e un segreto in meno |
+| 12 | I workflow che pubblicano l'app | la regia, verso GitHub | `GITHUB_DISPATCH_TOKEN` | sì: non è un locale | niente |
+| 13 | Identità, ruoli e permessi | — | `role` nel locale; l'account della regia sui progetti dei locali | sì; legata a Firebase Auth e ai permessi di Google | la regia legge `role` per il passaggio e per le azioni del titolare (5, 6, 9) e lo scrive al titolare alla nascita (12): con il passo 3 la lettura per la 5 e la 9 passa al server del locale |
+| 14 | `VITE_REGIA_PROGETTO` | la build della Tana | — | sì | niente |
+| 15 | L'istanza di prova (`istanzaDiProva`, PR #287, non ancora su `develop`) | le prove e2e di tana-drink | nella #287: ID token di un utente qualunque del progetto di prova | **no** | passo 2 |
+| — | `passaggioVersoRegia`, deprecata | il browser del titolare | ID token | no | si toglie come già previsto (sotto) |
+
+### Il percorso
+
+Ogni passo ha la sua voce nel registro, in tutti e due i repository.
+
+1. **La versione dal sito** (regola 4), per prima perché chiude il buco
+   della 4. A tana-drink: la build pubblica `versione.json` (`{ versione }`,
+   senza cache). Alla regia: la sentinella la legge e il backoffice la
+   mostra; la licenza mancante la riscrive la regia da sola. Poi la
+   presentazione diventa deprecata. Da decidere in quel passo: la regola
+   per togliere un'interfaccia deprecata oggi guarda
+   `presentazione.minima`, e serve un'altra fonte.
+2. **L'istanza di prova** (15): la #287 si riscrive prima del merge. Le e2e
+   chiedono a Google un gettone di `deploy@drinkpos-prova-e2e` con la
+   chiave che hanno già; la regia lo accetta solo per un'istanza segnata di
+   prova.
+3. **Le azioni del titolare dal server del locale** (5 e 9): chiamate
+   firmate nuove accanto alle vecchie; a tana-drink, le Function che
+   controllano il titolare e inoltrano. Le vecchie diventano deprecate.
+4. **Il passaggio** (6): da decidere se lo scambio del codice lo fa il
+   server del locale.
+5. **La chiave del locale** come secondo emittente: con l'on premise.
+
 ## Le interfacce deprecate
 
 | Interfaccia | Al posto suo | L'app smette di usarla | Si toglie quando |

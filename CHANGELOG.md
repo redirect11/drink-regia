@@ -11,6 +11,12 @@ data.
   intrecciata, cosa vorrebbe dire reimplementarla altrove e dove manca il
   punto unico. Un test fa rosso se un file nuovo che usa Firebase non è
   citato (REQ-FLOTTA-116, #290). Nessun comportamento cambia.
+- Il contratto con l'app ha le regole di sicurezza delle interfacce e
+  l'inventario di tutte, con quelle che non le rispettano ancora e il
+  percorso per arrivarci: nessuna persona di un locale cambia qualcosa
+  nella regia, il server del locale si presenta con un gettone firmato da
+  un emittente registrato per quel locale (REQ-FLOTTA-115, #288). Nessun
+  comportamento cambia con questa voce.
 - Nei «Locali» del backoffice, in fondo, il gruppo «Istanze senza cliente»:
   le istanze che nessun cliente ha (prova-e2e, quella degli e2e) con la
   scheda dell'istanza, senza i blocchi del cliente. Non entrano nei conti dei
