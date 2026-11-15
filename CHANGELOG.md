@@ -6,6 +6,11 @@ data.
 
 ## 0.5.0 (in lavorazione)
 
+- La mappa delle dipendenze della regia da Firebase e Google Cloud
+  (`docs/dipendenze-firebase.md`): per ogni porta dove è usata, quanto è
+  intrecciata, cosa vorrebbe dire reimplementarla altrove e dove manca il
+  punto unico. Un test fa rosso se un file nuovo che usa Firebase non è
+  citato (REQ-FLOTTA-116, #290). Nessun comportamento cambia.
 - Il contratto con l'app ha le regole di sicurezza delle interfacce e
   l'inventario di tutte, con quelle che non le rispettano ancora e il
   percorso per arrivarci: nessuna persona di un locale cambia qualcosa
