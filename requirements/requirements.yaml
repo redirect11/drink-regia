@@ -5049,6 +5049,34 @@ requirements:
       - tests/Backoffice.test.jsx
       - tests/contratto.test.js
 
+  - id: REQ-FLOTTA-118
+    title: "La garanzia della produzione vale solo per lo stesso codice collaudato sul test"
+    area: ".github/workflows/firebase-hosting.yml (garanzia), tests/ci.test.js, docs/handover.md (Il rilascio, passo per passo)"
+    description: >
+      La garanzia della produzione («Collaudo riuscito sul test») cercava un
+      run riuscito, col passo «Collaudo sul test» verde, su un commit nella
+      storia del tag. Un collaudo vecchio bastava: se dopo l'ultimo tag beta
+      arrivavano su main commit non collaudati, la garanzia passava lo
+      stesso. Daniele, 15/11/2026, sulla proposta di pretendere lo stesso
+      codice: «fai 1 2 e 3 in fila».
+      COME. Un run vale solo se, fra il suo commit e il tag di produzione,
+      non cambia niente di quello che si pubblica: git diff --quiet sui due
+      commit, esclusi soltanto docs/, requirements/, tests/, .claude/ e i
+      file .md. Un run con codice diverso si salta e la ricerca continua;
+      se nessuno vale, il deploy si ferma e dice di taggare una beta sullo
+      stesso codice.
+      CRITERI. (1) Il confronto c'è, con quelle sole esclusioni. (2) Viene
+      dopo il controllo della storia e prima di quello del collaudo, e un
+      run diverso si salta. (3) Il messaggio d'errore parla dello stesso
+      codice. (4) L'handover lo dice nel rilascio passo per passo.
+      INTERFACCE CON L'APP: nessuna.
+    status: todo
+    generate_issue: true
+    labels: [regia, ci, rilascio]
+    priority: P2
+    test_cases:
+      - tests/ci.test.js
+
   - id: REQ-FLOTTA-116
     title: "La mappa delle dipendenze della regia da Firebase e Google Cloud: le porte da reimplementare per cambiare backend"
     area: "docs/dipendenze-firebase.md, tests/dipendenzeFirebase.test.js"
