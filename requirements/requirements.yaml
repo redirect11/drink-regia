@@ -5036,7 +5036,7 @@ requirements:
       facoltativo `dispositivo`, compatibile: le app che non lo mandano
       vanno come prima, e le risposte non cambiano. La rimozione delle
       interfacce deprecate guarda presentazione.minima.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [regia, flotta, backoffice]
     priority: P2

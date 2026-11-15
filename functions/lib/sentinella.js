@@ -23,6 +23,7 @@
 const { daControllare, ruoliMancanti } = require('./salute.js')
 // Le email in un messaggio d'errore si mascherano come nei registri.
 const { senzaEmail } = require('./registro.js')
+const { confrontaVersioni } = require('./presentazione.js')
 
 const MINUTO = 60 * 1000
 const ORA = 60 * MINUTO
@@ -167,11 +168,17 @@ function segnaliPresentazioni(istanze, { presentazione_ore }, adesso = new Date(
     if (!presentata) {
       segnali.push(segnale('presentazioni', ist.slug, { livello: 'attenzione', titolo: `${ist.slug} non si è mai presentato alla regia`, dettaglio: `Nessuna presentazione da più di ${presentazione_ore} ore dopo l’ultimo aggiornamento.`, slug: ist.slug }))
     } else if (aggiornatoDallaRegia(ist) && ist.versione && senzaV(presentata) !== senzaV(ist.versione)) {
+      // Più nuova di quella pubblicata vuol dire arrivata da fuori dalla
+      // regia (il 15/11 le anteprime degli e2e su prova-e2e, REQ-FLOTTA-112):
+      // non è «vecchia».
+      const nuova = confrontaVersioni(presentata, ist.versione) > 0
       segnali.push(
         segnale('presentazioni', ist.slug, {
           livello: 'attenzione',
-          titolo: `${ist.slug} è fermo a una versione vecchia`,
-          dettaglio: `Si presenta con la ${presentata}, la regia ha pubblicato la ${ist.versione} da più di ${presentazione_ore} ore.`,
+          titolo: nuova ? `${ist.slug} ha una versione più nuova di quella pubblicata` : `${ist.slug} è fermo a una versione vecchia`,
+          dettaglio: nuova
+            ? `Si presenta con la ${presentata}, la regia ha pubblicato la ${ist.versione}: è arrivata da fuori dalla regia.`
+            : `Si presenta con la ${presentata}, la regia ha pubblicato la ${ist.versione} da più di ${presentazione_ore} ore.`,
           slug: ist.slug,
         })
       )

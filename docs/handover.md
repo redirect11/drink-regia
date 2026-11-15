@@ -1227,7 +1227,11 @@ moduli, la licenza nell'istanza e la Tana.
   sessione (niente accessi anonimi). Non attiva un'installazione: la
   licenza c'è prima dell'app (l'attivazione della regia, o il deploy di
   tana-drink per la Tana); se manca e un dispositivo ha ancora una
-  sessione, la presentazione la fa riscrivere.
+  sessione, la presentazione la fa riscrivere. Dal 15/11/2026
+  (REQ-FLOTTA-112) il corpo porta anche `dispositivo`, un codice casuale
+  per dispositivo: la regia tiene la versione più alta e la più bassa
+  (`presentazione.minima`), e le anteprime degli e2e le segna a parte. I
+  dettagli sono in `docs/contratto-regia-app.md`, interfaccia 4.
 - **Gli aggiornamenti obbligatori o a scelta** (REQ-FLOTTA-020, dal
   31/10/2026, per intero in tana-drink, `docs/aggiornamenti-dalla-regia.md`).
   La regia scrive `settings/bar.licenza.aggiornamenti` = `{ modalita:

@@ -34,9 +34,9 @@ stessa PR**, e la descrizione della PR lo dice.
    3. La vecchia passa fra le **interfacce deprecate** (sotto), con la
       versione dell'app da cui non si usa più.
    4. Si toglie solo quando **nessun locale** usa più una versione che la
-      chiama: le versioni installate le dice la presentazione di ogni locale
-      (`istanze/{slug}.presentazione.versione`). La rimozione ha una sua voce
-      nel registro.
+      chiama: lo dice la versione più bassa ancora in giro in ogni locale
+      (`istanze/{slug}.presentazione.minima`), dalla REQ-FLOTTA-112. La rimozione ha
+      una sua voce nel registro.
 3. **Chi la cambia**: un'interfaccia è un contratto fra i due repository, e
    per regola i contratti si cambiano solo con una decisione di Daniele
    (CLAUDE.md). Ogni cambio ha una voce nel registro di tutti e due, e un
@@ -120,19 +120,37 @@ scritta solo se manca (`scritta_da: 'deploy'`). La Tana ha `regia_url: null`.
 ### 4. La presentazione: `presentazione` (app → regia, HTTP)
 
 - `POST …/presentazione`, `Authorization: Bearer <ID token di un utente
-  qualunque del locale>`, corpo `{ versione }` (`v1.2.3` o `1.2.3-beta.x`). La
-  regia riconosce il locale dal progetto del token e lo verifica con quel
-  progetto.
+  qualunque del locale>`, corpo `{ versione, dispositivo? }` (`v1.2.3` o
+  `1.2.3-beta.x`). La regia riconosce il locale dal progetto del token e lo
+  verifica con quel progetto.
+- `dispositivo` (REQ-FLOTTA-112, dalla 1.10.51-beta dell'app): 16 byte casuali
+  in base64url senza padding, `^[A-Za-z0-9_-]{22}$`, tenuti dall'app sul
+  dispositivo e slegati da ogni dato del locale. Facoltativo: un codice di
+  forma sbagliata la regia lo ignora, e la chiamata vale come quelle senza
+  codice. Quando lo manda, l'app si ripresenta anche a versione invariata, al
+  più una volta ogni 24 ore (all'apertura e al ritorno in primo piano).
 - Risposte: `200 { ok, licenza: 'scritta'|'presente'|'non_dalla_regia'|'non_attiva' }`;
   `400` versione; `401` token; `404` locale non registrato o eliminato; `405`;
   `503` licenza che non si legge o non si scrive (REQ-FLOTTA-108: prima la
   lettura fallita era un `500`; per l'app non cambia niente, ogni risposta
   diversa da `200` si riprova alla prossima apertura); `500` errore inatteso.
-- La regia salva `istanze/{slug}.presentazione { versione, il, prima_il }`: è
-  la versione installata che si vede nella scheda, e quella che decide quando
-  si può togliere un'interfaccia deprecata.
-- App: `src/lib/presentazione.js` (una volta per versione per dispositivo;
-  di nuovo se manca la licenza), `src/lib/api.js`, `src/App.jsx`.
+- La regia salva `istanze/{slug}.presentazione { versione, minima, il,
+  prima_il, dispositivi, anteprima? }`:
+  - `dispositivi { <codice>: { versione, il } }`: le app senza codice contano
+    come un dispositivo solo, `senza_codice`; un dispositivo si riscrive al
+    più ogni 6 ore a versione invariata, esce dal conto dopo 30 giorni senza
+    presentarsi (e ci torna se si ripresenta), al massimo 50 per locale;
+  - `versione`: la più alta fra i dispositivi, quella che si vede nella scheda;
+  - `presentazione.minima`: la più bassa, quella che decide quando si può
+    togliere un'interfaccia deprecata;
+  - `anteprima { versione, il }`: l'ultima presentazione da un canale di
+    anteprima, riconosciuto dall'`Origin` della richiesta
+    (`<sito>--<canale>.web.app` o `.firebaseapp.com`; i domini propri dei
+    locali mai). Non cambia `versione` né `minima`: tana-drink usa i canali
+    solo per gli e2e (15/11/2026).
+- App: `src/lib/presentazione.js` (una volta per versione per dispositivo, e
+  col codice al più una volta al giorno; di nuovo se manca la licenza),
+  `src/lib/api.js`, `src/App.jsx`.
 - Da REQ-FLOTTA-026 (02/11). Documenti: handover §7; app
   `docs/presentazione-alla-regia.md`.
 
