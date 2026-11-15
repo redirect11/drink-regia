@@ -2119,29 +2119,32 @@ async function presentaIlSito(req, res) {
 // Daniele, 15/11/2026: «disattivare l'istanza e2e alla fine delle prove e
 // nel backoffice la si vede come disattivata». Le prove e2e di tana-drink
 // la accendono all'inizio e la spengono alla fine: `POST`, `Authorization:
-// Bearer <ID token>` di un utente del progetto, come la presentazione,
-// corpo `{ attiva }`. Vale solo per un'istanza che l'admin ha segnato di
-// prova e che non ha un cliente. Risposte: 200 { ok, attiva }; 400 corpo;
-// 401 token; 403 non di prova o con cliente; 404 sconosciuta; 405.
+// Bearer <gettone di Google di deploy@<progetto>>`, destinatario
+// `regia-prova:<progetto della regia>`, corpo `{ attiva }` (le regole di
+// REQ-FLOTTA-115: nessun utente del progetto, solo l'account di deploy).
+// Vale solo per un'istanza che l'admin ha segnato di prova e che non ha un
+// cliente. Risposte: 200 { ok, attiva }; 400 corpo; 401 gettone o account;
+// 403 non di prova o con cliente; 404 eliminata; 405.
 exports.istanzaDiProva = onRequest({ ...OPTS, cors: false }, async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ errore: 'Solo POST.' })
-  const token = aggiornamenti.bearerDi(req.get('authorization'))
-  const progetto = aggiornamenti.progettoDelToken(token)
-  if (!progetto) return res.status(401).json({ errore: 'Serve l’accesso.' })
-  const trovata = (await db.collection('istanze').where('progetto', '==', progetto).limit(1).get()).docs[0]
-  if (!trovata) return res.status(404).json({ errore: 'Installazione non registrata nella regia.' })
+  // IL GETTONE DI GOOGLE DELL'ACCOUNT DI DEPLOY (REQ-FLOTTA-115, regola 2):
+  // nessun utente del progetto di prova, solo chi ha la chiave del deploy.
+  const gettone = identita.tokenDaBearer(req.get('authorization'))
+  const trovata = gettone
+    ? await prova
+        .istanzaDalGettone(gettone, { progettoRegia: PROGETTO_REGIA, verifica: verificaGettone, cercaPerProgetto: istanzePerProgetto })
+        .catch((e) => {
+          console.warn('[prova] gettone rifiutato:', identita.motivoBreve(e))
+          return null
+        })
+    : null
+  if (!trovata) return res.status(401).json({ errore: 'Prove non riconosciute.' })
   res.locals.slug = trovata.id
-  try {
-    await getAuth(appDi(progetto)).verifyIdToken(token)
-  } catch {
-    return res.status(401).json({ errore: 'Accesso non valido: entra di nuovo.' })
-  }
   const corpo = prova.corpoProva(req.body)
   if (!corpo) return res.status(400).json({ errore: 'Serve { attiva: true | false }.' })
-  const ist = trovata.data()
-  const puo = prova.puoCambiare(ist, await clienteDi(trovata.id))
+  const puo = prova.puoCambiare(trovata.data, await clienteDi(trovata.id))
   if (!puo.ok) return res.status(puo.status).json({ errore: puo.perche })
-  await trovata.ref.update(prova.registroProva(corpo.attiva))
+  await db.doc(`istanze/${trovata.id}`).update(prova.registroProva(corpo.attiva))
   return res.status(200).json({ ok: true, attiva: corpo.attiva })
 })
 

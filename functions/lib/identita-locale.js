@@ -32,10 +32,12 @@ const PROGETTO_DEMO = 'drinkpos-demo'
 
 // Chi ha chiesto il gettone: solo l'account dedicato di un progetto, che
 // porta il nome del progetto. L'account predefinito no: porta il numero.
-function chiDalGettone(payload) {
+// Di norma `ai-locale`; le prove e2e usano `deploy` (REQ-FLOTTA-114, con le
+// regole di REQ-FLOTTA-115): ogni chiamata dice quale account accetta.
+function chiDalGettone(payload, account = ACCOUNT) {
   if (!payload || !EMITTENTI.includes(payload.iss) || payload.email_verified !== true) return null
   const email = String(payload.email || '').toLowerCase()
-  const m = new RegExp(`^${ACCOUNT}@([a-z][a-z0-9-]{4,28}[a-z0-9])\\.iam\\.gserviceaccount\\.com$`).exec(email)
+  const m = new RegExp(`^${account}@([a-z][a-z0-9-]{4,28}[a-z0-9])\\.iam\\.gserviceaccount\\.com$`).exec(email)
   return m ? { progetto: m[1] } : null
 }
 

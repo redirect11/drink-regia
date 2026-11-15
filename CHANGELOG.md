@@ -10,8 +10,21 @@ data.
   presentazioni dalle anteprime degli e2e: mostra sempre la versione
   installata davvero. L'admin segna come istanza di prova un'istanza senza
   cliente (prova-e2e). Le prove e2e di tana-drink la accendono e la spengono
-  con `istanzaDiProva`, e il backoffice la dice «In prova» o «Disattivata».
+  con `istanzaDiProva`, presentandosi col gettone di Google dell'account di
+  deploy del progetto di prova (nessun utente del progetto: le regole di
+  REQ-FLOTTA-115), e il backoffice la dice «In prova» o «Disattivata».
   La sentinella non guarda un'istanza di prova spenta.
+- La mappa delle dipendenze della regia da Firebase e Google Cloud
+  (`docs/dipendenze-firebase.md`): per ogni porta dove è usata, quanto è
+  intrecciata, cosa vorrebbe dire reimplementarla altrove e dove manca il
+  punto unico. Un test fa rosso se un file nuovo che usa Firebase non è
+  citato (REQ-FLOTTA-116, #290). Nessun comportamento cambia.
+- Il contratto con l'app ha le regole di sicurezza delle interfacce e
+  l'inventario di tutte, con quelle che non le rispettano ancora e il
+  percorso per arrivarci: nessuna persona di un locale cambia qualcosa
+  nella regia, il server del locale si presenta con un gettone firmato da
+  un emittente registrato per quel locale (REQ-FLOTTA-115, #288). Nessun
+  comportamento cambia con questa voce.
 - Nei «Locali» del backoffice, in fondo, il gruppo «Istanze senza cliente»:
   le istanze che nessun cliente ha (prova-e2e, quella degli e2e) con la
   scheda dell'istanza, senza i blocchi del cliente. Non entrano nei conti dei

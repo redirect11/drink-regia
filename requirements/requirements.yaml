@@ -5049,6 +5049,85 @@ requirements:
       - tests/Backoffice.test.jsx
       - tests/contratto.test.js
 
+  - id: REQ-FLOTTA-116
+    title: "La mappa delle dipendenze della regia da Firebase e Google Cloud: le porte da reimplementare per cambiare backend"
+    area: "docs/dipendenze-firebase.md, tests/dipendenzeFirebase.test.js"
+    description: >
+      Daniele, 15/11/2026, dopo aver scelto un contratto con l'app scritto
+      sullo standard e non su Google (REQ-FLOTTA-115): «Un agente dovrebbe
+      segnarsi da qualche parte tutte le integrazioni forti che abbiamo con
+      firebase così che un giorno se cambiamo (ad esempio andiamo diretti
+      su aws, o google cloude docker o simili) dobbiamo solo reimplementare
+      delle interfacce». È la metà della regia di quello che tana-drink fa
+      con le porte e gli adattatori (docs/on-premise.md).
+      COSA. Un documento che, per ogni porta (identità delle persone,
+      database, Function, lavori pianificati, segreti, identità dei server
+      dei locali, log, hosting, creazione dei progetti dei locali, accesso
+      ai progetti dei locali), dice cosa fa per la regia, dove è usata,
+      quanto è intrecciata, cosa vorrebbe dire reimplementarla altrove e
+      se oggi c'è un punto unico o se «manca la porta». Questa voce non
+      cambia il codice: le porte che mancano si fanno ognuna con la sua
+      voce, quando servono.
+      CRITERI. (1) docs/dipendenze-firebase.md esiste e dice la regola: chi
+      aggiunge una dipendenza da Firebase o Google Cloud aggiorna la mappa
+      nella stessa PR. (2) Cita ogni file del codice (src, functions,
+      scripts) che usa un SDK di Firebase o di Google Cloud, ogni workflow
+      che parla con Google, e il Terraform in infra/. (3) Separa le
+      dipendenze che legano anche il contratto con l'app. (4) Un test fa
+      rosso se un file o un workflow nuovo che usa Firebase non è citato.
+      INTERFACCE CON L'APP: nessuna.
+    status: implemented
+    generate_issue: true
+    labels: [regia, metodo]
+    priority: P3
+    test_cases:
+      - tests/dipendenzeFirebase.test.js
+
+  - id: REQ-FLOTTA-115
+    title: "La comunicazione fra la regia e i locali in sicurezza: le regole e l'inventario delle interfacce nel contratto"
+    area: "docs/contratto-regia-app.md (La sicurezza delle interfacce), .claude/agents/revisore.md, tests/contratto.test.js"
+    description: >
+      Daniele, 15/11/2026, dopo aver visto che chiunque si registri su un
+      locale ha un ID token valido del progetto, e che la presentazione e
+      l'istanza di prova si accontentano di quello: «il gestore e nessun
+      altro su altre istanze puo cambiare qualcosa che interagisca con il
+      backend di regia direttamente. Dobbiamo mettere tutta la
+      comunicazione tra regia e drink in sicurezza». Niente ruoli degli
+      utenti del locale e niente GitHub nel meccanismo («Non voglio
+      nemmeno legarmi a github»), e un contratto che regga anche un
+      backend diverso da Firebase («Se vogliamo passare da firebase a un
+      altro backend poi cosa succede?»). Sulla proposta (contratto sullo
+      standard, Google oggi, la chiave del locale per l'on premise, le
+      interfacce 1, 2 e 3 segnate come legate a Firestore): «Ok procediamo
+      così».
+      COSA. Questa voce scrive le regole e l'inventario; il codice viene
+      dopo, a passi, ognuno con la sua voce. Le regole: (1) nessuna persona
+      di un locale chiama la regia per cambiare qualcosa: restano dirette
+      solo le letture pubbliche senza dati e i collegamenti; (2) il server
+      del locale si presenta con un gettone firmato (JWT) da un emittente
+      registrato per quel locale, destinato alla regia e di breve durata, e
+      il gettone vale solo per il suo locale: oggi l'emittente è Google
+      (l'account di servizio dedicato del progetto, come l'AI dal
+      12/11/2026), per l'on premise sarà una chiave del locale, senza
+      cambiare il contratto; (3) la regia scrive nei locali col suo
+      account; (4) la versione installata la regia la legge dal sito vero
+      (versione.json), non se la fa dire dai dispositivi.
+      CRITERI. (1) Il contratto ha la sezione «La sicurezza delle
+      interfacce» con le quattro regole. (2) Un inventario con una riga per
+      ogni interfaccia (anche la deprecata passaggioVersoRegia): chi
+      chiama, con quale identità oggi, se rispetta le regole, cosa cambia.
+      (3) Le interfacce 1, 2 e 3 segnate come legate a Firestore del
+      locale. (4) Il percorso a passi, con quello che chiede a tana-drink.
+      (5) Un test fa rosso se un'interfaccia nuova non ha la sua riga.
+      INTERFACCE CON L'APP: nessuna cambia con questa voce; il percorso le
+      cambierà, ognuna con la sua voce e la regola «mai sul posto».
+    status: implemented
+    generate_issue: true
+    labels: [regia, contratto-tana-drink, sicurezza]
+    priority: P1
+    test_cases:
+      - tests/contratto.test.js
+
   - id: REQ-FLOTTA-113
     title: "Le istanze senza cliente nei «Locali»: in fondo all'elenco, nel loro gruppo, con la scheda dell'istanza"
     area: "src/lib/backoffice.js (istanzeSenzaCliente, filtraLocali), src/pages/Backoffice.jsx (SezioneLocali, SchedaLocale)"
@@ -5103,9 +5182,14 @@ requirements:
       senza cliente (REQ-FLOTTA-113), dalla sua scheda (segnaIstanzaDiProva,
       solo admin; la Function rifiuta un'istanza che ha un cliente). Le prove
       e2e di tana-drink la accendono all'inizio e la spengono alla fine con
-      istanzaDiProva: POST col token di un utente del progetto, come la
-      presentazione, corpo { attiva }; la regia la accetta solo per
-      un'istanza segnata di prova e senza cliente. Si segna istanze/{slug}.
+      istanzaDiProva: POST col gettone di Google dell'account di deploy del
+      progetto (deploy@<progetto>, destinatario regia-prova:<regia>), corpo
+      { attiva }; la regia la accetta solo per un'istanza segnata di prova e
+      senza cliente. Prima versione col token di un utente qualunque del
+      progetto: riscritta prima del merge con le regole di REQ-FLOTTA-115
+      (Daniele, 15/11/2026: «il gestore e nessun altro su altre istanze puo
+      cambiare qualcosa che interagisca con il backend di regia
+      direttamente»), perché in un progetto dei locali chiunque si registra. Si segna istanze/{slug}.
       prova { attiva, il }. Spenta non cambia la licenza né le risposte
       della presentazione: è uno stato della regia.
       NEL BACKOFFICE la riga e la scheda dicono «Disattivata» (e da quando)
@@ -5115,7 +5199,9 @@ requirements:
       controlla le presentazioni di un'istanza di prova: si presenta solo
       dalle anteprime, che non si segnano.
       CRITERI. (1) Nessuna anteprima nel registro. (2) istanzaDiProva
-      accetta solo { attiva } booleano, col token del progetto, per
+      accetta solo { attiva } booleano, col gettone di Google di
+      deploy@<progetto> destinato a regia-prova:<regia> (401 per un utente
+      del progetto, per l'account dell'AI o per un altro destinatario), per
       un'istanza di prova senza cliente non eliminata (403 / 404 altrimenti).
       (3) Solo l'admin segna un'istanza di prova, e mai una con cliente. (4)
       «Disattivata» e «In prova» nel backoffice. (5) La sentinella non apre
