@@ -208,6 +208,10 @@ scritta solo se manca (`scritta_da: 'deploy'`). La Tana ha `regia_url: null`.
 ### 8. Il catalogo dei temi e degli stili: `catalogoTemi` (app ← regia, HTTP pubblico)
 
 - `GET …/catalogoTemi`, senza token, CORS aperto, cache di 5 minuti.
+  La regia tiene il catalogo in memoria fino a un minuto: un tema
+  pubblicato compare entro un minuto. Sotto un carico anomalo può
+  rispondere `429` (il tetto di istanze, REQ-FLOTTA-119): l'app tiene
+  l'ultima copia che ha.
 - `200 { temi: [{ id, nome, descrizione, prezzo: 0, tavolozza: { base,
   colori }, stile }], stili: [{ id, nome, descrizione, prezzo: 0, ricetta }] }`,
   solo i pubblicati; la ricetta ha `versione: 1`; `405`.
@@ -225,7 +229,8 @@ scritta solo se manca (`scritta_da: 'deploy'`). La Tana ha `regia_url: null`.
 
 - `GET …/catalogoModuli`, pubblico, cache di un minuto: `200 { moduli: [{ id,
   prezzo, prova_giorni }] }`, solo quelli in vendita e non compresi in ogni
-  piano.
+  piano. La regia tiene il listino in memoria fino a un minuto, e sotto un
+  carico anomalo può rispondere `429` (REQ-FLOTTA-119).
 - `POST …/moduloDallApp`, Bearer dell'ID token, corpo `{ modulo, azione:
   'prova'|'aggiungi'|'disdici', ritorno }` (`ritorno` sui domini del locale).
   Risposte: `200 { ok }`, `{ ok, scade_il }` (prova), `{ ok, dal }`

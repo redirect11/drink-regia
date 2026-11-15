@@ -4,6 +4,14 @@ Una voce per ogni cambiamento visibile, nello stesso commit del
 cambiamento. La versione in cima è quella in lavorazione finché non ha la
 data.
 
+## 0.5.1 (in lavorazione)
+
+- Ogni Function della regia ha un numero massimo di istanze (10, meno
+  dove serve), e i cataloghi pubblici dei temi e dei moduli rispondono da
+  una memoria di un minuto invece di leggere il database a ogni chiamata:
+  un indirizzo bombardato apposta non fa più salire la bolletta
+  (REQ-FLOTTA-119).
+
 ## 0.5.0 (15/11/2026, la quarta in produzione: la sentinella e la Salute, la versione per dispositivo, le istanze senza cliente e quella di prova, le regole di sicurezza delle interfacce, le basi Lime, la garanzia sullo stesso codice)
 
 - Le basi `lime-scuro` e `lime-chiaro` nel vocabolario dei temi, coi

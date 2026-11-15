@@ -5076,7 +5076,7 @@ requirements:
       risposte non cambia; un tema o un modulo nuovo compare entro un
       minuto (le risposte avevano già una cache di 5 minuti e di uno), e
       sotto un carico anomalo la regia può rispondere 429.
-    status: todo
+    status: implemented
     generate_issue: true
     labels: [regia, sicurezza, produzione]
     priority: P1

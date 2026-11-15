@@ -58,6 +58,7 @@ const identita = require('./lib/identita-locale.js')
 const stampanti = require('./lib/stampanti.js')
 const { OAuth2Client, GoogleAuth } = require('google-auth-library')
 const elim = require('./lib/eliminazione.js')
+const { inMemoria } = require('./lib/memoria.js')
 const conserva = require('./lib/conservazione.js')
 const presenta = require('./lib/presentazione.js')
 const prova = require('./lib/istanzaDiProva.js')
@@ -90,8 +91,13 @@ const db = getFirestore()
 // functions/.env.<progetto> resta l'account predefinito di Compute Engine,
 // che è Editor sulla regia: va bene solo finché l'account dedicato non è
 // stato creato e autorizzato sui locali (REGIA_SA_EMAIL nella flotta).
+// IL TETTO DI ISTANZE (REQ-FLOTTA-119): senza, Google accende fino a 100
+// istanze per Function, e una Function bombardata apposta si paga. Dieci
+// bastano al traffico di oggi con larghezza; chi ha un tetto suo lo
+// dichiara dopo ...OPTS e lo tiene.
 const OPTS = {
   region: 'europe-west1',
+  maxInstances: 10,
   ...(process.env.RUNTIME_SERVICE_ACCOUNT ? { serviceAccount: process.env.RUNTIME_SERVICE_ACCOUNT } : {}),
 }
 const GITHUB_DISPATCH_TOKEN = defineSecret('GITHUB_DISPATCH_TOKEN')
@@ -1870,19 +1876,30 @@ exports.scambiaPassaggio = onRequest({ ...OPTS, cors: false }, async (req, res) 
 // è collegata per la licenza. → 200 { temi: [...] } (solo i pubblicati).
 // L'app lo legge all'apertura del marketplace, mai a tempo: cinque minuti
 // di cache bastano.
-exports.catalogoTemi = onRequest({ ...OPTS, cors: false }, async (req, res) => {
-  res.set('Access-Control-Allow-Origin', '*')
-  res.set('Access-Control-Allow-Methods', 'GET')
-  if (req.method === 'OPTIONS') return res.status(204).send('')
-  if (req.method !== 'GET') return res.status(405).json({ errore: 'Solo GET.' })
+// I CATALOGHI PUBBLICI IN MEMORIA (REQ-FLOTTA-119): rispondono a chiunque
+// senza chiedere niente, quindi leggono Firestore una volta al minuto per
+// istanza, non a ogni chiamata. Un tema o un modulo nuovo compare entro un
+// minuto: le risposte avevano già una cache di 5 minuti e di uno.
+const MEMORIA_CATALOGHI_MS = 60 * 1000
+const catalogoTemiInMemoria = inMemoria(MEMORIA_CATALOGHI_MS, async () => {
   // Tutti i documenti, non solo i pubblicati: uno ritirato nel database
   // deve coprire quello del repository con lo stesso id.
   const [docsTemi, docsStili] = await Promise.all(['temi', 'stili'].map((c) => db.collection(c).get().then((q) => q.docs.map((d) => d.data()))))
   // Gli stili a ricetta (REQ-FLOTTA-034): un tema li può usare solo se
   // sono pubblicati.
   const catalogoStili = stili.catalogoStili(docsStili)
+  return { temi: temi.catalogoPubblico(docsTemi, undefined, { stiliRicetta: catalogoStili.map((s) => s.id) }), stili: catalogoStili }
+})
+const listinoInMemoria = inMemoria(MEMORIA_CATALOGHI_MS, () => vendita())
+
+exports.catalogoTemi = onRequest({ ...OPTS, cors: false, maxInstances: 3 }, async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*')
+  res.set('Access-Control-Allow-Methods', 'GET')
+  if (req.method === 'OPTIONS') return res.status(204).send('')
+  if (req.method !== 'GET') return res.status(405).json({ errore: 'Solo GET.' })
+  const corpo = await catalogoTemiInMemoria()
   res.set('Cache-Control', 'public, max-age=300')
-  return res.status(200).json({ temi: temi.catalogoPubblico(docsTemi, undefined, { stiliRicetta: catalogoStili.map((s) => s.id) }), stili: catalogoStili })
+  return res.status(200).json(corpo)
 })
 
 // Il backoffice: salvare, pubblicare, ritirare un tema. Solo l'admin.
@@ -3374,13 +3391,13 @@ const moduliApp = require('./lib/moduliapp.js')
 // solo quelli in vendita. L'app lo legge quando si apre «Moduli», mai a
 // tempo: un minuto di cache basta, e un modulo tolto dalla vendita sparisce
 // presto.
-exports.catalogoModuli = onRequest({ ...OPTS, cors: false }, async (req, res) => {
+exports.catalogoModuli = onRequest({ ...OPTS, cors: false, maxInstances: 3 }, async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*')
   res.set('Access-Control-Allow-Methods', 'GET')
   if (req.method === 'OPTIONS') return res.status(204).send('')
   if (req.method !== 'GET') return res.status(405).json({ errore: 'Solo GET.' })
   res.set('Cache-Control', 'public, max-age=60')
-  return res.status(200).json(moduliApp.catalogoModuli(await vendita()))
+  return res.status(200).json(moduliApp.catalogoModuli(await listinoInMemoria()))
 })
 
 // Prova, aggiungi, disdici dall'app: POST con `Authorization: Bearer <ID

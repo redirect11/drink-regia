@@ -201,7 +201,9 @@ describe('nelle Functions', () => {
   it('il listino è un GET pubblico col CORS aperto', () => {
     const catalogo = tra('exports.catalogoModuli', '\n})')
     expect(catalogo).toContain("res.set('Access-Control-Allow-Origin', '*')")
-    expect(catalogo).toContain('moduliApp.catalogoModuli(await vendita())')
+    // Il listino dalla memoria di un minuto (REQ-FLOTTA-119), che legge vendita().
+    expect(catalogo).toContain('moduliApp.catalogoModuli(await listinoInMemoria())')
+    expect(codiceFn).toContain('const listinoInMemoria = inMemoria(MEMORIA_CATALOGHI_MS, () => vendita())')
   })
 
   it('i controlli nell’ordine del contratto: installazione, titolare, ritorno, modulo in vendita', () => {
