@@ -5049,6 +5049,76 @@ requirements:
       - tests/Backoffice.test.jsx
       - tests/contratto.test.js
 
+  - id: REQ-FLOTTA-122
+    title: "Il Free è solo una licenza: ogni locale nasce completo, e con l'interruttore della regia chi paga può scendere al Free a fine periodo"
+    area: "functions/lib/free.js, functions/lib/provisioning.js, functions/lib/scadenze.js, functions/index.js (scegliFree, la discesa al Free, licenzaSegueIlPiano, le azioni di pagamento), functions/piani.json (il profilo del Free), src/pages/SceltaPiano.jsx, src/pages/Dashboard.jsx, src/pages/Backoffice.jsx (la vendita)"
+    description: >
+      Daniele, 16/11/2026, sulla dashboard del cliente: «in piani e moduli
+      nella dashboard del cliente non c'è il profilo free se vuole passare
+      di nuovo al free». Dopo un primo «ok allora non si scende a free»:
+      «io metterei come opzione della regia questa cosa. Adeguiamo in modo
+      che free sia solo una questione di licenza e se la regia attiva che
+      si può scendere a free allora si scende a free solo con la licenza»;
+      e il Free solo licenza vale «anche [per] chi nasce Free». Sulla
+      discesa, le sue risposte dello stesso giorno: a fine periodo, senza
+      rimborsi; solo se il Free è in vendita; chi paga a mano scende alla
+      data «pagato fino al».
+      CAMBIA LA REGOLA della REQ-FLOTTA-015 «Il Free è una porta
+      d'ingresso, non un ripiego: chi paga non ci scende»: ora ci scende,
+      se l'admin lo permette.
+      COSA. (A) IL FREE È SOLO UNA LICENZA: un locale nuovo nasce col
+      profilo completo (Functions, Storage, segreti) qualunque piano
+      scelga, e il Free si distingue dagli altri piani solo per la licenza
+      (piano, moduli, limiti) che l'app legge. Il profilo leggero resta per
+      la demo e per i locali Free già nati leggeri, che a un acquisto
+      passano al completo come oggi (serveProfiloCompleto,
+      autorizzaProfiloCompleto). (B) L'INTERRUTTORE della regia, nella
+      vendita del backoffice: «Chi paga può scendere al Free», spento
+      finché l'admin non lo accende. (C) LA DISCESA: con l'interruttore
+      acceso e il Free in vendita, chi ha un abbonamento a pagamento vede
+      il Free fra le opzioni di «Piano e moduli»; sceglierlo disdice
+      l'abbonamento Stripe a fine periodo (niente rimborsi) e segna sul
+      cliente la discesa con la sua data; chi paga a mano scende alla data
+      «pagato fino al». Fino a quella data il locale lavora col suo piano,
+      la dashboard dice quando scende e la discesa si annulla (con Stripe
+      il rinnovo torna attivo). A quella data il cliente diventa Free come
+      chi lo sceglie da nuovo (piano free, nessun modulo, un terminale,
+      abbonamento gratuito): la licenza si riscrive, il progetto del locale
+      non si tocca, i dati restano, e un'email lo dice. Non è il ripiego
+      di chi non paga (ripiego_free): da lì non si torna da soli al piano
+      di prima. Una discesa già chiesta si fa anche se l'interruttore si
+      spegne dopo.
+      COSTI, per Daniele: un Free completo ha Functions senza istanze
+      minime, un bucket e i segreti dell'app; le Functions ferme non
+      costano, l'immagine delle Functions e i segreti costano qualche
+      centesimo al mese per locale oltre la quota gratuita dell'account di
+      fatturazione [da verificare coi listini]; il primo deploy è più
+      lento. Il locale nato Free usa un progetto Google come gli altri: la
+      quota dei progetti non cambia.
+      CRITERI. (1) La richiesta di attivazione di un Free nasce col
+      profilo completo; la demo resta leggera. (2) Con l'interruttore
+      spento la regia rifiuta la discesa e la dashboard non mostra il
+      Free a chi paga, come oggi. (3) Con l'interruttore acceso e il Free
+      fuori vendita, la discesa si rifiuta. (4) Con l'interruttore acceso
+      e il Free in vendita: Stripe riceve la disdetta a fine periodo, il
+      cliente ha la discesa segnata, e la dashboard la mostra con la data
+      e il tasto per annullarla. (5) Annullare toglie la disdetta su
+      Stripe e la discesa dal cliente. (6) Alla fine dell'abbonamento
+      (disdetto da Stripe, o la scadenza di un pagamento a mano) un
+      cliente con la discesa diventa Free: niente sospensione, niente
+      chiusura, niente ripiego. (7) Un Free leggero che compra passa al
+      completo come oggi.
+      INTERFACCE CON L'APP: nessun cambio di forma. La licenza è la
+      stessa di un Free nato tale; da verificare con tana-drink che l'app
+      regga un locale col profilo completo e la licenza Free, compresi i
+      dati oltre i limiti del Free (prodotti, utenti) di chi scende.
+    status: todo
+    generate_issue: true
+    labels: [regia, abbonamento, flotta, backoffice, dashboard]
+    priority: P2
+    test_cases:
+      - tests/free.test.js
+
   - id: REQ-FLOTTA-121
     title: "Gli indirizzi pubblici non leggono Firestore prima di aver verificato il gettone"
     area: "functions/index.js (sceltaDallApp, passaggioVersoRegia, presentazione, moduloDallApp, scambiaPassaggio, traccia), functions/lib/aggiornamenti.js (progettoDelToken)"
