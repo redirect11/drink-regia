@@ -5059,6 +5059,71 @@ requirements:
       - tests/Backoffice.test.jsx
       - tests/contratto.test.js
 
+  - id: REQ-FLOTTA-123
+    title: "I moduli «home» e «ristorante» nella licenza, il tipo «ristorante» che arriva al locale, e la licenza ricalcolata quando il gestore entra nell'app"
+    area: "functions/piani.json, functions/lib/licenza.js (MAPPA, TUTTI, moduliLicenza), functions/index.js (presentazione), .github/workflows/provisiona-istanza.yml e aggiorna-istanza.yml (TIPO_LOCALE), functions/lib/registrazione.js, docs/contratto-regia-app.md, docs/flotta-nella-regia.md"
+    description: >
+      Dal messaggio di tana-drink del 17/11/2026 (due moduli nuovi,
+      interfaccia dei moduli, REQ-DEV-025 di tana-drink; REQ-SITO-004 e
+      REQ-LIC-019 lì) e dalle decisioni di Daniele dello stesso giorno.
+      HOME: «la home del locale è un modulo a parte»; compresa nel Base e
+      nel Completo, non nel Free («il piano free invece la home
+      scompare»). RISTORANTE: «è un modulo che viene aggiunto a quello del
+      bar se il cliente dice che il suo locale è un ristorante. Il prezzo
+      è praticamente incluso nel piano base e completo […] viene fornito
+      gratis e incluso in base e completo con la possibilità in futuro di
+      assegnargli un prezzo a parte (due nuovi piani solo per ristorante o
+      proprio modulo da acquistare a parte ad un prezzo ad esempio di
+      9,99 euro)». I LOCALI CHE HANNO GIÀ UNA HOME: «quando il gestore
+      del locale accede al sito questo richiede eventuali aggiornamenti di
+      licenze per la propria istanza alla regia».
+      CAMBIA la regola della REQ-FLOTTA-065 «tutti i tipi vanno a bar»
+      (Daniele, 12/11/2026) per il ristorante: il tipo vero arriva
+      all'app.
+      COSA. (A) I MODULI: `home` e `ristorante` entrano nel listino e
+      nella licenza (`moduli.home`, `moduli.ristorante`, sempre presenti,
+      true o false). `home` è compreso nel Base e nel Completo. `ristorante`
+      è acceso solo per un locale di tipo ristorante col Base o col
+      Completo, a prezzo zero, e richiede `menu_tavoli`; il Completo oggi
+      accende TUTTI i moduli, e `ristorante` deve restarne fuori per i bar.
+      Un prezzo futuro non deve cambiare la forma della licenza. (B) IL
+      TIPO: i workflow passano all'app il tipo vero per i ristoranti (oggi
+      TIPO_LOCALE è «bar» fisso); quali tipi della registrazione
+      (TIPI_LOCALE: cocktail bar, bar, pub, ristorante, pizzeria, enoteca,
+      altro) contano come ristorante è DA DECIDERE con Daniele (la
+      pizzeria?). Resta la regola della REQ-FLOTTA-065: il tipo passa solo
+      se l'app dice di saperlo leggere. (C) LA LICENZA RICALCOLATA: quando
+      l'app si presenta alla regia (presentazione, interfaccia 6, o la
+      chiamata all'accesso del gestore che tana-drink sceglierà), la regia
+      ricalcola la licenza dell'istanza e la riscrive solo se è diversa;
+      così un locale riceve `home` senza scritture in massa sulla
+      produzione. Non per la Tana e le istanze con
+      licenza_dalla_regia false: la loro licenza la scrive tana-drink.
+      CRITERI. (1) La licenza di un Base o di un Completo ha home true, di
+      un Free home false. (2) ristorante è true solo per un ristorante col
+      Base o col Completo; false per un bar col Completo e per ogni Free.
+      (3) Il prezzo di ristorante è zero e la licenza non cambia forma se
+      un giorno lo avrà. (4) Un ristorante attivato o aggiornato passa
+      all'app il suo tipo, se l'app lo legge; tutti gli altri tipi come
+      oggi. (5) La presentazione di un'istanza con la licenza vecchia la
+      riscrive una volta; una seconda presentazione non scrive niente. (6)
+      La Tana e le istanze esistenti non collegate non si toccano.
+      INTERFACCE CON L'APP: la licenza (due chiavi nuove nei moduli), il
+      tipo di locale passato alla cartella del cliente, la presentazione
+      (stessa risposta, un effetto in più): cambi compatibili, da scrivere
+      nel contratto. L'app tiene la home finché la licenza non ha la
+      chiave `home`, e chiede il modulo solo dopo il rilascio della regia.
+      DIPENDE DA tana-drink: quando l'app chiama la regia (a ogni accesso
+      o solo al cambio di versione).
+    status: todo
+    generate_issue: true
+    labels: [regia, licenza, flotta, contratto-tana-drink]
+    priority: P2
+    test_cases:
+      - tests/licenza.test.js
+      - tests/presentazione.test.js
+      - tests/flotta.test.js
+
   - id: REQ-FLOTTA-121
     title: "Gli indirizzi pubblici non leggono Firestore prima di aver verificato il gettone"
     area: "functions/index.js (sceltaDallApp, passaggioVersoRegia, presentazione, moduloDallApp, scambiaPassaggio, traccia), functions/lib/aggiornamenti.js (progettoDelToken)"
