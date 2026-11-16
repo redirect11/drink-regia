@@ -302,7 +302,9 @@ describe('la prima pagina', () => {
     } else {
       expect(screen.queryByText(/giorni di prova/)).toBeNull()
     }
-    expect(screen.getByText(`L’assistenza da remoto è inclusa fino a ${ASSISTENZA.ore_mese} ora al mese; oltre, a preventivo.`)).toBeInTheDocument()
+    // Senza tetto di ore (Daniele, 16/11/2026) la nota sul tetto non c'è.
+    expect(ASSISTENZA.ore_mese).toBe(0)
+    expect(screen.queryByText(/L’assistenza da remoto è inclusa fino a/)).toBeNull()
     expect(screen.getByText(/un preventivo scritto, da accettare prima di cominciare il lavoro/)).toBeInTheDocument()
   })
 

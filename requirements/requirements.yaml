@@ -1188,6 +1188,16 @@ requirements:
       quando si paga l'attivazione, se il posto Fondatori decade, ore di
       assistenza non usate; il prezzo Fondatori applicato nella dashboard,
       quando le Functions lo scrivono.
+      L'ASSISTENZA SENZA TETTO (Daniele, 16/11/2026: «assistenza inclusa e
+      basta»; il tetto di 1 ora al mese di DEC-0005 «nessuno ha mai deciso
+      quanto deve essere»): `assistenza.ore_mese` a 0. La prima pagina non
+      ha più la nota sul tetto, i termini (§5) dicono «L'assistenza è
+      inclusa nell'abbonamento.» senza ore né preventivo; un valore
+      maggiore di zero rimette le due frasi di prima. Cade quindi anche la
+      domanda aperta sulle ore non usate.
+      LE SCHEDE DEI PIANI (Daniele, lo stesso giorno: «devono stare sempre
+      uno sotto l'altro anche se sono 3»): una sotto l'altra fino a 1024px,
+      poi tutte in fila in colonne uguali; mai due sopra e una sotto.
     status: partial
     generate_issue: true
     labels: [prodotto, prezzi, regia]

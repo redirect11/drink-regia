@@ -39,7 +39,11 @@ describe('i termini e il listino', () => {
     expect(testo).toContain(`costa ${ANNUALE.mensilita} volte il prezzo mensile della scelta`)
     if (PROVA_GIORNI > 0) expect(testo).toContain(`comincia con ${PROVA_GIORNI} giorni di prova`)
     else expect(testo).not.toContain('giorni di prova')
-    expect(testo).toContain(`L’assistenza ${ASSISTENZA.modalita} è inclusa nell’abbonamento fino a 1 ora al mese; oltre, si presta su preventivo`)
+    // Dal 16/11/2026 l'assistenza è inclusa senza tetto di ore (Daniele):
+    // i termini lo dicono e non parlano più di ore né di preventivo.
+    expect(ASSISTENZA.ore_mese).toBe(0)
+    expect(testo).toContain('L’assistenza è inclusa nell’abbonamento.')
+    expect(testo).not.toMatch(/ore? al mese; oltre, si presta su preventivo/)
     expect(testo).toContain('si fa solo su preventivo scritto, accettato dal titolare prima dell’inizio del lavoro')
   })
 
