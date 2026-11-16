@@ -108,8 +108,12 @@ export function Termini() {
       <p>
         Il servizio è fornito con cura ma senza garanzia di continuità assoluta. L’assistenza è disponibile via email a{' '}
         {TITOLARE.email}, nei tempi indicati nel piano.
-        {ASSISTENZA?.ore_mese > 0 &&
-          ` L’assistenza ${ASSISTENZA.modalita} è inclusa nell’abbonamento fino a ${ore(ASSISTENZA.ore_mese)} al mese; oltre, si presta su preventivo accettato dal titolare.`}
+        {/* Senza tetto (ore_mese 0, Daniele, 16/11/2026: «assistenza inclusa e
+            basta») si dice solo che è inclusa; col tetto, quante ore e cosa
+            succede oltre. */}
+        {ASSISTENZA?.ore_mese > 0
+          ? ` L’assistenza ${ASSISTENZA.modalita} è inclusa nell’abbonamento fino a ${ore(ASSISTENZA.ore_mese)} al mese; oltre, si presta su preventivo accettato dal titolare.`
+          : ' L’assistenza è inclusa nell’abbonamento.'}
       </p>
       {/* TODO (consulente): se le ore non usate in un mese si sommano ai
           successivi, e come si conta il tempo dell'assistenza. */}

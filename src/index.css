@@ -449,8 +449,14 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 @media (min-width: 640px) {
   .contenitore { padding: 0 32px; }
   .funzioni-minori { grid-template-columns: 1fr 1fr; }
-  .landing .piani { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
   .passi-landing { grid-template-columns: repeat(3, 1fr); gap: 24px; }
+}
+/* Le schede dei piani: una sotto l'altra finché non ci stanno tutte in
+   fila, poi tutte in fila in colonne uguali, quante sono i piani in
+   vendita. Mai due sopra e una sotto (Daniele, 16/11/2026: «devono stare
+   sempre uno sotto l'altro anche se sono 3»). */
+@media (min-width: 1024px) {
+  .landing .piani { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
 }
 @media (min-width: 768px) {
   .landing { font-size: 1.0625rem; }

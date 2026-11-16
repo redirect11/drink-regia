@@ -111,7 +111,8 @@ describe('la pagina inglese', () => {
       `The first ${FONDATORI.posti} venues: ${PIANI.base.nome} at ${importo(FONDATORI.prezzi.base, 'en')} + VAT a month`
     )
     expect(prezzi).toHaveTextContent(`One-off activation: ${importo(ATTIVAZIONE, 'en')} + VAT (${importo(conIva(ATTIVAZIONE), 'en')} incl. VAT)`)
-    expect(prezzi).toHaveTextContent('Remote support is included up to 1 hour a month')
+    // Senza tetto di ore (Daniele, 16/11/2026) la nota sul tetto non c'è neanche in inglese.
+    expect(prezzi).not.toHaveTextContent('Remote support is included up to')
     // Nessun importo all'italiana («32,70 €», «IVA») sulla pagina inglese.
     expect(prezzi.textContent).not.toMatch(/\d,\d\d(?!\d)|\d €|IVA/)
   })

@@ -330,9 +330,13 @@ sulla pagina.
 - Contenuto largo al massimo 1120px, margini laterali 20px sul telefono e
   32px dal tablet in su.
 - Tra una sezione e l'altra 56px sul telefono, 80px dal tablet.
-- Da 640px due colonne per pilastri, funzioni minori e piani, e i tre passi
+- Da 640px due colonne per pilastri e funzioni minori, e i tre passi
   in fila; da 900px l'hero, il problema, le funzioni, le domande e la
   chiusura vanno a due colonne; da 1024px i pilastri a tre.
+- **Le schede dei piani** stanno una sotto l'altra fino a 1024px, poi tutte
+  in fila in colonne uguali, quanti sono i piani in vendita: mai due sopra e
+  una sotto (Daniele, 16/11/2026: «devono stare sempre uno sotto l'altro
+  anche se sono 3»).
 
 ### Immagini
 
@@ -596,9 +600,11 @@ mensile l'annuale («Pagando un anno in anticipo: {prezzo} ({lordo}), pari a
 {mesi} mensilità.»). Sotto le card, il riquadro sobrio «Offerta Fondatori»
 («I primi {posti} locali: {piano} a {prezzo} al mese ({lordo}) per {mesi}
 mesi dall'attivazione, poi {listino} come da listino; attivazione
-gratuita.»), mai coi posti rimasti; poi la prova, e in nota il tetto
-dell'assistenza e le stampanti a preventivo. I testi esatti stanno in
-`src/i18n`.
+gratuita.»), mai coi posti rimasti; poi la prova, e in nota le
+stampanti a preventivo. I testi esatti stanno in `src/i18n`.
+L'assistenza è inclusa senza tetto di ore (Daniele, 16/11/2026:
+«assistenza inclusa e basta»): con `assistenza.ore_mese` a 0 la nota sul
+tetto non compare; torna da sola se il listino rimette un numero di ore.
 
 Il titolo era «Prezzi chiari. Paghi solo quello che usi.»: non era esatto
 (c'è un canone fisso, l'attivazione, e il Completo è un pacchetto) e

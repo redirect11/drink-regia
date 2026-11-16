@@ -126,8 +126,8 @@
   "_nota_prova": "La prova al Checkout di Stripe (trial_period_days = prova_giorni) parte spenta: va accesa quando è deciso se l'attivazione si paga all'inizio della prova o alla fine (REQ-FLOTTA-031).",
   "prova_nel_checkout": false,
   "assistenza": {
-    "_nota": "Assistenza inclusa nell'abbonamento; oltre il tetto, a preventivo.",
-    "ore_mese": 1,
+    "_nota": "Assistenza inclusa nell'abbonamento, senza tetto di ore: Daniele, 16/11/2026, «assistenza inclusa e basta» (il tetto di 1 ora al mese di DEC-0005 non era stato deciso davvero). ore_mese 0 vuol dire nessun tetto: la prima pagina e i termini non parlano di ore né di preventivo; un valore maggiore di zero rimette il tetto.",
+    "ore_mese": 0,
     "modalita": "da remoto"
   },
   "stampante": {

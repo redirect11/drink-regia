@@ -6,6 +6,13 @@ data.
 
 ## 0.5.1 (in lavorazione)
 
+- L'assistenza è inclusa nell'abbonamento senza tetto di ore: la prima
+  pagina non ha più la nota «fino a 1 ora al mese; oltre, a preventivo», e
+  i termini (§5) dicono solo che è inclusa (Daniele, 16/11/2026)
+  (REQ-PREZZI-001).
+- Le schede dei piani stanno una sotto l'altra fino a 1024px, poi tutte in
+  fila: mai più due sopra e una sotto su tablet e telefoni in orizzontale
+  (REQ-PREZZI-001).
 - Ogni Function della regia ha un numero massimo di istanze (10, meno
   dove serve). I cataloghi pubblici dei temi e dei moduli, la prova di vita
   della sentinella e il controllo del sito chiuso di `moduloDallApp`
