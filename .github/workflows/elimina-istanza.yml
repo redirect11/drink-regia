@@ -176,8 +176,13 @@ jobs:
           node -e '
             const [url, secret, slug, stato, percorso, byte, conteggi, errore] = process.argv.slice(1);
             const archivio = stato === "eliminata" ? { percorso, zip: `${percorso}/archivio.zip`, byte: Number(byte) || null, conteggi: conteggi ? JSON.parse(conteggi) : null } : null;
-            fetch(url, { method: "POST", headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
+            // REQ-FLOTTA-119: la regia ha un tetto di istanze; un 429 (piena) o
+            // una rete caduta si ritentano, fino a 5 volte in quasi 4 minuti.
+            const manda = (n) => fetch(url, { method: "POST", headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
               body: JSON.stringify({ slug, operazione: "eliminazione", stato, archivio, errore: errore || null,
                 run_id: Number(process.env.RUN_ID), inviato_il: new Date().toISOString() }) })
-              .then((r) => { console.log("regia:", r.status); if (r.status >= 300) process.exit(1); })
+              .then((r) => (r.status === 429 && n < 5 ? attendi(n) : r), (e) => { if (n < 5) return attendi(n); throw e; })
+              .then((r) => (typeof r === "number" ? manda(r) : r));
+            const attendi = (n) => new Promise((ok) => { console.log(`regia: tentativo ${n} non arrivato, riprovo`); setTimeout(() => ok(n + 1), 15000 * 2 ** (n - 1)); });
+            manda(1).then((r) => { console.log("regia:", r.status); if (r.status >= 300) process.exit(1); }, (e) => { console.error("regia:", (e && e.message) || e); process.exit(1); });
           ' "$CALLBACK_URL" "$CALLBACK_SECRET" "$SLUG" "$STATO" "${PERCORSO:-}" "${BYTE_ZIP:-}" "${CONTEGGI:-}" "$ERR"

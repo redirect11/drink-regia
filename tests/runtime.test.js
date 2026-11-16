@@ -15,7 +15,7 @@ const indice = readFileSync('functions/index.js', 'utf8')
 
 describe('l’account di runtime delle Functions', () => {
   it('le opzioni comuni delle Functions prendono l’account da RUNTIME_SERVICE_ACCOUNT, se c’è', () => {
-    expect(indice).toMatch(/const OPTS = \{\s*region: 'europe-west1',\s*\.\.\.\(process\.env\.RUNTIME_SERVICE_ACCOUNT \? \{ serviceAccount: process\.env\.RUNTIME_SERVICE_ACCOUNT \} : \{\}\),\s*\}/)
+    expect(indice).toMatch(/const OPTS = \{\s*region: 'europe-west1',\s*maxInstances: 10,\s*\.\.\.\(process\.env\.RUNTIME_SERVICE_ACCOUNT \? \{ serviceAccount: process\.env\.RUNTIME_SERVICE_ACCOUNT \} : \{\}\),\s*\}/)
   })
 
   it('ogni progetto ha la riga che accende l’account, con la sua email; la accende una persona', () => {

@@ -5049,6 +5049,86 @@ requirements:
       - tests/Backoffice.test.jsx
       - tests/contratto.test.js
 
+  - id: REQ-FLOTTA-121
+    title: "Gli indirizzi pubblici non leggono Firestore prima di aver verificato il gettone"
+    area: "functions/index.js (sceltaDallApp, passaggioVersoRegia, presentazione, moduloDallApp, scambiaPassaggio, traccia), functions/lib/aggiornamenti.js (progettoDelToken)"
+    description: >
+      Il seguito della REQ-FLOTTA-119, dalla revisione del 15/11/2026 su
+      «ok per tutti e 4 i punti» di Daniele. Quattro indirizzi pubblici
+      (sceltaDallApp, passaggioVersoRegia, presentazione, moduloDallApp)
+      ricavano il progetto dal gettone senza verificarlo
+      (progettoDelToken) e cercano l'istanza in Firestore prima di
+      verifyIdToken: un gettone inventato costa una lettura a ogni
+      chiamata. scambiaPassaggio legge per qualunque codice ben formato;
+      traccia scrive con il solo controllo dell'intestazione Origin, che
+      fuori dal browser si inventa.
+      COME, da decidere nel ramo: la firma del gettone si verifica prima
+      della lettura (i certificati pubblici di securetoken, l'emittente
+      https://securetoken.google.com/<progetto>), e la ricerca
+      progetto → istanza passa da una memoria di un minuto per istanza,
+      anche per i progetti che non ci sono; per scambiaPassaggio e
+      traccia una forma che non costi una lettura o una scrittura a
+      chiamata senza credenziali.
+      CRITERI. (1) Un gettone non firmato o scaduto si rifiuta senza
+      leggere Firestore. (2) Lo stesso progetto, anche sconosciuto, si
+      cerca al più una volta al minuto per istanza. (3) scambiaPassaggio e
+      traccia non leggono né scrivono per una chiamata che non ha i
+      requisiti. (4) L'ordine dei controlli del contratto resta quello
+      scritto, o il contratto si aggiorna nello stesso ramo.
+      INTERFACCE CON L'APP: 4, 5, 6 e 9; la forma delle risposte non deve
+      cambiare.
+    status: todo
+    generate_issue: true
+    labels: [regia, sicurezza, produzione]
+    priority: P1
+    test_cases:
+      - tests/tetti.test.js
+
+  - id: REQ-FLOTTA-119
+    title: "I tetti delle Functions: un numero massimo di istanze per tutte, e i cataloghi pubblici in memoria per un minuto"
+    area: "functions/index.js (OPTS, catalogoTemi, catalogoModuli, sentinellaViva, moduloDallApp), functions/lib/memoria.js, .github/workflows (provisiona, aggiorna, elimina: la callback), docs/contratto-regia-app.md (interfacce 8 e 9), tests/tetti.test.js"
+    description: >
+      Daniele, 15/11/2026: «non voglio trovarmi a pagare migliaia di euro
+      per una scelta tua che però si può fare diversamente», poi, sul fix
+      degli indirizzi pubblici, «ok per tutti e 4 i punti». La verifica del
+      codice: nessuna Function si richiama da sola e l'AI non spende oltre
+      il credito; ma dieci indirizzi pubblici non avevano un tetto di
+      istanze (Google ne accende fino a 100) e alcuni leggono Firestore a
+      ogni chiamata senza chiedere niente a nessuno. Bombardati apposta, le
+      letture si pagano. Questa voce copre i cataloghi, la prova di vita
+      della sentinella e il sito chiuso di moduloDallApp; le letture fatte
+      prima di verificare il gettone sono la REQ-FLOTTA-121.
+      COME. Le opzioni comuni (OPTS) hanno maxInstances 10, quindi ogni
+      Function ha un tetto; chi ne ha già uno suo lo tiene. I due cataloghi
+      hanno maxInstances 3 e tengono in memoria per un minuto quello che
+      leggono (functions/lib/memoria.js): una lettura al minuto per istanza
+      invece di una per chiamata; le chiamate che arrivano insieme
+      aspettano la stessa lettura, un errore non resta in memoria e una
+      lettura senza risposta si abbandona dopo 15 secondi. Dalla stessa
+      memoria leggono sentinellaViva e il controllo del sito chiuso di
+      moduloDallApp. IL PREZZO DEL TETTO: un attacco ai costi diventa un
+      attacco alla disponibilità di quell'indirizzo. Per non perdere gli
+      esiti della flotta, i workflow ritentano la callback su un 429 o una
+      rete caduta (5 volte in quasi 4 minuti); Stripe ritenta da solo.
+      CRITERI. (1) OPTS ha maxInstances 10 e ogni Function parte da OPTS o
+      OPTS_AI. (2) catalogoTemi e catalogoModuli hanno maxInstances 3 e non
+      leggono Firestore a ogni chiamata; sentinellaViva e il sito chiuso di
+      moduloDallApp leggono dalla memoria. (3) La memoria scade dopo un
+      minuto, condivide la lettura in corso, non tiene gli errori e
+      abbandona una lettura appesa. (4) Le callback dei tre workflow
+      ritentano su 429. (5) Il contratto lo dice nelle interfacce 8 e 9.
+      INTERFACCE CON L'APP: 8 e 9, cambio compatibile: la forma delle
+      risposte non cambia; un tema o un modulo nuovo compare entro un
+      minuto dalla regia, entro sei e due all'app con le sue cache, e
+      sotto un carico anomalo la regia può rispondere 429, che nel browser
+      è un errore di rete: l'app tiene l'ultima copia.
+    status: implemented
+    generate_issue: true
+    labels: [regia, sicurezza, produzione]
+    priority: P1
+    test_cases:
+      - tests/tetti.test.js
+
   - id: REQ-FLOTTA-117
     title: "Le basi lime-scuro e lime-chiaro nel vocabolario dei temi, e l'avviso per i locali con l'app prima della 1.10.52"
     area: "functions/lib/temi.js (BASI), src/lib/temi.js (BASI, baseNonVista), src/pages/Backoffice.jsx (TemiSuMisuraLocale), docs/contratto-regia-app.md (Le copie da tenere allineate)"

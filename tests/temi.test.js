@@ -141,7 +141,9 @@ describe('nel sito e nella regia', () => {
 
   it('il catalogo è pubblico in GET, col CORS aperto; la gestione solo per l’admin', () => {
     const codice = readFileSync('functions/index.js', 'utf8')
-    const catalogo = codice.slice(codice.indexOf('exports.catalogoTemi'), codice.indexOf('exports.gestisciTemi'))
+    // La lettura sta nella memoria di un minuto, subito sopra (REQ-FLOTTA-119).
+    const catalogo = codice.slice(codice.indexOf('const catalogoTemiInMemoria'), codice.indexOf('exports.gestisciTemi'))
+    expect(catalogo).toContain('exports.catalogoTemi')
     expect(catalogo).toContain("res.set('Access-Control-Allow-Origin', '*')")
     expect(catalogo).toContain("res.set('Access-Control-Allow-Methods', 'GET')")
     // Tutti i documenti: uno ritirato nel database copre quello del repository.

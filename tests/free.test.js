@@ -63,7 +63,8 @@ describe('la vendita', () => {
       expect(corpo.slice(0, corpo.indexOf('\n})')), fn).toMatch(/await solOSitoAperto\(\)/)
     }
     const app = index.slice(index.indexOf('exports.moduloDallApp ='))
-    expect(app.slice(0, app.indexOf('\n})'))).toMatch(/if \(await sitoChiusoOra\(\)\) return no\(409, free\.SITO_CHIUSO\)/)
+    // Dal listino in memoria, prima del gettone (REQ-FLOTTA-119).
+    expect(app.slice(0, app.indexOf('\n})'))).toMatch(/if \(await sitoChiusoInMemoria\(\)\) return no\(409, free\.SITO_CHIUSO\)/)
   })
 
   it('un modulo spento non si compra di nuovo, ma chi lo ha lo tiene; e quelli inclusi nel piano passano', () => {
