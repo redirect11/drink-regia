@@ -5090,8 +5090,8 @@ requirements:
       TIPO: i workflow passano all'app il tipo vero per i ristoranti (oggi
       TIPO_LOCALE è «bar» fisso); quali tipi della registrazione
       (TIPI_LOCALE: cocktail bar, bar, pub, ristorante, pizzeria, enoteca,
-      altro) contano come ristorante è DA DECIDERE con Daniele (la
-      pizzeria?). Resta la regola della REQ-FLOTTA-065: il tipo passa solo
+      altro) contano come ristorante: «ristorante» e «pizzeria» (Daniele,
+      17/11/2026, sulla pizzeria: «si»). Resta la regola della REQ-FLOTTA-065: il tipo passa solo
       se l'app dice di saperlo leggere. (C) LA LICENZA RICALCOLATA: quando
       l'app si presenta alla regia (presentazione, interfaccia 6, o la
       chiamata all'accesso del gestore che tana-drink sceglierà), la regia
