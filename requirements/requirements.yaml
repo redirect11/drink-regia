@@ -5158,7 +5158,11 @@ requirements:
       caricamento. Un'etichetta AGGIUNTA al progetto passa: prova-bar, nato
       prima dell'etichetta `profilo`, fermava il collaudo di
       v0.5.1-beta.2 perché il piano la aggiungeva; un'etichetta che cambia
-      o sparisce, e ogni altro campo, fermano ancora.
+      o sparisce, e ogni altro campo, fermano ancora. Allo stesso modo
+      passa un'API dell'elenco che si accende (collaudo di v0.5.1-beta.3:
+      a prova-bar mancavano nello stato firebaserules e firebasestorage,
+      aggiunte all'elenco dopo); un'API che si spegne, cambia o si ricrea
+      ferma ancora.
       (C) La Tana e i locali esistenti non creati dalla regia non hanno
       stato Terraform: per loro il ruolo lo aggiunge Daniele a mano, e il
       documento della flotta dice il comando.

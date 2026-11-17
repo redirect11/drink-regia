@@ -675,6 +675,20 @@ describe('infra/istanza/main.tf', () => {
       expect(altroNelPiano([{ address: 'google_project_service.api["run.googleapis.com"]', change: { actions: ['update'], before: { labels: {} }, after: { labels: { a: 'b' } } } }])).toBe('google_project_service.api["run.googleapis.com"] (update)')
     })
 
+    // Il collaudo di v0.5.1-beta.3 (17/11/2026): prova-bar non aveva nello
+    // stato due API dell'elenco, aggiunte dopo la sua nascita.
+    it('un’API dell’elenco che si accende passa; una che si spegne, cambia o si ricrea no', () => {
+      const ruolo = 'google_project_iam_member.agente_storage[0]'
+      const api = (nome) => `google_project_service.api["${nome}"]`
+      // Il caso di prova-bar.
+      expect(altroNelPiano([[ruolo, 'create'], [api('firebaserules.googleapis.com'), 'create'], [api('firebasestorage.googleapis.com'), 'create']])).toBe('')
+      expect(altroNelPiano([[api('run.googleapis.com'), 'delete']])).toBe(`${api('run.googleapis.com')} (delete)`)
+      expect(altroNelPiano([[api('run.googleapis.com'), 'update']])).toBe(`${api('run.googleapis.com')} (update)`)
+      expect(altroNelPiano([[api('run.googleapis.com'), 'create', 'delete']])).toBe(`${api('run.googleapis.com')} (create+delete)`)
+      // Una risorsa nuova che non è un'API dell'elenco: ferma.
+      expect(altroNelPiano([['google_project_service_identity.agenti["eventarc.googleapis.com"]', 'create']])).toBe('google_project_service_identity.agenti["eventarc.googleapis.com"] (create)')
+    })
+
     it('il contratto e il documento della flotta lo dicono, col comando per la Tana', () => {
       expect(leggi('docs/contratto-regia-app.md')).toContain('roles/firebaserules.firestoreServiceAgent')
       const doc = leggi('docs/flotta-nella-regia.md')
