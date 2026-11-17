@@ -1137,7 +1137,7 @@ describe('il primo deploy delle Functions di un locale nuovo', () => {
     const deploy = passo(provisiona, 'Deploy regole, indici, Functions e hosting').run
     expect(deploy.startsWith('set -o pipefail\n')).toBe(true)
     expect(deploy).toContain('npx firebase-tools deploy --only "$SOLO" --project "$PROGETTO" --force 2>&1 | tee "$RUNNER_TEMP/deploy.log"')
-    expect(deploy).toContain('A_META=$(node ../scripts/funzioni-fallite.mjs "$RUNNER_TEMP/deploy.log")')
+    expect(deploy).toContain('A_META=$(node ../scripts/funzioni-fallite.mjs --cambio-di-tipo "$RUNNER_TEMP/deploy.log")')
     expect(deploy).toContain('npx firebase-tools functions:delete "$nome" --region "$regione" --project "$PROGETTO" --force || true')
     expect(deploy).toContain('done <<< "$A_META"')
     // Si cancella solo dopo un tentativo fallito; dopo una cancellazione si
@@ -1204,5 +1204,52 @@ describe('il primo deploy delle Functions di un locale nuovo', () => {
     const senza = spawnSync(process.execPath, ['scripts/funzioni-fallite.mjs', join(dir, 'non-c-e.log')], { encoding: 'utf8' })
     expect(senza.status).toBe(0)
     expect(senza.stdout).toBe('')
+  })
+})
+
+// I LOCALI NELL'ORGANIZZAZIONE stone-b.it (REQ-FLOTTA-132). drinkpos-prova-org,
+// 17/11/2026: l'account di Firebase non c'era ancora al primo apply, ogni
+// build falliva perché l'account predefinito nasceva senza Editor, e il
+// ciclo cancellava anche le Functions fallite per quel motivo.
+describe('i locali che nascono nell’Organizzazione', () => {
+  const tf = leggi('infra/istanza/main.tf').replace(/\r/g, '')
+  const blocco = (inizio) => tf.slice(tf.indexOf(inizio)).split('\n}\n')[0]
+
+  it('il Terraform dà Editor all’account predefinito di Compute, solo nel completo', () => {
+    const r = blocco('resource "google_project_iam_member" "compute_predefinito" {')
+    expect(r).toContain('count      = local.completo ? 1 : 0')
+    expect(r).toContain('role       = "roles/editor"')
+    expect(r).toContain('member     = "serviceAccount:${google_project.istanza.number}-compute@developer.gserviceaccount.com"')
+  })
+
+  it('l’apply della nascita riprova una volta, dopo un minuto, solo per un account che non c’è ancora', () => {
+    const run = passo(provisiona, 'Terraform apply').run
+    expect(run.startsWith('set -o pipefail\n')).toBe(true)
+    expect(run).toContain('if terraform apply -input=false -auto-approve 2>&1 | tee "$RUNNER_TEMP/terraform.log"; then exit 0; fi')
+    expect(run).toContain('if ! grep -qiE "Unknown service account|service account .* does not exist" "$RUNNER_TEMP/terraform.log"; then exit 1; fi')
+    const dopo = run.slice(run.indexOf('sleep 60'))
+    expect(dopo.trim()).toBe('sleep 60\nterraform apply -input=false -auto-approve')
+    // Il messaggio vero del run 44148855298 rientra nella ricerca.
+    expect(/Unknown service account|service account .* does not exist/i.test("Error 404: Unknown service account, notFound")).toBe(true)
+  })
+
+  it('il deploy della nascita cancella solo le Functions col cambio di tipo', async () => {
+    const deploy = passo(provisiona, 'Deploy regole, indici, Functions e hosting').run
+    expect(deploy).toContain('A_META=$(node ../scripts/funzioni-fallite.mjs --cambio-di-tipo "$RUNNER_TEMP/deploy.log")')
+    const { funzioniFallite } = await import('../scripts/lib-deploy.js')
+    const uscita = [
+      'Build failed with status: FAILURE. Could not build the function due to a missing permission on the build service account.',
+      'Functions deploy had errors with the following functions:\n\tstaffAdmin(europe-west1)\n\tnotifyNewOrder(europe-west1)',
+      'Error: [disponibilitaDalMagazzino(europe-west1)] Changing from an HTTPS function to a background triggered function is not allowed. Please delete your function and create a new one instead.',
+    ].join('\n')
+    expect(funzioniFallite(uscita, { soloCambioDiTipo: true })).toEqual([{ nome: 'disponibilitaDalMagazzino', regione: 'europe-west1' }])
+    // Senza l'opzione, come prima: tutte.
+    expect(funzioniFallite(uscita).map((f) => f.nome)).toEqual(['staffAdmin', 'notifyNewOrder', 'disponibilitaDalMagazzino'])
+    const dir = mkdtempSync(join(tmpdir(), 'deploy-'))
+    const file = join(dir, 'deploy.log')
+    writeFileSync(file, uscita)
+    const r = spawnSync(process.execPath, ['scripts/funzioni-fallite.mjs', '--cambio-di-tipo', file], { encoding: 'utf8' })
+    expect(r.status).toBe(0)
+    expect(r.stdout.trim()).toBe('disponibilitaDalMagazzino europe-west1')
   })
 })

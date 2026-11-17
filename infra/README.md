@@ -133,6 +133,16 @@ massimo, lascerebbe la scheda bloccata finché nessuno approva.
    provisioning il ruolo «Proprietario». Il workflow lo importa e lo
    completa; se manca, si ferma e lo dice. Con `ORG_ID` lo crea Terraform,
    e chi crea il progetto ne è proprietario.
+   **Dal 17/11/2026 c'è l'Organizzazione `stone-b.it`** (ID `99789676875`,
+   REQ-FLOTTA-132): `ORG_ID` è nell'environment `flotta-test`, e il test
+   usa l'account di fatturazione da 20. All'account di provisioning serve
+   «Project Creator» sull'Organizzazione (c'è). Due cose dell'Organizzazione
+   da sapere: la «Condivisione limitata per i domini» è impostata su
+   «Tutti», altrimenti né l'account della flotta né le Functions pubbliche
+   dei locali entrerebbero nei permessi; e
+   `iam.automaticIamGrantsForDefaultServiceAccounts` è applicata, quindi
+   l'Editor all'account predefinito di Compute lo dà il Terraform
+   (`compute_predefinito`).
 5. **Il bucket degli archivi** di ciascuna regia (REQ-FLOTTA-014,
    `elimina-istanza.yml`), creato una volta:
    - nome come in `ARCHIVIO_BUCKET`, regione `europe-west1`, accesso

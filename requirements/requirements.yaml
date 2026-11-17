@@ -5469,6 +5469,54 @@ requirements:
     test_cases:
       - tests/Home.test.jsx
 
+  - id: REQ-FLOTTA-132
+    title: "I locali nascono nell'Organizzazione stone-b.it: l'account predefinito ha Editor dal Terraform, il Terraform aspetta gli account di Google, e il deploy cancella solo le Functions col cambio di tipo"
+    area: "infra/istanza/main.tf, .github/workflows/provisiona-istanza.yml (Terraform apply, deploy), .github/workflows/aggiorna-istanza.yml, scripts/funzioni-fallite.mjs, scripts/lib-deploy.js, tests/flotta.test.js, infra/README.md"
+    description: >
+      Daniele, 17/11/2026, ha aperto l'Organizzazione Google stone-b.it
+      (ID 99789676875) e messo ORG_ID nell'environment flotta-test; il
+      test usa l'account di fatturazione da 20 («usa quello da 20»). La
+      prova di un locale nuovo creato dal Terraform dentro l'Organizzazione
+      (drinkpos-prova-org, run 44148855298 e 44149499142) ha trovato tre
+      cose:
+      (1) il progetto nasce senza passi a mano, ma il ruolo della regia
+      sull'account firebase-adminsdk-fbsvc fallisce con «Unknown service
+      account»: Firebase lo crea qualche istante dopo; al secondo giro
+      passa;
+      (2) l'Organizzazione applica iam.automaticIamGrantsForDefaultServiceAccounts
+      (visto in console il 17/11): l'account predefinito
+      <numero>-compute@developer.gserviceaccount.com, che compila e fa
+      girare le Functions, nasce senza Editor, e ogni build fallisce con
+      «missing permission on the build service account»;
+      (3) il ciclo delle Functions a metà cancellava anche quelle fallite
+      per altri motivi: 40 cancellazioni senza risolvere niente.
+      Daniele, sulla strada per il punto (2): «Terraform dà Editor».
+      COSA. (A) Il Terraform dà roles/editor all'account predefinito di
+      Compute del locale (profilo completo), come Google faceva da solo
+      fuori dall'Organizzazione: la regola dell'Organizzazione resta
+      accesa, e nel codice si vede chi ha cosa. (B) Il passo «Terraform
+      apply» della nascita riprova una volta, dopo un minuto, se fallisce
+      perché un account di Google non esiste ancora («Unknown service
+      account», «does not exist»). (C) Il deploy della nascita cancella
+      solo le Functions che firebase-tools ferma col cambio di tipo
+      (planner.js), non quelle dell'elenco delle fallite.
+      CRITERI. (1) Il Terraform dà Editor all'account predefinito nel
+      completo, non nel leggero. (2) L'apply riprova una volta solo per un
+      account che non esiste ancora. (3) Il deploy cancella solo col
+      cambio di tipo. (4) drinkpos-prova-org si attiva fino in fondo
+      dentro l'Organizzazione.
+      PUNTO DEBOLE, scelto: Editor è più del necessario. Ridurlo ai ruoli
+      che servono davvero va studiato con tana-drink (cosa usano le
+      Functions), con la fase 0 della sicurezza della flotta.
+      STATO (17/11/2026): (A), (B), (C) fatti e nei test; il criterio
+      (4), drinkpos-prova-org fino in fondo, si fa dopo il merge.
+    status: partial
+    generate_issue: true
+    labels: [flotta, produzione, sicurezza]
+    priority: P1
+    test_cases:
+      - tests/flotta.test.js
+
   - id: REQ-FLOTTA-121
     title: "Gli indirizzi pubblici non leggono Firestore prima di aver verificato il gettone"
     area: "functions/index.js (sceltaDallApp, passaggioVersoRegia, presentazione, moduloDallApp, scambiaPassaggio, traccia), functions/lib/aggiornamenti.js (progettoDelToken)"
