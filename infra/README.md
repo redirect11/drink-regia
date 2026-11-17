@@ -43,7 +43,18 @@ quello di produzione), su `tana-drink-test`, su
 `drink-regia-test-archivio` e `drink-regia-test-tfstate` (amministratore
 oggetti) e sull'account di fatturazione delle prove (`billing.user`); il
 ruolo di autore dei progetti nell'organizzazione lo dà un amministratore di
-`stone-b.it`. Quando le due regie sono passate, l'account di produzione
+`stone-b.it` (dato il 17/11/2026: è anche l'unico ruolo che l'account di
+produzione ha lì). Ha in più **Browser** (`roles/browser`) sul progetto della
+sua regia: senza chiave, `google-auth-library` chiede il progetto
+predefinito leggendo il progetto del pool, e senza quel ruolo si ferma con
+403 prima di fare qualunque cosa (con la chiave il progetto stava nel file).
+L'account di produzione, quando passa senza chiave, prende lo stesso ruolo
+su `drink-regia`.
+
+Provato sulla regia di test il 17/11/2026, tutto senza chiave: «Prepara
+l'AI» su `tana-drink-test`, «Aggiorna» di prova-bar, il collaudo con
+«Aggiorna subito» dalla regia, e un locale nuovo (`prova-fase0`) attivato
+ed eliminato, con l'archivio e lo stato di Terraform nel bucket nuovo. Quando le due regie sono passate, l'account di produzione
 perde i ruoli sui locali di prova e la chiave si cancella.
 
 ## Quattro job: la chiave e il codice dell'app non stanno mai insieme
