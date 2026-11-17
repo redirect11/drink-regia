@@ -66,7 +66,10 @@ export default {
   hero: {
     occhiello: 'Management for bars and restaurants',
     // Riscritti il 07/11/2026 insieme all'italiano (lì il perché).
-    titolo: 'Your venue’s management system. From the order to the till.',
+    // Lo slogan del 17/11/2026 (REQ-FLOTTA-131), il perché nell'italiano.
+    // «Runs the numbers» dice «ai conti pensa» in parole che un titolare
+    // inglese usa davvero, e fa coppia con «Run your venue».
+    titolo: 'Run your venue. Lime runs the numbers.',
     sottotitolo: 'Orders, till, QR menu, stock, staff and statistics in a single app, born in a cocktail bar.',
     attiva: 'Get started',
     dashboard: 'My dashboard',
@@ -83,18 +86,14 @@ export default {
   gesti: {
     titolo: 'Running a venue, in five moves',
     carosello: 'carousel',
+    // REQ-FLOTTA-131: le cinque diapositive parlano al titolare (il perché
+    // nell'italiano).
     voci: {
-      sala: { parola: 'Order.', testo: 'The order leaves the table and reaches the bar at once.' },
-      banco: { parola: 'Prepare.', testo: 'Whoever prepares sees what to make, in order.' },
-      conto: { parola: 'Charge.', testo: 'The bill is ready: take the payment and print.' },
-      numeri: {
-        parola: 'Count.',
-        frasi: {
-          statistiche: 'Tonight’s takings are already counted, with no sums to redo.',
-          staff: 'The hours of whoever worked are already logged.',
-        },
-      },
-      scorta: { parola: 'Restock.', testo: 'You know what is running out before it runs out.' },
+      ordini: { parola: 'Run your orders.', testo: 'From the table to the bar in one tap. Even offline.' },
+      menu: { parola: 'Order from the menu.', testo: 'Scan the QR code, order, and the guest is served. Handle orders right from the tables.' },
+      comande: { parola: 'Track every ticket.', testo: 'Printed at the bar or on screen: see it, make it, tick it off.' },
+      conti: { parola: 'Bills always in order.', testo: 'Keep an eye on the night’s and the venue’s takings, down to the last cent.' },
+      magazzino: { parola: 'Keep an eye on stock.', testo: 'Never run out again. Lime tells you right away when a product is running low.' },
     },
     precedente: 'Previous move',
     successiva: 'Next move',
@@ -114,26 +113,33 @@ export default {
         titolo: 'From the table to the bar, with nothing to call out.',
         testo: 'Take it at the table or at the bar: it arrives straight away and, if you choose, prints on its own. The bill already has everything on it and is settled in cash or by card; the courtesy bill prints on the thermal printer.',
         punti: ['Orders printed at the bar', 'Cash and card', 'Courtesy bill'],
+        schermata: 'A table’s bill open on the tablet: the menu items on the left, and on the right the bill lines, the total and the Payment button.',
       },
       menu: {
         occhiello: 'Digital menu and table ordering',
-        titolo: 'A QR menu, and orders from the guest’s phone.',
+        titolo: 'Change a price, and the menu is already right.',
         testo: 'Guests scan the QR code, see the menu with current prices, order and follow the status of their order. No app to download, and no paper menus to reprint when a price changes.',
         punti: ['Always up to date', 'Orders go straight to the bar', 'No app to download'],
+        schermata: 'The venue’s menu on a guest’s phone: the house drinks and the number of the order being served.',
       },
       magazzino: {
         occhiello: 'Stock',
-        titolo: 'Stock is deducted on its own, from the recipes.',
+        titolo: 'Every drink served comes off its bottle.',
         testo: 'Every order that is prepared deducts the ingredients of its recipe; when a stock level drops below its reorder threshold, the app flags it. Periodic stock counts and supplier invoices keep the figures aligned.',
         punti: ['Stock levels and reorder thresholds', 'Periodic stock counts', 'Supplier invoices'],
+        schermata: 'Stock: products by category, with price, cost per centilitre, stock level and how much will be left at closing.',
       },
       statistiche: {
         occhiello: 'Statistics',
         titolo: 'How much you took, at what time, on what.',
         testo: 'Takings by night and by period, sales by hour, results by category. Peak hours and the comparison with last week are already worked out, without a spreadsheet.',
         punti: ['Period comparisons', 'Peak hours', 'Results by category'],
+        schermata: 'One night’s statistics: takings, orders, average bill, drinks sold, peak hour and takings by hour.',
       },
     },
+    // L'app è solo in italiano (REQ-FLOTTA-131): le schermate lo mostrano,
+    // e la pagina inglese lo dice invece di lasciarlo scoprire dopo.
+    schermateInItaliano: 'The app is in Italian for now: these screens show it as it is.',
     minori: {
       staff: 'Staff hours and pay, and calls to the staff, in the same system.',
       sumup: 'The bill goes to the SumUp reader and comes back paid.',
@@ -153,7 +159,7 @@ export default {
   },
   prezzi: {
     titolo: 'One monthly fee, and the modules you need.',
-    sotto: 'Monthly or yearly subscription. Prices exclude VAT ({iva} Italian VAT), with the total including VAT alongside. One-off activation: {attivazione} ({lordo}).',
+    sotto: 'Monthly or yearly subscription, support included. Prices exclude VAT ({iva} Italian VAT), with the total including VAT alongside. One-off activation: {attivazione} ({lordo}).',
     prova: 'The first {giorni} days are a trial: the subscription fee starts when the trial ends.',
     alMese: '/ month',
     piuIvaAlMese: '+ VAT a month',
@@ -171,7 +177,7 @@ export default {
     ore: { uno: '{n} hour', piu: '{n} hours' },
     assistenza: 'Remote support is included up to {ore} a month; beyond that, by quote.',
     stampante:
-      'Supported printers are networked Epson thermal printers. To connect a different printer we provide a written quote, to be accepted before any work starts.',
+      'Using a different printer? We support it on request: tell us the model when you choose your plan, or write to us.',
     piano: '{nome} plan',
     tuttoIncluso: 'Everything included',
     inizia: 'Start with {nome}',
@@ -291,7 +297,7 @@ export default {
       ],
       [
         'What do I need to get started?',
-        'A tablet or phone with an up-to-date browser. For receipts, a networked Epson thermal printer; for cards, a SumUp reader.',
+        'A tablet or phone with an up-to-date browser. For receipts, a networked Epson thermal printer, or another model on request; for cards, a SumUp reader.',
       ],
       [
         'Can I change plan or cancel?',
@@ -308,8 +314,8 @@ export default {
     ],
   },
   chiusura: {
-    titolo: 'See it with your own menu and prices.',
-    testo: 'Get your venue started, or write to us: we’ll show it to you loaded with your own menu and prices, and you decide afterwards.',
+    titolo: 'Try it with your own menu. Decide later.',
+    testo: 'Get your venue started, or write to us: we’ll show it to you loaded with your own menu and prices.',
     attiva: 'Get started',
     dashboard: 'My dashboard',
     scrivici: 'Contact us',

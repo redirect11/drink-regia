@@ -6,6 +6,15 @@ data.
 
 ## 0.5.1 (in lavorazione)
 
+- La prima pagina nuova, dal canvas di design: il titolo «Pensa al tuo
+  locale. Ai conti pensa Lime.» («Run your venue. Lime runs the numbers.»); un carosello che parla
+  al titolare (Gestisci gli ordini, Acquisti dal menù, Segui le comande,
+  Conti sempre in ordine, Tieni d'occhio il magazzino); le schermate vere
+  dell'app accanto alle funzioni, in tema Lime; «assistenza inclusa» sotto
+  il titolo dei prezzi e le altre stampanti su richiesta al posto delle
+  note su scontrino e preventivo; la chiusura «Provala con il tuo menù.
+  Decidi dopo.» Sulla pagina inglese una riga dice che l'app è in italiano
+  (REQ-FLOTTA-131).
 - Il primo deploy delle Functions di un locale nuovo riesce: il magazzino
   delle immagini delle Functions (gcf-artifacts) nasce dal Terraform prima
   del deploy, con la stessa regola di pulizia che mette Firebase (le

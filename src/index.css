@@ -299,7 +299,8 @@ h1.titolo-pagina { font-size: 1.5em; margin-block: 0.83em; }
 @keyframes gesto-entra { from { opacity: 0; } to { opacity: 1; } }
 .gesti { display: grid; gap: 16px; margin-top: 40px; padding-top: 24px; border-top: 1px solid rgba(255, 255, 255, 0.2); }
 .gesto-testo { min-height: 7.5rem; }
-.gesto-parola { font-family: var(--titoli); font-weight: 700; font-size: clamp(2.5rem, 7vw, 4rem); line-height: 1; letter-spacing: -0.02em; margin: 0 0 10px; }
+/* Dal 17/11/2026 il titolo di una diapositiva è una frase («Gestisci gli ordini.»), non una parola: più piccolo, e va a capo bene (REQ-FLOTTA-131). */
+.gesto-parola { font-family: var(--titoli); font-weight: 700; font-size: clamp(2rem, 4.6vw, 3.25rem); line-height: 1.05; letter-spacing: -0.02em; margin: 0 0 10px; text-wrap: balance; }
 .gesto-parola::first-letter { color: var(--lime); }
 .gesto-riga { margin: 0; font-size: 1.125rem; line-height: 1.5; color: #e6ebdc; max-width: 34rem; }
 .gesto-comandi { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
@@ -340,7 +341,13 @@ h1.titolo-pagina { font-size: 1.5em; margin-block: 0.83em; }
 .numero-funzione { font-family: var(--titoli); font-variant-numeric: lining-nums; color: var(--accent); }
 .funzione h3 { font-family: var(--titoli); font-size: clamp(1.5rem, 2.4vw, 1.875rem); line-height: 1.15; letter-spacing: -0.01em; margin: 0 0 12px; }
 .funzione-testo p:not(.occhiello) { color: var(--muted); max-width: 34rem; margin: 0; }
-.funzione-riquadro { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; }
+/* Cosa comprende sta sotto il testo; accanto, la schermata vera dell'app in una cornice scura (REQ-FLOTTA-131). Il menù è una schermata del telefono: cornice stretta e tonda. */
+.funzione-punti { margin-top: 20px; max-width: 34rem; }
+.funzione-schermata { margin: 0; background: #05070a; border: 1px solid var(--line); border-radius: 18px; padding: 10px; }
+.funzione-schermata img { display: block; width: 100%; height: auto; border-radius: 10px; }
+.funzione-schermata.telefono { width: min(280px, 100%); justify-self: center; border-radius: 36px; }
+.funzione-schermata.telefono img { border-radius: 27px; }
+.nota-schermate { margin: 24px 0 0; }
 .punti { list-style: none; padding: 0; margin: 0; display: grid; }
 .punti li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
 .icona.spunta { width: 18px; height: 18px; color: var(--ok); flex: none; margin-top: 4px; }
@@ -498,7 +505,8 @@ h1.titolo-pagina { font-size: 1.5em; margin-block: 0.83em; }
 }
 @media (min-width: 900px) {
   .hero-griglia { grid-template-columns: minmax(0, 7fr) minmax(0, 4fr); gap: 64px; align-items: end; }
-  .funzione { grid-template-columns: 1fr 1fr; gap: 64px; }
+  .funzione { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 64px; }
+  .funzione:nth-child(even) { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
   .funzione:nth-child(even) .funzione-testo { order: 2; }
   .domande-griglia { grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr); gap: 64px; align-items: start; }
   .domande-griglia h2 { position: sticky; top: 104px; }

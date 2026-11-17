@@ -208,10 +208,12 @@ describe('la prima pagina', () => {
       expect(terminale).toHaveTextContent(`${euro(TERMINALE_IN_PIU)} + IVA ${it_.prezzi.alMese}`)
     })
 
-    it('la frase sulla convenienza del Completo e la nota sullo scontrino non fiscale restano', () => {
+    // Lo scontrino non fiscale non si ripete sotto i prezzi: lo dicono le
+    // domande e il piè di pagina (Daniele, 16/11/2026, REQ-FLOTTA-131).
+    it('la frase sulla convenienza del Completo resta; la nota sullo scontrino non fiscale non sta più sotto i prezzi', () => {
       mostra()
       expect(document.querySelector('.convenienza')).toHaveTextContent(`il Completo li include tutti a ${euro(PIANI.completo.prezzo)} + IVA.`)
-      expect(screen.getByText(it_.prezzi.notaScontrino)).toBeInTheDocument()
+      expect(document.getElementById('prezzi')).not.toHaveTextContent(it_.prezzi.notaScontrino)
     })
 
     it('italiano e inglese hanno le stesse voci del confronto', () => {
@@ -305,7 +307,12 @@ describe('la prima pagina', () => {
     // Senza tetto di ore (Daniele, 16/11/2026) la nota sul tetto non c'è.
     expect(ASSISTENZA.ore_mese).toBe(0)
     expect(screen.queryByText(/L’assistenza da remoto è inclusa fino a/)).toBeNull()
-    expect(screen.getByText(/un preventivo scritto, da accettare prima di cominciare il lavoro/)).toBeInTheDocument()
+    // Daniele, 16/11/2026: le altre stampanti «su richiesta», col modello
+    // detto nella scelta del piano (REQ-FLOTTA-131); il preventivo resta nei
+    // termini. E l'assistenza è inclusa, detto sotto il titolo dei prezzi.
+    expect(screen.getByText('Usi un’altra stampante? La supportiamo su richiesta: indicaci il modello quando scegli il piano, oppure scrivici.')).toBeInTheDocument()
+    expect(screen.queryByText(/un preventivo scritto/)).toBeNull()
+    expect(document.getElementById('prezzi')).toHaveTextContent('Abbonamento mensile o annuale, assistenza inclusa.')
   })
 
   it('quanto conviene il Completo lo calcola dal listino', () => {
@@ -358,7 +365,10 @@ describe('la prima pagina', () => {
 
   it('dice che lo scontrino non è fiscale, e non parla da venditore', () => {
     mostra()
-    expect(screen.getByText(/non uno scontrino fiscale/)).toBeInTheDocument()
+    // Lo dice la domanda, con la risposta che comincia da «No.» (dal
+    // 16/11/2026 la nota sotto i prezzi non c'è più, REQ-FLOTTA-131).
+    const domanda = screen.getByText('Lo scontrino è fiscale?')
+    expect(domanda.closest('details')).toHaveTextContent(/No\. È un conto di cortesia/)
     const testo = document.body.textContent
     expect(testo).not.toMatch(/sblocca|acquista ora|scopri|il migliore|rivoluzionari|il più scelto|solo per oggi/i)
     expect(testo).not.toContain('!')
@@ -382,8 +392,11 @@ describe('la prima pagina', () => {
       vi.useRealTimers()
       vi.unstubAllGlobals()
     })
-    const PAROLE = ['Ordina.', 'Prepara.', 'Incassa.', 'Conta.', 'Riordina.']
-    const FILMATI = ['sala', 'banco', 'conto', 'numeri', 'scorta']
+    // Le diapositive di REQ-FLOTTA-131 (Daniele, 16/11/2026: parlano al
+    // titolare): l'id di ognuna e il filmato che le fa da sfondo.
+    const PAROLE = ['Gestisci gli ordini.', 'Acquisti dal menù.', 'Segui le comande.', 'Conti sempre in ordine.', 'Tieni d’occhio il magazzino.']
+    const GESTI = ['ordini', 'menu', 'comande', 'conti', 'magazzino']
+    const FILMATI = ['sala', 'numeri', 'banco', 'conto', 'scorta']
     const gruppo = () => screen.getByRole('group', { name: it_.gesti.titolo })
     const parola = () => gruppo().querySelector('.gesto-parola').textContent
     const visibile = () => document.querySelector('.diapositiva[data-visibile="true"]').dataset.gesto
@@ -408,11 +421,11 @@ describe('la prima pagina', () => {
       mostra()
       const hero = document.querySelector('.hero')
       const diapositive = [...hero.querySelectorAll('.diapositiva')]
-      expect(diapositive.map((d) => d.dataset.gesto)).toEqual(FILMATI)
+      expect(diapositive.map((d) => d.dataset.gesto)).toEqual(GESTI)
       expect(diapositive.filter((d) => d.dataset.visibile === 'true')).toHaveLength(1)
-      expect(visibile()).toBe('sala')
-      expect(parola()).toBe('Ordina.')
-      expect(gruppo()).toHaveTextContent(it_.gesti.voci.sala.testo)
+      expect(visibile()).toBe('ordini')
+      expect(parola()).toBe('Gestisci gli ordini.')
+      expect(gruppo()).toHaveTextContent(it_.gesti.voci.ordini.testo)
       // Un solo h1, sempre lo stesso: la parola del gesto non è un titolo.
       expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
       expect(within(hero).getByRole('heading', { level: 1 })).toHaveTextContent(it_.hero.titolo)
@@ -427,21 +440,21 @@ describe('la prima pagina', () => {
     it('avanti e indietro cambiano diapositiva, in tondo; i punti dicono quale si vede e ci portano', () => {
       conMovimento(true)
       mostra()
-      expect(visibile()).toBe('sala')
+      expect(visibile()).toBe('ordini')
       fireEvent.click(screen.getByRole('button', { name: it_.gesti.successiva }))
-      expect(parola()).toBe('Prepara.')
-      expect(visibile()).toBe('banco')
+      expect(parola()).toBe('Acquisti dal menù.')
+      expect(visibile()).toBe('menu')
       // Niente scorrimento laterale (REQ-FLOTTA-074).
       expect(document.querySelector('.diapositive').style.transform).toBe('')
       fireEvent.click(screen.getByRole('button', { name: it_.gesti.precedente }))
       fireEvent.click(screen.getByRole('button', { name: it_.gesti.precedente }))
-      expect(parola()).toBe('Riordina.')
-      expect(visibile()).toBe('scorta')
+      expect(parola()).toBe('Tieni d’occhio il magazzino.')
+      expect(visibile()).toBe('magazzino')
       const punti = within(gruppo()).getAllByRole('button', { name: /Gesto \d di 5/ })
       expect(punti.map((p) => p.getAttribute('aria-label'))).toEqual(PAROLE.map((p, i) => `${p} Gesto ${i + 1} di 5`))
       expect(punti.filter((p) => p.getAttribute('aria-current') === 'true')).toEqual([punti[4]])
       fireEvent.click(punti[2])
-      expect(parola()).toBe('Incassa.')
+      expect(parola()).toBe('Segui le comande.')
       expect(punti[2]).toHaveAttribute('aria-current', 'true')
     })
 
@@ -453,21 +466,21 @@ describe('la prima pagina', () => {
       conMovimento(false)
       mostra()
       act(() => vi.advanceTimersByTime(0))
-      expect(parola()).toBe('Ordina.')
+      expect(parola()).toBe('Gestisci gli ordini.')
       act(() => vi.advanceTimersByTime(PASSO))
-      expect(parola()).toBe('Prepara.')
+      expect(parola()).toBe('Acquisti dal menù.')
       // Il mouse sul titolo o sul filmato non lo ferma.
       const hero = document.querySelector('.hero')
       fireEvent.pointerEnter(hero, { pointerType: 'mouse' })
       act(() => vi.advanceTimersByTime(PASSO))
-      expect(parola()).toBe('Incassa.')
+      expect(parola()).toBe('Segui le comande.')
       // Sopra la parola e i comandi sì: chi li usa non li vede cambiare.
       fireEvent.pointerEnter(gruppo(), { pointerType: 'mouse' })
       act(() => vi.advanceTimersByTime(20000))
-      expect(parola()).toBe('Incassa.')
+      expect(parola()).toBe('Segui le comande.')
       fireEvent.pointerLeave(gruppo(), { pointerType: 'mouse' })
       act(() => vi.advanceTimersByTime(PASSO))
-      expect(parola()).toBe('Conta.')
+      expect(parola()).toBe('Conti sempre in ordine.')
       // Il tasto: un'icona tonda, col nome che dice cosa fa, senza testo a schermo.
       const pausa = screen.getByRole('button', { name: it_.gesti.ferma })
       expect(it_.gesti.ferma).toBe('Metti in pausa il carosello')
@@ -482,9 +495,9 @@ describe('la prima pagina', () => {
       // In pausa: niente filmati e niente scorrimento; a mano si scorre ancora.
       expect(document.querySelector('video')).toBeNull()
       act(() => vi.advanceTimersByTime(20000))
-      expect(parola()).toBe('Conta.')
+      expect(parola()).toBe('Conti sempre in ordine.')
       fireEvent.click(screen.getByRole('button', { name: it_.gesti.successiva }))
-      expect(parola()).toBe('Riordina.')
+      expect(parola()).toBe('Tieni d’occhio il magazzino.')
       // Play, anche da tastiera col fuoco che resta sul tasto: riparte.
       const play = screen.getByRole('button', { name: it_.gesti.riprendi })
       expect(it_.gesti.riprendi).toBe('Fai ripartire il carosello')
@@ -493,7 +506,7 @@ describe('la prima pagina', () => {
       fireEvent.click(play)
       expect(document.querySelector('video')).not.toBeNull()
       act(() => vi.advanceTimersByTime(PASSO))
-      expect(parola()).toBe('Ordina.')
+      expect(parola()).toBe('Gestisci gli ordini.')
     })
 
     // Rilievi del revisore (11/11/2026), rivisti con REQ-FLOTTA-069. Puntatore
@@ -514,22 +527,22 @@ describe('la prima pagina', () => {
       fireEvent.focus(avanti)
       fireEvent.pointerLeave(comandi, { pointerType: 'mouse' })
       act(() => vi.advanceTimersByTime(20000))
-      expect(parola()).toBe('Ordina.')
+      expect(parola()).toBe('Gestisci gli ordini.')
       // Il fuoco passa a un altro comando: aspetta ancora.
       fireEvent.blur(avanti, { relatedTarget: indietro })
       fireEvent.focus(indietro)
       act(() => vi.advanceTimersByTime(20000))
-      expect(parola()).toBe('Ordina.')
+      expect(parola()).toBe('Gestisci gli ordini.')
       // Il fuoco esce col mouse di nuovo sopra: aspetta ancora.
       fireEvent.pointerEnter(comandi, { pointerType: 'mouse' })
       fireEvent.blur(indietro)
       act(() => vi.advanceTimersByTime(20000))
-      expect(parola()).toBe('Ordina.')
+      expect(parola()).toBe('Gestisci gli ordini.')
       fireEvent.pointerLeave(comandi, { pointerType: 'mouse' })
       // Un dito sui comandi non è un puntatore che resta sopra.
       fireEvent.pointerEnter(comandi, { pointerType: 'touch' })
       act(() => vi.advanceTimersByTime(PASSO))
-      expect(parola()).toBe('Prepara.')
+      expect(parola()).toBe('Acquisti dal menù.')
       // A metà del giro un clic su un punto: il fuoco che il clic lascia non
       // ferma, e il ripiego per la nuova diapositiva riparte intero.
       act(() => vi.advanceTimersByTime(2000))
@@ -537,11 +550,11 @@ describe('la prima pagina', () => {
       fireEvent.pointerDown(punto, { pointerType: 'mouse' })
       fireEvent.focus(punto)
       fireEvent.click(punto)
-      expect(parola()).toBe('Conta.')
+      expect(parola()).toBe('Conti sempre in ordine.')
       act(() => vi.advanceTimersByTime(PASSO - 1000))
-      expect(parola()).toBe('Conta.')
+      expect(parola()).toBe('Conti sempre in ordine.')
       act(() => vi.advanceTimersByTime(1000))
-      expect(parola()).toBe('Riordina.')
+      expect(parola()).toBe('Tieni d’occhio il magazzino.')
     })
 
     // REQ-FLOTTA-069, criterio 4 (Daniele: «ancora più piccola e con un
@@ -576,25 +589,25 @@ describe('la prima pagina', () => {
       const video = () => [...document.querySelectorAll('video')]
       expect(video()).toHaveLength(1)
       const primo = video()[0]
-      expect(primo.closest('.diapositiva').dataset.gesto).toBe('sala')
+      expect(primo.closest('.diapositiva').dataset.gesto).toBe('ordini')
       expect(primo).toHaveAttribute('poster', '/video/sala.jpg')
       // Mentre il carosello scorre il filmato non ricomincia da solo (REQ-FLOTTA-127).
       expect(primo.loop).toBe(false)
       expect(primo.muted).toBe(true)
       expect(primo.querySelector('source')).toHaveAttribute('src', '/video/sala.mp4')
       expect([...document.querySelectorAll('.diapositiva img')].map((i) => i.getAttribute('src'))).toEqual(
-        ['banco', 'conto', 'numeri', 'scorta'].map((n) => `/video/${n}.jpg`),
+        ['numeri', 'banco', 'conto', 'scorta'].map((n) => `/video/${n}.jpg`),
       )
       for (const i of document.querySelectorAll('.diapositiva img')) expect(i).toHaveAttribute('alt', '')
       // In dissolvenza girano quello che entra e quello che esce; poi solo
       // quello che si vede (REQ-FLOTTA-074).
       fireEvent.click(screen.getByRole('button', { name: it_.gesti.successiva }))
-      expect(video().map((v) => v.closest('.diapositiva').dataset.gesto).sort()).toEqual(['banco', 'sala'])
-      expect(document.querySelector('.diapositiva[data-uscente="true"]').dataset.gesto).toBe('sala')
+      expect(video().map((v) => v.closest('.diapositiva').dataset.gesto).sort()).toEqual(['menu', 'ordini'])
+      expect(document.querySelector('.diapositiva[data-uscente="true"]').dataset.gesto).toBe('ordini')
       // A mano la dissolvenza dura 0,2 secondi (REQ-FLOTTA-127).
       act(() => vi.advanceTimersByTime(200))
       expect(video()).toHaveLength(1)
-      expect(video()[0].closest('.diapositiva').dataset.gesto).toBe('banco')
+      expect(video()[0].closest('.diapositiva').dataset.gesto).toBe('menu')
       expect(document.querySelector('.diapositiva[data-uscente="true"]')).toBeNull()
     })
 
@@ -646,13 +659,13 @@ describe('la prima pagina', () => {
         act(() => vi.advanceTimersByTime(500))
         suona(v, t)
       }
-      expect(parola()).toBe('Ordina.')
+      expect(parola()).toBe('Gestisci gli ordini.')
       suona(v, 6.6)
-      expect(parola()).toBe('Prepara.')
+      expect(parola()).toBe('Acquisti dal menù.')
       // Da solo, la dissolvenza dura un secondo e mezzo.
       expect(document.querySelector('.diapositive').style.getPropertyValue('--dissolvenza')).toBe('1500ms')
       act(() => vi.advanceTimersByTime(1000))
-      expect(document.querySelector('.diapositiva[data-uscente="true"]').dataset.gesto).toBe('sala')
+      expect(document.querySelector('.diapositiva[data-uscente="true"]').dataset.gesto).toBe('ordini')
       act(() => vi.advanceTimersByTime(500))
       expect(document.querySelector('.diapositiva[data-uscente="true"]')).toBeNull()
     })
@@ -670,7 +683,7 @@ describe('la prima pagina', () => {
       // Se il passo non è arrivato prima, la fine del filmato lo porta.
       suona(filmato(), 3)
       suona(filmato(), DURATA, 'ended')
-      expect(parola()).toBe('Prepara.')
+      expect(parola()).toBe('Acquisti dal menù.')
     })
 
     it('dopo una pausa il passo arriva alla fine del filmato in corso, non dopo un giro intero', () => {
@@ -684,11 +697,11 @@ describe('la prima pagina', () => {
       act(() => vi.advanceTimersByTime(20000))
       // In pausa il filmato ha continuato in loop: ora è a 6 secondi.
       suona(v, 6)
-      expect(parola()).toBe('Ordina.')
+      expect(parola()).toBe('Gestisci gli ordini.')
       fireEvent.pointerLeave(gruppo(), { pointerType: 'mouse' })
       act(() => vi.advanceTimersByTime(500))
       suona(v, 6.6)
-      expect(parola()).toBe('Prepara.')
+      expect(parola()).toBe('Acquisti dal menù.')
     })
 
     it('ogni filmato che compare parte da capo, anche tornando a quello che stava uscendo', () => {
@@ -705,7 +718,7 @@ describe('la prima pagina', () => {
       expect(sala.currentTime).toBe(5)
       expect(sala.loop).toBe(false)
       fireEvent.click(screen.getByRole('button', { name: it_.gesti.precedente }))
-      expect(visibile()).toBe('sala')
+      expect(visibile()).toBe('ordini')
       expect(filmato()).toBe(sala)
       expect(sala.currentTime).toBe(0)
     })
@@ -726,7 +739,7 @@ describe('la prima pagina', () => {
       fireEvent.click(avanti)
       fireEvent.click(avanti)
       fireEvent.click(avanti)
-      expect(parola()).toBe('Riordina.')
+      expect(parola()).toBe('Tieni d’occhio il magazzino.')
       expect(document.querySelectorAll('.diapositiva[data-uscente="true"]')).toHaveLength(1)
       expect(document.querySelectorAll('video').length).toBeLessThanOrEqual(2)
     })
@@ -737,11 +750,11 @@ describe('la prima pagina', () => {
       const testo = gruppo().querySelector('.gesto-testo')
       const entra = testo.querySelector('.gesto-entra')
       expect(entra).not.toBeNull()
-      expect(entra.querySelector('.gesto-parola')).toHaveTextContent('Ordina.')
+      expect(entra.querySelector('.gesto-parola')).toHaveTextContent('Gestisci gli ordini.')
       fireEvent.click(screen.getByRole('button', { name: it_.gesti.successiva }))
       // La regione che si annuncia resta la stessa; cambia solo quello che c'è dentro.
       expect(gruppo().querySelector('.gesto-testo')).toBe(testo)
-      expect(testo.querySelector('.gesto-entra .gesto-parola')).toHaveTextContent('Prepara.')
+      expect(testo.querySelector('.gesto-entra .gesto-parola')).toHaveTextContent('Acquisti dal menù.')
     })
 
     it('chi chiede meno movimento vede la prima ferma, senza video e senza «Ferma»: scorre solo a mano', () => {
@@ -749,13 +762,13 @@ describe('la prima pagina', () => {
       conMovimento(true)
       mostra()
       act(() => vi.advanceTimersByTime(30000))
-      expect(parola()).toBe('Ordina.')
+      expect(parola()).toBe('Gestisci gli ordini.')
       expect(document.querySelector('video')).toBeNull()
       expect(document.querySelector('.diapositiva[data-visibile="true"] img')).toHaveAttribute('src', '/video/sala.jpg')
       expect(screen.queryByRole('button', { name: it_.gesti.ferma })).toBeNull()
       expect(screen.queryByRole('button', { name: it_.gesti.riprendi })).toBeNull()
       fireEvent.click(screen.getByRole('button', { name: it_.gesti.successiva }))
-      expect(parola()).toBe('Prepara.')
+      expect(parola()).toBe('Acquisti dal menù.')
     })
 
     it('anche chi chiede di risparmiare dati vede i fermi immagine, e non scorre da solo', () => {
@@ -765,7 +778,7 @@ describe('la prima pagina', () => {
       mostra()
       act(() => vi.advanceTimersByTime(30000))
       expect(document.querySelector('video')).toBeNull()
-      expect(parola()).toBe('Ordina.')
+      expect(parola()).toBe('Gestisci gli ordini.')
     })
 
     // Il giro automatico non si annuncia: un lettore di schermo sentirebbe
@@ -798,14 +811,19 @@ describe('la prima pagina', () => {
       }
       expect(visti.map((v) => v.parola)).toEqual(PAROLE)
       for (const v of visti) expect(v.riga.length).toBeGreaterThan(20)
-      expect(visti[3].riga).toBe(it_.gesti.voci.numeri.frasi.statistiche)
+      expect(visti[3].riga).toBe(it_.gesti.voci.conti.testo)
       const frasi = (t) => Object.values(t.gesti.voci).flatMap((v) => (v.frasi ? Object.values(v.frasi) : [v.testo]))
+      // Fino al 16/11/2026: una frase sola, sotto gli 80 caratteri. Le righe
+      // di REQ-FLOTTA-131 le ha scelte Daniele una per una, e tre hanno due
+      // frasi («Dal tavolo al banco, in un tocco. Anche senza rete.»): la
+      // regola ora è al massimo due frasi, sotto i 110 caratteri, e il
+      // titolo della diapositiva è una frase sola.
       for (const frase of [...frasi(it_), ...frasi(en)]) {
-        expect(frase.length, frase).toBeLessThan(80)
-        // Una frase sola: un punto, in fondo.
-        expect(frase.match(/\./g), frase).toHaveLength(1)
+        expect(frase.length, frase).toBeLessThan(110)
+        expect(frase.match(/\./g).length, frase).toBeLessThanOrEqual(2)
         expect(frase.endsWith('.'), frase).toBe(true)
       }
+      for (const t of [it_, en]) for (const v of Object.values(t.gesti.voci)) expect(v.parola.match(/\./g), v.parola).toHaveLength(1)
       expect(Object.keys(en.gesti.voci)).toEqual(Object.keys(it_.gesti.voci))
     })
 
@@ -822,16 +840,43 @@ describe('la prima pagina', () => {
 
     // Daniele, 11/11/2026: «i box cosa comprende dovrebbero essere sempre
     // aperti». Per un pomeriggio sono stati elementi che si aprivano.
-    it('«Cosa comprende» nelle funzioni è sempre aperto: un riquadro, non un elemento che si apre', () => {
+    it('«Cosa comprende» nelle funzioni è sempre aperto: un elenco sotto il testo, non un elemento che si apre', () => {
       conMovimento(true)
       mostra()
       expect(document.querySelector('#funzioni details')).toBeNull()
-      const riquadri = [...document.querySelectorAll('#funzioni .funzione-riquadro')]
-      expect(riquadri.length).toBeGreaterThan(0)
-      for (const r of riquadri) {
-        expect(r.tagName).toBe('DIV')
-        expect(within(r).getByRole('list', { name: it_.funzioni.punti })).toBeVisible()
+      const funzioni = [...document.querySelectorAll('#funzioni .funzione')]
+      expect(funzioni.length).toBeGreaterThan(0)
+      for (const f of funzioni) {
+        expect(within(f.querySelector('.funzione-testo')).getByRole('list', { name: it_.funzioni.punti })).toBeVisible()
       }
+    })
+
+    // REQ-FLOTTA-131, criterio 3: le schermate vere dell'app accanto alle
+    // funzioni (DESIGN.md §4 «Immagini»: WebP, al massimo 1600px, misure
+    // scritte, caricamento pigro). Il testo alternativo dice cosa si vede.
+    it('ogni funzione ha la sua schermata vera, leggera, col testo alternativo e le misure', () => {
+      conMovimento(true)
+      mostra()
+      const funzioni = [...document.querySelectorAll('#funzioni .funzione')]
+      expect(funzioni.length).toBeGreaterThan(0)
+      for (const f of funzioni) {
+        const id = f.getAttribute('aria-labelledby').replace('funzione-', '')
+        const img = f.querySelector('figure.funzione-schermata img')
+        expect(img, id).not.toBeNull()
+        expect(img).toHaveAttribute('alt', it_.funzioni.voci[id].schermata)
+        expect(img).toHaveAttribute('loading', 'lazy')
+        expect(Number(img.getAttribute('width')), id).toBeLessThanOrEqual(1600)
+        expect(Number(img.getAttribute('height')), id).toBeGreaterThan(0)
+        const src = img.getAttribute('src')
+        expect(src, id).toMatch(/^\/schermate\/[a-z-]+\.webp$/)
+        const file = statSync(join(import.meta.dirname, '..', 'public', src))
+        expect(file.size, src).toBeLessThan(200 * 1024)
+      }
+      // Il menù è una schermata del telefono: cornice stretta.
+      expect(document.querySelector('#funzione-menu').closest('.funzione').querySelector('figure')).toHaveClass('telefono')
+      // Sulla pagina italiana non serve dire che l'app è in italiano.
+      expect(document.querySelector('.nota-schermate')).toBeNull()
+      for (const t of [it_, en]) for (const [id, v] of Object.entries(t.funzioni.voci)) expect(v.schermata, id).toMatch(/\.$/)
     })
 
     // I filmati stanno in pagina, non in un servizio esterno, e una prima
@@ -849,7 +894,9 @@ describe('la prima pagina', () => {
     mostra()
     const h1 = screen.getByRole('heading', { level: 1 })
     expect(h1).toHaveTextContent(it_.hero.titolo)
-    expect(h1.querySelector('.titolo-accento')).toHaveTextContent('Dalla comanda alla cassa.')
+    // Lo slogan del 17/11/2026 (REQ-FLOTTA-131).
+    expect(it_.hero.titolo).toBe('Pensa al tuo locale. Ai conti pensa Lime.')
+    expect(h1.querySelector('.titolo-accento')).toHaveTextContent('Ai conti pensa Lime.')
   })
 
   it('mette lingua, titolo e alternative della pagina, e li toglie uscendo', () => {
