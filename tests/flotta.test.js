@@ -612,7 +612,10 @@ describe('infra/istanza/main.tf', () => {
     const altroNelPiano = (cambi) => {
       const dir = mkdtempSync(join(tmpdir(), 'piano-'))
       const file = join(dir, 'piano.json')
-      writeFileSync(file, JSON.stringify({ resource_changes: cambi.map(([address, ...actions]) => ({ address, change: { actions } })) }))
+      // Un cambio è [indirizzo, ...azioni], oppure { address, change } per
+      // un piano col prima e il dopo dei campi.
+      const voce = (c) => (Array.isArray(c) ? { address: c[0], change: { actions: c.slice(1) } } : c)
+      writeFileSync(file, JSON.stringify({ resource_changes: cambi.map(voce) }))
       return execFileSync(process.execPath, ['-e', controllo(), file], { encoding: 'utf8' }).trim()
     }
 
@@ -649,6 +652,27 @@ describe('infra/istanza/main.tf', () => {
       // Un progetto toccato a mano: la fatturazione tornerebbe quella del Terraform.
       expect(altroNelPiano([[ruolo, 'create'], ['google_project.istanza', 'update']])).toBe('google_project.istanza (update)')
       expect(altroNelPiano([['google_project_service.api["run.googleapis.com"]', 'delete', 'create']])).toBe('google_project_service.api["run.googleapis.com"] (delete+create)')
+    })
+
+    // Il collaudo di v0.5.1-beta.2 (17/11/2026): prova-bar, nato prima
+    // dell'etichetta `profilo`, si fermava perché il piano la aggiungeva.
+    it('un’etichetta aggiunta al progetto passa; un’etichetta cambiata, tolta, o un altro campo no', () => {
+      const ruolo = 'google_project_iam_member.agente_storage[0]'
+      const etichette = { ambiente: 'test', regia: 'drink-regia-test' }
+      const progetto = (prima, dopo) => ({ address: 'google_project.istanza', change: { actions: ['update'], before: prima, after: dopo } })
+      const base = { project_id: 'drinkpos-prova-bar', billing_account: 'A', labels: etichette, effective_labels: etichette, terraform_labels: etichette }
+      const con = (extra) => ({ ...base, labels: { ...etichette, ...extra }, effective_labels: { ...etichette, ...extra }, terraform_labels: { ...etichette, ...extra } })
+      // Il caso di prova-bar: si aggiunge profilo = completo.
+      expect(altroNelPiano([[ruolo, 'create'], progetto(base, con({ profilo: 'completo' }))])).toBe('')
+      // Un'etichetta che cambia valore, o che sparisce: si ferma.
+      expect(altroNelPiano([progetto(base, con({ ambiente: 'produzione' }))])).toBe('google_project.istanza (update)')
+      expect(altroNelPiano([progetto(con({ profilo: 'leggero' }), base)])).toBe('google_project.istanza (update)')
+      // La fatturazione (anche insieme a un'etichetta aggiunta): si ferma.
+      expect(altroNelPiano([progetto(base, { ...con({ profilo: 'completo' }), billing_account: 'B' })])).toBe('google_project.istanza (update)')
+      // Un campo che il piano non sa ancora (assente nel dopo): si ferma.
+      expect(altroNelPiano([progetto(base, { ...con({ profilo: 'completo' }), billing_account: undefined })])).toBe('google_project.istanza (update)')
+      // Le etichette di un'altra risorsa non passano per questa via.
+      expect(altroNelPiano([{ address: 'google_project_service.api["run.googleapis.com"]', change: { actions: ['update'], before: { labels: {} }, after: { labels: { a: 'b' } } } }])).toBe('google_project_service.api["run.googleapis.com"] (update)')
     })
 
     it('il contratto e il documento della flotta lo dicono, col comando per la Tana', () => {

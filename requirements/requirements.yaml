@@ -5151,10 +5151,14 @@ requirements:
       l'email restituita dall'API, che il provider dice può mancare. Il
       -target porta con sé il progetto e le API: prima un piano, e se
       cambierebbe qualcos'altro il passo si ferma senza applicare niente.
-      SCELTA, da confermare con Daniele: un locale per cui il ruolo non si
-      può dare non si aggiorna (l'aggiornamento fallisce in `prepara` con
-      l'errore), perché senza il ruolo le regole nuove di tana-drink
-      negherebbero ogni caricamento.
+      SCELTA, confermata da Daniele il 17/11/2026 («bloccare […] ok»): un
+      locale per cui il ruolo non si può dare non si aggiorna
+      (l'aggiornamento fallisce in `prepara` con l'errore), perché senza
+      il ruolo le regole nuove di tana-drink negherebbero ogni
+      caricamento. Un'etichetta AGGIUNTA al progetto passa: prova-bar, nato
+      prima dell'etichetta `profilo`, fermava il collaudo di
+      v0.5.1-beta.2 perché il piano la aggiungeva; un'etichetta che cambia
+      o sparisce, e ogni altro campo, fermano ancora.
       (C) La Tana e i locali esistenti non creati dalla regia non hanno
       stato Terraform: per loro il ruolo lo aggiunge Daniele a mano, e il
       documento della flotta dice il comando.
