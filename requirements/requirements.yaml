@@ -5189,6 +5189,49 @@ requirements:
     test_cases:
       - tests/flotta.test.js
 
+  - id: REQ-FLOTTA-127
+    title: "Il carosello della prima pagina passa al filmato dopo prima che quello visibile finisca, e a mano cambia quasi subito"
+    area: "src/pages/Home.jsx (Filmato, il carosello, PASSO_CAROSELLO_MS, DISSOLVENZA_MS), src/index.css (.diapositiva), tests/Home.test.jsx"
+    description: >
+      Daniele, 17/11/2026: «il carosello quando si avvia, il video
+      successivo parte sempre dopo che quello precedente è ripartito. non
+      va bene. Deve partire prima che quello precedente finisca»; e sulla
+      dissolvenza quando si preme avanti o indietro («quando faccio avanti
+      e indietro vedo la dissolvenza del video precedente»): il cambio a
+      mano con una dissolvenza di 0,2 secondi («ok», lo stesso giorno).
+      PERCHÉ SUCCEDEVA: i filmati durano 8,04 s (ffprobe su
+      public/video/*.mp4); il passo al gesto dopo è un timer di 6,5 s
+      (PASSO_CAROSELLO_MS) che parte quando cambia la diapositiva e non
+      guarda il video. Il timer si azzera ogni volta che il carosello si
+      ferma (puntatore sopra la parola e i comandi, fuoco da tastiera) e
+      riparte intero quando riprende, mentre il filmato, che va in loop,
+      ha continuato; e non tiene conto del tempo di caricamento del
+      filmato. Così il filmato di prima ricominciava prima del cambio.
+      COSA. (A) Il passo lo decide il filmato visibile: quando gli manca
+      la durata della dissolvenza alla fine (1,5 s), comincia la
+      dissolvenza verso il gesto dopo; il filmato di prima non arriva mai a
+      ricominciare. Un filmato che non parte (rete lenta, errore) non
+      blocca il carosello: un ripiego a tempo fa avanzare comunque. (B)
+      Ogni filmato che diventa visibile parte da capo. (C) Quando il
+      carosello è fermo (pausa, puntatore, fuoco) il filmato visibile può
+      continuare in loop; quando riprende, il passo arriva alla fine del
+      filmato in corso, non dopo un giro intero. (D) Il cambio a mano
+      (avanti, indietro, un punto) ha una dissolvenza di 0,2 s; quello da
+      solo resta di 1,5 s. Più cambi a mano di fila non lasciano filmati
+      che sfumano insieme. (E) Chi ha chiesto meno movimento o ha premuto
+      la pausa: come oggi (fermo, immagine).
+      CRITERI. (1) Nessun filmato ricomincia mentre è visibile o mentre
+      sfuma, se il carosello scorre. (2) Dopo una pausa il passo arriva
+      alla fine del filmato in corso. (3) Un filmato che non parte non
+      ferma lo scorrimento. (4) Il cambio a mano dura 0,2 s, quello da solo
+      1,5 s. (5) Test che lo provano.
+    status: todo
+    generate_issue: true
+    labels: [home, sito]
+    priority: P2
+    test_cases:
+      - tests/Home.test.jsx
+
   - id: REQ-FLOTTA-121
     title: "Gli indirizzi pubblici non leggono Firestore prima di aver verificato il gettone"
     area: "functions/index.js (sceltaDallApp, passaggioVersoRegia, presentazione, moduloDallApp, scambiaPassaggio, traccia), functions/lib/aggiornamenti.js (progettoDelToken)"
