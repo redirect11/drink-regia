@@ -5518,7 +5518,7 @@ requirements:
       - tests/flotta.test.js
 
   - id: REQ-FLOTTA-134
-    title: "Ogni account della regia scarica i propri dati (GDPR, artt. 15 e 20), e la privacy dice come"
+    title: "Ogni account della regia scarica i propri dati e si cancella da sé con 30 giorni di ripensamento (GDPR, artt. 15, 17 e 20), e la privacy dice tutto"
     area: "functions/index.js (una callable nuova), functions/lib (la raccolta dei dati di una persona), src/pages (area clienti, area del collaboratore, backoffice), src/pages/Legali.jsx (privacy), tests/"
     description: >
       Daniele, 17/11/2026: «bisognerebbe mettere anche il download dei dati
@@ -5569,13 +5569,30 @@ requirements:
       categorie particolari dell'art. 9 (salute, opinioni, biometria…): la
       regia non ne tratta; l'elenco lo dichiara, e il test controlla che
       nessun campo ne contenga [da verificare con un audit dei campi].
+      LA CANCELLAZIONE DELL'ACCOUNT (Daniele, lo stesso giorno, su 30 giorni
+      di ripensamento e sulla cancellazione fatta da sé: «ok»). Il GDPR non
+      fissa un periodo di download dopo la cancellazione (art. 17: si
+      cancella senza ingiustificato ritardo; art. 5: si tiene solo quel che
+      serve); i diritti di accesso e portabilità valgono finché i dati ci
+      sono, quindi il download si offre prima. (G) Ogni account della regia
+      chiede da sé la cancellazione dalla sua area (oggi la fa solo l'admin,
+      REQ-FLOTTA-059): la schermata propone prima «Scarica i miei dati»;
+      poi l'account resta disattivato per 30 giorni di ripensamento, in cui
+      si può annullare e scaricare ancora i dati; poi si cancella da solo,
+      con un compito a scadenza come le altre (niente giri quotidiani). Un
+      titolare con un'istanza viva passa prima dalla chiusura del locale,
+      come oggi. (H) Restano solo i dati fiscali (fatture, per i 10 anni
+      dell'art. 2220 c.c.), separati e non usati per altro; la privacy lo
+      dice, con i 30 giorni.
       CRITERI. (1) Ogni ruolo della regia scarica i propri dati, e solo i
       propri. (2) Il file è JSON, completo dei campi dell'elenco, senza
       segreti né dati di altri. (3) Senza un accesso recente il download
       chiede di rientrare. (4) Ogni download resta registrato. (5) La
       privacy elenca tutti i dati dell'elenco, compresi i delicati, dove
       stanno, perché e per quanto, e dice come scaricarli. (6) Il test del
-      punto (E). (7) Test che lo provano.
+      punto (E). (7) La cancellazione da sé: download proposto prima, 30
+      giorni annullabili, poi cancellazione automatica, dati fiscali tenuti
+      a parte. (8) Test che lo provano.
     status: todo
     generate_issue: true
     labels: [privacy, regia, dashboard, backoffice]
