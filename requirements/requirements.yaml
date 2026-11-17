@@ -5535,6 +5535,135 @@ requirements:
     test_cases:
       - tests/flotta.test.js
 
+  - id: REQ-FLOTTA-137
+    title: "Il pacchetto per versione: tana-drink compila una volta al rilascio, la regia lo conserva e non lo riscrive mai"
+    area: "docs/contratto-regia-app.md (interfaccia nuova), scripts/lib-pacchetto.js, infra/README.md, tests/contratto.test.js"
+    description: >
+      Daniele, 17/11/2026: «per le build va bene fare su github, basta che
+      sia una versione che io poi posso distribuire e deployare senza far
+      partire una nuova build su github. Deve essere fatto solo il
+      provisioning»; poi «noi però completiamo la migrazione al sistema di
+      deploy da google con le cose già buildate». La proposta per il
+      CTO-agente (pacchetti per versione e un lavoro su Google Cloud) e il
+      suo parere: compilare una volta e personalizzare al deploy.
+      OGGI la build si rifà per ogni locale e ogni aggiornamento, perché
+      dentro ci sono la configurazione Firebase del progetto, la cartella
+      del cliente (genera-cliente.mjs), CLIENTE, il profilo e la regia
+      (interfaccia 12 del contratto).
+      COSA. (A) Il formato del pacchetto, interfaccia nuova del contratto,
+      deciso con Daniele: un archivio per versione con il sito compilato
+      uguale per tutti i locali, le Functions col loro package-lock e le
+      dipendenze di produzione già installate (firebase-tools le carica per
+      trovare le Functions), firebase.json, le regole e gli indici, lo
+      script di tana-drink che personalizza il sito per un locale, e
+      pacchetto.json (formato, versione, commit, data, profili, impronta
+      SHA-256 di ogni file). Due pacchetti per versione: i locali e la demo.
+      (B) Ciò che oggi entra nella build per locale lo scrive il deploy:
+      la configurazione che l'app legge all'avvio (configurazione.json, con
+      progetto Firebase, profilo, regia, nome e tipo del locale) e i file
+      del locale che produce lo script di personalizzazione di tana-drink;
+      functions/.env.<progetto> come oggi. (C) Due bucket per i pacchetti,
+      uno per regia: la produzione riceve solo i rilasci (vX.Y.Z), il test
+      anche le beta; accesso uniforme, niente pubblico, versioni attive, e
+      un pacchetto non si riscrive (l'account che carica può solo creare).
+      (D) tana-drink carica senza chiave salvata: un fornitore della
+      federazione delle identità che accetta solo il repository tana-drink
+      e solo i tag, e un account per regia che può solo creare oggetti nel
+      bucket. (E) scripts/lib-pacchetto.js controlla un pacchetto prima di
+      usarlo: formato conosciuto, impronte giuste, file attesi presenti.
+      PARTE DI TANA-DRINK (messaggio a parte, via Daniele): la
+      personalizzazione all'avvio e lo script; il workflow che compila e
+      carica il pacchetto a ogni tag.
+      CRITERI. (1) Il formato è scritto nel contratto. (2) I bucket e gli
+      account esistono, con i permessi detti, sul test e poi in produzione.
+      (3) Un pacchetto con un'impronta sbagliata o un file mancante si
+      rifiuta. (4) Un pacchetto caricato non si sovrascrive. (5) Test.
+      INTERFACCE CON L'APP: nuova (il pacchetto), e la 12 cambia quando i
+      locali passano al lavoro su Google (REQ-FLOTTA-139).
+    status: todo
+    generate_issue: true
+    labels: [flotta, contratto-tana-drink, rilascio]
+    priority: P1
+    test_cases:
+      - tests/contratto.test.js
+
+  - id: REQ-FLOTTA-138
+    title: "Il lavoro della flotta su Google Cloud (Cloud Run Job): attiva, aggiorna ed elimina un locale da un pacchetto, senza GitHub"
+    area: "infra/flotta (immagine e lavoro), scripts/flotta-lavoro.mjs, scripts/ (gli stessi script dei workflow), infra/README.md, tests/flotta.test.js"
+    description: >
+      Il seguito della REQ-FLOTTA-137 e della fase 0 (REQ-FLOTTA-136), su
+      decisione di Daniele del 17/11/2026 (sopra). Il parere del CTO-agente:
+      un blocco per locale, un tempo massimo esplicito, il passaggio dei
+      locali già attivi, niente scritture dirette del lavoro nel database
+      della regia.
+      COSA. (A) Un'immagine nel progetto di ogni regia con Node 22,
+      Terraform, firebase-tools e gcloud alle versioni dei workflow, gli
+      script di scripts/ e il Terraform di infra/istanza; si ricostruisce
+      a ogni rilascio della regia. (B) Un lavoro «flotta» per regia, che
+      gira come l'account della flotta di quella regia (lo stesso della
+      fase 0, senza chiave), con tre comandi: attiva, aggiorna, elimina. Fa
+      quello che oggi fanno i workflow, negli stessi passi e con gli stessi
+      script, ma prende l'app dal pacchetto invece di compilarla: lo
+      scarica, lo controlla (lib-pacchetto), lo personalizza per il locale
+      e pubblica. (C) Un blocco per progetto: un oggetto nel bucket dello
+      stato creato solo se non esiste (precondizione di Cloud Storage),
+      tolto alla fine; un blocco più vecchio del tempo massimo si
+      considera morto. (D) Il tempo massimo esplicito: un'ora per
+      esecuzione, nessun nuovo tentativo automatico del lavoro (i tentativi
+      sono dentro, come oggi). (E) L'esito alla regia con la stessa
+      callback di oggi (esitoProvisioning), mai scritto direttamente nel
+      database della regia. (F) I log in Cloud Logging del progetto della
+      regia. (G) Si prova sul test: un locale nuovo attivato ed eliminato,
+      un aggiornamento di prova-bar, col collaudo.
+      CRITERI. (1) Nessun passo usa GitHub. (2) Il lavoro gira senza
+      chiave, come l'account della flotta della sua regia. (3) Due
+      esecuzioni sullo stesso progetto non si sovrappongono. (4) Un
+      pacchetto non valido ferma tutto prima di toccare il locale. (5)
+      L'esito arriva alla regia anche quando qualcosa fallisce. (6) Le
+      prove del punto G riescono. (7) Test.
+      INTERFACCE CON L'APP: il pacchetto (REQ-FLOTTA-137); la callback
+      resta la stessa.
+    status: todo
+    generate_issue: true
+    labels: [flotta, sicurezza, rilascio]
+    priority: P1
+    test_cases:
+      - tests/flotta.test.js
+
+  - id: REQ-FLOTTA-139
+    title: "La regia lancia il lavoro su Google invece del workflow, un locale alla volta; poi i workflow della flotta si tolgono"
+    area: "functions/index.js, functions/lib/provisioning.js, src/pages/Backoffice.jsx, docs/contratto-regia-app.md (interfaccia 12), tests/provisioning.test.js, tests/Backoffice.test.jsx"
+    description: >
+      Il seguito delle REQ-FLOTTA-137 e 138, su decisione di Daniele del
+      17/11/2026 (sopra). OGGI le Functions della regia lanciano i workflow
+      di GitHub con GITHUB_DISPATCH_TOKEN.
+      COSA. (A) Per ogni locale la regia sa con che cosa si attiva e si
+      aggiorna: «GitHub» (oggi) o «Google» (il lavoro della REQ-FLOTTA-138).
+      Si cambia dal backoffice, un locale alla volta; i locali nuovi
+      nascono con quello scelto nelle impostazioni della regia. (B) Con
+      «Google» le Functions lanciano il lavoro con l'API di Cloud Run (gli
+      stessi dati che oggi vanno nel workflow), con l'identità delle
+      Functions della regia e il solo permesso di lanciare quel lavoro.
+      (C) Una versione si offre a un locale su «Google» solo se il suo
+      pacchetto c'è ed è valido. (D) Il passaggio dei locali già attivi,
+      Tana compresa, in una finestra concordata col locale. (E) Quando
+      tutti i locali sono su «Google» da un mese senza problemi: i workflow
+      della flotta si tolgono, GITHUB_DISPATCH_TOKEN si revoca, e
+      l'interfaccia 12 passa fra le deprecate. Ogni passo col via libera di
+      Daniele.
+      CRITERI. (1) La scelta per locale c'è e si vede nel backoffice. (2)
+      Con «Google» non parte nessun workflow. (3) Una versione senza
+      pacchetto non si offre. (4) Si torna a «GitHub» con un clic finché i
+      workflow ci sono. (5) Test.
+      INTERFACCE CON L'APP: la 12 (i workflow) diventa deprecata alla fine.
+    status: todo
+    generate_issue: true
+    labels: [flotta, backoffice, rilascio]
+    priority: P2
+    test_cases:
+      - tests/provisioning.test.js
+      - tests/Backoffice.test.jsx
+
   - id: REQ-FLOTTA-132
     title: "I locali nascono nell'Organizzazione stone-b.it: l'account predefinito ha Editor dal Terraform, il Terraform aspetta gli account di Google, e il deploy cancella solo le Functions col cambio di tipo"
     area: "infra/istanza/main.tf, .github/workflows/provisiona-istanza.yml (Terraform apply, deploy), .github/workflows/aggiorna-istanza.yml, scripts/funzioni-fallite.mjs, scripts/lib-deploy.js, tests/flotta.test.js, infra/README.md"
