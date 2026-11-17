@@ -31,7 +31,8 @@ data.
   sul service agent dello Storage): i nuovi dal Terraform, quelli della
   flotta già attivi al loro prossimo aggiornamento, prima del deploy delle
   regole; un aggiornamento che cambierebbe altro nel progetto si ferma e lo
-  dice. La Tana e i locali esistenti non creati dalla regia lo ricevono a
+  dice, salvo un'etichetta aggiunta al progetto (i locali nati prima delle
+  etichette). La Tana e i locali esistenti non creati dalla regia lo ricevono a
   mano (docs/flotta-nella-regia.md). Senza, con la prossima versione di
   tana-drink i locali non caricherebbero più foto né allegati
   (REQ-FLOTTA-124).
