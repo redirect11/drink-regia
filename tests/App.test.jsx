@@ -7,9 +7,9 @@
 // menù. L'utente, 22/10/2026: «una landing page con menu e tutto il resto».
 
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, within, waitFor } from '@testing-library/react'
+import { render, screen, within, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { Link, MemoryRouter } from 'react-router-dom'
 import '@testing-library/jest-dom/vitest'
 import it_ from '../src/i18n/home.it.js'
 
@@ -433,18 +433,92 @@ describe('l’accessibilità', () => {
     expect(window.location.hash).toBe('')
   })
 
-  // La prova da tastiera del 17/11/2026: dopo «Entra» o un link del menù il
-  // fuoco restava dov'era la pagina di prima, e il Tab ripartiva dal piè di
-  // pagina. Cambiando pagina il fuoco va al contenuto nuovo.
-  it('cambiando pagina il fuoco va al contenuto della pagina nuova; al primo caricamento no', async () => {
+  // La prova da tastiera del 17/11/2026: dopo «Entra» o un link del piè di
+  // pagina il fuoco restava dov'era la pagina di prima e la vista restava
+  // in fondo. Dopo un clic che cambia pagina il fuoco va al contenuto nuovo
+  // e la vista torna in cima.
+  it('dopo un clic che cambia pagina il fuoco va al contenuto nuovo e la vista torna in cima', async () => {
     utenteOsservato = null
+    const scorri = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
     const user = userEvent.setup()
     mostra('/accedi')
     await screen.findByRole('heading', { level: 1, name: 'Accedi' })
     expect(screen.getByRole('main')).not.toHaveFocus()
+    expect(scorri).not.toHaveBeenCalled()
     await user.click(within(screen.getByRole('contentinfo')).getByRole('link', { name: 'Privacy' }))
     await screen.findByRole('heading', { level: 1, name: 'Informativa sulla privacy' })
     await waitFor(() => expect(screen.getByRole('main')).toHaveFocus())
+    expect(scorri).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'instant' })
+    scorri.mockRestore()
+  })
+
+  // Revisione del 17/11/2026: i rinvii che arrivano da soli al primo
+  // caricamento spostavano il fuoco, e il primo Tab saltava «Salta al
+  // contenuto».
+  it.each([
+    ['/dashboard senza accesso → /accedi', '/dashboard', 'Accedi', 'Salta al contenuto'],
+    ['un indirizzo che non c’è → /', '/non-esiste', 'Il gestionale del tuo locale.', 'Salta al contenuto'],
+  ])('%s: il primo Tab trova ancora «Salta al contenuto»', async (_, percorso, titolo, salta) => {
+    utenteOsservato = null
+    const user = userEvent.setup()
+    mostra(percorso)
+    expect(await screen.findByRole('heading', { level: 1, name: new RegExp(titolo.replace('.', '\\.')) })).toBeInTheDocument()
+    await new Promise((fatto) => requestAnimationFrame(fatto))
+    expect(screen.getByRole('main')).not.toHaveFocus()
+    await user.tab()
+    expect(screen.getByRole('link', { name: salta })).toHaveFocus()
+  })
+
+  it('/ con la preferenza inglese → /en: il primo Tab trova «Skip to content»', async () => {
+    utenteOsservato = null
+    localStorage.setItem('regia.lingua', 'en')
+    try {
+      const user = userEvent.setup()
+      mostra('/')
+      expect(await screen.findByRole('heading', { level: 1, name: /Your venue’s management system/ })).toBeInTheDocument()
+      await new Promise((fatto) => requestAnimationFrame(fatto))
+      await user.tab()
+      expect(screen.getByRole('link', { name: 'Skip to content' })).toHaveFocus()
+    } finally {
+      localStorage.removeItem('regia.lingua')
+    }
+  })
+
+  it('con un’àncora (/#prezzi) né il fuoco né la vista si spostano: ci pensa l’àncora', async () => {
+    utenteOsservato = null
+    const scorri = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter initialEntries={['/accedi']}>
+        <App />
+        <Link to="/#prezzi">verso i prezzi</Link>
+      </MemoryRouter>
+    )
+    await screen.findByRole('heading', { level: 1, name: 'Accedi' })
+    await user.click(screen.getByRole('link', { name: 'verso i prezzi' }))
+    await screen.findByRole('heading', { level: 1, name: /Il gestionale del tuo locale/ })
+    await new Promise((fatto) => requestAnimationFrame(fatto))
+    expect(screen.getByRole('main')).not.toHaveFocus()
+    expect(scorri).not.toHaveBeenCalled()
+    scorri.mockRestore()
+  })
+
+  it('«Salta al contenuto» non cambia l’indirizzo nemmeno quando il contenuto non c’è ancora', async () => {
+    // Firebase non ha ancora detto chi è: la dashboard aspetta e non c'è il main.
+    utenteOsservato = undefined
+    mostra('/dashboard')
+    expect(screen.queryByRole('main')).toBeNull()
+    const salta = screen.getByRole('link', { name: 'Salta al contenuto' })
+    // fireEvent.click dà false se il clic è stato annullato (preventDefault).
+    expect(fireEvent.click(salta)).toBe(false)
+  })
+
+  it('col sito chiuso la registrazione è l’anteprima, e il titolo è il suo', async () => {
+    venditaOsservata = { sito_aperto: false }
+    utenteOsservato = null
+    mostra('/registrati')
+    await screen.findByRole('heading', { level: 1, name: 'Il sito apre a breve.' })
+    expect(document.title).toBe('Lime — Il sito apre a breve.')
   })
 
   it('col sito chiuso c’è anche sull’anteprima', async () => {

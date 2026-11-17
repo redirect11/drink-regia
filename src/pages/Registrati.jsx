@@ -7,6 +7,8 @@ import { urlDi } from '../lib/istanze.js'
 import { TIPI_LOCALE, problemiAccount, problemiLocale, problemiFatturazione, problemiReferente } from '../lib/validazione.js'
 import { orariVuoti, problemiOrari, orariPuliti, GIORNI_DI_CORREZIONE } from '../lib/orari.js'
 import OrariSettimana from './OrariSettimana.jsx'
+import Titolo from '../components/Titolo.jsx'
+import { conProdotto } from '../lib/titoli.js'
 
 // LA REGISTRAZIONE DEL TITOLARE (REQ-FLOTTA-003), in quattro passi: account,
 // locale, fatturazione, referente e consensi. Ogni passo si controlla prima
@@ -111,6 +113,8 @@ export default function Registrati({ completa = null }) {
       <form className="card" onSubmit={invia} noValidate>
         {/* Il titolo della pagina (REQ-FLOTTA-125): h1, con l'aspetto di prima. */}
         <h1 className="titolo-pagina">{completa ? 'Completa la registrazione' : 'Registra il tuo locale'}</h1>
+        {/* Anche sotto /dashboard, per chi deve completare i dati: il titolo dice questa pagina, non la panoramica. */}
+        <Titolo testo={conProdotto(completa ? 'Completa la registrazione' : 'Registra il tuo locale')} />
         {completa && <p className="muted">Sei entrato come {completa.email}. Mancano i dati del locale.</p>}
         <ol className="passi" aria-label="Passi della registrazione">
           {PASSI.map((n, i) => (

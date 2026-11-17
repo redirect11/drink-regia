@@ -103,7 +103,7 @@ export default function OrariServizio({ cliente, adesso = new Date() }) {
 
   return (
     <section className="card" id="orari" aria-label="Orari di servizio">
-      <h3>Orari di servizio</h3>
+      <h2>Orari di servizio</h2>
       {!os?.giorni && (
         <p className="muted small">
           Non li hai ancora indicati: finché mancano, se un pagamento non arriva il locale si ferma al taglio della giornata. Una volta

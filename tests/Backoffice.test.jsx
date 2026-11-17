@@ -1822,7 +1822,7 @@ describe('il segno che gira dell’aggiornamento', () => {
 // soli in fondo; il Free senza il blocco Credito AI.
 describe('la scheda del locale in blocchi', () => {
   const BLOCCHI = ['Titolare', 'Piano', 'App', 'Aggiornamenti', 'Aspetto', 'Credito AI']
-  const blocchi = (scheda) => [...scheda.querySelectorAll('section.blocco')].map((s) => s.querySelector('h4')?.textContent)
+  const blocchi = (scheda) => [...scheda.querySelectorAll('section.blocco')].map((s) => s.querySelector('h3')?.textContent)
   const blocco = (scheda, nome) => within(scheda).getByRole('region', { name: nome })
   const nomiTasti = (el) => within(el).queryAllByRole('button').map((b) => b.textContent)
   // Senza temi su misura: il mock di un test di prima resta acceso.

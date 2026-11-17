@@ -78,7 +78,7 @@ export default function Salute({ onErrore }) {
   return (
     <section className="card" aria-label="Salute">
       <div className="row-tra">
-        <h3>Salute</h3>
+        <h2>Salute</h2>
         <button type="button" onClick={controlla} disabled={inCorso}>
           {inCorso ? 'Un momento…' : 'Controlla adesso'}
         </button>
@@ -124,7 +124,7 @@ export default function Salute({ onErrore }) {
             </tbody>
           </table>
 
-          <h4>Errori delle ultime 24 ore</h4>
+          <h3>Errori delle ultime 24 ore</h3>
           {!registri?.leggibili ? (
             <p className="errore">I registri della regia non si leggono: {registri?.perche}</p>
           ) : registri.per_function.length === 0 && registri.righe.length === 0 ? (

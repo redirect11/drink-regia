@@ -22,6 +22,8 @@ import Registrati from './Registrati.jsx'
 import Anteprima from './Anteprima.jsx'
 import RinnovoLocale, { AvvisoRinnovo } from './RinnovoLocale.jsx'
 import { abbonamentoDetto } from '../lib/rinnovo.js'
+import Titolo from '../components/Titolo.jsx'
+import { titoloPagina } from '../lib/titoli.js'
 
 // LA DASHBOARD DEL TITOLARE (REQ-FLOTTA-004): il suo locale, il piano, lo
 // stato dell'istanza e, quando è attiva, l'indirizzo dell'app.
@@ -98,7 +100,17 @@ export default function Dashboard({ utente, chiuso = false }) {
   // /dashboard/ con la barra finale (scritto a mano) è la panoramica: senza
   // questo nessuna voce del menù resta accesa (revisione del 13/11/2026).
   if (pathname === `${BASE_TITOLARE}/`) return <Navigate to={`${BASE_TITOLARE}${search}`} replace />
-  if (cliente === undefined) return <main id="contenuto" tabIndex={-1} className="pagina stretta muted">Carico…</main>
+  // Il titolo è quello della sezione (REQ-FLOTTA-125): nelle pagine che si
+  // vedono al posto della dashboard (registrazione da completare, anteprima,
+  // collaboratore) lo mettono loro.
+  const titolo = <Titolo testo={titoloPagina(pathname)} />
+  if (cliente === undefined)
+    return (
+      <main id="contenuto" tabIndex={-1} className="pagina stretta muted">
+        {titolo}
+        Carico…
+      </main>
+    )
   // Un collaboratore (REQ-FLOTTA-098) non ha un locale suo: vede quello con
   // cui collabora, anche col sito chiuso. Il segno nel token sceglie la
   // pagina; la vista la rilegge la regia.
@@ -115,6 +127,7 @@ export default function Dashboard({ utente, chiuso = false }) {
     return (
       <main id="contenuto" tabIndex={-1} className="pagina stretta">
         <h1 className="solo-lettori">Dashboard</h1>
+        {titolo}
         Nessun locale registrato per questo account.
       </main>
     )
@@ -129,6 +142,7 @@ export default function Dashboard({ utente, chiuso = false }) {
 
   return (
     <main id="contenuto" tabIndex={-1} className="pagina dashboard">
+      {titolo}
       {inPanoramica && <AvvisoEmail utente={utente} />}
       {inPanoramica && cancellazione && <ChiudiLocale istanza={istanza} />}
       {/* Il locale sospeso o chiuso, o il pagamento che non va (REQ-FLOTTA-090): l'avviso porta al riquadro in «Piano e moduli». */}
@@ -160,7 +174,7 @@ export default function Dashboard({ utente, chiuso = false }) {
                 istanzaAttiva={stato === STATI.ATTIVA}
                 senza={
                   <section className="card" aria-label="Credito AI">
-                    <h3>Credito AI</h3>
+                    <h2>Credito AI</h2>
                     <p className="muted">Il credito serve alle funzioni AI dell’app: si ricarica da qui quando l’app è attiva.</p>
                   </section>
                 }
@@ -323,7 +337,7 @@ function AppDelLocale({ utente, cliente, istanza, richiesta, stato, illeggibile 
 
   return (
     <section className="card" aria-label="L’app">
-      <h3>L’app</h3>
+      <h2>L’app</h2>
       <p>
         <strong data-testid="stato-istanza">{statoDetto(stato)}</strong>
         {istanza?.aggiornata_il && <span className="muted small"> · {new Date(istanza.aggiornata_il).toLocaleString('it-IT')}</span>}
@@ -369,7 +383,7 @@ function RiepilogoPiano({ cliente }) {
   const { piano, testo } = pianoDi(cliente)
   return (
     <section className="card" aria-label="Il tuo piano">
-      <h3>Il tuo piano</h3>
+      <h2>Il tuo piano</h2>
       {piano ? (
         <p>
           <strong>{piano.nome}</strong> · <span data-testid="riepilogo-piano">{testo}</span>
@@ -430,7 +444,7 @@ function RiquadroPiano({ cliente, istanza }) {
 
   return (
     <section className="card" aria-label="Piano">
-      <h3>Piano</h3>
+      <h2>Piano</h2>
       {piano ? (
         <p>
           <strong>{piano.nome}</strong> · <span data-testid="prezzo-piano">{testo}</span>

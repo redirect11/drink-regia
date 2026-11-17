@@ -45,7 +45,7 @@ export default function TemiSuMisura({ uid, slug, ai = true }) {
 
   return (
     <section className="card" aria-label="Temi su misura">
-      <h3>Temi su misura</h3>
+      <h2>Temi su misura</h2>
       <p className="muted small">
         Un tema fatto per il tuo locale, oltre a quelli del marketplace: dal mockup che hai disegnato (con Canva o uno strumento simile),
         col credito AI; oppure fatto da noi, su richiesta. I temi arrivano all’app con la licenza: li trovi nel marketplace, fra i tuoi, e li
@@ -129,7 +129,7 @@ function DalMockup({ credito, onErrore, onFatto }) {
 
   return (
     <form className="tema-dal-mockup" aria-label="Un tema dal tuo mockup" onSubmit={invia}>
-      <h4>Dal tuo mockup</h4>
+      <h3>Dal tuo mockup</h3>
       <p className="muted small">
         Esporta da Canva una pagina del menù come immagine (JPEG, PNG, WebP fino a 5 MB) o PDF (fino a 20 MB). Il modello ne ricava
         colori, caratteri e impaginazione fra quelli che l’app sa disegnare: non riproduce animazioni né immagini, e quello che non ha
@@ -185,7 +185,7 @@ function DalFornitore({ onErrore, onFatto }) {
 
   return (
     <form className="tema-dal-fornitore" aria-label="Un tema dal fornitore" onSubmit={invia}>
-      <h4>Fatto da noi</h4>
+      <h3>Fatto da noi</h3>
       <p className="muted small">Raccontaci il tema che vuoi: lo disegniamo noi e te lo mettiamo fra i tuoi temi. Il costo si concorda.</p>
       <label htmlFor="tema-descrizione">Com’è il tema</label>
       <textarea id="tema-descrizione" value={descrizione} onChange={(e) => setDescrizione(e.target.value)} required minLength={10} maxLength={500} rows={3} placeholder="colori, atmosfera, a cosa deve somigliare" />

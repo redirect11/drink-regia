@@ -57,6 +57,15 @@ main[tabindex='-1']:focus { outline: none; }
    (REQ-FLOTTA-125): un h1 per pagina, con l'aspetto che aveva l'h2, cioè
    le misure del browser per l'h2. */
 h1.titolo-pagina { font-size: 1.5em; margin-block: 0.83em; }
+/* E i titoli sotto scalano di un livello (REQ-FLOTTA-125, revisione del
+   17/11/2026): dove l'h2 è diventato h1, le sezioni erano h3 e il livello
+   2 mancava. Ora sono h2, h3 e h4, con le misure del browser per h3, h4 e
+   h5 che avevano prima. :where() tiene la specificità al minimo, così le
+   regole delle singole sezioni continuano a valere. I termini e la
+   privacy (.legale) avevano già l'ordine giusto e non cambiano. */
+:where(.pagina:not(.legale)) h2 { font-size: 1.17em; margin-block: 1em; }
+:where(.pagina:not(.legale)) h3 { font-size: 1em; margin-block: 1.33em; }
+:where(.pagina:not(.legale)) h4 { font-size: 0.83em; margin-block: 1.67em; }
 
 /* ── La barra: marchio a sinistra, menù a destra; sul telefono il menù si
    apre col tasto. Resta in cima, sopra la pagina che scorre. ── */
@@ -128,7 +137,7 @@ h1.titolo-pagina { font-size: 1.5em; margin-block: 0.83em; }
    ritrovi senza riquadri. */
 .pila:empty { display: none; }
 .pila .card, .dashboard-piano .card { margin: 0; }
-.pila .card h3:first-child, .dashboard-piano .card h3:first-child { margin-top: 0; }
+.pila .card h2:first-child, .dashboard-piano .card h2:first-child { margin-top: 0; }
 .dashboard-piano { margin-bottom: 16px; }
 /* «Piano e moduli» (REQ-FLOTTA-084): la scelta del piano sotto la pila del
    riquadro del piano, staccata come due riquadri qualsiasi. */
@@ -149,7 +158,7 @@ h1.titolo-pagina { font-size: 1.5em; margin-block: 0.83em; }
 .dashboard-testa h1, .dashboard-testa h2 { margin: 0 0 4px; }
 .riquadri { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); align-items: start; margin-bottom: 16px; }
 .riquadri .card { margin: 0; }
-.riquadri .card h3:first-child { margin-top: 0; }
+.riquadri .card h2:first-child { margin-top: 0; }
 
 /* ── La prima pagina (REQ-FLOTTA-002, DESIGN.md §4) ──────────────────
    Una vetrina, non il gestionale. Dal 07/11/2026 (la direzione dell'utente:
@@ -560,6 +569,9 @@ input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--
 /* LA TABELLA DEI LOCALI (02/11/2026): una riga per locale, il nome apre
    la scheda sotto. Su un telefono scorre dentro il suo riquadro, mai la
    pagina, e le colonne secondarie si nascondono. */
+/* Ogni riquadro che scorre (.tabella-scorre, .tabella-larga) ha nel codice
+   role="region", un nome e tabIndex={0}: Safari non lascia scorrere da
+   tastiera un riquadro che non ha il fuoco (WCAG 2.1.1, REQ-FLOTTA-125). */
 .tabella-scorre { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--raggio); background: var(--bg-2); }
 .tabella-locali { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
 .tabella-locali th, .tabella-locali td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
@@ -596,7 +608,7 @@ input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--
 .locale.tono-attesa { border-left-color: var(--attesa); }
 .locale.tono-avviso { border-left-color: #e67e22; }
 .locale-testa { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-.locale-testa h3 { margin: 0; font-size: 1.1rem; }
+.locale-testa h2 { margin: 0; font-size: 1.1rem; }
 .stato { font-size: 0.8rem; font-weight: 600; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); white-space: nowrap; }
 .stato-ok { color: #5fd3a1; border-color: rgba(95, 211, 161, 0.4); background: rgba(95, 211, 161, 0.08); }
 .stato-errore { color: #ff8a7a; border-color: rgba(231, 76, 60, 0.5); background: rgba(231, 76, 60, 0.1); }
@@ -622,9 +634,9 @@ input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--
 .locale-avvisi li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
 .locale-blocchi { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: 20px 28px; }
 .blocco { display: grid; gap: 4px; align-content: start; min-width: 0; overflow-wrap: anywhere; }
-.blocco h4 { margin: 0 0 4px; font-family: inherit; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.blocco h3 { margin: 0 0 4px; font-family: inherit; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
 .blocco > .btn { justify-self: start; }
-.blocco h5.blocco-sotto { margin: 8px 0 0; font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+.blocco h4.blocco-sotto { margin: 8px 0 0; font-size: 0.8rem; font-weight: 600; color: var(--muted); }
 .blocco > .gruppo-azioni { margin-top: 6px; }
 .blocco select { padding: 6px 8px; max-width: 100%; }
 .campo-blocco { display: grid; gap: 2px; margin-top: 4px; }
@@ -720,7 +732,7 @@ code { background: rgba(255, 255, 255, 0.06); padding: 1px 5px; border-radius: 5
 .card .avviso { border-left: 3px solid var(--attesa); padding: 8px 12px; margin: 8px 0; background: var(--bg-3); }
 .proposta { margin-top: 12px; }
 .note-versione { max-height: 20rem; overflow-y: auto; padding: 4px 12px; border: 1px solid var(--line); border-radius: 8px; margin: 8px 0; }
-.note-versione h5 { margin: 12px 0 4px; font-size: 1rem; }
+.note-versione h4 { margin: 12px 0 4px; font-size: 1rem; }
 .note-versione h6 { margin: 8px 0 4px; font-size: 0.9375rem; }
 .note-versione ul { margin: 4px 0; padding-left: 20px; }
 
@@ -745,7 +757,7 @@ code { background: rgba(255, 255, 255, 0.06); padding: 1px 5px; border-radius: 5
 .tessera-delta.giu { color: #ff8a7a; }
 .commerciale-grafici { grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
 .commerciale .riquadri { margin-bottom: 0; }
-.grafico h3 { margin-top: 0; font-size: 1rem; }
+.grafico h2 { margin-top: 0; font-size: 1rem; }
 .colonne { display: block; width: 100%; height: auto; }
 .colonne .asse { stroke: var(--line); stroke-width: 1; }
 .colonne .griglia { stroke: rgba(255, 255, 255, 0.06); stroke-width: 1; }
@@ -764,12 +776,12 @@ code { background: rgba(255, 255, 255, 0.06); padding: 1px 5px; border-radius: 5
 .imbuto-traccia { height: 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.06); overflow: hidden; margin-top: 3px; }
 .imbuto-barra { height: 100%; border-radius: 999px; background: var(--accent); }
 .attenzione { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; }
-.commerciale .card h3 { margin-top: 0; }
-.commerciale .card h4 { margin: 14px 0 4px; font-size: 0.9rem; }
+.commerciale .card h2 { margin-top: 0; }
+.commerciale .card h3 { margin: 14px 0 4px; font-size: 0.9rem; }
 
 /* ── La vendita nel backoffice (REQ-FLOTTA-015) ── */
 .card.vendita { margin: 12px 0; }
-.card.vendita h3 { margin-top: 0; }
+.card.vendita h2 { margin-top: 0; }
 .vendita-moduli { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 4px 12px; }
 .vendita-modulo { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .vendita-modulo .opzione { flex: 1; }
@@ -794,5 +806,5 @@ code { background: rgba(255, 255, 255, 0.06); padding: 1px 5px; border-radius: 5
 .temi-su-misura .anteprima-tema { width: 100%; max-width: 320px; }
 .da-verificare { margin: 0; padding-left: 18px; }
 .tema-dal-mockup, .tema-dal-fornitore { display: grid; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
-.tema-dal-mockup h4, .tema-dal-fornitore h4 { margin: 0; }
+.tema-dal-mockup h3, .tema-dal-fornitore h3 { margin: 0; }
 .tema-dal-mockup textarea, .tema-dal-fornitore textarea, .tema-dal-fornitore input, .tema-dal-mockup select, .tema-dal-fornitore select { width: 100%; max-width: 520px; }

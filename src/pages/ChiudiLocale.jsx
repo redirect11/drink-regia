@@ -35,7 +35,7 @@ export default function ChiudiLocale({ istanza }) {
     const scaricabile = e?.archivio?.zip && Date.parse(e.scade_il) > Date.now()
     return (
       <section className="card" aria-label="I dati del locale">
-        <h3>I dati del locale</h3>
+        <h2>I dati del locale</h2>
         <p className="muted">
           Il locale è stato eliminato il {data(istanza.eliminata_il || e.finito_il)}.
           {scaricabile
@@ -61,7 +61,7 @@ export default function ChiudiLocale({ istanza }) {
   if (e?.stato === 'programmata' || e?.stato === 'in coda' || e?.stato === 'in corso') {
     return (
       <section className="card avviso" aria-label="Cancellazione del locale">
-        <h3>Cancellazione del locale</h3>
+        <h2>Cancellazione del locale</h2>
         {e.stato === 'programmata' && e.richiedente === 'conservazione' ? (
           // Fermo per il pagamento (REQ-FLOTTA-025): i dati restano 90
           // giorni, e tornare a pagare annulla la cancellazione.
@@ -94,7 +94,7 @@ export default function ChiudiLocale({ istanza }) {
 
   return (
     <section className="card zona-pericolo" aria-label="Chiudi il locale">
-      <h3>Chiudi il locale</h3>
+      <h2>Chiudi il locale</h2>
       <p className="muted">
         L’app si ferma subito e l’abbonamento viene disdetto a fine periodo. Dopo 30 giorni il locale e tutti i suoi dati vengono
         cancellati definitivamente; prima facciamo un backup completo, che potrai scaricare da qui per 180 giorni. Fino alla

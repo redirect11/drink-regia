@@ -4,17 +4,16 @@
 // index.html) su /registrati, /accedi, /termini, /privacy e su tutte le
 // sezioni di dashboard e backoffice: il titolo è la prima cosa che un
 // lettore di schermo legge entrando in una pagina, e il nome della scheda
-// del browser. Qui, senza React, il titolo di ogni indirizzo; lo mette
-// App.jsx a ogni cambio di pagina.
+// del browser. Qui, senza React, il titolo di ogni indirizzo; lo mette la
+// pagina stessa con <Titolo> (src/components/Titolo.jsx).
 //
 // Prima la pagina, poi la sezione, in fondo il prodotto: nelle schede
 // strette e nei lettori di schermo si legge per primo quello che cambia.
 // Le parole sono quelle che la pagina già mostra (il titolo, la voce del
 // menù), così titolo e pagina non si smentiscono.
 //
-// `null` vuol dire «se lo mette la pagina»: la prima pagina e l'anteprima
-// del sito chiuso hanno il titolo nella loro lingua (applicaLingua, in
-// src/lib/lingua.js), e App non deve coprirlo.
+// `null` per la prima pagina: lei e l'anteprima del sito chiuso hanno il
+// titolo nella loro lingua (applicaLingua, in src/lib/lingua.js).
 
 import { NOME_ESTESO } from './prodotto.js'
 import { BASE_TITOLARE, SEZIONI_TITOLARE } from './areaTitolare.js'
@@ -29,16 +28,12 @@ const PAGINE = {
   '/accesso': 'Accesso dall’app del locale',
 }
 
-// Le pagine che col sito chiuso (REQ-FLOTTA-043) sono l'anteprima: App.jsx.
-const ANTEPRIMA_DA_CHIUSO = ['/registrati', '/termini']
+export const conProdotto = (...parti) => [...parti, NOME_ESTESO].join(' · ')
 
-const conProdotto = (...parti) => [...parti, NOME_ESTESO].join(' · ')
-
-export function titoloPagina(percorso, { chiuso = false } = {}) {
+export function titoloPagina(percorso) {
   // «/dashboard/» scritto a mano è la stessa pagina di «/dashboard».
   const p = String(percorso || '/').replace(/\/+$/, '') || '/'
   if (p === '/' || p === '/en') return null
-  if (chiuso && ANTEPRIMA_DA_CHIUSO.includes(p)) return null
   if (PAGINE[p]) return conProdotto(PAGINE[p])
   const [, primo, secondo = '', terzo] = p.split('/')
   if (`/${primo}` === BASE_TITOLARE) {

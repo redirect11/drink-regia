@@ -34,7 +34,7 @@ export default function AggiornamentiLocale({ istanza }) {
 
   return (
     <section className="card" aria-label="Aggiornamenti">
-      <h3>Aggiornamenti</h3>
+      <h2>Aggiornamenti</h2>
       {regolaDetta(regola) && (
         <p className="small" data-testid="regola-aggiornamenti">
           {regolaDetta(regola)}
@@ -51,7 +51,7 @@ export default function AggiornamentiLocale({ istanza }) {
 
       {proposta && (
         <div className="proposta" aria-label={`Versione ${proposta.tag}`}>
-          <h4>È disponibile la versione {proposta.tag}</h4>
+          <h3>È disponibile la versione {proposta.tag}</h3>
           {proposta.saltata_il && <p className="muted small">L’hai saltata il {new Date(proposta.saltata_il).toLocaleDateString('it-IT')}.</p>}
           <Note md={proposta.note} />
           <div className="azioni">
@@ -89,7 +89,7 @@ function Note({ md }) {
   return (
     <div className="note-versione" data-testid="note-versione">
       {gruppi.map((g, i) => {
-        if (g.tipo === 'titolo') return <h5 key={i}>{senzaSegni(g.testo)}</h5>
+        if (g.tipo === 'titolo') return <h4 key={i}>{senzaSegni(g.testo)}</h4>
         if (g.tipo === 'sotto') return <h6 key={i}>{senzaSegni(g.testo)}</h6>
         if (g.tipo === 'voci')
           return (

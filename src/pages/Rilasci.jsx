@@ -28,7 +28,7 @@ export default function Rilasci({ rilasci, onAzione }) {
   return (
     <section className="card" aria-label="Rilasci">
       <div className="row-tra">
-        <h3>Rilasci</h3>
+        <h2>Rilasci</h2>
         {!aperto && (
           <button type="button" className="btn ghost small" onClick={nuovo}>
             Nuovo rilascio

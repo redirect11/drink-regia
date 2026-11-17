@@ -143,7 +143,7 @@ describe('sospeso per il pagamento, coi pagamenti online', () => {
     expect(riquadro()).toHaveTextContent(/l’app del tuo locale si ferma mercoledì 11 novembre/)
     expect(riquadro()).not.toHaveTextContent(/taglio della giornata/)
     // Revisione del 13/11/2026 (D2): l'app lavora ancora, il titolo lo dice.
-    expect(within(riquadro()).getByRole('heading', { level: 3 })).toHaveTextContent('Il locale sta per essere sospeso')
+    expect(within(riquadro()).getByRole('heading', { level: 2 })).toHaveTextContent('Il locale sta per essere sospeso')
     expect(riquadro()).not.toHaveTextContent('Il locale è sospeso')
   })
 
@@ -151,7 +151,7 @@ describe('sospeso per il pagamento, coi pagamenti online', () => {
     stato.vendita = { pagamenti_online: false, moduli: {} }
     stato.istanza.sospensione_al = { dal: '2026-11-11T01:00:00.000Z', stato: 'sospesa' }
     mostra()
-    expect(within(riquadro()).getByRole('heading', { level: 3 })).toHaveTextContent('Il locale sta per essere sospeso')
+    expect(within(riquadro()).getByRole('heading', { level: 2 })).toHaveTextContent('Il locale sta per essere sospeso')
     expect(riquadro()).toHaveTextContent(/si ferma mercoledì 11 novembre/)
     expect(riquadro()).not.toHaveTextContent('Il tuo locale è sospeso')
   })
@@ -161,7 +161,7 @@ describe('sospeso per il pagamento, coi pagamenti online', () => {
     stato.cliente.abbonamento.stato = 'disdetto'
     stato.istanza = { ...stato.istanza, licenza_stato: 'chiusa', licenza_motivo: 'abbonamento disdetto', sospensione_al: { dal: '2026-11-11T01:00:00.000Z', stato: 'chiusa' } }
     mostra()
-    expect(within(riquadro()).getByRole('heading', { level: 3 })).toHaveTextContent('Il locale sta per essere chiuso')
+    expect(within(riquadro()).getByRole('heading', { level: 2 })).toHaveTextContent('Il locale sta per essere chiuso')
     expect(riquadro()).toHaveTextContent(/l’app del tuo locale si ferma mercoledì 11 novembre/)
     expect(riquadro()).not.toHaveTextContent('Il tuo locale è chiuso')
   })

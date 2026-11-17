@@ -44,7 +44,7 @@ export default function RinnovoLocale({ cliente, istanza, vai = (url) => window.
     if (!chiesto) return null
     return (
       <section className="card" aria-label="Rinnovo del locale">
-        <h3>Il locale</h3>
+        <h2>Il locale</h2>
         <p>Il tuo locale è attivo e l’abbonamento è in regola: non c’è niente da rinnovare.</p>
       </section>
     )
@@ -74,7 +74,7 @@ export default function RinnovoLocale({ cliente, istanza, vai = (url) => window.
         <>
           {/* La chiusura per pagamento che aspetta il suo momento fuori
               servizio (REQ-FLOTTA-095): l'app lavora ancora, e lo si dice. */}
-          <h3>{s.siFerma ? 'Il locale sta per essere chiuso' : 'Il locale è chiuso'}</h3>
+          <h2>{s.siFerma ? 'Il locale sta per essere chiuso' : 'Il locale è chiuso'}</h2>
           <p>
             {s.siFerma ? `L’abbonamento è disdetto: l’app del tuo locale si ferma ${momento(s.siFerma)}.` : `Il tuo locale è chiuso${s.dal ? ` dal ${giorno(s.dal)}` : ''}.`} Per
             qualsiasi domanda scrivici a <Contatti email={s.email} />.
@@ -89,7 +89,7 @@ export default function RinnovoLocale({ cliente, istanza, vai = (url) => window.
 
       {s.tipo === 'sospeso' && s.paga && (
         <>
-          <h3>{s.siFerma ? 'Il locale sta per essere sospeso' : 'Il locale è sospeso'}</h3>
+          <h2>{s.siFerma ? 'Il locale sta per essere sospeso' : 'Il locale è sospeso'}</h2>
           <p>
             {s.siFerma
               ? `L’abbonamento non risulta pagato: l’app del tuo locale si ferma ${momento(s.siFerma)}.`
@@ -110,7 +110,7 @@ export default function RinnovoLocale({ cliente, istanza, vai = (url) => window.
 
       {s.tipo === 'sospeso' && !s.paga && (
         <>
-          <h3>{s.siFerma ? 'Il locale sta per essere sospeso' : 'Il locale è sospeso'}</h3>
+          <h2>{s.siFerma ? 'Il locale sta per essere sospeso' : 'Il locale è sospeso'}</h2>
           {/* La frase di Daniele (13/11/2026): coi pagamenti spenti, per una
               sospensione dell'admin o un abbonamento a mano, solo i contatti.
               Una per pagamento che aspetta il suo momento dice quando. */}
@@ -132,7 +132,7 @@ export default function RinnovoLocale({ cliente, istanza, vai = (url) => window.
 
       {(s.tipo === 'in ritardo' || s.tipo === 'non pagato') && (
         <>
-          <h3>{s.tipo === 'in ritardo' ? 'Pagamento in ritardo' : 'Abbonamento non pagato'}</h3>
+          <h2>{s.tipo === 'in ritardo' ? 'Pagamento in ritardo' : 'Abbonamento non pagato'}</h2>
           <p>
             {s.tipo === 'in ritardo'
               ? 'Il pagamento dell’abbonamento è in ritardo: l’ultimo addebito non è andato a buon fine e Stripe riproverà nei prossimi giorni. Se non va a buon fine, il locale viene sospeso.'

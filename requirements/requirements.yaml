@@ -5061,7 +5061,7 @@ requirements:
 
   - id: REQ-FLOTTA-125
     title: "Accessibilità del sito della regia: la dichiarazione di accessibilità collegata da ogni pagina, i titoli per pagina, la prova axe nel collaudo"
-    area: "src/App.jsx, src/pages/Legali.jsx (o una pagina nuova), il piè di pagina, src/i18n, e2e/, docs/handover.md"
+    area: "src/App.jsx (Salta al contenuto, fuoco e vista al cambio di pagina), src/components/Titolo.jsx, src/lib/titoli.js, src/i18n (barra.salta), src/index.css, src/pages (h1 e h2 di Accedi, Accesso, Registrati, Legali, Dashboard, DashboardCollaboratore, Backoffice e delle loro sezioni; main#contenuto; le tabelle che scorrono di Commerciale, CreditoAI, CatalogoTemi, Backoffice), e2e/accessibilita.spec.js, package.json (@axe-core/playwright), DESIGN.md, docs/handover.md; per la dichiarazione (G) src/pages/Legali.jsx o una pagina nuova e il piè di pagina"
     description: >
       Daniele, 17/11/2026: «sia per il menu che per la home di drink sia
       per il sito dei Lime - SmartOrders dobbiamo aggiungere la

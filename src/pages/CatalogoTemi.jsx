@@ -47,7 +47,7 @@ export default function CatalogoTemi({ onErrore }) {
 
   return (
     <section className="card" aria-label="Temi">
-      <h3>Temi</h3>
+      <h2>Temi</h2>
       <p className="muted small">
         Un tema è una tavolozza e uno stile del menù che l’app sa già disegnare: non è codice, e non può rompere il menù dei
         locali. L’app legge i temi pubblicati quando si apre il suo marketplace; un tema ritirato sparisce dal catalogo, ma resta a
@@ -56,7 +56,7 @@ export default function CatalogoTemi({ onErrore }) {
       </p>
       {temi.length === 0 && <p className="muted small">Nessun tema ancora.</p>}
       {temi.length > 0 && (
-        <div className="tabella-scorre">
+        <div className="tabella-scorre" role="region" tabIndex={0} aria-label="Tabella dei temi">
           <table className="tabella-locali" aria-label="I temi">
             <thead>
               <tr>
@@ -130,13 +130,13 @@ export default function CatalogoTemi({ onErrore }) {
           </button>
         </div>
       )}
-      <h4>Stili a ricetta</h4>
+      <h3>Stili a ricetta</h3>
       <p className="muted small">
         La forma del menù come scelta fra valori fissi (caratteri, voci, separatori, cornici, sfondo), che l’app disegna con il suo
         motore: si cambiano nel loro file (functions/temi/stili.json), da qui si ritirano. Un’app che non ha ancora il motore non li
         mostra, e nemmeno i temi che li usano.
       </p>
-      <div className="tabella-scorre">
+      <div className="tabella-scorre" role="region" tabIndex={0} aria-label="Tabella degli stili a ricetta">
         <table className="tabella-locali" aria-label="Gli stili a ricetta">
           <thead>
             <tr>

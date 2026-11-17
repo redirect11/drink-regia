@@ -362,6 +362,29 @@ sulla pagina.
 
 - Un solo `h1`; i titoli seguono l'ordine. Bersagli di tocco ≥ 44px. Il
   fuoco visibile nel verde.
+- Per tutto il sito, non solo la prima pagina (REQ-FLOTTA-125, 17/11/2026):
+  - **«Salta al contenuto»** («Skip to content» su /en) è il primo
+    elemento che la tastiera raggiunge su ogni pagina. Fuori dallo schermo
+    finché non ha il fuoco, poi in alto a sinistra, lime col testo scuro
+    come i bottoni. Porta il fuoco al `<main id="contenuto">` della pagina
+    senza cambiare l'indirizzo.
+  - **Cambiando pagina** la vista torna in cima (non col tasto indietro e
+    non con un'àncora come `/#prezzi`) e, se la navigazione l'ha chiesta
+    chi usa la pagina (un clic, Invio, un modulo), il fuoco va al
+    contenuto nuovo. I rinvii che arrivano da soli al primo caricamento
+    non spostano il fuoco: il primo Tab trova sempre «Salta al contenuto».
+    Il `main` col fuoco non ha il contorno: non è un comando.
+  - **Un titolo per pagina e per sezione** nella scheda del browser,
+    prima la pagina e in fondo il prodotto («Richieste · Backoffice ·
+    Lime – SmartOrders»).
+  - **Dashboard e backoffice**: il titolo della pagina è l'`h1` (il nome
+    del locale, «Backoffice»), le sezioni sono `h2`, con le misure che
+    avevano prima (`index.css`, `titolo-pagina` e `:where(.pagina…)`).
+  - **A 320 px** (lo zoom al 400%) la pagina non scorre di lato: le tabelle
+    larghe scorrono nel loro riquadro, che si raggiunge col Tab e ha un
+    nome.
+  - La prova axe-core (WCAG A e AA, più l'ordine dei titoli) sta in
+    `e2e/accessibilita.spec.js`: una violazione ferma il rilascio.
 - Il menù in alto, le domande e la tabella dei piani si usano anche da
   tastiera. (Fino all'11/11/2026 sul telefono la tabella dei moduli
   diventava una scheda per riga: ora c'è il confronto fra i piani, §4.)

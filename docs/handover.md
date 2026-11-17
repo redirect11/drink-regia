@@ -176,6 +176,14 @@ Il collaudo scrive sulla regia di test e lancia la flotta su `prova-bar`
 da un giro fallito. Si lancia anche a mano: Actions → «Test end-to-end» →
 Run workflow, con la spunta del collaudo.
 
+Dal 17/11/2026 fra le prove in sola lettura c'è anche l'accessibilità
+(`e2e/accessibilita.spec.js`, REQ-FLOTTA-125): axe-core coi livelli A e
+AA delle WCAG 2.0, 2.1 e 2.2, più l'ordine dei titoli, sulle pagine
+pubbliche, su ogni sezione della dashboard e del backoffice e a 320 px.
+Le prove in sola lettura vengono prima del passo «Collaudo sul test» nello
+stesso job: **una violazione sul test ferma il collaudo, e quindi il
+rilascio in produzione**. Si corregge la pagina, non la prova.
+
 Il ramo non conta: conta **dove sta il commit taggato** (job «Dove va» di
 `firebase-hosting.yml`, con `git merge-base --is-ancestor`). Il deploy
 vero è `deploy.yml`, riusabile, con l'`environment:` scritto a chiare

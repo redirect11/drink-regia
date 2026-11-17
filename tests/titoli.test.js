@@ -5,10 +5,11 @@
 // /accedi, /termini, /privacy e sulle sezioni di dashboard e backoffice:
 // chi usa un lettore di schermo, o ha più schede aperte, non sapeva dov'era.
 // La prima pagina e l'anteprima il titolo se lo mettono da sole, nella loro
-// lingua (applicaLingua): qui `null`.
+// lingua (applicaLingua): qui `null`. Le altre pagine lo mettono con
+// <Titolo> (src/components/Titolo.jsx), e lo prova tests/App.test.jsx.
 
 import { describe, it, expect } from 'vitest'
-import { titoloPagina } from '../src/lib/titoli.js'
+import { titoloPagina, conProdotto } from '../src/lib/titoli.js'
 import { NOME_ESTESO } from '../src/lib/prodotto.js'
 import { SEZIONI_TITOLARE, indirizzoSezione } from '../src/lib/areaTitolare.js'
 import { SEZIONI, BASE, AGGIUNTE } from '../src/lib/backoffice.js'
@@ -28,12 +29,11 @@ describe('il titolo della pagina', () => {
     expect(titoloPagina('/en/')).toBeNull()
   })
 
-  it('col sito chiuso registrazione e termini sono l’anteprima, che se lo mette da sola', () => {
-    expect(titoloPagina('/registrati', { chiuso: true })).toBeNull()
-    expect(titoloPagina('/termini', { chiuso: true })).toBeNull()
-    // La privacy e l'accesso restano.
-    expect(titoloPagina('/privacy', { chiuso: true })).toBe(`Informativa sulla privacy · ${NOME_ESTESO}`)
-    expect(titoloPagina('/accedi', { chiuso: true })).toBe(`Accedi · ${NOME_ESTESO}`)
+  // Le pagine che non hanno un indirizzo loro (la registrazione da
+  // completare sotto /dashboard) compongono il titolo allo stesso modo.
+  it('conProdotto mette le parti in ordine, il prodotto in fondo', () => {
+    expect(conProdotto('Completa la registrazione')).toBe(`Completa la registrazione · ${NOME_ESTESO}`)
+    expect(conProdotto('Dashboard')).toBe(`Dashboard · ${NOME_ESTESO}`)
   })
 
   it('ogni sezione della dashboard ha il suo, con «Dashboard» come nel menù', () => {

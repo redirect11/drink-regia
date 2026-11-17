@@ -74,7 +74,7 @@ export default function Collaboratori({ slug = null }) {
 
   return (
     <section className="card" aria-label="Collaboratori">
-      <h3>Collaboratori</h3>
+      <h2>Collaboratori</h2>
       <p className="muted small">
         Un collaboratore entra nella regia col suo account: vede il locale, il piano e lo stato dell’app, e apre l’app da qui. Abbonamento, pagamenti,
         piano e chiusura del locale restano del titolare. Per aprire l’app gli serve nel gestionale un account admin con la stessa email.

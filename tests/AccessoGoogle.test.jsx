@@ -87,6 +87,8 @@ describe('la dashboard di chi non ha il locale', () => {
   it('chiede i dati del locale, senza il passo dell’account', () => {
     mostra(<Dashboard utente={utente} />, '/dashboard-g')
     expect(screen.getByRole('heading', { name: 'Completa la registrazione' })).toBeInTheDocument()
+    // Il titolo dice questa pagina, non la panoramica (REQ-FLOTTA-125, revisione del 17/11/2026).
+    expect(document.title).toBe('Completa la registrazione · Lime – SmartOrders')
     expect(screen.getByLabelText('Nome del locale')).toBeInTheDocument()
     expect(screen.queryByLabelText(/^Password/)).toBeNull()
   })
