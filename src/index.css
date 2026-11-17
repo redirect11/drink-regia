@@ -286,7 +286,13 @@ h1.titolo-pagina { font-size: 1.5em; margin-block: 0.83em; }
 /* In dissolvenza (REQ-FLOTTA-074): le diapositive una sopra l'altra; quella
    che si vede compare sopra, quella di prima resta sotto finché è coperta. */
 .diapositive { position: relative; height: 100%; margin: 0; padding: 0; list-style: none; }
-.diapositiva { position: absolute; inset: 0; opacity: 0; transition: opacity 1.5s ease; }
+/* La dissolvenza (REQ-FLOTTA-074, REQ-FLOTTA-127): la anima solo la
+   diapositiva che compare, per la durata che Home.jsx mette in
+   --dissolvenza (1,5 s da sola, 0,2 s a mano). Le altre spariscono di colpo:
+   quella che esce è già coperta, e con più clic di fila non restano
+   filmati che sfumano uno sull'altro. */
+.diapositiva { position: absolute; inset: 0; opacity: 0; transition: opacity var(--dissolvenza, 1.5s) ease; }
+.diapositiva:not([data-visibile='true']) { transition: none; }
 .diapositiva[data-visibile='true'] { opacity: 1; z-index: 1; }
 .diapositiva[data-uscente='true'] { opacity: 1; }
 .gesto-entra { animation: gesto-entra 0.8s ease both; }

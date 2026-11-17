@@ -4025,6 +4025,10 @@ requirements:
       dissolvenze né animazioni, come prima. (6) Pausa, frecce, punti e le
       regole su mouse e fuoco (REQ-FLOTTA-069) restano come sono, col passo
       nuovo.
+      SUPERATO IN PARTE da REQ-FLOTTA-127 (17/11/2026): il criterio (2) non
+      è più «la dissolvenza comincia a 6,5 secondi», ma quando al filmato
+      visibile manca un secondo e mezzo alla fine; il cambio a mano sfuma
+      in 0,2 secondi.
     status: implemented
     generate_issue: true
     labels: [prodotto, regia, home]
@@ -5225,7 +5229,15 @@ requirements:
       alla fine del filmato in corso. (3) Un filmato che non parte non
       ferma lo scorrimento. (4) Il cambio a mano dura 0,2 s, quello da solo
       1,5 s. (5) Test che lo provano.
-    status: todo
+      FATTO (17/11/2026, feature/carosello-tempi): il passo lo dà il
+      filmato visibile (timeupdate e, dove c'è, requestVideoFrameCallback),
+      col ripiego di 6,5 s se il filmato non va avanti e la fine del
+      filmato come ultima rete; il filmato non ricomincia da solo mentre il
+      carosello scorre. In più è venuta fuori una seconda causa: la
+      diapositiva che usciva diventava «uscente» un render dopo il cambio, e
+      in quell'istante perdeva il suo <video> e lo rifaceva da capo; ora
+      gesto visibile e uscente cambiano nello stesso stato.
+    status: implemented
     generate_issue: true
     labels: [home, sito]
     priority: P2

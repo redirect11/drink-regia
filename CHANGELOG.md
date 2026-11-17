@@ -6,6 +6,15 @@ data.
 
 ## 0.5.1 (in lavorazione)
 
+- Il carosello della prima pagina passa al filmato dopo quando a quello
+  che si vede manca un secondo e mezzo alla fine, non dopo un tempo fisso:
+  il filmato di prima non ricomincia più prima del cambio, nemmeno dopo
+  una pausa o un caricamento lento. Ogni filmato che compare parte da
+  capo, e quello che esce resta dov'era invece di ricominciare. Se un
+  filmato non parte, il carosello va avanti lo stesso dopo 6,5 secondi.
+  Il cambio a mano (frecce, punti) sfuma in 0,2 secondi invece di 1,5, e
+  con più clic di fila non restano filmati che sfumano insieme
+  (REQ-FLOTTA-127, #318).
 - Accessibilità, la parte della conformità (REQ-FLOTTA-125, #312). Ogni
   pagina e ogni sezione di dashboard e backoffice ha il suo titolo nella
   scheda del browser («Accedi · Lime – SmartOrders», «Richieste ·
