@@ -6,6 +6,13 @@ data.
 
 ## 0.5.1 (in lavorazione)
 
+- Il primo deploy delle Functions di un locale nuovo riesce: il magazzino
+  delle immagini delle Functions (gcf-artifacts) nasce dal Terraform prima
+  del deploy, con la stessa regola di pulizia che mette Firebase (le
+  immagini più vecchie di un giorno si cancellano), e prima di riprovare il
+  deploy della nascita cancella le Functions rimaste a metà. Sulla prova di
+  un locale nuovo il primo deploy falliva su 18 Functions su 21
+  (REQ-FLOTTA-130).
 - La documentazione di sviluppo, in inglese (REQ-FLOTTA-129, #322):
   `docs/development.md` è il punto d'ingresso per chi sviluppa, con la
   preparazione del computer, i test, l'emulatore delle regole, le prove

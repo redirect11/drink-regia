@@ -311,6 +311,36 @@ removed {
   }
 }
 
+# IL MAGAZZINO DELLE IMMAGINI DELLE FUNCTIONS (REQ-FLOTTA-130). Al primo
+# deploy di un progetto nuovo lo crea Google, ma le build partono prima che
+# esista: su drinkpos-prova-storage (17/11/2026) 18 su 21 sono fallite con
+# «Repository "gcf-artifacts" not found». Nasce qui, prima del deploy. La
+# regola di pulizia è la stessa che firebase-tools mette da solo
+# (lib/functions/artifacts.js: id firebase-functions-cleanup, cancella le
+# immagini più vecchie di un giorno), così le due cose non si contendono il
+# repository e le immagini non si accumulano in bolletta. Il leggero non ha
+# Functions. Se c'è già lo importano i workflow.
+resource "google_artifact_registry_repository" "gcf_artifacts" {
+  provider      = google-beta
+  count         = local.completo ? 1 : 0
+  project       = google_project.istanza.project_id
+  location      = "europe-west1"
+  repository_id = "gcf-artifacts"
+  format        = "DOCKER"
+  description   = "Le immagini delle Functions del locale (Cloud Functions)."
+
+  cleanup_policies {
+    id     = "firebase-functions-cleanup"
+    action = "DELETE"
+    condition {
+      tag_state  = "ANY"
+      older_than = "86400s"
+    }
+  }
+
+  depends_on = [google_project_service.api]
+}
+
 # La regia sospende e riattiva l'istanza scrivendo settings/bar.licenza
 # (REQ-FLOTTA-008): le serve di leggere e scrivere Firestore qui.
 resource "google_project_iam_member" "regia" {
