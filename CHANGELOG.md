@@ -6,6 +6,9 @@ data.
 
 ## 0.5.1 (in lavorazione)
 
+- La cornice del carosello della prima pagina non cambia più altezza da un
+  filmato all'altro: il testo del gesto tiene sempre lo spazio del più
+  lungo, a ogni larghezza (REQ-FLOTTA-133).
 - I locali del test nascono nell'Organizzazione Google `stone-b.it`, col
   progetto creato dal Terraform senza passi a mano. Il Terraform dà il ruolo
   Editor all'account che compila e fa girare le Functions (l'Organizzazione

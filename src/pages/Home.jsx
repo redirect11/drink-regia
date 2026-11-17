@@ -621,12 +621,29 @@ export default function Home({ utente, lingua = 'it' }) {
             onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && setFuocoDentro(false)}
           >
             <div className="gesto-testo" aria-live={scorre ? 'off' : 'polite'} aria-atomic="true">
+              {/* L'ALTEZZA FISSA (REQ-FLOTTA-133, Daniele, 17/11/2026: «in alcuni
+                  video l'altezza del frame dove scorre il video cambia.
+                  Dovrebbe essere fissa»). La cornice dei filmati cresce col
+                  testo che contiene, e le righe dei gesti non sono lunghe
+                  uguali. I testi delle altre diapositive stanno nella stessa
+                  cella, invisibili e fuori dall'albero dell'accessibilità: il
+                  blocco è alto quanto il più lungo, a ogni larghezza, e si
+                  annuncia solo quello visibile. Il visibile viene per primo,
+                  così è il primo testo del blocco anche per chi legge il DOM. */}
               {/* La chiave rifà nascere solo il contenuto, che compare in
                   dissolvenza: la regione che si annuncia resta la stessa. */}
               <div className="gesto-entra" key={gesto.id}>
                 <p className="gesto-parola">{t.gesti.voci[gesto.id].parola}</p>
                 <p className="gesto-riga">{rigaGesto(gesto)}</p>
               </div>
+              {gesti
+                .filter((g) => g.id !== gesto.id)
+                .map((g) => (
+                  <div className="gesto-fantasma" aria-hidden="true" key={`fantasma-${g.id}`}>
+                    <p className="gesto-parola">{t.gesti.voci[g.id].parola}</p>
+                    <p className="gesto-riga">{rigaGesto(g)}</p>
+                  </div>
+                ))}
             </div>
             <div className="gesto-comandi">
               <button type="button" className="gesto-freccia" aria-label={t.gesti.precedente} onClick={() => vai(indice - 1)}>

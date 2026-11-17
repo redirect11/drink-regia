@@ -744,6 +744,31 @@ describe('la prima pagina', () => {
       expect(document.querySelectorAll('video').length).toBeLessThanOrEqual(2)
     })
 
+    // REQ-FLOTTA-133 (Daniele, 17/11/2026: «l'altezza del frame dove scorre il
+    // video cambia. Dovrebbe essere fissa»): i testi delle altre diapositive
+    // stanno nella stessa cella, invisibili, e danno al blocco l'altezza del
+    // più lungo; si legge e si annuncia solo quello visibile.
+    it('il blocco del testo tiene lo spazio di tutti i gesti, ma mostra e annuncia solo quello visibile', () => {
+      conMovimento(true)
+      mostra()
+      const testo = gruppo().querySelector('.gesto-testo')
+      const fantasmi = [...testo.querySelectorAll('.gesto-fantasma')]
+      // Tutte le altre diapositive, dopo quella visibile.
+      expect(fantasmi).toHaveLength(document.querySelectorAll('.diapositiva').length - 1)
+      expect(testo.firstElementChild).toHaveClass('gesto-entra')
+      for (const f of fantasmi) expect(f).toHaveAttribute('aria-hidden', 'true')
+      expect(fantasmi.map((f) => f.querySelector('.gesto-parola').textContent)).not.toContain('Gestisci gli ordini.')
+      expect(testo.querySelector('.gesto-entra .gesto-parola')).toHaveTextContent('Gestisci gli ordini.')
+      fireEvent.click(screen.getByRole('button', { name: it_.gesti.successiva }))
+      expect(testo.querySelectorAll('.gesto-fantasma')).toHaveLength(fantasmi.length)
+      expect([...testo.querySelectorAll('.gesto-fantasma .gesto-parola')].map((p) => p.textContent)).toContain('Gestisci gli ordini.')
+      // Il foglio di stile: una cella sola per tutti, i fantasmi invisibili.
+      const css = readFileSync(join(import.meta.dirname, '..', 'src', 'index.css'), 'utf8').replace(/\r\n/g, '\n')
+      expect(css).toContain('.gesto-testo { min-height: 7.5rem; display: grid; }')
+      expect(css).toContain('.gesto-testo > * { grid-area: 1 / 1; }')
+      expect(css).toContain('.gesto-fantasma { visibility: hidden; }')
+    })
+
     it('parola e frase compaiono in dissolvenza, dentro la regione che si annuncia', () => {
       conMovimento(true)
       mostra()
