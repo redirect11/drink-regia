@@ -5551,11 +5551,31 @@ requirements:
       (C) La privacy dice che i dati si scaricano dall'area clienti, che si
       può anche scrivere, e che la risposta arriva entro un mese; il testo
       è una bozza che approva Daniele.
+      NIENTE OMESSO (Daniele, lo stesso giorno: «nella policy dobbiamo dire
+      tutti i dati che memorizziamo e tutti i dati che gli torniamo indietro
+      e non dobbiamo omettere nulla, soprattutto i dati sensibili»). (D) Un
+      elenco unico dei dati personali della regia, nel codice: per ogni
+      dato dove sta (raccolta e campo di Firestore, Stripe, Cloud Logging,
+      lo Storage dell'archivio, il fornitore dell'AI), perché, la base
+      giuridica, per quanto tempo, a chi va, e se è un dato delicato (codice
+      fiscale, partita IVA, PEC, telefono, indirizzo, dati di pagamento,
+      indirizzi IP e tracce di navigazione, testi mandati all'AI). Dallo
+      stesso elenco nascono la sezione «Quali dati» della privacy e il file
+      scaricato: la privacy non può dire meno di quello che si tiene, e il
+      file non può dare meno di quello che la privacy dice. (E) Un test che
+      fallisce se una raccolta di Firestore con dati di persone (dalle
+      regole, firestore.rules) o un campo scritto dalle Functions non è
+      nell'elenco, e se l'elenco e il file scaricato non coincidono. (F) Le
+      categorie particolari dell'art. 9 (salute, opinioni, biometria…): la
+      regia non ne tratta; l'elenco lo dichiara, e il test controlla che
+      nessun campo ne contenga [da verificare con un audit dei campi].
       CRITERI. (1) Ogni ruolo della regia scarica i propri dati, e solo i
-      propri. (2) Il file è JSON, completo dei campi elencati, senza
+      propri. (2) Il file è JSON, completo dei campi dell'elenco, senza
       segreti né dati di altri. (3) Senza un accesso recente il download
       chiede di rientrare. (4) Ogni download resta registrato. (5) La
-      privacy lo dice. (6) Test che lo provano.
+      privacy elenca tutti i dati dell'elenco, compresi i delicati, dove
+      stanno, perché e per quanto, e dice come scaricarli. (6) Il test del
+      punto (E). (7) Test che lo provano.
     status: todo
     generate_issue: true
     labels: [privacy, regia, dashboard, backoffice]
