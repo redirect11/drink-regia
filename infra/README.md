@@ -36,7 +36,7 @@ ricopiato lì gli stati: l'account della chiave non legge il bucket nuovo).
 | Regia | Account | Pool e fornitore |
 |---|---|---|
 | test | `provisioning@drink-regia-test.iam.gserviceaccount.com` | `projects/246268671867/locations/global/workloadIdentityPools/github/providers/drink-regia` (condizione: repository `1429043866`, environment `flotta-test`) |
-| produzione | `provisioning@drink-regia.iam.gserviceaccount.com` | da creare, dopo il test |
+| produzione | `provisioning@drink-regia.iam.gserviceaccount.com` | `projects/600871952552/locations/global/workloadIdentityPools/github/providers/drink-regia` (condizione: repository `1429043866`, environment `flotta`; creato il 17/11/2026, con Browser su `drink-regia`) |
 
 L'account di test ha i ruoli sui locali di prova (gli stessi che aveva
 quello di produzione), su `tana-drink-test`, su
@@ -48,8 +48,15 @@ produzione ha lì). Ha in più **Browser** (`roles/browser`) sul progetto della
 sua regia: senza chiave, `google-auth-library` chiede il progetto
 predefinito leggendo il progetto del pool, e senza quel ruolo si ferma con
 403 prima di fare qualunque cosa (con la chiave il progetto stava nel file).
-L'account di produzione, quando passa senza chiave, prende lo stesso ruolo
-su `drink-regia`.
+L'account di produzione ha lo stesso ruolo su `drink-regia` dal 17/11/2026.
+
+**La chiave, alla fine** (Daniele, 17/11/2026): niente copie di riserva.
+Quando la produzione ha lavorato qualche giorno senza chiave, la chiave si
+**disattiva** (`gcloud iam service-accounts keys disable`, reversibile);
+qualche giorno dopo si cancella insieme a `PROVISIONING_SA_JSON`. In
+emergenza se ne crea una nuova (`drink-regia` è fuori dall'organizzazione,
+dove la creazione delle chiavi è vietata) e la si mette nel segreto: i
+workflow tornano da soli al modo con la chiave.
 
 Provato sulla regia di test il 17/11/2026, tutto senza chiave: «Prepara
 l'AI» su `tana-drink-test`, «Aggiorna» di prova-bar, il collaudo con
@@ -109,7 +116,7 @@ regia di test (`drink-regia-test`) su `flotta-test`. Lo sceglie l'input
 | Nome | Tipo | `flotta` (produzione) | `flotta-test` (test) |
 |---|---|---|---|
 | `PROVISIONING_SA_JSON` | segreto | la chiave di `provisioning@drink-regia` | la stessa (non serve più quando ci sono le due variabili sotto) |
-| `FLOTTA_WIF_PROVIDER` | variabile, facoltativa | il fornitore del pool `github` di `drink-regia` (da creare) | `projects/246268671867/locations/global/workloadIdentityPools/github/providers/drink-regia` |
+| `FLOTTA_WIF_PROVIDER` | variabile, facoltativa | `projects/600871952552/locations/global/workloadIdentityPools/github/providers/drink-regia` (si accende quando i workflow nuovi sono su `main`: `flotta` accetta solo `main`) | `projects/246268671867/locations/global/workloadIdentityPools/github/providers/drink-regia` |
 | `FLOTTA_SA` | variabile, facoltativa | `provisioning@drink-regia.iam.gserviceaccount.com` | `provisioning@drink-regia-test.iam.gserviceaccount.com` |
 | `BILLING_ACCOUNT_ID` | segreto | l'account di fatturazione dei locali veri | il secondo account, solo prove (`01D78D-…`) |
 | `PROVISIONING_CALLBACK_SECRET` | segreto | lo stesso valore del segreto delle Functions di `drink-regia` | lo stesso valore del segreto delle Functions di `drink-regia-test` |
