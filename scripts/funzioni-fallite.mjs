@@ -1,7 +1,11 @@
 // =====================================================================
 //  LE FUNCTIONS RIMASTE A METÀ IN UN DEPLOY (REQ-FLOTTA-130).
 //
-//    node scripts/funzioni-fallite.mjs <file con l'uscita del deploy>
+//    node scripts/funzioni-fallite.mjs [--cambio-di-tipo] <file con l'uscita del deploy>
+//
+//  Con --cambio-di-tipo stampa solo le Functions che firebase-tools ferma
+//  col cambio di tipo (le sole rimaste davvero a metà): è quello che usa
+//  provisiona-istanza.yml (REQ-FLOTTA-132).
 //
 //  Stampa una riga «nome regione» per ogni Function che firebase-tools
 //  elenca come fallita. La usa provisiona-istanza.yml, nel deploy della
@@ -14,7 +18,8 @@
 import { readFileSync } from 'node:fs'
 import { funzioniFallite } from './lib-deploy.js'
 
-const file = process.argv[2]
+const soloCambioDiTipo = process.argv.includes('--cambio-di-tipo')
+const file = process.argv.slice(2).find((a) => !a.startsWith('--'))
 if (!file) {
   console.error('Uso: node scripts/funzioni-fallite.mjs <file con l’uscita del deploy>')
   process.exit(1)
@@ -26,4 +31,4 @@ try {
   // Senza file non c'è niente da cancellare: il deploy riprova e basta.
   process.exit(0)
 }
-for (const { nome, regione } of funzioniFallite(testo)) console.log(`${nome} ${regione}`)
+for (const { nome, regione } of funzioniFallite(testo, { soloCambioDiTipo })) console.log(`${nome} ${regione}`)

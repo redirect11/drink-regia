@@ -311,6 +311,23 @@ removed {
   }
 }
 
+# L'ACCOUNT PREDEFINITO DI COMPUTE (REQ-FLOTTA-132): compila le Functions
+# (Cloud Build) e le fa girare. Fuori da un'Organizzazione Google gli dà da
+# solo il ruolo Editor; nell'Organizzazione stone-b.it la regola
+# iam.automaticIamGrantsForDefaultServiceAccounts lo impedisce, e ogni build
+# falliva con «missing permission on the build service account»
+# (drinkpos-prova-org, 17/11/2026). Daniele: «Terraform dà Editor». Editor è
+# più del necessario, come prima; ridurlo va studiato con tana-drink. Se
+# l'account non c'è ancora, il workflow riprova l'apply dopo un minuto.
+resource "google_project_iam_member" "compute_predefinito" {
+  provider   = google-beta
+  count      = local.completo ? 1 : 0
+  project    = google_project.istanza.project_id
+  role       = "roles/editor"
+  member     = "serviceAccount:${google_project.istanza.number}-compute@developer.gserviceaccount.com"
+  depends_on = [google_project_service.api]
+}
+
 # IL MAGAZZINO DELLE IMMAGINI DELLE FUNCTIONS (REQ-FLOTTA-130). Al primo
 # deploy di un progetto nuovo lo crea Google, ma le build partono prima che
 # esista: su drinkpos-prova-storage (17/11/2026) 18 su 21 sono fallite con
