@@ -43,7 +43,7 @@ export default function ProveModuli({ cliente, istanza }) {
 
   return (
     <section className="card" aria-label="Prova un modulo">
-      <h3>Prova un modulo</h3>
+      <h2>Prova un modulo</h2>
       {inProva.map(([id, p]) => (
         <p key={id}>
           <strong>{MODULI.find((m) => m.id === id)?.nome || id}</strong> è in prova fino al {data(p.scade_il)}. Per tenerlo,

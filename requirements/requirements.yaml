@@ -5059,6 +5059,65 @@ requirements:
       - tests/Backoffice.test.jsx
       - tests/contratto.test.js
 
+  - id: REQ-FLOTTA-125
+    title: "Accessibilità del sito della regia: la dichiarazione di accessibilità collegata da ogni pagina, i titoli per pagina, la prova axe nel collaudo"
+    area: "src/App.jsx (Salta al contenuto, fuoco e vista al cambio di pagina), src/components/Titolo.jsx, src/lib/titoli.js, src/i18n (barra.salta), src/index.css, src/pages (h1 e h2 di Accedi, Accesso, Registrati, Legali, Dashboard, DashboardCollaboratore, Backoffice e delle loro sezioni; main#contenuto; le tabelle che scorrono di Commerciale, CreditoAI, CatalogoTemi, Backoffice), e2e/accessibilita.spec.js, package.json (@axe-core/playwright), DESIGN.md, docs/handover.md; per la dichiarazione (G) src/pages/Legali.jsx o una pagina nuova e il piè di pagina"
+    description: >
+      Daniele, 17/11/2026: «sia per il menu che per la home di drink sia
+      per il sito dei Lime - SmartOrders dobbiamo aggiungere la
+      dichiarazione di accessibiltià […] e dobbiamo mettere in atto quello
+      che richiede la legge per l'accessibilità di tutto»; poi «è una cosa
+      che andrebbe fatta anche per Stonebit proprio» (la regola di
+      Stonebit per ogni prodotto); e sulla dichiarazione «Rispettiamo
+      quello che diciamo e le regole europee?».
+      LO STATO (audit del 17/11/2026): axe-core 4.14.1 con le regole WCAG
+      2.0/2.1/2.2 A e AA sulle sei pagine pubbliche del sito di test, da
+      computer e da telefono: 0 violazioni. Mancano la dichiarazione, i
+      titoli di pagina distinti (WCAG 2.4.2: /registrati, /accedi,
+      /termini, /privacy hanno lo stesso), l'h1 su /registrati e /accedi,
+      il collegamento per saltare al contenuto, e una prova su dashboard e
+      backoffice, che stanno dietro l'accesso.
+      LA LEGGE (fonti secondarie, da verificare con un legale): European
+      Accessibility Act (Dir. 2019/882, D.Lgs. 82/2022, dal 28/06/2025),
+      WCAG 2.1 AA / EN 301 549; le microimprese di servizi sono esentate e
+      la regia vende ai locali, quindi per la regia è una scelta di
+      Stonebit più che un obbligo. Si fa comunque.
+      L'ORDINE (Daniele, 17/11/2026): «prima di tutto cerchiamo di
+      diventare completamente conformi e poi parti con la cosa della
+      dichiarazione».
+      COSA, PRIMA LA CONFORMITÀ. (A) Un titolo per ogni pagina e sezione.
+      (B) Un h1 su ogni pagina. (C) «Salta al contenuto». (D) La prova
+      axe-core nelle prove Playwright del collaudo, sulle pagine pubbliche,
+      sulla dashboard e sul backoffice: una violazione di livello A o AA
+      fa fallire il collaudo. (E) Le violazioni che la prova trova dietro
+      l'accesso, corrette. (F) La prova a mano dei percorsi principali
+      (registrazione, accesso, scelta del piano, backoffice) solo da
+      tastiera e con lo zoom al 200%, con l'esito scritto; quella col
+      lettore di schermo la fa una persona, e finché non c'è la
+      conformità non si dichiara piena.
+      POI LA DICHIARAZIONE. (G) La pagina «Dichiarazione di
+      accessibilità», in italiano e in inglese, collegata dal piè di
+      pagina di ogni pagina pubblica e dell'area clienti: dice solo quello
+      che è verificato («conforme» solo se (A)-(F) sono fatti), il metodo,
+      la data, il canale per le segnalazioni e a chi rivolgersi. Il testo
+      è una bozza che approva Daniele; senza l'indirizzo per le
+      segnalazioni la PR non si unisce.
+      CRITERI. (1) Titoli diversi per pagina. (2) Un h1 per pagina. (3) Il
+      collegamento per saltare al contenuto è il primo elemento
+      raggiungibile da tastiera. (4) La prova axe gira nel collaudo, anche
+      dietro l'accesso, e fallisce su una violazione. (5) Zero violazioni
+      A e AA. (6) Ogni pagina ha il collegamento alla dichiarazione, che
+      non afferma più di quanto verificato.
+    status: todo
+    generate_issue: true
+    labels: [sito, regia, produzione]
+    priority: P2
+    test_cases:
+      - tests/App.test.jsx
+      - tests/Legali.test.jsx
+      - tests/titoli.test.js
+      - tests/accessibilita.test.js
+
   - id: REQ-FLOTTA-124
     title: "Le regole di Storage dei locali leggono la licenza: il service agent dello Storage ha roles/firebaserules.firestoreServiceAgent in ogni progetto, nuovo o esistente, prima che arrivino le regole"
     area: "infra/istanza/main.tf, .github/workflows/aggiorna-istanza.yml (il profilo completo nel progetto), .github/workflows/provisiona-istanza.yml, docs/flotta-nella-regia.md, docs/contratto-regia-app.md"

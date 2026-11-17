@@ -103,6 +103,12 @@ describe('le tessere e il periodo', () => {
     expect(screen.getByTestId('clienti-in_attesa')).toHaveTextContent('1')
     expect(screen.getByText(/Conversione dall’inizio: 1 paganti su 3 registrati \(33\.3%\)/)).toBeInTheDocument()
     const piani = screen.getByRole('table', { name: 'Per piano' })
+    // Le tabelle larghe scorrono in un riquadro che si raggiunge col Tab (REQ-FLOTTA-125, WCAG 2.1.1).
+    for (const nome of ['Tabella per piano', 'Tabella per modulo']) {
+      const riquadro = screen.getByRole('region', { name: nome })
+      expect(riquadro).toHaveAttribute('tabindex', '0')
+      expect(riquadro.querySelector('table')).toBeInTheDocument()
+    }
     expect(within(piani).getByRole('row', { name: /Base/ })).toHaveTextContent('1')
     const moduli = screen.getByRole('table', { name: 'Per modulo' })
     expect(within(moduli).getByRole('row', { name: /Magazzino e fornitori/ })).toHaveTextContent(/Magazzino e fornitori100/)

@@ -176,6 +176,14 @@ Il collaudo scrive sulla regia di test e lancia la flotta su `prova-bar`
 da un giro fallito. Si lancia anche a mano: Actions → «Test end-to-end» →
 Run workflow, con la spunta del collaudo.
 
+Dal 17/11/2026 fra le prove in sola lettura c'è anche l'accessibilità
+(`e2e/accessibilita.spec.js`, REQ-FLOTTA-125): axe-core coi livelli A e
+AA delle WCAG 2.0, 2.1 e 2.2, più l'ordine dei titoli, sulle pagine
+pubbliche, su ogni sezione della dashboard e del backoffice e a 320 px.
+Le prove in sola lettura vengono prima del passo «Collaudo sul test» nello
+stesso job: **una violazione sul test ferma il collaudo, e quindi il
+rilascio in produzione**. Si corregge la pagina, non la prova.
+
 Il ramo non conta: conta **dove sta il commit taggato** (job «Dove va» di
 `firebase-hosting.yml`, con `git merge-base --is-ancestor`). Il deploy
 vero è `deploy.yml`, riusabile, con l'`environment:` scritto a chiare
@@ -286,7 +294,8 @@ src/lib/commerciale.js      i numeri del commerciale: canone di un cliente, clas
 functions/lib/movimenti.js  il libro dei movimenti: una riga per incasso (fattura Stripe, ricarica AI, pagamento a mano)
 functions/lib/traffico.js   il traffico del sito, contatori per giorno senza cookie (REQ-FLOTTA-042); la Function `traccia`
 scripts/semina-test.mjs, lib-semina.mjs  i locali di prova sulla regia di test (REQ-DEV-004); .env.e2e
-playwright.config.js, e2e/  i test end-to-end con Playwright: npm run test:e2e
+playwright.config.js, e2e/  i test end-to-end con Playwright: npm run test:e2e; e2e/accessibilita.spec.js è la prova axe-core (WCAG A e AA) di pagine pubbliche, dashboard e backoffice (REQ-FLOTTA-125)
+src/lib/titoli.js           il titolo di ogni pagina e sezione (<title>), messo da App.jsx (REQ-FLOTTA-125)
 src/lib/backoffice.js       le sezioni del backoffice, i contatori del sotto-menù, i filtri dei locali
 src/pages/Legali.jsx        Termini e Privacy (struttura con segnaposto TITOLARE)
 src/lib/prodotto.js         nome, slogan, dominio, URL demo, email contatti (segnaposto)

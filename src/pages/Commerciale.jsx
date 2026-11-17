@@ -117,7 +117,7 @@ export default function Commerciale({ righe, contatti, onErrore, adesso = new Da
 
       <div className="riquadri">
         <section className="card" aria-label="Clienti">
-          <h3>Clienti</h3>
+          <h2>Clienti</h2>
           <dl className="locale-dati">
             {['pagante', 'free', 'gratis', 'in_attesa', 'fermo', 'disdetto', 'eliminato'].map((k) => (
               <div key={k}>
@@ -133,62 +133,71 @@ export default function Commerciale({ righe, contatti, onErrore, adesso = new Da
         </section>
 
         <section className="card" aria-label="Cosa si vende">
-          <h3>Cosa si vende</h3>
-          <table className="tabella-commerciale" aria-label="Per piano">
-            <thead>
-              <tr>
-                <th scope="col">Piano</th>
-                <th scope="col" className="num">
-                  Locali
-                </th>
-                <th scope="col" className="num">
-                  Canone
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {r.perPiano.map((p) => (
-                <tr key={p.id}>
-                  <th scope="row">{p.nome}</th>
-                  <td className="num">{numero(p.quanti)}</td>
-                  <td className="num">{euro(p.mrr)}</td>
+          <h2>Cosa si vende</h2>
+          {/* Le due tabelle scorrono da sole se non ci stanno (REQ-FLOTTA-125):
+              a 320 px, lo zoom al 400%, allargavano tutta la pagina. Il
+              riquadro che scorre si raggiunge col Tab e ha un nome: Safari
+              non lascia scorrere da tastiera un riquadro che non ha il
+              fuoco (WCAG 2.1.1). */}
+          <div className="tabella-larga" role="region" aria-label="Tabella per piano" tabIndex={0}>
+            <table className="tabella-commerciale" aria-label="Per piano">
+              <thead>
+                <tr>
+                  <th scope="col">Piano</th>
+                  <th scope="col" className="num">
+                    Locali
+                  </th>
+                  <th scope="col" className="num">
+                    Canone
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          <table className="tabella-commerciale" aria-label="Per modulo">
-            <thead>
-              <tr>
-                <th scope="col">Modulo</th>
-                <th scope="col" className="num">
-                  Comprato
-                </th>
-                <th scope="col" className="num">
-                  Incluso
-                </th>
-                <th scope="col" className="num">
-                  In prova
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {r.perModulo.map((m) => (
-                <tr key={m.id}>
-                  <th scope="row">{m.nome}</th>
-                  <td className="num">{numero(m.comprati)}</td>
-                  <td className="num">{numero(m.inclusi)}</td>
-                  <td className="num">{numero(m.inProva)}</td>
+              </thead>
+              <tbody>
+                {r.perPiano.map((p) => (
+                  <tr key={p.id}>
+                    <th scope="row">{p.nome}</th>
+                    <td className="num">{numero(p.quanti)}</td>
+                    <td className="num">{euro(p.mrr)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="tabella-larga" role="region" aria-label="Tabella per modulo" tabIndex={0}>
+            <table className="tabella-commerciale" aria-label="Per modulo">
+              <thead>
+                <tr>
+                  <th scope="col">Modulo</th>
+                  <th scope="col" className="num">
+                    Comprato
+                  </th>
+                  <th scope="col" className="num">
+                    Incluso
+                  </th>
+                  <th scope="col" className="num">
+                    In prova
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {r.perModulo.map((m) => (
+                  <tr key={m.id}>
+                    <th scope="row">{m.nome}</th>
+                    <td className="num">{numero(m.comprati)}</td>
+                    <td className="num">{numero(m.inclusi)}</td>
+                    <td className="num">{numero(m.inProva)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           <p className="muted small">
             {r.terminaliInPiu} {r.terminaliInPiu === 1 ? 'terminale in più venduto' : 'terminali in più venduti'} · Fondatori: {r.fondatori.assegnati} su {r.fondatori.posti}, {r.fondatori.liberi} liberi.
           </p>
         </section>
 
         <section className="card" aria-label="Dal visitatore al cliente">
-          <h3>Dal visitatore al cliente</h3>
+          <h2>Dal visitatore al cliente</h2>
           <Imbuto passi={r.traffico.imbuto} />
           <p className="muted small">
             I passi li conta il sito stesso (registrazioni, scelte del piano, attivazioni chieste): sono gesti, non persone. Senza cookie non si contano i
@@ -197,9 +206,9 @@ export default function Commerciale({ righe, contatti, onErrore, adesso = new Da
         </section>
 
         <section className="card" aria-label="Da dove arrivano">
-          <h3>Da dove arrivano</h3>
+          <h2>Da dove arrivano</h2>
           <Classifica voci={r.traffico.provenienze} vuoto="Nessuna vista nel periodo." />
-          <h4>Pagine più viste</h4>
+          <h3>Pagine più viste</h3>
           <Classifica voci={r.traffico.perPagina} vuoto="Nessuna vista nel periodo." />
           <p className="muted small">
             Lingua: {numero(r.traffico.lingue.it || 0)} in italiano, {numero(r.traffico.lingue.en || 0)} in inglese.
@@ -207,7 +216,7 @@ export default function Commerciale({ righe, contatti, onErrore, adesso = new Da
         </section>
 
         <section className="card" aria-label="Credito AI">
-          <h3>Credito AI</h3>
+          <h2>Credito AI</h2>
           <dl className="locale-dati">
             <div>
               <dt>Venduto nel periodo</dt>
@@ -230,7 +239,7 @@ export default function Commerciale({ righe, contatti, onErrore, adesso = new Da
         </section>
 
         <section className="card" aria-label="Scadenze e attenzione">
-          <h3>Scadenze e attenzione</h3>
+          <h2>Scadenze e attenzione</h2>
           <ul className="attenzione">
             {r.attenzione.contattiAperti > 0 && <li>{r.attenzione.contattiAperti} {r.attenzione.contattiAperti === 1 ? 'richiesta di contatto aperta' : 'richieste di contatto aperte'} (sezione «Richieste»).</li>}
             {r.attenzione.daApprovare > 0 && <li>{r.attenzione.daApprovare} {r.attenzione.daApprovare === 1 ? 'attivazione da autorizzare' : 'attivazioni da autorizzare'}.</li>}
@@ -257,10 +266,10 @@ export default function Commerciale({ righe, contatti, onErrore, adesso = new Da
 
       <section className="card" aria-label="Abbonamenti">
         <div className="row-tra">
-          <h3>Abbonamenti</h3>
+          <h2>Abbonamenti</h2>
           <Esporta nome={`abbonamenti-${r.periodo.al.slice(0, 10)}.csv`} testo={() => csv(abbonamenti, COLONNE_ABBONAMENTI)} />
         </div>
-        <div className="tabella-scorre">
+        <div className="tabella-scorre" role="region" tabIndex={0} aria-label="Tabella degli abbonamenti">
           <table className="tabella-locali tabella-commerciale" aria-label="Elenco degli abbonamenti">
             <thead>
               <tr>
@@ -308,13 +317,13 @@ export default function Commerciale({ righe, contatti, onErrore, adesso = new Da
 
       <section className="card" aria-label="Movimenti">
         <div className="row-tra">
-          <h3>Ultimi movimenti</h3>
+          <h2>Ultimi movimenti</h2>
           <Esporta nome={`movimenti-${r.periodo.al.slice(0, 10)}.csv`} testo={() => csv(movimenti, COLONNE_MOVIMENTI)} />
         </div>
         {r.ultimiMovimenti.length === 0 ? (
           <p className="muted">Nessun incasso registrato ancora. Le fatture di Stripe e i pagamenti registrati dalla scheda del locale compaiono qui.</p>
         ) : (
-          <div className="tabella-scorre">
+          <div className="tabella-scorre" role="region" tabIndex={0} aria-label="Tabella dei movimenti">
             <table className="tabella-locali tabella-commerciale" aria-label="Elenco dei movimenti">
               <thead>
                 <tr>
@@ -412,9 +421,9 @@ export function Colonne({ titolo, giorni, valori, formato = numero }) {
   const totale = valori.reduce((s, v) => s + (Number(v) || 0), 0)
   return (
     <section className="card grafico" aria-label={titolo}>
-      <h3>
+      <h2>
         {titolo} <span className="muted small">· totale {formato(totale)}</span>
-      </h3>
+      </h2>
       <svg viewBox={`0 0 ${L} ${H}`} role="img" aria-label={`${titolo}: ${n} giorni, massimo ${formato(max)}`} className="colonne">
         <line x1={sinistra} x2={L - sinistra} y1={H - sotto} y2={H - sotto} className="asse" />
         {max > 0 && <line x1={sinistra} x2={L - sinistra} y1={sopra} y2={sopra} className="griglia" />}
@@ -450,7 +459,7 @@ export function Colonne({ titolo, giorni, valori, formato = numero }) {
       </svg>
       <details className="tabella-grafico">
         <summary className="muted small">Vedi i numeri</summary>
-        <div className="tabella-scorre">
+        <div className="tabella-scorre" role="region" tabIndex={0} aria-label={`Numeri: ${titolo}`}>
           <table className="tabella-commerciale">
             <thead>
               <tr>

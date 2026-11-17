@@ -197,7 +197,7 @@ export default function SceltaPiano({ cliente, modifica = false, vai = (url) => 
 
   return (
     <section className="card" aria-label="Scelta del piano">
-      <h3>{modifica ? 'Cambia piano o moduli' : 'Scegli il piano'}</h3>
+      <h2>{modifica ? 'Cambia piano o moduli' : 'Scegli il piano'}</h2>
       <div className="scelta-piani">
         {piani.map((x) => (
           <label key={x.id} className={`opzione${piano === x.id ? ' scelta' : ''}`}>
@@ -216,7 +216,7 @@ export default function SceltaPiano({ cliente, modifica = false, vai = (url) => 
       </div>
       {!gratuito && (
         <>
-          <h4>Moduli in più</h4>
+          <h3>Moduli in più</h3>
           {MODULI.filter((m) => moduloVisibile(vendita, m.id, giaSuoi)).map((m) => {
             // Un modulo senza la sua base non si sceglie (tana-drink
             // REQ-LIC-015): la casella aspetta che la base sia spuntata, e

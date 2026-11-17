@@ -1,5 +1,7 @@
 import { Fragment, useCallback, useEffect, useState } from 'react'
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import Titolo from '../components/Titolo.jsx'
+import { titoloPagina } from '../lib/titoli.js'
 import {
   elencoClienti,
   elencoIstanze,
@@ -328,10 +330,21 @@ export default function Backoffice() {
     azioneAI(c, 'tetto', { importo: Number(String(importo).replace(',', '.')) })
   }
 
-  if (righe === undefined) return <main className="pagina muted">Carico…</main>
+  // Il titolo della sezione (REQ-FLOTTA-125), dall'indirizzo.
+  const titolo = <Titolo testo={titoloPagina(pathname)} />
+  if (righe === undefined)
+    return (
+      <main id="contenuto" tabIndex={-1} className="pagina muted">
+        {titolo}
+        Carico…
+      </main>
+    )
   if (righe === null)
     return (
-      <main className="pagina">
+      <main id="contenuto" tabIndex={-1} className="pagina">
+        {/* L'h1 anche qui (REQ-FLOTTA-125), solo per i lettori di schermo. */}
+        <h1 className="solo-lettori">Backoffice</h1>
+        {titolo}
         <p className="errore" role="alert">
           {errore}
         </p>
@@ -391,8 +404,10 @@ export default function Backoffice() {
   }
 
   return (
-    <main className="pagina larga">
-      <h2>Backoffice</h2>
+    <main id="contenuto" tabIndex={-1} className="pagina larga">
+      {/* Il titolo della pagina (REQ-FLOTTA-125): h1, con l'aspetto di prima. */}
+      <h1 className="titolo-pagina">Backoffice</h1>
+      {titolo}
       <SottoMenu conti={contiDelBackoffice(righe, contatti, allarmi)} />
       {errore && <p className="errore">{errore}</p>}
 
@@ -631,7 +646,7 @@ function SezioneLocali({ righe, senzaCliente = [], az, lanciati, inAvvio = {} })
         // istanze deployate sia una tabella che cliccando si apre il
         // dettaglio come è ora un elemento della lista»): una riga per
         // locale; il nome apre, sotto, la scheda di sempre.
-        <div className="tabella-scorre">
+        <div className="tabella-scorre" role="region" tabIndex={0} aria-label="Tabella dei locali">
           <table className="tabella-locali" aria-label="Locali">
             <thead>
               <tr>
@@ -655,8 +670,8 @@ function SezioneLocali({ righe, senzaCliente = [], az, lanciati, inAvvio = {} })
         // Le istanze senza cliente (REQ-FLOTTA-113): in fondo, nel loro
         // gruppo, con le stesse colonne e la stessa scheda.
         <>
-          <h3 className="gruppo-locali">Istanze senza cliente ({orfane.length})</h3>
-          <div className="tabella-scorre">
+          <h2 className="gruppo-locali">Istanze senza cliente ({orfane.length})</h2>
+          <div className="tabella-scorre" role="region" tabIndex={0} aria-label="Tabella delle istanze senza cliente">
             <table className="tabella-locali" aria-label="Istanze senza cliente">
               <thead>
                 <tr>
@@ -801,7 +816,7 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
     <article className={`locale tono-${tono}`} aria-label={c.nome_locale}>
       <header className="locale-testa">
         <div>
-          <h3>{c.nome_locale}</h3>
+          <h2>{c.nome_locale}</h2>
           <div className="muted small">
             {c.slug}
             {istanza?.interna && ' · interna'}
@@ -863,7 +878,7 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
             </div>
           )}
           {/* Gli orari di servizio del locale (REQ-FLOTTA-095): stanno col titolare, che li dichiara; i blocchi restano sei (REQ-FLOTTA-089). */}
-          <h5 className="blocco-sotto">Orari di servizio</h5>
+          <h4 className="blocco-sotto">Orari di servizio</h4>
           <OrariNelBackoffice cliente={c} onFatto={az.carica} onErrore={az.onErrore} />
           {/* I collaboratori del locale (REQ-FLOTTA-099): lo stesso riquadro del titolare, per questo locale. */}
           <div className="gruppo-azioni">
@@ -1183,7 +1198,7 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
 function Blocco({ id, titolo, children }) {
   return (
     <section className="blocco" aria-labelledby={id}>
-      <h4 id={id}>{titolo}</h4>
+      <h3 id={id}>{titolo}</h3>
       {children}
     </section>
   )
@@ -1234,7 +1249,7 @@ function LicenzeProtette({ onErrore, onFatto }) {
   const pronte = controllo && controllo.problemi?.length === 0
   return (
     <section className="card" aria-label="Licenze protette">
-      <h3>Licenze protette</h3>
+      <h2>Licenze protette</h2>
       <p className="muted small">
         La licenza di ogni locale in licenza/attuale, che dall’app non si scrive. Ogni cambio e ogni aggiornamento dalla regia la scrivono
         prima del deploy; qui si controllano tutte a richiesta.
@@ -1292,7 +1307,7 @@ function Scadenze({ onErrore }) {
   }
   return (
     <section className="card" aria-label="Scadenze">
-      <h3>Scadenze</h3>
+      <h2>Scadenze</h2>
       <p className="muted small">
         Pagamenti fuori da Stripe, prove dei moduli, eliminazioni e condizioni degli aggiornamenti arrivano ognuna alla sua data, senza giri
         quotidiani. Con Stripe decide lo stato dell’abbonamento, coi tentativi e la grazia impostati in Stripe. Dopo il primo deploy di questa
@@ -1332,7 +1347,7 @@ function AllineaEmail({ onErrore }) {
   }
   return (
     <section className="card" aria-label="Email dei clienti">
-      <h3>Email dei clienti</h3>
+      <h2>Email dei clienti</h2>
       <p className="muted small">
         Un account per persona: chi si registra non può usare una variante di un’email che ha già un account. I clienti registrati prima di
         questa versione vanno allineati una volta; rifarlo non cambia niente.
@@ -1391,7 +1406,7 @@ function RegoleAggiornamenti({ onErrore, onFatto }) {
 
   return (
     <section className="card" aria-label="Regole degli aggiornamenti">
-      <h3>Regole degli aggiornamenti</h3>
+      <h2>Regole degli aggiornamenti</h2>
       <label className="opzione">
         <input type="checkbox" checked={bozza.a_scelta} onChange={(e) => setBozza((b) => ({ ...b, a_scelta: e.target.checked }))} />A scelta del titolare: prima di
         ogni versione vede le novità e decide se aggiornare o saltarla
@@ -1458,7 +1473,7 @@ function GestioneEsistente({ cliente: c, istanza, onFatto, onErrore }) {
 
   return (
     <form className="card gestione-esistente" onSubmit={invia} aria-label={`Pubblicazione e licenza di ${c.nome_locale}`}>
-      <h4>Pubblicazione e licenza di {c.nome_locale}</h4>
+      <h3>Pubblicazione e licenza di {c.nome_locale}</h3>
       <label className="opzione">
         <input type="checkbox" checked={dallaRegia} onChange={(e) => setDallaRegia(e.target.checked)} />
         La aggiorna la regia, con «Aggiorna subito» e i rilasci
@@ -1497,7 +1512,7 @@ function SezioneRichieste({ automatico, onAutomatico, simulata = null, onSimulat
   return (
     <>
       <section className="card" aria-label="Attivazioni">
-        <h3>Attivazioni</h3>
+        <h2>Attivazioni</h2>
         <label className="opzione interruttore">
           <input type="checkbox" checked={automatico} onChange={(e) => onAutomatico(e.target.checked)} />
           Deploy automatico
@@ -1529,7 +1544,7 @@ function SezioneRichieste({ automatico, onAutomatico, simulata = null, onSimulat
 
       {profili.length > 0 && (
         <section className="card" aria-label="Free che hanno comprato">
-          <h3>Free che hanno comprato</h3>
+          <h2>Free che hanno comprato</h2>
           <p className="muted small">La licenza ha già tolto i limiti; il deploy porta Functions, Storage e segreti del piano a pagamento.</p>
           {profili.map(({ cliente: c, istanza }) => (
             <div className="row-tra riga-richiesta" key={c.uid}>
@@ -1552,7 +1567,7 @@ function SezioneRichieste({ automatico, onAutomatico, simulata = null, onSimulat
 
       {daApprovare.length > 0 && (
         <section className="card" aria-label="Richieste da autorizzare">
-          <h3>Richieste da autorizzare</h3>
+          <h2>Richieste da autorizzare</h2>
           {daApprovare.map(({ cliente: c, richiesta }) => (
             <div className="row-tra riga-richiesta" key={c.uid}>
               <span>
@@ -1587,7 +1602,7 @@ function AggiornamentiFalliti({ righe, az }) {
   if (!falliti.length) return null
   return (
     <section className="card" aria-label="Aggiornamenti falliti">
-      <h3>Aggiornamenti falliti</h3>
+      <h2>Aggiornamenti falliti</h2>
       <p className="muted small">Il locale resta attivo. Si riprova, o lo si riporta alla versione di prima.</p>
       <ul className="contatti">
         {falliti.map(({ cliente: c, istanza }) => (
@@ -1634,7 +1649,7 @@ function NuovoLocale({ onFatto, onErrore }) {
 
   return (
     <form className="card" onSubmit={invia} aria-label="Nuovo locale">
-      <h3>Nuovo locale</h3>
+      <h2>Nuovo locale</h2>
       <div className="grid-2">
         <div className="campo">
           <label htmlFor="nl-nome">Nome del locale</label>
@@ -1691,7 +1706,7 @@ function NuovoLocale({ onFatto, onErrore }) {
 function SceltaAggiunta() {
   return (
     <section className="card" aria-labelledby="aggiungi-titolo">
-      <h3 id="aggiungi-titolo">Aggiungi locale</h3>
+      <h2 id="aggiungi-titolo">Aggiungi locale</h2>
       <nav className="scelta-aggiunta" aria-label="Che locale aggiungi">
         {AGGIUNTE.map((a) => (
           <Link key={a.id} to={`${BASE}/aggiungi/${a.id}`} className="opzione">
@@ -1745,7 +1760,7 @@ function LocaleEsistente({ onFatto, onErrore }) {
 
   return (
     <form className="card" onSubmit={invia} aria-label="Locale esistente">
-      <h3>Locale esistente</h3>
+      <h2>Locale esistente</h2>
       <p className="muted small">
         Per un locale che ha già la sua app e il suo progetto, come la Tana: non parte nessuna attivazione e la regia non tocca il suo
         progetto. Serve a dargli il credito AI e a vederlo qui.
@@ -1894,7 +1909,7 @@ function CodiciSconto({ onErrore }) {
   const campo = (k) => ({ value: nuovo[k], onChange: (e) => setNuovo((n) => ({ ...n, [k]: e.target.value })) })
   return (
     <section className="card" aria-label="Codici sconto">
-      <h3>Codici sconto</h3>
+      <h2>Codici sconto</h2>
       <p className="muted small">
         Uno sconto al 100% illimitato vuol dire che il locale non paga e non scade; a tempo, che è pagato fino alla fine dello
         sconto. Uno parziale cambia solo il prezzo. Un codice disattivato non si applica più, e chi lo ha lo tiene.
@@ -1971,7 +1986,7 @@ function ModelliAI({ impostazioni, onErrore }) {
   const cambia = (tipo, modello) => impostaModelliAI({ [tipo]: modello }).catch((e) => onErrore(e.message))
   return (
     <section className="card vendita" aria-label="Modelli AI">
-      <h3>Modelli AI</h3>
+      <h2>Modelli AI</h2>
       <p className="muted small">Il modello che risponde a ogni tipo di richiesta AI dei locali. Il credito si scala ai prezzi del modello che risponde.</p>
       {TIPI_MODELLO_DETTI.map(([tipo, nome]) => (
         <div key={tipo} className="campo">
@@ -2001,7 +2016,7 @@ function LimitiChat({ impostazioni, onErrore }) {
   const salva = (voce, riga, n) => impostaLimitiChat(riga ? { righe: { [voce]: n } } : { [voce]: n }).catch((e) => onErrore(e.message))
   return (
     <section className="card vendita" aria-label="Limiti della chat AI">
-      <h3>Limiti della chat AI</h3>
+      <h2>Limiti della chat AI</h2>
       <p className="muted small">
         Quanto può costare una conversazione della chat del gestionale: la lunghezza di una risposta e della conversazione intera, gli strumenti
         che il modello usa per ogni messaggio, e le righe che restituiscono gli strumenti di lettura.
@@ -2064,7 +2079,7 @@ function Vendita({ onErrore }) {
   const cambia = (cambio) => impostaVendita(cambio).catch((e) => onErrore(e.message))
   return (
     <section className="card vendita" aria-label="Vendita">
-      <h3>Vendita</h3>
+      <h2>Vendita</h2>
       {/* IL SITO APERTO AL PUBBLICO (REQ-FLOTTA-043, l'utente, 07/11/2026):
           finché è spento, in produzione si vede solo la pagina di anteprima e
           le Functions della vendita rifiutano. Tre stati: non deciso (in
@@ -2130,7 +2145,7 @@ function Vendita({ onErrore }) {
             ? 'Il Free non si vede da nessuna parte del sito: il confronto mostra solo Base e Completo.'
             : 'Nel confronto della prima pagina il Free compare con le sue differenze da Base e Completo. Non ha la sua scheda: non si sceglie e non si attiva.'}
       </p>
-      <h4>Moduli in vendita e in prova</h4>
+      <h3>Moduli in vendita e in prova</h3>
       <div className="vendita-moduli">
         {MODULI.map((m) => (
           <div key={m.id} className="vendita-modulo">
@@ -2162,7 +2177,7 @@ function Contatti({ elenco, onSegna: segna }) {
   const aperte = elenco.filter((c) => c.stato === 'aperta')
   return (
     <section className="card" aria-label="Richieste di contatto">
-      <h3>Richieste di contatto {aperte.length > 0 && <span className="muted small">· {aperte.length} da gestire</span>}</h3>
+      <h2>Richieste di contatto {aperte.length > 0 && <span className="muted small">· {aperte.length} da gestire</span>}</h2>
       <ul className="contatti">
         {elenco.map((c) => (
           <li key={c.uid} className={c.stato === 'aperta' ? 'aperta' : 'gestita'}>

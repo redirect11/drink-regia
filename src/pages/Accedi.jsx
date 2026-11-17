@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { accedi, recuperaPassword } from '../lib/db.js'
 import { messaggio } from './Registrati.jsx'
 import EntraConGoogle from './EntraConGoogle.jsx'
+import Titolo from '../components/Titolo.jsx'
+import { titoloPagina } from '../lib/titoli.js'
 
 export default function Accedi() {
   const navigate = useNavigate()
@@ -40,9 +42,11 @@ export default function Accedi() {
   }
 
   return (
-    <main className="pagina stretta">
+    <main id="contenuto" tabIndex={-1} className="pagina stretta">
       <form className="card" onSubmit={invia}>
-        <h2>Accedi</h2>
+        {/* Il titolo della pagina (REQ-FLOTTA-125): h1, con l'aspetto di prima. */}
+        <h1 className="titolo-pagina">Accedi</h1>
+        <Titolo testo={titoloPagina('/accedi')} />
         <EntraConGoogle />
         <label htmlFor="a-email">Email</label>
         <input id="a-email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />

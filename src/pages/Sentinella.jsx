@@ -97,7 +97,7 @@ export default function Sentinella({ onErrore, onAllarmi }) {
   return (
     <section className="card" aria-label="Sentinella">
       <div className="row-tra">
-        <h3>Sentinella</h3>
+        <h2>Sentinella</h2>
         <button type="button" onClick={giro} disabled={inCorso}>
           {inCorso ? 'Un momento…' : 'Fai un giro adesso'}
         </button>
@@ -124,7 +124,7 @@ export default function Sentinella({ onErrore, onAllarmi }) {
 
       {allarmi !== null && (
         <>
-          <h4>Allarmi aperti</h4>
+          <h3>Allarmi aperti</h3>
           {aperti.length === 0 ? (
             <p className="muted">Nessun allarme aperto.</p>
           ) : (
@@ -136,7 +136,7 @@ export default function Sentinella({ onErrore, onAllarmi }) {
           )}
           {chiusi.length > 0 && (
             <>
-              <h4>Chiusi negli ultimi 7 giorni</h4>
+              <h3>Chiusi negli ultimi 7 giorni</h3>
               <ul className="senza-punti" aria-label="Allarmi chiusi negli ultimi 7 giorni">
                 {chiusi.map((a) => (
                   <Allarme key={a.id} a={a} chiuso />
@@ -149,7 +149,7 @@ export default function Sentinella({ onErrore, onAllarmi }) {
 
       {soglie && (
         <form onSubmit={salva} aria-label="Soglie della sentinella">
-          <h4>Soglie</h4>
+          <h3>Soglie</h3>
           {SOGLIE.map((x) => (
             <label key={x.nome} className="small">
               {x.detto}

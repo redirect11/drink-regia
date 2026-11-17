@@ -42,13 +42,13 @@ export default function IlLocale({ cliente }) {
   const stampanti = stampantiPerIlTitolare(cliente.stampanti)
   return (
     <section className="card" aria-label="Dati del locale">
-      <h3>Dati del locale</h3>
+      <h2>Dati del locale</h2>
       <p className="muted small">
         Sono i dati della registrazione, e servono anche per le fatture. Qui si possono solo leggere: per correggerli o cambiarli
         scrivici a <a href={`mailto:${EMAIL_CONTATTI}`}>{EMAIL_CONTATTI}</a> dall’indirizzo email di questo account.
       </p>
 
-      <h4>Il locale</h4>
+      <h3>Il locale</h3>
       <dl className="locale-dati">
         <Voce nome="Nome">{cliente.nome_locale}</Voce>
         <Voce nome="Tipo">{locale.tipo}</Voce>
@@ -57,7 +57,7 @@ export default function IlLocale({ cliente }) {
         <Voce nome="Sito">{locale.sito}</Voce>
       </dl>
 
-      <h4>Fatturazione</h4>
+      <h3>Fatturazione</h3>
       <dl className="locale-dati">
         <Voce nome="Ragione sociale">{f.ragione_sociale}</Voce>
         <Voce nome="Partita IVA">{f.partita_iva}</Voce>
@@ -67,7 +67,7 @@ export default function IlLocale({ cliente }) {
         <Voce nome="Sede legale">{indirizzo(f.sede_legale)}</Voce>
       </dl>
 
-      <h4>Referente</h4>
+      <h3>Referente</h3>
       <dl className="locale-dati">
         <Voce nome="Nome">{contattoDi(cliente)}</Voce>
         <Voce nome="Ruolo">{r.ruolo}</Voce>
@@ -78,7 +78,7 @@ export default function IlLocale({ cliente }) {
       {/* Le stampanti si dicono con la richiesta d'acquisto (REQ-FLOTTA-081): chi non l'ha fatta non le ha. */}
       {stampanti && (
         <>
-          <h4>Stampanti</h4>
+          <h3>Stampanti</h3>
           <p data-testid="stampanti-locale">{stampanti}</p>
         </>
       )}

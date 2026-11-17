@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, Navigate, Route, Routes, useLocation, useNavigationType } from 'react-router-dom'
 import Home from './pages/Home.jsx'
 import Registrati from './pages/Registrati.jsx'
 import Accedi from './pages/Accedi.jsx'
@@ -37,6 +37,21 @@ function PrimaPagina({ utente, lingua }) {
   const { hash } = useLocation()
   if (lingua === 'it' && leggiPreferenza() === 'en') return <Navigate to={{ pathname: '/en', hash }} replace />
   return <Home utente={utente} lingua={lingua} />
+}
+
+// «SALTA AL CONTENUTO» (REQ-FLOTTA-125, punto C; WCAG 2.4.1): chi usa la
+// tastiera non deve ripassare marchio, lingua e menù su ogni pagina. Ogni
+// pagina ha il suo <main id="contenuto" tabIndex={-1}>; il fuoco ci va da
+// qui, senza toccare l'indirizzo: un «#contenuto» nella barra
+// dell'indirizzo resterebbe nei link copiati e nella cronologia. Per lo
+// stesso motivo l'indirizzo non cambia nemmeno quando il contenuto non c'è
+// ancora (la pagina che aspetta l'accesso): il tasto non fa niente.
+function saltaAlContenuto(evento) {
+  evento.preventDefault()
+  const contenuto = document.getElementById('contenuto') || document.querySelector('main')
+  if (!contenuto) return
+  if (!contenuto.hasAttribute('tabindex')) contenuto.setAttribute('tabindex', '-1')
+  contenuto.focus()
 }
 
 // Il selettore IT / EN, nella barra e nel piè di pagina della prima
@@ -79,6 +94,40 @@ export default function App() {
   // Il traffico (REQ-FLOTTA-042): una vista per ogni pagina aperta, contata
   // per giorno nella regia; solo col sito collegato a Firebase.
   useEffect(() => tracciaPagina(posizione.pathname, linguaDelPercorso(posizione.pathname)), [posizione.pathname])
+  // CAMBIANDO PAGINA (REQ-FLOTTA-125, prova da tastiera del 17/11/2026).
+  // In un sito a pagina unica il browser non sposta né la vista né il
+  // fuoco: dopo «Entra» o un link si restava in fondo, se il link era nel
+  // piè di pagina, e il Tab ripartiva da dove stava la pagina di prima.
+  // - La vista torna in cima, tranne col tasto indietro (POP: il browser
+  //   rimette lui lo scorrimento di prima) e con un'àncora (/#prezzi), che
+  //   porta già dove deve. Di colpo, senza lo scorrimento morbido del sito.
+  // - Il fuoco va al contenuto nuovo solo se la navigazione l'ha chiesta chi
+  //   usa la pagina (un clic, Invio su un link o un bottone, un modulo
+  //   inviato: per il browser sono tutti clic). I rinvii che arrivano da
+  //   soli (/dashboard senza accesso → /accedi, / → /en con la preferenza,
+  //   un indirizzo che non c'è → /) non lo spostano: il primo Tab deve
+  //   trovare «Salta al contenuto» (revisione del 17/11/2026).
+  // Il percorso di prima, e non un «prima volta», perché StrictMode in
+  // sviluppo fa girare gli effetti due volte.
+  const tipoDiNavigazione = useNavigationType()
+  const haAgito = useRef(false)
+  useEffect(() => {
+    const segna = () => {
+      haAgito.current = true
+    }
+    document.addEventListener('click', segna, true)
+    return () => document.removeEventListener('click', segna, true)
+  }, [])
+  const percorsoDiPrima = useRef(posizione.pathname)
+  useEffect(() => {
+    if (percorsoDiPrima.current === posizione.pathname) return undefined
+    percorsoDiPrima.current = posizione.pathname
+    if (posizione.hash) return undefined
+    if (tipoDiNavigazione !== 'POP') window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+    if (!haAgito.current) return undefined
+    const attesa = requestAnimationFrame(() => document.getElementById('contenuto')?.focus({ preventScroll: true }))
+    return () => cancelAnimationFrame(attesa)
+  }, [posizione.pathname, posizione.hash, tipoDiNavigazione])
 
   const pronto = utente !== undefined
   // La prima pagina non aspetta l'accesso (03/11/2026): è la vetrina, e
@@ -107,6 +156,10 @@ export default function App() {
     // prendono i colori della vetrina, scuro e lime; il resto del sito
     // resta col tema scuro.
     <div className={`regia${primaPagina ? ' vetrina' : ''}`}>
+      {/* Il primo elemento che la tastiera raggiunge: si vede solo col fuoco. */}
+      <a href="#contenuto" className="salta" onClick={saltaAlContenuto}>
+        {t.barra.salta}
+      </a>
       {!PRODUZIONE && (
         <div className="nastro-test" role="note">
           TEST · {VERSIONE} · non è il sito vero

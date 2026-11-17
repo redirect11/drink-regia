@@ -63,6 +63,10 @@ describe('il credito AI nella dashboard', () => {
     expect(screen.getByTestId('credito-ai')).toHaveTextContent('7,25 €')
     expect(screen.getByRole('region', { name: 'Credito AI' })).toHaveTextContent('questo mese 2,00 € su un tetto di 20,00 €')
     const tabella = await screen.findByRole('table', { name: 'Ultimi consumi AI' })
+    // Scorre in un riquadro che si raggiunge col Tab (REQ-FLOTTA-125, WCAG 2.1.1).
+    const riquadro = screen.getByRole('region', { name: 'Tabella degli ultimi consumi AI' })
+    expect(riquadro).toHaveAttribute('tabindex', '0')
+    expect(riquadro).toContainElement(tabella)
     expect(within(tabella).getByText('Lettura di una fattura')).toBeInTheDocument()
     expect(within(tabella).getByText('0,05 €')).toBeInTheDocument()
     // Una descrizione costa meno di un centesimo: lo si dice, non «0,00 €».

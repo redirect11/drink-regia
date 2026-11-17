@@ -104,7 +104,7 @@ test('prima, l’admin toglie i clienti di collaudo rimasti da un giro precedent
 test('un titolare nuovo si registra: account, documento del cliente, dashboard con la verifica dell’email e la scelta del piano', async ({ page }) => {
   await registra(page, { email: email(), nome: NOME })
   await expect(page).toHaveURL(/\/dashboard/)
-  await expect(page.getByRole('heading', { level: 2, name: NOME })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: NOME })).toBeVisible()
   await expect(page.getByRole('status')).toContainText('Conferma la tua email')
   // L'app non si attiva da qui (niente progetto nuovo): senza l'email
   // verificata e senza un piano il bottone c'è ma è spento.
@@ -131,7 +131,7 @@ test('un secondo titolare con lo stesso nome del locale si ferma sullo slug, ne 
   await expect(page.getByRole('button', { name: /Crea l’account/ })).toBeEnabled()
   await page.getByRole('button', { name: /Crea l’account/ }).click()
   await expect(page).toHaveURL(/\/dashboard/)
-  await expect(page.getByRole('heading', { level: 2, name: NOME })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: NOME })).toBeVisible()
 })
 
 test('l’admin vede i due clienti nel backoffice e li elimina: account e documenti spariscono', async ({ page }) => {

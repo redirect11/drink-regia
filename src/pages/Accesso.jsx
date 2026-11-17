@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { entraColPassaggio } from '../lib/db.js'
+import Titolo from '../components/Titolo.jsx'
+import { titoloPagina } from '../lib/titoli.js'
 
 // IL PASSAGGIO DALL'APP DEL LOCALE (REQ-FLOTTA-030): «Area clienti»
 // nell'app porta qui con un codice monouso dopo il `#`. Il codice si toglie
@@ -25,9 +27,10 @@ export default function Accesso() {
   }, [vai])
 
   return (
-    <main className="pagina stretta">
+    <main id="contenuto" tabIndex={-1} className="pagina stretta">
       <section className="card" aria-label="Accesso dall’app">
-        <h2>Accesso dall’app del locale</h2>
+        <h1 className="titolo-pagina">Accesso dall’app del locale</h1>
+        <Titolo testo={titoloPagina('/accesso')} />
         {errore ? (
           <>
             <p className="errore">{errore}</p>

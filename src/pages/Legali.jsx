@@ -1,4 +1,6 @@
 import { NOME_PRODOTTO } from '../lib/prodotto.js'
+import Titolo from '../components/Titolo.jsx'
+import { titoloPagina } from '../lib/titoli.js'
 import { PIANI, IVA, FONDATORI, ANNUALE, PROVA_GIORNI, ASSISTENZA, STAMPANTE, euro } from '../lib/piani.js'
 
 // LE PAGINE LEGALI (REQ-FLOTTA-003). Sono la STRUTTURA dei termini e
@@ -25,8 +27,9 @@ const TITOLARE = {
 
 export function Termini() {
   return (
-    <main className="pagina legale">
+    <main id="contenuto" tabIndex={-1} className="pagina legale">
       <h1>Termini di servizio</h1>
+      <Titolo testo={titoloPagina('/termini')} />
       <p className="muted small">Ultimo aggiornamento: 2 novembre 2026</p>
       <h2>1. Il servizio</h2>
       <p>
@@ -162,8 +165,9 @@ export function Termini() {
 
 export function Privacy() {
   return (
-    <main className="pagina legale">
+    <main id="contenuto" tabIndex={-1} className="pagina legale">
       <h1>Informativa sulla privacy</h1>
+      <Titolo testo={titoloPagina('/privacy')} />
       <p className="muted small">Ai sensi degli articoli 13 e 14 del Regolamento (UE) 2016/679. Ultimo aggiornamento: 2 novembre 2026</p>
       <h2>Titolare del trattamento</h2>
       <p>

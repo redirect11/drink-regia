@@ -55,7 +55,7 @@ export default function CreditoAI({ slug, istanzaAttiva, vai = (url) => window.l
 
   return (
     <section className="card" aria-label="Credito AI">
-      <h3>Credito AI</h3>
+      <h2>Credito AI</h2>
       <p className="muted small">
         Le funzioni AI dell’app (descrizione dei prodotti, lettura delle fatture) e il tema dal tuo mockup consumano un credito in euro.
         Quando il credito finisce si fermano solo quelle: il resto dell’app lavora come sempre.
@@ -103,27 +103,33 @@ export default function CreditoAI({ slug, istanzaAttiva, vai = (url) => window.l
             .join(' · ')}
         </p>
       )}
+      {/* La tabella scorre da sola se non ci sta (REQ-FLOTTA-125): a 320 px,
+          lo zoom al 400%, faceva scorrere di lato tutta la pagina. Il
+          riquadro si raggiunge col Tab e ha un nome, per scorrerlo da
+          tastiera anche in Safari (WCAG 2.1.1). */}
       {consumi.length > 0 && (
-        <table className="clienti" aria-label="Ultimi consumi AI">
-          <thead>
-            <tr>
-              <th>Quando</th>
-              <th>Cosa</th>
-              <th>Esito</th>
-              <th>Costo</th>
-            </tr>
-          </thead>
-          <tbody>
-            {consumi.map((c, i) => (
-              <tr key={`${c.il}-${i}`}>
-                <td>{new Date(c.il).toLocaleString('it-IT')}</td>
-                <td>{tipoDetto(c.tipo)}</td>
-                <td>{esitoDetto(c.esito)}</td>
-                <td>{euroCent(daMicro(c.costo_microeuro))}</td>
+        <div className="tabella-larga" role="region" aria-label="Tabella degli ultimi consumi AI" tabIndex={0}>
+          <table className="clienti" aria-label="Ultimi consumi AI">
+            <thead>
+              <tr>
+                <th>Quando</th>
+                <th>Cosa</th>
+                <th>Esito</th>
+                <th>Costo</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {consumi.map((c, i) => (
+                <tr key={`${c.il}-${i}`}>
+                  <td>{new Date(c.il).toLocaleString('it-IT')}</td>
+                  <td>{tipoDetto(c.tipo)}</td>
+                  <td>{esitoDetto(c.esito)}</td>
+                  <td>{euroCent(daMicro(c.costo_microeuro))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   )

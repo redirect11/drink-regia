@@ -434,7 +434,7 @@ export default function Home({ utente, lingua = 'it' }) {
     )
 
   return (
-    <main className="landing" ref={radice}>
+    <main id="contenuto" tabIndex={-1} className="landing" ref={radice}>
       {proposta && <AvvisoLingua lingua={lingua} proposta={proposta} chiudi={() => setProposta(null)} />}
 
       {/* LA PRIMA SCHERMATA È UN CAROSELLO. Sotto, i cinque filmati in fila,

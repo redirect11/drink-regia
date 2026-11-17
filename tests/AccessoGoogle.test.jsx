@@ -87,6 +87,8 @@ describe('la dashboard di chi non ha il locale', () => {
   it('chiede i dati del locale, senza il passo dell’account', () => {
     mostra(<Dashboard utente={utente} />, '/dashboard-g')
     expect(screen.getByRole('heading', { name: 'Completa la registrazione' })).toBeInTheDocument()
+    // Il titolo dice questa pagina, non la panoramica (REQ-FLOTTA-125, revisione del 17/11/2026).
+    expect(document.title).toBe('Completa la registrazione · Lime – SmartOrders')
     expect(screen.getByLabelText('Nome del locale')).toBeInTheDocument()
     expect(screen.queryByLabelText(/^Password/)).toBeNull()
   })
@@ -95,5 +97,7 @@ describe('la dashboard di chi non ha il locale', () => {
     mostra(<Dashboard utente={{ ...utente, admin: true }} />, '/dashboard-g')
     expect(screen.getByText('Nessun locale registrato per questo account.')).toBeInTheDocument()
     expect(screen.queryByLabelText('Nome del locale')).toBeNull()
+    // Anche questa pagina ha il suo h1 (REQ-FLOTTA-125), per i lettori di schermo.
+    expect(screen.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument()
   })
 })

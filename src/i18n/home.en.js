@@ -29,6 +29,7 @@ export default {
     backoffice: 'Back office',
     esci: 'Log out',
     lingua: 'Language',
+    salta: 'Skip to content',
   },
   piede: {
     // The brand subtitle (user decision of 09/11/2026).

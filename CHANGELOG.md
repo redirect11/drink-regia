@@ -6,6 +6,26 @@ data.
 
 ## 0.5.1 (in lavorazione)
 
+- Accessibilità, la parte della conformità (REQ-FLOTTA-125, #312). Ogni
+  pagina e ogni sezione di dashboard e backoffice ha il suo titolo nella
+  scheda del browser («Accedi · Lime – SmartOrders», «Richieste ·
+  Backoffice · …»), e la registrazione da completare e l'anteprima del
+  sito chiuso il loro. Accesso, registrazione, dashboard e backoffice
+  hanno il titolo di primo livello e le sezioni di secondo, nell'ordine e
+  con lo stesso aspetto di prima. Il primo tasto di ogni pagina è «Salta
+  al contenuto» (in inglese su /en), che si vede solo col fuoco. Cambiando
+  pagina la vista torna in cima e, dopo un clic, un Invio o un modulo, il
+  fuoco va al contenuto nuovo; i rinvii automatici al primo caricamento
+  non lo spostano. Le richieste di contatto gestite si leggono in grigio
+  invece che trasparenti, che stavano sotto il contrasto minimo. A 320 px
+  (lo zoom al 400%) il piè di pagina, i passi della registrazione, le
+  tabelle del commerciale e del credito AI e i contatori del sotto-menù
+  del backoffice non fanno più scorrere la pagina di lato, e ogni tabella che scorre nel suo riquadro si raggiunge
+  col Tab. La prova axe-core (WCAG 2.0, 2.1 e 2.2, livelli A e AA, più
+  l'ordine dei titoli) gira con le prove Playwright in sola lettura sulle
+  pagine pubbliche, su ogni sezione della dashboard e del backoffice e a
+  320 px: **da ora una violazione sul sito di test ferma il collaudo, e
+  quindi il rilascio**. La dichiarazione di accessibilità viene dopo.
 - I locali col profilo completo ricevono il ruolo che serve alle regole di
   Storage per leggere la licenza (roles/firebaserules.firestoreServiceAgent
   sul service agent dello Storage): i nuovi dal Terraform, quelli della

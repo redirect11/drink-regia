@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { vistaCollaboratore, apriLaTuaApp } from '../lib/db.js'
 import { PIANI } from '../lib/piani.js'
 import { hrefSicuro } from '../lib/istanze.js'
+import Titolo from '../components/Titolo.jsx'
+import { conProdotto } from '../lib/titoli.js'
 
 // LA VISTA DEL COLLABORATORE (REQ-FLOTTA-098): il locale con cui collabora,
 // il piano, lo stato dell'app e «Apri l'app» col suo account. Niente
@@ -26,14 +28,29 @@ export default function DashboardCollaboratore() {
 
   if (errore)
     return (
-      <main className="pagina stretta">
+      <main id="contenuto" tabIndex={-1} className="pagina stretta">
+        {/* L'h1 anche qui (REQ-FLOTTA-125), solo per i lettori di schermo. */}
+        <h1 className="solo-lettori">Dashboard</h1>
+        <Titolo testo={conProdotto('Dashboard')} />
         <p role="alert" className="errore">
           {errore}
         </p>
       </main>
     )
-  if (vista === undefined) return <main className="pagina stretta muted">Carico…</main>
-  if (!vista.membro) return <main className="pagina stretta">Non collabori più con nessun locale: se è un errore, chiedi al titolare.</main>
+  if (vista === undefined) return (
+      <main id="contenuto" tabIndex={-1} className="pagina stretta muted">
+        <Titolo testo={conProdotto('Dashboard')} />
+        Carico…
+      </main>
+    )
+  if (!vista.membro)
+    return (
+      <main id="contenuto" tabIndex={-1} className="pagina stretta">
+        <h1 className="solo-lettori">Dashboard</h1>
+        <Titolo testo={conProdotto('Dashboard')} />
+        Non collabori più con nessun locale: se è un errore, chiedi al titolare.
+      </main>
+    )
 
   const piano = vista.piano ? PIANI[vista.piano] : null
   const url = hrefSicuro(vista.app?.url)
@@ -49,22 +66,23 @@ export default function DashboardCollaboratore() {
   }
 
   return (
-    <main className="pagina dashboard">
+    <main id="contenuto" tabIndex={-1} className="pagina dashboard">
       <header className="dashboard-testa">
-        <h2>{vista.nome_locale}</h2>
+        <h1 className="titolo-pagina">{vista.nome_locale}</h1>
+        <Titolo testo={conProdotto('Dashboard')} />
         <p className="muted small">
           Collabori con questo locale. Abbonamento, pagamenti e dati del locale li gestisce il titolare.
         </p>
       </header>
       <section className="card" aria-label="Piano">
-        <h3>Piano</h3>
+        <h2>Piano</h2>
         <p>
           {piano?.nome || vista.piano || '—'}
           {vista.terminali ? <span className="muted small"> · {vista.terminali} terminali</span> : null}
         </p>
       </section>
       <section className="card" aria-label="L’app">
-        <h3>L’app</h3>
+        <h2>L’app</h2>
         {url ? (
           <>
             <p>
