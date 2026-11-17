@@ -132,3 +132,98 @@ describe('il documento delle interfacce fra la regia e l’app', () => {
     expect(leggi('.claude/agents/revisore.md')).toContain(DOC)
   })
 })
+
+// IL PACCHETTO PER VERSIONE (REQ-FLOTTA-137, interfaccia 16). La regia
+// controlla un pacchetto prima di toccare un locale: un formato che non
+// conosce, un file che manca o un'impronta che non torna fermano tutto.
+describe('il pacchetto per versione (REQ-FLOTTA-137)', async () => {
+  const { problemiDelManifesto, problemiDeiFile, versioneAmmessa, nomeArchivio, FILE_NECESSARI } = await import('../scripts/lib-pacchetto.js')
+  const H = (c) => c.repeat(64)
+  const manifesto = (extra = {}) => ({
+    formato: 1,
+    tipo: 'locali',
+    versione: '1.11.0',
+    commit: 'a'.repeat(40),
+    creato_il: '2026-11-17T22:00:00Z',
+    profili: ['completo', 'leggero'],
+    file: Object.fromEntries(FILE_NECESSARI.locali.map((f) => [f, H('b')])),
+    ...extra,
+  })
+
+  it('il contratto ha l’interfaccia 16, con chi carica, dove, cosa c’è dentro e come si personalizza', () => {
+    const doc = leggi(DOC)
+    const sedici = doc.slice(doc.indexOf('### 16. Il pacchetto per versione'), doc.indexOf('## La sicurezza delle interfacce'))
+    expect(sedici).toContain('REQ-FLOTTA-137')
+    expect(sedici).toContain('`drink-regia-test-rilasci`')
+    expect(sedici).toContain('`drink-regia-rilasci`')
+    expect(sedici).toContain('`1259880473`')
+    expect(sedici).toContain('**solo creare**')
+    expect(sedici).toContain('`pacchetto.json`')
+    expect(sedici).toContain('personalizza.mjs')
+    expect(sedici).toContain('Finché il\npacchetto non c\'è, vale l\'interfaccia 12.')
+  })
+
+  it('un manifesto completo passa', () => {
+    expect(problemiDelManifesto(manifesto(), { versioneAttesa: '1.11.0', tipoAtteso: 'locali' })).toEqual([])
+    expect(problemiDelManifesto(manifesto({ versione: '1.11.0-beta.3' }))).toEqual([])
+  })
+
+  it('formato sconosciuto, tipo, versione, commit, data e profili sbagliati si dicono tutti', () => {
+    const p = problemiDelManifesto(manifesto({ formato: 2, tipo: 'altro', versione: 'v1.11', commit: 'abc', creato_il: 'ieri', profili: ['grande'] }))
+    expect(p.join('\n')).toMatch(/formato 2 non conosciuto/)
+    expect(p.join('\n')).toMatch(/tipo "altro" non valido/)
+    expect(p.join('\n')).toMatch(/versione "v1.11" non valida/)
+    expect(p.join('\n')).toMatch(/commit mancante/)
+    expect(p.join('\n')).toMatch(/creato_il non è una data/)
+    expect(p.join('\n')).toMatch(/profili non validi/)
+    expect(problemiDelManifesto(null)).toEqual(['pacchetto.json non è un oggetto'])
+  })
+
+  it('una versione o un tipo diversi da quelli chiesti si rifiutano', () => {
+    expect(problemiDelManifesto(manifesto(), { versioneAttesa: '1.12.0' })).toEqual(['versione 1.11.0, attesa 1.12.0'])
+    expect(problemiDelManifesto(manifesto(), { tipoAtteso: 'demo' })).toEqual(['tipo «locali», atteso «demo»'])
+  })
+
+  it('mancano i file che il deploy usa: il pacchetto dei locali senza personalizza.mjs si rifiuta, la demo no', () => {
+    const senza = manifesto()
+    delete senza.file['personalizza.mjs']
+    expect(problemiDelManifesto(senza)).toEqual(['manca personalizza.mjs'])
+    const demo = manifesto({ tipo: 'demo', file: Object.fromEntries(FILE_NECESSARI.demo.map((f) => [f, H('c')])) })
+    expect(problemiDelManifesto(demo)).toEqual([])
+    expect(problemiDelManifesto(manifesto({ file: undefined }))).toContain('manca l’elenco dei file con le impronte')
+  })
+
+  it('un percorso che esce dal pacchetto o un’impronta malformata si rifiutano', () => {
+    const m = manifesto()
+    m.file['../fuori'] = H('d')
+    m.file['/assoluto'] = H('d')
+    m.file['C:/windows'] = H('d')
+    m.file['dist/a.js'] = 'xyz'
+    const p = problemiDelManifesto(m)
+    expect(p).toContain('percorso non ammesso: ../fuori')
+    expect(p).toContain('percorso non ammesso: /assoluto')
+    expect(p).toContain('percorso non ammesso: C:/windows')
+    expect(p).toContain('impronta non valida per dist/a.js')
+  })
+
+  it('i file su disco: impronta diversa, file mancante o file non dichiarato fermano tutto', () => {
+    const m = manifesto({ file: { 'dist/index.html': H('1'), 'firebase.json': H('2') } })
+    const ok = { 'dist/index.html': H('1'), 'firebase.json': H('2') }
+    expect(problemiDeiFile(m, (f) => ok[f] ?? null, ['dist/index.html', 'firebase.json', 'pacchetto.json'])).toEqual([])
+    expect(problemiDeiFile(m, (f) => ({ ...ok, 'firebase.json': H('9') })[f] ?? null, [])).toEqual(['impronta diversa per firebase.json'])
+    expect(problemiDeiFile(m, (f) => ({ 'dist/index.html': H('1') })[f] ?? null, [])).toEqual(['manca firebase.json'])
+    expect(problemiDeiFile(m, (f) => ok[f] ?? null, ['dist/index.html', 'firebase.json', 'dist/intruso.js'])).toEqual(['file non dichiarato: dist/intruso.js'])
+  })
+
+  it('la produzione riceve solo rilasci; il test anche le beta', () => {
+    expect(versioneAmmessa('1.11.0', 'produzione')).toBe(true)
+    expect(versioneAmmessa('1.11.0-beta.2', 'produzione')).toBe(false)
+    expect(versioneAmmessa('1.11.0-beta.2', 'test')).toBe(true)
+    expect(versioneAmmessa('main', 'test')).toBe(false)
+  })
+
+  it('il nome dell’archivio nel bucket è uno solo, per chi carica e per chi legge', () => {
+    expect(nomeArchivio('locali', '1.11.0')).toBe('pacchetti/v1.11.0/pacchetto-locali-v1.11.0.tgz')
+    expect(nomeArchivio('demo', '1.11.0-beta.1')).toBe('pacchetti/v1.11.0-beta.1/pacchetto-demo-v1.11.0-beta.1.tgz')
+  })
+})

@@ -64,6 +64,22 @@ l'AI» su `tana-drink-test`, «Aggiorna» di prova-bar, il collaudo con
 ed eliminato, con l'archivio e lo stato di Terraform nel bucket nuovo. Quando le due regie sono passate, l'account di produzione
 perde i ruoli sui locali di prova e la chiave si cancella.
 
+## I pacchetti per versione (REQ-FLOTTA-137, interfaccia 16)
+
+tana-drink compila una volta a ogni tag e carica il pacchetto nel bucket
+della regia; il lavoro della flotta su Google (REQ-FLOTTA-138) lo pubblica
+nei locali senza ricompilare. Il formato e i controlli sono in
+`docs/contratto-regia-app.md` (interfaccia 16) e `scripts/lib-pacchetto.js`.
+
+| Regia | Bucket | Chi carica | Chi legge |
+|---|---|---|---|
+| test | `drink-regia-test-rilasci` (europe-west1, accesso uniforme, niente pubblico, versioni attive; creato il 17/11/2026) | `rilasci@drink-regia-test`, solo `storage.objectCreator`: crea, non sovrascrive né cancella | `provisioning@drink-regia-test` (`objectViewer`) |
+| produzione | `drink-regia-rilasci` (da creare, dopo il test) | `rilasci@drink-regia` | `provisioning@drink-regia` |
+
+`rilasci@` si raggiunge solo dal fornitore `tana-drink` del pool `github`
+della sua regia: accetta il repository tana-drink (id `1259880473`) e solo
+i tag (`refs/tags/v…`). Niente chiavi.
+
 ## Quattro job: la chiave e il codice dell'app non stanno mai insieme
 
 Dal 09/11/2026 (REQ-FLOTTA-047, audit punto 6) `provisiona-istanza.yml` e
