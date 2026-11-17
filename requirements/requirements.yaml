@@ -5244,6 +5244,46 @@ requirements:
     test_cases:
       - tests/Home.test.jsx
 
+  - id: REQ-FLOTTA-128
+    title: "Il progetto di un locale nuovo si prepara con uno script: progetto, etichetta, fatturazione e ruolo del provisioning in un colpo"
+    area: "scripts/prepara-progetto.mjs, scripts/lib-progetto.js, infra/README.md («Prerequisiti», punto 4), tests/prepara-progetto.test.js"
+    description: >
+      Daniele, 17/11/2026, dopo la prova del locale nuovo prova-storage sul
+      test: «fai lo script e per me puoi anche lanciarlo tu». Senza
+      Organizzazione Google un service account non crea progetti
+      (infra/README.md, punto 4), quindi prima di ogni attivazione una
+      persona deve: creare `drinkpos-<slug>`, metterle l'etichetta
+      `ambiente` della regia che la attiverà (senza, il workflow non la
+      tocca: «non è un locale di questa regia»), collegare l'account di
+      fatturazione giusto, dare al service account di provisioning il ruolo
+      di proprietario. Quattro passi a mano per cliente, provati uno per uno
+      il 17/11 su drinkpos-prova-storage: ognuno è un'occasione di errore e
+      un'attesa.
+      COSA. `node scripts/prepara-progetto.mjs --slug <slug> --ambiente
+      test|produzione --billing <id> [--nome «…»] [--sa <email>]
+      [--prova]`: fa i quattro passi con l'accesso di chi lo lancia (la
+      sessione di firebase-tools), in modo idempotente (un passo già fatto
+      non si rifà), e si ferma senza toccare niente se il progetto esiste
+      con un'altra etichetta `ambiente` o è di qualcun altro. `--prova`
+      dice cosa farebbe senza farlo. Lo slug segue la stessa regola dei
+      workflow. Un errore di quota della fatturazione si dice con la
+      pagina per chiedere l'aumento.
+      CRITERI. (1) Lo slug e l'ambiente si controllano come nei workflow.
+      (2) Su un progetto nuovo i quattro passi; su uno già preparato,
+      niente. (3) Un progetto con l'etichetta di un'altra regia non si
+      tocca. (4) Il ruolo si aggiunge senza togliere niente alla policy.
+      (5) infra/README.md lo dice al punto 4.
+      LANCIO: Daniele autorizza che lo lanci anche l'agente (17/11/2026),
+      in test e in produzione; crea un progetto e lo collega a un account
+      di fatturazione, cioè una spesa, quindi si lancia per un cliente che
+      lo richiede o per una prova decisa.
+    status: todo
+    generate_issue: true
+    labels: [flotta, produzione]
+    priority: P2
+    test_cases:
+      - tests/flotta.test.js
+
   - id: REQ-FLOTTA-121
     title: "Gli indirizzi pubblici non leggono Firestore prima di aver verificato il gettone"
     area: "functions/index.js (sceltaDallApp, passaggioVersoRegia, presentazione, moduloDallApp, scambiaPassaggio, traccia), functions/lib/aggiornamenti.js (progettoDelToken)"
