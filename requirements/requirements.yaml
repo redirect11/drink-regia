@@ -5517,6 +5517,52 @@ requirements:
     test_cases:
       - tests/flotta.test.js
 
+  - id: REQ-FLOTTA-134
+    title: "Ogni account della regia scarica i propri dati (GDPR, artt. 15 e 20), e la privacy dice come"
+    area: "functions/index.js (una callable nuova), functions/lib (la raccolta dei dati di una persona), src/pages (area clienti, area del collaboratore, backoffice), src/pages/Legali.jsx (privacy), tests/"
+    description: >
+      Daniele, 17/11/2026: «bisognerebbe mettere anche il download dei dati
+      dell'utente e le policy di questa cosa, c'è qualche legge europea che
+      ci obbliga credo. Sia per i clienti registrati che per l'admin lo
+      staff e tutti i ruoli, ognuno sia da regia sia da drink possono
+      scaricare i propri dati». Sulla divisione proposta (la regia per i
+      suoi account, l'app per i suoi; l'admin del locale esporta i dati di
+      una persona del locale per rispondere alle richieste): «sì va bene
+      così».
+      LA LEGGE (lettura standard, non un parere legale): GDPR art. 15
+      (copia dei dati), art. 20 (portabilità in formato strutturato e
+      leggibile da una macchina, per i dati trattati per contratto o
+      consenso), art. 12 (risposta entro un mese, gratuita). Nella regia
+      Stonebit è titolare del trattamento per i suoi account; nell'app del
+      locale il titolare è il locale e Stonebit è responsabile (art. 28):
+      quella parte la fa tana-drink, con un messaggio a parte.
+      OGGI: la privacy (src/pages/Legali.jsx) elenca i diritti, ma si
+      esercitano solo scrivendo un'email; nessun download.
+      COSA. (A) «Scarica i miei dati» per ogni account della regia:
+      titolare (area clienti), collaboratore, admin della regia. Un file
+      JSON con tutto quello che la regia tiene su quella persona: account,
+      dati del locale, fatturazione e referente, abbonamento e pagamenti
+      (i riferimenti, non i dati della carta che tiene Stripe), consensi,
+      richieste di contatto e di attivazione, temi su misura, prove dei
+      moduli, e quello che la regia sa dell'istanza (stato, versione); non
+      i dati operativi del locale, che la regia non ha. (B) Protezione: lo
+      scarica solo chi ha fatto l'accesso da poco (altrimenti si rientra),
+      e ogni download si registra e lo si dice al titolare dell'account.
+      (C) La privacy dice che i dati si scaricano dall'area clienti, che si
+      può anche scrivere, e che la risposta arriva entro un mese; il testo
+      è una bozza che approva Daniele.
+      CRITERI. (1) Ogni ruolo della regia scarica i propri dati, e solo i
+      propri. (2) Il file è JSON, completo dei campi elencati, senza
+      segreti né dati di altri. (3) Senza un accesso recente il download
+      chiede di rientrare. (4) Ogni download resta registrato. (5) La
+      privacy lo dice. (6) Test che lo provano.
+    status: todo
+    generate_issue: true
+    labels: [privacy, regia, dashboard, backoffice]
+    priority: P2
+    test_cases:
+      - tests/Legali.test.jsx
+
   - id: REQ-FLOTTA-121
     title: "Gli indirizzi pubblici non leggono Firestore prima di aver verificato il gettone"
     area: "functions/index.js (sceltaDallApp, passaggioVersoRegia, presentazione, moduloDallApp, scambiaPassaggio, traccia), functions/lib/aggiornamenti.js (progettoDelToken)"
