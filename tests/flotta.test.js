@@ -584,7 +584,9 @@ describe('infra/istanza/main.tf', () => {
   // la licenza vogliono il ruolo sul service agent dello Storage. Il deploy
   // dei workflow non lo concede da solo (non è interattivo).
   describe('il ruolo dello Storage per le regole che leggono la licenza', () => {
-    const blocco = (nome) => tf.slice(tf.indexOf(`resource "${nome}" {`)).split('\n}\n')[0]
+    // Il blocco finisce alla prima `}` da sola su una riga, con gli «a capo»
+    // di Linux o di Windows (una copia con core.autocrlf ha CRLF).
+    const blocco = (nome) => tf.slice(tf.indexOf(`resource "${nome}" {`)).split(/\r?\n\}\r?\n/)[0]
 
     it('il service agent dello Storage nasce col progetto completo, e ha firestoreServiceAgent', () => {
       const agente = blocco('google_project_service_identity" "storage')
