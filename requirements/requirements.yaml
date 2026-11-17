@@ -5259,6 +5259,48 @@ requirements:
     test_cases:
       - tests/Home.test.jsx
 
+  - id: REQ-FLOTTA-130
+    title: "Il primo deploy delle Functions di un locale nuovo riesce: il magazzino gcf-artifacts nasce dal Terraform, e le Functions rimaste a metà si cancellano prima di riprovare"
+    area: "infra/istanza/main.tf, .github/workflows/provisiona-istanza.yml (l'import, il deploy), .github/workflows/aggiorna-istanza.yml (l'import), scripts/funzioni-fallite.mjs, scripts/lib-deploy.js, tests/flotta.test.js"
+    description: >
+      La prova di un locale nuovo sul test (drinkpos-prova-storage, run
+      44078796956, 17/11/2026): al primo deploy delle Functions 18 build
+      su 21 sono fallite con «Repository "gcf-artifacts" not found» (il
+      magazzino delle immagini delle Functions lo crea Google al primo
+      deploy, mentre le build sono già partite); i due nuovi tentativi del
+      workflow sono falliti con «Changing from an HTTPS function to a
+      background triggered function is not allowed» (una Function la cui
+      prima creazione è fallita resta registrata a metà). Probabilmente
+      succede a ogni locale nuovo col profilo completo. Daniele, sulla
+      correzione proposta: «ok».
+      COSA. (A) Il Terraform crea, nel profilo completo, il repository
+      Artifact Registry `gcf-artifacts` (europe-west1, DOCKER) prima del
+      primo deploy, con la stessa regola di pulizia che firebase-tools
+      mette da solo (`firebase-functions-cleanup`: cancella le immagini
+      più vecchie di un giorno), così le due cose non si contendono il
+      repository e le immagini non si accumulano in bolletta. Se il
+      repository c'è già (un deploy andato a metà, un locale che diventa
+      completo), si importa nello stato invece di crearlo. (B) Nel deploy
+      della nascita (provisiona-istanza), prima di riprovare il workflow
+      cancella le Functions che il tentativo ha lasciato a metà, lette
+      dall'elenco «Functions deploy had errors with the following
+      functions» di firebase-tools. Solo alla nascita: in un aggiornamento
+      una Function fallita può essere una Function che lavora, e non si
+      cancella.
+      CRITERI. (1) Il piano Terraform di un locale completo contiene
+      gcf-artifacts con la regola di pulizia; il leggero no. (2) Un
+      gcf-artifacts già esistente si importa. (3) L'elenco delle Functions
+      fallite si legge dall'uscita vera di firebase-tools (test sul
+      formato di reporter.js). (4) Il deploy della nascita cancella le
+      Functions fallite prima di riprovare; quello dell'aggiornamento no.
+      (5) drinkpos-prova-storage si attiva fino in fondo.
+    status: todo
+    generate_issue: true
+    labels: [flotta, produzione]
+    priority: P1
+    test_cases:
+      - tests/flotta.test.js
+
   - id: REQ-FLOTTA-121
     title: "Gli indirizzi pubblici non leggono Firestore prima di aver verificato il gettone"
     area: "functions/index.js (sceltaDallApp, passaggioVersoRegia, presentazione, moduloDallApp, scambiaPassaggio, traccia), functions/lib/aggiornamenti.js (progettoDelToken)"
