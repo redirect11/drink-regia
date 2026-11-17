@@ -21,7 +21,7 @@ data.
   immagini più vecchie di un giorno si cancellano), e prima di riprovare il
   deploy della nascita cancella le Functions rimaste a metà (anche quella
   che ferma il deploy prima di pubblicare, una per volta, riprovando
-  subito). Sulla prova di
+  subito finché ce ne sono). Sulla prova di
   un locale nuovo il primo deploy falliva su 18 Functions su 21
   (REQ-FLOTTA-130).
 - La documentazione di sviluppo, in inglese (REQ-FLOTTA-129, #322):

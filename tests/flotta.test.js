@@ -100,9 +100,11 @@ describe.each(WORKFLOW)('%s', (_, w, corpo) => {
   // arrivano dopo qualche minuto (prova-bar): il deploy si riprova.
   it('il deploy si riprova, a 90 secondi', () => {
     const deploy = passo(w, 'Deploy regole, indici, Functions e hosting').run
-    // La nascita ha più giri, perché dopo aver cancellato una Function
-    // rimasta a metà riprova subito (REQ-FLOTTA-130); l'aggiornamento tre.
-    expect(deploy).toContain(w === provisiona ? 'for tentativo in 1 2 3 4 5 6; do' : 'for tentativo in 1 2 3; do')
+    // La nascita conta a parte le cancellazioni delle Functions rimaste a
+    // metà (REQ-FLOTTA-130, test più sotto); i tentativi dopo un errore
+    // d'altro tipo sono tre, come nell'aggiornamento.
+    if (w === provisiona) expect(deploy).toContain('if [ "$tentativo" -ge 3 ]; then exit 1; fi')
+    else expect(deploy).toContain('for tentativo in 1 2 3; do')
     expect(deploy).toContain('npx firebase-tools deploy --only "$SOLO" --project "$PROGETTO" --force')
     expect(deploy).toContain('sleep 90')
   })
@@ -1139,14 +1141,17 @@ describe('il primo deploy delle Functions di un locale nuovo', () => {
     expect(deploy).toContain('npx firebase-tools functions:delete "$nome" --region "$regione" --project "$PROGETTO" --force || true')
     expect(deploy).toContain('done <<< "$A_META"')
     // Si cancella solo dopo un tentativo fallito; dopo una cancellazione si
-    // riprova subito (il «cambio di tipo» ne scopre una per volta), senza
-    // cancellazioni si aspetta 90 secondi.
-    expect(deploy).toContain('for tentativo in 1 2 3 4 5 6; do')
-    expect(deploy.indexOf('if [ "$tentativo" = 6 ]; then exit 1; fi')).toBeLessThan(deploy.indexOf('functions:delete'))
-    const cancella = deploy.slice(deploy.indexOf('if [ -n "$A_META" ]; then'), deploy.indexOf('else\n'))
+    // riprova subito (il «cambio di tipo» ne scopre una per volta), finché
+    // ce ne sono e al più 40 volte; senza cancellazioni si aspetta 90
+    // secondi, tre tentativi al più (su drinkpos-prova-storage le Functions
+    // a metà erano più di cinque: run 44123307158).
+    expect(deploy).toContain('if [ -n "$A_META" ] && [ "$cancellate" -lt 40 ]; then')
+    expect(deploy).toContain('cancellate=$((cancellate + 1))')
+    const cancella = deploy.slice(deploy.indexOf('if [ -n "$A_META" ]'), deploy.indexOf('if [ "$tentativo" -ge 3 ]'))
     expect(cancella).toContain('functions:delete')
+    expect(cancella).toContain('continue')
     expect(cancella).not.toContain('sleep')
-    expect(deploy.slice(deploy.indexOf('else\n'))).toMatch(/riprovo fra 90 secondi\."\n\s+sleep 90\n\s+fi/)
+    expect(deploy.slice(deploy.indexOf('if [ "$tentativo" -ge 3 ]'))).toMatch(/riprovo fra 90 secondi\."\n\s+sleep 90\n\s+tentativo=\$\(\(tentativo \+ 1\)\)\n\s*done/)
     for (const s of passi(aggiorna)) expect(s.run || '').not.toContain('functions:delete')
   })
 
