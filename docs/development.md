@@ -246,7 +246,7 @@ reasons are in [architettura.md](architettura.md) §4 and
 
 | Identity | What it is | Where its credentials are |
 |---|---|---|
-| provisioning account | `provisioning@drink-regia.iam.gserviceaccount.com`, the same for both control planes | JSON key in the secret `PROVISIONING_SA_JSON` of the GitHub environments `flotta` and `flotta-test` |
+| provisioning account | one per control plane since REQ-FLOTTA-136: `provisioning@drink-regia-test` for the test environment `flotta-test`, `provisioning@drink-regia` for `flotta` | no key when the environment has `FLOTTA_WIF_PROVIDER` and `FLOTTA_SA` (Workload Identity Federation: GitHub's OIDC token exchanged for one hour of access, `scripts/credenziali-flotta.mjs`); otherwise the JSON key in the secret `PROVISIONING_SA_JSON`, until it is deleted |
 | runtime account of the control plane | the account the control plane Functions run as: `runtime-regia@<control plane>` when `RUNTIME_SERVICE_ACCOUNT` is set (`functions/index.js:98-102`), otherwise the Compute Engine default account. Same value as `REGIA_SA_EMAIL` | no key: Google's runtime |
 | dispatch token | `GITHUB_DISPATCH_TOKEN`, fine-grained, Actions read and write on this repository only | Secret Manager of each control plane |
 | callback secret | `PROVISIONING_CALLBACK_SECRET`, bearer of the workflow → control plane callback | Secret Manager and the fleet environment, same value |

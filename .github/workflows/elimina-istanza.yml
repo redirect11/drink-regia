@@ -38,7 +38,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: istanza-${{ inputs.slug }}
+  group: progetto-drinkpos-${{ inputs.slug }}
   cancel-in-progress: false
 
 env:
@@ -50,6 +50,9 @@ jobs:
   elimina:
     name: Elimina ${{ inputs.slug }} (${{ inputs.ambiente }})
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     environment: ${{ inputs.ambiente == 'test' && 'flotta-test' || 'flotta' }}
     steps:
       - name: Input validi
@@ -78,11 +81,18 @@ jobs:
           cache: npm
           cache-dependency-path: functions/package-lock.json
 
-      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-        with:
-          credentials_json: ${{ secrets.PROVISIONING_SA_JSON }}
-
       - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      - name: Credenziali di provisioning
+        env:
+          SA_JSON: ${{ secrets.PROVISIONING_SA_JSON }}
+          FLOTTA_WIF_PROVIDER: ${{ vars.FLOTTA_WIF_PROVIDER }}
+          FLOTTA_SA: ${{ vars.FLOTTA_SA }}
+        run: |
+          EMAIL=$(node scripts/credenziali-flotta.mjs "$RUNNER_TEMP/sa.json")
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
+          echo "PROVISIONING_SA_EMAIL=$EMAIL" >> "$GITHUB_ENV"
+          gcloud auth login --cred-file="$RUNNER_TEMP/sa.json" --quiet
 
       - name: Dipendenze
         run: npm ci --prefix functions
@@ -186,3 +196,7 @@ jobs:
             const attendi = (n) => new Promise((ok) => { console.log(`regia: tentativo ${n} non arrivato, riprovo`); setTimeout(() => ok(n + 1), 15000 * 2 ** (n - 1)); });
             manda(1).then((r) => { console.log("regia:", r.status); if (r.status >= 300) process.exit(1); }, (e) => { console.error("regia:", (e && e.message) || e); process.exit(1); });
           ' "$CALLBACK_URL" "$CALLBACK_SECRET" "$SLUG" "$STATO" "${PERCORSO:-}" "${BYTE_ZIP:-}" "${CONTEGGI:-}" "$ERR"
+
+      - name: Pulizia credenziali
+        if: always()
+        run: rm -f "$RUNNER_TEMP/sa.json"

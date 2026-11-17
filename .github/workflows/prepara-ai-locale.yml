@@ -28,11 +28,21 @@ on:
 permissions:
   contents: read
 
+# Due operazioni sullo stesso progetto non si sovrappongono (REQ-FLOTTA-136):
+# lo stesso gruppo di provisiona, aggiorna ed elimina, che lavorano su
+# drinkpos-<slug>.
+concurrency:
+  group: progetto-${{ inputs.progetto }}
+  cancel-in-progress: false
+
 jobs:
   prepara:
     name: L'AI di ${{ inputs.progetto }} (${{ inputs.ambiente }})
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
     environment: ${{ inputs.ambiente == 'test' && 'flotta-test' || 'flotta' }}
     env:
       PROGETTO: ${{ inputs.progetto }}
@@ -59,11 +69,13 @@ jobs:
       - name: Credenziali di provisioning
         env:
           SA_JSON: ${{ secrets.PROVISIONING_SA_JSON }}
+          FLOTTA_WIF_PROVIDER: ${{ vars.FLOTTA_WIF_PROVIDER }}
+          FLOTTA_SA: ${{ vars.FLOTTA_SA }}
         run: |
-          if [ -z "$SA_JSON" ]; then echo "::error::Manca il segreto PROVISIONING_SA_JSON (infra/README.md)."; exit 1; fi
-          echo "$SA_JSON" > "$RUNNER_TEMP/sa.json"
+          EMAIL=$(node scripts/credenziali-flotta.mjs "$RUNNER_TEMP/sa.json")
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
-          gcloud auth activate-service-account --key-file="$RUNNER_TEMP/sa.json" --quiet
+          echo "PROVISIONING_SA_EMAIL=$EMAIL" >> "$GITHUB_ENV"
+          gcloud auth login --cred-file="$RUNNER_TEMP/sa.json" --quiet
 
       # IL PROGETTO È DI QUESTA REGIA? (REQ-FLOTTA-100): lo script dà
       # permessi sul progetto, e la chiave è la stessa per le due regie. Un

@@ -6,6 +6,13 @@ data.
 
 ## 0.5.1 (in lavorazione)
 
+- I workflow della flotta possono entrare su Google senza chiave salvata:
+  GitHub dà al job un gettone firmato e Google lo scambia con un accesso di
+  un'ora all'account della sua regia. Lo accende l'environment, una regia
+  alla volta; senza, resta la chiave di prima. La regia di test ha un
+  account suo e un suo bucket per lo stato di Terraform, e «Prepara l'AI di
+  un locale esistente» non parte insieme a un'altra operazione sullo stesso
+  progetto (REQ-FLOTTA-136).
 - La cornice del carosello della prima pagina non cambia più altezza da un
   filmato all'altro: il testo del gesto tiene sempre lo spazio del più
   lungo, a ogni larghezza (REQ-FLOTTA-133).
