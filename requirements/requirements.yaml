@@ -5435,6 +5435,63 @@ requirements:
     test_cases:
       - tests/documentazione.test.js
 
+  - id: REQ-FLOTTA-135
+    title: "L'accordo di trattamento fra Stonebit e il locale (GDPR, art. 28), accettato alla registrazione con una casella sua e la data salvata"
+    area: "src/pages/Legali.jsx (la pagina dell'accordo), src/pages/Registrati.jsx, src/pages/EntraConGoogle.jsx, src/pages/Dashboard.jsx, src/pages/Backoffice.jsx, functions/lib/registrazione.js, functions/lib/esistente.js, src/lib/clienti.js, firestore.rules, tests/"
+    description: >
+      Daniele, 17/11/2026, su questa proposta: «L'accordo di trattamento:
+      una bozza da far vedere al Legal e da approvare tu, da accettare alla
+      registrazione, con una casella separata e la data di accettazione
+      salvata, come per i termini» — «ok».
+      PERCHÉ. Nell'app del locale il titolare del trattamento è il locale,
+      anche per i dati dei suoi clienti e del suo personale; Stonebit, che
+      ospita e fa funzionare l'app, è responsabile del trattamento. Il GDPR
+      (art. 28, par. 3) vuole un contratto scritto fra i due, e la forma
+      elettronica vale (par. 9). Oggi la regia raccoglie termini, privacy e
+      novità (REQ-FLOTTA-003, consensi con l'istante), ma nessun accordo di
+      trattamento. Lettura standard, non un parere legale.
+      COSA. (A) Una pagina «Accordo di trattamento dei dati», accanto a
+      termini e privacy, col testo in bozza: oggetto, durata (quella del
+      contratto), natura e finalità, tipi di dati e categorie di persone
+      (clienti registrati del locale, personale, admin), gli obblighi del
+      par. 3 (istruzioni del locale, riservatezza, sicurezza dell'art. 32,
+      sub-responsabili con l'elenco — Google per Firebase, il fornitore
+      dell'AI, gli altri [da verificare con tana-drink] —, assistenza sui
+      diritti delle persone e sulle violazioni, restituzione e
+      cancellazione alla fine: l'archivio di 180 giorni della chiusura,
+      verifiche). L'elenco dei dati viene dall'elenco unico della
+      REQ-FLOTTA-134 e da quello che manda tana-drink. Il testo è una bozza
+      da far vedere al Legal e che approva Daniele: finché non l'ha
+      approvato, la pagina lo dice. (B) Alla registrazione una casella sua,
+      obbligatoria e non spuntata, separata da termini e privacy, col
+      collegamento alla pagina; si salva l'istante dell'accettazione e la
+      versione del testo (consensi.trattamento_il,
+      consensi.trattamento_versione). (C) Chi entra con Google, chi è
+      creato dall'admin e chi è già cliente l'accetta dalla dashboard:
+      senza accettazione non si attiva un'istanza (puoAttivare, e le regole
+      Firestore lo ripetono sulla richiesta). Cosa succede a chi ha già un
+      locale attivo e non accetta lo decide Daniele: la proposta è un
+      avviso fisso nella dashboard, senza fermare il servizio. (D) Quando
+      il testo cambia versione, la dashboard chiede di accettare la nuova.
+      (E) Il backoffice mostra, nella scheda del cliente, data e versione
+      dell'accettazione.
+      CRITERI. (1) La pagina c'è, raggiungibile da registrazione, piè di
+      pagina e dashboard, e dice se è ancora in bozza. (2) Senza la casella
+      la registrazione non parte, e la casella non è spuntata all'inizio.
+      (3) Istante e versione si salvano, e le regole non li lasciano
+      inventare. (4) Senza accettazione non si attiva un'istanza. (5) Una
+      versione nuova si chiede di nuovo. (6) Il backoffice li mostra. (7)
+      Test che lo provano.
+      INTERFACCE CON L'APP: nessuna.
+    status: todo
+    generate_issue: true
+    labels: [privacy, regia, registrazione, dashboard, backoffice]
+    priority: P2
+    test_cases:
+      - tests/Registrati.test.jsx
+      - tests/registrazione.test.js
+      - tests/regole/clienti.test.js
+
   - id: REQ-FLOTTA-133
     title: "La cornice del carosello della prima pagina ha un'altezza fissa: non cambia da un filmato all'altro"
     area: "src/pages/Home.jsx (il testo del gesto), src/index.css (.gesto-testo), tests/Home.test.jsx, e2e/home.spec.js"
