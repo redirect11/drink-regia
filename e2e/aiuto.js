@@ -3,6 +3,7 @@
 // caso nuovo si aggiunge in un posto solo.
 import { expect } from '@playwright/test'
 import { createRequire } from 'node:module'
+import { readFileSync } from 'node:fs'
 import { ADMIN, emailDi, persona } from '../scripts/lib-semina.mjs'
 
 // Il listino, letto come fanno gli script: src/lib/piani.js importa il JSON
@@ -25,6 +26,21 @@ export function prezzoMensile({ piano = 'base', moduli = [], terminali = 1 } = {
   const extra = MODULI.filter((m) => moduli.includes(m.id) && !inclusi.has(m.id))
   const terminaliExtra = Math.max(0, (Number(terminali) || 1) - (p.terminali || 1))
   return alCentesimo(p.prezzo + extra.reduce((s, m) => s + m.prezzo, 0) + terminaliExtra * LISTINO.terminale_in_piu)
+}
+
+// IL TITOLO DELLA PRIMA PAGINA, dai testi della pagina (src/i18n/home.<lingua>.js),
+// tagliato in due tempi come lo taglia Home.jsx (dueTempi). Le prove lo
+// leggono da lì invece di ripeterlo: col cambio di slogan del 17/11/2026
+// (REQ-FLOTTA-131) le prove che lo avevano scritto a mano si sono fermate
+// sul test (v0.5.1-beta.7). Il file si legge come testo, perché importa il
+// JSON del listino alla maniera di Vite.
+export function titoloDellaHome(lingua = 'it') {
+  const testo = readFileSync(new URL(`../src/i18n/home.${lingua}.js`, import.meta.url), 'utf8')
+  const hero = testo.slice(testo.indexOf('hero: {'))
+  const titolo = hero.match(/\n\s*titolo: '([^']+)'/)?.[1]
+  if (!titolo) throw new Error(`Il titolo della prima pagina non si trova in src/i18n/home.${lingua}.js`)
+  const taglio = titolo.search(/[.?]\s/)
+  return taglio < 0 ? { intero: titolo, prima: titolo, seconda: '' } : { intero: titolo, prima: titolo.slice(0, taglio + 1), seconda: titolo.slice(taglio + 2) }
 }
 
 export const PASSWORD = process.env.E2E_PASSWORD

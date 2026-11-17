@@ -3,7 +3,7 @@
 // chi non è admin non entra nel backoffice. La registrazione si prova solo
 // fino ai controlli: creare account veri a ogni giro sporcherebbe il test.
 import { test, expect } from '@playwright/test'
-import { entra, emailDiCaso, nomeDiCaso, menu, PASSWORD } from './aiuto.js'
+import { entra, emailDiCaso, nomeDiCaso, menu, PASSWORD, titoloDellaHome } from './aiuto.js'
 
 test.describe('l’accesso', () => {
   test('una password sbagliata non entra e lo dice', async ({ page }) => {
@@ -33,7 +33,7 @@ test.describe('l’accesso', () => {
     await entra(page, 'completo-stripe')
     await page.goto('/backoffice/locali')
     await expect(page).toHaveURL(/\/$/)
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('Il gestionale del tuo locale.')
+    await expect(page.getByRole('heading', { level: 1 })).toContainText(titoloDellaHome('it').prima)
   })
 })
 

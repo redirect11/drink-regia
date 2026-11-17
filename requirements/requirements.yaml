@@ -5301,8 +5301,12 @@ requirements:
       an HTTPS function…», che firebase-tools dice PRIMA di pubblicare, una
       Function alla volta (planner.js), e non nell'elenco delle fallite:
       ora lo script riconosce anche quella riga, e dopo una cancellazione
-      il deploy riprova subito (sei giri al più). Il criterio (5) si fa
-      dopo il merge.
+      il deploy riprova subito. Il giro dopo (run 44123307158) ne ha
+      cancellate cinque e al sesto ne è uscita un'altra: le Functions a
+      metà possono essere tante quante quelle coi trigger. Ora le
+      cancellazioni hanno un contatore loro (al più 40) e i tentativi dopo
+      un errore d'altro tipo restano tre, con 90 secondi d'attesa. Il
+      criterio (5) si fa dopo il merge.
     status: partial
     generate_issue: true
     labels: [flotta, produzione]
@@ -5358,6 +5362,10 @@ requirements:
       testo; la chiusura in due tempi come il titolo. La regola delle righe
       del carosello passa da «una frase sotto gli 80 caratteri» a «al
       massimo due, sotto i 110»: le righe scelte da Daniele ne hanno due.
+      LE PROVE SUL SITO DI TEST: e2e/home.spec.js e e2e/accesso.spec.js
+      avevano il titolo vecchio scritto a mano e hanno fermato il collaudo
+      di v0.5.1-beta.7; ora lo leggono dai testi della pagina
+      (e2e/aiuto.js, titoloDellaHome), così un altro slogan non le rompe.
     status: implemented
     generate_issue: true
     labels: [prodotto, regia]

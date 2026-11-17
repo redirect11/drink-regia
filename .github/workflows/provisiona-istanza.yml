@@ -545,27 +545,35 @@ jobs:
         # 17/11/2026). Prima di riprovare si cancellano quelle che il
         # tentativo elenca come fallite, o quella che ferma il deploy prima
         # di pubblicare (una alla volta: dopo una cancellazione si riprova
-        # subito, senza aspettare): qui il locale è appena nato, non c'è
+        # subito, senza aspettare, finché ce ne sono): qui il locale è appena nato, non c'è
         # niente che lavori. In aggiorna-istanza no.
         run: |
           set -o pipefail
           # Il profilo leggero (il Free, REQ-FLOTTA-015) pubblica solo regole e
           # sito: niente Functions né Storage, che sono quello che costa.
           if [ "$PROFILO" = "leggero" ]; then SOLO=firestore,hosting; else SOLO=firestore,storage,functions,hosting; fi
-          for tentativo in 1 2 3 4 5 6; do
+          # Due contatori: le cancellazioni (una Function a metà per giro, al
+          # più 40: su drinkpos-prova-storage erano più di cinque, run
+          # 44123307158) e i tentativi dopo un errore d'altro tipo (tre, con
+          # 90 secondi d'attesa).
+          tentativo=1
+          cancellate=0
+          while :; do
             if npx firebase-tools deploy --only "$SOLO" --project "$PROGETTO" --force 2>&1 | tee "$RUNNER_TEMP/deploy.log"; then exit 0; fi
-            if [ "$tentativo" = 6 ]; then exit 1; fi
             A_META=$(node ../scripts/funzioni-fallite.mjs "$RUNNER_TEMP/deploy.log")
-            if [ -n "$A_META" ]; then
+            if [ -n "$A_META" ] && [ "$cancellate" -lt 40 ]; then
               while read -r nome regione; do
                 echo "La Function $nome ($regione) è rimasta a metà: la cancello prima di riprovare."
                 npx firebase-tools functions:delete "$nome" --region "$regione" --project "$PROGETTO" --force || true
+                cancellate=$((cancellate + 1))
               done <<< "$A_META"
-              echo "::warning::Deploy non riuscito al tentativo $tentativo: cancellate le Functions a metà, riprovo subito."
-            else
-              echo "::warning::Deploy non riuscito al tentativo $tentativo: riprovo fra 90 secondi."
-              sleep 90
+              echo "::warning::Deploy non riuscito: cancellate le Functions a metà ($cancellate finora), riprovo subito."
+              continue
             fi
+            if [ "$tentativo" -ge 3 ]; then exit 1; fi
+            echo "::warning::Deploy non riuscito al tentativo $tentativo: riprovo fra 90 secondi."
+            sleep 90
+            tentativo=$((tentativo + 1))
           done
 
       # IL TITOLARE, ADMIN DEL SUO LOCALE (REQ-FLOTTA-029, l'utente il
