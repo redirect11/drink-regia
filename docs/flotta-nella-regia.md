@@ -87,19 +87,17 @@ tana-drink non riceve più lanci e non manda più esiti. Restano:
 - **la Tana**, che si pubblica dal suo repository e riferisce la sua
   versione alla regia (handover §7, «Rilasci a ondate»);
 - **il ruolo dello Storage per le regole che leggono la licenza**
-  (REQ-FLOTTA-124, 17/11/2026). I locali della flotta lo ricevono dal
-  Terraform (`google_project_iam_member.agente_storage`): quelli nuovi alla
-  nascita, quelli completi già attivi al primo `aggiorna-istanza`, che
-  applica il service agent dello Storage e il ruolo (`-target`). Il
-  `-target` porta con sé le loro dipendenze, il progetto e le API: il
-  workflow fa prima un piano e, se cambierebbe qualcos'altro, si ferma con
-  l'elenco e non applica niente. Quel locale va guardato a mano (un
-  progetto toccato fuori dal Terraform, per esempio la fatturazione), e
-  finché non è sistemato non si aggiorna: è voluto, perché senza il ruolo
-  le regole nuove negherebbero ogni caricamento. Il ruolo può diventare
-  effettivo qualche minuto dopo l'apply. La Tana e i locali esistenti non
-  hanno stato Terraform: lo aggiunge Daniele, una volta per progetto, prima
-  che arrivi la versione di tana-drink con le regole nuove:
+  (REQ-FLOTTA-124, 17/11/2026). Lo dà `scripts/storage-istanza.mjs`
+  (passo «Lo Storage del locale» di provisiona e aggiorna), subito dopo il
+  bucket e prima del deploy delle regole: i locali nuovi alla nascita,
+  quelli già attivi al loro prossimo aggiornamento; se c'è già non lo
+  riscrive. Non sta nel Terraform: il service agent dello Storage nasce col
+  bucket, e su un locale nuovo (drinkpos-prova-storage) il ruolo dato dal
+  Terraform falliva con «Service account … does not exist»; lo script
+  riprova per due minuti se il service agent non c'è ancora. Il ruolo può
+  diventare effettivo qualche minuto dopo. La Tana l'ha già; per un locale
+  esistente fuori dalla flotta lo si aggiunge a mano, una volta per
+  progetto, prima che arrivi la versione di tana-drink con le regole nuove:
 
   ```
   gcloud projects add-iam-policy-binding <progetto> \

@@ -16,7 +16,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, existsSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { spawnSync, execFileSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { load } from 'js-yaml'
 import { conIRuoli } from '../scripts/lib-iam.js'
@@ -572,8 +572,7 @@ describe('infra/istanza/main.tf', () => {
     expect(tf).toContain('for_each   = local.completo ? toset(["eventarc.googleapis.com", "pubsub.googleapis.com"]) : toset([])')
     expect(tf).toContain('role     = "roles/eventarc.serviceAgent"')
     expect(tf).toContain('role     = "roles/iam.serviceAccountTokenCreator"')
-    // I due ruoli degli agenti delle Functions (quelli dello Storage,
-    // REQ-FLOTTA-124, hanno l'allineamento del loro blocco: test sotto).
+    // I due ruoli degli agenti delle Functions.
     expect(tf.match(/count {4}= local\.completo \? 1 : 0/g)).toHaveLength(2)
     // prova-bar ha i due permessi nello stato senza indice: si spostano.
     expect(tf).toContain('to   = google_project_iam_member.agente_eventarc[0]')
@@ -582,118 +581,72 @@ describe('infra/istanza/main.tf', () => {
 
   // REQ-FLOTTA-124 (tana-drink REQ-SIC-006): le regole di Storage che leggono
   // la licenza vogliono il ruolo sul service agent dello Storage. Il deploy
-  // dei workflow non lo concede da solo (non è interattivo).
+  // dei workflow non lo concede da solo (non è interattivo). Lo dà
+  // storage-istanza.mjs dopo il bucket: il service agent nasce col bucket, e
+  // dal Terraform falliva su un locale nuovo (drinkpos-prova-storage,
+  // 17/11/2026, «Service account … does not exist»).
   describe('il ruolo dello Storage per le regole che leggono la licenza', () => {
-    // Il blocco finisce alla prima `}` da sola su una riga, con gli «a capo»
-    // di Linux o di Windows (una copia con core.autocrlf ha CRLF).
-    const blocco = (nome) => tf.slice(tf.indexOf(`resource "${nome}" {`)).split(/\r?\n\}\r?\n/)[0]
-
-    it('il service agent dello Storage nasce col progetto completo, e ha firestoreServiceAgent', () => {
-      const agente = blocco('google_project_service_identity" "storage')
-      expect(agente).toContain('count      = local.completo ? 1 : 0')
-      expect(agente).toContain('service    = "firebasestorage.googleapis.com"')
-      expect(agente).toContain('depends_on = [google_project_service.api]')
-      const ruolo = blocco('google_project_iam_member" "agente_storage')
-      expect(ruolo).toContain('count      = local.completo ? 1 : 0')
-      expect(ruolo).toContain('role       = "roles/firebaserules.firestoreServiceAgent"')
-      // Il nome dal numero del progetto, non l'email della risorsa, che
-      // l'API può non restituire (revisione del 17/11/2026).
-      expect(ruolo).toContain('member     = "serviceAccount:service-${google_project.istanza.number}@gcp-sa-firebasestorage.iam.gserviceaccount.com"')
-      expect(ruolo).toContain('depends_on = [google_project_service_identity.storage]')
-      expect(ruolo).not.toContain('.email')
+    it('il Terraform non lo dà più, e dimentica le due risorse di prima senza distruggerle', () => {
+      expect(tf).not.toMatch(/resource "google_project_service_identity" "storage"/)
+      expect(tf).not.toMatch(/resource "google_project_iam_member" "agente_storage"/)
+      for (const da of ['google_project_service_identity.storage', 'google_project_iam_member.agente_storage']) {
+        // Con gli «a capo» di Linux o di Windows (una copia con core.autocrlf).
+        const t = tf.replace(/\r/g, '')
+        const blocco = t.slice(t.indexOf(`from = ${da}\n`) - 'removed {\n  '.length).split('\n}\n')[0]
+        expect(blocco).toBe(`removed {\n  from = ${da}\n  lifecycle {\n    destroy = false\n  }`)
+      }
     })
 
-    const passo = () => aggiorna.jobs.prepara.steps.find((x) => x.name === 'Il profilo completo nel progetto')
-    // Il controllo del piano, preso dal workflow e fatto girare davvero.
-    const controllo = () => {
-      const run = passo().run
-      return run.slice(run.indexOf("node -e '") + "node -e '".length, run.indexOf(`' "$RUNNER_TEMP/ruolo-storage.json"`))
-    }
-    const altroNelPiano = (cambi) => {
-      const dir = mkdtempSync(join(tmpdir(), 'piano-'))
-      const file = join(dir, 'piano.json')
-      // Un cambio è [indirizzo, ...azioni], oppure { address, change } per
-      // un piano col prima e il dopo dei campi.
-      const voce = (c) => (Array.isArray(c) ? { address: c[0], change: { actions: c.slice(1) } } : c)
-      writeFileSync(file, JSON.stringify({ resource_changes: cambi.map(voce) }))
-      return execFileSync(process.execPath, ['-e', controllo(), file], { encoding: 'utf8' }).trim()
-    }
-
-    it('aggiorna-istanza lo dà a un locale già completo che non l’ha, dopo un piano, prima del deploy', () => {
-      expect(passo().if).toBe("env.PROFILO == 'completo' && env.ESISTENTE != 'true'")
-      const run = passo().run
-      // Completo e col ruolo: niente da fare.
-      expect(run).toContain("grep -qF 'google_project_iam_member.agente_storage[0]'")
-      expect(run).toContain('echo "Il progetto è già completo, col ruolo dello Storage."; exit 0')
-      // Completo senza il ruolo: un piano mirato, il controllo, poi quel piano.
-      const mirato = run.slice(run.indexOf('echo "Il progetto è completo: si aggiunge'))
-      const righe = mirato.split('\n').map((r) => r.trim())
-      expect(righe.slice(1, 4)).toEqual([
-        'terraform plan -input=false -out=ruolo-storage.tfplan \\',
-        "-target='google_project_service_identity.storage[0]' \\",
-        "-target='google_project_iam_member.agente_storage[0]'",
-      ])
-      expect(mirato).toContain('if [ -n "$altro" ]; then')
-      expect(mirato).toMatch(/::error::Per dare il ruolo dello Storage cambierebbe anche: \$altro\..*niente è stato applicato\."\n\s+exit 1/)
-      const dopo = righe.slice(righe.indexOf('terraform apply -input=false -auto-approve ruolo-storage.tfplan'))
-      expect(dopo.slice(0, 2)).toEqual(['terraform apply -input=false -auto-approve ruolo-storage.tfplan', 'exit 0'])
-      // Non completo: l'apply intero di sempre, dopo.
-      expect(run.trimEnd().endsWith('terraform apply -input=false -auto-approve')).toBe(true)
-      // `prepara` viene prima di `pubblica`, che fa il deploy delle regole.
-      expect([].concat(aggiorna.jobs.pubblica.needs)).toContain('prepara')
+    it('aggiorna-istanza non riapplica il Terraform a un locale già completo', () => {
+      const passo = aggiorna.jobs.prepara.steps.find((x) => x.name === 'Il profilo completo nel progetto')
+      expect(passo.run).toContain('echo "Il progetto è già completo."; exit 0')
+      expect(passo.run).not.toContain('-target')
+      expect(passo.run).not.toContain('agente_storage')
     })
 
-    it('il controllo del piano lascia passare solo i due pezzi, e ferma ogni altro cambio', () => {
-      const agente = 'google_project_service_identity.storage[0]'
-      const ruolo = 'google_project_iam_member.agente_storage[0]'
-      // Il caso atteso: i due pezzi nascono, progetto e API restano come sono.
-      expect(altroNelPiano([[agente, 'create'], [ruolo, 'create'], ['google_project.istanza', 'no-op'], ['google_project_service.api["run.googleapis.com"]', 'no-op']])).toBe('')
-      expect(altroNelPiano([[agente, 'create'], ['data.google_firebase_web_app_config.app', 'read']])).toBe('')
-      // Un progetto toccato a mano: la fatturazione tornerebbe quella del Terraform.
-      expect(altroNelPiano([[ruolo, 'create'], ['google_project.istanza', 'update']])).toBe('google_project.istanza (update)')
-      expect(altroNelPiano([['google_project_service.api["run.googleapis.com"]', 'delete', 'create']])).toBe('google_project_service.api["run.googleapis.com"] (delete+create)')
+    it('storage-istanza.mjs dà il ruolo dopo il bucket, senza riscriverlo, e aspetta il service agent', () => {
+      const s = leggi('scripts/storage-istanza.mjs')
+      // Prima il bucket (anche se c'è già non si esce), poi il ruolo.
+      expect(s).not.toContain('process.exit(0)')
+      expect(s.indexOf('defaultBucket')).toBeLessThan(s.indexOf(':setIamPolicy'))
+      expect(s).toContain('conIRuoli(letta.data, membro, [RUOLO_REGOLE_STORAGE])')
+      expect(s).toContain('if (nuovi === 0)')
+      expect(s).toContain('agenteNonAncoraNato(scritta.data) && tentativo < 12')
+      // Gira nella creazione e nell'aggiornamento, prima del deploy.
+      for (const w of [provisiona, aggiorna]) {
+        const passi = w.jobs.pubblica.steps
+        const storage = passi.findIndex((x) => x.name === 'Lo Storage del locale')
+        const deploy = passi.findIndex((x) => /firebase-tools deploy --only "\$SOLO"/.test(x.run || ''))
+        expect(storage).toBeGreaterThan(-1)
+        expect(storage).toBeLessThan(deploy)
+      }
     })
 
-    // Il collaudo di v0.5.1-beta.2 (17/11/2026): prova-bar, nato prima
-    // dell'etichetta `profilo`, si fermava perché il piano la aggiungeva.
-    it('un’etichetta aggiunta al progetto passa; un’etichetta cambiata, tolta, o un altro campo no', () => {
-      const ruolo = 'google_project_iam_member.agente_storage[0]'
-      const etichette = { ambiente: 'test', regia: 'drink-regia-test' }
-      const progetto = (prima, dopo) => ({ address: 'google_project.istanza', change: { actions: ['update'], before: prima, after: dopo } })
-      const base = { project_id: 'drinkpos-prova-bar', billing_account: 'A', labels: etichette, effective_labels: etichette, terraform_labels: etichette }
-      const con = (extra) => ({ ...base, labels: { ...etichette, ...extra }, effective_labels: { ...etichette, ...extra }, terraform_labels: { ...etichette, ...extra } })
-      // Il caso di prova-bar: si aggiunge profilo = completo.
-      expect(altroNelPiano([[ruolo, 'create'], progetto(base, con({ profilo: 'completo' }))])).toBe('')
-      // Un'etichetta che cambia valore, o che sparisce: si ferma.
-      expect(altroNelPiano([progetto(base, con({ ambiente: 'produzione' }))])).toBe('google_project.istanza (update)')
-      expect(altroNelPiano([progetto(con({ profilo: 'leggero' }), base)])).toBe('google_project.istanza (update)')
-      // La fatturazione (anche insieme a un'etichetta aggiunta): si ferma.
-      expect(altroNelPiano([progetto(base, { ...con({ profilo: 'completo' }), billing_account: 'B' })])).toBe('google_project.istanza (update)')
-      // Un campo che il piano non sa ancora (assente nel dopo): si ferma.
-      expect(altroNelPiano([progetto(base, { ...con({ profilo: 'completo' }), billing_account: undefined })])).toBe('google_project.istanza (update)')
-      // Le etichette di un'altra risorsa non passano per questa via.
-      expect(altroNelPiano([{ address: 'google_project_service.api["run.googleapis.com"]', change: { actions: ['update'], before: { labels: {} }, after: { labels: { a: 'b' } } } }])).toBe('google_project_service.api["run.googleapis.com"] (update)')
-    })
-
-    // Il collaudo di v0.5.1-beta.3 (17/11/2026): prova-bar non aveva nello
-    // stato due API dell'elenco, aggiunte dopo la sua nascita.
-    it('un’API dell’elenco che si accende passa; una che si spegne, cambia o si ricrea no', () => {
-      const ruolo = 'google_project_iam_member.agente_storage[0]'
-      const api = (nome) => `google_project_service.api["${nome}"]`
-      // Il caso di prova-bar.
-      expect(altroNelPiano([[ruolo, 'create'], [api('firebaserules.googleapis.com'), 'create'], [api('firebasestorage.googleapis.com'), 'create']])).toBe('')
-      expect(altroNelPiano([[api('run.googleapis.com'), 'delete']])).toBe(`${api('run.googleapis.com')} (delete)`)
-      expect(altroNelPiano([[api('run.googleapis.com'), 'update']])).toBe(`${api('run.googleapis.com')} (update)`)
-      expect(altroNelPiano([[api('run.googleapis.com'), 'create', 'delete']])).toBe(`${api('run.googleapis.com')} (create+delete)`)
-      // Una risorsa nuova che non è un'API dell'elenco: ferma.
-      expect(altroNelPiano([['google_project_service_identity.agenti["eventarc.googleapis.com"]', 'create']])).toBe('google_project_service_identity.agenti["eventarc.googleapis.com"] (create)')
+    it('il service agent dello Storage, il ruolo e il riconoscimento del «non esiste ancora»', async () => {
+      const iam = await import('../scripts/lib-iam.js')
+      expect(iam.RUOLO_REGOLE_STORAGE).toBe('roles/firebaserules.firestoreServiceAgent')
+      expect(iam.agenteStorage('983659051304')).toBe('service-983659051304@gcp-sa-firebasestorage.iam.gserviceaccount.com')
+      // Il messaggio visto il 17/11/2026 sul locale nuovo.
+      expect(iam.agenteNonAncoraNato({ error: { code: 400, message: 'Service account service-983659051304@gcp-sa-firebasestorage.iam.gserviceaccount.com does not exist.' } })).toBe(true)
+      expect(iam.agenteNonAncoraNato({ error: { code: 403, message: 'The caller does not have permission' } })).toBe(false)
+      expect(iam.agenteNonAncoraNato({})).toBe(false)
+      // Il ruolo si aggiunge senza togliere niente, e una seconda volta non cambia.
+      const membro = `serviceAccount:${iam.agenteStorage('1')}`
+      const prima = { etag: 'x', bindings: [{ role: 'roles/owner', members: ['user:a@b.c'] }] }
+      const una = iam.conIRuoli(prima, membro, [iam.RUOLO_REGOLE_STORAGE])
+      expect(una.nuovi).toBe(1)
+      expect(una.policy.bindings).toEqual([{ role: 'roles/owner', members: ['user:a@b.c'] }, { role: 'roles/firebaserules.firestoreServiceAgent', members: [membro] }])
+      expect(una.policy.etag).toBe('x')
+      expect(iam.conIRuoli(una.policy, membro, [iam.RUOLO_REGOLE_STORAGE]).nuovi).toBe(0)
     })
 
     it('il contratto e il documento della flotta lo dicono, col comando per la Tana', () => {
       expect(leggi('docs/contratto-regia-app.md')).toContain('roles/firebaserules.firestoreServiceAgent')
+      expect(leggi('docs/contratto-regia-app.md')).toContain('scripts/storage-istanza.mjs')
       const doc = leggi('docs/flotta-nella-regia.md')
       expect(doc).toContain('gcp-sa-firebasestorage.iam.gserviceaccount.com')
       expect(doc).toContain('--role="roles/firebaserules.firestoreServiceAgent" --condition=None')
+      expect(doc).toContain('scripts/storage-istanza.mjs')
     })
   })
 

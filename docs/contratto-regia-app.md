@@ -337,10 +337,12 @@ La regia lancia i suoi workflow con `GITHUB_DISPATCH_TOKEN`, sul ramo
 - **Le regole di Storage che leggono Firestore** (REQ-FLOTTA-124, tana-drink
   REQ-SIC-006, dal 17/11/2026): nel profilo completo il service agent dello
   Storage (`service-<numero>@gcp-sa-firebasestorage.iam.gserviceaccount.com`)
-  ha `roles/firebaserules.firestoreServiceAgent`. Lo dà il Terraform ai
-  locali nuovi, e `aggiorna-istanza` ai locali completi che non l'hanno,
-  prima del deploy delle regole. Per la Tana e i locali esistenti senza stato
-  Terraform lo aggiunge Daniele a mano (`docs/flotta-nella-regia.md`).
+  ha `roles/firebaserules.firestoreServiceAgent`. Lo dà
+  `scripts/storage-istanza.mjs`, dopo aver creato il bucket (il service agent
+  nasce col bucket), in ogni attivazione e in ogni aggiornamento, prima del
+  deploy delle regole; se c'è già non lo riscrive. La Tana, che si pubblica
+  dal suo repository, l'ha già (tana-drink, 17/11/2026); per un locale
+  esistente fuori dalla flotta il comando è in `docs/flotta-nella-regia.md`.
   tana-drink rilascia regole di Storage con `firestore.get` o
   `firestore.exists` solo dopo che questo è in produzione.
 - **Il titolare**: `scripts/titolare-istanza.mjs` crea nel locale l'account
