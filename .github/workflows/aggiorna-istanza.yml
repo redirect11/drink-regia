@@ -304,6 +304,12 @@ jobs:
           # solo se del progetto cambiano soltanto le etichette e solo per
           # aggiunta: un'etichetta che cambia valore o sparisce, la
           # fatturazione o qualunque altro campo fermano ancora.
+          # UN'API DEL TERRAFORM CHE SI ACCENDE PASSA (collaudo di
+          # v0.5.1-beta.3): il service agent dipende da tutte le API, e
+          # prova-bar non aveva nello stato firebaserules e firebasestorage,
+          # aggiunte all'elenco dopo la sua nascita. Accendere un'API
+          # dell'elenco è un'aggiunta (se è già accesa non cambia niente);
+          # un'API che si spegne, si cambia o si ricrea ferma ancora.
           if terraform state list | grep -qF 'google_project_service.api["cloudfunctions.googleapis.com"]'; then
             if terraform state list | grep -qF 'google_project_iam_member.agente_storage[0]'; then
               echo "Il progetto è già completo, col ruolo dello Storage."; exit 0
@@ -327,7 +333,8 @@ jobs:
                 return diverse.every((k) => ETICHETTE.includes(k) && Object.entries(prima[k] || {}).every(([e, v]) => (dopo[k] || {})[e] === v))
               }
               const cambi = (p.resource_changes || []).filter((r) => !r.change.actions.every((a) => a === "no-op" || a === "read"))
-              console.log(cambi.filter((r) => !ammessi.has(r.address) && !soloEtichetteAggiunte(r)).map((r) => r.address + " (" + r.change.actions.join("+") + ")").join(", "))
+              const apiCheSiAccende = (r) => r.address.startsWith("google_project_service.api[") && r.change.actions.join("+") === "create"
+              console.log(cambi.filter((r) => !ammessi.has(r.address) && !soloEtichetteAggiunte(r) && !apiCheSiAccende(r)).map((r) => r.address + " (" + r.change.actions.join("+") + ")").join(", "))
             ' "$RUNNER_TEMP/ruolo-storage.json")
             if [ -n "$altro" ]; then
               echo "::error::Per dare il ruolo dello Storage cambierebbe anche: $altro. Il progetto non è più quello del Terraform: si guarda a mano (docs/flotta-nella-regia.md), niente è stato applicato."
