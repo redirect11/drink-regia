@@ -555,7 +555,11 @@ input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--
    «Così è tutto troppo caotico»). Una riga di voci che sul telefono scorre
    di lato dentro sé stessa: la pagina non scorre mai in orizzontale. La
    voce attiva ha la riga lime; il contatore dice che dietro c'è da fare. ── */
-.sotto-menu { display: flex; gap: 4px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; border-bottom: 1px solid var(--line); margin: 8px 0 16px; }
+/* position: relative tiene dentro il riquadro che scorre anche il
+   «, 1 da gestire» per i lettori di schermo (.solo-lettori, assoluto): senza,
+   si misurava sulla pagina e a 320 px la allargava di 214 px (sito di test,
+   17/11/2026, REQ-FLOTTA-125). Lo stesso per le tabelle che scorrono. */
+.sotto-menu { position: relative; display: flex; gap: 4px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; border-bottom: 1px solid var(--line); margin: 8px 0 16px; }
 .sotto-menu a { flex: none; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; color: var(--muted); text-decoration: none; white-space: nowrap; border-bottom: 2px solid transparent; }
 .sotto-menu a:hover { color: var(--text); }
 .sotto-menu a[aria-current='page'] { color: var(--accent-2); border-bottom-color: var(--accent); }
@@ -572,7 +576,7 @@ input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--
 /* Ogni riquadro che scorre (.tabella-scorre, .tabella-larga) ha nel codice
    role="region", un nome e tabIndex={0}: Safari non lascia scorrere da
    tastiera un riquadro che non ha il fuoco (WCAG 2.1.1, REQ-FLOTTA-125). */
-.tabella-scorre { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--raggio); background: var(--bg-2); }
+.tabella-scorre { position: relative; overflow-x: auto; border: 1px solid var(--line); border-radius: var(--raggio); background: var(--bg-2); }
 .tabella-locali { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
 .tabella-locali th, .tabella-locali td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .tabella-locali thead th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
@@ -745,7 +749,7 @@ code { background: rgba(255, 255, 255, 0.06); padding: 1px 5px; border-radius: 5
    colonna della griglia e con lei tessere e filtri: ogni riquadro resta
    largo quanto la pagina, e la tabella scorre dentro il suo (REQ-FLOTTA-125). */
 .commerciale > * { min-width: 0; }
-.tabella-larga { overflow-x: auto; }
+.tabella-larga { position: relative; overflow-x: auto; }
 .commerciale .filtri-locali { align-items: end; }
 .periodo-dal { margin: 0 0 10px; }
 .tessere { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); }

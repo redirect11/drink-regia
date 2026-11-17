@@ -66,6 +66,22 @@ describe('la prova di accessibilità con axe-core', () => {
     }
   })
 
+  // Sul sito di test (17/11/2026, run 43992997761) Backoffice › Commerciale
+  // scorreva di lato di 214 px a 320 px: il «, 1 da gestire» per i lettori
+  // di schermo (.solo-lettori, position: absolute) del contatore di
+  // «Salute», in fondo al sotto-menù, usciva dal riquadro che scorre,
+  // perché il riquadro non era posizionato e un elemento assoluto si
+  // misura sul primo antenato posizionato. Ogni riquadro che scorre di
+  // lato è position: relative, così quello che ha dentro resta dentro.
+  it('ogni riquadro che scorre di lato tiene dentro anche gli elementi posizionati', () => {
+    const css = leggi('src/index.css')
+    for (const classe of ['sotto-menu', 'tabella-scorre', 'tabella-larga']) {
+      const regola = css.match(new RegExp(`^\\.${classe} \\{[^}]*\\}`, 'm'))?.[0]
+      expect(regola, `.${classe}`).toMatch(/overflow-x: auto/)
+      expect(regola, `.${classe}`).toMatch(/position: relative/)
+    }
+  })
+
   // Sul sito di test una prova con undici pagine rischiava il limite di
   // 60 secondi, e una prova ferma il rilascio: una prova per sezione.
   it('una prova per sezione, non tutte le sezioni in una prova', () => {

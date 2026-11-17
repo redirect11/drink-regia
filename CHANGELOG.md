@@ -18,9 +18,9 @@ data.
   fuoco va al contenuto nuovo; i rinvii automatici al primo caricamento
   non lo spostano. Le richieste di contatto gestite si leggono in grigio
   invece che trasparenti, che stavano sotto il contrasto minimo. A 320 px
-  (lo zoom al 400%) il piè di pagina, i passi della registrazione e le
-  tabelle del commerciale e del credito AI non fanno più scorrere la
-  pagina di lato, e ogni tabella che scorre nel suo riquadro si raggiunge
+  (lo zoom al 400%) il piè di pagina, i passi della registrazione, le
+  tabelle del commerciale e del credito AI e i contatori del sotto-menù
+  del backoffice non fanno più scorrere la pagina di lato, e ogni tabella che scorre nel suo riquadro si raggiunge
   col Tab. La prova axe-core (WCAG 2.0, 2.1 e 2.2, livelli A e AA, più
   l'ordine dei titoli) gira con le prove Playwright in sola lettura sulle
   pagine pubbliche, su ogni sezione della dashboard e del backoffice e a
