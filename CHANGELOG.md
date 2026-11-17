@@ -10,7 +10,9 @@ data.
   delle immagini delle Functions (gcf-artifacts) nasce dal Terraform prima
   del deploy, con la stessa regola di pulizia che mette Firebase (le
   immagini più vecchie di un giorno si cancellano), e prima di riprovare il
-  deploy della nascita cancella le Functions rimaste a metà. Sulla prova di
+  deploy della nascita cancella le Functions rimaste a metà (anche quella
+  che ferma il deploy prima di pubblicare, una per volta, riprovando
+  subito). Sulla prova di
   un locale nuovo il primo deploy falliva su 18 Functions su 21
   (REQ-FLOTTA-130).
 - La documentazione di sviluppo, in inglese (REQ-FLOTTA-129, #322):

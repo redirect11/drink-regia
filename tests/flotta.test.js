@@ -98,9 +98,11 @@ describe.each(WORKFLOW)('%s', (_, w, corpo) => {
 
   // Al primo deploy delle Functions i permessi degli agenti di Google
   // arrivano dopo qualche minuto (prova-bar): il deploy si riprova.
-  it('il deploy si riprova due volte, a 90 secondi', () => {
+  it('il deploy si riprova, a 90 secondi', () => {
     const deploy = passo(w, 'Deploy regole, indici, Functions e hosting').run
-    expect(deploy).toContain('for tentativo in 1 2 3; do')
+    // La nascita ha più giri, perché dopo aver cancellato una Function
+    // rimasta a metà riprova subito (REQ-FLOTTA-130); l'aggiornamento tre.
+    expect(deploy).toContain(w === provisiona ? 'for tentativo in 1 2 3 4 5 6; do' : 'for tentativo in 1 2 3; do')
     expect(deploy).toContain('npx firebase-tools deploy --only "$SOLO" --project "$PROGETTO" --force')
     expect(deploy).toContain('sleep 90')
   })
@@ -1133,12 +1135,34 @@ describe('il primo deploy delle Functions di un locale nuovo', () => {
     const deploy = passo(provisiona, 'Deploy regole, indici, Functions e hosting').run
     expect(deploy.startsWith('set -o pipefail\n')).toBe(true)
     expect(deploy).toContain('npx firebase-tools deploy --only "$SOLO" --project "$PROGETTO" --force 2>&1 | tee "$RUNNER_TEMP/deploy.log"')
-    expect(deploy).toContain('node ../scripts/funzioni-fallite.mjs "$RUNNER_TEMP/deploy.log" | while read -r nome regione; do')
+    expect(deploy).toContain('A_META=$(node ../scripts/funzioni-fallite.mjs "$RUNNER_TEMP/deploy.log")')
     expect(deploy).toContain('npx firebase-tools functions:delete "$nome" --region "$regione" --project "$PROGETTO" --force || true')
-    // Si cancella solo dopo un tentativo fallito e prima dell'attesa.
-    expect(deploy.indexOf('functions:delete')).toBeLessThan(deploy.indexOf('sleep 90'))
-    expect(deploy.indexOf('if [ "$tentativo" = 3 ]; then exit 1; fi')).toBeLessThan(deploy.indexOf('functions:delete'))
+    expect(deploy).toContain('done <<< "$A_META"')
+    // Si cancella solo dopo un tentativo fallito; dopo una cancellazione si
+    // riprova subito (il «cambio di tipo» ne scopre una per volta), senza
+    // cancellazioni si aspetta 90 secondi.
+    expect(deploy).toContain('for tentativo in 1 2 3 4 5 6; do')
+    expect(deploy.indexOf('if [ "$tentativo" = 6 ]; then exit 1; fi')).toBeLessThan(deploy.indexOf('functions:delete'))
+    const cancella = deploy.slice(deploy.indexOf('if [ -n "$A_META" ]; then'), deploy.indexOf('else\n'))
+    expect(cancella).toContain('functions:delete')
+    expect(cancella).not.toContain('sleep')
+    expect(deploy.slice(deploy.indexOf('else\n'))).toMatch(/riprovo fra 90 secondi\."\n\s+sleep 90\n\s+fi/)
     for (const s of passi(aggiorna)) expect(s.run || '').not.toContain('functions:delete')
+  })
+
+  it('la Function a metà che ferma il deploy prima di pubblicare si riconosce (planner.js)', async () => {
+    const { funzioniFallite } = await import('../scripts/lib-deploy.js')
+    const planner = leggi('node_modules/firebase-tools/lib/deploy/functions/release/planner.js')
+    expect(planner).toContain('] Changing from ${haveType} function to ${wantType} function is not allowed. Please delete your function and create a new one instead.')
+    // La riga vera del run 44101287800, coi colori del terminale.
+    const riga = '\u001b[1m\u001b[31mError:\u001b[39m\u001b[22m [disponibilitaDalMagazzino(europe-west1)] Changing from an HTTPS function to a background triggered function is not allowed. Please delete your function and create a new one instead.'
+    expect(funzioniFallite(riga)).toEqual([{ nome: 'disponibilitaDalMagazzino', regione: 'europe-west1' }])
+    expect(funzioniFallite('Error: [altro:staffAdmin(europe-west1)] Changing from a scheduled function to an HTTPS function is not allowed. Please delete your function and create a new one instead.')).toEqual([{ nome: 'staffAdmin', regione: 'europe-west1' }])
+    // Le due forme insieme, senza doppioni.
+    expect(funzioniFallite(`${riga}\nFunctions deploy had errors with the following functions:\n\tdisponibilitaDalMagazzino(europe-west1)\n\tstaffAdmin(europe-west1)`)).toEqual([
+      { nome: 'disponibilitaDalMagazzino', regione: 'europe-west1' },
+      { nome: 'staffAdmin', regione: 'europe-west1' },
+    ])
   })
 
   it('l’elenco delle Functions fallite si legge dall’uscita di firebase-tools', async () => {
