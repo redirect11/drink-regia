@@ -5297,12 +5297,18 @@ requirements:
       (3) Il test del punto (C) passa, e fallisce togliendo una citazione.
       (4) Ogni affermazione è verificata sul codice (file:riga dove
       serve).
-    status: todo
+      FATTO (17/11/2026, ramo feature/doc-sviluppo, #322): docs/development.md
+      con la tabella «The life of a venue, step by step» (prima del primo
+      locale, nascita, aggiornamento, sospensione, chiusura ed eliminazione),
+      verificata su develop 1541a0d; una riga in docs/architettura.md §4 e
+      una nel README che la richiamano; tests/documentazione.test.js, che
+      sostituisce il segnaposto tests/flotta.test.js della voce da fare.
+    status: implemented
     generate_issue: true
     labels: [documentation, regia, flotta]
     priority: P2
     test_cases:
-      - tests/flotta.test.js
+      - tests/documentazione.test.js
 
   - id: REQ-FLOTTA-121
     title: "Gli indirizzi pubblici non leggono Firestore prima di aver verificato il gettone"
