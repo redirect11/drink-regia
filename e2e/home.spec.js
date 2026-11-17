@@ -26,6 +26,28 @@ test.describe('la prima pagina', () => {
     await expect(page.locator('html')).toHaveAttribute('lang', 'en')
   })
 
+  // REQ-FLOTTA-133 (Daniele, 17/11/2026: «l'altezza del frame dove scorre il
+  // video cambia. Dovrebbe essere fissa»): la prima schermata è alta uguale
+  // per ogni diapositiva, sul computer, sul telefono e a 320 px.
+  for (const [larghezza, altezza] of [[1280, 900], [390, 844], [320, 640]]) {
+    test(`la cornice del carosello non cambia altezza fra i gesti, a ${larghezza} px`, async ({ page }) => {
+      await page.setViewportSize({ width: larghezza, height: altezza })
+      await page.goto('/')
+      const cornice = page.locator('.hero')
+      await expect(cornice).toBeVisible()
+      const punti = page.locator('.gesto-punto')
+      const quanti = await punti.count()
+      expect(quanti).toBeGreaterThan(1)
+      const altezze = []
+      for (let i = 0; i < quanti; i++) {
+        await punti.nth(i).click()
+        await expect(punti.nth(i)).toHaveAttribute('aria-current', 'true')
+        altezze.push(Math.round((await cornice.boundingBox()).height))
+      }
+      expect(new Set(altezze).size, `altezze della cornice: ${altezze.join(', ')}`).toBe(1)
+    })
+  }
+
   test('«Accedi» porta all’accesso, «Attiva il tuo locale» alla registrazione', async ({ page }) => {
     await page.goto('/')
     await menu(page).getByRole('link', { name: 'Accedi' }).click()

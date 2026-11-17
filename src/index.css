@@ -298,7 +298,12 @@ h1.titolo-pagina { font-size: 1.5em; margin-block: 0.83em; }
 .gesto-entra { animation: gesto-entra 0.8s ease both; }
 @keyframes gesto-entra { from { opacity: 0; } to { opacity: 1; } }
 .gesti { display: grid; gap: 16px; margin-top: 40px; padding-top: 24px; border-top: 1px solid rgba(255, 255, 255, 0.2); }
-.gesto-testo { min-height: 7.5rem; }
+/* L'altezza fissa della cornice (REQ-FLOTTA-133): tutti i testi dei gesti
+   nella stessa cella, quello visibile sopra gli altri, che restano
+   invisibili e danno al blocco l'altezza del più lungo. */
+.gesto-testo { min-height: 7.5rem; display: grid; }
+.gesto-testo > * { grid-area: 1 / 1; }
+.gesto-fantasma { visibility: hidden; }
 /* Dal 17/11/2026 il titolo di una diapositiva è una frase («Gestisci gli ordini.»), non una parola: più piccolo, e va a capo bene (REQ-FLOTTA-131). */
 .gesto-parola { font-family: var(--titoli); font-weight: 700; font-size: clamp(2rem, 4.6vw, 3.25rem); line-height: 1.05; letter-spacing: -0.02em; margin: 0 0 10px; text-wrap: balance; }
 .gesto-parola::first-letter { color: var(--lime); }

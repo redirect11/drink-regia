@@ -5457,7 +5457,12 @@ requirements:
       diapositiva, a 1280, 390 e 320 px. (2) Un lettore di schermo legge
       solo la diapositiva visibile. (3) Test unitari e una prova sul sito
       di test che misura l'altezza passando da una diapositiva all'altra.
-    status: todo
+      FATTO (17/11/2026): i testi delle altre diapositive nella stessa cella
+      (.gesto-fantasma, aria-hidden, visibility: hidden), dopo quello
+      visibile. La prova e2e/home.spec.js misura la cornice passando per
+      ogni punto a 1280, 390 e 320 px: senza la correzione fallisce a tutte
+      e tre, con la correzione passa (build locale).
+    status: implemented
     generate_issue: true
     labels: [home, sito]
     priority: P2
