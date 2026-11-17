@@ -26,7 +26,7 @@ test.describe('la dashboard', () => {
 
   test('il Completo con Stripe: il prezzo IVA inclusa, i moduli compresi, il portale e il credito AI', async ({ page }) => {
     await entra(page, 'completo-stripe')
-    await expect(page.getByRole('heading', { level: 2, name: nomeDiCaso('completo-stripe') })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1, name: nomeDiCaso('completo-stripe') })).toBeVisible()
     await sezione(page, 'Piano e moduli')
     await expect(page.getByRole('region', { name: 'Piano', exact: true })).toContainText(PIANI.completo.nome)
     await expect(page.getByTestId('prezzo-piano')).toContainText(`${euro(PIANI.completo.prezzo)} + IVA al mese`)

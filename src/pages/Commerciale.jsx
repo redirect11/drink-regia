@@ -134,54 +134,60 @@ export default function Commerciale({ righe, contatti, onErrore, adesso = new Da
 
         <section className="card" aria-label="Cosa si vende">
           <h3>Cosa si vende</h3>
-          <table className="tabella-commerciale" aria-label="Per piano">
-            <thead>
-              <tr>
-                <th scope="col">Piano</th>
-                <th scope="col" className="num">
-                  Locali
-                </th>
-                <th scope="col" className="num">
-                  Canone
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {r.perPiano.map((p) => (
-                <tr key={p.id}>
-                  <th scope="row">{p.nome}</th>
-                  <td className="num">{numero(p.quanti)}</td>
-                  <td className="num">{euro(p.mrr)}</td>
+          {/* Le due tabelle scorrono da sole se non ci stanno (REQ-FLOTTA-125):
+              a 320 px, lo zoom al 400%, allargavano tutta la pagina. */}
+          <div className="tabella-larga">
+            <table className="tabella-commerciale" aria-label="Per piano">
+              <thead>
+                <tr>
+                  <th scope="col">Piano</th>
+                  <th scope="col" className="num">
+                    Locali
+                  </th>
+                  <th scope="col" className="num">
+                    Canone
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          <table className="tabella-commerciale" aria-label="Per modulo">
-            <thead>
-              <tr>
-                <th scope="col">Modulo</th>
-                <th scope="col" className="num">
-                  Comprato
-                </th>
-                <th scope="col" className="num">
-                  Incluso
-                </th>
-                <th scope="col" className="num">
-                  In prova
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {r.perModulo.map((m) => (
-                <tr key={m.id}>
-                  <th scope="row">{m.nome}</th>
-                  <td className="num">{numero(m.comprati)}</td>
-                  <td className="num">{numero(m.inclusi)}</td>
-                  <td className="num">{numero(m.inProva)}</td>
+              </thead>
+              <tbody>
+                {r.perPiano.map((p) => (
+                  <tr key={p.id}>
+                    <th scope="row">{p.nome}</th>
+                    <td className="num">{numero(p.quanti)}</td>
+                    <td className="num">{euro(p.mrr)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="tabella-larga">
+            <table className="tabella-commerciale" aria-label="Per modulo">
+              <thead>
+                <tr>
+                  <th scope="col">Modulo</th>
+                  <th scope="col" className="num">
+                    Comprato
+                  </th>
+                  <th scope="col" className="num">
+                    Incluso
+                  </th>
+                  <th scope="col" className="num">
+                    In prova
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {r.perModulo.map((m) => (
+                  <tr key={m.id}>
+                    <th scope="row">{m.nome}</th>
+                    <td className="num">{numero(m.comprati)}</td>
+                    <td className="num">{numero(m.inclusi)}</td>
+                    <td className="num">{numero(m.inProva)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           <p className="muted small">
             {r.terminaliInPiu} {r.terminaliInPiu === 1 ? 'terminale in più venduto' : 'terminali in più venduti'} · Fondatori: {r.fondatori.assegnati} su {r.fondatori.posti}, {r.fondatori.liberi} liberi.
           </p>

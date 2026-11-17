@@ -42,6 +42,21 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 :focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px; border-radius: 4px; }
 /* Per i lettori di schermo soltanto: presente nella pagina, invisibile. */
 .solo-lettori { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* «Salta al contenuto» (REQ-FLOTTA-125): il primo tasto della pagina, fuori
+   dallo schermo finché la tastiera non ci arriva; col fuoco compare in
+   alto a sinistra, sopra la barra e il nastro, nei colori dei bottoni
+   (testo scuro sul lime, 12:1). */
+.salta { position: absolute; top: 8px; left: 12px; z-index: 30; padding: 10px 16px; border-radius: 8px; background: var(--accent); color: var(--bg); font-weight: 600; text-decoration: none; transform: translateY(-300%); }
+.salta:focus { transform: none; }
+/* Il contenuto principale prende il fuoco solo da «Salta al contenuto»
+   (tabindex -1): non è un comando, e un contorno attorno a tutta la pagina
+   sembrerebbe un errore. Il fuoco resta annunciato dal lettore di schermo,
+   e il tasto Tab riparte da lì. */
+main[tabindex='-1']:focus { outline: none; }
+/* Il titolo di primo livello delle pagine che lo avevano di secondo
+   (REQ-FLOTTA-125): un h1 per pagina, con l'aspetto che aveva l'h2, cioè
+   le misure del browser per l'h2. */
+h1.titolo-pagina { font-size: 1.5em; margin-block: 0.83em; }
 
 /* ── La barra: marchio a sinistra, menù a destra; sul telefono il menù si
    apre col tasto. Resta in cima, sopra la pagina che scorre. ── */
@@ -131,7 +146,7 @@ h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.01em; }
 .avviso-email > .muted { flex-basis: 100%; margin: 0; }
 .pagina.dashboard { max-width: 1120px; }
 .dashboard-testa { margin-bottom: 16px; }
-.dashboard-testa h2 { margin: 0 0 4px; }
+.dashboard-testa h1, .dashboard-testa h2 { margin: 0 0 4px; }
 .riquadri { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); align-items: start; margin-bottom: 16px; }
 .riquadri .card { margin: 0; }
 .riquadri .card h3:first-child { margin-top: 0; }
@@ -510,7 +525,7 @@ legend { font-weight: 600; margin: 10px 0 4px; }
 .avviso { padding: 8px 12px; border-radius: 10px; background: var(--attesa-soft); border: 1px solid var(--attesa); color: var(--text); }
 .orari-elenco { list-style: none; padding: 0; margin: 4px 0; }
 .riquadro-richiesta { margin-top: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
-.passi { display: flex; gap: 6px; list-style: none; padding: 0; margin: 0 0 8px; font-size: 0.85rem; color: var(--muted); }
+.passi { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 0; margin: 0 0 8px; font-size: 0.85rem; color: var(--muted); }
 .passi li { padding: 4px 8px; border-radius: 999px; border: 1px solid var(--line); }
 .passi li.corrente { color: var(--text); border-color: var(--accent); }
 .passi li.fatto { color: var(--accent); }
@@ -677,7 +692,11 @@ code { background: rgba(255, 255, 255, 0.06); padding: 1px 5px; border-radius: 5
 /* Le regole dei link del piè di pagina (blocco, niente margini) non valgono per il selettore. */
 .piede-colonne .scelta-lingua a { display: inline-flex; padding: 0 10px; }
 .piede-riga { max-width: 1080px; margin: 24px auto 0; padding-top: 14px; border-top: 1px solid var(--line); }
-@media (max-width: 760px) { .piede-colonne { grid-template-columns: 1fr 1fr; } }
+/* minmax(0, 1fr) e l'indirizzo email che va a capo: a 320 px (lo zoom al
+   400%, WCAG 1.4.10) le colonne larghe quanto la parola più lunga facevano
+   scorrere la pagina di lato (REQ-FLOTTA-125, 17/11/2026). Dai 390 px in su
+   non cambia niente. */
+@media (max-width: 760px) { .piede-colonne { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .piede-colonne a { overflow-wrap: anywhere; } }
 
 /* L'ANTEPRIMA (REQ-FLOTTA-043): la pagina sola che la produzione mostra
    finché il sito non è aperto. Poco: un titolo, due righe, l'email. */
@@ -710,6 +729,11 @@ code { background: rgba(255, 255, 255, 0.06); padding: 1px 5px; border-radius: 5
    sola nel lime della regia, barre sottili e fondo che separa; le tabelle
    coi numeri allineati a destra. ── */
 .commerciale { display: grid; gap: 16px; }
+/* A 320 px (lo zoom al 400%, WCAG 1.4.10) una tabella larga allargava la
+   colonna della griglia e con lei tessere e filtri: ogni riquadro resta
+   largo quanto la pagina, e la tabella scorre dentro il suo (REQ-FLOTTA-125). */
+.commerciale > * { min-width: 0; }
+.tabella-larga { overflow-x: auto; }
 .commerciale .filtri-locali { align-items: end; }
 .periodo-dal { margin: 0 0 10px; }
 .tessere { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); }
@@ -756,7 +780,11 @@ code { background: rgba(255, 255, 255, 0.06); padding: 1px 5px; border-radius: 5
 .contatto textarea { font: inherit; padding: 8px; }
 .contatti { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
 .contatti li { display: grid; gap: 4px; justify-items: start; }
-.contatti li.gestita { opacity: 0.6; }
+/* Una richiesta gestita si legge in grigio, non trasparente: l'opacità
+   portava il testo grigio sotto il contrasto minimo (4,5:1), e axe lo ha
+   trovato nel backoffice (REQ-FLOTTA-125, 17/11/2026). Il grigio di
+   --muted sul pannello sta sopra 6:1. */
+.contatti li.gestita, .contatti li.gestita strong { color: var(--muted); }
 .cambia-piano { display: grid; gap: 8px; margin-top: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
 .cambia-piano label { margin: 0; }
 /* I temi su misura (REQ-FLOTTA-040): nella dashboard e nella scheda del locale. */

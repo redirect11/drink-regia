@@ -328,10 +328,12 @@ export default function Backoffice() {
     azioneAI(c, 'tetto', { importo: Number(String(importo).replace(',', '.')) })
   }
 
-  if (righe === undefined) return <main className="pagina muted">Carico…</main>
+  if (righe === undefined) return <main id="contenuto" tabIndex={-1} className="pagina muted">Carico…</main>
   if (righe === null)
     return (
-      <main className="pagina">
+      <main id="contenuto" tabIndex={-1} className="pagina">
+        {/* L'h1 anche qui (REQ-FLOTTA-125), solo per i lettori di schermo. */}
+        <h1 className="solo-lettori">Backoffice</h1>
         <p className="errore" role="alert">
           {errore}
         </p>
@@ -391,8 +393,9 @@ export default function Backoffice() {
   }
 
   return (
-    <main className="pagina larga">
-      <h2>Backoffice</h2>
+    <main id="contenuto" tabIndex={-1} className="pagina larga">
+      {/* Il titolo della pagina (REQ-FLOTTA-125): h1, con l'aspetto di prima. */}
+      <h1 className="titolo-pagina">Backoffice</h1>
       <SottoMenu conti={contiDelBackoffice(righe, contatti, allarmi)} />
       {errore && <p className="errore">{errore}</p>}
 

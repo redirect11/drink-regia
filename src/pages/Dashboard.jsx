@@ -98,7 +98,7 @@ export default function Dashboard({ utente, chiuso = false }) {
   // /dashboard/ con la barra finale (scritto a mano) è la panoramica: senza
   // questo nessuna voce del menù resta accesa (revisione del 13/11/2026).
   if (pathname === `${BASE_TITOLARE}/`) return <Navigate to={`${BASE_TITOLARE}${search}`} replace />
-  if (cliente === undefined) return <main className="pagina stretta muted">Carico…</main>
+  if (cliente === undefined) return <main id="contenuto" tabIndex={-1} className="pagina stretta muted">Carico…</main>
   // Un collaboratore (REQ-FLOTTA-098) non ha un locale suo: vede quello con
   // cui collabora, anche col sito chiuso. Il segno nel token sceglie la
   // pagina; la vista la rilegge la regia.
@@ -110,7 +110,14 @@ export default function Dashboard({ utente, chiuso = false }) {
   // anche da qui, altrimenti chi entrava con Google si registrava lo stesso
   // (audit del 09/11/2026, finding 26). Chi ha già un locale lo vede.
   if (!cliente && !utente.admin) return chiuso ? <Anteprima lingua="it" /> : <Registrati completa={utente} />
-  if (!cliente) return <main className="pagina stretta">Nessun locale registrato per questo account.</main>
+  // L'h1 c'è anche qui (REQ-FLOTTA-125), solo per i lettori di schermo: la pagina è una riga.
+  if (!cliente)
+    return (
+      <main id="contenuto" tabIndex={-1} className="pagina stretta">
+        <h1 className="solo-lettori">Dashboard</h1>
+        Nessun locale registrato per questo account.
+      </main>
+    )
 
   const illeggibile = errori.istanza || (errori.richiesta && !istanza) || (!istanza && app === 'scollegata')
   const stato = statoIstanza(istanza, richiesta, { illeggibile })
@@ -121,7 +128,7 @@ export default function Dashboard({ utente, chiuso = false }) {
   const cancellazione = ['programmata', 'in coda', 'in corso'].includes(istanza?.eliminazione?.stato)
 
   return (
-    <main className="pagina dashboard">
+    <main id="contenuto" tabIndex={-1} className="pagina dashboard">
       {inPanoramica && <AvvisoEmail utente={utente} />}
       {inPanoramica && cancellazione && <ChiudiLocale istanza={istanza} />}
       {/* Il locale sospeso o chiuso, o il pagamento che non va (REQ-FLOTTA-090): l'avviso porta al riquadro in «Piano e moduli». */}
@@ -129,7 +136,8 @@ export default function Dashboard({ utente, chiuso = false }) {
       {/* Gli orari di servizio che mancano (REQ-FLOTTA-095): un locale di prima, o creato dall'admin. */}
       {inPanoramica && <AvvisoOrari cliente={cliente} />}
       <header className="dashboard-testa">
-        <h2>{cliente.nome_locale}</h2>
+        {/* Il nome del locale è il titolo della pagina (REQ-FLOTTA-125): h1, con l'aspetto di prima. */}
+        <h1 className="titolo-pagina">{cliente.nome_locale}</h1>
         <p className="muted small">
           {/* Il progetto lo dice l'istanza: un locale esistente (la Tana) non è drinkpos-<slug>. */}
           Identificativo: <code>{cliente.slug}</code> · progetto <code>{istanza?.simulata ? 'simulato' : istanza?.progetto || progettoDi(cliente.slug)}</code>

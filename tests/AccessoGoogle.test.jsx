@@ -95,5 +95,7 @@ describe('la dashboard di chi non ha il locale', () => {
     mostra(<Dashboard utente={{ ...utente, admin: true }} />, '/dashboard-g')
     expect(screen.getByText('Nessun locale registrato per questo account.')).toBeInTheDocument()
     expect(screen.queryByLabelText('Nome del locale')).toBeNull()
+    // Anche questa pagina ha il suo h1 (REQ-FLOTTA-125), per i lettori di schermo.
+    expect(screen.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument()
   })
 })

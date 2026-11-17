@@ -286,7 +286,8 @@ src/lib/commerciale.js      i numeri del commerciale: canone di un cliente, clas
 functions/lib/movimenti.js  il libro dei movimenti: una riga per incasso (fattura Stripe, ricarica AI, pagamento a mano)
 functions/lib/traffico.js   il traffico del sito, contatori per giorno senza cookie (REQ-FLOTTA-042); la Function `traccia`
 scripts/semina-test.mjs, lib-semina.mjs  i locali di prova sulla regia di test (REQ-DEV-004); .env.e2e
-playwright.config.js, e2e/  i test end-to-end con Playwright: npm run test:e2e
+playwright.config.js, e2e/  i test end-to-end con Playwright: npm run test:e2e; e2e/accessibilita.spec.js è la prova axe-core (WCAG A e AA) di pagine pubbliche, dashboard e backoffice (REQ-FLOTTA-125)
+src/lib/titoli.js           il titolo di ogni pagina e sezione (<title>), messo da App.jsx (REQ-FLOTTA-125)
 src/lib/backoffice.js       le sezioni del backoffice, i contatori del sotto-menù, i filtri dei locali
 src/pages/Legali.jsx        Termini e Privacy (struttura con segnaposto TITOLARE)
 src/lib/prodotto.js         nome, slogan, dominio, URL demo, email contatti (segnaposto)

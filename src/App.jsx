@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import Home from './pages/Home.jsx'
 import Registrati from './pages/Registrati.jsx'
@@ -15,6 +15,7 @@ import Logo from './components/Logo.jsx'
 import { LINGUE, NOMI_LINGUE, leggiPreferenza, linguaDelPercorso, percorsoDellaLingua, salvaPreferenza } from './lib/lingua.js'
 import { testi } from './i18n/index.js'
 import { versioneDetta } from './lib/versione.js'
+import { titoloPagina } from './lib/titoli.js'
 
 // Il nastro «TEST» e la versione (REQ-DEV-002): il sito di test
 // (drink-regia-test) deve dirsi tale a chi lo guarda, come in tana-drink.
@@ -41,6 +42,20 @@ function PrimaPagina({ utente, lingua }) {
 
 // Il selettore IT / EN, nella barra e nel piè di pagina della prima
 // pagina. Scegliere una lingua è la sola cosa che la ricorda.
+// «SALTA AL CONTENUTO» (REQ-FLOTTA-125, punto C; WCAG 2.4.1): chi usa la
+// tastiera non deve ripassare marchio, lingua e menù su ogni pagina. Ogni
+// pagina ha il suo <main id="contenuto" tabIndex={-1}>; il fuoco ci va da
+// qui, senza toccare l'indirizzo: un «#contenuto» nella barra
+// dell'indirizzo resterebbe nei link copiati e nella cronologia. Senza
+// JavaScript il link funziona lo stesso, da àncora.
+function saltaAlContenuto(evento) {
+  const contenuto = document.getElementById('contenuto') || document.querySelector('main')
+  if (!contenuto) return
+  evento.preventDefault()
+  if (!contenuto.hasAttribute('tabindex')) contenuto.setAttribute('tabindex', '-1')
+  contenuto.focus()
+}
+
 function SceltaLingua({ lingua, etichetta }) {
   return (
     <div className="scelta-lingua" role="group" aria-label={etichetta}>
@@ -79,6 +94,29 @@ export default function App() {
   // Il traffico (REQ-FLOTTA-042): una vista per ogni pagina aperta, contata
   // per giorno nella regia; solo col sito collegato a Firebase.
   useEffect(() => tracciaPagina(posizione.pathname, linguaDelPercorso(posizione.pathname)), [posizione.pathname])
+  // Il titolo della pagina (REQ-FLOTTA-125, punto A): uno per pagina e per
+  // sezione. La prima pagina e l'anteprima se lo mettono da sole, nella loro
+  // lingua (titoloPagina dà null). Questo effetto è del genitore e gira dopo
+  // quelli delle pagine: per questo non tocca le loro.
+  useEffect(() => {
+    const titolo = titoloPagina(posizione.pathname, { chiuso })
+    if (titolo) document.title = titolo
+  }, [posizione.pathname, chiuso])
+  // Cambiando pagina il fuoco va al contenuto nuovo (REQ-FLOTTA-125, prova
+  // da tastiera del 17/11/2026): in un sito a pagina unica il browser non
+  // lo sposta, e dopo «Entra» o un link il Tab ripartiva da dove stava la
+  // pagina di prima, spesso dal piè di pagina. Non al primo caricamento,
+  // dove il primo Tab deve trovare «Salta al contenuto», e non con un'àncora
+  // (/#prezzi), che porta già dove deve. Il percorso di prima, e non un
+  // «prima volta», perché StrictMode in sviluppo fa girare l'effetto due volte.
+  const percorsoDiPrima = useRef(posizione.pathname)
+  useEffect(() => {
+    if (percorsoDiPrima.current === posizione.pathname) return undefined
+    percorsoDiPrima.current = posizione.pathname
+    if (posizione.hash) return undefined
+    const attesa = requestAnimationFrame(() => document.getElementById('contenuto')?.focus({ preventScroll: true }))
+    return () => cancelAnimationFrame(attesa)
+  }, [posizione.pathname, posizione.hash])
 
   const pronto = utente !== undefined
   // La prima pagina non aspetta l'accesso (03/11/2026): è la vetrina, e
@@ -107,6 +145,10 @@ export default function App() {
     // prendono i colori della vetrina, scuro e lime; il resto del sito
     // resta col tema scuro.
     <div className={`regia${primaPagina ? ' vetrina' : ''}`}>
+      {/* Il primo elemento che la tastiera raggiunge: si vede solo col fuoco. */}
+      <a href="#contenuto" className="salta" onClick={saltaAlContenuto}>
+        {t.barra.salta}
+      </a>
       {!PRODUZIONE && (
         <div className="nastro-test" role="note">
           TEST · {VERSIONE} · non è il sito vero

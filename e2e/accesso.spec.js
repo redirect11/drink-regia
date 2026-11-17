@@ -18,7 +18,7 @@ test.describe('l’accesso', () => {
   test('il titolare entra, vede il suo locale, esce', async ({ page }) => {
     test.skip(!PASSWORD, 'manca E2E_PASSWORD')
     await entra(page, 'free')
-    await expect(page.getByRole('heading', { level: 2, name: nomeDiCaso('free') })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1, name: nomeDiCaso('free') })).toBeVisible()
     await expect(menu(page).getByRole('link', { name: 'Dashboard' })).toBeVisible()
     await expect(menu(page).getByRole('link', { name: 'Backoffice' })).toHaveCount(0)
     await menu(page).getByRole('button', { name: 'Esci' }).click()

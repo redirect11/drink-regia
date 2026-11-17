@@ -107,9 +107,10 @@ export default function Registrati({ completa = null }) {
   )
 
   return (
-    <main className="pagina stretta">
+    <main id="contenuto" tabIndex={-1} className="pagina stretta">
       <form className="card" onSubmit={invia} noValidate>
-        <h2>{completa ? 'Completa la registrazione' : 'Registra il tuo locale'}</h2>
+        {/* Il titolo della pagina (REQ-FLOTTA-125): h1, con l'aspetto di prima. */}
+        <h1 className="titolo-pagina">{completa ? 'Completa la registrazione' : 'Registra il tuo locale'}</h1>
         {completa && <p className="muted">Sei entrato come {completa.email}. Mancano i dati del locale.</p>}
         <ol className="passi" aria-label="Passi della registrazione">
           {PASSI.map((n, i) => (

@@ -25,7 +25,7 @@ const TITOLARE = {
 
 export function Termini() {
   return (
-    <main className="pagina legale">
+    <main id="contenuto" tabIndex={-1} className="pagina legale">
       <h1>Termini di servizio</h1>
       <p className="muted small">Ultimo aggiornamento: 2 novembre 2026</p>
       <h2>1. Il servizio</h2>
@@ -162,7 +162,7 @@ export function Termini() {
 
 export function Privacy() {
   return (
-    <main className="pagina legale">
+    <main id="contenuto" tabIndex={-1} className="pagina legale">
       <h1>Informativa sulla privacy</h1>
       <p className="muted small">Ai sensi degli articoli 13 e 14 del Regolamento (UE) 2016/679. Ultimo aggiornamento: 2 novembre 2026</p>
       <h2>Titolare del trattamento</h2>

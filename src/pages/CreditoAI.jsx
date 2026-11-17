@@ -103,27 +103,31 @@ export default function CreditoAI({ slug, istanzaAttiva, vai = (url) => window.l
             .join(' · ')}
         </p>
       )}
+      {/* La tabella scorre da sola se non ci sta (REQ-FLOTTA-125): a 320 px,
+          lo zoom al 400%, faceva scorrere di lato tutta la pagina. */}
       {consumi.length > 0 && (
-        <table className="clienti" aria-label="Ultimi consumi AI">
-          <thead>
-            <tr>
-              <th>Quando</th>
-              <th>Cosa</th>
-              <th>Esito</th>
-              <th>Costo</th>
-            </tr>
-          </thead>
-          <tbody>
-            {consumi.map((c, i) => (
-              <tr key={`${c.il}-${i}`}>
-                <td>{new Date(c.il).toLocaleString('it-IT')}</td>
-                <td>{tipoDetto(c.tipo)}</td>
-                <td>{esitoDetto(c.esito)}</td>
-                <td>{euroCent(daMicro(c.costo_microeuro))}</td>
+        <div className="tabella-larga">
+          <table className="clienti" aria-label="Ultimi consumi AI">
+            <thead>
+              <tr>
+                <th>Quando</th>
+                <th>Cosa</th>
+                <th>Esito</th>
+                <th>Costo</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {consumi.map((c, i) => (
+                <tr key={`${c.il}-${i}`}>
+                  <td>{new Date(c.il).toLocaleString('it-IT')}</td>
+                  <td>{tipoDetto(c.tipo)}</td>
+                  <td>{esitoDetto(c.esito)}</td>
+                  <td>{euroCent(daMicro(c.costo_microeuro))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   )

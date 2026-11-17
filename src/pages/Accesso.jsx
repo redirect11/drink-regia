@@ -25,9 +25,9 @@ export default function Accesso() {
   }, [vai])
 
   return (
-    <main className="pagina stretta">
+    <main id="contenuto" tabIndex={-1} className="pagina stretta">
       <section className="card" aria-label="Accesso dall’app">
-        <h2>Accesso dall’app del locale</h2>
+        <h1 className="titolo-pagina">Accesso dall’app del locale</h1>
         {errore ? (
           <>
             <p className="errore">{errore}</p>

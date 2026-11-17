@@ -170,7 +170,7 @@ describe('sospeso per il pagamento, coi pagamenti online', () => {
     mostra('/dashboard')
     const avviso = screen.getByRole('region', { name: 'Avviso sul locale' })
     expect(avviso).toHaveTextContent('Il tuo locale è sospeso')
-    expect(avviso.compareDocumentPosition(screen.getByRole('heading', { level: 2 })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(avviso.compareDocumentPosition(screen.getByRole('heading', { level: 1 })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     const link = within(avviso).getByRole('link', { name: 'Paga e riattiva il locale' })
     expect(link).toHaveAttribute('href', '/dashboard/piano?rinnovo=1')
     await userEvent.click(link)

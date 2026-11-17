@@ -181,7 +181,7 @@ describe('l’area del titolare: il sotto-menù', () => {
   it('il nome del locale resta in testa in ogni sezione', () => {
     for (const [, percorso] of SEZIONI) {
       const { unmount } = mostra(percorso)
-      expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Bar Prova')
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Bar Prova')
       unmount()
     }
   })
@@ -216,7 +216,7 @@ describe('la panoramica', () => {
     }
     mostra('/dashboard', { uid: 'u1', email: 'titolare@example.it', emailVerificata: false })
     const avviso = screen.getByRole('region', { name: 'Cancellazione del locale' })
-    expect(avviso.compareDocumentPosition(screen.getByRole('heading', { level: 2 })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(avviso.compareDocumentPosition(screen.getByRole('heading', { level: 1 })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getByText('Conferma la tua email.')).toBeInTheDocument()
   })
 

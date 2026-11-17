@@ -187,13 +187,13 @@ describe('la dashboard', () => {
 
   it('dice locale, piano col prezzo del mese e stato dell’istanza', () => {
     const { unmount } = mostra()
-    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Bar Mario')
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Bar Mario')
     expect(screen.getByTestId('stato-istanza')).toHaveTextContent('Non ancora attivata')
     // Nella panoramica il riepilogo dice lo stesso prezzo del riquadro del piano.
     expect(screen.getByTestId('riepilogo-piano')).toHaveTextContent('42,70 € + IVA al mese (52,09 € IVA inclusa)')
     unmount()
     mostra(PIANO)
-    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Bar Mario')
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Bar Mario')
     // 32,70 + 10 (staff); il secondo terminale è fra i 3 inclusi (DEC-0005).
     // Coi centesimi e «+ IVA», e il totale IVA inclusa accanto.
     expect(screen.getByTestId('prezzo-piano')).toHaveTextContent('42,70 € + IVA al mese (52,09 € IVA inclusa)')
@@ -242,7 +242,7 @@ describe('la dashboard', () => {
     mostra()
     const avviso = screen.getByRole('region', { name: 'Cancellazione del locale' })
     expect(avviso).toHaveTextContent('31 gennaio 2027')
-    expect(avviso.compareDocumentPosition(screen.getByRole('heading', { level: 2 })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(avviso.compareDocumentPosition(screen.getByRole('heading', { level: 1 })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getAllByRole('region', { name: 'Cancellazione del locale' })).toHaveLength(1)
   })
 
@@ -410,7 +410,7 @@ describe('la dashboard su due colonne', () => {
   // attiva a sinistra c'è solo l'app.
   it('senza app attiva: a sinistra solo l’app, a destra il riepilogo; una pila vuota sparisce', async () => {
     mostra()
-    await screen.findByRole('heading', { level: 2 })
+    await screen.findByRole('heading', { level: 1 })
     expect(nomi(pile()[0])).toEqual(['L’app'])
     expect(nomi(pile()[1])).toEqual(['Il tuo piano'])
     const css = readFileSync(join(import.meta.dirname, '..', 'src', 'index.css'), 'utf8').replace(/\r\n/g, '\n')
@@ -419,7 +419,7 @@ describe('la dashboard su due colonne', () => {
 
   it('in «Piano e moduli» la scelta del piano sta sotto il riquadro del piano, larga quanto la pagina', async () => {
     mostra(PIANO)
-    await screen.findByRole('heading', { level: 2 })
+    await screen.findByRole('heading', { level: 1 })
     const riquadro = screen.getByRole('region', { name: 'Piano' })
     const piano = document.querySelector('.dashboard-piano')
     expect(piano.querySelectorAll(':scope > .card')).toHaveLength(1)

@@ -7,7 +7,7 @@
 // menù. L'utente, 22/10/2026: «una landing page con menu e tutto il resto».
 
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import '@testing-library/jest-dom/vitest'
@@ -353,5 +353,108 @@ describe('mentre l’accesso è in corso', () => {
     expect(screen.queryByRole('heading', { level: 1 })).toBeNull()
     expect(screen.queryByRole('heading', { name: 'Accedi' })).toBeNull()
     expect(screen.queryByLabelText('Password')).toBeNull()
+  })
+})
+
+// L'ACCESSIBILITÀ DEL SITO (REQ-FLOTTA-125, punti A, B e C). L'audit del
+// 17/11/2026 (axe-core sul sito di test) ha trovato lo stesso titolo su più
+// pagine, nessun h1 su /registrati e /accedi e nessun modo di saltare la
+// barra da tastiera. I titoli delle singole sezioni li prova
+// tests/titoli.test.js; qui si prova che App li mette davvero.
+describe('l’accessibilità', () => {
+  afterEach(() => {
+    venditaOsservata = null
+  })
+
+  it('ogni pagina ha il suo titolo, e tornando alla prima pagina torna il suo', async () => {
+    utenteOsservato = null
+    const visti = []
+    for (const percorso of ['/accedi', '/registrati', '/termini', '/privacy']) {
+      const { unmount } = mostra(percorso)
+      await screen.findByRole('heading', { level: 1 })
+      visti.push(document.title)
+      unmount()
+    }
+    expect(visti).toEqual([
+      'Accedi · Lime – SmartOrders',
+      'Registra il tuo locale · Lime – SmartOrders',
+      'Termini di servizio · Lime – SmartOrders',
+      'Informativa sulla privacy · Lime – SmartOrders',
+    ])
+    const { unmount } = mostra('/')
+    expect(document.title).toBe(`Lime — ${it_.meta.titolo}`)
+    unmount()
+  })
+
+  it('anche le sezioni del backoffice', async () => {
+    utenteOsservato = { uid: 'u1', admin: true }
+    mostra('/backoffice/richieste')
+    await screen.findByRole('navigation', { name: 'Sezioni del backoffice' })
+    expect(document.title).toBe('Richieste · Backoffice · Lime – SmartOrders')
+  })
+
+  it.each(['/', '/en', '/accedi', '/registrati', '/termini', '/privacy'])('%s ha un solo titolo di primo livello', async (percorso) => {
+    utenteOsservato = null
+    mostra(percorso)
+    await screen.findByRole('heading', { level: 1 })
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+  })
+
+  it('l’accesso e la registrazione hanno il titolo di primo livello che si vede', async () => {
+    utenteOsservato = null
+    const { unmount } = mostra('/accedi')
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Accedi')
+    unmount()
+    mostra('/registrati')
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Registra il tuo locale')
+  })
+
+  it('il backoffice ha un solo titolo di primo livello', async () => {
+    utenteOsservato = { uid: 'u1', admin: true }
+    mostra('/backoffice/locali')
+    await screen.findByRole('navigation', { name: 'Sezioni del backoffice' })
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Backoffice')
+  })
+
+  it.each(['/', '/en', '/accedi', '/privacy'])('%s: «Salta al contenuto» è il primo tasto, e porta al contenuto principale', async (percorso) => {
+    utenteOsservato = null
+    const user = userEvent.setup()
+    mostra(percorso)
+    const main = await screen.findByRole('main')
+    await user.tab()
+    const salta = screen.getByRole('link', { name: percorso === '/en' ? 'Skip to content' : 'Salta al contenuto' })
+    expect(salta).toHaveFocus()
+    expect(salta).toHaveAttribute('href', '#contenuto')
+    expect(main).toHaveAttribute('id', 'contenuto')
+    await user.keyboard('{Enter}')
+    expect(main).toHaveFocus()
+    // Il fuoco va al contenuto senza cambiare l'indirizzo: i link «/#prezzi» del menù restano quelli.
+    expect(window.location.hash).toBe('')
+  })
+
+  // La prova da tastiera del 17/11/2026: dopo «Entra» o un link del menù il
+  // fuoco restava dov'era la pagina di prima, e il Tab ripartiva dal piè di
+  // pagina. Cambiando pagina il fuoco va al contenuto nuovo.
+  it('cambiando pagina il fuoco va al contenuto della pagina nuova; al primo caricamento no', async () => {
+    utenteOsservato = null
+    const user = userEvent.setup()
+    mostra('/accedi')
+    await screen.findByRole('heading', { level: 1, name: 'Accedi' })
+    expect(screen.getByRole('main')).not.toHaveFocus()
+    await user.click(within(screen.getByRole('contentinfo')).getByRole('link', { name: 'Privacy' }))
+    await screen.findByRole('heading', { level: 1, name: 'Informativa sulla privacy' })
+    await waitFor(() => expect(screen.getByRole('main')).toHaveFocus())
+  })
+
+  it('col sito chiuso c’è anche sull’anteprima', async () => {
+    venditaOsservata = { sito_aperto: false }
+    utenteOsservato = null
+    const user = userEvent.setup()
+    mostra('/')
+    await user.tab()
+    expect(screen.getByRole('link', { name: 'Salta al contenuto' })).toHaveFocus()
+    await user.keyboard('{Enter}')
+    expect(screen.getByRole('main')).toHaveFocus()
   })
 })

@@ -26,7 +26,7 @@ export default function Anteprima({ lingua = 'it' }) {
     [lingua, t]
   )
   return (
-    <main className="anteprima" aria-labelledby="anteprima-titolo">
+    <main id="contenuto" tabIndex={-1} className="anteprima" aria-labelledby="anteprima-titolo">
       <div className="contenitore anteprima-testo">
         <p className="occhiello">{t.anteprima.occhiello}</p>
         <h1 id="anteprima-titolo">{t.anteprima.titolo}</h1>

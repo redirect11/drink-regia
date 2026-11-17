@@ -40,9 +40,10 @@ export default function Accedi() {
   }
 
   return (
-    <main className="pagina stretta">
+    <main id="contenuto" tabIndex={-1} className="pagina stretta">
       <form className="card" onSubmit={invia}>
-        <h2>Accedi</h2>
+        {/* Il titolo della pagina (REQ-FLOTTA-125): h1, con l'aspetto di prima. */}
+        <h1 className="titolo-pagina">Accedi</h1>
         <EntraConGoogle />
         <label htmlFor="a-email">Email</label>
         <input id="a-email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />

@@ -31,6 +31,8 @@ export default {
     backoffice: 'Backoffice',
     esci: 'Esci',
     lingua: 'Lingua',
+    // Il primo tasto della pagina, per chi usa la tastiera (REQ-FLOTTA-125).
+    salta: 'Salta al contenuto',
   },
   piede: {
     // Il sottotitolo del marchio (decisione dell'utente del 09/11/2026: «Lime – SmartOrders e poi il sottotitolo lo metti»).

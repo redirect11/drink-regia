@@ -5115,6 +5115,8 @@ requirements:
     test_cases:
       - tests/App.test.jsx
       - tests/Legali.test.jsx
+      - tests/titoli.test.js
+      - tests/accessibilita.test.js
 
   - id: REQ-FLOTTA-121
     title: "Gli indirizzi pubblici non leggono Firestore prima di aver verificato il gettone"
