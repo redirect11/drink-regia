@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // LE CREDENZIALI DELLA FLOTTA (REQ-FLOTTA-136, fase 0). I workflow della
 // flotta entrano su Google in uno di due modi, scelto dall'environment:
 //

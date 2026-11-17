@@ -5528,7 +5528,7 @@ requirements:
       chiave è cancellata. (7) I documenti (infra/README.md,
       docs/development.md) dicono come si entra e chi ha quali ruoli. (8) I
       test sui workflow (tests/flotta.test.js) controllano 1, 2 e 4.
-    status: todo
+    status: partial
     generate_issue: true
     labels: [flotta, sicurezza, produzione]
     priority: P1
