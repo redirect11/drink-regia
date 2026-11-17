@@ -387,8 +387,21 @@ describe('la prima pagina', () => {
     const gruppo = () => screen.getByRole('group', { name: it_.gesti.titolo })
     const parola = () => gruppo().querySelector('.gesto-parola').textContent
     const visibile = () => document.querySelector('.diapositiva[data-visibile="true"]').dataset.gesto
-    // Il passo del carosello (REQ-FLOTTA-074): la dissolvenza comincia qui.
+    // Il ripiego del carosello (REQ-FLOTTA-127): se il filmato non va avanti
+    // (in happy-dom non gira mai), si passa al gesto dopo dopo 6,5 secondi.
     const PASSO = 6500
+    // Il filmato che si vede, e il suo tempo: happy-dom non riproduce i
+    // video, quindi durata e posizione si mettono a mano, con l'evento che
+    // il browser manda mentre il filmato va avanti.
+    const filmato = () => document.querySelector('.diapositiva[data-visibile="true"] video')
+    const DURATA = 8.04
+    const suona = (v, t, evento = 'timeupdate') => {
+      Object.defineProperty(v, 'duration', { value: DURATA, configurable: true })
+      Object.defineProperty(v, 'currentTime', { value: t, writable: true, configurable: true })
+      act(() => {
+        v.dispatchEvent(new Event(evento))
+      })
+    }
 
     it('cinque diapositive nell’ordine del servizio, una sola visibile; davanti titolo, bottoni e scheda dei fatti', () => {
       conMovimento(true)
@@ -488,7 +501,7 @@ describe('la prima pagina', () => {
     // ripartire se l'altro dura. Il fuoco conta solo da tastiera: quello che
     // un clic lascia sul bottone fermava lo scorrimento per sempre. Il tocco
     // non conta come puntatore sopra. E un cambio a mano riparte da capo.
-    it('puntatore e fuoco da tastiera contano ognuno per sé; il clic e il tocco non fermano; un cambio a mano riparte da un passo intero', () => {
+    it('puntatore e fuoco da tastiera contano ognuno per sé; il clic e il tocco non fermano; dopo un cambio a mano il ripiego riparte da capo', () => {
       vi.useFakeTimers()
       conMovimento(false)
       mostra()
@@ -518,7 +531,7 @@ describe('la prima pagina', () => {
       act(() => vi.advanceTimersByTime(PASSO))
       expect(parola()).toBe('Prepara.')
       // A metà del giro un clic su un punto: il fuoco che il clic lascia non
-      // ferma, e la nuova diapositiva resta quattro secondi interi.
+      // ferma, e il ripiego per la nuova diapositiva riparte intero.
       act(() => vi.advanceTimersByTime(2000))
       const punto = screen.getAllByRole('button', { name: /Gesto \d di 5/ })[3]
       fireEvent.pointerDown(punto, { pointerType: 'mouse' })
@@ -565,7 +578,8 @@ describe('la prima pagina', () => {
       const primo = video()[0]
       expect(primo.closest('.diapositiva').dataset.gesto).toBe('sala')
       expect(primo).toHaveAttribute('poster', '/video/sala.jpg')
-      expect(primo.loop).toBe(true)
+      // Mentre il carosello scorre il filmato non ricomincia da solo (REQ-FLOTTA-127).
+      expect(primo.loop).toBe(false)
       expect(primo.muted).toBe(true)
       expect(primo.querySelector('source')).toHaveAttribute('src', '/video/sala.mp4')
       expect([...document.querySelectorAll('.diapositiva img')].map((i) => i.getAttribute('src'))).toEqual(
@@ -577,7 +591,8 @@ describe('la prima pagina', () => {
       fireEvent.click(screen.getByRole('button', { name: it_.gesti.successiva }))
       expect(video().map((v) => v.closest('.diapositiva').dataset.gesto).sort()).toEqual(['banco', 'sala'])
       expect(document.querySelector('.diapositiva[data-uscente="true"]').dataset.gesto).toBe('sala')
-      act(() => vi.advanceTimersByTime(1500))
+      // A mano la dissolvenza dura 0,2 secondi (REQ-FLOTTA-127).
+      act(() => vi.advanceTimersByTime(200))
       expect(video()).toHaveLength(1)
       expect(video()[0].closest('.diapositiva').dataset.gesto).toBe('banco')
       expect(document.querySelector('.diapositiva[data-uscente="true"]')).toBeNull()
@@ -588,23 +603,132 @@ describe('la prima pagina', () => {
     // ferme le regole nel foglio di stile e la durata dei filmati.
     it('dissolvenza al posto dello scorrimento, e ogni filmato si vede per intero', () => {
       const css = readFileSync(join(import.meta.dirname, '..', 'src', 'index.css'), 'utf8').replace(/\r\n/g, '\n')
-      expect(css).toMatch(/\.diapositiva \{[^}]*position: absolute;[^}]*opacity: 0;[^}]*transition: opacity 1\.5s ease;/)
+      // La durata la mette Home.jsx in --dissolvenza; anima solo chi compare (REQ-FLOTTA-127).
+      expect(css).toMatch(/\.diapositiva \{[^}]*position: absolute;[^}]*opacity: 0;[^}]*transition: opacity var\(--dissolvenza, 1\.5s\) ease;/)
+      expect(css).toMatch(/\.diapositiva:not\(\[data-visibile='true'\]\) \{ transition: none; \}/)
       expect(css).toMatch(/\.diapositiva\[data-visibile='true'\] \{ opacity: 1; z-index: 1; \}/)
       expect(css).toMatch(/\.diapositiva\[data-uscente='true'\] \{ opacity: 1; \}/)
       expect(css).not.toMatch(/transition: transform 0\.7s/)
       expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\n {2}\.diapositiva, \.gesto-punto::before \{ transition: none; \}\n {2}\.gesto-entra \{ animation: none; \}/)
-      // Passo più dissolvenza = la durata di un filmato: nessuno si taglia.
+      // Il passo lo dà il filmato (REQ-FLOTTA-127): la dissolvenza comincia
+      // quando gli manca un secondo e mezzo. Un filmato deve durare almeno
+      // il doppio della dissolvenza, se no comincerebbe a sfumare appena
+      // comparso.
       const codice = readFileSync(join(import.meta.dirname, '..', 'src', 'pages', 'Home.jsx'), 'utf8')
-      expect(codice).toContain('const PASSO_CAROSELLO_MS = 6500')
+      expect(codice).not.toContain('PASSO_CAROSELLO_MS')
       expect(codice).toContain('const DISSOLVENZA_MS = 1500')
+      expect(codice).toContain('const DISSOLVENZA_A_MANO_MS = 200')
+      expect(codice).toContain('const RIPIEGO_MS = 6500')
       for (const nome of FILMATI) {
         const dati = readFileSync(join(import.meta.dirname, '..', 'public', 'video', `${nome}.mp4`))
         const i = dati.indexOf('mvhd')
         const versione = dati[i + 4]
         const scala = dati.readUInt32BE(i + (versione === 1 ? 24 : 16))
         const durata = versione === 1 ? Number(dati.readBigUInt64BE(i + 28)) : dati.readUInt32BE(i + 20)
-        expect(durata / scala, nome).toBeGreaterThanOrEqual((6500 + 1500) / 1000)
+        expect(durata / scala, nome).toBeGreaterThanOrEqual((2 * 1500) / 1000)
       }
+    })
+
+    // REQ-FLOTTA-127 (Daniele, 17/11/2026: «il video successivo parte
+    // sempre dopo che quello precedente è ripartito… Deve partire prima che
+    // quello precedente finisca»). I filmati durano 8,04 secondi; il passo
+    // era un timer di 6,5 che non guardava il filmato.
+    it('il passo lo decide il filmato: la dissolvenza comincia quando gli manca un secondo e mezzo, anche se ha caricato tardi', () => {
+      vi.useFakeTimers()
+      conMovimento(false)
+      mostra()
+      act(() => vi.advanceTimersByTime(0))
+      const v = filmato()
+      // Tre secondi per caricare, poi il filmato va: il vecchio timer avrebbe
+      // cambiato a 6,5 secondi dalla comparsa, con il filmato a metà.
+      act(() => vi.advanceTimersByTime(3000))
+      for (let t = 0.5; t <= 6.5; t += 0.5) {
+        act(() => vi.advanceTimersByTime(500))
+        suona(v, t)
+      }
+      expect(parola()).toBe('Ordina.')
+      suona(v, 6.6)
+      expect(parola()).toBe('Prepara.')
+      // Da solo, la dissolvenza dura un secondo e mezzo.
+      expect(document.querySelector('.diapositive').style.getPropertyValue('--dissolvenza')).toBe('1500ms')
+      act(() => vi.advanceTimersByTime(1000))
+      expect(document.querySelector('.diapositiva[data-uscente="true"]').dataset.gesto).toBe('sala')
+      act(() => vi.advanceTimersByTime(500))
+      expect(document.querySelector('.diapositiva[data-uscente="true"]')).toBeNull()
+    })
+
+    it('mentre il carosello scorre il filmato non ricomincia da solo; fermo col puntatore sopra, sì', () => {
+      vi.useFakeTimers()
+      conMovimento(false)
+      mostra()
+      act(() => vi.advanceTimersByTime(0))
+      expect(filmato().loop).toBe(false)
+      fireEvent.pointerEnter(gruppo(), { pointerType: 'mouse' })
+      expect(filmato().loop).toBe(true)
+      fireEvent.pointerLeave(gruppo(), { pointerType: 'mouse' })
+      expect(filmato().loop).toBe(false)
+      // Se il passo non è arrivato prima, la fine del filmato lo porta.
+      suona(filmato(), 3)
+      suona(filmato(), DURATA, 'ended')
+      expect(parola()).toBe('Prepara.')
+    })
+
+    it('dopo una pausa il passo arriva alla fine del filmato in corso, non dopo un giro intero', () => {
+      vi.useFakeTimers()
+      conMovimento(false)
+      mostra()
+      act(() => vi.advanceTimersByTime(0))
+      const v = filmato()
+      suona(v, 2)
+      fireEvent.pointerEnter(gruppo(), { pointerType: 'mouse' })
+      act(() => vi.advanceTimersByTime(20000))
+      // In pausa il filmato ha continuato in loop: ora è a 6 secondi.
+      suona(v, 6)
+      expect(parola()).toBe('Ordina.')
+      fireEvent.pointerLeave(gruppo(), { pointerType: 'mouse' })
+      act(() => vi.advanceTimersByTime(500))
+      suona(v, 6.6)
+      expect(parola()).toBe('Prepara.')
+    })
+
+    it('ogni filmato che compare parte da capo, anche tornando a quello che stava uscendo', () => {
+      vi.useFakeTimers()
+      conMovimento(false)
+      mostra()
+      act(() => vi.advanceTimersByTime(0))
+      const sala = filmato()
+      suona(sala, 5)
+      fireEvent.click(screen.getByRole('button', { name: it_.gesti.successiva }))
+      // Quella che esce tiene il suo filmato, dov'era: prima, per un istante
+      // non era né visibile né uscente, lo perdeva e lo rifaceva da capo.
+      expect(sala.isConnected).toBe(true)
+      expect(sala.currentTime).toBe(5)
+      expect(sala.loop).toBe(false)
+      fireEvent.click(screen.getByRole('button', { name: it_.gesti.precedente }))
+      expect(visibile()).toBe('sala')
+      expect(filmato()).toBe(sala)
+      expect(sala.currentTime).toBe(0)
+    })
+
+    it('a mano la dissolvenza dura 0,2 secondi, e con più clic di fila esce una diapositiva sola', () => {
+      vi.useFakeTimers()
+      conMovimento(false)
+      mostra()
+      act(() => vi.advanceTimersByTime(0))
+      const avanti = screen.getByRole('button', { name: it_.gesti.successiva })
+      fireEvent.click(avanti)
+      expect(document.querySelector('.diapositive').style.getPropertyValue('--dissolvenza')).toBe('200ms')
+      act(() => vi.advanceTimersByTime(199))
+      expect(document.querySelector('.diapositiva[data-uscente="true"]')).not.toBeNull()
+      act(() => vi.advanceTimersByTime(1))
+      expect(document.querySelector('.diapositiva[data-uscente="true"]')).toBeNull()
+      // Tre clic in un attimo: una sola esce, e girano al più due filmati.
+      fireEvent.click(avanti)
+      fireEvent.click(avanti)
+      fireEvent.click(avanti)
+      expect(parola()).toBe('Riordina.')
+      expect(document.querySelectorAll('.diapositiva[data-uscente="true"]')).toHaveLength(1)
+      expect(document.querySelectorAll('video').length).toBeLessThanOrEqual(2)
     })
 
     it('parola e frase compaiono in dissolvenza, dentro la regione che si annuncia', () => {

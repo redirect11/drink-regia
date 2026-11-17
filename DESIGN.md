@@ -200,9 +200,13 @@ cosa comprende dovrebbero essere sempre aperti».
 
 - **La prima schermata è il carosello.** I cinque filmati stanno uno sopra
   l'altro dietro a tutto e passano in dissolvenza: ognuno si vede per
-  intero, 8 secondi, e a 6,5 il successivo comincia a comparire sopra in
-  un secondo e mezzo (REQ-FLOTTA-074, 12/11/2026; prima scorrevano di lato
-  ogni quattro secondi, e a Daniele sembrava «troppo veloce»). Titolo,
+  intero, da capo, e quando gli manca un secondo e mezzo alla fine il
+  successivo comincia a comparire sopra, in un secondo e mezzo: il
+  filmato di prima non ricomincia mai sotto gli occhi (REQ-FLOTTA-074,
+  12/11/2026; REQ-FLOTTA-127, 17/11/2026: il passo lo dà il filmato, non un
+  timer, e dopo una pausa arriva alla fine del filmato in corso). Il cambio
+  a mano (frecce, punti) sfuma in 0,2 secondi. Prima scorrevano di lato
+  ogni quattro secondi, e a Daniele sembrava «troppo veloce». Titolo,
   sottotitolo, bottoni e scheda dei fatti restano fermi davanti.
 - **In basso** la parola del gesto che si vede, con l'iniziale lime, e una
   frase sola. Niente etichette di piani o moduli: chi guarda deve prima

@@ -158,11 +158,16 @@ function useFilmati() {
   return { possibile, girano: possibile && acceso, cambia: () => setAcceso((a) => !a) }
 }
 
-function Filmato({ nome, className, gira }) {
+// `ripete`: il filmato ricomincia da solo quando finisce. Solo quello che
+// si vede col carosello fermo (pausa sui comandi, un solo gesto): quando il
+// carosello scorre è il filmato a dire quando passare, e non deve mai
+// ricominciare, né mentre si vede né mentre sfuma (REQ-FLOTTA-127).
+// `rif` raggiunge l'elemento <video> di quello che si vede.
+function Filmato({ nome, className, gira, ripete = true, rif }) {
   const fermo = `/video/${nome}.jpg`
   if (!gira) return <img className={className} src={fermo} alt="" decoding="async" />
   return (
-    <video className={className} poster={fermo} autoPlay muted loop playsInline preload="metadata" aria-hidden="true" tabIndex={-1}>
+    <video ref={rif} className={className} poster={fermo} autoPlay muted loop={ripete} playsInline preload="metadata" aria-hidden="true" tabIndex={-1}>
       <source src={`/video/${nome}.mp4`} type="video/mp4" />
     </video>
   )
@@ -196,13 +201,23 @@ const GESTI = [
   { id: 'numeri', moduli: ['statistiche', 'staff'], base: false },
   { id: 'scorta', moduli: ['magazzino'], base: false },
 ]
-// Ogni quanto il carosello passa al gesto dopo, da solo, e quanto dura la
-// dissolvenza (REQ-FLOTTA-074). I filmati durano 8 secondi: il passo più
-// la dissolvenza fanno 8, così ognuno si vede per intero, da capo alla
-// fine. Prima erano 4 secondi di scorrimento laterale; Daniele, 12/11/2026:
-// «troppo veloce, e la transizione proprio tra un video e l'altro».
-const PASSO_CAROSELLO_MS = 6500
+// QUANDO IL CAROSELLO PASSA AL GESTO DOPO (REQ-FLOTTA-127). Lo dice il
+// filmato che si vede: quando gli manca la dissolvenza alla fine, comincia
+// la dissolvenza, così finisce insieme al filmato e quello di prima non
+// ricomincia mai sotto gli occhi. Prima era un timer di 6,5 secondi che non
+// guardava il filmato: si azzerava a ogni pausa e non contava il tempo di
+// caricamento, e il filmato di prima, in loop, ripartiva prima del cambio
+// (Daniele, 17/11/2026: «il video successivo parte sempre dopo che quello
+// precedente è ripartito»).
+// La dissolvenza da sola dura un secondo e mezzo (REQ-FLOTTA-074); quella
+// del cambio a mano 0,2 secondi: chi preme avanti vuole il gesto dopo, non
+// vedere quello di prima che sfuma (Daniele, 17/11/2026).
+// Il RIPIEGO: se il filmato non dà segni di vita per 6,5 secondi (non parte,
+// la rete è lenta, i filmati sono spenti dal fermo immagine) il carosello
+// passa avanti lo stesso, col passo di prima.
 const DISSOLVENZA_MS = 1500
+const DISSOLVENZA_A_MANO_MS = 200
+const RIPIEGO_MS = 6500
 
 // UN PEZZO CHE SI APRE (REQ-FLOTTA-063): il confronto fra i piani e ogni
 // modulo dell'elenco. Daniele, 11/11/2026: i moduli a pagamento «nascosti,
@@ -300,7 +315,14 @@ export default function Home({ utente, lingua = 'it' }) {
   // Prima aspettava col puntatore su tutta la prima schermata, e su un
   // computer il mouse è quasi sempre lì: non scorreva mai (REQ-FLOTTA-069,
   // Daniele, 12/11/2026: «il carosello dovrebbe scorrere da solo»).
-  const [scelto, setScelto] = useState(0)
+  // `scelto` è il gesto che si vede, `uscente` quello che sta sfumando sotto,
+  // `aMano` dice come ci si è arrivati, `cambio` conta i cambi. Stanno
+  // insieme perché cambiano insieme: quando `uscente` arrivava da un
+  // effetto, dopo il cambio, per un istante la diapositiva di prima non era
+  // né visibile né uscente, perdeva il suo <video> e lo rifaceva da capo,
+  // e il filmato di prima ricominciava sotto quello nuovo (REQ-FLOTTA-127,
+  // trovato dai test del 17/11/2026).
+  const [carosello, setCarosello] = useState({ scelto: 0, uscente: null, aMano: false, cambio: 0 })
   // Due motivi per aspettare, ognuno col suo stato (rilievo del revisore,
   // 11/11/2026): con uno solo, l'ultimo evento vinceva, e il mouse che
   // usciva faceva ripartire lo scorrimento anche col fuoco ancora su un
@@ -313,31 +335,98 @@ export default function Home({ utente, lingua = 'it' }) {
   // punto lo scorrimento restava fermo finché il fuoco non usciva.
   const ultimoClic = useRef(-Infinity)
   const inPausa = puntatoreSopra || fuocoDentro
-  const indice = Math.min(scelto, gesti.length - 1)
+  const indice = Math.min(carosello.scelto, gesti.length - 1)
   const quanti = gesti.length
-  const vai = (i) => setScelto(((i % quanti) + quanti) % quanti)
+  const { uscente, aMano, cambio } = carosello
+  // Passa a un altro gesto: quello di prima diventa l'uscente nello stesso
+  // momento. Lo stesso gesto non è un cambio.
+  const passaA = (verso, manuale) =>
+    setCarosello((s) => {
+      const da = Math.min(s.scelto, quanti - 1)
+      const a = verso(da)
+      return a === da ? s : { scelto: a, uscente: da, aMano: manuale, cambio: s.cambio + 1 }
+    })
+  const vai = (i) => passaA(() => ((i % quanti) + quanti) % quanti, true)
   const scorre = filmati.girano && !inPausa && quanti > 1
+  // Il <video> del gesto che si vede (null col fermo immagine).
+  const filmatoVisibile = useRef(null)
   useEffect(() => {
     if (!scorre) return undefined
-    // Riparte a ogni cambio di diapositiva (per questo `indice` è fra le
-    // dipendenze): chi ne ha scelta una a mano la vede per quattro secondi
-    // interi, non per quel che restava del giro.
-    const giro = setTimeout(() => setScelto((i) => (Math.min(i, quanti - 1) + 1) % quanti), PASSO_CAROSELLO_MS)
-    return () => clearTimeout(giro)
-  }, [scorre, quanti, indice])
+    // Come passaA, scritto qui perché l'effetto dipenda solo da `quanti`.
+    // Scorre solo con più di un gesto: il gesto dopo è sempre un altro.
+    const avanza = () =>
+      setCarosello((s) => {
+        const da = Math.min(s.scelto, quanti - 1)
+        return { scelto: (da + 1) % quanti, uscente: da, aMano: false, cambio: s.cambio + 1 }
+      })
+    let fatto = false
+    const passa = () => {
+      if (fatto) return
+      fatto = true
+      avanza()
+    }
+    // Il ripiego riparte da capo ogni volta che il filmato va avanti: finché
+    // gira è lui a decidere. Riparte anche a ogni cambio di diapositiva e a
+    // ogni ripresa dopo una pausa (sono fra le dipendenze).
+    let ripiego = setTimeout(passa, RIPIEGO_MS)
+    const video = filmatoVisibile.current
+    if (!video) return () => clearTimeout(ripiego)
+    let ultimo = video.currentTime
+    const guarda = () => {
+      const t = video.currentTime
+      const durata = video.duration
+      if (t !== ultimo) {
+        ultimo = t
+        clearTimeout(ripiego)
+        ripiego = setTimeout(passa, RIPIEGO_MS)
+      }
+      // Dopo una pausa il filmato è dove è arrivato: se gli manca meno
+      // della dissolvenza, si passa subito (REQ-FLOTTA-127, punto C).
+      if (Number.isFinite(durata) && durata > 0 && durata - t <= DISSOLVENZA_MS / 1000) passa()
+    }
+    // timeupdate arriva più o meno ogni 250 ms: basta, perché il filmato non
+    // ricomincia da solo mentre il carosello scorre (`ripete` è falso) e,
+    // se il passo arriva un po' tardi, finisce sull'ultimo fotogramma.
+    // Dove c'è, requestVideoFrameCallback guarda ogni fotogramma.
+    let fotogramma = null
+    const aOgniFotogramma = () => {
+      guarda()
+      fotogramma = video.requestVideoFrameCallback(aOgniFotogramma)
+    }
+    video.addEventListener('timeupdate', guarda)
+    // Se il passo non è arrivato prima, la fine del filmato lo porta.
+    video.addEventListener('ended', passa)
+    if (typeof video.requestVideoFrameCallback === 'function') fotogramma = video.requestVideoFrameCallback(aOgniFotogramma)
+    guarda()
+    return () => {
+      clearTimeout(ripiego)
+      video.removeEventListener('timeupdate', guarda)
+      video.removeEventListener('ended', passa)
+      if (fotogramma !== null) video.cancelVideoFrameCallback?.(fotogramma)
+    }
+  }, [scorre, quanti, indice, filmati.girano])
   const gesto = gesti[indice]
-  // LA DISSOLVENZA (REQ-FLOTTA-074): per un secondo e mezzo la diapositiva
-  // di prima resta sotto, ferma e col suo filmato, mentre la nuova compare
-  // sopra. Poi si spegne.
-  const [uscente, setUscente] = useState(null)
-  const ultimoIndice = useRef(indice)
+  // LA DISSOLVENZA (REQ-FLOTTA-074): la diapositiva di prima resta sotto,
+  // ferma e col suo filmato, mentre la nuova compare sopra; poi si spegne
+  // di colpo, già coperta. Un secondo e mezzo da sola, 0,2 secondi a mano
+  // (REQ-FLOTTA-127). Ce n'è una sola che esce: con più clic di fila quella
+  // di prima sparisce subito (src/index.css), e non restano filmati che
+  // sfumano insieme.
+  const dissolvenza = aMano ? DISSOLVENZA_A_MANO_MS : DISSOLVENZA_MS
   useEffect(() => {
-    if (ultimoIndice.current === indice) return undefined
-    setUscente(ultimoIndice.current)
-    ultimoIndice.current = indice
-    const fine = setTimeout(() => setUscente(null), DISSOLVENZA_MS)
+    if (cambio === 0) return undefined
+    // Il gesto che compare parte da capo, anche se il suo filmato c'era già
+    // perché stava uscendo (avanti e subito indietro) (REQ-FLOTTA-127, B).
+    const video = filmatoVisibile.current
+    if (video && video.currentTime > 0) {
+      video.currentTime = 0
+      video.play?.()?.catch?.(() => {})
+    }
+    // Finita la dissolvenza, quello di prima si spegne; se nel frattempo c'è
+    // stato un altro cambio, l'uscente è già un altro e non si tocca.
+    const fine = setTimeout(() => setCarosello((s) => (s.cambio === cambio ? { ...s, uscente: null } : s)), dissolvenza)
     return () => clearTimeout(fine)
-  }, [indice])
+  }, [cambio, dissolvenza])
   const { base, completo } = PIANI
   const inclusiNelBase = new Set(base.include)
   const inclusiNelCompleto = new Set(completo.include)
@@ -449,10 +538,17 @@ export default function Home({ utente, lingua = 'it' }) {
           solo quando si cambia a mano, non a ogni giro. */}
       <section className="hero" aria-labelledby="hero-titolo">
         <div className="carosello" aria-hidden="true">
-          <ol className="diapositive">
+          {/* La durata della dissolvenza la legge il foglio di stile (.diapositiva). */}
+          <ol className="diapositive" style={{ '--dissolvenza': `${dissolvenza}ms` }}>
             {gesti.map((g, i) => (
               <li key={g.id} className="diapositiva" data-gesto={g.id} data-visibile={i === indice} data-uscente={i === uscente}>
-                <Filmato nome={g.id} className="hero-sfondo" gira={filmati.girano && (i === indice || i === uscente)} />
+                <Filmato
+                  nome={g.id}
+                  className="hero-sfondo"
+                  gira={filmati.girano && (i === indice || i === uscente)}
+                  ripete={i === indice && !scorre}
+                  rif={i === indice ? filmatoVisibile : undefined}
+                />
               </li>
             ))}
           </ol>
