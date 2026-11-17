@@ -90,7 +90,14 @@ tana-drink non riceve più lanci e non manda più esiti. Restano:
   (REQ-FLOTTA-124, 17/11/2026). I locali della flotta lo ricevono dal
   Terraform (`google_project_iam_member.agente_storage`): quelli nuovi alla
   nascita, quelli completi già attivi al primo `aggiorna-istanza`, che
-  applica solo quei due pezzi (`-target`). La Tana e i locali esistenti non
+  applica il service agent dello Storage e il ruolo (`-target`). Il
+  `-target` porta con sé le loro dipendenze, il progetto e le API: il
+  workflow fa prima un piano e, se cambierebbe qualcos'altro, si ferma con
+  l'elenco e non applica niente. Quel locale va guardato a mano (un
+  progetto toccato fuori dal Terraform, per esempio la fatturazione), e
+  finché non è sistemato non si aggiorna: è voluto, perché senza il ruolo
+  le regole nuove negherebbero ogni caricamento. Il ruolo può diventare
+  effettivo qualche minuto dopo l'apply. La Tana e i locali esistenti non
   hanno stato Terraform: lo aggiunge Daniele, una volta per progetto, prima
   che arrivi la versione di tana-drink con le regole nuove:
 
