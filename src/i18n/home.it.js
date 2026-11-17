@@ -75,11 +75,14 @@ export default {
   },
   hero: {
     occhiello: 'Gestionale per bar e ristoranti',
-    // Riscritti il 07/11/2026 (l'utente: «nella parte iniziale non è chiaro
-    // cosa vendiamo. Serve uno slogan facile e poche parole»): la categoria
-    // nel titolo, il percorso del servizio nella seconda frase, una riga
-    // sola sotto. Scelto fra tre proposte; quelli di prima in DESIGN.md §5.1.
-    titolo: 'Il gestionale del tuo locale. Dalla comanda alla cassa.',
+    // Lo slogan del 17/11/2026 (REQ-FLOTTA-131), scelto da Daniele sul
+    // canvas di design dopo aver scartato le proposte «piatte e scontate»:
+    // «Tu servi. Lime fa i conti.» — «questo mi piace». Due frasi in croce,
+    // e la categoria resta nell'occhiello qui sopra, che risponde ancora a
+    // «nella parte iniziale non è chiaro cosa vendiamo» (07/11/2026). Quello
+    // di prima, «Il gestionale del tuo locale. Dalla comanda alla cassa.»,
+    // e la sua storia sono in DESIGN.md §5.1.
+    titolo: 'Tu servi. Lime fa i conti.',
     sottotitolo: 'Comande, cassa, menù con QR, magazzino, personale e statistiche in un’app sola, nata in un cocktail bar.',
     attiva: 'Attiva il tuo locale',
     dashboard: 'La mia dashboard',
@@ -97,27 +100,25 @@ export default {
     automatica: 'Attivazione automatica',
     concordata: 'Attivazione concordata con noi',
   },
-  // I cinque gesti del carosello (REQ-FLOTTA-061). Una parola e una frase
-  // sola, corta: Daniele, sulla riga di prima di «Riordina» («Le giacenze
-  // scendono da sole con le comande. Prima di aprire si vede cosa manca,
-  // e l'ordine al fornitore parte da lì»): «quanto fa schifo questo
-  // testo». Ogni frase dice una cosa che l'app fa, senza giri; «Conta» ne
-  // ha una per modulo e si legge quella del primo in vendita.
+  // Le cinque diapositive del carosello (REQ-FLOTTA-131, prima
+  // REQ-FLOTTA-061). Parlano al titolare, non al cliente del locale:
+  // Daniele, 16/11/2026, «ordina si riferisce al cliente del locale, le
+  // altre al nostro cliente. Dovremmo dire più che altro: gestisci gli
+  // ordini… anche offline, acquisti dal menù, segui le comande (stampate e
+  // non, prevediamo una comanda digitale), conti sempre in ordine, tieni
+  // d'occhio il magazzino». Ogni riga sotto il titolo l'ha scelta lui, una
+  // per una (le tre del 15/11 su «Ordina», «Prepara» e «Incassa» sono
+  // rientrate nelle righe). Nella seconda «paga» non c'è: l'app non fa
+  // ancora pagare il cliente dal menù, e la pagina non lo promette.
   gesti: {
     titolo: 'Il lavoro del locale, in cinque gesti',
     carosello: 'carosello',
     voci: {
-      sala: { parola: 'Ordina.', testo: 'La comanda parte dal tavolo e arriva subito al banco.' },
-      banco: { parola: 'Prepara.', testo: 'Chi prepara vede cosa c’è da fare, in ordine.' },
-      conto: { parola: 'Incassa.', testo: 'Il conto è già pronto: si incassa e si stampa.' },
-      numeri: {
-        parola: 'Conta.',
-        frasi: {
-          statistiche: 'L’incasso della serata è già fatto, senza rifare i conti.',
-          staff: 'Le ore di chi ha lavorato sono già segnate.',
-        },
-      },
-      scorta: { parola: 'Riordina.', testo: 'Sai cosa sta finendo prima che finisca.' },
+      ordini: { parola: 'Gestisci gli ordini.', testo: 'Dal tavolo al banco, in un tocco. Anche senza rete.' },
+      menu: { parola: 'Acquisti dal menù.', testo: 'Inquadra il QR code, ordina e il cliente è servito. Gestisci le ordinazioni direttamente dai tavoli.' },
+      comande: { parola: 'Segui le comande.', testo: 'Stampate al banco o sullo schermo: lo vedi, lo prepari, lo spunti.' },
+      conti: { parola: 'Conti sempre in ordine.', testo: 'Tieni d’occhio i conti della serata e del locale, fino all’ultimo centesimo.' },
+      magazzino: { parola: 'Tieni d’occhio il magazzino.', testo: 'Mai più senza scorte. Con Lime ti accorgi subito se un prodotto sta finendo.' },
     },
     precedente: 'Gesto precedente',
     successiva: 'Gesto successivo',
@@ -145,29 +146,42 @@ export default {
         // (REQ-FLOTTA-068, Daniele: «si»).
         testo: 'La prendi al tavolo o al banco: arriva subito e, se lo scegli, si stampa da sola. Il conto ha già tutto sopra e si chiude in contanti o con carta; lo scontrino di cortesia esce sulla stampante termica.',
         punti: ['Comanda stampata al banco', 'Contanti e carta', 'Scontrino di cortesia'],
+        // Le schermate (REQ-FLOTTA-131) sono vere: la demo di tana-drink col
+        // tema Lime e il locale «Bancone 21». Il testo alternativo dice cosa
+        // si vede, non cosa vendiamo.
+        schermata: 'Il conto di un tavolo aperto sul tablet: i prodotti del menù a sinistra, a destra le righe del conto, il totale e il tasto Pagamento.',
       },
       menu: {
         occhiello: 'Menù digitale e ordini dal tavolo',
-        titolo: 'Il menù con un QR, l’ordine dal telefono del cliente.',
+        // Il titolo del canvas di design (REQ-FLOTTA-131): il vantaggio,
+        // non la tecnologia. Il QR resta nel testo sotto.
+        titolo: 'Cambi un prezzo, il menù è già giusto.',
         testo: 'Il cliente inquadra il QR, vede il menù con i prezzi aggiornati, ordina e segue lo stato del suo ordine. Niente app da scaricare e niente menù di carta da ristampare quando cambi un prezzo.',
         punti: ['Menù sempre aggiornato', 'Ordini che arrivano dritti al banco', 'Nessuna app da scaricare'],
+        schermata: 'Il menù del locale sul telefono del cliente: i drink della casa e il numero dell’ordine che si sta servendo.',
       },
       magazzino: {
         occhiello: 'Magazzino',
         // Si scarica quando la comanda è pronta, o alla riscossione se il
         // locale non segue gli stati (tana-drink, REQ-MAG-003); l'avviso è la
-        // soglia di riordino del prodotto (REQ-MAG-006).
-        titolo: 'Il magazzino si scarica da solo, dalle ricette.',
+        // soglia di riordino del prodotto (REQ-MAG-006). Il titolo è quello
+        // del canvas di design (REQ-FLOTTA-131).
+        titolo: 'Ogni drink servito scala la sua bottiglia.',
         testo: 'Ogni comanda preparata scarica gli ingredienti della sua ricetta; quando una giacenza scende sotto la soglia di riordino, l’app te lo segnala. L’inventario periodico e le fatture dei fornitori tengono i conti allineati.',
         punti: ['Giacenze e soglie di riordino', 'Inventario periodico', 'Fatture dei fornitori'],
+        schermata: 'Il magazzino: i prodotti per categoria, con prezzo, costo al centilitro, scorte e quanto ne resterà a fine serata.',
       },
       statistiche: {
         occhiello: 'Statistiche',
         titolo: 'Quanto hai incassato, a che ora, con cosa.',
         testo: 'Incassi per serata e per periodo, venduto per fascia oraria, bilancio per categorie. Le ore di punta e il confronto con la settimana scorsa sono già calcolati, senza fogli Excel.',
         punti: ['Confronto tra periodi', 'Le ore di punta', 'Il bilancio per macro-categorie'],
+        schermata: 'Le statistiche di una serata: incasso, ordini, scontrino medio, drink venduti, ora di punta e l’incasso per fascia oraria.',
       },
     },
+    // Sulla pagina inglese dice che le schermate sono in italiano, perché
+    // l'app lo è; qui non serve.
+    schermateInItaliano: '',
     minori: {
       staff: 'Le ore e le paghe del personale, e le chiamate allo staff, nello stesso gestionale.',
       sumup: 'Il conto passa al lettore SumUp e torna già pagato.',
@@ -193,7 +207,9 @@ export default {
     // pacchetto, quindi «paghi solo quello che usi» non era esatto.
     titolo: 'Un canone al mese, e i moduli che ti servono.',
     // DEC-0005: prezzi IVA esclusa, col totale IVA inclusa accanto.
-    sotto: 'Abbonamento mensile o annuale. Prezzi IVA esclusa (IVA al {iva}), con il totale IVA inclusa accanto. Attivazione una tantum: {attivazione} ({lordo}).',
+    // «Assistenza inclusa»: Daniele, 16/11/2026, «assistenza inclusa e
+    // basta» (REQ-PREZZI-001, REQ-FLOTTA-131).
+    sotto: 'Abbonamento mensile o annuale, assistenza inclusa. Prezzi IVA esclusa (IVA al {iva}), con il totale IVA inclusa accanto. Attivazione una tantum: {attivazione} ({lordo}).',
     // La prova (DEC-0005). Si dice solo cosa vale: la durata, e che il
     // canone parte alla fine. Come si paga l'attivazione durante la prova
     // è da decidere (vedi i Termini, §3).
@@ -216,7 +232,11 @@ export default {
     ore: { uno: '{n} ora', piu: '{n} ore' },
     assistenza: 'L’assistenza da remoto è inclusa fino a {ore} al mese; oltre, a preventivo.',
     stampante:
-      'Le stampanti supportate sono le termiche Epson in rete. Per collegare un’altra stampante facciamo un preventivo scritto, da accettare prima di cominciare il lavoro.',
+      // Daniele, 16/11/2026: «metterei che supportiamo stampanti su
+      // richiesta, basta che ci fanno sapere il modello». Il modello si dice
+      // nella scelta del piano (REQ-FLOTTA-081); il preventivo resta nei
+      // termini (REQ-FLOTTA-131).
+      'Usi un’altra stampante? La supportiamo su richiesta: indicaci il modello quando scegli il piano, oppure scrivici.',
     piano: 'Piano {nome}',
     tuttoIncluso: 'Tutto incluso',
     inizia: 'Inizia con {nome}',
@@ -304,7 +324,7 @@ export default {
       ],
       [
         'Cosa mi serve per cominciare?',
-        'Un tablet o un telefono con un browser aggiornato. Per lo scontrino, una stampante termica Epson in rete; per le carte, un lettore SumUp.',
+        'Un tablet o un telefono con un browser aggiornato. Per lo scontrino, una stampante termica Epson in rete, o un altro modello su richiesta; per le carte, un lettore SumUp.',
       ],
       [
         'Posso cambiare piano o disdire?',
@@ -321,8 +341,10 @@ export default {
     ],
   },
   chiusura: {
-    titolo: 'Vedila con il tuo menù e i tuoi prezzi.',
-    testo: 'Attiva il tuo locale, oppure scrivici: te la mostriamo caricata con il tuo menù e i tuoi prezzi, e decidi dopo.',
+    // Dal canvas di design (REQ-FLOTTA-131): due tempi, come il titolo
+    // della prima schermata.
+    titolo: 'Provala con il tuo menù. Decidi dopo.',
+    testo: 'Attiva il tuo locale, oppure scrivici: te la mostriamo caricata con il tuo menù e i tuoi prezzi.',
     attiva: 'Attiva il tuo locale',
     dashboard: 'La mia dashboard',
     scrivici: 'Scrivici',

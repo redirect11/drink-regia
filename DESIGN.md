@@ -226,7 +226,29 @@ cosa comprende dovrebbero essere sempre aperti».
   L'h1 resta uno e non cambia.
 - **Le frasi sono corte**: una sola, sotto gli 80 caratteri. La regola
   viene dal rifiuto della riga di «Riordina» di prima («quanto fa schifo
-  questo testo»).
+  questo testo»). Dal 17/11/2026 vale la regola sotto.
+
+### Le diapositive che parlano al titolare (17/11/2026, REQ-FLOTTA-131)
+
+Supera, del paragrafo sopra, le cinque parole (Ordina, Prepara, Incassa,
+Conta, Riordina) e la frase sola. Daniele, 16/11/2026, sul canvas di
+design: «ordina si riferisce al cliente del locale, le altre al nostro
+cliente. Dovremmo dire più che altro: gestisci gli ordini… anche offline,
+acquisti dal menù, segui le comande, conti sempre in ordine, tieni d'occhio
+il magazzino».
+
+- **Il titolo della diapositiva è una frase** («Gestisci gli ordini.»), con
+  l'iniziale lime: più piccolo della parola di prima, e va a capo bene.
+- **La riga sotto** l'ha scelta Daniele, una per una: al massimo due frasi,
+  sotto i 110 caratteri («Dal tavolo al banco, in un tocco. Anche senza
+  rete.»). Niente promesse che l'app non mantiene: «paga» nella riga del
+  menù non c'è finché il cliente non può pagare dal menù.
+- **I filmati restano i cinque di prima**, abbinati per quello che si vede:
+  la sala agli ordini, l'uomo al tavolo col tablet al menù, il banco alle
+  comande, il conto ai conti, la scorta al magazzino. Le statistiche non
+  hanno più una diapositiva.
+- **«Acquisti dal menù» e il magazzino vivono di moduli**: si vedono solo se
+  uno dei loro è in vendita. Ordini, comande e conti sono del piano Base.
 
 ### Il confronto fra i piani e i moduli a scomparsa (11/11/2026, REQ-FLOTTA-063)
 
@@ -344,13 +366,19 @@ sulla pagina.
 
 ### Immagini
 
-- **Schermate vere dell'app, quando ci saranno** (§9.5): oggi la demo
-  (`drinkpos-demo`) non è pubblicata e nel repository non c'è nessuna
-  schermata, quindi la pagina non ne mostra: il pannello accanto a ogni
-  funzione è la lista di cosa comprende, e le prenderà quando arriveranno.
-  Servono quattro schermate: il conto aperto, la coda delle comande, il
-  menù digitale sul telefono, il magazzino. Formato WebP o AVIF, larghezza
-  1600px al massimo, `loading="lazy"`, `width` e `height` scritti.
+- **Schermate vere dell'app** (dal 17/11/2026, REQ-FLOTTA-131), accanto a
+  ogni funzione in `public/schermate/`: il conto aperto, il menù sul
+  telefono del cliente, il magazzino, la serata nelle statistiche. Vengono
+  dalla demo di tana-drink (`CLIENTE=demo`, versione 1.10.53-beta) col tema
+  Lime scuro e il locale «Bancone 21», senza la fascia della demo; nessun
+  ritocco. WebP, larghezza 1600px al massimo, `loading="lazy"`, `width` e
+  `height` scritti, testo alternativo che dice cosa si vede. Il menù sta in
+  una cornice da telefono, le altre in una cornice scura. «Cosa comprende»
+  passa sotto il testo della funzione. Quando l'app cambia aspetto, le
+  schermate si rifanno dalla demo.
+- **L'app è solo in italiano**: le schermate sono le stesse nelle due
+  lingue, e la pagina inglese lo dice sotto le funzioni («The app is in
+  Italian for now»).
 - Niente fotografie di cocktail, niente immagini stock, niente
   illustrazioni generiche.
 
@@ -443,7 +471,8 @@ fare adesso.
 | | Italiano | English |
 |---|---|---|
 | occhiello | Gestionale per bar e ristoranti | Management for bars and restaurants |
-| titolo (scelto dall'utente il 07/11/2026, «uno slogan facile e poche parole») | Il gestionale del tuo locale. Dalla comanda alla cassa. | Your venue's management system. From the order to the till. |
+| titolo (scelto da Daniele il 17/11/2026 sul canvas di design, REQ-FLOTTA-131: «questo mi piace») | Tu servi. Lime fa i conti. | You serve. Lime does the math. |
+| titolo del 07/11/2026 («uno slogan facile e poche parole», superato: «sempre piatti e scontati… servono due frasi in croce semplici e di effetto») | Il gestionale del tuo locale. Dalla comanda alla cassa. | Your venue's management system. From the order to the till. |
 | sottotitolo, una riga sola | Comande, cassa, menù con QR, magazzino, personale e statistiche in un'app sola, nata in un cocktail bar. | Orders, till, QR menu, stock, staff and statistics in a single app, born in a cocktail bar. |
 | titolo del 06/11 («fatto da chi sta al banco», superato) | Scritto dietro il banco. In servizio ogni sera. | Written behind the bar. In service every night. |
 | titolo B («tutto il locale, in ordine») | Comande, cassa, magazzino. Tutto il locale, in ordine. | Orders, till, stock. The whole venue, in one place. |
@@ -648,8 +677,13 @@ c'è il confronto fra i piani che si apre e l'elenco dei moduli a scomparsa
 conviene il Completo: la somma dei moduli sul Base contro il prezzo del
 Completo, calcolata dal listino, mai scritta a mano.
 
-Nota obbligatoria, in piccolo ma leggibile (`--muted` va bene perché il
-punto è ripetuto nelle domande):
+**Dal 16/11/2026 (REQ-FLOTTA-131) questa nota non sta più sotto i
+prezzi**: Daniele, sulle tre note (scontrino, assistenza, stampanti),
+«queste cose le ometterei», con al loro posto «Usi un'altra stampante? La
+supportiamo su richiesta: indicaci il modello quando scegli il piano,
+oppure scrivici.» Lo scontrino non fiscale resta detto nelle domande
+(«Lo scontrino è fiscale?» — «No. …») e nel piè di pagina; l'assistenza è
+«inclusa» nella riga sotto il titolo. La nota com'era:
 - IT — Lo scontrino esce su una stampante termica ed è un conto di
   cortesia, non uno scontrino fiscale. Per quello serve il registratore
   telematico del locale.

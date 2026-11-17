@@ -22,9 +22,11 @@ export const NOME_ESTESO = `${NOME_PRODOTTO} – ${QUALIFICA}`
 // stanno in src/i18n, piede.sottotitolo; questo è quello italiano, per
 // index.html e per chi non ha i testi).
 export const SOTTOTITOLO = 'Comande, cassa e gestione del locale, in un’app sola.'
-// Lo slogan scelto dall'utente il 07/11/2026 con i testi della prima
-// pagina (src/i18n): la categoria e il percorso del servizio.
-export const SLOGAN = 'Il gestionale del tuo locale, dalla comanda alla cassa.'
+// Lo slogan scelto da Daniele il 17/11/2026 sul canvas di design
+// (REQ-FLOTTA-131), lo stesso del titolo della prima pagina (src/i18n).
+// Quello di prima, del 07/11/2026: «Il gestionale del tuo locale, dalla
+// comanda alla cassa.»
+export const SLOGAN = 'Tu servi. Lime fa i conti.'
 export const DESCRIZIONE =
   'Comande dal tavolo e dal banco, conti e cassa, menù con QR, magazzino, statistiche, ore e paghe del personale: ' +
   'tutto il gestionale di un bar o di un ristorante in un’app sola, scritta nel cocktail bar che la usa ogni sera. ' +

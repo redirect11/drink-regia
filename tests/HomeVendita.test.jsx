@@ -49,44 +49,49 @@ describe('la vendita nella prima pagina', () => {
   // REQ-FLOTTA-061 (e prima REQ-FLOTTA-060): i gesti del carosello seguono
   // la vendita come le funzioni. Un gesto che vive solo di moduli sparisce
   // coi suoi; uno del piano Base resta.
-  const parole = () => [...document.querySelectorAll('.gesto-punto')].map((p) => p.getAttribute('aria-label').split(' ')[0])
-  const vaiAlGesto = (parola) => fireEvent.click([...document.querySelectorAll('.gesto-punto')].find((p) => p.getAttribute('aria-label').startsWith(parola)))
+  // L'etichetta di un punto è «<titolo della diapositiva> Gesto n di N»: dal
+  // 17/11/2026 il titolo è una frase di più parole (REQ-FLOTTA-131).
+  const titoloDi = (p) => p.getAttribute('aria-label').replace(/ Gesto \d+ di \d+$/, '')
+  const parole = () => [...document.querySelectorAll('.gesto-punto')].map(titoloDi)
+  const vaiAlGesto = (parola) => fireEvent.click([...document.querySelectorAll('.gesto-punto')].find((p) => titoloDi(p) === parola))
 
-  it('i gesti seguono la vendita: senza magazzino non c’è «Riordina.», senza SumUp «Incassa.» resta nel piano Base', () => {
-    stato.vendita = venditaPulita({ moduli: { magazzino: false, sumup: false } })
+  // REQ-FLOTTA-131: «Acquisti dal menù» vive dei moduli del menù e il
+  // magazzino del suo; ordini, comande e conti sono del piano Base, e i
+  // conti restano anche senza il lettore di carte.
+  it('i gesti seguono la vendita: senza i moduli del menù e senza magazzino restano ordini, comande e conti', () => {
+    stato.vendita = venditaPulita({ moduli: { magazzino: false, menu_tavoli: false, ordini_cliente: false, sumup: false } })
     mostra()
-    expect(parole()).toEqual(['Ordina.', 'Prepara.', 'Incassa.', 'Conta.'])
-    expect(document.querySelectorAll('.diapositiva')).toHaveLength(4)
-    // «Incassa.» resta: il conto si chiude anche senza il lettore di carte.
-    vaiAlGesto('Incassa.')
-    expect(document.querySelector('.gesto-riga')).toHaveTextContent(it_.gesti.voci.conto.testo)
+    expect(parole()).toEqual(['Gestisci gli ordini.', 'Segui le comande.', 'Conti sempre in ordine.'])
+    expect(document.querySelectorAll('.diapositiva')).toHaveLength(3)
+    vaiAlGesto('Conti sempre in ordine.')
+    expect(document.querySelector('.gesto-riga')).toHaveTextContent(it_.gesti.voci.conti.testo)
   })
 
-  // Rilievo del revisore (11/11/2026): «Conta» ha due moduli e una frase
-  // per modulo. Si legge quella del primo in vendita, mai l'altra.
-  it('«Conta.» dice solo quello che si può comprare: senza le statistiche, la frase è quella delle ore', () => {
-    stato.vendita = venditaPulita({ moduli: { statistiche: false } })
+  it('basta uno dei due moduli del menù per vedere «Acquisti dal menù.»', () => {
+    stato.vendita = venditaPulita({ moduli: { menu_tavoli: false } })
     mostra()
-    vaiAlGesto('Conta.')
-    const riga = document.querySelector('.gesto-riga').textContent
-    expect(riga).toBe(it_.gesti.voci.numeri.frasi.staff)
+    expect(parole()).toContain('Acquisti dal menù.')
+    vaiAlGesto('Acquisti dal menù.')
+    expect(document.querySelector('.diapositiva[data-visibile="true"]').dataset.gesto).toBe('menu')
   })
 
-  it('senza statistiche né personale non c’è «Conta.»', () => {
+  // Le statistiche e il personale non hanno più una diapositiva
+  // (REQ-FLOTTA-131): toglierli dalla vendita non cambia il carosello.
+  it('senza statistiche né personale il carosello ha ancora le sue cinque diapositive', () => {
     stato.vendita = venditaPulita({ moduli: { statistiche: false, staff: false } })
     mostra()
-    expect(parole()).toEqual(['Ordina.', 'Prepara.', 'Incassa.', 'Riordina.'])
+    expect(parole()).toEqual(['Gestisci gli ordini.', 'Acquisti dal menù.', 'Segui le comande.', 'Conti sempre in ordine.', 'Tieni d’occhio il magazzino.'])
   })
 
   // Se la vendita cambia a pagina aperta mentre si guarda l'ultimo gesto,
   // il carosello non resta su una diapositiva che non c'è più.
   it('un gesto che sparisce a pagina aperta non lascia il carosello nel vuoto', () => {
     mostra()
-    vaiAlGesto('Riordina.')
-    expect(document.querySelector('.gesto-parola')).toHaveTextContent('Riordina.')
+    vaiAlGesto('Tieni d’occhio il magazzino.')
+    expect(document.querySelector('.gesto-parola')).toHaveTextContent('Tieni d’occhio il magazzino.')
     act(() => stato.richiama(venditaPulita({ moduli: { magazzino: false } })))
-    expect(document.querySelector('.gesto-parola')).toHaveTextContent('Conta.')
-    expect(document.querySelector('.diapositiva[data-visibile="true"]').dataset.gesto).toBe('numeri')
+    expect(document.querySelector('.gesto-parola')).toHaveTextContent('Conti sempre in ordine.')
+    expect(document.querySelector('.diapositiva[data-visibile="true"]').dataset.gesto).toBe('conti')
   })
 
   // REQ-FLOTTA-063: col Free in vendita il confronto ha tre colonne, e

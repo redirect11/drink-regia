@@ -5341,11 +5341,22 @@ requirements:
       con un testo alternativo nella lingua della pagina; la pagina
       inglese dice che l'app è in italiano. (4) Le note dei prezzi sono
       quelle nuove, nelle due lingue.
-    status: todo
+      COME È FATTO (17/11/2026): i testi in src/i18n (le chiavi nuove delle
+      diapositive: ordini, menu, comande, conti, magazzino; `schermata` per
+      ogni funzione; `funzioni.schermateInItaliano`); in Home.jsx ogni
+      diapositiva porta il nome del suo filmato (`filmato`) e ogni
+      funzione la sua schermata, con l'elenco di cosa comprende sotto il
+      testo; la chiusura in due tempi come il titolo. La regola delle righe
+      del carosello passa da «una frase sotto gli 80 caratteri» a «al
+      massimo due, sotto i 110»: le righe scelte da Daniele ne hanno due.
+    status: implemented
     generate_issue: true
     labels: [prodotto, regia]
     priority: P1
-    test_cases: []
+    test_cases:
+      - tests/Home.test.jsx
+      - tests/HomeLingua.test.jsx
+      - tests/HomeVendita.test.jsx
 
   - id: REQ-FLOTTA-129
     title: "La documentazione di sviluppo, in inglese: un punto d'ingresso, chi fa cosa nella vita di un locale, e un test che la tiene viva"

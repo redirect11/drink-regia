@@ -101,7 +101,25 @@ describe('la pagina inglese', () => {
     for (const m of MODULI) expect(tabella.getByText(en.moduli[m.id].nome)).toBeInTheDocument()
     // Il Free fuori vendita c'è, come un piano normale (REQ-FLOTTA-071).
     expect(tabella.getAllByRole('columnheader').map((c) => c.textContent)).toEqual([en.prezzi.piani.free.nome, en.prezzi.piani.base.nome, en.prezzi.piani.completo.nome])
-    expect(screen.getByText(en.prezzi.notaScontrino)).toBeInTheDocument()
+    // Dal 16/11/2026 lo scontrino non fiscale lo dice la domanda, non una
+    // nota sotto i prezzi (REQ-FLOTTA-131); e le altre stampanti sono su
+    // richiesta.
+    expect(screen.getByText('Are the receipts fiscal receipts?')).toBeInTheDocument()
+    expect(screen.getByText(en.prezzi.stampante)).toBeInTheDocument()
+    expect(document.getElementById('prezzi')).toHaveTextContent('Monthly or yearly subscription, support included.')
+  })
+
+  // REQ-FLOTTA-131, criteri 1 e 3: lo slogan in inglese, e la pagina
+  // inglese dice che l'app (e quindi le schermate) è in italiano, con i
+  // testi alternativi in inglese.
+  it('lo slogan in inglese in due tempi, e le schermate in italiano dette in inglese', () => {
+    mostra('/en')
+    const h1 = screen.getByRole('heading', { level: 1 })
+    expect(h1).toHaveTextContent('You serve. Lime does the math.')
+    expect(h1.querySelector('.titolo-accento')).toHaveTextContent('Lime does the math.')
+    expect(screen.getByText(en.funzioni.schermateInItaliano)).toBeInTheDocument()
+    const img = document.querySelector('#funzioni figure img')
+    expect(img).toHaveAttribute('alt', en.funzioni.voci.conti.schermata)
   })
 
   it('le condizioni nuove del listino anche in inglese, senza formati italiani', () => {

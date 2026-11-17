@@ -43,8 +43,8 @@ import { TESTI, testi } from '../i18n/index.js'
 // prima schermata, i gesti, la chiusura), il lime per azioni e dettagli (dal 11/11/2026);
 // niente luci sfocate, niente card tutte uguali con l'icona, composizioni
 // che si alternano (testo accanto a un pannello, righe numerate, una
-// tabella). Niente schermate finte: le vere arriveranno quando ci saranno
-// (DESIGN.md §9.5), e intanto lo spazio lo tengono tipografia e griglia.
+// tabella). Niente schermate finte: dal 17/11/2026 (REQ-FLOTTA-131) le
+// funzioni hanno le schermate vere dell'app, prese dalla sua demo.
 
 // Le funzioni e i moduli che le portano: la struttura, uguale nelle due
 // lingue. Una funzione senza moduli sta nel piano Base; una con moduli si
@@ -52,11 +52,17 @@ import { TESTI, testi } from '../i18n/index.js'
 // ognuna portava l'etichetta del suo piano o modulo; Daniele: «pure sotto
 // le funzioni non mettere i moduli o piano base. Quello viene dopo». Qui
 // si spiega cosa fa il prodotto; cosa si compra lo dicono i prezzi.
+//
+// LE SCHERMATE (REQ-FLOTTA-131): ogni funzione ha la sua, vera, dalla demo
+// di tana-drink col tema Lime (public/schermate, WebP, al massimo 1600px:
+// DESIGN.md §4 «Immagini»). `w` e `h` sono le misure del file, scritte
+// sull'immagine perché la pagina non salti mentre si carica; il menù è una
+// schermata del telefono e sta in una cornice stretta.
 const FUNZIONI = [
-  { id: 'conti', moduli: [] },
-  { id: 'menu', moduli: ['menu_tavoli', 'ordini_cliente'] },
-  { id: 'magazzino', moduli: ['magazzino'] },
-  { id: 'statistiche', moduli: ['statistiche'] },
+  { id: 'conti', moduli: [], schermata: { src: '/schermate/conto.webp', w: 1600, h: 1000 } },
+  { id: 'menu', moduli: ['menu_tavoli', 'ordini_cliente'], schermata: { src: '/schermate/menu-cliente.webp', w: 780, h: 1728, telefono: true } },
+  { id: 'magazzino', moduli: ['magazzino'], schermata: { src: '/schermate/magazzino.webp', w: 1600, h: 1000 } },
+  { id: 'statistiche', moduli: ['statistiche'], schermata: { src: '/schermate/serata.webp', w: 1600, h: 1000 } },
 ]
 // Le due funzioni più piccole, in una riga a due colonne: ognuna è un modulo.
 const MINORI = [{ id: 'staff' }, { id: 'sumup' }]
@@ -194,12 +200,22 @@ function Filmato({ nome, className, gira, ripete = true, rif }) {
 // riga di «Ordina» e «Incassa» non promette il menù con QR o il lettore
 // di carte, e «Conta», che ha due moduli, ha una frase per modulo: si
 // legge quella del primo in vendita.
+//
+// LE DIAPOSITIVE DEL 17/11/2026 (REQ-FLOTTA-131). Il carosello parla al
+// titolare (Daniele: «ordina si riferisce al cliente del locale, le altre
+// al nostro cliente»): gestisci gli ordini, acquisti dal menù, segui le
+// comande, conti in ordine, magazzino. Ogni diapositiva ha il suo filmato,
+// fra i cinque che c'erano: `filmato` è il nome in public/video. Le
+// statistiche non hanno più una diapositiva, e il loro filmato (un uomo al
+// tavolo col tablet) passa al menù dal telefono, che un filmato suo non
+// l'ha. «Acquisti dal menù» e il magazzino vivono di moduli e si vedono
+// solo se uno è in vendita, come prima la scorta.
 const GESTI = [
-  { id: 'sala', moduli: ['menu_tavoli', 'ordini_cliente'], base: true },
-  { id: 'banco', moduli: [], base: true },
-  { id: 'conto', moduli: ['sumup'], base: true },
-  { id: 'numeri', moduli: ['statistiche', 'staff'], base: false },
-  { id: 'scorta', moduli: ['magazzino'], base: false },
+  { id: 'ordini', filmato: 'sala', moduli: [], base: true },
+  { id: 'menu', filmato: 'numeri', moduli: ['menu_tavoli', 'ordini_cliente'], base: false },
+  { id: 'comande', filmato: 'banco', moduli: [], base: true },
+  { id: 'conti', filmato: 'conto', moduli: [], base: true },
+  { id: 'magazzino', filmato: 'scorta', moduli: ['magazzino'], base: false },
 ]
 // QUANDO IL CAROSELLO PASSA AL GESTO DOPO (REQ-FLOTTA-127). Lo dice il
 // filmato che si vede: quando gli manca la dissolvenza alla fine, comincia
@@ -281,6 +297,7 @@ export default function Home({ utente, lingua = 'it' }) {
   )
 
   const titolo = dueTempi(t.hero.titolo)
+  const chiusura = dueTempi(t.chiusura.titolo)
   const radice = useRef(null)
   useEffect(() => osservaComparsa(radice.current), [])
 
@@ -543,7 +560,7 @@ export default function Home({ utente, lingua = 'it' }) {
             {gesti.map((g, i) => (
               <li key={g.id} className="diapositiva" data-gesto={g.id} data-visibile={i === indice} data-uscente={i === uscente}>
                 <Filmato
-                  nome={g.id}
+                  nome={g.filmato}
                   className="hero-sfondo"
                   gira={filmati.girano && (i === indice || i === uscente)}
                   ripete={i === indice && !scorre}
@@ -650,9 +667,10 @@ export default function Home({ utente, lingua = 'it' }) {
         </div>
       </section>
 
-      {/* LE FUNZIONI: il testo da una parte e, dall'altra, il pannello di
-          cosa comprende; le righe si alternano. Quando ci saranno le
-          schermate vere dell'app, prenderanno il posto del pannello. */}
+      {/* LE FUNZIONI: il testo da una parte, con sotto cosa comprende, e
+          dall'altra la schermata vera dell'app (REQ-FLOTTA-131); le righe
+          si alternano. «Cosa comprende» resta sempre aperto (Daniele,
+          11/11/2026). */}
       <section id="funzioni" className="sezione" aria-labelledby="funzioni-titolo">
         <div className="contenitore">
           <header className="sezione-testa" data-comparsa>
@@ -674,13 +692,7 @@ export default function Home({ utente, lingua = 'it' }) {
                     </p>
                     <h3 id={`funzione-${f.id}`}>{v.titolo}</h3>
                     <p>{v.testo}</p>
-                  </div>
-                  {/* Sempre aperto (Daniele, 11/11/2026: «i box cosa comprende
-                      dovrebbero essere sempre aperti»): per un pomeriggio
-                      è stato un elemento che si apriva. */}
-                  <div className="funzione-riquadro">
-                    <p className="scheda-titolo">{t.funzioni.punti}</p>
-                    <ul className="punti" aria-label={t.funzioni.punti}>
+                    <ul className="punti funzione-punti" aria-label={t.funzioni.punti}>
                       {v.punti.map((p) => (
                         <li key={p}>
                           <Icona d={SPUNTA} className="icona spunta" />
@@ -689,10 +701,21 @@ export default function Home({ utente, lingua = 'it' }) {
                       ))}
                     </ul>
                   </div>
+                  <figure className={`funzione-schermata${f.schermata.telefono ? ' telefono' : ''}`}>
+                    <img
+                      src={f.schermata.src}
+                      alt={v.schermata}
+                      width={f.schermata.w}
+                      height={f.schermata.h}
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </figure>
                 </article>
               )
             })}
           </div>
+          {t.funzioni.schermateInItaliano && <p className="nota nota-schermate">{t.funzioni.schermateInItaliano}</p>}
           {minori.length > 0 && (
             <ul className="funzioni-minori" data-comparsa>
               {minori.map((f) => (
@@ -950,9 +973,10 @@ export default function Home({ utente, lingua = 'it' }) {
               </Apribile>
             </li>
           </ul>
-          <p className="nota">{t.prezzi.notaScontrino}</p>
-          {/* Il tetto dell'assistenza e le stampanti a preventivo (DEC-0005):
-              detti qui, prima della firma, e ripetuti nei Termini. */}
+          {/* Lo scontrino non fiscale non si ripete qui: lo dicono le domande
+              e il piè di pagina (Daniele, 16/11/2026, REQ-FLOTTA-131). Il
+              tetto dell'assistenza, se torna un numero di ore, e le
+              stampanti: detti qui, prima della firma, e ripetuti nei Termini. */}
           {ASSISTENZA?.ore_mese > 0 && (
             <p className="nota">{interpola(t.prezzi.assistenza, { ore: plurale(ASSISTENZA.ore_mese, t.prezzi.ore) })}</p>
           )}
@@ -980,7 +1004,16 @@ export default function Home({ utente, lingua = 'it' }) {
       <section id="contatti" className="chiusura" aria-labelledby="chiusura-titolo" data-comparsa>
         <div className="contenitore chiusura-griglia">
           <div>
-            <h2 id="chiusura-titolo">{t.chiusura.titolo}</h2>
+            {/* In due tempi come il titolo della prima schermata (REQ-FLOTTA-131). */}
+            <h2 id="chiusura-titolo">
+              {chiusura.prima}
+              {chiusura.seconda && (
+                <>
+                  {' '}
+                  <span className="titolo-accento"><span>{chiusura.seconda}</span></span>
+                </>
+              )}
+            </h2>
             <p>{t.chiusura.testo}</p>
           </div>
           <div className="azioni">

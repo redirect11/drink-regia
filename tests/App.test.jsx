@@ -457,7 +457,7 @@ describe('l’accessibilità', () => {
   // contenuto».
   it.each([
     ['/dashboard senza accesso → /accedi', '/dashboard', 'Accedi', 'Salta al contenuto'],
-    ['un indirizzo che non c’è → /', '/non-esiste', 'Il gestionale del tuo locale.', 'Salta al contenuto'],
+    ['un indirizzo che non c’è → /', '/non-esiste', 'Tu servi.', 'Salta al contenuto'],
   ])('%s: il primo Tab trova ancora «Salta al contenuto»', async (_, percorso, titolo, salta) => {
     utenteOsservato = null
     const user = userEvent.setup()
@@ -475,7 +475,7 @@ describe('l’accessibilità', () => {
     try {
       const user = userEvent.setup()
       mostra('/')
-      expect(await screen.findByRole('heading', { level: 1, name: /Your venue’s management system/ })).toBeInTheDocument()
+      expect(await screen.findByRole('heading', { level: 1, name: /You serve\./ })).toBeInTheDocument()
       await new Promise((fatto) => requestAnimationFrame(fatto))
       await user.tab()
       expect(screen.getByRole('link', { name: 'Skip to content' })).toHaveFocus()
@@ -496,7 +496,7 @@ describe('l’accessibilità', () => {
     )
     await screen.findByRole('heading', { level: 1, name: 'Accedi' })
     await user.click(screen.getByRole('link', { name: 'verso i prezzi' }))
-    await screen.findByRole('heading', { level: 1, name: /Il gestionale del tuo locale/ })
+    await screen.findByRole('heading', { level: 1, name: /Tu servi\./ })
     await new Promise((fatto) => requestAnimationFrame(fatto))
     expect(screen.getByRole('main')).not.toHaveFocus()
     expect(scorri).not.toHaveBeenCalled()
