@@ -5098,7 +5098,10 @@ requirements:
       INTERFACCE CON L'APP: nessun cambio di forma; è un prerequisito delle
       regole di Storage di tana-drink, da dire nel contratto e a loro
       quando è rilasciato.
-    status: todo
+      STATO (17/11/2026): (A), (B), (C) e i criteri (1)-(3) fatti e
+      provati nei test; il criterio (4), la prova su prova-bar, si fa con
+      la beta sul test dopo il merge.
+    status: partial
     generate_issue: true
     labels: [flotta, sicurezza, produzione, contratto-tana-drink]
     priority: P1

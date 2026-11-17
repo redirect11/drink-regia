@@ -289,8 +289,21 @@ jobs:
           if ! terraform state show google_project.istanza >/dev/null 2>&1; then
             echo "Nessuno stato Terraform per $SLUG: il progetto non l'ha creato la regia, non si tocca."; exit 0
           fi
+          # UN LOCALE GIÀ COMPLETO riceve solo quello che gli manca per le
+          # regole di Storage che leggono la licenza (REQ-FLOTTA-124): il
+          # service agent dello Storage e il suo ruolo, prima del deploy delle
+          # regole nel job `pubblica`. Solo quei due (-target): il resto del
+          # progetto è com'era e non si riapplica, perché un Terraform
+          # cambiato dopo la sua nascita non deve arrivare per questa via.
           if terraform state list | grep -qF 'google_project_service.api["cloudfunctions.googleapis.com"]'; then
-            echo "Il progetto è già completo."; exit 0
+            if terraform state list | grep -qF 'google_project_iam_member.agente_storage[0]'; then
+              echo "Il progetto è già completo, col ruolo dello Storage."; exit 0
+            fi
+            echo "Il progetto è completo: si aggiunge il ruolo dello Storage per le regole che leggono la licenza."
+            terraform apply -input=false -auto-approve \
+              -target='google_project_service_identity.storage[0]' \
+              -target='google_project_iam_member.agente_storage[0]'
+            exit 0
           fi
           terraform apply -input=false -auto-approve
 
