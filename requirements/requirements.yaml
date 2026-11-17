@@ -5201,7 +5201,11 @@ requirements:
       v0.5.1-beta.4, dal Terraform di prima); la strada nuova si prova con
       la prossima beta (prova-bar: «c'è già») e con prova-storage (locale
       nuovo, dopo il bucket).
-    status: partial
+      FATTO (17/11/2026): prova-bar (locale esistente, collaudo di
+      v0.5.1-beta.5: «il ruolo … c'è già») e drinkpos-prova-storage
+      (locale nuovo, run 44078796956: bucket creato, poi il ruolo dato al
+      primo colpo; run 44125834891: attivazione arrivata in fondo).
+    status: implemented
     generate_issue: true
     labels: [flotta, sicurezza, produzione, contratto-tana-drink]
     priority: P1
@@ -5307,7 +5311,12 @@ requirements:
       cancellazioni hanno un contatore loro (al più 40) e i tentativi dopo
       un errore d'altro tipo restano tre, con 90 secondi d'attesa. Il
       criterio (5) si fa dopo il merge.
-    status: partial
+      FATTO (17/11/2026, run 44125834891): drinkpos-prova-storage si è
+      attivato fino in fondo; gcf-artifacts importato con la regola di
+      pulizia, le ultime due Functions a metà (risolviNumeroDuplicato,
+      notifyStaffCall) cancellate e il deploy riuscito («Deploy
+      complete!»), esito 200 alla regia di test.
+    status: implemented
     generate_issue: true
     labels: [flotta, produzione]
     priority: P1
