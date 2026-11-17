@@ -5118,6 +5118,69 @@ requirements:
       - tests/titoli.test.js
       - tests/accessibilita.test.js
 
+  - id: REQ-FLOTTA-124
+    title: "Le regole di Storage dei locali leggono la licenza: il service agent dello Storage ha roles/firebaserules.firestoreServiceAgent in ogni progetto, nuovo o esistente, prima che arrivino le regole"
+    area: "infra/istanza/main.tf, .github/workflows/aggiorna-istanza.yml (il profilo completo nel progetto), .github/workflows/provisiona-istanza.yml, docs/flotta-nella-regia.md, docs/contratto-regia-app.md"
+    description: >
+      Da tana-drink, 17/11/2026 (REQ-SIC-006 lì, sì di Daniele dello stesso
+      giorno: «Le regole di Storage leggono la licenza»): le foto dei
+      prodotti si caricano solo con una licenza valida e non Free, gli
+      allegati delle fatture solo con scadenzario o magazzino. Le regole
+      di Storage che leggono Firestore vogliono, in ogni progetto, il ruolo
+      roles/firebaserules.firestoreServiceAgent sul service agent
+      service-<numero>@gcp-sa-firebasestorage.iam.gserviceaccount.com;
+      senza, la lettura della licenza fallisce, le regole negano e nel
+      locale non si carica più nessuna foto né allegato.
+      PERCHÉ NON BASTA IL DEPLOY: firebase-tools lo concede da solo solo
+      in modo interattivo; nei workflow (non interattivi) salta il
+      controllo senza dirlo (node_modules/firebase-tools/lib/rulesDeploy.js,
+      checkStorageRulesIamPermissions, 15.35.0). E aggiorna-istanza
+      applica il Terraform solo a un locale che non è ancora completo
+      («Il progetto è già completo»): i locali esistenti non lo
+      riceverebbero.
+      COSA. (A) Nel Terraform dell'istanza, profilo completo: il service
+      agent dello Storage creato col progetto
+      (google_project_service_identity, firebasestorage.googleapis.com) e
+      il ruolo su di lui. (B) aggiorna-istanza applica il Terraform anche
+      a un locale completo a cui manca quel ruolo, prima del deploy delle
+      regole: i locali esistenti lo ricevono al loro aggiornamento, che è
+      lo stesso che porta le regole nuove, quindi l'ordine è garantito
+      (non il momento: il ruolo può diventare effettivo qualche minuto
+      dopo, e nel frattempo un caricamento può essere negato). Il ruolo
+      usa il nome del service agent costruito dal numero del progetto, non
+      l'email restituita dall'API, che il provider dice può mancare. Il
+      -target porta con sé il progetto e le API: prima un piano, e se
+      cambierebbe qualcos'altro il passo si ferma senza applicare niente.
+      SCELTA, da confermare con Daniele: un locale per cui il ruolo non si
+      può dare non si aggiorna (l'aggiornamento fallisce in `prepara` con
+      l'errore), perché senza il ruolo le regole nuove di tana-drink
+      negherebbero ogni caricamento.
+      (C) La Tana e i locali esistenti non creati dalla regia non hanno
+      stato Terraform: per loro il ruolo lo aggiunge Daniele a mano, e il
+      documento della flotta dice il comando.
+      CRITERI. (1) Il piano Terraform di un locale completo contiene il
+      service agent dello Storage e il ruolo. (2) aggiorna-istanza su un
+      locale completo senza il ruolo dà il ruolo, e si ferma se
+      cambierebbe altro; con il ruolo, non fa niente. (3) Il profilo
+      leggero non ha Storage e non riceve niente. (4) Due prove sul test:
+      aggiorna-istanza su prova-bar (un locale esistente) e
+      provisiona-istanza di un locale nuovo, che è il caso incerto
+      (Terraform chiede il service agent prima che esista il bucket); in
+      tutte e due, alla fine, il ruolo c'è.
+      INTERFACCE CON L'APP: nessun cambio di forma; è un prerequisito delle
+      regole di Storage di tana-drink, da dire nel contratto e a loro
+      quando è rilasciato.
+      STATO (17/11/2026): (A), (B), (C) e i criteri (1)-(3) fatti e
+      provati nei test (sul testo del Terraform e del workflow, non con un
+      piano vero); il criterio (4) si fa con la beta sul test dopo il
+      merge.
+    status: partial
+    generate_issue: true
+    labels: [flotta, sicurezza, produzione, contratto-tana-drink]
+    priority: P1
+    test_cases:
+      - tests/flotta.test.js
+
   - id: REQ-FLOTTA-121
     title: "Gli indirizzi pubblici non leggono Firestore prima di aver verificato il gettone"
     area: "functions/index.js (sceltaDallApp, passaggioVersoRegia, presentazione, moduloDallApp, scambiaPassaggio, traccia), functions/lib/aggiornamenti.js (progettoDelToken)"

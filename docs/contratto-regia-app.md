@@ -334,6 +334,15 @@ La regia lancia i suoi workflow con `GITHUB_DISPATCH_TOKEN`, sul ramo
 - **Il deploy**: `firebase deploy --only firestore,storage,functions,hosting`
   (profilo leggero: `firestore,hosting`); i segreti dell'app (`SUMUP_API_KEY`)
   nascono col segnaposto (`scripts/segreti-istanza.mjs`).
+- **Le regole di Storage che leggono Firestore** (REQ-FLOTTA-124, tana-drink
+  REQ-SIC-006, dal 17/11/2026): nel profilo completo il service agent dello
+  Storage (`service-<numero>@gcp-sa-firebasestorage.iam.gserviceaccount.com`)
+  ha `roles/firebaserules.firestoreServiceAgent`. Lo dà il Terraform ai
+  locali nuovi, e `aggiorna-istanza` ai locali completi che non l'hanno,
+  prima del deploy delle regole. Per la Tana e i locali esistenti senza stato
+  Terraform lo aggiunge Daniele a mano (`docs/flotta-nella-regia.md`).
+  tana-drink rilascia regole di Storage con `firestore.get` o
+  `firestore.exists` solo dopo che questo è in produzione.
 - **Il titolare**: `scripts/titolare-istanza.mjs` crea nel locale l'account
   col **lo stesso uid** di `clienti/{uid}` nella regia, email verificata e
   `role: 'admin'` (REQ-FLOTTA-029, M7). La copia per i locali esistenti è in
