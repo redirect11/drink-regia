@@ -295,6 +295,13 @@ jobs:
           if terraform state list | grep -qF 'google_project_service.api["cloudfunctions.googleapis.com"]'; then
             echo "Il progetto è già completo."; exit 0
           fi
+          # Il magazzino delle immagini delle Functions (REQ-FLOTTA-130): un
+          # Free che diventa completo di solito non l'ha; se c'è, si importa.
+          if ! terraform state show 'google_artifact_registry_repository.gcf_artifacts[0]' >/dev/null 2>&1; then
+            if terraform import -input=false 'google_artifact_registry_repository.gcf_artifacts[0]' "projects/$PROGETTO/locations/europe-west1/repositories/gcf-artifacts" >/dev/null 2>&1; then
+              echo "gcf-artifacts c'era già: importato nello stato."
+            fi
+          fi
           terraform apply -input=false -auto-approve
 
       # LA WEB APP DEL SITO, non «una» web app: con più app web nel progetto

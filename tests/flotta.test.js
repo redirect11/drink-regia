@@ -1091,3 +1091,89 @@ describe('provisiona-istanza.yml e prepara-ai-locale.yml: il progetto deve avere
     expect(job.steps.find((s) => s.name === 'Credenziali di provisioning').run).toContain('gcloud auth activate-service-account --key-file="$RUNNER_TEMP/sa.json" --quiet')
   })
 })
+
+// IL PRIMO DEPLOY DELLE FUNCTIONS DI UN LOCALE NUOVO (REQ-FLOTTA-130).
+// drinkpos-prova-storage, 17/11/2026: 18 build su 21 fallite con
+// «Repository "gcf-artifacts" not found», poi i tentativi dopo fermi su
+// «Changing from an HTTPS function to a background triggered function».
+describe('il primo deploy delle Functions di un locale nuovo', () => {
+  const tf = leggi('infra/istanza/main.tf').replace(/\r/g, '')
+  const blocco = (inizio) => tf.slice(tf.indexOf(inizio)).split('\n}\n')[0]
+
+  it('il magazzino gcf-artifacts nasce dal Terraform, solo nel completo, con la regola di pulizia di Firebase', () => {
+    const repo = blocco('resource "google_artifact_registry_repository" "gcf_artifacts" {')
+    expect(repo).toContain('count         = local.completo ? 1 : 0')
+    expect(repo).toContain('location      = "europe-west1"')
+    expect(repo).toContain('repository_id = "gcf-artifacts"')
+    expect(repo).toContain('format        = "DOCKER"')
+    expect(repo).toContain('depends_on = [google_project_service.api]')
+    // La stessa regola che firebase-tools mette da solo (lib/functions/artifacts.js).
+    expect(repo).toMatch(/cleanup_policies \{\n\s+id\s+= "firebase-functions-cleanup"\n\s+action = "DELETE"\n\s+condition \{\n\s+tag_state\s+= "ANY"\n\s+older_than = "86400s"/)
+  })
+
+  it('la regola è proprio quella di firebase-tools', () => {
+    const artifacts = leggi('node_modules/firebase-tools/lib/functions/artifacts.js')
+    expect(artifacts).toContain('exports.CLEANUP_POLICY_ID = "firebase-functions-cleanup";')
+    expect(artifacts).toContain('exports.DEFAULT_CLEANUP_DAYS = 1;')
+    expect(artifacts).toMatch(/tagState: "ANY",\s*olderThan: daysToSeconds\(daysToKeep\),\s*\},\s*action: "DELETE"/)
+  })
+
+  it('se gcf-artifacts c’è già, provisiona e aggiorna lo importano invece di ricrearlo', () => {
+    const indirizzo = "'google_artifact_registry_repository.gcf_artifacts[0]' \"projects/$PROGETTO/locations/europe-west1/repositories/gcf-artifacts\""
+    const importa = passo(provisiona, 'Importa il progetto se esiste già').run
+    expect(importa).toContain(`terraform import -input=false ${indirizzo}`)
+    expect(importa).toContain('if [ "$PROFILO" = "completo" ] && ! terraform state show \'google_artifact_registry_repository.gcf_artifacts[0]\'')
+    const completo = aggiorna.jobs.prepara.steps.find((s) => s.name === 'Il profilo completo nel progetto').run
+    expect(completo).toContain(`terraform import -input=false ${indirizzo}`)
+    // L'import viene prima dell'apply.
+    expect(completo.indexOf('terraform import')).toBeLessThan(completo.lastIndexOf('terraform apply'))
+  })
+
+  it('la nascita cancella le Functions rimaste a metà prima di riprovare; l’aggiornamento no', () => {
+    const deploy = passo(provisiona, 'Deploy regole, indici, Functions e hosting').run
+    expect(deploy.startsWith('set -o pipefail\n')).toBe(true)
+    expect(deploy).toContain('npx firebase-tools deploy --only "$SOLO" --project "$PROGETTO" --force 2>&1 | tee "$RUNNER_TEMP/deploy.log"')
+    expect(deploy).toContain('node ../scripts/funzioni-fallite.mjs "$RUNNER_TEMP/deploy.log" | while read -r nome regione; do')
+    expect(deploy).toContain('npx firebase-tools functions:delete "$nome" --region "$regione" --project "$PROGETTO" --force || true')
+    // Si cancella solo dopo un tentativo fallito e prima dell'attesa.
+    expect(deploy.indexOf('functions:delete')).toBeLessThan(deploy.indexOf('sleep 90'))
+    expect(deploy.indexOf('if [ "$tentativo" = 3 ]; then exit 1; fi')).toBeLessThan(deploy.indexOf('functions:delete'))
+    for (const s of passi(aggiorna)) expect(s.run || '').not.toContain('functions:delete')
+  })
+
+  it('l’elenco delle Functions fallite si legge dall’uscita di firebase-tools', async () => {
+    const { funzioniFallite } = await import('../scripts/lib-deploy.js')
+    // Il formato di reporter.js: il titolo, poi una Function per riga dopo un tab.
+    const reporter = leggi('node_modules/firebase-tools/lib/deploy/functions/release/reporter.js')
+    expect(reporter).toContain('"Functions deploy had errors with the following functions:"')
+    // Nel sorgente di reporter.js «\n\t» sono scritti con la barra, non come a capo e tab.
+    expect(reporter).toContain('`' + String.raw`\n\t` + '${(0, functionsDeployHelper_1.getFunctionLabel)(result.endpoint)}`')
+    const uscita = [
+      'i  functions: creating Node.js 22 (2nd Gen) function staffAdmin(europe-west1)...',
+      'Functions deploy had errors with the following functions:\n\tcreatePaymentCheckout(europe-west1)\n\tdisponibilitaDalMagazzino(europe-west1)\n\taltro:staffAdmin(europe-west1)',
+      '\u001b[33m\u001b[1m⚠  functions:\u001b[22m\u001b[39m Deploys failed. Skipping deletes.',
+      'Functions deploy had errors with the following functions:\n\tcreatePaymentCheckout(europe-west1)',
+    ].join('\r\n')
+    expect(funzioniFallite(uscita)).toEqual([
+      { nome: 'createPaymentCheckout', regione: 'europe-west1' },
+      { nome: 'disponibilitaDalMagazzino', regione: 'europe-west1' },
+      { nome: 'staffAdmin', regione: 'europe-west1' },
+    ])
+    expect(funzioniFallite('✔ Deploy complete!')).toEqual([])
+    expect(funzioniFallite('')).toEqual([])
+    // Una riga che non è una Function chiude l'elenco.
+    expect(funzioniFallite('Functions deploy had errors with the following functions:\n\tuna(europe-west1)\nError: There was an error')).toEqual([{ nome: 'una', regione: 'europe-west1' }])
+  })
+
+  it('lo script stampa «nome regione» e senza file non fa niente', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'deploy-'))
+    const file = join(dir, 'deploy.log')
+    writeFileSync(file, 'Functions deploy had errors with the following functions:\n\tstaffAdmin(europe-west1)\n')
+    const r = spawnSync(process.execPath, ['scripts/funzioni-fallite.mjs', file], { encoding: 'utf8' })
+    expect(r.status).toBe(0)
+    expect(r.stdout.trim()).toBe('staffAdmin europe-west1')
+    const senza = spawnSync(process.execPath, ['scripts/funzioni-fallite.mjs', join(dir, 'non-c-e.log')], { encoding: 'utf8' })
+    expect(senza.status).toBe(0)
+    expect(senza.stdout).toBe('')
+  })
+})

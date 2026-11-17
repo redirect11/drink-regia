@@ -5294,7 +5294,10 @@ requirements:
       formato di reporter.js). (4) Il deploy della nascita cancella le
       Functions fallite prima di riprovare; quello dell'aggiornamento no.
       (5) drinkpos-prova-storage si attiva fino in fondo.
-    status: todo
+      STATO (17/11/2026): (A) e (B) fatti, criteri (1)-(4) nei test e
+      `terraform validate`; il criterio (5), drinkpos-prova-storage fino in
+      fondo, si fa dopo il merge.
+    status: partial
     generate_issue: true
     labels: [flotta, produzione]
     priority: P1

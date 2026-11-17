@@ -304,6 +304,14 @@ jobs:
               echo "Firestore c'era già: importato nello stato."
             fi
           fi
+          # Il magazzino delle immagini delle Functions (REQ-FLOTTA-130): se
+          # un deploy di prima l'ha già creato, si prende nello stato invece
+          # di ricrearlo (il Terraform si fermerebbe su «already exists»).
+          if [ "$PROFILO" = "completo" ] && ! terraform state show 'google_artifact_registry_repository.gcf_artifacts[0]' >/dev/null 2>&1; then
+            if terraform import -input=false 'google_artifact_registry_repository.gcf_artifacts[0]' "projects/$PROGETTO/locations/europe-west1/repositories/gcf-artifacts" >/dev/null 2>&1; then
+              echo "gcf-artifacts c'era già: importato nello stato."
+            fi
+          fi
 
       - name: Terraform apply
         working-directory: infra/istanza
@@ -530,13 +538,25 @@ jobs:
         # degli agenti di Google arrivano qualche minuto dopo («Retry the
         # deployment in a few minutes», prova-bar, 29/10/2026): si riprova
         # due volte, a 90 secondi. Il deploy si può ripetere senza danni.
+        # LE FUNCTIONS RIMASTE A METÀ (REQ-FLOTTA-130): una Function la cui
+        # prima creazione è fallita resta registrata, e il tentativo dopo si
+        # ferma con «Changing from an HTTPS function to a background
+        # triggered function is not allowed» (drinkpos-prova-storage,
+        # 17/11/2026). Prima di riprovare si cancellano quelle che il
+        # tentativo elenca come fallite: qui il locale è appena nato, non
+        # c'è niente che lavori. In aggiorna-istanza no.
         run: |
+          set -o pipefail
           # Il profilo leggero (il Free, REQ-FLOTTA-015) pubblica solo regole e
           # sito: niente Functions né Storage, che sono quello che costa.
           if [ "$PROFILO" = "leggero" ]; then SOLO=firestore,hosting; else SOLO=firestore,storage,functions,hosting; fi
           for tentativo in 1 2 3; do
-            if npx firebase-tools deploy --only "$SOLO" --project "$PROGETTO" --force; then exit 0; fi
+            if npx firebase-tools deploy --only "$SOLO" --project "$PROGETTO" --force 2>&1 | tee "$RUNNER_TEMP/deploy.log"; then exit 0; fi
             if [ "$tentativo" = 3 ]; then exit 1; fi
+            node ../scripts/funzioni-fallite.mjs "$RUNNER_TEMP/deploy.log" | while read -r nome regione; do
+              echo "La Function $nome ($regione) è rimasta a metà: la cancello prima di riprovare."
+              npx firebase-tools functions:delete "$nome" --region "$regione" --project "$PROGETTO" --force || true
+            done
             echo "::warning::Deploy non riuscito al tentativo $tentativo: riprovo fra 90 secondi."
             sleep 90
           done
