@@ -23,6 +23,10 @@ npm run lint
 npm run build
 ```
 
+Per chi sviluppa, il punto d'ingresso è [docs/development.md](docs/development.md)
+(in inglese): preparazione del computer, test, emulatori, prove Playwright,
+rilascio, dove sta ogni cosa, e chi fa cosa nella vita di un locale.
+
 **Due progetti Firebase**, come tana-drink: `drink-regia-test` per
 provare e `drink-regia` per la produzione. A pubblicare è il tag: un tag
 fuori da `main` (`vX.Y.Z-beta` su `develop`) va sul test e poi passa il

@@ -185,6 +185,12 @@ sito. Prezzi e piani li decide l'utente.
    Il titolare la chiede, e parte dopo 30 giorni; l'admin la fa anche
    subito, scrivendo il nome dell'app.
 
+Chi fa ogni passo (Terraform, script, workflow e job, Function), con quali
+credenziali e quali ruoli dà, compreso il ruolo dello Storage che dà
+`scripts/storage-istanza.mjs` dopo il bucket: la tabella «The life of a
+venue, step by step» in [development.md](development.md), in inglese
+(REQ-FLOTTA-129).
+
 ### I due profili
 
 | | leggero (Free) | completo |

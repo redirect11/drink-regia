@@ -13,6 +13,19 @@ data.
   deploy della nascita cancella le Functions rimaste a metà. Sulla prova di
   un locale nuovo il primo deploy falliva su 18 Functions su 21
   (REQ-FLOTTA-130).
+- La documentazione di sviluppo, in inglese (REQ-FLOTTA-129, #322):
+  `docs/development.md` è il punto d'ingresso per chi sviluppa, con la
+  preparazione del computer, i test, l'emulatore delle regole, le prove
+  Playwright, il rilascio e dove sta ogni cosa, e collega i documenti che
+  ci sono già invece di riscriverli. La tabella «The life of a venue, step
+  by step» dice, per la nascita, l'aggiornamento, la sospensione e la
+  chiusura di un locale, chi fa ogni passo (Terraform, script, workflow,
+  Function), con quali credenziali e quali ruoli dà, compreso il ruolo
+  dello Storage che dà `scripts/storage-istanza.mjs` dopo il bucket. Un
+  test fa rosso se uno script o un workflow non è citato lì, o se un suo
+  collegamento porta a un file che non c'è. Il README e
+  `docs/architettura.md` §4 rimandano alla pagina.
+
 - Il carosello della prima pagina passa al filmato dopo quando a quello
   che si vede manca un secondo e mezzo alla fine, non dopo un tempo fisso:
   il filmato di prima non ricomincia più prima del cambio, nemmeno dopo
