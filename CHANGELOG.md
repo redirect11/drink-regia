@@ -6,6 +6,12 @@ data.
 
 ## 0.5.1 (in lavorazione)
 
+- I locali del test nascono nell'Organizzazione Google `stone-b.it`, col
+  progetto creato dal Terraform senza passi a mano. Il Terraform dà il ruolo
+  Editor all'account che compila e fa girare le Functions (l'Organizzazione
+  non lo dà più da sola), riprova una volta se un account di Google non è
+  ancora nato, e il deploy cancella solo le Functions rimaste a metà col
+  cambio di tipo (REQ-FLOTTA-132).
 - La prima pagina nuova, dal canvas di design: il titolo «Pensa al tuo
   locale. Ai conti pensa Lime.» («Run your venue. Lime runs the numbers.»); un carosello che parla
   al titolare (Gestisci gli ordini, Acquisti dal menù, Segui le comande,

@@ -5474,7 +5474,9 @@ requirements:
       PUNTO DEBOLE, scelto: Editor è più del necessario. Ridurlo ai ruoli
       che servono davvero va studiato con tana-drink (cosa usano le
       Functions), con la fase 0 della sicurezza della flotta.
-    status: todo
+      STATO (17/11/2026): (A), (B), (C) fatti e nei test; il criterio
+      (4), drinkpos-prova-org fino in fondo, si fa dopo il merge.
+    status: partial
     generate_issue: true
     labels: [flotta, produzione, sicurezza]
     priority: P1

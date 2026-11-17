@@ -325,7 +325,20 @@ jobs:
           # Il leggero (il Free) nasce senza le API e gli agenti delle
           # Functions, ma con la fatturazione: l'accesso con email la chiede.
           TF_VAR_profilo: ${{ inputs.profilo }}
-        run: terraform apply -input=false -auto-approve
+        # UN ACCOUNT DI GOOGLE CHE NON C'È ANCORA (REQ-FLOTTA-132): in un
+        # progetto appena creato dal Terraform, gli account che Firebase e
+        # Google creano da soli (firebase-adminsdk-fbsvc, l'account
+        # predefinito di Compute) arrivano qualche istante dopo, e dare loro
+        # un ruolo fallisce con «Unknown service account» (drinkpos-prova-org,
+        # 17/11/2026, run 44148855298; al secondo giro passava). Si riprova
+        # una volta, dopo un minuto, solo per quell'errore.
+        run: |
+          set -o pipefail
+          if terraform apply -input=false -auto-approve 2>&1 | tee "$RUNNER_TEMP/terraform.log"; then exit 0; fi
+          if ! grep -qiE "Unknown service account|service account .* does not exist" "$RUNNER_TEMP/terraform.log"; then exit 1; fi
+          echo "::warning::Un account di Google non c'è ancora: riprovo il Terraform fra 60 secondi."
+          sleep 60
+          terraform apply -input=false -auto-approve
 
       # Quello che la build deve sapere del progetto nuovo, in una riga di
       # JSON, in un artifact per il job `compila`: come output GitHub la
@@ -542,11 +555,13 @@ jobs:
         # prima creazione è fallita resta registrata, e il tentativo dopo si
         # ferma con «Changing from an HTTPS function to a background
         # triggered function is not allowed» (drinkpos-prova-storage,
-        # 17/11/2026). Prima di riprovare si cancellano quelle che il
-        # tentativo elenca come fallite, o quella che ferma il deploy prima
-        # di pubblicare (una alla volta: dopo una cancellazione si riprova
-        # subito, senza aspettare, finché ce ne sono): qui il locale è appena nato, non c'è
-        # niente che lavori. In aggiorna-istanza no.
+        # 17/11/2026). Prima di riprovare si cancella la Function che ferma
+        # il deploy col cambio di tipo, una alla volta, e si riprova subito,
+        # finché ce ne sono: qui il locale è appena nato, non c'è niente che
+        # lavori. Solo quelle: le Functions fallite per altri motivi (una
+        # build senza permessi, drinkpos-prova-org, REQ-FLOTTA-132) non si
+        # cancellano, perché cancellarle non risolve niente. In
+        # aggiorna-istanza no.
         run: |
           set -o pipefail
           # Il profilo leggero (il Free, REQ-FLOTTA-015) pubblica solo regole e
@@ -560,7 +575,7 @@ jobs:
           cancellate=0
           while :; do
             if npx firebase-tools deploy --only "$SOLO" --project "$PROGETTO" --force 2>&1 | tee "$RUNNER_TEMP/deploy.log"; then exit 0; fi
-            A_META=$(node ../scripts/funzioni-fallite.mjs "$RUNNER_TEMP/deploy.log")
+            A_META=$(node ../scripts/funzioni-fallite.mjs --cambio-di-tipo "$RUNNER_TEMP/deploy.log")
             if [ -n "$A_META" ] && [ "$cancellate" -lt 40 ]; then
               while read -r nome regione; do
                 echo "La Function $nome ($regione) è rimasta a metà: la cancello prima di riprovare."

@@ -27,13 +27,15 @@ const CAMBIO_DI_TIPO = /\[(?:[A-Za-z0-9_-]+:)?([A-Za-z0-9_-]+)\(([a-z0-9-]+)\)\]
 // Le sequenze di colore del terminale, se l'uscita le ha.
 const senzaColori = (testo) => testo.replace(/\u001b\[[0-9;]*m/g, '')
 
-export function funzioniFallite(testo) {
+// `soloCambioDiTipo`: solo le Functions fermate col cambio di tipo, cioè
+// quelle rimaste a metà da un deploy di prima (REQ-FLOTTA-132).
+export function funzioniFallite(testo, { soloCambioDiTipo = false } = {}) {
   const righe = senzaColori(String(testo || '')).split(/\r?\n/)
   const fallite = []
   for (let i = 0; i < righe.length; i++) {
     const cambio = righe[i].match(CAMBIO_DI_TIPO)
     if (cambio) fallite.push({ nome: cambio[1], regione: cambio[2] })
-    if (!righe[i].includes(TITOLO)) continue
+    if (soloCambioDiTipo || !righe[i].includes(TITOLO)) continue
     for (let j = i + 1; j < righe.length; j++) {
       const m = righe[j].match(/^\t(?:[A-Za-z0-9_-]+:)?([A-Za-z0-9_-]+)\(([a-z0-9-]+)\)\s*$/)
       if (!m) break
