@@ -895,8 +895,8 @@ describe('la prima pagina', () => {
     const h1 = screen.getByRole('heading', { level: 1 })
     expect(h1).toHaveTextContent(it_.hero.titolo)
     // Lo slogan del 17/11/2026 (REQ-FLOTTA-131).
-    expect(it_.hero.titolo).toBe('Tu servi. Lime fa i conti.')
-    expect(h1.querySelector('.titolo-accento')).toHaveTextContent('Lime fa i conti.')
+    expect(it_.hero.titolo).toBe('Pensa al tuo locale. Ai conti pensa Lime.')
+    expect(h1.querySelector('.titolo-accento')).toHaveTextContent('Ai conti pensa Lime.')
   })
 
   it('mette lingua, titolo e alternative della pagina, e li toglie uscendo', () => {

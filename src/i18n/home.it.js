@@ -77,12 +77,15 @@ export default {
     occhiello: 'Gestionale per bar e ristoranti',
     // Lo slogan del 17/11/2026 (REQ-FLOTTA-131), scelto da Daniele sul
     // canvas di design dopo aver scartato le proposte «piatte e scontate»:
-    // «Tu servi. Lime fa i conti.» — «questo mi piace». Due frasi in croce,
+    // «Tu servi. Lime fa i conti.» — «questo mi piace»; poi, lo stesso giorno,
+    // «tu servi lui fa i conti non mi piace. Il tu servi lo cambierei», e fra
+    // le proposte ha scelto «Pensa al tuo locale. Ai conti pensa Lime.». Due
+    // frasi in croce,
     // e la categoria resta nell'occhiello qui sopra, che risponde ancora a
     // «nella parte iniziale non è chiaro cosa vendiamo» (07/11/2026). Quello
     // di prima, «Il gestionale del tuo locale. Dalla comanda alla cassa.»,
     // e la sua storia sono in DESIGN.md §5.1.
-    titolo: 'Tu servi. Lime fa i conti.',
+    titolo: 'Pensa al tuo locale. Ai conti pensa Lime.',
     sottotitolo: 'Comande, cassa, menù con QR, magazzino, personale e statistiche in un’app sola, nata in un cocktail bar.',
     attiva: 'Attiva il tuo locale',
     dashboard: 'La mia dashboard',

@@ -115,8 +115,8 @@ describe('la pagina inglese', () => {
   it('lo slogan in inglese in due tempi, e le schermate in italiano dette in inglese', () => {
     mostra('/en')
     const h1 = screen.getByRole('heading', { level: 1 })
-    expect(h1).toHaveTextContent('You serve. Lime does the math.')
-    expect(h1.querySelector('.titolo-accento')).toHaveTextContent('Lime does the math.')
+    expect(h1).toHaveTextContent('Run your venue. Lime runs the numbers.')
+    expect(h1.querySelector('.titolo-accento')).toHaveTextContent('Lime runs the numbers.')
     expect(screen.getByText(en.funzioni.schermateInItaliano)).toBeInTheDocument()
     const img = document.querySelector('#funzioni figure img')
     expect(img).toHaveAttribute('alt', en.funzioni.voci.conti.schermata)

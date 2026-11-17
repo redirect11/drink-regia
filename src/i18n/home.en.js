@@ -67,9 +67,9 @@ export default {
     occhiello: 'Management for bars and restaurants',
     // Riscritti il 07/11/2026 insieme all'italiano (lì il perché).
     // Lo slogan del 17/11/2026 (REQ-FLOTTA-131), il perché nell'italiano.
-    // «Does the math» tiene il gioco di «fa i conti» (i conti del locale e
-    // il calcolo) in parole che un titolare inglese usa davvero.
-    titolo: 'You serve. Lime does the math.',
+    // «Runs the numbers» dice «ai conti pensa» in parole che un titolare
+    // inglese usa davvero, e fa coppia con «Run your venue».
+    titolo: 'Run your venue. Lime runs the numbers.',
     sottotitolo: 'Orders, till, QR menu, stock, staff and statistics in a single app, born in a cocktail bar.',
     attiva: 'Get started',
     dashboard: 'My dashboard',

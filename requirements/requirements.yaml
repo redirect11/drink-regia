@@ -5305,12 +5305,15 @@ requirements:
       - tests/flotta.test.js
 
   - id: REQ-FLOTTA-131
-    title: "La prima pagina dal canvas di design: lo slogan «Tu servi. Lime fa i conti.», il carosello che parla al titolare, le schermate vere accanto alle funzioni"
+    title: "La prima pagina dal canvas di design: lo slogan «Pensa al tuo locale. Ai conti pensa Lime.», il carosello che parla al titolare, le schermate vere accanto alle funzioni"
     area: "src/pages/Home.jsx, src/i18n/home.it.js, src/i18n/home.en.js, src/lib/prodotto.js (SLOGAN), public/schermate/, src/index.css, DESIGN.md §4-§5"
     description: >
       Daniele, 15-17/11/2026, sul canvas di design «Drink Regia — nuovo
       design» (claude.ai), una decisione alla volta.
-      LO SLOGAN: «Tu servi. Lime fa i conti.» («questo mi piace»), al
+      LO SLOGAN: «Pensa al tuo locale. Ai conti pensa Lime.» («Run your venue. Lime runs the numbers.»). Dal
+      canvas era «Tu servi. Lime fa i conti.» («questo mi piace»); poi, lo stesso
+      giorno: «tu servi lui fa i conti non mi piace. Il tu servi lo
+      cambierei», e fra quattro proposte ha scelto questa. Al
       posto di «Il gestionale del tuo locale. Dalla comanda alla cassa.»;
       la categoria resta nell'occhiello.
       IL CAROSELLO parla al titolare, non al cliente del locale («ordina si

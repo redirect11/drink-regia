@@ -471,7 +471,7 @@ fare adesso.
 | | Italiano | English |
 |---|---|---|
 | occhiello | Gestionale per bar e ristoranti | Management for bars and restaurants |
-| titolo (scelto da Daniele il 17/11/2026 sul canvas di design, REQ-FLOTTA-131: «questo mi piace») | Tu servi. Lime fa i conti. | You serve. Lime does the math. |
+| titolo (scelto da Daniele il 17/11/2026, REQ-FLOTTA-131: dal canvas «Tu servi. Lime fa i conti.», poi «Il tu servi lo cambierei» e la scelta fra le proposte) | Pensa al tuo locale. Ai conti pensa Lime. | Run your venue. Lime runs the numbers. |
 | titolo del 07/11/2026 («uno slogan facile e poche parole», superato: «sempre piatti e scontati… servono due frasi in croce semplici e di effetto») | Il gestionale del tuo locale. Dalla comanda alla cassa. | Your venue's management system. From the order to the till. |
 | sottotitolo, una riga sola | Comande, cassa, menù con QR, magazzino, personale e statistiche in un'app sola, nata in un cocktail bar. | Orders, till, QR menu, stock, staff and statistics in a single app, born in a cocktail bar. |
 | titolo del 06/11 («fatto da chi sta al banco», superato) | Scritto dietro il banco. In servizio ogni sera. | Written behind the bar. In service every night. |

@@ -6,8 +6,8 @@ data.
 
 ## 0.5.1 (in lavorazione)
 
-- La prima pagina nuova, dal canvas di design: il titolo «Tu servi. Lime
-  fa i conti.» («You serve. Lime does the math.»); un carosello che parla
+- La prima pagina nuova, dal canvas di design: il titolo «Pensa al tuo
+  locale. Ai conti pensa Lime.» («Run your venue. Lime runs the numbers.»); un carosello che parla
   al titolare (Gestisci gli ordini, Acquisti dal menù, Segui le comande,
   Conti sempre in ordine, Tieni d'occhio il magazzino); le schermate vere
   dell'app accanto alle funzioni, in tema Lime; «assistenza inclusa» sotto
