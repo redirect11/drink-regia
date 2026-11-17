@@ -5435,6 +5435,35 @@ requirements:
     test_cases:
       - tests/documentazione.test.js
 
+  - id: REQ-FLOTTA-133
+    title: "La cornice del carosello della prima pagina ha un'altezza fissa: non cambia da un filmato all'altro"
+    area: "src/pages/Home.jsx (il testo del gesto), src/index.css (.gesto-testo), tests/Home.test.jsx, e2e/home.spec.js"
+    description: >
+      Daniele, 17/11/2026: «nella home in alcuni video l'altezza del frame
+      dove scorre il video cambia. Dovrebbe essere fissa».
+      PERCHÉ SUCCEDE: la cornice dei filmati è la prima schermata (.hero),
+      e la sua altezza la decide il testo che contiene; sotto il titolo c'è
+      il testo del gesto (la parola e la riga) della sola diapositiva
+      visibile. Le righe del carosello nuovo (REQ-FLOTTA-131) arrivano a due
+      frasi, e quando una va a capo una volta in più il blocco cresce, e
+      con lui la cornice; l'altezza minima di .gesto-testo (7,5 rem, 7 sopra
+      i 900 px) non basta.
+      COSA. Il blocco del testo riserva sempre lo spazio della diapositiva
+      più lunga, alla larghezza dello schermo di quel momento: i testi di
+      tutte le diapositive stanno nella stessa cella, quelli non visibili
+      nascosti alla vista e ai lettori di schermo; la regione che si
+      annuncia resta una sola.
+      CRITERI. (1) L'altezza della prima schermata è la stessa per ogni
+      diapositiva, a 1280, 390 e 320 px. (2) Un lettore di schermo legge
+      solo la diapositiva visibile. (3) Test unitari e una prova sul sito
+      di test che misura l'altezza passando da una diapositiva all'altra.
+    status: todo
+    generate_issue: true
+    labels: [home, sito]
+    priority: P2
+    test_cases:
+      - tests/Home.test.jsx
+
   - id: REQ-FLOTTA-121
     title: "Gli indirizzi pubblici non leggono Firestore prima di aver verificato il gettone"
     area: "functions/index.js (sceltaDallApp, passaggioVersoRegia, presentazione, moduloDallApp, scambiaPassaggio, traccia), functions/lib/aggiornamenti.js (progettoDelToken)"
