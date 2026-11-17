@@ -85,7 +85,29 @@ tana-drink non riceve più lanci e non manda più esiti. Restano:
   degli aggiornamenti) la regia vuole in più che sia l'account del
   cliente: stesso uid (M7) o email verificata uguale (REQ-FLOTTA-050);
 - **la Tana**, che si pubblica dal suo repository e riferisce la sua
-  versione alla regia (handover §7, «Rilasci a ondate»).
+  versione alla regia (handover §7, «Rilasci a ondate»);
+- **il ruolo dello Storage per le regole che leggono la licenza**
+  (REQ-FLOTTA-124, 17/11/2026). I locali della flotta lo ricevono dal
+  Terraform (`google_project_iam_member.agente_storage`): quelli nuovi alla
+  nascita, quelli completi già attivi al primo `aggiorna-istanza`, che
+  applica il service agent dello Storage e il ruolo (`-target`). Il
+  `-target` porta con sé le loro dipendenze, il progetto e le API: il
+  workflow fa prima un piano e, se cambierebbe qualcos'altro, si ferma con
+  l'elenco e non applica niente. Quel locale va guardato a mano (un
+  progetto toccato fuori dal Terraform, per esempio la fatturazione), e
+  finché non è sistemato non si aggiorna: è voluto, perché senza il ruolo
+  le regole nuove negherebbero ogni caricamento. Il ruolo può diventare
+  effettivo qualche minuto dopo l'apply. La Tana e i locali esistenti non
+  hanno stato Terraform: lo aggiunge Daniele, una volta per progetto, prima
+  che arrivi la versione di tana-drink con le regole nuove:
+
+  ```
+  gcloud projects add-iam-policy-binding <progetto> \
+    --member="serviceAccount:service-<numero del progetto>@gcp-sa-firebasestorage.iam.gserviceaccount.com" \
+    --role="roles/firebaserules.firestoreServiceAgent" --condition=None
+  ```
+
+  Il numero del progetto: `gcloud projects describe <progetto> --format="value(projectNumber)"`.
 
 ## Per completare lo spostamento
 

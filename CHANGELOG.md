@@ -6,6 +6,15 @@ data.
 
 ## 0.5.1 (in lavorazione)
 
+- I locali col profilo completo ricevono il ruolo che serve alle regole di
+  Storage per leggere la licenza (roles/firebaserules.firestoreServiceAgent
+  sul service agent dello Storage): i nuovi dal Terraform, quelli della
+  flotta già attivi al loro prossimo aggiornamento, prima del deploy delle
+  regole; un aggiornamento che cambierebbe altro nel progetto si ferma e lo
+  dice. La Tana e i locali esistenti non creati dalla regia lo ricevono a
+  mano (docs/flotta-nella-regia.md). Senza, con la prossima versione di
+  tana-drink i locali non caricherebbero più foto né allegati
+  (REQ-FLOTTA-124).
 - L'assistenza è inclusa nell'abbonamento senza tetto di ore: la prima
   pagina non ha più la nota «fino a 1 ora al mese; oltre, a preventivo», e
   i termini (§5) dicono solo che è inclusa (Daniele, 16/11/2026)

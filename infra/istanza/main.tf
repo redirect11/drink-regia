@@ -289,6 +289,38 @@ moved {
   to   = google_project_iam_member.agente_pubsub[0]
 }
 
+# LE REGOLE DI STORAGE CHE LEGGONO LA LICENZA (REQ-FLOTTA-124, tana-drink
+# REQ-SIC-006, 17/11/2026): le foto e gli allegati si caricano solo se la
+# licenza lo consente, e per leggerla da Firestore le regole di Storage
+# vogliono il ruolo firestoreServiceAgent sul service agent dello Storage.
+# Senza, la lettura fallisce, le regole negano e nel locale non si carica
+# più niente. firebase-tools lo concede da solo solo quando chiede a una
+# persona: nei workflow, che non sono interattivi, salta il controllo
+# senza dirlo (lib/rulesDeploy.js, checkStorageRulesIamPermissions). Il
+# service agent si chiede qui, col progetto, perché il bucket arriva dopo
+# (scripts/storage-istanza.mjs); che Google lo crei già a questo punto è
+# un'ipotesi finché non lo prova un locale nuovo sul test (criterio 4 della
+# voce). Il ruolo usa il nome costruito dal numero del progetto, non
+# l'`email` della risorsa: il provider dice che l'API può non restituirla,
+# e un'email vuota resterebbe nello stato per sempre (revisione del
+# 17/11/2026). Il leggero non ha Storage.
+resource "google_project_service_identity" "storage" {
+  provider   = google-beta
+  count      = local.completo ? 1 : 0
+  project    = google_project.istanza.project_id
+  service    = "firebasestorage.googleapis.com"
+  depends_on = [google_project_service.api]
+}
+
+resource "google_project_iam_member" "agente_storage" {
+  provider   = google-beta
+  count      = local.completo ? 1 : 0
+  project    = google_project.istanza.project_id
+  role       = "roles/firebaserules.firestoreServiceAgent"
+  member     = "serviceAccount:service-${google_project.istanza.number}@gcp-sa-firebasestorage.iam.gserviceaccount.com"
+  depends_on = [google_project_service_identity.storage]
+}
+
 # La regia sospende e riattiva l'istanza scrivendo settings/bar.licenza
 # (REQ-FLOTTA-008): le serve di leggere e scrivere Firestore qui.
 resource "google_project_iam_member" "regia" {

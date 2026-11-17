@@ -16,7 +16,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, existsSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { spawnSync } from 'node:child_process'
+import { spawnSync, execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { load } from 'js-yaml'
 import { conIRuoli } from '../scripts/lib-iam.js'
@@ -572,10 +572,89 @@ describe('infra/istanza/main.tf', () => {
     expect(tf).toContain('for_each   = local.completo ? toset(["eventarc.googleapis.com", "pubsub.googleapis.com"]) : toset([])')
     expect(tf).toContain('role     = "roles/eventarc.serviceAgent"')
     expect(tf).toContain('role     = "roles/iam.serviceAccountTokenCreator"')
+    // I due ruoli degli agenti delle Functions (quelli dello Storage,
+    // REQ-FLOTTA-124, hanno l'allineamento del loro blocco: test sotto).
     expect(tf.match(/count {4}= local\.completo \? 1 : 0/g)).toHaveLength(2)
     // prova-bar ha i due permessi nello stato senza indice: si spostano.
     expect(tf).toContain('to   = google_project_iam_member.agente_eventarc[0]')
     expect(tf).toContain('to   = google_project_iam_member.agente_pubsub[0]')
+  })
+
+  // REQ-FLOTTA-124 (tana-drink REQ-SIC-006): le regole di Storage che leggono
+  // la licenza vogliono il ruolo sul service agent dello Storage. Il deploy
+  // dei workflow non lo concede da solo (non è interattivo).
+  describe('il ruolo dello Storage per le regole che leggono la licenza', () => {
+    const blocco = (nome) => tf.slice(tf.indexOf(`resource "${nome}" {`)).split('\n}\n')[0]
+
+    it('il service agent dello Storage nasce col progetto completo, e ha firestoreServiceAgent', () => {
+      const agente = blocco('google_project_service_identity" "storage')
+      expect(agente).toContain('count      = local.completo ? 1 : 0')
+      expect(agente).toContain('service    = "firebasestorage.googleapis.com"')
+      expect(agente).toContain('depends_on = [google_project_service.api]')
+      const ruolo = blocco('google_project_iam_member" "agente_storage')
+      expect(ruolo).toContain('count      = local.completo ? 1 : 0')
+      expect(ruolo).toContain('role       = "roles/firebaserules.firestoreServiceAgent"')
+      // Il nome dal numero del progetto, non l'email della risorsa, che
+      // l'API può non restituire (revisione del 17/11/2026).
+      expect(ruolo).toContain('member     = "serviceAccount:service-${google_project.istanza.number}@gcp-sa-firebasestorage.iam.gserviceaccount.com"')
+      expect(ruolo).toContain('depends_on = [google_project_service_identity.storage]')
+      expect(ruolo).not.toContain('.email')
+    })
+
+    const passo = () => aggiorna.jobs.prepara.steps.find((x) => x.name === 'Il profilo completo nel progetto')
+    // Il controllo del piano, preso dal workflow e fatto girare davvero.
+    const controllo = () => {
+      const run = passo().run
+      return run.slice(run.indexOf("node -e '") + "node -e '".length, run.indexOf(`' "$RUNNER_TEMP/ruolo-storage.json"`))
+    }
+    const altroNelPiano = (cambi) => {
+      const dir = mkdtempSync(join(tmpdir(), 'piano-'))
+      const file = join(dir, 'piano.json')
+      writeFileSync(file, JSON.stringify({ resource_changes: cambi.map(([address, ...actions]) => ({ address, change: { actions } })) }))
+      return execFileSync(process.execPath, ['-e', controllo(), file], { encoding: 'utf8' }).trim()
+    }
+
+    it('aggiorna-istanza lo dà a un locale già completo che non l’ha, dopo un piano, prima del deploy', () => {
+      expect(passo().if).toBe("env.PROFILO == 'completo' && env.ESISTENTE != 'true'")
+      const run = passo().run
+      // Completo e col ruolo: niente da fare.
+      expect(run).toContain("grep -qF 'google_project_iam_member.agente_storage[0]'")
+      expect(run).toContain('echo "Il progetto è già completo, col ruolo dello Storage."; exit 0')
+      // Completo senza il ruolo: un piano mirato, il controllo, poi quel piano.
+      const mirato = run.slice(run.indexOf('echo "Il progetto è completo: si aggiunge'))
+      const righe = mirato.split('\n').map((r) => r.trim())
+      expect(righe.slice(1, 4)).toEqual([
+        'terraform plan -input=false -out=ruolo-storage.tfplan \\',
+        "-target='google_project_service_identity.storage[0]' \\",
+        "-target='google_project_iam_member.agente_storage[0]'",
+      ])
+      expect(mirato).toContain('if [ -n "$altro" ]; then')
+      expect(mirato).toMatch(/::error::Per dare il ruolo dello Storage cambierebbe anche: \$altro\..*niente è stato applicato\."\n\s+exit 1/)
+      const dopo = righe.slice(righe.indexOf('terraform apply -input=false -auto-approve ruolo-storage.tfplan'))
+      expect(dopo.slice(0, 2)).toEqual(['terraform apply -input=false -auto-approve ruolo-storage.tfplan', 'exit 0'])
+      // Non completo: l'apply intero di sempre, dopo.
+      expect(run.trimEnd().endsWith('terraform apply -input=false -auto-approve')).toBe(true)
+      // `prepara` viene prima di `pubblica`, che fa il deploy delle regole.
+      expect([].concat(aggiorna.jobs.pubblica.needs)).toContain('prepara')
+    })
+
+    it('il controllo del piano lascia passare solo i due pezzi, e ferma ogni altro cambio', () => {
+      const agente = 'google_project_service_identity.storage[0]'
+      const ruolo = 'google_project_iam_member.agente_storage[0]'
+      // Il caso atteso: i due pezzi nascono, progetto e API restano come sono.
+      expect(altroNelPiano([[agente, 'create'], [ruolo, 'create'], ['google_project.istanza', 'no-op'], ['google_project_service.api["run.googleapis.com"]', 'no-op']])).toBe('')
+      expect(altroNelPiano([[agente, 'create'], ['data.google_firebase_web_app_config.app', 'read']])).toBe('')
+      // Un progetto toccato a mano: la fatturazione tornerebbe quella del Terraform.
+      expect(altroNelPiano([[ruolo, 'create'], ['google_project.istanza', 'update']])).toBe('google_project.istanza (update)')
+      expect(altroNelPiano([['google_project_service.api["run.googleapis.com"]', 'delete', 'create']])).toBe('google_project_service.api["run.googleapis.com"] (delete+create)')
+    })
+
+    it('il contratto e il documento della flotta lo dicono, col comando per la Tana', () => {
+      expect(leggi('docs/contratto-regia-app.md')).toContain('roles/firebaserules.firestoreServiceAgent')
+      const doc = leggi('docs/flotta-nella-regia.md')
+      expect(doc).toContain('gcp-sa-firebasestorage.iam.gserviceaccount.com')
+      expect(doc).toContain('--role="roles/firebaserules.firestoreServiceAgent" --condition=None')
+    })
   })
 
   // REQ-FLOTTA-015, provato su drinkpos-prova-free il 30/10/2026: senza
