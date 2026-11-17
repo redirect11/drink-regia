@@ -5295,8 +5295,14 @@ requirements:
       Functions fallite prima di riprovare; quello dell'aggiornamento no.
       (5) drinkpos-prova-storage si attiva fino in fondo.
       STATO (17/11/2026): (A) e (B) fatti, criteri (1)-(4) nei test e
-      `terraform validate`; il criterio (5), drinkpos-prova-storage fino in
-      fondo, si fa dopo il merge.
+      `terraform validate`. La prova di prova-storage (run 44101287800):
+      gcf-artifacts importato e con la regola di pulizia; il deploy fermo
+      tre volte su «[disponibilitaDalMagazzino(europe-west1)] Changing from
+      an HTTPS function…», che firebase-tools dice PRIMA di pubblicare, una
+      Function alla volta (planner.js), e non nell'elenco delle fallite:
+      ora lo script riconosce anche quella riga, e dopo una cancellazione
+      il deploy riprova subito (sei giri al più). Il criterio (5) si fa
+      dopo il merge.
     status: partial
     generate_issue: true
     labels: [flotta, produzione]
