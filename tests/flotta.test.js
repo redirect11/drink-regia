@@ -146,7 +146,7 @@ describe.each(WORKFLOW)('%s', (_, w, corpo) => {
   })
 
   it('attivazione e aggiornamento dello stesso locale non si sovrappongono', () => {
-    expect(w.concurrency).toEqual({ group: 'istanza-${{ inputs.slug }}', 'cancel-in-progress': false })
+    expect(w.concurrency).toEqual({ group: 'progetto-drinkpos-${{ inputs.slug }}', 'cancel-in-progress': false })
   })
 
   it('l’esito torna alla regia sempre, e dice cos’era', () => {
@@ -454,7 +454,7 @@ describe.each(WORKFLOW)('%s: il codice di tana-drink gira solo nel job senza la 
     expect(w.jobs.compila.needs).toEqual(['controlla', 'prepara'])
     expect(w.jobs.pubblica.needs).toEqual(['controlla', 'prepara', 'compila'])
     // La concorrenza per slug resta del workflow intero, non di un job.
-    expect(w.concurrency.group).toBe('istanza-${{ inputs.slug }}')
+    expect(w.concurrency.group).toBe('progetto-drinkpos-${{ inputs.slug }}')
   })
 
   it('il job che installa e compila l’app non ha environment e non legge nessun secret', () => {
@@ -544,7 +544,7 @@ describe('aggiorna-istanza.yml: il progetto deve avere l’etichetta ambiente di
     expect(nomi.indexOf('Il progetto è di questa regia?')).toBeLessThan(nomi.indexOf('Il profilo completo nel progetto'))
     expect(nomi.indexOf('Il progetto è di questa regia?')).toBeLessThan(nomi.indexOf('Deploy regole, indici, Functions e hosting'))
     // gcloud parla con la stessa chiave del provisioning.
-    expect(passo(aggiorna, 'Credenziali di provisioning').run).toContain('gcloud auth activate-service-account --key-file="$RUNNER_TEMP/sa.json"')
+    expect(passo(aggiorna, 'Credenziali di provisioning').run).toContain('gcloud auth login --cred-file="$RUNNER_TEMP/sa.json"')
   })
 })
 
@@ -789,7 +789,7 @@ describe('elimina-istanza.yml', () => {
     expect(Object.keys(eventi(elimina).workflow_dispatch.inputs).sort()).toEqual(Object.keys(dispatchEliminazione('prova-bar').inputs).sort())
     expect(jobs(elimina)).toHaveLength(1)
     expect(jobs(elimina)[0].environment).toBe(AMBIENTE_DELLA_REGIA)
-    expect(elimina.concurrency.group).toBe('istanza-${{ inputs.slug }}')
+    expect(elimina.concurrency.group).toBe('progetto-drinkpos-${{ inputs.slug }}')
   })
 
   // REQ-FLOTTA-048 (audit del 09/11/2026, punto 7): le due regie usano la
@@ -1076,7 +1076,7 @@ describe('provisiona-istanza.yml e prepara-ai-locale.yml: il progetto deve avere
     const run = passo(provisiona, NOME).run
     expect(run).toContain(`if ! ETICHETTA=$(gcloud projects describe "$PROGETTO" --format='value(labels.ambiente)' 2>/dev/null); then`)
     expect(run).toMatch(/if \[ "\$ETICHETTA" != "\$AMBIENTE" \]; then\n\s*echo "::error::[^\n]*"\n\s*exit 1\n\s*fi/)
-    expect(passo(provisiona, 'Credenziali di provisioning').run).toContain('gcloud auth activate-service-account --key-file="$RUNNER_TEMP/sa.json" --quiet')
+    expect(passo(provisiona, 'Credenziali di provisioning').run).toContain('gcloud auth login --cred-file="$RUNNER_TEMP/sa.json" --quiet')
     // Un errore qui arriva alla regia: il job dell'esito gira lo stesso.
     expect(provisiona.jobs.pubblica.if).toBe('${{ !cancelled() }}')
     expect(String(run)).not.toContain('${{')
@@ -1092,7 +1092,7 @@ describe('provisiona-istanza.yml e prepara-ai-locale.yml: il progetto deve avere
     expect(run).toContain(`ETICHETTA=$(gcloud projects describe "$PROGETTO" --format='value(labels.ambiente)')`)
     expect(run).toMatch(/if \[ "\$ETICHETTA" != "\$AMBIENTE" \]; then\n\s*echo "::error::[^\n]*"\n\s*exit 1\n\s*fi/)
     expect(run).toContain('gcloud projects update $PROGETTO --update-labels ambiente=$AMBIENTE')
-    expect(job.steps.find((s) => s.name === 'Credenziali di provisioning').run).toContain('gcloud auth activate-service-account --key-file="$RUNNER_TEMP/sa.json" --quiet')
+    expect(job.steps.find((s) => s.name === 'Credenziali di provisioning').run).toContain('gcloud auth login --cred-file="$RUNNER_TEMP/sa.json" --quiet')
   })
 })
 
@@ -1251,5 +1251,125 @@ describe('i locali che nascono nell’Organizzazione', () => {
     const r = spawnSync(process.execPath, ['scripts/funzioni-fallite.mjs', '--cambio-di-tipo', file], { encoding: 'utf8' })
     expect(r.status).toBe(0)
     expect(r.stdout.trim()).toBe('disponibilitaDalMagazzino europe-west1')
+  })
+})
+
+// FASE 0 (REQ-FLOTTA-136): un account della flotta per ogni regia, e GitHub
+// che entra su Google senza chiave salvata. Il modo lo sceglie l'environment
+// (FLOTTA_WIF_PROVIDER e FLOTTA_SA); senza, resta la chiave di prima, così il
+// passaggio si accende e si spegne un environment alla volta.
+describe('le credenziali della flotta (REQ-FLOTTA-136)', async () => {
+  const { credenziali, configurazioneSenzaChiave } = await import('../scripts/credenziali-flotta.mjs')
+  const FORNITORE = 'projects/246268671867/locations/global/workloadIdentityPools/github/providers/drink-regia'
+  const SA = 'provisioning@drink-regia-test.iam.gserviceaccount.com'
+  const GETTONE = { ACTIONS_ID_TOKEN_REQUEST_URL: 'https://gettone.example/richiesta?api-version=2.0', ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'tok' }
+  const prepara = load(leggi('.github/workflows/prepara-ai-locale.yml'))
+  const quattro = { provisiona, aggiorna, elimina, prepara }
+
+  it('senza chiave: il file «external_account» che chiede il gettone a GitHub e agisce come l’account della regia', () => {
+    const { modo, email, file } = credenziali({ FLOTTA_WIF_PROVIDER: FORNITORE, FLOTTA_SA: SA, SA_JSON: '', ...GETTONE })
+    expect(modo).toBe('senza chiave')
+    expect(email).toBe(SA)
+    expect(file.type).toBe('external_account')
+    expect(file.audience).toBe(`//iam.googleapis.com/${FORNITORE}`)
+    expect(file.token_url).toBe('https://sts.googleapis.com/v1/token')
+    expect(file.service_account_impersonation_url).toBe(`https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${SA}:generateAccessToken`)
+    const url = new URL(file.credential_source.url)
+    expect(url.searchParams.get('api-version')).toBe('2.0')
+    // Il pubblico del gettone è quello che il fornitore accetta di suo.
+    expect(url.searchParams.get('audience')).toBe(`https://iam.googleapis.com/${FORNITORE}`)
+    expect(file.credential_source.headers).toEqual({ Authorization: 'Bearer tok' })
+    expect(file.credential_source.format).toEqual({ type: 'json', subject_token_field_name: 'value' })
+    expect(JSON.stringify(file)).not.toContain('private_key')
+  })
+
+  it('senza chiave vince sulla chiave, se l’environment ha tutte e due', () => {
+    const chiave = JSON.stringify({ type: 'service_account', client_email: 'provisioning@drink-regia.iam.gserviceaccount.com', private_key: 'x' })
+    expect(credenziali({ FLOTTA_WIF_PROVIDER: FORNITORE, FLOTTA_SA: SA, SA_JSON: chiave, ...GETTONE }).modo).toBe('senza chiave')
+  })
+
+  it('senza chiave rifiuta un fornitore o un account sbagliati, e un job senza id-token', () => {
+    expect(() => configurazioneSenzaChiave({ fornitore: 'drink-regia', account: SA, urlGettone: 'https://x', tokenGettone: 't' })).toThrow(/FLOTTA_WIF_PROVIDER/)
+    expect(() => configurazioneSenzaChiave({ fornitore: FORNITORE, account: 'chiunque@gmail.com', urlGettone: 'https://x', tokenGettone: 't' })).toThrow(/FLOTTA_SA/)
+    expect(() => configurazioneSenzaChiave({ fornitore: FORNITORE, account: SA })).toThrow(/id-token: write/)
+  })
+
+  it('con la chiave di prima, finché l’environment non ha il fornitore', () => {
+    const chiave = { type: 'service_account', client_email: 'provisioning@drink-regia.iam.gserviceaccount.com', private_key: 'x' }
+    const { modo, email, file } = credenziali({ SA_JSON: JSON.stringify(chiave) })
+    expect(modo).toBe('con la chiave')
+    expect(email).toBe(chiave.client_email)
+    expect(file).toEqual(chiave)
+    expect(() => credenziali({})).toThrow(/PROVISIONING_SA_JSON/)
+    expect(() => credenziali({ SA_JSON: '{' })).toThrow(/JSON valido/)
+    expect(() => credenziali({ SA_JSON: '{"type":"authorized_user"}' })).toThrow(/account di servizio/)
+  })
+
+  it('lo script scrive il file e stampa l’email; se manca qualcosa si ferma con l’errore e non scrive niente', () => {
+    const cartella = mkdtempSync(join(tmpdir(), 'credenziali-'))
+    try {
+      const file = join(cartella, 'sa.json')
+      const ok = spawnSync(process.execPath, ['scripts/credenziali-flotta.mjs', file], { encoding: 'utf8', env: { ...process.env, SA_JSON: '', FLOTTA_WIF_PROVIDER: FORNITORE, FLOTTA_SA: SA, ...GETTONE } })
+      expect(ok.status).toBe(0)
+      expect(ok.stdout.trim()).toBe(SA)
+      expect(JSON.parse(readFileSync(file, 'utf8')).type).toBe('external_account')
+      const ko = spawnSync(process.execPath, ['scripts/credenziali-flotta.mjs', join(cartella, 'altro.json')], { encoding: 'utf8', env: { ...process.env, SA_JSON: '', FLOTTA_WIF_PROVIDER: '' } })
+      expect(ko.status).toBe(1)
+      expect(ko.stderr).toContain('::error::')
+      expect(existsSync(join(cartella, 'altro.json'))).toBe(false)
+    } finally {
+      rmSync(cartella, { recursive: true, force: true })
+    }
+  })
+
+  it('i quattro workflow prendono le credenziali dallo script, col fornitore e l’account dell’environment', () => {
+    for (const [nome, w] of Object.entries(quattro)) {
+      const conCredenziali = jobs(w).flatMap((j) => j.steps).filter((s) => s.name === 'Credenziali di provisioning')
+      expect(conCredenziali.length, nome).toBeGreaterThan(0)
+      for (const p of conCredenziali) {
+        expect(p.env.FLOTTA_WIF_PROVIDER, nome).toBe('${{ vars.FLOTTA_WIF_PROVIDER }}')
+        expect(p.env.FLOTTA_SA, nome).toBe('${{ vars.FLOTTA_SA }}')
+        expect(p.run, nome).toContain('EMAIL=$(node scripts/credenziali-flotta.mjs "$RUNNER_TEMP/sa.json")')
+        expect(p.run, nome).not.toContain('echo "$SA_JSON"')
+      }
+      // Nessuno scrive più la chiave da sé o la passa a un'azione.
+      expect(JSON.stringify(w), nome).not.toContain('credentials_json')
+    }
+  })
+
+  it('il gettone di GitHub lo chiedono solo i job con le credenziali, mai quello che compila tana-drink', () => {
+    for (const [nome, w] of Object.entries(quattro)) {
+      expect(w.permissions, nome).toEqual({ contents: 'read' })
+      for (const [id, j] of Object.entries(w.jobs)) {
+        if (j.steps.some((s) => s.name === 'Credenziali di provisioning')) {
+          expect(j.permissions, `${nome}.${id}`).toEqual({ contents: 'read', 'id-token': 'write' })
+          expect(j.environment, `${nome}.${id}`).toBe("${{ inputs.ambiente == 'test' && 'flotta-test' || 'flotta' }}")
+        } else {
+          expect(j.permissions?.['id-token'], `${nome}.${id}`).toBeUndefined()
+        }
+      }
+    }
+    expect(provisiona.jobs.compila.permissions).toBeUndefined()
+    expect(aggiorna.jobs.compila.permissions).toBeUndefined()
+  })
+
+  it('le credenziali si cancellano alla fine di ogni job che le scrive, anche in elimina', () => {
+    for (const [nome, w] of Object.entries(quattro)) {
+      for (const j of jobs(w).filter((x) => x.steps.some((s) => s.name === 'Credenziali di provisioning'))) {
+        const ultimo = j.steps.at(-1)
+        expect(ultimo.name, nome).toBe('Pulizia credenziali')
+        expect(ultimo.if, nome).toBe('always()')
+        expect(ultimo.run, nome).toContain('rm -f "$RUNNER_TEMP/sa.json"')
+      }
+    }
+  })
+
+  it('due operazioni sullo stesso progetto non si sovrappongono, anche «Prepara l’AI»', () => {
+    for (const w of [provisiona, aggiorna, elimina]) {
+      expect(w.concurrency).toEqual({ group: 'progetto-drinkpos-${{ inputs.slug }}', 'cancel-in-progress': false })
+    }
+    expect(provisiona.env.PROGETTO).toBe('drinkpos-${{ inputs.slug }}')
+    expect(elimina.env.PROGETTO).toBe('drinkpos-${{ inputs.slug }}')
+    expect(prepara.concurrency).toEqual({ group: 'progetto-${{ inputs.progetto }}', 'cancel-in-progress': false })
   })
 })

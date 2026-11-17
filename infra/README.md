@@ -8,8 +8,43 @@ dell'app (REQ-FLOTTA-009), col Terraform solo per un locale Free che
 passa al profilo completo. Il perché sta in
 [docs/flotta-nella-regia.md](../docs/flotta-nella-regia.md).
 
-Lo stato di Terraform sta nel bucket GCS `drink-regia-tfstate`, una
-cartella per locale (`istanze/<slug>`).
+Lo stato di Terraform sta in un bucket GCS per regia (`TFSTATE_BUCKET`), una
+cartella per locale (`istanze/<slug>`): `drink-regia-tfstate` per la
+produzione, `drink-regia-test-tfstate` per il test (REQ-FLOTTA-136, dal
+17/11/2026: gli stati dei locali di prova sono stati copiati lì; le copie
+vecchie in `drink-regia-tfstate` si cancellano quando il test è passato).
+
+## Come i workflow entrano su Google (REQ-FLOTTA-136, fase 0)
+
+I quattro workflow della flotta prendono le credenziali da
+`scripts/credenziali-flotta.mjs`, nel passo «Credenziali di provisioning».
+Il modo lo sceglie l'environment:
+
+- **senza chiave**, se ha le variabili `FLOTTA_WIF_PROVIDER` e `FLOTTA_SA`:
+  il job chiede a GitHub un gettone firmato (serve `id-token: write`, che
+  hanno solo i job con le credenziali, mai `compila`) e Google lo scambia con
+  un accesso di un'ora all'account della regia. Il fornitore accetta solo
+  questo repository (per id numerico, `1429043866`) e solo l'environment
+  della sua regia;
+- **con la chiave** di prima (`PROVISIONING_SA_JSON`), finché l'environment
+  non ha le due variabili.
+
+Per tornare alla chiave basta togliere le due variabili dall'environment
+(e, sul test, rimettere `TFSTATE_BUCKET` a `drink-regia-tfstate` dopo aver
+ricopiato lì gli stati: l'account della chiave non legge il bucket nuovo).
+
+| Regia | Account | Pool e fornitore |
+|---|---|---|
+| test | `provisioning@drink-regia-test.iam.gserviceaccount.com` | `projects/246268671867/locations/global/workloadIdentityPools/github/providers/drink-regia` (condizione: repository `1429043866`, environment `flotta-test`) |
+| produzione | `provisioning@drink-regia.iam.gserviceaccount.com` | da creare, dopo il test |
+
+L'account di test ha i ruoli sui locali di prova (gli stessi che aveva
+quello di produzione), su `tana-drink-test`, su
+`drink-regia-test-archivio` e `drink-regia-test-tfstate` (amministratore
+oggetti) e sull'account di fatturazione delle prove (`billing.user`); il
+ruolo di autore dei progetti nell'organizzazione lo dà un amministratore di
+`stone-b.it`. Quando le due regie sono passate, l'account di produzione
+perde i ruoli sui locali di prova e la chiave si cancella.
 
 ## Quattro job: la chiave e il codice dell'app non stanno mai insieme
 
@@ -62,10 +97,12 @@ regia di test (`drink-regia-test`) su `flotta-test`. Lo sceglie l'input
 
 | Nome | Tipo | `flotta` (produzione) | `flotta-test` (test) |
 |---|---|---|---|
-| `PROVISIONING_SA_JSON` | segreto | la chiave di `provisioning@drink-regia` | la stessa |
+| `PROVISIONING_SA_JSON` | segreto | la chiave di `provisioning@drink-regia` | la stessa (non serve più quando ci sono le due variabili sotto) |
+| `FLOTTA_WIF_PROVIDER` | variabile, facoltativa | il fornitore del pool `github` di `drink-regia` (da creare) | `projects/246268671867/locations/global/workloadIdentityPools/github/providers/drink-regia` |
+| `FLOTTA_SA` | variabile, facoltativa | `provisioning@drink-regia.iam.gserviceaccount.com` | `provisioning@drink-regia-test.iam.gserviceaccount.com` |
 | `BILLING_ACCOUNT_ID` | segreto | l'account di fatturazione dei locali veri | il secondo account, solo prove (`01D78D-…`) |
 | `PROVISIONING_CALLBACK_SECRET` | segreto | lo stesso valore del segreto delle Functions di `drink-regia` | lo stesso valore del segreto delle Functions di `drink-regia-test` |
-| `TFSTATE_BUCKET` | variabile | `drink-regia-tfstate` | `drink-regia-tfstate` |
+| `TFSTATE_BUCKET` | variabile | `drink-regia-tfstate` | `drink-regia-test-tfstate` (insieme alle due variabili sopra) |
 | `REGIA_CALLBACK_URL` | variabile | `https://europe-west1-drink-regia.cloudfunctions.net/esitoProvisioning` | `https://europe-west1-drink-regia-test.cloudfunctions.net/esitoProvisioning` |
 | `REGIA_URL` | variabile | `https://drink-regia.web.app` | `https://drink-regia-test.web.app` |
 | `REGIA_SA_EMAIL` | variabile | `runtime-regia@drink-regia.iam.gserviceaccount.com` (finché non c'è: `600871952552-compute@developer.gserviceaccount.com`) | `runtime-regia@drink-regia-test.iam.gserviceaccount.com` (finché non c'è: `246268671867-compute@developer.gserviceaccount.com`) |

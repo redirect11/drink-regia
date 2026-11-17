@@ -418,9 +418,15 @@ poi il deploy dell'app; alla fine l'eliminazione con l'archivio.
 - Il nome del progetto come chiave: `PREFISSO_PROGETTI` in
   `src/lib/prodotto.js:15` e `functions/lib/provisioning.js:18`,
   `progettoAtteso` in `provisioning.js:259-260`.
-- Credenziali: chiavi JSON di account di servizio nei segreti di GitHub
-  (`PROVISIONING_SA_JSON`, `FIREBASE_SERVICE_ACCOUNT`; `deploy.yml:75`,
-  `elimina-istanza.yml:83`).
+- Credenziali: i quattro workflow della flotta le prendono da
+  `scripts/credenziali-flotta.mjs` (REQ-FLOTTA-136): senza chiave, con la
+  federazione delle identità di Google (Workload Identity Federation: il
+  gettone di GitHub scambiato con un accesso di un'ora all'account della
+  regia) se l'environment ha `FLOTTA_WIF_PROVIDER` e `FLOTTA_SA`; altrimenti
+  con la chiave JSON di prima (`PROVISIONING_SA_JSON`). Il file scritto è nel
+  formato «external_account» delle librerie di Google, letto da Terraform,
+  gcloud, firebase-tools e `google-auth-library`. La regia di produzione usa
+  ancora `FIREBASE_SERVICE_ACCOUNT` per il suo deploy (`deploy.yml:75`).
 
 **Quanto è intrecciata.** Molto: l'unità di isolamento di un locale è un
 progetto Google, con la sua quota di progetti, la sua fatturazione e il suo

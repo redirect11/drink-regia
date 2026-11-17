@@ -90,7 +90,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: istanza-${{ inputs.slug }}
+  group: progetto-drinkpos-${{ inputs.slug }}
   cancel-in-progress: false
 
 env:
@@ -224,6 +224,9 @@ jobs:
     name: Prepara il progetto di ${{ inputs.slug }}
     needs: controlla
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     environment: ${{ inputs.ambiente == 'test' && 'flotta-test' || 'flotta' }}
     steps:
       # La regia: il Terraform.
@@ -232,12 +235,13 @@ jobs:
       - name: Credenziali di provisioning
         env:
           SA_JSON: ${{ secrets.PROVISIONING_SA_JSON }}
+          FLOTTA_WIF_PROVIDER: ${{ vars.FLOTTA_WIF_PROVIDER }}
+          FLOTTA_SA: ${{ vars.FLOTTA_SA }}
         run: |
-          if [ -z "$SA_JSON" ]; then echo "::error::Manca il segreto PROVISIONING_SA_JSON (infra/README.md)."; exit 1; fi
-          echo "$SA_JSON" > "$RUNNER_TEMP/sa.json"
+          EMAIL=$(node scripts/credenziali-flotta.mjs "$RUNNER_TEMP/sa.json")
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
-          echo "PROVISIONING_SA_EMAIL=$(node -e "console.log(JSON.parse(process.argv[1]).client_email)" "$SA_JSON")" >> "$GITHUB_ENV"
-          gcloud auth activate-service-account --key-file="$RUNNER_TEMP/sa.json" --quiet
+          echo "PROVISIONING_SA_EMAIL=$EMAIL" >> "$GITHUB_ENV"
+          gcloud auth login --cred-file="$RUNNER_TEMP/sa.json" --quiet
 
       # IL PROGETTO È DI QUESTA REGIA? (REQ-FLOTTA-048, audit del 09/11/2026,
       # punto 7). L'input `progetto` può nominare un progetto qualunque, e le
@@ -517,6 +521,9 @@ jobs:
     if: ${{ !cancelled() }}
     needs: [controlla, prepara, compila]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     environment: ${{ inputs.ambiente == 'test' && 'flotta-test' || 'flotta' }}
     env:
       # Lo SHA di tana-drink che si pubblica (REQ-FLOTTA-048).
@@ -553,10 +560,12 @@ jobs:
       - name: Credenziali di provisioning
         env:
           SA_JSON: ${{ secrets.PROVISIONING_SA_JSON }}
+          FLOTTA_WIF_PROVIDER: ${{ vars.FLOTTA_WIF_PROVIDER }}
+          FLOTTA_SA: ${{ vars.FLOTTA_SA }}
         run: |
-          if [ -z "$SA_JSON" ]; then echo "::error::Manca il segreto PROVISIONING_SA_JSON (infra/README.md)."; exit 1; fi
-          echo "$SA_JSON" > "$RUNNER_TEMP/sa.json"
+          EMAIL=$(node scripts/credenziali-flotta.mjs "$RUNNER_TEMP/sa.json")
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
+          echo "PROVISIONING_SA_EMAIL=$EMAIL" >> "$GITHUB_ENV"
 
       # Una versione nuova dell'app può dichiarare un segreto in più: si crea
       # col segnaposto prima del deploy (scripts/segreti-istanza.mjs).
