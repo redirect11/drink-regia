@@ -5304,6 +5304,49 @@ requirements:
     test_cases:
       - tests/flotta.test.js
 
+  - id: REQ-FLOTTA-131
+    title: "La prima pagina dal canvas di design: lo slogan «Tu servi. Lime fa i conti.», il carosello che parla al titolare, le schermate vere accanto alle funzioni"
+    area: "src/pages/Home.jsx, src/i18n/home.it.js, src/i18n/home.en.js, src/lib/prodotto.js (SLOGAN), public/schermate/, src/index.css, DESIGN.md §4-§5"
+    description: >
+      Daniele, 15-17/11/2026, sul canvas di design «Drink Regia — nuovo
+      design» (claude.ai), una decisione alla volta.
+      LO SLOGAN: «Tu servi. Lime fa i conti.» («questo mi piace»), al
+      posto di «Il gestionale del tuo locale. Dalla comanda alla cassa.»;
+      la categoria resta nell'occhiello.
+      IL CAROSELLO parla al titolare, non al cliente del locale («ordina si
+      riferisce al cliente del locale, le altre al nostro cliente»): cinque
+      diapositive con una frase per titolo e una riga sotto — Gestisci gli
+      ordini (anche senza rete), Acquisti dal menù, Segui le comande
+      (stampate e sullo schermo), Conti sempre in ordine, Tieni d'occhio il
+      magazzino. Le righe sono quelle scelte da Daniele; nella seconda
+      «paga» non c'è finché l'app non fa pagare il cliente dal menù.
+      LE SCHERMATE VERE (DESIGN.md §4 «Immagini»: «Schermate vere
+      dell'app, quando ci saranno»): accanto a ogni funzione, dalla demo di
+      tana-drink col tema Lime e il locale «Bancone 21» (versione
+      1.10.53-beta): il conto, il menù sul telefono del cliente, il
+      magazzino, la serata nelle statistiche. WebP, larghe al massimo
+      1600px, con larghezza e altezza scritte e caricamento pigro. L'app è
+      solo in italiano: sulla pagina inglese una riga lo dice.
+      I PREZZI: «assistenza inclusa» nella riga sotto il titolo; al posto
+      delle note sullo scontrino e sulle stampanti a preventivo, «Usi
+      un'altra stampante? La supportiamo su richiesta» col modello da dire
+      nella scelta del piano (lo scontrino non fiscale resta nelle domande
+      e nel piè di pagina). La chiusura: «Provala con il tuo menù. Decidi
+      dopo.»
+      Tutto in italiano e in inglese, coi testi inglesi proposti nella PR.
+      CRITERI. (1) Il titolo della prima pagina è lo slogan, in due tempi,
+      nelle due lingue. (2) Il carosello ha le cinque diapositive nuove,
+      ognuna col suo filmato, e quelle che vivono di moduli si vedono solo
+      se un loro modulo è in vendita. (3) Ogni funzione ha la sua schermata
+      con un testo alternativo nella lingua della pagina; la pagina
+      inglese dice che l'app è in italiano. (4) Le note dei prezzi sono
+      quelle nuove, nelle due lingue.
+    status: todo
+    generate_issue: true
+    labels: [prodotto, regia]
+    priority: P1
+    test_cases: []
+
   - id: REQ-FLOTTA-129
     title: "La documentazione di sviluppo, in inglese: un punto d'ingresso, chi fa cosa nella vita di un locale, e un test che la tiene viva"
     area: "docs/development.md (nuovo), docs/architettura.md §4, README.md, tests/documentazione.test.js (nuovo)"
