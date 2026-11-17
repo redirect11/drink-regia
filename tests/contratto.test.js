@@ -137,16 +137,20 @@ describe('il documento delle interfacce fra la regia e l’app', () => {
 // controlla un pacchetto prima di toccare un locale: un formato che non
 // conosce, un file che manca o un'impronta che non torna fermano tutto.
 describe('il pacchetto per versione (REQ-FLOTTA-137)', async () => {
-  const { problemiDelManifesto, problemiDeiFile, versioneAmmessa, nomeArchivio, FILE_NECESSARI } = await import('../scripts/lib-pacchetto.js')
+  const { problemiDelManifesto, problemiDeiFile, versioneAmmessa, nomeArchivio, nomeImpronta, FILE_NECESSARI } = await import('../scripts/lib-pacchetto.js')
   const H = (c) => c.repeat(64)
   const manifesto = (extra = {}) => ({
     formato: 1,
     tipo: 'locali',
     versione: '1.11.0',
+    tag: 'v1.11.0',
+    beta: false,
     commit: 'a'.repeat(40),
+    strumenti: { node: '22', 'firebase-tools': '15.36.0' },
+    personalizzabili: ['dist/index.html', 'dist/manifest.webmanifest'],
     creato_il: '2026-11-17T22:00:00Z',
     profili: ['completo', 'leggero'],
-    file: Object.fromEntries(FILE_NECESSARI.locali.map((f) => [f, H('b')])),
+    file: Object.fromEntries([...FILE_NECESSARI.locali, 'dist/manifest.webmanifest'].map((f) => [f, H('b')])),
     ...extra,
   })
 
@@ -165,7 +169,9 @@ describe('il pacchetto per versione (REQ-FLOTTA-137)', async () => {
 
   it('un manifesto completo passa', () => {
     expect(problemiDelManifesto(manifesto(), { versioneAttesa: '1.11.0', tipoAtteso: 'locali' })).toEqual([])
-    expect(problemiDelManifesto(manifesto({ versione: '1.11.0-beta.3' }))).toEqual([])
+    expect(problemiDelManifesto(manifesto({ versione: '1.11.0-beta.3', tag: 'v1.11.0-beta.3', beta: true }))).toEqual([])
+    // I tag di prova di tana-drink sono -beta senza numero.
+    expect(problemiDelManifesto(manifesto({ versione: '1.10.56-beta', tag: 'v1.10.56-beta', beta: true }))).toEqual([])
   })
 
   it('formato sconosciuto, tipo, versione, commit, data e profili sbagliati si dicono tutti', () => {
@@ -179,6 +185,16 @@ describe('il pacchetto per versione (REQ-FLOTTA-137)', async () => {
     expect(problemiDelManifesto(null)).toEqual(['pacchetto.json non è un oggetto'])
   })
 
+  it('tag, beta, strumenti e personalizzabili devono tornare col resto', () => {
+    expect(problemiDelManifesto(manifesto({ tag: 'v1.11.1' }))).toEqual(['tag "v1.11.1" diverso da v1.11.0'])
+    expect(problemiDelManifesto(manifesto({ beta: true }))).toEqual(['beta: true, ma la versione è 1.11.0'])
+    expect(problemiDelManifesto(manifesto({ versione: '1.11.0-beta', tag: 'v1.11.0-beta', beta: false }))).toEqual(['beta: false, ma la versione è 1.11.0-beta'])
+    expect(problemiDelManifesto(manifesto({ beta: 'no' }))).toEqual(['beta deve essere true o false'])
+    expect(problemiDelManifesto(manifesto({ strumenti: { node: '22', 'firebase-tools': 'latest' } }))).toEqual(['strumenti: servono node e la versione fissata di firebase-tools'])
+    expect(problemiDelManifesto(manifesto({ personalizzabili: ['../x'] }))).toContain('personalizzabili deve essere un elenco di percorsi del pacchetto')
+    expect(problemiDelManifesto(manifesto({ personalizzabili: ['dist/logo.png'] }))).toEqual(['personalizzabile non nel pacchetto: dist/logo.png'])
+  })
+
   it('una versione o un tipo diversi da quelli chiesti si rifiutano', () => {
     expect(problemiDelManifesto(manifesto(), { versioneAttesa: '1.12.0' })).toEqual(['versione 1.11.0, attesa 1.12.0'])
     expect(problemiDelManifesto(manifesto(), { tipoAtteso: 'demo' })).toEqual(['tipo «locali», atteso «demo»'])
@@ -188,7 +204,7 @@ describe('il pacchetto per versione (REQ-FLOTTA-137)', async () => {
     const senza = manifesto()
     delete senza.file['personalizza.mjs']
     expect(problemiDelManifesto(senza)).toEqual(['manca personalizza.mjs'])
-    const demo = manifesto({ tipo: 'demo', file: Object.fromEntries(FILE_NECESSARI.demo.map((f) => [f, H('c')])) })
+    const demo = manifesto({ tipo: 'demo', personalizzabili: [], file: Object.fromEntries(FILE_NECESSARI.demo.map((f) => [f, H('c')])) })
     expect(problemiDelManifesto(demo)).toEqual([])
     expect(problemiDelManifesto(manifesto({ file: undefined }))).toContain('manca l’elenco dei file con le impronte')
   })
@@ -215,7 +231,20 @@ describe('il pacchetto per versione (REQ-FLOTTA-137)', async () => {
     expect(problemiDeiFile(m, (f) => ok[f] ?? null, ['dist/index.html', 'firebase.json', 'dist/intruso.js'])).toEqual(['file non dichiarato: dist/intruso.js'])
   })
 
+  it('dopo la personalizzazione si saltano solo i personalizzabili e configurazione.json; prima, mai', () => {
+    const m = manifesto({ personalizzabili: ['dist/index.html'], file: { 'dist/index.html': H('1'), 'firebase.json': H('2') } })
+    const dopo = { 'dist/index.html': H('7'), 'firebase.json': H('2'), 'dist/configurazione.json': H('8') }
+    const suDisco = ['dist/index.html', 'firebase.json', 'dist/configurazione.json']
+    expect(problemiDeiFile(m, (f) => dopo[f] ?? null, suDisco, { dopo: true })).toEqual([])
+    expect(problemiDeiFile(m, (f) => dopo[f] ?? null, suDisco)).toEqual(['impronta diversa per dist/index.html', 'file non dichiarato: dist/configurazione.json'])
+    expect(problemiDeiFile(m, (f) => ({ ...dopo, 'firebase.json': H('3') })[f] ?? null, suDisco, { dopo: true })).toEqual(['impronta diversa per firebase.json'])
+  })
+
   it('la produzione riceve solo rilasci; il test anche le beta', () => {
+    expect(versioneAmmessa('1.10.56-beta', 'produzione')).toBe(false)
+    expect(versioneAmmessa('1.10.56-beta', 'test')).toBe(true)
+    // Quando c'è il manifesto decide lui.
+    expect(versioneAmmessa('1.11.0', 'produzione', { beta: true })).toBe(false)
     expect(versioneAmmessa('1.11.0', 'produzione')).toBe(true)
     expect(versioneAmmessa('1.11.0-beta.2', 'produzione')).toBe(false)
     expect(versioneAmmessa('1.11.0-beta.2', 'test')).toBe(true)
@@ -225,5 +254,6 @@ describe('il pacchetto per versione (REQ-FLOTTA-137)', async () => {
   it('il nome dell’archivio nel bucket è uno solo, per chi carica e per chi legge', () => {
     expect(nomeArchivio('locali', '1.11.0')).toBe('pacchetti/v1.11.0/pacchetto-locali-v1.11.0.tgz')
     expect(nomeArchivio('demo', '1.11.0-beta.1')).toBe('pacchetti/v1.11.0-beta.1/pacchetto-demo-v1.11.0-beta.1.tgz')
+    expect(nomeImpronta('locali', '1.10.56-beta')).toBe('pacchetti/v1.10.56-beta/pacchetto-locali-v1.10.56-beta.tgz.sha256')
   })
 })

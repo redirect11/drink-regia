@@ -408,46 +408,73 @@ e 9.
   gettone di deploy dalle regole di REQ-FLOTTA-115.
 ### 16. Il pacchetto per versione (tana-drink → bucket della regia → lavoro della flotta)
 
-**Proposta della regia del 17/11/2026, in attesa della risposta di
-tana-drink** (REQ-FLOTTA-137; Daniele, 17/11/2026: «per le build va bene
+**Proposta della regia del 17/11/2026, rivista con la risposta di tana-drink
+del 18/11/2026** (REQ-FLOTTA-137; Daniele, 17/11/2026: «per le build va bene
 fare su github, basta che sia una versione che io poi posso distribuire e
 deployare senza far partire una nuova build su github»). Finché il
 pacchetto non c'è, vale l'interfaccia 12.
 
-- **Chi lo fa**: un workflow di tana-drink a ogni tag. `vX.Y.Z-beta.N` va
-  solo nel bucket della regia di test (`drink-regia-test-rilasci`);
-  `vX.Y.Z` su `main` va in quello di test e in quello di produzione
-  (`drink-regia-rilasci`). Si compila **una volta**, e lo stesso sito vale
-  per tutti i locali.
+- **Chi lo fa**: un workflow di tana-drink a ogni tag, che compila **una
+  volta** (lo stesso sito per tutti i locali). Il pacchetto va nel bucket
+  della regia di test (`drink-regia-test-rilasci`) per ogni tag; in quello
+  di produzione (`drink-regia-rilasci`) solo se il commit sta in `main` di
+  tana-drink e dopo un'approvazione a mano (un environment di tana-drink
+  con approvazione obbligatoria, sul solo job che carica in produzione).
+  Decide dove sta il commit, non il nome del tag. I tag di prova di
+  tana-drink sono `vX.Y.Z-beta`.
 - **Dove**: `gs://<bucket>/pacchetti/vX.Y.Z/pacchetto-<tipo>-vX.Y.Z.tgz`
   (`nomeArchivio` in `scripts/lib-pacchetto.js`), `tipo` = `locali` o
-  `demo`.
+  `demo`; accanto, **dopo** l'archivio, `….tgz.sha256` con l'impronta
+  dell'archivio (`nomeImpronta`): se c'è, il pacchetto è completo. Un
+  caricamento rilanciato usa la precondizione «non esiste», e un oggetto
+  già presente con la stessa impronta conta come caricato.
 - **Come si carica**: senza chiave salvata. Il fornitore `tana-drink` del
   pool `github` della regia accetta solo il repository tana-drink (id
   `1259880473`) e solo i tag (`refs/tags/v…`); l'account
   `rilasci@<regia>` può **solo creare** oggetti nel bucket, quindi un
   pacchetto caricato non si sovrascrive né si cancella (il bucket tiene
-  anche le versioni). `id-token: write` solo sul job che carica.
-- **Cosa contiene**: `dist/` (il sito senza cliente, con i segnaposto
-  `%VENUE_*%`); `functions/` col codice, `package.json`,
-  `package-lock.json` e le dipendenze di produzione già installate;
+  anche le versioni). `id-token: write` solo sul job che carica, separato
+  da quello che compila. Niente attestazione di GitHub: il lavoro della
+  flotta non deve dipendere da GitHub per pubblicare.
+- **Cosa contiene**: `dist/` (il sito compilato in «modalità pacchetto»:
+  segnaposto `%VENUE_*%` in `index.html`, il manifest come modello, il set
+  neutro già al posto dei file della Tana); `functions/` col codice,
+  `package.json`, `package-lock.json` e le dipendenze installate (servono a
+  firebase-tools per trovare le Functions; Cloud Build le reinstalla dal
+  lock), **senza** i `functions/.env.<progetto>` di altri locali;
   `firebase.json`, `firestore.rules`, `firestore.indexes.json`,
-  `storage.rules`; i file neutri e il modello del manifest;
-  `personalizza.mjs` (solo `locali`); `pacchetto.json`.
-- **`pacchetto.json`**: `{ formato: 1, tipo, versione, commit (40 cifre
-  esadecimali), creato_il, profili: ["completo","leggero"], file:
-  { "<percorso>": "<sha256>" } }`. Ogni file del pacchetto è elencato con
-  la sua impronta; un file non elencato, un'impronta diversa o uno dei file
-  necessari che manca fanno rifiutare il pacchetto prima di toccare un
-  locale (`problemiDelManifesto`, `problemiDeiFile`). La produzione accetta
-  solo versioni senza `-beta` (`versioneAmmessa`).
+  `storage.rules`; `personalizza.mjs` e i suoi moduli (solo `locali`);
+  `pacchetto.json`.
+- **`pacchetto.json`**: `{ formato: 1, tipo, versione, tag: "v<versione>",
+  beta: true|false, commit (40 cifre esadecimali), creato_il, profili:
+  ["completo","leggero"], strumenti: { node, "firebase-tools": "<x.y.z>" },
+  personalizzabili: [percorsi], file: { "<percorso>": "<sha256>" } }`. Ogni
+  file è elencato con la sua impronta. Il lavoro della flotta controlla
+  l'archivio **prima** di personalizzare (formato, file necessari, impronte,
+  nessun file non dichiarato, nessun percorso che esce dal pacchetto) e
+  dopo controlla tutto tranne `personalizzabili` e `configurazione.json`
+  (`problemiDelManifesto`, `problemiDeiFile`). Se è una beta lo dice
+  `beta`, e la produzione non la accetta (`versioneAmmessa`).
 - **La personalizzazione al deploy**: `node personalizza.mjs --dist <cartella>
-  --configurazione <file.json>` riempie i segnaposto di `index.html`, scrive
-  il manifest, mette i file neutri o del cliente e scrive
-  `configurazione.json` con progetto Firebase, locale, `venue`, profilo e
-  regia. L'app legge tutto all'avvio; senza il file vale la build. La demo
-  non si personalizza. `functions/.env.<progetto>` (`VENUE_NAME`,
-  `REGIA_PROGETTO`) lo scrive il lavoro della flotta, come oggi i workflow.
+  --configurazione <file.json> [--pubblica <cartella>]` riempie i
+  segnaposto di `index.html`, scrive il manifest, mette i file del cliente
+  (facoltativi) sopra il set neutro, scrive `configurazione.json` **e lo
+  stesso contenuto come blocco `<script id="configurazione"
+  type="application/json">` in `index.html`**, così la configurazione
+  arriva con la pagina anche al primo avvio e senza rete. Rifiuta un
+  `dist/` già personalizzato, rifiuta la configurazione che l'app
+  rifiuterebbe, ed esce con errore se resta un segnaposto. La
+  configurazione: `{ backend: "firebase", locale: "<slug>", firebase: {…},
+  venue: {…le chiavi ammesse dall'app…}, profilo: "completo|leggero",
+  regia: "drink-regia|drink-regia-test" }`. Per un locale `apiKey`,
+  `appId` e `projectId` non cambiano mai (sessioni e App Check ci sono
+  legati). `functions/.env.<progetto>` (`VENUE_NAME`, `REGIA_PROGETTO`) lo
+  scrive il lavoro della flotta, come oggi i workflow.
+- **La demo**: il pacchetto `tipo: demo` lo compila tana-drink, con la demo
+  decisa dalla build; non si personalizza. Lo pubblica la regia, come oggi.
+- **Strumenti**: firebase-tools fissato a una versione, la stessa nel
+  pacchetto e nell'immagine del lavoro della flotta (15.36.0 al
+  18/11/2026); Node 22.
 - Chi lo usa: il lavoro della flotta su Google (REQ-FLOTTA-138); la regia
   offre a un locale su «Google» solo le versioni col pacchetto
   (REQ-FLOTTA-139).
