@@ -5182,10 +5182,25 @@ requirements:
       INTERFACCE CON L'APP: nessun cambio di forma; è un prerequisito delle
       regole di Storage di tana-drink, da dire nel contratto e a loro
       quando è rilasciato.
-      STATO (17/11/2026): (A), (B), (C) e i criteri (1)-(3) fatti e
-      provati nei test (sul testo del Terraform e del workflow, non con un
-      piano vero); il criterio (4) si fa con la beta sul test dopo il
-      merge.
+      LA STRADA CAMBIATA (17/11/2026, la prova di un locale nuovo,
+      drinkpos-prova-storage, run 44074831672): dal Terraform il ruolo
+      falliva con «Service account service-…@gcp-sa-firebasestorage… does
+      not exist»: generateServiceIdentity risponde senza crearlo, il
+      service agent nasce col bucket, e il bucket lo crea
+      scripts/storage-istanza.mjs dopo il Terraform. Ora il ruolo lo dà
+      quello script, subito dopo il bucket, in ogni attivazione e
+      aggiornamento, prima del deploy delle regole, senza riscriverlo se
+      c'è, riprovando per due minuti se il service agent non è ancora
+      nato. Il Terraform dimentica le due risorse senza distruggerle
+      (`removed`, destroy = false: su prova-bar il ruolo resta), e
+      aggiorna-istanza non riapplica più il Terraform a un locale completo:
+      il piano mirato, il controllo e le sue eccezioni (etichette, API)
+      non servono più. La «scelta» di bloccare resta: se il ruolo non si
+      dà, lo script esce con errore prima del deploy.
+      STATO (17/11/2026): prova-bar ha il ruolo (collaudo di
+      v0.5.1-beta.4, dal Terraform di prima); la strada nuova si prova con
+      la prossima beta (prova-bar: «c'è già») e con prova-storage (locale
+      nuovo, dopo il bucket).
     status: partial
     generate_issue: true
     labels: [flotta, sicurezza, produzione, contratto-tana-drink]

@@ -289,59 +289,11 @@ jobs:
           if ! terraform state show google_project.istanza >/dev/null 2>&1; then
             echo "Nessuno stato Terraform per $SLUG: il progetto non l'ha creato la regia, non si tocca."; exit 0
           fi
-          # UN LOCALE GIÀ COMPLETO riceve quello che gli manca per le regole
-          # di Storage che leggono la licenza (REQ-FLOTTA-124): il service
-          # agent dello Storage e il suo ruolo, prima del deploy delle regole
-          # nel job `pubblica`. Il -target porta con sé le loro dipendenze
-          # (il progetto, le API): quelle si controllano e NON devono
-          # cambiare. Prima un piano; se cambierebbe altro (un progetto
-          # toccato a mano, per esempio la fatturazione), ci si ferma e lo si
-          # dice, senza applicare niente (revisione del 17/11/2026).
-          # UN'ETICHETTA AGGIUNTA AL PROGETTO PASSA (17/11/2026, collaudo di
-          # v0.5.1-beta.2): prova-bar è nato prima dell'etichetta `profilo`,
-          # e il piano la aggiungeva; il controllo si fermava e il collaudo
-          # falliva. I locali nati prima delle etichette sono così. Passa
-          # solo se del progetto cambiano soltanto le etichette e solo per
-          # aggiunta: un'etichetta che cambia valore o sparisce, la
-          # fatturazione o qualunque altro campo fermano ancora.
-          # UN'API DEL TERRAFORM CHE SI ACCENDE PASSA (collaudo di
-          # v0.5.1-beta.3): il service agent dipende da tutte le API, e
-          # prova-bar non aveva nello stato firebaserules e firebasestorage,
-          # aggiunte all'elenco dopo la sua nascita. Accendere un'API
-          # dell'elenco è un'aggiunta (se è già accesa non cambia niente);
-          # un'API che si spegne, si cambia o si ricrea ferma ancora.
+          # Un locale già completo non riapplica il Terraform. Il ruolo dello
+          # Storage per le regole che leggono la licenza (REQ-FLOTTA-124) lo dà
+          # scripts/storage-istanza.mjs nel job `pubblica`, dopo il bucket.
           if terraform state list | grep -qF 'google_project_service.api["cloudfunctions.googleapis.com"]'; then
-            if terraform state list | grep -qF 'google_project_iam_member.agente_storage[0]'; then
-              echo "Il progetto è già completo, col ruolo dello Storage."; exit 0
-            fi
-            echo "Il progetto è completo: si aggiunge il ruolo dello Storage per le regole che leggono la licenza."
-            terraform plan -input=false -out=ruolo-storage.tfplan \
-              -target='google_project_service_identity.storage[0]' \
-              -target='google_project_iam_member.agente_storage[0]'
-            terraform show -json ruolo-storage.tfplan > "$RUNNER_TEMP/ruolo-storage.json"
-            altro=$(node -e '
-              const p = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))
-              const ammessi = new Set(["google_project_service_identity.storage[0]", "google_project_iam_member.agente_storage[0]"])
-              const ETICHETTE = ["labels", "effective_labels", "terraform_labels"]
-              const uguali = (a, b) => JSON.stringify(a) === JSON.stringify(b)
-              const soloEtichetteAggiunte = (r) => {
-                if (r.address !== "google_project.istanza" || r.change.actions.join("+") !== "update") return false
-                const prima = r.change.before || {}
-                const dopo = r.change.after || {}
-                const diverse = [...new Set([...Object.keys(prima), ...Object.keys(dopo)])].filter((k) => !uguali(prima[k], dopo[k]))
-                if (diverse.length === 0) return false
-                return diverse.every((k) => ETICHETTE.includes(k) && Object.entries(prima[k] || {}).every(([e, v]) => (dopo[k] || {})[e] === v))
-              }
-              const cambi = (p.resource_changes || []).filter((r) => !r.change.actions.every((a) => a === "no-op" || a === "read"))
-              const apiCheSiAccende = (r) => r.address.startsWith("google_project_service.api[") && r.change.actions.join("+") === "create"
-              console.log(cambi.filter((r) => !ammessi.has(r.address) && !soloEtichetteAggiunte(r) && !apiCheSiAccende(r)).map((r) => r.address + " (" + r.change.actions.join("+") + ")").join(", "))
-            ' "$RUNNER_TEMP/ruolo-storage.json")
-            if [ -n "$altro" ]; then
-              echo "::error::Per dare il ruolo dello Storage cambierebbe anche: $altro. Il progetto non è più quello del Terraform: si guarda a mano (docs/flotta-nella-regia.md), niente è stato applicato."
-              exit 1
-            fi
-            terraform apply -input=false -auto-approve ruolo-storage.tfplan
-            exit 0
+            echo "Il progetto è già completo."; exit 0
           fi
           terraform apply -input=false -auto-approve
 

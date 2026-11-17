@@ -37,12 +37,10 @@ data.
   quindi il rilascio**. La dichiarazione di accessibilità viene dopo.
 - I locali col profilo completo ricevono il ruolo che serve alle regole di
   Storage per leggere la licenza (roles/firebaserules.firestoreServiceAgent
-  sul service agent dello Storage): i nuovi dal Terraform, quelli della
-  flotta già attivi al loro prossimo aggiornamento, prima del deploy delle
-  regole; un aggiornamento che cambierebbe altro nel progetto si ferma e lo
-  dice, salvo un'etichetta aggiunta al progetto o un'API dell'elenco che si
-  accende (i locali nati prima che le aggiungessimo al Terraform). La Tana e i locali esistenti non creati dalla regia lo ricevono a
-  mano (docs/flotta-nella-regia.md). Senza, con la prossima versione di
+  sul service agent dello Storage): lo dà lo script che crea il bucket,
+  subito dopo, in ogni attivazione e in ogni aggiornamento, prima del
+  deploy delle regole. Dal Terraform falliva su un locale nuovo, perché il
+  service agent nasce col bucket. Senza, con la prossima versione di
   tana-drink i locali non caricherebbero più foto né allegati
   (REQ-FLOTTA-124).
 - L'assistenza è inclusa nell'abbonamento senza tetto di ore: la prima

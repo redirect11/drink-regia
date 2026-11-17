@@ -21,3 +21,14 @@ export function conIRuoli(policy, membro, ruoli) {
   }
   return { policy: { ...policy, bindings }, nuovi }
 }
+
+// IL SERVICE AGENT DELLO STORAGE E IL SUO RUOLO (REQ-FLOTTA-124): le regole
+// di Storage che leggono Firestore (la licenza) vogliono questo ruolo su di
+// lui. Il nome si costruisce dal numero del progetto.
+export const RUOLO_REGOLE_STORAGE = 'roles/firebaserules.firestoreServiceAgent'
+export const agenteStorage = (numeroProgetto) => `service-${numeroProgetto}@gcp-sa-firebasestorage.iam.gserviceaccount.com`
+
+// Il service agent nasce col bucket e può arrivare qualche istante dopo:
+// finché Google risponde che non esiste, si riprova (400 «Service account …
+// does not exist», visto su drinkpos-prova-storage il 17/11/2026).
+export const agenteNonAncoraNato = (risposta) => /service account .* does not exist/i.test(risposta?.error?.message || '')
