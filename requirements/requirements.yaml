@@ -5469,6 +5469,72 @@ requirements:
     test_cases:
       - tests/Home.test.jsx
 
+  - id: REQ-FLOTTA-136
+    title: "Fase 0: un account della flotta per ogni regia e l'accesso da GitHub senza chiave salvata; poi la chiave condivisa si revoca"
+    area: ".github/workflows (provisiona-istanza, aggiorna-istanza, elimina-istanza, prepara-ai-locale), scripts/, infra/README.md, docs/development.md, docs/flotta-nella-regia.md, tests/flotta.test.js"
+    description: >
+      Daniele, 17/11/2026, dopo il parere del CTO-agente sulla flotta fuori
+      da GitHub (la sua «fase 0»): «procediamo con il punto 1 e 2 e poi fase
+      0». I punti 1 e 2 (i permessi della regia sul progetto della Tana per
+      «Prepara l'AI di un locale esistente», e il ruolo di proprietario tolto
+      lì come chiedeva l'audit del 09/11) risultano già fatti su Google, letti
+      il 17/11: sui progetti tana-drink e tana-drink-test l'account
+      provisioning@drink-regia non è proprietario, ha i ruoli del deploy più
+      projectIamAdmin e serviceAccountAdmin, e ai-locale c'è già in tutti e
+      due; la chiave 1439bb8d… dell'audit non esiste più, resta solo la
+      287835e6… del 29/10.
+      OGGI: le due regie usano lo stesso account (provisioning@drink-regia)
+      con la stessa chiave JSON, salvata in PROVISIONING_SA_JSON negli
+      environment flotta-test e flotta e usata da quattro workflow. Non
+      scade, è proprietaria dei locali di prova, e un errore sul test arriva
+      alla produzione. Anche lo stato di Terraform è uno solo
+      (drink-regia-tfstate, prefisso istanze/<slug>) per le due regie.
+      COSA. (A) Due account: provisioning@drink-regia-test per la regia di
+      test, provisioning@drink-regia per la produzione. Ognuno ha i ruoli
+      solo sui locali della sua regia (l'etichetta ambiente), sul suo
+      account di fatturazione, sul suo bucket dell'archivio e sul suo stato
+      di Terraform; l'account di test non tocca mai la produzione e
+      viceversa. (B) Lo stato di Terraform della regia di test passa in un
+      bucket suo (drink-regia-test-tfstate), con gli stati dei locali di
+      prova copiati prima del primo uso. (C) GitHub entra su Google senza
+      chiave salvata (Workload Identity Federation): un pool per ogni regia,
+      un fornitore che accetta solo questo repository (per id numerico) e
+      solo l'environment di quella regia, e il permesso di agire come
+      l'account della regia. I quattro workflow chiedono il gettone di
+      GitHub (id-token: write) e non scrivono più file di credenziali.
+      (D) «Prepara l'AI di un locale esistente» prende anche il blocco
+      contro due operazioni sullo stesso progetto insieme (concurrency),
+      come gli altri tre. (E) Si prova tutto sulla regia di test: un locale
+      nuovo attivato ed eliminato, un aggiornamento di prova-bar col
+      collaudo, «Prepara l'AI» su tana-drink-test. (F) Poi la produzione,
+      col via libera di Daniele: stessa cosa per flotta, una prova senza
+      effetti («Prepara l'AI» su tana-drink, che rilanciato non cambia
+      niente). (G) Solo dopo, la chiave 287835e6… si cancella da Google e
+      PROVISIONING_SA_JSON da tutti e due gli environment.
+      CHI FA COSA. Gli account, i pool e i ruoli sui progetti li crea
+      l'agente con gcloud, su richiesta di Daniele in chat. Il ruolo di
+      autore dei progetti nell'Organizzazione stone-b.it per l'account di
+      test lo dà un amministratore dell'Organizzazione (Daniele). La
+      cancellazione della chiave è irreversibile: col suo via libera.
+      FUORI: la Tana si pubblica da tana-drink con un suo account e una sua
+      chiave (FIREBASE_SERVICE_ACCOUNT): questa voce non la tocca; a
+      tana-drink si segnala che vale lo stesso rischio.
+      CRITERI. (1) Nessun workflow della flotta legge PROVISIONING_SA_JSON.
+      (2) Ogni workflow della flotta dichiara id-token: write e si
+      autentica col fornitore della sua regia. (3) L'account di test non ha
+      ruoli su progetti con l'etichetta produzione né sui bucket della
+      produzione, e viceversa. (4) prepara-ai-locale ha il suo gruppo di
+      concurrency. (5) Le prove del punto (E) riescono. (6) Dopo (F) la
+      chiave è cancellata. (7) I documenti (infra/README.md,
+      docs/development.md) dicono come si entra e chi ha quali ruoli. (8) I
+      test sui workflow (tests/flotta.test.js) controllano 1, 2 e 4.
+    status: todo
+    generate_issue: true
+    labels: [flotta, sicurezza, produzione]
+    priority: P1
+    test_cases:
+      - tests/flotta.test.js
+
   - id: REQ-FLOTTA-132
     title: "I locali nascono nell'Organizzazione stone-b.it: l'account predefinito ha Editor dal Terraform, il Terraform aspetta gli account di Google, e il deploy cancella solo le Functions col cambio di tipo"
     area: "infra/istanza/main.tf, .github/workflows/provisiona-istanza.yml (Terraform apply, deploy), .github/workflows/aggiorna-istanza.yml, scripts/funzioni-fallite.mjs, scripts/lib-deploy.js, tests/flotta.test.js, infra/README.md"
