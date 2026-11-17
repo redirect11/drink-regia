@@ -5059,6 +5059,53 @@ requirements:
       - tests/Backoffice.test.jsx
       - tests/contratto.test.js
 
+  - id: REQ-FLOTTA-126
+    title: "I temi si leggono per WCAG AA: testo, testo attenuato e accenti a 4,5 su ogni fondo, per ogni tema che entra nella regia"
+    area: "functions/lib/temi.js (contrasto, temaPulito, temaSuMisuraPulito, temaDalMockup), functions/temi/catalogo.json, tests/temi.test.js, docs/temi-dei-locali.md, docs/contratto-regia-app.md"
+    description: >
+      Dalla regola di accessibilità di Stonebit (Daniele, 17/11/2026:
+      «dobbiamo mettere in atto quello che richiede la legge per
+      l'accessibilità di tutto»; «prima di tutto cerchiamo di diventare
+      completamente conformi») e dalla risposta di tana-drink dello stesso
+      giorno sui temi: i prezzi (`--accent-2`, `.price`, grassetto a circa
+      16-17 px), il testo attenuato (`--muted`, 12,8 px) e `--accent` usato
+      come testo sono testo di dimensione normale, quindi WCAG 1.4.3 vuole
+      4,5:1, non 3. Oggi la regia controlla solo il tema dal mockup
+      (functions/lib/temi.js, temaDalMockup: testo 4,5; attenuato e
+      accento 3 e solo sul fondo) e i temi del repository nei test;
+      tana-drink ha misurato temi pubblicati col testo attenuato a 3,5:1
+      sulla card.
+      COSA. (A) Una regola sola per i colori di un tema, usata ovunque un
+      tema entra nella regia (catalogo del repository, temi pubblicati dal
+      backoffice, temi su misura, temi dal mockup): `--text`, `--muted`,
+      `--accent` e `--accent-2` almeno 4,5:1 su `--bg`, `--bg-2` e
+      `--card`; sui temi scuri anche sulla card col velo di luce che l'app
+      ci mette sopra (tana-drink, src/index.css, `--velo-superficie`:
+      bianco al 2,5% in alto), cioè sul colore più chiaro che si vede. (B)
+      Il messaggio d'errore dice quale coppia non passa e di quanto. (C)
+      L'elenco dei temi oggi pubblicati (repository e database del test)
+      che non passano, con la coppia e il valore: cosa farne (ritirarli,
+      correggerli, tenerli finché il locale li usa) lo decide Daniele. (D)
+      I colori che l'app ricava da sola (inchiostro dei tasti, bordi, anello
+      del fuoco: `--btn-ink`, `--accent-ink`, `--line`) e gli stili con
+      colori propri («Carte») sono di tana-drink: li controlla l'app.
+      CRITERI. (1) Un tema con una coppia sotto 4,5 si rifiuta in tutti e
+      quattro gli ingressi, col nome della coppia nel messaggio. (2) Un
+      tema scuro si misura anche sulla card col velo. (3) I temi del
+      repository passano tutti, o sono nell'elenco del punto (C). (4) Un
+      tema già pubblicato che non passa non sparisce da solo dai locali:
+      cosa succede lo decide Daniele.
+      INTERFACCE CON L'APP: la forma del tema non cambia; cambia quali temi
+      la regia accetta. Il velo è una copia del comportamento dell'app: se
+      cambia lì, va detto alla regia (contratto, «Le copie da tenere
+      allineate»).
+    status: todo
+    generate_issue: true
+    labels: [temi, regia, produzione]
+    priority: P2
+    test_cases:
+      - tests/temi.test.js
+
   - id: REQ-FLOTTA-121
     title: "Gli indirizzi pubblici non leggono Firestore prima di aver verificato il gettone"
     area: "functions/index.js (sceltaDallApp, passaggioVersoRegia, presentazione, moduloDallApp, scambiaPassaggio, traccia), functions/lib/aggiornamenti.js (progettoDelToken)"
