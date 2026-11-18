@@ -23,7 +23,7 @@ import { tmpdir } from 'node:os'
 import { join, relative, resolve, dirname, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  COMANDI, inputDelLavoro, impostazioniMancanti, nomeBlocco, bloccoMorto, firebaseDa, configurazioneLocale, envDaFirebase, envFunctions,
+  COMANDI, inputDelLavoro, impostazioniMancanti, nomeBlocco, bloccoMorto, firebaseDa, configurazioneLocale, chiaviVenueFuori, envDaFirebase, envFunctions,
   soloDelDeploy, problemiDellElenco, importNonAmmessi, corpoEsito, mandaEsito, passi,
 } from './lib-lavoro.js'
 import { problemiDelManifesto, problemiDeiFile, versioneAmmessa, nomeArchivio, nomeImpronta } from './lib-pacchetto.js'
@@ -326,6 +326,8 @@ async function pubblica(input, stato) {
   passo('Il pacchetto')
   const pacchetto = scaricaPacchetto(input)
   stato.commit = pacchetto.manifesto.commit
+  const fuori = chiaviVenueFuori(input, pacchetto.manifesto.campiVenue)
+  if (fuori.length) ferma(`il pacchetto ${input.versione} non accetta nel venue: ${fuori.join(', ')}`)
   if (input.comando === 'attiva') {
     passo('Il Terraform')
     await terraformAttiva(input, account)

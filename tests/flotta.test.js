@@ -1460,6 +1460,12 @@ describe('il lavoro della flotta su Google (REQ-FLOTTA-138)', async () => {
     const base = { COMANDO: 'attiva', SLUG: 'prova-bar', AMBIENTE: 'test', NOME: 'Prova Bar', UID_TITOLARE: 'abcdefghij1234567890', VERSIONE: '1.10.0-beta' }
     expect(L.inputDelLavoro({ ...base, DATI_LOCALE: JSON.stringify({ venue_vat_number: '00000000000' }) }, 1).input.datiLocale).toEqual({ venue_vat_number: '00000000000' })
     expect(L.inputDelLavoro({ ...base, DATI_LOCALE: '{' }, 1).problemi).toContain('DATI_LOCALE non è JSON')
+    // Se il pacchetto dice quali chiavi accetta, il venue ci deve stare.
+    const campi = ['venue_name', 'venue_short_name', 'venue_description', 'venue_legal_name']
+    expect(L.chiaviVenueFuori({ nome: 'Prova Bar', datiLocale: { venue_legal_name: 'Prova S.r.l.' } }, campi)).toEqual([])
+    expect(L.chiaviVenueFuori({ nome: 'Prova Bar', datiLocale: { venue_vat_number: '00000000000' } }, campi)).toEqual(['venue_vat_number'])
+    expect(L.chiaviVenueFuori({ nome: 'Prova Bar', datiLocale: { venue_vat_number: '00000000000' } }, undefined)).toEqual([])
+    expect(lavoro).toMatch(/chiaviVenueFuori\(input, pacchetto\.manifesto\.campiVenue\)[\s\S]*passo\('Il Terraform'\)/)
     // Per eliminare non servono, e non si guardano.
     expect(L.inputDelLavoro({ COMANDO: 'elimina', SLUG: 'prova-bar', AMBIENTE: 'test', DATI_LOCALE: '{' }, 1).problemi).toEqual([])
   })

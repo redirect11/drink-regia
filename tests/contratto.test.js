@@ -187,6 +187,10 @@ describe('il pacchetto per versione (REQ-FLOTTA-137)', async () => {
     expect(p.join('\n')).toMatch(/creato_il non è una data/)
     expect(p.join('\n')).toMatch(/profili non validi/)
     expect(problemiDelManifesto(null)).toEqual(['pacchetto.json non è un oggetto'])
+    // campiVenue è facoltativo; se c'è, solo chiavi venue_*.
+    expect(problemiDelManifesto(manifesto({ campiVenue: ['venue_name', 'venue_legal_name'] }))).toEqual([])
+    expect(problemiDelManifesto(manifesto({ campiVenue: ['venue_name', 'apiKey'] }))).toContain('campiVenue deve essere un elenco di chiavi venue_*')
+    expect(problemiDelManifesto(manifesto({ campiVenue: [] }))).toContain('campiVenue deve essere un elenco di chiavi venue_*')
   })
 
   it('tag, beta, strumenti e personalizzabili devono tornare col resto', () => {

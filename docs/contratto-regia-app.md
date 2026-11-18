@@ -456,7 +456,11 @@ c'è, vale l'interfaccia 12.
 - **`pacchetto.json`**: `{ formato: 1, tipo, versione, tag: "v<versione>",
   beta: true|false, commit (40 cifre esadecimali), creato_il, profili:
   ["completo","leggero"], strumenti: { node, "firebase-tools": "<x.y.z>" },
-  personalizzabili: [percorsi], file: { "<percorso>": "<sha256>" } }`. Ogni
+  personalizzabili: [percorsi], campiVenue: [chiavi], file: { "<percorso>":
+  "<sha256>" } }`. `campiVenue` (facoltativo, dalla fase 2 di tana-drink)
+  è `CAMPI_VENUE` dell'app di quel tag: la regia ci confronta il `venue`
+  della configurazione appena scaricato il pacchetto, prima di toccare il
+  locale (`chiaviVenueFuori`). Ogni
   file è elencato con la sua impronta. Il lavoro della flotta controlla
   l'archivio **prima** di personalizzare (formato, file necessari, impronte,
   nessun file non dichiarato, nessun percorso che esce dal pacchetto) e

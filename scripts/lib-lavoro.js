@@ -160,21 +160,32 @@ export function firebaseDa(c = {}) {
 // Impostazioni. I dati del titolare (datiLocale) servono all'informativa
 // delle pagine pubbliche; in settings/bar la regia li scrive comunque, e lì
 // vincono le impostazioni.
+export const venueDelLocale = (nome, datiLocale = {}) => ({
+  venue_name: nome,
+  venue_short_name: nome.length > 12 ? nome.split(/\s+/)[0] : nome,
+  venue_description: `Ordina da ${nome}`,
+  ...datiLocale,
+})
+
 export function configurazioneLocale({ slug, nome, profilo, ambiente, firebase, datiLocale = {} }) {
   if (firebase.projectId !== `drinkpos-${slug}`) throw new Error(`la configurazione web è di ${firebase.projectId}, non di drinkpos-${slug}`)
   return {
     backend: 'firebase',
     locale: slug,
     firebase,
-    venue: {
-      venue_name: nome,
-      venue_short_name: nome.length > 12 ? nome.split(/\s+/)[0] : nome,
-      venue_description: `Ordina da ${nome}`,
-      ...datiLocale,
-    },
+    venue: venueDelLocale(nome, datiLocale),
     profilo,
     regia: regiaDi(ambiente),
   }
+}
+
+// Le chiavi del venue che il pacchetto non accetterebbe, dal suo elenco
+// (`campiVenue` in pacchetto.json). Si guarda subito dopo aver scaricato il
+// pacchetto: personalizza.mjs le rifiuterebbe dopo il Terraform, a locale
+// già toccato. Senza elenco non si guarda (lo controlla personalizza.mjs).
+export function chiaviVenueFuori({ nome, datiLocale }, campiVenue) {
+  if (!Array.isArray(campiVenue)) return []
+  return Object.keys(venueDelLocale(nome, datiLocale)).filter((k) => !campiVenue.includes(k))
 }
 
 // Il .env che gli script della regia leggono (titolare-istanza.mjs prende
