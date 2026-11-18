@@ -306,6 +306,9 @@ scritta solo se manca (`scritta_da: 'deploy'`). La Tana ha `regia_url: null`.
 
 La regia lancia i suoi workflow con `GITHUB_DISPATCH_TOKEN`, sul ramo
 `FLOTTA_REF` (oggi `main`), e il workflow scarica tana-drink al `ref` chiesto.
+Quando la Release del `ref` ha il pacchetto, i workflow pubblicano da lì
+(interfaccia 16); questa compilazione resta come ripiego (REQ-FLOTTA-140),
+e finché c'è tana-drink tiene `scripts/genera-cliente.mjs`.
 
 - **Input di `provisiona-istanza.yml`**: `slug`, `nome_locale`, `piano`
   (`free|base|completo`), `moduli` (csv), `uid`, `email`, `ref` (`main` o
@@ -406,44 +409,36 @@ e 9.
 - Da REQ-FLOTTA-114 (Daniele, 15/11/2026: «disattivare l'istanza e2e alla
   fine delle prove e nel backoffice la si vede come disattivata»), col
   gettone di deploy dalle regole di REQ-FLOTTA-115.
-### 16. Il pacchetto per versione (tag di tana-drink → la regia compila → bucket della regia → lavoro della flotta)
+### 16. Il pacchetto per versione (tag di tana-drink → Release di GitHub → workflow della regia)
 
-**Proposta della regia del 17/11/2026, rivista con la risposta di tana-drink
-del 18/11/2026** (REQ-FLOTTA-137; Daniele, 17/11/2026: «per le build va bene
-fare su github, basta che sia una versione che io poi posso distribuire e
-deployare senza far partire una nuova build su github»). Chi compila
-cambia il 18/11/2026: Daniele tiene la regola 2 di `docs/flotta.md` di
-tana-drink («Ognuno pubblica il suo»), e nessun workflow di tana-drink
-carica nei bucket della regia (REQ-FLOTTA-140). Finché il pacchetto non
-c'è, vale l'interfaccia 12.
+**Proposta della regia del 17/11/2026, decisa da Daniele il 18/11/2026**
+(REQ-FLOTTA-137, REQ-FLOTTA-140): «tana drink compila il pacchetto,
+provisiona istanza e aggiorna istanza aggiornano con il pacchetto di
+release di tana-drink». La regola 2 di `docs/flotta.md` di tana-drink
+(«Ognuno pubblica il suo») resta intatta: nessuno dei due scrive nelle cose
+dell'altro. Finché il pacchetto non c'è, vale l'interfaccia 12, che resta
+anche dopo come ripiego.
 
-- **Chi lo fa**: la regia, una volta per versione (lo stesso sito per
-  tutti i locali), col comando che tana-drink tiene nel suo repository: dal
-  tag, `npm ci && npm --prefix functions ci` e `node
-  scripts/crea-pacchetto.mjs --tipo locali|demo`. Un pacchetto compilato da
-  un tag usa il comando di quel tag. Il codice di tana-drink gira solo in un
-  job senza credenziali (come i workflow della flotta, REQ-FLOTTA-047). Il
-  pacchetto va nel bucket della regia di test (`drink-regia-test-rilasci`)
-  per ogni tag; in quello di produzione (`drink-regia-rilasci`) solo se il
-  commit del tag sta in `main` di tana-drink, i controlli della sua CI su
-  quel commit sono riusciti, e dopo l'approvazione a mano di Daniele (un
-  environment della regia con approvazione obbligatoria, sul solo job che
-  carica in produzione). Decide dove sta il commit, non il nome del tag. I
-  tag di prova di tana-drink sono `vX.Y.Z-beta`.
-- **Dove**: `gs://<bucket>/pacchetti/vX.Y.Z/pacchetto-<tipo>-vX.Y.Z.tgz`
-  (`nomeArchivio` in `scripts/lib-pacchetto.js`), `tipo` = `locali` o
-  `demo`; accanto, **dopo** l'archivio, `….tgz.sha256` con l'impronta
-  dell'archivio (`nomeImpronta`): se c'è, il pacchetto è completo. Un
-  caricamento rilanciato usa la precondizione «non esiste», e un oggetto
-  già presente con la stessa impronta conta come caricato.
-- **Come si carica**: senza chiave salvata, dal workflow della regia. Un
-  fornitore del pool `github` della regia accetta solo il repository della
-  regia e solo l'environment dei pacchetti di quella regia; l'account
-  `rilasci@<regia>` può **solo creare** oggetti nel bucket, quindi un
-  pacchetto caricato non si sovrascrive né si cancella (il bucket tiene
-  anche le versioni). `id-token: write` solo sul job che carica, separato
-  da quello che compila. Niente attestazione di GitHub: il lavoro della
-  flotta non deve dipendere da GitHub per pubblicare.
+- **Chi lo fa**: tana-drink, una volta per versione (lo stesso sito per
+  tutti i locali), col suo workflow di rilascio al tag: `npm ci && npm
+  --prefix functions ci` e `node scripts/crea-pacchetto.mjs --tipo
+  locali|demo`. Una versione non beta la pubblica solo se il commit del
+  tag sta in `main` e la sua CI su quel commit è riuscita; il tag su
+  `main` si fa col via libera di Daniele. I tag di prova sono
+  `vX.Y.Z-beta`.
+- **Dove**: nella Release di GitHub del tag di tana-drink, come file
+  `pacchetto-<tipo>-vX.Y.Z.tgz` e accanto `….tgz.sha256` con l'impronta
+  dell'archivio; `tipo` = `locali` o `demo`. tana-drink è pubblico: per
+  scaricarlo non serve una chiave. Quando diventerà privato, la regia
+  avrà bisogno di un accesso in sola lettura (da decidere allora).
+- **Chi lo usa**: `provisiona-istanza.yml` e `aggiorna-istanza.yml` della
+  regia (REQ-FLOTTA-140). Se la Release del ref ha il pacchetto lo
+  scaricano, lo controllano e lo personalizzano nel job senza
+  credenziali; se non c'è, o se la regia chiede la compilazione,
+  compilano come nell'interfaccia 12. La regia ricorda l'impronta del
+  pacchetto usato per una versione e rifiuta un archivio diverso per la
+  stessa versione (un file della Release sostituito). Il lavoro della
+  flotta su Google (REQ-FLOTTA-138) usa lo stesso formato ed è in pausa.
 - **Cosa contiene**: `dist/` (il sito compilato in «modalità pacchetto»:
   segnaposto `%VENUE_*%` in `index.html`, il manifest come modello, il set
   neutro già al posto dei file della Tana); `functions/` col codice,
@@ -491,15 +486,11 @@ c'è, vale l'interfaccia 12.
   mancano si leggono «[… — da inserire]». Per un locale `apiKey`,
   `appId` e `projectId` non cambiano mai (sessioni e App Check ci sono
   legati). `functions/.env.<progetto>` (`VENUE_NAME`, `REGIA_PROGETTO`) lo
-  scrive il lavoro della flotta, come oggi i workflow.
+  scrivono i workflow della regia, come oggi.
 - **La demo**: il pacchetto `tipo: demo` lo compila tana-drink, con la demo
   decisa dalla build; non si personalizza. Lo pubblica la regia, come oggi.
 - **Strumenti**: firebase-tools fissato a una versione, la stessa nel
-  pacchetto e nell'immagine del lavoro della flotta (15.36.0 al
-  18/11/2026); Node 22.
-- Chi lo usa: il lavoro della flotta su Google (REQ-FLOTTA-138); la regia
-  offre a un locale su «Google» solo le versioni col pacchetto
-  (REQ-FLOTTA-139).
+  pacchetto e in chi pubblica (15.36.0 al 18/11/2026); Node 22.
 
 ## La sicurezza delle interfacce
 
@@ -573,7 +564,7 @@ con un backend diverso l'interfaccia va rifatta, gettone o no.
 | 13 | Identità, ruoli e permessi | — | `role` nel locale; l'account della regia sui progetti dei locali | sì; legata a Firebase Auth e ai permessi di Google | la regia legge `role` per il passaggio e per le azioni del titolare (5, 6, 9) e lo scrive al titolare alla nascita (12): con il passo 3 la lettura per la 5 e la 9 passa al server del locale |
 | 14 | `VITE_REGIA_PROGETTO` | la build della Tana | — | sì | niente |
 | 15 | L'istanza di prova (`istanzaDiProva`) | le prove e2e di tana-drink | gettone di Google di `deploy@<progetto>`, destinatario `regia-prova:<regia>` | sì, con la chiave dell'account di deploy che le e2e tengono nei loro segreti (c'era già per il deploy); il gettone dura un'ora | niente; a tana-drink, il gettone nel giro e2e |
-| 16 | Il pacchetto per versione (proposta, REQ-FLOTTA-137, REQ-FLOTTA-140) | il workflow della regia, da un tag di tana-drink e col comando di tana-drink, verso il bucket della regia | gettone di GitHub scambiato senza chiave per `rilasci@<regia>`, solo dal repository della regia e dall'environment dei pacchetti; l'account può solo creare oggetti | sì: nessuna chiave, e un pacchetto caricato non si riscrive | la regia controlla impronte e formato prima di pubblicare |
+| 16 | Il pacchetto per versione (REQ-FLOTTA-137, REQ-FLOTTA-140) | il workflow di rilascio di tana-drink, nella Release del tag; i workflow della regia lo scaricano | nessuna: tana-drink è pubblico; da privato, un accesso in sola lettura per la regia | sì: nessuno scrive nelle cose dell'altro | la regia controlla impronte e formato, e ricorda l'impronta di ogni versione |
 | — | `passaggioVersoRegia`, deprecata | il browser del titolare | ID token | no | si toglie come già previsto (sotto) |
 
 ### Il percorso

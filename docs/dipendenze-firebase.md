@@ -427,7 +427,8 @@ poi il deploy dell'app; alla fine l'eliminazione con l'archivio.
   formato «external_account» delle librerie di Google, letto da Terraform,
   gcloud, firebase-tools e `google-auth-library`. La regia di produzione usa
   ancora `FIREBASE_SERVICE_ACCOUNT` per il suo deploy (`deploy.yml:75`).
-- Il lavoro della flotta su Google (REQ-FLOTTA-138): `scripts/flotta-lavoro.mjs`
+- Il lavoro della flotta su Google (REQ-FLOTTA-138, in pausa dal 18/11/2026:
+  le risorse non sono create): `scripts/flotta-lavoro.mjs`
   (regole in `scripts/lib-lavoro.js`) in un Cloud Run Job del progetto della
   regia, immagine `infra/flotta/Dockerfile` costruita con Cloud Build e
   tenuta in Artifact Registry. Chiama `gcloud`, `terraform` e

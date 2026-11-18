@@ -5536,7 +5536,7 @@ requirements:
       - tests/flotta.test.js
 
   - id: REQ-FLOTTA-137
-    title: "Il pacchetto per versione: tana-drink compila una volta al rilascio, la regia lo conserva e non lo riscrive mai"
+    title: "Il pacchetto per versione: tana-drink compila una volta al rilascio e lo pubblica nella Release del tag, la regia lo controlla prima di usarlo"
     area: "docs/contratto-regia-app.md (interfaccia nuova), scripts/lib-pacchetto.js, infra/README.md, tests/contratto.test.js"
     description: >
       Daniele, 17/11/2026: «per le build va bene fare su github, basta che
@@ -5562,25 +5562,25 @@ requirements:
       la configurazione che l'app legge all'avvio (configurazione.json, con
       progetto Firebase, profilo, regia, nome e tipo del locale) e i file
       del locale che produce lo script di personalizzazione di tana-drink;
-      functions/.env.<progetto> come oggi. (C) Due bucket per i pacchetti,
-      uno per regia: la produzione riceve solo i rilasci (vX.Y.Z), il test
-      anche le beta; accesso uniforme, niente pubblico, versioni attive, e
-      un pacchetto non si riscrive (l'account che carica può solo creare).
-      (D) Il pacchetto si carica senza chiave salvata, con un account per
-      regia che può solo creare oggetti nel bucket. Dal 18/11/2026 lo
-      compila e lo carica la regia, dal tag di tana-drink e col comando di
-      tana-drink (REQ-FLOTTA-140): Daniele tiene la regola 2 di tana-drink,
-      «Ognuno pubblica il suo». (E) scripts/lib-pacchetto.js controlla un pacchetto prima di
+      functions/.env.<progetto> come oggi. (C) e (D) Dove sta e chi lo
+      mette lì, deciso da Daniele il 18/11/2026: lo compila tana-drink, col
+      suo workflow di rilascio al tag, e lo pubblica come file della
+      Release di GitHub di quel tag, con la sua impronta (la regola 2 di
+      tana-drink, «Ognuno pubblica il suo», resta intatta); i workflow della
+      regia lo scaricano da lì (REQ-FLOTTA-140). I bucket dei pacchetti e
+      l'account rilasci@ creati sul test il 17/11 non servono più: si
+      tolgono col via libera di Daniele. (E) scripts/lib-pacchetto.js controlla un pacchetto prima di
       usarlo: formato conosciuto, impronte giuste, file attesi presenti.
       PARTE DI TANA-DRINK (messaggio a parte, via Daniele): la
       personalizzazione all'avvio, personalizza.mjs e il comando che crea il
       pacchetto (scripts/crea-pacchetto.mjs).
-      CRITERI. (1) Il formato è scritto nel contratto. (2) I bucket e gli
-      account esistono, con i permessi detti, sul test e poi in produzione.
-      (3) Un pacchetto con un'impronta sbagliata o un file mancante si
-      rifiuta. (4) Un pacchetto caricato non si sovrascrive. (5) Test.
-      INTERFACCE CON L'APP: nuova (il pacchetto), e la 12 cambia quando i
-      locali passano al lavoro su Google (REQ-FLOTTA-139).
+      CRITERI. (1) Il formato è scritto nel contratto. (2) Il pacchetto e
+      la sua impronta stanno nella Release del tag. (3) Un pacchetto con
+      un'impronta sbagliata o un file mancante si rifiuta. (4) Un archivio
+      diverso da quello già usato per la stessa versione si rifiuta
+      (REQ-FLOTTA-140). (5) Test.
+      INTERFACCE CON L'APP: nuova (il pacchetto, la 16); la 12 resta per la
+      compilazione di ripiego.
     status: todo
     generate_issue: true
     labels: [flotta, contratto-tana-drink, rilascio]
@@ -5643,6 +5643,13 @@ requirements:
       porta sempre campiVenue (formato 1, accordo con tana-drink del 18/11):
       il venue si confronta con quell'elenco prima del Terraform, e un
       pacchetto senza elenco non passa.
+      IN PAUSA (18/11/2026, Daniele: «provisiona istanza e aggiorna istanza
+      aggiornano con il pacchetto di release di tana-drink»): i locali si
+      pubblicano dal pacchetto coi workflow di oggi (REQ-FLOTTA-140). Il
+      lavoro su Google resta sul ramo, per quando si vorrà pubblicare
+      senza GitHub; le sue regole (lib-pacchetto, configurazioneLocale,
+      DATI_LOCALE, campiVenue) le riusano i workflow. Le risorse su Google
+      non si creano.
     status: partial
     generate_issue: true
     labels: [flotta, sicurezza, rilascio]
@@ -5654,6 +5661,8 @@ requirements:
     title: "La regia lancia il lavoro su Google invece del workflow, un locale alla volta; poi i workflow della flotta si tolgono"
     area: "functions/index.js, functions/lib/provisioning.js, src/pages/Backoffice.jsx, docs/contratto-regia-app.md (interfaccia 12), tests/provisioning.test.js, tests/Backoffice.test.jsx"
     description: >
+      IN PAUSA con la REQ-FLOTTA-138 (18/11/2026): i locali restano sui
+      workflow, che pubblicano dal pacchetto (REQ-FLOTTA-140).
       Il seguito delle REQ-FLOTTA-137 e 138, su decisione di Daniele del
       17/11/2026 (sopra). OGGI le Functions della regia lanciano i workflow
       di GitHub con GITHUB_DISPATCH_TOKEN.
@@ -5675,12 +5684,7 @@ requirements:
       Con «Google» non parte nessun workflow. (3) Una versione senza
       pacchetto non si offre. (4) Si torna a «GitHub» con un clic finché i
       workflow ci sono. (5) Test.
-      DATI DEL TITOLARE (18/11/2026): chi lancia il lavoro passa in
-      DATI_LOCALE i dati di datiDelLocale (functions/lib/passaggio.js) per
-      l'informativa del locale; le pagine della privacy e dei cookie sono
-      statiche e si scrivono al deploy (scelta di tana-drink del 18/11),
-      quindi dopo un cambio di quei dati la regia lancia un aggiornamento
-      alla stessa versione.
+      DATI DEL TITOLARE: come nella REQ-FLOTTA-140.
       INTERFACCE CON L'APP: la 12 (i workflow) diventa deprecata alla fine.
     status: todo
     generate_issue: true
@@ -5691,49 +5695,66 @@ requirements:
       - tests/Backoffice.test.jsx
 
   - id: REQ-FLOTTA-140
-    title: "Il pacchetto lo compila la regia, da un tag di tana-drink e col comando di tana-drink, e lo carica nel suo bucket"
-    area: ".github/workflows/pacchetto.yml, scripts/lib-pacchetto.js, docs/contratto-regia-app.md (interfaccia 16), infra/README.md, tests/flotta.test.js"
+    title: "provisiona-istanza e aggiorna-istanza pubblicano dal pacchetto della Release di tana-drink; la compilazione di oggi resta come ripiego"
+    area: ".github/workflows/provisiona-istanza.yml, .github/workflows/aggiorna-istanza.yml, scripts/lib-pacchetto.js, scripts/lib-lavoro.js, functions/lib/provisioning.js, src/pages/Backoffice.jsx, docs/contratto-regia-app.md (interfacce 12 e 16), tests/flotta.test.js, tests/contratto.test.js"
     description: >
-      Daniele, 18/11/2026 (riportato da tana-drink nella risposta del
-      18/11): la regola 2 di docs/flotta.md di tana-drink («Ognuno pubblica
-      il suo») resta com'è, e nessun workflow di tana-drink carica nei
-      bucket della regia. Il pacchetto della REQ-FLOTTA-137 lo compila
-      quindi la regia, a partire da un tag di tana-drink, col comando che
-      tana-drink tiene nel suo repository (scripts/crea-pacchetto.mjs: un
-      pacchetto compilato da un tag usa il comando di quel tag).
-      COSA. Un workflow della regia, lanciato a mano o dalla regia, con tag
-      (vX.Y.Z o vX.Y.Z-beta), tipo (locali o demo) e ambiente (test o
-      produzione). Tre job, come i workflow della flotta (REQ-FLOTTA-047): (A)
-      controlla, senza credenziali: gli input; per la produzione il commit
-      del tag dentro main di tana-drink (decide dove sta il commit, non il
-      nome) e mai una beta; i controlli della CI di tana-drink su quel commit
-      tutti riusciti (una lettura sola, al momento della compilazione). (B)
-      compila, senza credenziali e senza environment, l'unico job in cui
-      gira codice di tana-drink: lo scarica allo SHA controllato, npm ci,
-      node scripts/crea-pacchetto.mjs --tipo <tipo>, poi il controllo della
-      regia (lib-pacchetto) sul pacchetto, l'archivio e la sua impronta. (C)
-      carica, senza codice di tana-drink: ricontrolla, e carica senza chiave
-      come rilasci@<regia> (può solo creare oggetti), prima l'archivio e poi
-      la sua impronta, con la precondizione «non esiste»; un oggetto già
-      presente con la stessa impronta conta come caricato. Il job che carica
-      in produzione aspetta l'approvazione a mano di Daniele (un environment
-      della regia con approvazione obbligatoria), come un deploy di
-      produzione della Tana. L'ingresso di rilasci@ passa da un fornitore
-      della federazione che accetta solo il repository della regia e solo
-      l'environment dei pacchetti di quella regia.
-      CRITERI. (1) In produzione arriva solo un pacchetto da un commit in
-      main di tana-drink, con la CI riuscita e l'approvazione di Daniele.
-      (2) Il codice di tana-drink non gira mai dove ci sono credenziali.
-      (3) Un pacchetto che il controllo della regia rifiuta non si carica.
-      (4) Un pacchetto caricato non si riscrive. (5) Test.
-      INTERFACCE CON L'APP: l'interfaccia 16 cambia chi compila (la regia,
-      col comando di tana-drink); il formato resta quello.
+      Daniele, 18/11/2026: «tana drink compila il pacchetto, provisiona
+      istanza e aggiorna istanza aggiornano con il pacchetto di release di
+      tana-drink»; «si puo mettere nella parte dei rilasci di github e
+      appare in releases»; «la regia puo far partire la compilazione lo
+      stesso se serve». Il pacchetto della REQ-FLOTTA-137 lo compila
+      tana-drink, col suo workflow di rilascio al tag, e lo pubblica come
+      file della Release di GitHub di quel tag
+      (pacchetto-locali-vX.Y.Z.tgz e la sua impronta .sha256): la regola 2
+      di tana-drink resta intatta, nessuno dei due scrive nelle cose
+      dell'altro. La Tana del Coniglio resta col suo deploy da GitHub.
+      OGGI i workflow compilano l'app per ogni locale (interfaccia 12).
+      COSA. (A) Nel job che controlla, senza credenziali: se la Release del
+      ref ha il pacchetto, la strada è «pacchetto»; se non c'è, o se chi
+      lancia chiede la compilazione (una correzione urgente, una versione
+      di prima del pacchetto), la strada è «compilazione», quella di oggi.
+      (B) La strada «pacchetto», nel job senza credenziali dove oggi si
+      compila: scarica l'impronta e l'archivio dalla Release (tana-drink è
+      pubblico: nessuna chiave), controlla l'impronta, l'elenco
+      dell'archivio, il manifesto (lib-pacchetto: formato, versione uguale
+      al ref, mai una beta in produzione, firebase-tools, campiVenue), le
+      impronte dei file e gli import di personalizza.mjs; personalizza il
+      sito per il locale (configurazioneLocale, con i dati del titolare) e
+      ricontrolla. Il job che pubblica riceve sito e Functions come oggi
+      riceve la build. (C) L'impronta ricordata: all'esito la regia scrive
+      l'impronta del pacchetto usato per quella versione, e da lì in avanti
+      la passa al workflow, che rifiuta un archivio diverso (un file della
+      Release sostituito). (D) In produzione, come oggi, solo un ref il cui
+      commit sta in main di tana-drink. (E) L'esito dice la strada usata, e
+      il backoffice la mostra per ogni locale. (F) La compilazione si toglie
+      solo col via di Daniele, quando nessun locale ne ha bisogno; finché
+      c'è, il collaudo sul test la prova a ogni rilascio della regia, e
+      tana-drink tiene genera-cliente.mjs (interfaccia 12).
+      DATI DEL TITOLARE: il workflow riceve i dati di datiDelLocale
+      (functions/lib/passaggio.js) e l'email per l'informativa, come
+      DATI_LOCALE; le pagine della privacy e dei cookie sono statiche e si
+      scrivono al deploy (scelta di tana-drink del 18/11), quindi dopo un
+      cambio di quei dati la regia lancia un aggiornamento alla stessa
+      versione. Gli input di workflow_dispatch hanno un numero massimo [da
+      verificare]: se non bastano, i dati del locale vanno in un input solo.
+      QUANDO TANA-DRINK DIVENTA PRIVATO: per scaricare dalla Release serve
+      un accesso in sola lettura (una GitHub App o un token), da decidere
+      allora con Daniele.
+      CRITERI. (1) Col pacchetto nella Release nessun locale si compila.
+      (2) Senza pacchetto, o su richiesta, si compila come oggi. (3) Un
+      pacchetto che non passa i controlli ferma il workflow prima di
+      toccare il locale. (4) Un archivio diverso da quello già usato per la
+      stessa versione si rifiuta. (5) Il codice di tana-drink non gira mai
+      dove ci sono credenziali. (6) Test.
+      INTERFACCE CON L'APP: la 16 (il pacchetto, dalla Release); la 12
+      resta per la compilazione di ripiego.
     status: todo
     generate_issue: true
     labels: [flotta, contratto-tana-drink, rilascio, sicurezza]
     priority: P1
     test_cases:
       - tests/flotta.test.js
+      - tests/contratto.test.js
 
   - id: REQ-FLOTTA-132
     title: "I locali nascono nell'Organizzazione stone-b.it: l'account predefinito ha Editor dal Terraform, il Terraform aspetta gli account di Google, e il deploy cancella solo le Functions col cambio di tipo"

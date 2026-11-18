@@ -159,17 +159,21 @@ describe('il pacchetto per versione (REQ-FLOTTA-137)', async () => {
     const doc = leggi(DOC)
     const sedici = doc.slice(doc.indexOf('### 16. Il pacchetto per versione'), doc.indexOf('## La sicurezza delle interfacce'))
     expect(sedici).toContain('REQ-FLOTTA-137')
-    expect(sedici).toContain('`drink-regia-test-rilasci`')
-    expect(sedici).toContain('`drink-regia-rilasci`')
-    // Compila la regia, col comando di tana-drink; nessun workflow di
-    // tana-drink carica nei bucket della regia (REQ-FLOTTA-140).
+    // Daniele, 18/11/2026: compila tana-drink e pubblica nella Release del
+    // tag; i workflow della regia la scaricano, e la compilazione di oggi
+    // resta come ripiego (REQ-FLOTTA-140). Niente bucket, niente accessi
+    // di un repository nelle cose dell'altro.
     expect(sedici).toContain('REQ-FLOTTA-140')
-    expect(sedici).toContain('scripts/crea-pacchetto.mjs --tipo locali|demo')
+    expect(sedici).toMatch(/node scripts\/crea-pacchetto\.mjs --tipo\s+locali\|demo/)
+    expect(sedici).toContain('Release di GitHub del tag di tana-drink')
+    expect(sedici).toContain('`pacchetto-<tipo>-vX.Y.Z.tgz`')
+    expect(sedici).toContain('`provisiona-istanza.yml` e `aggiorna-istanza.yml`')
+    expect(sedici).toMatch(/rifiuta un archivio diverso per la\s+stessa versione/)
     expect(sedici).not.toContain('`1259880473`')
-    expect(sedici).toContain('**solo creare**')
+    expect(sedici).not.toContain('rilasci@')
     expect(sedici).toContain('`pacchetto.json`')
     expect(sedici).toContain('personalizza.mjs')
-    expect(sedici).toMatch(/Finché il\s+pacchetto\s+non\s+c'è,\s+vale\s+l'interfaccia\s+12\./)
+    expect(sedici).toMatch(/Finché il\s+pacchetto\s+non\s+c'è,\s+vale\s+l'interfaccia\s+12,\s+che\s+resta\s+anche\s+dopo\s+come\s+ripiego\./)
   })
 
   it('un manifesto completo passa', () => {

@@ -66,25 +66,23 @@ perde i ruoli sui locali di prova e la chiave si cancella.
 
 ## I pacchetti per versione (REQ-FLOTTA-137, interfaccia 16)
 
-La regia compila il pacchetto una volta per versione, da un tag di
-tana-drink e col comando di tana-drink, e lo carica nel suo bucket
-(REQ-FLOTTA-140); il lavoro della flotta su Google (REQ-FLOTTA-138) lo pubblica
-nei locali senza ricompilare. Il formato e i controlli sono in
+tana-drink compila il pacchetto una volta per versione e lo pubblica nella
+Release di GitHub del tag; `provisiona-istanza.yml` e `aggiorna-istanza.yml`
+lo scaricano da lì, lo controllano e lo personalizzano per il locale, e
+compilano come prima solo se il pacchetto non c'è o se la regia lo chiede
+(REQ-FLOTTA-140). Il formato e i controlli sono in
 `docs/contratto-regia-app.md` (interfaccia 16) e `scripts/lib-pacchetto.js`.
 
-| Regia | Bucket | Chi carica | Chi legge |
-|---|---|---|---|
-| test | `drink-regia-test-rilasci` (europe-west1, accesso uniforme, niente pubblico, versioni attive; creato il 17/11/2026) | `rilasci@drink-regia-test`, solo `storage.objectCreator`: crea, non sovrascrive né cancella | `provisioning@drink-regia-test` (`objectViewer`) |
-| produzione | `drink-regia-rilasci` (da creare, dopo il test) | `rilasci@drink-regia` | `provisioning@drink-regia` |
+Su Google non serve niente. Quello che era stato creato sul test il
+17/11/2026 per un caricamento da tana-drink non serve più e si toglie col
+via libera di Daniele: il bucket `drink-regia-test-rilasci`, l'account
+`rilasci@drink-regia-test` e il fornitore `tana-drink` del pool `github`.
 
-`rilasci@` si raggiungerà solo dal workflow dei pacchetti della regia
-(REQ-FLOTTA-140): un fornitore del pool `github` che accetta il repository
-della regia e solo l'environment dei pacchetti. Niente chiavi. Il fornitore
-`tana-drink` creato il 17/11/2026 sul test (repository tana-drink, solo i
-tag) non serve più, da quando Daniele ha tenuto la regola «Ognuno pubblica
-il suo» (18/11/2026): si toglie col suo via libera.
+## Il lavoro della flotta su Google (REQ-FLOTTA-138, in pausa)
 
-## Il lavoro della flotta su Google (REQ-FLOTTA-138)
+In pausa dal 18/11/2026: i locali si pubblicano dal pacchetto coi workflow
+(sopra). Le risorse qui sotto non sono state create; la descrizione resta
+per quando si vorrà pubblicare senza GitHub.
 
 Un Cloud Run Job `flotta` nel progetto di ogni regia fa quello che fanno i
 workflow provisiona, aggiorna ed elimina, senza GitHub: prende l'app dal
