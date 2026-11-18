@@ -427,6 +427,12 @@ poi il deploy dell'app; alla fine l'eliminazione con l'archivio.
   formato «external_account» delle librerie di Google, letto da Terraform,
   gcloud, firebase-tools e `google-auth-library`. La regia di produzione usa
   ancora `FIREBASE_SERVICE_ACCOUNT` per il suo deploy (`deploy.yml:75`).
+- Il lavoro della flotta su Google (REQ-FLOTTA-138): `scripts/flotta-lavoro.mjs`
+  (regole in `scripts/lib-lavoro.js`) in un Cloud Run Job del progetto della
+  regia, immagine `infra/flotta/Dockerfile` costruita con Cloud Build e
+  tenuta in Artifact Registry. Chiama `gcloud`, `terraform` e
+  `firebase-tools` come i workflow, con le credenziali che dà Cloud Run;
+  il blocco per locale è un oggetto di Cloud Storage con precondizione.
 
 **Quanto è intrecciata.** Molto: l'unità di isolamento di un locale è un
 progetto Google, con la sua quota di progetti, la sua fatturazione e il suo

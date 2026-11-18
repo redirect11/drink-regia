@@ -80,6 +80,72 @@ nei locali senza ricompilare. Il formato e i controlli sono in
 della sua regia: accetta il repository tana-drink (id `1259880473`) e solo
 i tag (`refs/tags/v…`). Niente chiavi.
 
+## Il lavoro della flotta su Google (REQ-FLOTTA-138)
+
+Un Cloud Run Job `flotta` nel progetto di ogni regia fa quello che fanno i
+workflow provisiona, aggiorna ed elimina, senza GitHub: prende l'app dal
+pacchetto (sopra), la controlla, la personalizza per il locale e la
+pubblica. Lo script è `scripts/flotta-lavoro.mjs`, le regole in
+`scripts/lib-lavoro.js`; i passi e gli script sono quelli dei workflow.
+
+- **Chi è**: gira come l'account della flotta della sua regia
+  (`provisioning@<regia>`), lo stesso della fase 0, senza chiave: le
+  credenziali le dà Cloud Run.
+- **Un'esecuzione, un'operazione**: chi la lancia (la regia, REQ-FLOTTA-139;
+  oggi una persona) passa `COMANDO` (`attiva`, `aggiorna`, `elimina`),
+  `SLUG`, `AMBIENTE`, `VERSIONE` (per attivare e aggiornare), e come nei
+  workflow `NOME`, `PIANO`, `MODULI`, `PROFILO`, `UID_TITOLARE`,
+  `EMAIL_TITOLARE`; `RUN_ID`, un intero, è il segno dell'esecuzione per la
+  callback (senza, l'istante in millisecondi).
+- **Le impostazioni della regia**, fissate sul lavoro: `TFSTATE_BUCKET`,
+  `RILASCI_BUCKET`, `REGIA_URL`, `REGIA_CALLBACK_URL`, `REGIA_SA_EMAIL`,
+  `BILLING_ACCOUNT_ID`, `ARCHIVIO_BUCKET`, `ORG_ID` (se c'è), e il segreto
+  `PROVISIONING_CALLBACK_SECRET` da Secret Manager: quello delle Functions
+  della regia, letto dall'account della flotta.
+- **Il blocco**: `gs://<TFSTATE_BUCKET>/blocchi/drinkpos-<slug>.json`,
+  creato solo se non c'è e tolto alla fine. Un'altra esecuzione sullo stesso
+  locale aspetta, al più 20 minuti; un blocco più vecchio di 70 minuti è di
+  un'esecuzione morta e si toglie.
+- **Il tempo massimo**: un'ora (`--task-timeout=3600`), nessun nuovo
+  tentativo del lavoro (`--max-retries=0`): i tentativi sono dentro i passi.
+- **L'esito**: sempre alla regia, con la callback dei workflow
+  (`esitoProvisioning`), mai scritto direttamente nel suo database.
+- **I log**: in Cloud Logging del progetto della regia.
+- **La demo e i locali esistenti** (la Tana) restano sui workflow.
+
+L'immagine (`infra/flotta/Dockerfile`: Node 22, Terraform 1.9.8,
+firebase-tools 15.36.0, gcloud, gli script e `infra/istanza`) si costruisce
+con Cloud Build nel progetto della regia, e si ricostruisce a ogni rilascio
+della regia:
+
+```sh
+gcloud builds submit --project drink-regia-test --config infra/flotta/cloudbuild.yaml \
+  --ignore-file infra/flotta/.gcloudignore --substitutions _VERSIONE=<versione>
+```
+
+La prima volta, per regia (sul test con `drink-regia-test`, numero
+`246268671867`):
+
+```sh
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com --project drink-regia-test
+gcloud artifacts repositories create flotta --repository-format=docker --location=europe-west1 --project drink-regia-test
+gcloud secrets add-iam-policy-binding PROVISIONING_CALLBACK_SECRET --project drink-regia-test \
+  --member serviceAccount:provisioning@drink-regia-test.iam.gserviceaccount.com --role roles/secretmanager.secretAccessor
+gcloud run jobs create flotta --project drink-regia-test --region europe-west1 \
+  --image europe-west1-docker.pkg.dev/drink-regia-test/flotta/lavoro:<versione> \
+  --service-account provisioning@drink-regia-test.iam.gserviceaccount.com \
+  --task-timeout=3600 --max-retries=0 --cpu=2 --memory=4Gi \
+  --set-secrets PROVISIONING_CALLBACK_SECRET=PROVISIONING_CALLBACK_SECRET:latest \
+  --set-env-vars TFSTATE_BUCKET=drink-regia-test-tfstate,RILASCI_BUCKET=drink-regia-test-rilasci,…
+```
+
+Un'esecuzione a mano:
+
+```sh
+gcloud run jobs execute flotta --project drink-regia-test --region europe-west1 \
+  --update-env-vars COMANDO=aggiorna,SLUG=prova-bar,AMBIENTE=test,VERSIONE=<versione>,PROFILO=completo
+```
+
 ## Quattro job: la chiave e il codice dell'app non stanno mai insieme
 
 Dal 09/11/2026 (REQ-FLOTTA-047, audit punto 6) `provisiona-istanza.yml` e

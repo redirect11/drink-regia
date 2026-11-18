@@ -5623,7 +5623,16 @@ requirements:
       prove del punto G riescono. (7) Test.
       INTERFACCE CON L'APP: il pacchetto (REQ-FLOTTA-137); la callback
       resta la stessa.
-    status: todo
+      FATTO (18/11/2026, ramo feature/flotta-su-google): lo script
+      scripts/flotta-lavoro.mjs con le regole in scripts/lib-lavoro.js
+      (input, blocco, configurazione del locale, controllo dell'archivio e
+      degli import di personalizza.mjs, esito e suoi tentativi), l'immagine
+      infra/flotta/Dockerfile con cloudbuild.yaml, la preparazione in
+      infra/README.md; criteri 1, 3, 4, 5 e 7 coperti dai test. MANCA: il
+      lavoro creato sul test e le prove del punto G (criteri 2 e 6), che
+      chiedono il via libera di Daniele per le risorse su Google e un
+      pacchetto di prova; la demo e i locali esistenti restano sui workflow.
+    status: partial
     generate_issue: true
     labels: [flotta, sicurezza, rilascio]
     priority: P1

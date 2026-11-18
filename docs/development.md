@@ -217,7 +217,9 @@ waves (REQ-FLOTTA-012).
 | `scripts/lib-iam.js` | imported | adds a member to an IAM policy; the Storage service agent and its role |
 | `scripts/funzioni-fallite.mjs` | `provisiona-istanza.yml` (deploy step, between attempts), no credentials | reads a deploy log and prints the Functions firebase-tools lists as failed, so they can be deleted before retrying (REQ-FLOTTA-130) |
 | `scripts/lib-deploy.js` | imported by `scripts/funzioni-fallite.mjs` | parses the «Functions deploy had errors with the following functions» list |
-| `scripts/lib-pacchetto.js` | imported by the fleet job (REQ-FLOTTA-138, to come) and `tests/contratto.test.js` | checks a per-version package from tana-drink (interface 16 of `docs/contratto-regia-app.md`): known format, files present, SHA-256 matches, no undeclared file; releases only in production |
+| `scripts/lib-pacchetto.js` | imported by `scripts/flotta-lavoro.mjs` and `tests/contratto.test.js` | checks a per-version package from tana-drink (interface 16 of `docs/contratto-regia-app.md`): known format, files present, SHA-256 matches, no undeclared file; releases only in production |
+| `scripts/flotta-lavoro.mjs` | the fleet job on Google Cloud (Cloud Run Job `flotta`, image `infra/flotta/Dockerfile`), as the control plane's provisioning account, no key | activates, updates or deletes a venue from a per-version package, with the same steps and scripts as the three workflows, without GitHub; always reports to the control plane's callback (REQ-FLOTTA-138, `infra/README.md`) |
+| `scripts/lib-lavoro.js` | imported by `scripts/flotta-lavoro.mjs` and `tests/flotta.test.js` | the job's rules: input checks, the per-project lock, the venue configuration for `personalizza.mjs`, the archive listing and import checks, the callback body and its retries |
 | `scripts/lib-semina.mjs` | imported by `scripts/semina-test.mjs` and the e2e tests | who the seeded test people are |
 
 ### The workflows

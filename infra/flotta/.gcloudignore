@@ -1,0 +1,13 @@
+# Quello che serve all’immagine del lavoro (infra/flotta/Dockerfile): il
+# resto del repository non sale su Cloud Build.
+**
+!infra/
+!infra/flotta/**
+!infra/istanza/**
+infra/istanza/.terraform/**
+!functions/
+!functions/**
+functions/node_modules/**
+!scripts/
+!scripts/**
+!package.json
