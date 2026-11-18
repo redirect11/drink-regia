@@ -5674,6 +5674,12 @@ requirements:
       Con «Google» non parte nessun workflow. (3) Una versione senza
       pacchetto non si offre. (4) Si torna a «GitHub» con un clic finché i
       workflow ci sono. (5) Test.
+      DATI DEL TITOLARE (18/11/2026): chi lancia il lavoro passa in
+      DATI_LOCALE i dati di datiDelLocale (functions/lib/passaggio.js) per
+      l'informativa del locale; le pagine della privacy e dei cookie sono
+      statiche e si scrivono al deploy (scelta di tana-drink del 18/11),
+      quindi dopo un cambio di quei dati la regia lancia un aggiornamento
+      alla stessa versione.
       INTERFACCE CON L'APP: la 12 (i workflow) diventa deprecata alla fine.
     status: todo
     generate_issue: true
