@@ -5566,14 +5566,15 @@ requirements:
       uno per regia: la produzione riceve solo i rilasci (vX.Y.Z), il test
       anche le beta; accesso uniforme, niente pubblico, versioni attive, e
       un pacchetto non si riscrive (l'account che carica può solo creare).
-      (D) tana-drink carica senza chiave salvata: un fornitore della
-      federazione delle identità che accetta solo il repository tana-drink
-      e solo i tag, e un account per regia che può solo creare oggetti nel
-      bucket. (E) scripts/lib-pacchetto.js controlla un pacchetto prima di
+      (D) Il pacchetto si carica senza chiave salvata, con un account per
+      regia che può solo creare oggetti nel bucket. Dal 18/11/2026 lo
+      compila e lo carica la regia, dal tag di tana-drink e col comando di
+      tana-drink (REQ-FLOTTA-140): Daniele tiene la regola 2 di tana-drink,
+      «Ognuno pubblica il suo». (E) scripts/lib-pacchetto.js controlla un pacchetto prima di
       usarlo: formato conosciuto, impronte giuste, file attesi presenti.
       PARTE DI TANA-DRINK (messaggio a parte, via Daniele): la
-      personalizzazione all'avvio e lo script; il workflow che compila e
-      carica il pacchetto a ogni tag.
+      personalizzazione all'avvio, personalizza.mjs e il comando che crea il
+      pacchetto (scripts/crea-pacchetto.mjs).
       CRITERI. (1) Il formato è scritto nel contratto. (2) I bucket e gli
       account esistono, con i permessi detti, sul test e poi in produzione.
       (3) Un pacchetto con un'impronta sbagliata o un file mancante si

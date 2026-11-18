@@ -66,8 +66,9 @@ perde i ruoli sui locali di prova e la chiave si cancella.
 
 ## I pacchetti per versione (REQ-FLOTTA-137, interfaccia 16)
 
-tana-drink compila una volta a ogni tag e carica il pacchetto nel bucket
-della regia; il lavoro della flotta su Google (REQ-FLOTTA-138) lo pubblica
+La regia compila il pacchetto una volta per versione, da un tag di
+tana-drink e col comando di tana-drink, e lo carica nel suo bucket
+(REQ-FLOTTA-140); il lavoro della flotta su Google (REQ-FLOTTA-138) lo pubblica
 nei locali senza ricompilare. Il formato e i controlli sono in
 `docs/contratto-regia-app.md` (interfaccia 16) e `scripts/lib-pacchetto.js`.
 
@@ -76,9 +77,12 @@ nei locali senza ricompilare. Il formato e i controlli sono in
 | test | `drink-regia-test-rilasci` (europe-west1, accesso uniforme, niente pubblico, versioni attive; creato il 17/11/2026) | `rilasci@drink-regia-test`, solo `storage.objectCreator`: crea, non sovrascrive né cancella | `provisioning@drink-regia-test` (`objectViewer`) |
 | produzione | `drink-regia-rilasci` (da creare, dopo il test) | `rilasci@drink-regia` | `provisioning@drink-regia` |
 
-`rilasci@` si raggiunge solo dal fornitore `tana-drink` del pool `github`
-della sua regia: accetta il repository tana-drink (id `1259880473`) e solo
-i tag (`refs/tags/v…`). Niente chiavi.
+`rilasci@` si raggiungerà solo dal workflow dei pacchetti della regia
+(REQ-FLOTTA-140): un fornitore del pool `github` che accetta il repository
+della regia e solo l'environment dei pacchetti. Niente chiavi. Il fornitore
+`tana-drink` creato il 17/11/2026 sul test (repository tana-drink, solo i
+tag) non serve più, da quando Daniele ha tenuto la regola «Ognuno pubblica
+il suo» (18/11/2026): si toglie col suo via libera.
 
 ## Il lavoro della flotta su Google (REQ-FLOTTA-138)
 

@@ -154,17 +154,21 @@ describe('il pacchetto per versione (REQ-FLOTTA-137)', async () => {
     ...extra,
   })
 
-  it('il contratto ha l’interfaccia 16, con chi carica, dove, cosa c’è dentro e come si personalizza', () => {
+  it('il contratto ha l’interfaccia 16, con chi compila e carica, dove, cosa c’è dentro e come si personalizza', () => {
     const doc = leggi(DOC)
     const sedici = doc.slice(doc.indexOf('### 16. Il pacchetto per versione'), doc.indexOf('## La sicurezza delle interfacce'))
     expect(sedici).toContain('REQ-FLOTTA-137')
     expect(sedici).toContain('`drink-regia-test-rilasci`')
     expect(sedici).toContain('`drink-regia-rilasci`')
-    expect(sedici).toContain('`1259880473`')
+    // Compila la regia, col comando di tana-drink; nessun workflow di
+    // tana-drink carica nei bucket della regia (REQ-FLOTTA-140).
+    expect(sedici).toContain('REQ-FLOTTA-140')
+    expect(sedici).toContain('scripts/crea-pacchetto.mjs --tipo locali|demo')
+    expect(sedici).not.toContain('`1259880473`')
     expect(sedici).toContain('**solo creare**')
     expect(sedici).toContain('`pacchetto.json`')
     expect(sedici).toContain('personalizza.mjs')
-    expect(sedici).toContain('Finché il\npacchetto non c\'è, vale l\'interfaccia 12.')
+    expect(sedici).toMatch(/Finché il\s+pacchetto\s+non\s+c'è,\s+vale\s+l'interfaccia\s+12\./)
   })
 
   it('un manifesto completo passa', () => {
