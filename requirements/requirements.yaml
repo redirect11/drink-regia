@@ -5567,9 +5567,9 @@ requirements:
       suo workflow di rilascio al tag, e lo pubblica come file della
       Release di GitHub di quel tag, con la sua impronta (la regola 2 di
       tana-drink, «Ognuno pubblica il suo», resta intatta); i workflow della
-      regia lo scaricano da lì (REQ-FLOTTA-140). I bucket dei pacchetti e
-      l'account rilasci@ creati sul test il 17/11 non servono più: si
-      tolgono col via libera di Daniele. (E) scripts/lib-pacchetto.js controlla un pacchetto prima di
+      regia lo scaricano da lì (REQ-FLOTTA-140). Il bucket dei pacchetti,
+      l'account rilasci@ e il fornitore tana-drink creati sul test il 17/11
+      sono stati tolti il 18/11/2026 col via libera di Daniele («2 si»). (E) scripts/lib-pacchetto.js controlla un pacchetto prima di
       usarlo: formato conosciuto, impronte giuste, file attesi presenti.
       PARTE DI TANA-DRINK (messaggio a parte, via Daniele): la
       personalizzazione all'avvio, personalizza.mjs e il comando che crea il
@@ -5649,7 +5649,9 @@ requirements:
       lavoro su Google resta sul ramo, per quando si vorrà pubblicare
       senza GitHub; le sue regole (lib-pacchetto, configurazioneLocale,
       DATI_LOCALE, campiVenue) le riusano i workflow. Le risorse su Google
-      non si creano.
+      non si creano. Se si riprende: il bucket RILASCI_BUCKET non c'è più
+      (tolto il 18/11), e il lavoro prenderà il pacchetto dalla Release o
+      da un bucket da ricreare.
     status: partial
     generate_issue: true
     labels: [flotta, sicurezza, rilascio]

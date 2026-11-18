@@ -74,9 +74,10 @@ compilano come prima solo se il pacchetto non c'è o se la regia lo chiede
 `docs/contratto-regia-app.md` (interfaccia 16) e `scripts/lib-pacchetto.js`.
 
 Su Google non serve niente. Quello che era stato creato sul test il
-17/11/2026 per un caricamento da tana-drink non serve più e si toglie col
-via libera di Daniele: il bucket `drink-regia-test-rilasci`, l'account
-`rilasci@drink-regia-test` e il fornitore `tana-drink` del pool `github`.
+17/11/2026 per un caricamento da tana-drink (il bucket
+`drink-regia-test-rilasci`, vuoto, l'account `rilasci@drink-regia-test` e il
+fornitore `tana-drink` del pool `github`) è stato tolto il 18/11/2026 col
+via libera di Daniele («2 si»).
 
 ## Il lavoro della flotta su Google (REQ-FLOTTA-138, in pausa)
 
