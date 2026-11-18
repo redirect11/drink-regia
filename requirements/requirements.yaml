@@ -5639,9 +5639,10 @@ requirements:
       obbligatorio come apiKey, projectId e appId; nel venue, oltre al nome,
       i dati del titolare per l'informativa del locale, che chi lancia il
       lavoro passa in DATI_LOCALE (le chiavi di datiDelLocale più
-      venue_email; solo chiavi note, testi su una riga). Se pacchetto.json
-      porta campiVenue (proposta di tana-drink del 18/11 per la fase 2), il
-      venue si confronta con quell'elenco prima del Terraform.
+      venue_email; solo chiavi note, testi su una riga). pacchetto.json
+      porta sempre campiVenue (formato 1, accordo con tana-drink del 18/11):
+      il venue si confronta con quell'elenco prima del Terraform, e un
+      pacchetto senza elenco non passa.
     status: partial
     generate_issue: true
     labels: [flotta, sicurezza, rilascio]

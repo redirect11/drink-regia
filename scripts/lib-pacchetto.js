@@ -51,9 +51,10 @@ export function problemiDelManifesto(m, { versioneAttesa, tipoAtteso } = {}) {
   if (Number.isNaN(Date.parse(m.creato_il))) p.push('creato_il non è una data')
   if (!Array.isArray(m.profili) || m.profili.length === 0 || m.profili.some((x) => !PROFILI.includes(x))) p.push('profili non validi')
   // Le chiavi del venue che personalizza.mjs di quel tag accetta (CAMPI_VENUE
-  // dell'app): facoltativo finché tana-drink non lo scrive (fase 2,
-  // proposta del 18/11/2026); se c'è, il lavoro ci confronta il suo venue.
-  if ('campiVenue' in m && (!Array.isArray(m.campiVenue) || m.campiVenue.length === 0 || m.campiVenue.some((k) => typeof k !== 'string' || !/^venue_[a-z_]+$/.test(k)))) p.push('campiVenue deve essere un elenco di chiavi venue_*')
+  // dell'app): fanno parte del formato 1, sempre presenti e mai vuote
+  // (tana-drink, 18/11/2026). Il lavoro ci confronta il suo venue prima di
+  // toccare il locale.
+  if ((!Array.isArray(m.campiVenue) || m.campiVenue.length === 0 || m.campiVenue.some((k) => typeof k !== 'string' || !/^venue_[a-z_]+$/.test(k)))) p.push('campiVenue deve essere un elenco di chiavi venue_*')
   if (!m.file || typeof m.file !== 'object' || Array.isArray(m.file)) return [...p, 'manca l’elenco dei file con le impronte']
   for (const [percorso, impronta] of Object.entries(m.file)) {
     if (!PERCORSO_SICURO(percorso)) p.push(`percorso non ammesso: ${percorso}`)

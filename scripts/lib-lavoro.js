@@ -182,7 +182,8 @@ export function configurazioneLocale({ slug, nome, profilo, ambiente, firebase, 
 // Le chiavi del venue che il pacchetto non accetterebbe, dal suo elenco
 // (`campiVenue` in pacchetto.json). Si guarda subito dopo aver scaricato il
 // pacchetto: personalizza.mjs le rifiuterebbe dopo il Terraform, a locale
-// già toccato. Senza elenco non si guarda (lo controlla personalizza.mjs).
+// già toccato. L'elenco c'è sempre (lo pretende problemiDelManifesto);
+// senza, qui non si guarda.
 export function chiaviVenueFuori({ nome, datiLocale }, campiVenue) {
   if (!Array.isArray(campiVenue)) return []
   return Object.keys(venueDelLocale(nome, datiLocale)).filter((k) => !campiVenue.includes(k))

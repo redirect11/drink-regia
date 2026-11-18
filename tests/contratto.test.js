@@ -150,6 +150,7 @@ describe('il pacchetto per versione (REQ-FLOTTA-137)', async () => {
     personalizzabili: ['dist/index.html', 'dist/manifest.webmanifest'],
     creato_il: '2026-11-17T22:00:00Z',
     profili: ['completo', 'leggero'],
+    campiVenue: ['venue_name', 'venue_short_name', 'venue_description'],
     file: Object.fromEntries([...FILE_NECESSARI.locali, 'dist/manifest.webmanifest'].map((f) => [f, H('b')])),
     ...extra,
   })
@@ -187,8 +188,9 @@ describe('il pacchetto per versione (REQ-FLOTTA-137)', async () => {
     expect(p.join('\n')).toMatch(/creato_il non è una data/)
     expect(p.join('\n')).toMatch(/profili non validi/)
     expect(problemiDelManifesto(null)).toEqual(['pacchetto.json non è un oggetto'])
-    // campiVenue è facoltativo; se c'è, solo chiavi venue_*.
+    // campiVenue fa parte del formato 1: sempre, mai vuoto, solo chiavi venue_*.
     expect(problemiDelManifesto(manifesto({ campiVenue: ['venue_name', 'venue_legal_name'] }))).toEqual([])
+    expect(problemiDelManifesto(manifesto({ campiVenue: undefined }))).toContain('campiVenue deve essere un elenco di chiavi venue_*')
     expect(problemiDelManifesto(manifesto({ campiVenue: ['venue_name', 'apiKey'] }))).toContain('campiVenue deve essere un elenco di chiavi venue_*')
     expect(problemiDelManifesto(manifesto({ campiVenue: [] }))).toContain('campiVenue deve essere un elenco di chiavi venue_*')
   })

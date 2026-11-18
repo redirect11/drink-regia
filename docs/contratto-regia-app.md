@@ -457,8 +457,9 @@ c'è, vale l'interfaccia 12.
   beta: true|false, commit (40 cifre esadecimali), creato_il, profili:
   ["completo","leggero"], strumenti: { node, "firebase-tools": "<x.y.z>" },
   personalizzabili: [percorsi], campiVenue: [chiavi], file: { "<percorso>":
-  "<sha256>" } }`. `campiVenue` (facoltativo, dalla fase 2 di tana-drink)
-  è `CAMPI_VENUE` dell'app di quel tag: la regia ci confronta il `venue`
+  "<sha256>" } }`. `campiVenue` fa parte del formato 1 (tana-drink,
+  18/11/2026: sempre presente, mai vuoto; `crea-pacchetto.mjs` si ferma
+  altrimenti) ed è `CAMPI_VENUE` dell'app di quel tag: la regia ci confronta il `venue`
   della configurazione appena scaricato il pacchetto, prima di toccare il
   locale (`chiaviVenueFuori`). Ogni
   file è elencato con la sua impronta. Il lavoro della flotta controlla
