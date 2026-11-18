@@ -7021,3 +7021,54 @@ requirements:
       - tests/eliminazione-cliente.test.js
       - tests/Backoffice.test.jsx
       - tests/db.test.js
+
+  - id: REQ-FLOTTA-141
+    title: "L'email per la privacy: un campo a parte, chiesto alla registrazione, che arriva nell'informativa del locale"
+    area: "src/pages/Registrati.jsx, src/lib/validazione.js, src/lib/clienti.js, functions/lib/registrazione.js, firestore.rules, src/pages/IlLocale.jsx, src/pages/Backoffice.jsx, functions/lib/passaggio.js (datiDelLocale), scripts/lib-lavoro.js (DATI_LOCALE), tests/"
+    description: >
+      Daniele, 18/11/2026, sull'email da scrivere nell'informativa privacy
+      del locale (quella che il pacchetto di tana-drink scrive al deploy,
+      REQ-FLOTTA-140): «campo a parte», non l'email con cui il titolare
+      entra; e la rilettura legale del testo dell'informativa prima che un
+      locale vero passi al pacchetto: «ok».
+      OGGI: la registrazione chiede ragione sociale, partita IVA, codice
+      fiscale, PEC, SDI e sede legale (fatturazione), ma nessuna email per
+      chi vuole esercitare i suoi diritti sui dati. datiDelLocale
+      (functions/lib/passaggio.js) non ha venue_email, e nella pagina
+      dell'informativa del locale quel dato si legge «[… — da inserire]».
+      COSA. (A) Registrati chiede, nei dati di fatturazione, «Email per la
+      privacy», con una riga che dice a cosa serve: compare
+      nell'informativa dell'app del locale, come contatto del titolare del
+      trattamento; può essere la stessa dell'accesso, ma si scrive a mano e
+      non si precompila. È obbligatoria per chi si registra da qui in
+      avanti e si controlla come la PEC (validazione.js, lato pagina e lato
+      Function). (B) Si salva in clienti/{uid}.fatturazione.email_privacy,
+      minuscola e senza spazi (registrazione.js e clienti.js); le regole di
+      Firestore la ammettono dove ammettono la PEC. (C) «Il locale»
+      nell'area del titolare la mostra in sola lettura, come gli altri dati
+      di fatturazione; la modifica si chiede per email, come oggi. (D)
+      datiDelLocale aggiunge venue_email; il passaggio verso l'app la
+      scrive solo dove nell'app è vuota (soloIVuoti), come gli altri dati.
+      (E) Il dato arriva ai workflow della flotta in DATI_LOCALE
+      (REQ-FLOTTA-140) con le stesse chiavi di datiDelLocale. (F) I clienti
+      già registrati non ce l'hanno: il backoffice lo dice nella scheda del
+      cliente («email per la privacy: non indicata»), e finché manca
+      l'informativa mostra il buco e nessuno si ferma.
+      FUORI: il testo dell'informativa (è di tana-drink, e la rilettura
+      legale è di Daniele); un modulo per cambiare i dati dal sito.
+      CRITERI. Registrati non va avanti senza un'email per la privacy
+      valida e non la precompila; la Function rifiuta un'email non valida;
+      il documento del cliente la contiene in minuscolo; «Il locale» e il
+      backoffice la mostrano o dicono che manca; datiDelLocale la restituisce
+      come venue_email, e le sue chiavi restano uguali a CAMPI_DATI_LOCALE
+      dei workflow.
+    status: todo
+    generate_issue: true
+    labels: [regia, registrazione, privacy]
+    priority: P2
+    test_cases:
+      - tests/Registrati.test.jsx
+      - tests/validazione.test.js
+      - tests/registrazione.test.js
+      - tests/clienti.test.js
+      - tests/passaggio.test.js
