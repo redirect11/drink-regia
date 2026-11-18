@@ -1427,18 +1427,41 @@ describe('il lavoro della flotta su Google (REQ-FLOTTA-138)', async () => {
 
   it('la configurazione web si legge dal Terraform o da Firebase, e deve essere del progetto del locale', () => {
     const tf = { VITE_FIREBASE_API_KEY: 'k', VITE_FIREBASE_AUTH_DOMAIN: 'drinkpos-prova-bar.firebaseapp.com', VITE_FIREBASE_PROJECT_ID: 'drinkpos-prova-bar', VITE_FIREBASE_APP_ID: '1:2:web:3' }
-    const sdk = { result: { sdkConfig: { apiKey: 'k', projectId: 'drinkpos-prova-bar', appId: '1:2:web:3', storageBucket: 'b' } } }
+    const sdk = { result: { sdkConfig: { apiKey: 'k', authDomain: 'drinkpos-prova-bar.firebaseapp.com', projectId: 'drinkpos-prova-bar', appId: '1:2:web:3', storageBucket: 'b' } } }
     expect(L.firebaseDa(tf)).toMatchObject({ apiKey: 'k', projectId: 'drinkpos-prova-bar', appId: '1:2:web:3', storageBucket: '' })
     expect(L.firebaseDa(sdk)).toMatchObject({ apiKey: 'k', storageBucket: 'b' })
     expect(() => L.firebaseDa({ projectId: 'x' })).toThrow(/apiKey/)
+    // authDomain lo pretende personalizza.mjs di tana-drink al deploy.
+    expect(() => L.firebaseDa({ apiKey: 'k', projectId: 'drinkpos-prova-bar', appId: '1:2:web:3' })).toThrow(/authDomain/)
     const c = L.configurazioneLocale({ slug: 'prova-bar', nome: 'Prova Bar del Centro', profilo: 'leggero', ambiente: 'test', firebase: L.firebaseDa(tf) })
     expect(c).toMatchObject({ backend: 'firebase', locale: 'prova-bar', profilo: 'leggero', regia: 'drink-regia-test' })
     expect(c.venue).toEqual({ venue_name: 'Prova Bar del Centro', venue_short_name: 'Prova', venue_description: 'Ordina da Prova Bar del Centro' })
+    // I dati del titolare per l'informativa entrano nel venue, accanto al nome.
+    const conDati = L.configurazioneLocale({ slug: 'prova-bar', nome: 'Prova Bar', profilo: 'completo', ambiente: 'test', firebase: L.firebaseDa(tf), datiLocale: { venue_legal_name: 'Prova S.r.l.', venue_vat_number: '00000000000' } })
+    expect(conDati.venue).toMatchObject({ venue_name: 'Prova Bar', venue_legal_name: 'Prova S.r.l.', venue_vat_number: '00000000000' })
     expect(() => L.configurazioneLocale({ slug: 'altro-bar', nome: 'x', profilo: 'completo', ambiente: 'test', firebase: L.firebaseDa(tf) })).toThrow(/non di drinkpos-altro-bar/)
     expect(L.envDaFirebase(L.firebaseDa(tf))).toMatch(/^VITE_FIREBASE_API_KEY=k$/m)
     expect(L.envFunctions({ nome: 'Prova Bar', ambiente: 'produzione' })).toBe('VENUE_NAME=Prova Bar\nREGIA_PROGETTO=drink-regia\n')
     expect(L.soloDelDeploy('leggero')).toBe('firestore,hosting')
     expect(L.soloDelDeploy('completo')).toBe('firestore,storage,functions,hosting')
+  })
+
+  it('i dati del titolare per l’informativa: solo le chiavi della regia, testi su una riga, niente per eliminare', () => {
+    const { datiDelLocale } = require('../functions/lib/passaggio.js')
+    // Le chiavi sono quelle che la regia scrive in settings/bar, più l'email.
+    expect([...L.CAMPI_DATI_LOCALE].sort()).toEqual([...Object.keys(datiDelLocale({})).filter((k) => k !== 'venue_name'), 'venue_email'].sort())
+    expect(L.datiLocaleDa(undefined)).toEqual({ valori: {}, problemi: [] })
+    expect(L.datiLocaleDa(JSON.stringify({ venue_legal_name: ' Prova S.r.l. ', venue_tax_code: '' })).valori).toEqual({ venue_legal_name: 'Prova S.r.l.' })
+    expect(L.datiLocaleDa('{').problemi).toEqual(['DATI_LOCALE non è JSON'])
+    expect(L.datiLocaleDa('[]').problemi).toEqual(['DATI_LOCALE deve essere un oggetto'])
+    expect(L.datiLocaleDa(JSON.stringify({ venue_socials: [] })).problemi).toEqual(['DATI_LOCALE: campo sconosciuto venue_socials'])
+    expect(L.datiLocaleDa(JSON.stringify({ venue_address: 'Via Roma 1' + String.fromCharCode(10) + 'riga due' })).problemi[0]).toMatch(/su una riga/)
+    expect(L.datiLocaleDa(JSON.stringify({ venue_email: 'non-una-email' })).problemi).toEqual(['DATI_LOCALE: venue_email non valida'])
+    const base = { COMANDO: 'attiva', SLUG: 'prova-bar', AMBIENTE: 'test', NOME: 'Prova Bar', UID_TITOLARE: 'abcdefghij1234567890', VERSIONE: '1.10.0-beta' }
+    expect(L.inputDelLavoro({ ...base, DATI_LOCALE: JSON.stringify({ venue_vat_number: '00000000000' }) }, 1).input.datiLocale).toEqual({ venue_vat_number: '00000000000' })
+    expect(L.inputDelLavoro({ ...base, DATI_LOCALE: '{' }, 1).problemi).toContain('DATI_LOCALE non è JSON')
+    // Per eliminare non servono, e non si guardano.
+    expect(L.inputDelLavoro({ COMANDO: 'elimina', SLUG: 'prova-bar', AMBIENTE: 'test', DATI_LOCALE: '{' }, 1).problemi).toEqual([])
   })
 
   it('l’archivio si apre solo con file e cartelle dentro il pacchetto', () => {

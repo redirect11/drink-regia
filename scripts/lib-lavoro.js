@@ -47,6 +47,7 @@ export function inputDelLavoro(env = {}, adesso = Date.now()) {
   const email = v('EMAIL_TITOLARE')
   const versione = v('VERSIONE')
   const runId = runIdDi(env.RUN_ID, adesso)
+  const dati = datiLocaleDa(env.DATI_LOCALE)
   if (!COMANDI.includes(comando)) p.push(`comando «${comando}» non valido (${COMANDI.join(', ')})`)
   if (!SLUG.test(slug)) p.push('slug non valido')
   if (!AMBIENTI.includes(ambiente)) p.push('ambiente non valido')
@@ -61,14 +62,51 @@ export function inputDelLavoro(env = {}, adesso = Date.now()) {
     if (!UID.test(uid)) p.push('uid non valido')
     if (email && !EMAIL.test(email)) p.push('email del titolare non valida')
     if (!nome || nome.length > 80 || CONTROLLO.test(nome)) p.push('nome del locale non valido')
+    p.push(...dati.problemi)
     // Il lavoro pubblica solo un pacchetto: la versione è obbligatoria, e
     // in produzione mai una beta (lo ricontrolla versioneAmmessa sul
     // manifesto, che decide lui).
     if (!VERSIONE.test(versione)) p.push('versione non valida (X.Y.Z o X.Y.Z-beta)')
     else if (ambiente === 'produzione' && /-beta/.test(versione)) p.push('in produzione un locale riceve solo rilasci, non una beta')
   }
-  const input = { comando, slug, ambiente, profilo, nome, piano, moduli, uid, email, versione, runId, progetto: `drinkpos-${slug}` }
+  const input = { comando, slug, ambiente, profilo, nome, piano, moduli, uid, email, versione, runId, datiLocale: dati.valori, progetto: `drinkpos-${slug}` }
   return { input, problemi: p }
+}
+
+// I DATI DEL TITOLARE PER L'INFORMATIVA (interfaccia 16). personalizza.mjs
+// di tana-drink li scrive nelle pagine della privacy e dei cookie del
+// locale; quelli che mancano si leggono «[… — da inserire]». Li passa chi
+// lancia il lavoro, in DATI_LOCALE (JSON), dagli stessi campi che la regia
+// scrive in settings/bar (datiDelLocale in functions/lib/passaggio.js), più
+// l'email. Stanno nelle variabili dell'esecuzione: vanno su una pagina
+// pubblica, e nient'altro del titolare passa da lì. Solo chiavi note, solo
+// testi corti su una riga: un campo sconosciuto personalizza.mjs lo
+// rifiuterebbe a metà lavoro, dopo il Terraform.
+export const CAMPI_DATI_LOCALE = [
+  'venue_legal_name',
+  'venue_address',
+  'venue_postal_city',
+  'venue_city',
+  'venue_phone',
+  'venue_vat_number',
+  'venue_tax_code',
+  'venue_legal_address',
+  'venue_email',
+]
+export function datiLocaleDa(testo) {
+  if (testo == null || testo === '') return { valori: {}, problemi: [] }
+  let v
+  try { v = JSON.parse(String(testo)) } catch { return { valori: {}, problemi: ['DATI_LOCALE non è JSON'] } }
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return { valori: {}, problemi: ['DATI_LOCALE deve essere un oggetto'] }
+  const valori = {}
+  const problemi = []
+  for (const [k, x] of Object.entries(v)) {
+    if (!CAMPI_DATI_LOCALE.includes(k)) problemi.push(`DATI_LOCALE: campo sconosciuto ${k}`)
+    else if (typeof x !== 'string' || x.length > 200 || CONTROLLO.test(x)) problemi.push(`DATI_LOCALE: ${k} deve essere un testo su una riga`)
+    else if (k === 'venue_email' && x.trim() && !EMAIL.test(x.trim())) problemi.push('DATI_LOCALE: venue_email non valida')
+    else if (x.trim()) valori[k] = x.trim()
+  }
+  return { valori: problemi.length ? {} : valori, problemi }
 }
 
 // Le impostazioni della regia per il lavoro: stanno nell'esecuzione come
@@ -110,15 +148,19 @@ export function firebaseDa(c = {}) {
     messagingSenderId: s.messagingSenderId ?? s.VITE_FIREBASE_MESSAGING_SENDER_ID ?? '',
     appId: s.appId ?? s.VITE_FIREBASE_APP_ID,
   }
-  for (const k of ['apiKey', 'projectId', 'appId']) if (!f[k]) throw new Error(`configurazione web senza ${k}`)
+  // Gli stessi che personalizza.mjs pretende al deploy: senza authDomain
+  // l'accesso non parte, e meglio saperlo prima del deploy.
+  for (const k of ['apiKey', 'authDomain', 'projectId', 'appId']) if (!f[k]) throw new Error(`configurazione web senza ${k}`)
   return f
 }
 
 // La configurazione che personalizza.mjs scrive nel sito del locale
 // (interfaccia 16). Il venue è quello che oggi scrive genera-cliente.mjs di
 // tana-drink: nome, nome corto, descrizione; il resto lo mette il locale da
-// Impostazioni, e i dati del titolare li scrive la regia nel database.
-export function configurazioneLocale({ slug, nome, profilo, ambiente, firebase }) {
+// Impostazioni. I dati del titolare (datiLocale) servono all'informativa
+// delle pagine pubbliche; in settings/bar la regia li scrive comunque, e lì
+// vincono le impostazioni.
+export function configurazioneLocale({ slug, nome, profilo, ambiente, firebase, datiLocale = {} }) {
   if (firebase.projectId !== `drinkpos-${slug}`) throw new Error(`la configurazione web è di ${firebase.projectId}, non di drinkpos-${slug}`)
   return {
     backend: 'firebase',
@@ -128,6 +170,7 @@ export function configurazioneLocale({ slug, nome, profilo, ambiente, firebase }
       venue_name: nome,
       venue_short_name: nome.length > 12 ? nome.split(/\s+/)[0] : nome,
       venue_description: `Ordina da ${nome}`,
+      ...datiLocale,
     },
     profilo,
     regia: regiaDi(ambiente),

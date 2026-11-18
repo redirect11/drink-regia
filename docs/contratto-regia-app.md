@@ -474,7 +474,16 @@ c'è, vale l'interfaccia 12.
   rifiuterebbe, ed esce con errore se resta un segnaposto. La
   configurazione: `{ backend: "firebase", locale: "<slug>", firebase: {…},
   venue: {…le chiavi ammesse dall'app…}, profilo: "completo|leggero",
-  regia: "drink-regia|drink-regia-test" }`. Per un locale `apiKey`,
+  regia: "drink-regia|drink-regia-test" }` (le regole in
+  `src/porte/configurazioneLocale.mjs` dell'app: un campo sconosciuto, a
+  qualunque livello, è un errore; al deploy servono `locale`,
+  `firebase.apiKey`, `authDomain`, `projectId`, `appId` e
+  `venue.venue_name`). Nel `venue` la regia mette anche i dati del
+  titolare per l'informativa del locale (`venue_legal_name`,
+  `venue_address`, `venue_postal_city`, `venue_legal_address`,
+  `venue_vat_number`, `venue_tax_code`, `venue_email`): personalizza.mjs
+  li scrive in `privacy-policy.html` e `cookie-policy.html`, e quelli che
+  mancano si leggono «[… — da inserire]». Per un locale `apiKey`,
   `appId` e `projectId` non cambiano mai (sessioni e App Check ci sono
   legati). `functions/.env.<progetto>` (`VENUE_NAME`, `REGIA_PROGETTO`) lo
   scrive il lavoro della flotta, come oggi i workflow.

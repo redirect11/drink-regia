@@ -6,10 +6,10 @@ data.
 
 ## 0.5.1 (in lavorazione)
 
-- La flotta si prepara a pubblicare senza GitHub. tana-drink compilerà una
-  volta per versione e caricherà il pacchetto in un bucket della regia; la
-  regia lo controlla (formato, impronte, nessun file in più, mai una beta
-  in produzione) e un lavoro su Google Cloud, nel progetto della regia,
+- La flotta si prepara a pubblicare senza GitHub. La regia compilerà il
+  pacchetto una volta per versione, da un tag di tana-drink e col suo
+  comando, e lo terrà in un suo bucket; lo controlla (formato, impronte,
+  nessun file in più, mai una beta in produzione) e un lavoro su Google Cloud, nel progetto della regia,
   attiva, aggiorna ed elimina un locale con gli stessi passi dei workflow:
   un locale alla volta, al più un'ora, e l'esito alla regia anche quando
   qualcosa si ferma. I workflow restano com'erano finché i locali non

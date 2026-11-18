@@ -100,7 +100,11 @@ pubblica. Lo script è `scripts/flotta-lavoro.mjs`, le regole in
   `SLUG`, `AMBIENTE`, `VERSIONE` (per attivare e aggiornare), e come nei
   workflow `NOME`, `PIANO`, `MODULI`, `PROFILO`, `UID_TITOLARE`,
   `EMAIL_TITOLARE`; `RUN_ID`, un intero, è il segno dell'esecuzione per la
-  callback (senza, l'istante in millisecondi).
+  callback (senza, l'istante in millisecondi). `DATI_LOCALE`, facoltativo,
+  è un JSON coi dati del titolare per l'informativa del locale (le chiavi
+  `venue_*` che la regia scrive in `settings/bar`, più `venue_email`):
+  finiscono su una pagina pubblica, e quelli che mancano si leggono «da
+  inserire».
 - **Le impostazioni della regia**, fissate sul lavoro: `TFSTATE_BUCKET`,
   `RILASCI_BUCKET`, `REGIA_URL`, `REGIA_CALLBACK_URL`, `REGIA_SA_EMAIL`,
   `BILLING_ACCOUNT_ID`, `ARCHIVIO_BUCKET`, `ORG_ID` (se c'è), e il segreto

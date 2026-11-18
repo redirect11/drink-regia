@@ -5633,6 +5633,13 @@ requirements:
       lavoro creato sul test e le prove del punto G (criteri 2 e 6), che
       chiedono il via libera di Daniele per le risorse su Google e un
       pacchetto di prova; la demo e i locali esistenti restano sui workflow.
+      AGGIORNATO (18/11/2026, dopo la fase 1 di tana-drink): la
+      configurazione del locale segue le regole di personalizza.mjs
+      (src/porte/configurazioneLocale.mjs di tana-drink): authDomain
+      obbligatorio come apiKey, projectId e appId; nel venue, oltre al nome,
+      i dati del titolare per l'informativa del locale, che chi lancia il
+      lavoro passa in DATI_LOCALE (le chiavi di datiDelLocale più
+      venue_email; solo chiavi note, testi su una riga).
     status: partial
     generate_issue: true
     labels: [flotta, sicurezza, rilascio]
