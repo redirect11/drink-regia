@@ -24,7 +24,7 @@ import { appendFileSync, readFileSync, writeFileSync, renameSync, existsSync } f
 import { join } from 'node:path'
 import { versioneDelTag, stradaDi, versioneStrumentoValida } from './lib-pacchetto.js'
 import { firebaseDa, configurazioneLocale, chiaviVenueFuori, datiLocaleDa, datiAmmessi, envDaFirebase, envFunctions, problemiDellaConfigurazione } from './lib-lavoro.js'
-import { ErrorePacchetto, cèNellaRelease, scaricaDallaRelease, apriPacchetto, personalizzaPacchetto, riverificaApp } from './pacchetto-su-disco.mjs'
+import { ErrorePacchetto, cèNellaRelease, scaricaDallaRelease, apriPacchetto, personalizzaPacchetto, riverificaApp, collegaEseguibileFunctions } from './pacchetto-su-disco.mjs'
 
 const TIPO = 'locali'
 const env = process.env
@@ -113,6 +113,10 @@ async function riverifica() {
   const dest = join(v('GITHUB_WORKSPACE'), 'app')
   if (existsSync(dest)) rifiuta(`${dest} c'è già`)
   renameSync(app, dest)
+  // Dopo il ricontrollo: l'eseguibile che firebase-tools lancia per
+  // scoprire le Functions (collegaEseguibileFunctions).
+  const bin = collegaEseguibileFunctions(dest)
+  if (bin) console.log(`functions/node_modules/.bin/firebase-functions → ${bin}`)
   scrivi(env.GITHUB_ENV, { FIREBASE_TOOLS: `firebase-tools@${m.strumenti['firebase-tools']}`, VERSIONE: `v${m.versione}` })
   console.log(`App ricontrollata col pacchetto v${m.versione}: si pubblica con firebase-tools ${m.strumenti['firebase-tools']}.`)
 }

@@ -8,7 +8,7 @@
 // motivo, da riferire a tana-drink così com'è.
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdirSync, readFileSync, writeFileSync, readdirSync, lstatSync, existsSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync, readdirSync, lstatSync, existsSync, symlinkSync, chmodSync } from 'node:fs'
 import { join, relative, resolve, dirname, sep } from 'node:path'
 import { problemiDelManifesto, problemiDeiFile, versioneAmmessa, nomeArchivio, nomeImpronta, indirizzoNellaRelease, improntaDalFile, problemiDellArchivio, problemiDiFirebaseJson } from './lib-pacchetto.js'
 import { problemiDellElenco, importNonAmmessi } from './lib-lavoro.js'
@@ -186,4 +186,34 @@ export function riverificaApp({ archivioApp, cartella, riferimento, progetto }) 
   if (!presenti.includes('dist/configurazione.json')) p.push('manca dist/configurazione.json')
   if (p.length) rifiuta(`l'app da pubblicare non torna col pacchetto:\n  ${p.join('\n  ')}`)
   return { app, configurazione: JSON.parse(readFileSync(join(app, 'dist/configurazione.json'), 'utf8')) }
+}
+
+// L'ESEGUIBILE DI FIREBASE-FUNCTIONS (primo giro su drinkpos-prova-bar,
+// 19/11/2026, run 44498564321: «Failed to find location of Firebase
+// Functions SDK»). Per scoprire le Functions firebase-tools lancia
+// functions/node_modules/.bin/firebase-functions; nel pacchetto le
+// dipendenze sono installate con --no-bin-links, perché un archivio con
+// collegamenti la regia lo rifiuta, e quindi .bin non c'è. Lo ricrea qui chi
+// pubblica, DOPO il ricontrollo: un solo collegamento, verso il file che il
+// package.json di firebase-functions (verificato col pacchetto) dichiara come
+// suo eseguibile, dentro la sua cartella. Senza firebase-functions (il
+// profilo leggero non lo usa) non fa niente.
+export function collegaEseguibileFunctions(app) {
+  const modulo = join(app, 'functions/node_modules/firebase-functions')
+  if (!existsSync(join(modulo, 'package.json'))) return null
+  let pj
+  try { pj = JSON.parse(readFileSync(join(modulo, 'package.json'), 'utf8')) } catch { rifiuta('firebase-functions/package.json non è JSON') }
+  const bin = typeof pj.bin === 'string' ? pj.bin : pj.bin?.['firebase-functions']
+  const dentro = typeof bin === 'string' && bin.length > 0 && !bin.startsWith('/') && !bin.includes('\\') && !bin.replace(/^\.\//, '').split('/').includes('..')
+  if (!dentro) rifiuta(`firebase-functions non dichiara un eseguibile dentro la sua cartella (${JSON.stringify(pj.bin)})`)
+  const destinazione = join(modulo, bin)
+  if (!existsSync(destinazione) || !lstatSync(destinazione).isFile()) rifiuta(`manca l'eseguibile di firebase-functions: ${bin}`)
+  chmodSync(destinazione, 0o755)
+  const cartellaBin = join(app, 'functions/node_modules/.bin')
+  mkdirSync(cartellaBin, { recursive: true })
+  const collegamento = join(cartellaBin, 'firebase-functions')
+  if (existsSync(collegamento) || (() => { try { lstatSync(collegamento); return true } catch { return false } })()) rifiuta(`${collegamento} c'è già`)
+  const relativo = relative(cartellaBin, destinazione).split(sep).join('/')
+  symlinkSync(relativo, collegamento)
+  return relativo
 }

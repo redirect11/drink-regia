@@ -586,6 +586,10 @@ describe.each(WORKFLOW)('%s: il codice di tana-drink gira solo nel job senza la 
     expect(c.steps.indexOf(v)).toBe(c.steps.length - 1)
     expect(c.outputs.impronta).toBe('${{ steps.verifica.outputs.impronta }}')
     expect(w.jobs.prepara.needs).toBe('controlla')
+    // L'eseguibile delle Functions si ricrea dopo il ricontrollo, mai prima.
+    const rv = leggi('scripts/pacchetto-locale.mjs')
+    expect(rv.indexOf('collegaEseguibileFunctions(dest)')).toBeGreaterThan(rv.indexOf('riverificaApp({'))
+    expect(rv.indexOf('collegaEseguibileFunctions(dest)')).toBeGreaterThan(rv.indexOf('renameSync(app, dest)'))
     // Il comando `verifica` non lancia personalizza.mjs: solo `prepara` lo fa.
     const script = leggi('scripts/pacchetto-locale.mjs')
     const corpo = script.slice(script.indexOf('async function verifica()'), script.indexOf('async function prepara()'))

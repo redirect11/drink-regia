@@ -16,6 +16,9 @@ data.
   una versione e rifiuta un archivio diverso, e il backoffice dice se l'app
   di un locale è arrivata dal pacchetto o è stata compilata
   (REQ-FLOTTA-140).
+- Un locale con le Functions si pubblica anche dal pacchetto: chi pubblica
+  ricrea l'eseguibile di firebase-functions, che nel pacchetto non c'è
+  (REQ-FLOTTA-140).
 - La flotta si prepara a non compilare più l'app per ogni locale.
   tana-drink compilerà una volta per versione e pubblicherà il pacchetto
   nella Release del tag; la regia lo controlla (formato, impronte, nessun
