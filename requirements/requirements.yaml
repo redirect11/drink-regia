@@ -5809,8 +5809,20 @@ requirements:
       prima pubblicazione di una versione, e un'ondata partita prima del
       primo esito, hanno solo il .sha256 della Release: l'impronta ricordata
       vale dal primo esito in poi.
-      MANCA: il primo giro vero su un locale di prova del test (criterio
-      1); l'email per la privacy (REQ-FLOTTA-141); la prova della
+      IL PRIMO GIRO VERO, 19/11/2026, da develop (36ddbaf) con la Release
+      v1.10.56-beta: drinkpos-prova-free (leggero) aggiornato dal pacchetto,
+      run 44498054968, esito alla regia 200 (criterio 1, profilo leggero).
+      drinkpos-prova-bar (completo), run 44498564321: sito e regole sì, le
+      Functions no, «Failed to find location of Firebase Functions SDK»: nel
+      pacchetto le dipendenze sono installate con --no-bin-links e manca
+      functions/node_modules/.bin/firebase-functions, che firebase-tools
+      lancia per scoprire le Functions [ipotesi, da confermare col giro
+      dopo la correzione]. Correzione: chi pubblica, dopo il ricontrollo,
+      ricrea solo quel collegamento verso l'eseguibile che il package.json
+      di firebase-functions dichiara dentro la sua cartella
+      (collegaEseguibileFunctions).
+      MANCA: il giro su un locale completo dopo quella correzione; l'email
+      per la privacy (REQ-FLOTTA-141); la prova della
       compilazione di ripiego nel collaudo (F); le attivazioni da un tag
       (b). Le «release immutabili» di GitHub sono spente in tana-drink: è
       una decisione di Daniele, e finché restano spente la garanzia è

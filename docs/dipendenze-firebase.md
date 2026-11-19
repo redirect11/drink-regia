@@ -427,6 +427,13 @@ poi il deploy dell'app; alla fine l'eliminazione con l'archivio.
   formato «external_account» delle librerie di Google, letto da Terraform,
   gcloud, firebase-tools e `google-auth-library`. La regia di produzione usa
   ancora `FIREBASE_SERVICE_ACCOUNT` per il suo deploy (`deploy.yml:75`).
+- Il pacchetto di tana-drink nei workflow (REQ-FLOTTA-140):
+  `scripts/pacchetto-locale.mjs` e `scripts/pacchetto-su-disco.mjs` non
+  chiamano Google, ma preparano quello che firebase-tools pubblica: la
+  versione fissata di `firebase-tools` letta dal pacchetto, il
+  `firebase.json` ammesso, e il collegamento
+  `functions/node_modules/.bin/firebase-functions` che firebase-tools lancia
+  per scoprire le Functions.
 - Il lavoro della flotta su Google (REQ-FLOTTA-138, in pausa dal 18/11/2026:
   le risorse non sono create): `scripts/flotta-lavoro.mjs`
   (regole in `scripts/lib-lavoro.js`) in un Cloud Run Job del progetto della

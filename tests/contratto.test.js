@@ -504,4 +504,33 @@ describe('il pacchetto nei workflow della regia (REQ-FLOTTA-140)', async () => {
     symlinkSync('/etc/hostname', join(t, 'app/dist/configurazione.json'))
     expect(() => D.riverificaApp({ archivioApp: impacchetta(t, join(t, 'app-link.tgz')), cartella: join(t, 'ricevuta-5'), riferimento, progetto: 'drinkpos-prova-bar' })).toThrow(/voce non ammessa/)
   })
+
+  // Il primo giro su drinkpos-prova-bar (19/11/2026): nel pacchetto non c'è
+  // node_modules/.bin, e firebase-tools non trovava firebase-functions.
+  it.skipIf(process.platform === 'win32')('chi pubblica ricrea solo l’eseguibile di firebase-functions, dentro la sua cartella', async () => {
+    const { mkdtempSync, mkdirSync, writeFileSync, readlinkSync, statSync, existsSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const D = await import('../scripts/pacchetto-su-disco.mjs')
+    const app = (pj, file = 'lib/bin/firebase-functions.js') => {
+      const a = mkdtempSync(join(tmpdir(), 'app-'))
+      const m = join(a, 'functions/node_modules/firebase-functions')
+      mkdirSync(join(m, 'lib/bin'), { recursive: true })
+      writeFileSync(join(m, 'package.json'), JSON.stringify(pj))
+      if (file) writeFileSync(join(m, file), '#!/usr/bin/env node')
+      return a
+    }
+    const a = app({ name: 'firebase-functions', bin: { 'firebase-functions': 'lib/bin/firebase-functions.js' } })
+    expect(D.collegaEseguibileFunctions(a)).toBe('../firebase-functions/lib/bin/firebase-functions.js')
+    expect(readlinkSync(join(a, 'functions/node_modules/.bin/firebase-functions'))).toBe('../firebase-functions/lib/bin/firebase-functions.js')
+    expect(statSync(join(a, 'functions/node_modules/firebase-functions/lib/bin/firebase-functions.js')).mode & 0o111).toBeTruthy()
+    // Un eseguibile fuori dalla cartella del modulo, o che non c'è: no.
+    expect(() => D.collegaEseguibileFunctions(app({ bin: { 'firebase-functions': '../../../../sa.json' } }))).toThrow(/dentro la sua cartella/)
+    expect(() => D.collegaEseguibileFunctions(app({ bin: '/etc/passwd' }))).toThrow(/dentro la sua cartella/)
+    expect(() => D.collegaEseguibileFunctions(app({ bin: { 'firebase-functions': 'lib/bin/firebase-functions.js' } }, null))).toThrow(/manca l'eseguibile/)
+    // Il profilo leggero non ha firebase-functions: niente da fare.
+    const vuota = mkdtempSync(join(tmpdir(), 'app-'))
+    expect(D.collegaEseguibileFunctions(vuota)).toBeNull()
+    expect(existsSync(join(vuota, 'functions/node_modules/.bin'))).toBe(false)
+  })
 })
