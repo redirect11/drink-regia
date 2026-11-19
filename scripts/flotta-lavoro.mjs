@@ -17,16 +17,15 @@
 // stessa callback dei workflow. Il lavoro non ritenta da sé: i tentativi
 // sono dentro i passi, come oggi.
 import { spawnSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync, existsSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync, statSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, relative, resolve, dirname, sep } from 'node:path'
+import { join, resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   COMANDI, inputDelLavoro, impostazioniMancanti, nomeBlocco, bloccoMorto, firebaseDa, configurazioneLocale, chiaviVenueFuori, envDaFirebase, envFunctions,
-  soloDelDeploy, problemiDellElenco, importNonAmmessi, corpoEsito, mandaEsito, passi,
+  soloDelDeploy, corpoEsito, mandaEsito, passi,
 } from './lib-lavoro.js'
-import { problemiDelManifesto, problemiDeiFile, versioneAmmessa, nomeArchivio, nomeImpronta } from './lib-pacchetto.js'
+import { ErrorePacchetto, scaricaDallaRelease, apriPacchetto, personalizzaPacchetto } from './pacchetto-su-disco.mjs'
 
 const REGIA = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const env = process.env
@@ -142,70 +141,20 @@ function progettoDellaRegia(input) {
 }
 
 // ── IL PACCHETTO ──────────────────────────────────────────────────────
-const sha256 = (file) => createHash('sha256').update(readFileSync(file)).digest('hex')
-function fileDi(cartella) {
-  const fuori = []
-  const giro = (d) => {
-    for (const n of readdirSync(d)) {
-      const p = join(d, n)
-      if (statSync(p).isDirectory()) giro(p)
-      else fuori.push(relative(cartella, p).split(sep).join('/'))
-    }
+// Dalla Release del tag di tana-drink, con gli stessi controlli dei
+// workflow (scripts/pacchetto-su-disco.mjs): fino al 18/11 veniva dal bucket
+// della regia, tolto quel giorno (REQ-FLOTTA-137).
+async function scaricaPacchetto(input) {
+  try {
+    const { archivio, impronta } = await scaricaDallaRelease({ tipo: TIPO, versione: input.versione, cartella: join(TMP, 'scarico') })
+    // La stessa firebase-tools del pacchetto e dell'immagine (interfaccia 16).
+    const p = apriPacchetto({ archivio, cartella: join(TMP, 'pacchetto'), tipo: TIPO, versione: input.versione, ambiente: input.ambiente, firebaseTools: env.FIREBASE_TOOLS_VERSIONE || '' })
+    console.log(`Pacchetto ${input.versione} controllato: commit ${p.manifesto.commit}, ${Object.keys(p.manifesto.file).length} file, impronta ${impronta}.`)
+    return p
+  } catch (e) {
+    if (e instanceof ErrorePacchetto) ferma(e.message)
+    throw e
   }
-  giro(cartella)
-  return fuori
-}
-const controllaFile = (cartella, m, opz) => {
-  const p = problemiDeiFile(m, (f) => (existsSync(join(cartella, f)) ? sha256(join(cartella, f)) : null), fileDi(cartella), opz)
-  if (p.length) ferma(`il pacchetto non torna${opz?.dopo ? ' dopo la personalizzazione' : ''}:\n  ${p.join('\n  ')}`)
-}
-
-// personalizza.mjs e i file che importa: solo moduli di Node e file del
-// pacchetto (importNonAmmessi), seguiti fino in fondo.
-function controllaPersonalizza(cartella) {
-  const visti = new Set()
-  const giro = (rel) => {
-    if (visti.has(rel)) return
-    visti.add(rel)
-    const pieno = resolve(cartella, rel)
-    if (!pieno.startsWith(resolve(cartella) + sep)) ferma(`personalizza.mjs importa un file fuori dal pacchetto: ${rel}`)
-    if (!existsSync(pieno)) ferma(`personalizza.mjs importa un file che non c'è: ${rel}`)
-    const sorgente = readFileSync(pieno, 'utf8')
-    const no = importNonAmmessi(sorgente)
-    if (no.length) ferma(`${rel} importa moduli che non sono di Node né del pacchetto: ${no.join(', ')}`)
-    for (const m of sorgente.matchAll(/['"](\.{1,2}\/[^'"]+)['"]/g)) giro(relative(cartella, resolve(dirname(pieno), m[1])).split(sep).join('/'))
-  }
-  giro('personalizza.mjs')
-}
-
-function scaricaPacchetto(input) {
-  const scarico = join(TMP, 'scarico')
-  mkdirSync(scarico)
-  const archivio = join(scarico, 'pacchetto.tgz')
-  const impronta = join(scarico, 'pacchetto.tgz.sha256')
-  // Prima l'impronta: se non c'è, il caricamento non è finito (tana-drink la
-  // carica dopo l'archivio).
-  const base = `gs://${env.RILASCI_BUCKET}/`
-  if (!gcloud(['storage', 'cp', base + nomeImpronta(TIPO, input.versione), impronta], { cattura: true, ammesso: true }).ok) ferma(`il pacchetto della versione ${input.versione} non c'è (o non è completo) in ${base}`)
-  gcloud(['storage', 'cp', base + nomeArchivio(TIPO, input.versione), archivio], { cattura: true })
-  const attesa = (readFileSync(impronta, 'utf8').match(/[0-9a-f]{64}/) || [])[0]
-  if (!attesa || attesa !== sha256(archivio)) ferma(`l'archivio della versione ${input.versione} non ha l'impronta dichiarata`)
-  const elenco = esegui('tar', ['-tvzf', archivio], { cattura: true }).out.split('\n')
-  const p = problemiDellElenco(elenco)
-  if (p.length) ferma(`l'archivio contiene voci non ammesse:\n  ${p.join('\n  ')}`)
-  const cartella = join(TMP, 'pacchetto')
-  mkdirSync(cartella)
-  esegui('tar', ['-xzf', archivio, '-C', cartella, '--no-same-owner', '--no-same-permissions'])
-  const m = JSON.parse(readFileSync(join(cartella, 'pacchetto.json'), 'utf8'))
-  const pm = problemiDelManifesto(m, { versioneAttesa: input.versione, tipoAtteso: TIPO })
-  if (pm.length) ferma(`pacchetto.json non va:\n  ${pm.join('\n  ')}`)
-  if (!versioneAmmessa(input.versione, input.ambiente === 'test' ? 'test' : 'produzione', m)) ferma(`la versione ${input.versione} non si dà a un locale di ${input.ambiente}`)
-  // La stessa firebase-tools del pacchetto e dell'immagine (interfaccia 16).
-  if (env.FIREBASE_TOOLS_VERSIONE && m.strumenti['firebase-tools'] !== env.FIREBASE_TOOLS_VERSIONE) ferma(`il pacchetto vuole firebase-tools ${m.strumenti['firebase-tools']}, il lavoro ha la ${env.FIREBASE_TOOLS_VERSIONE}`)
-  controllaFile(cartella, m)
-  controllaPersonalizza(cartella)
-  console.log(`Pacchetto ${input.versione} controllato: commit ${m.commit}, ${Object.keys(m.file).length} file.`)
-  return { cartella, manifesto: m }
 }
 
 // ── IL TERRAFORM ──────────────────────────────────────────────────────
@@ -281,11 +230,12 @@ function configurazioneWeb(input) {
 // lavoro (il segreto della callback sta lì). Il server dei metadati resta
 // raggiungibile, ed è il motivo del controllo sugli import.
 function personalizza(input, pacchetto, firebaseWeb) {
-  const conf = join(TMP, 'configurazione.json')
-  writeFileSync(conf, JSON.stringify(configurazioneLocale({ ...input, firebase: firebaseWeb }), null, 2))
-  esegui('node', ['personalizza.mjs', '--dist', 'dist', '--configurazione', conf], { cwd: pacchetto.cartella, envSolo: { PATH: env.PATH, HOME: TMP } })
-  if (!existsSync(join(pacchetto.cartella, 'dist/configurazione.json'))) ferma('personalizza.mjs non ha scritto dist/configurazione.json')
-  controllaFile(pacchetto.cartella, pacchetto.manifesto, { dopo: true })
+  try {
+    personalizzaPacchetto({ cartella: pacchetto.cartella, manifesto: pacchetto.manifesto, configurazione: configurazioneLocale({ ...input, firebase: firebaseWeb }), tmp: join(TMP, 'personalizza') })
+  } catch (e) {
+    if (e instanceof ErrorePacchetto) ferma(e.message)
+    throw e
+  }
 }
 
 // ── IL DEPLOY ─────────────────────────────────────────────────────────
@@ -324,7 +274,7 @@ async function deploy(input, cartella) {
 async function pubblica(input, stato) {
   const account = await accountDelLavoro()
   passo('Il pacchetto')
-  const pacchetto = scaricaPacchetto(input)
+  const pacchetto = await scaricaPacchetto(input)
   stato.commit = pacchetto.manifesto.commit
   const fuori = chiaviVenueFuori(input, pacchetto.manifesto.campiVenue)
   if (fuori.length) ferma(`il pacchetto ${input.versione} non accetta nel venue: ${fuori.join(', ')}`)

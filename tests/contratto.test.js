@@ -265,9 +265,157 @@ describe('il pacchetto per versione (REQ-FLOTTA-137)', async () => {
     expect(versioneAmmessa('main', 'test')).toBe(false)
   })
 
-  it('il nome dell’archivio nel bucket è uno solo, per chi carica e per chi legge', () => {
-    expect(nomeArchivio('locali', '1.11.0')).toBe('pacchetti/v1.11.0/pacchetto-locali-v1.11.0.tgz')
-    expect(nomeArchivio('demo', '1.11.0-beta.1')).toBe('pacchetti/v1.11.0-beta.1/pacchetto-demo-v1.11.0-beta.1.tgz')
-    expect(nomeImpronta('locali', '1.10.56-beta')).toBe('pacchetti/v1.10.56-beta/pacchetto-locali-v1.10.56-beta.tgz.sha256')
+  // tana-drink, 19/11/2026: «nella Release il nome è quello semplice».
+  it('il nome del file nella Release è quello semplice, uno solo per chi pubblica e chi scarica', async () => {
+    const { indirizzoNellaRelease } = await import('../scripts/lib-pacchetto.js')
+    expect(nomeArchivio('locali', '1.11.0')).toBe('pacchetto-locali-v1.11.0.tgz')
+    expect(nomeArchivio('demo', '1.11.0-beta.1')).toBe('pacchetto-demo-v1.11.0-beta.1.tgz')
+    expect(nomeImpronta('locali', '1.10.56-beta')).toBe('pacchetto-locali-v1.10.56-beta.tgz.sha256')
+    expect(indirizzoNellaRelease(nomeArchivio('locali', '1.10.56-beta'), '1.10.56-beta')).toBe('https://github.com/redirect11/tana-drink/releases/download/v1.10.56-beta/pacchetto-locali-v1.10.56-beta.tgz')
+  })
+})
+
+// IL PACCHETTO NEI WORKFLOW (REQ-FLOTTA-140): la strada, l'archivio
+// scaricato, firebase.json, e il giro intero su disco.
+describe('il pacchetto nei workflow della regia (REQ-FLOTTA-140)', async () => {
+  const P = await import('../scripts/lib-pacchetto.js')
+  const H = (c) => c.repeat(64)
+
+  it('la strada: il pacchetto se la Release del tag lo ha, se no la compilazione; chi lancia può sceglierla', () => {
+    const tag = { versione: '1.10.56-beta', cèPacchetto: true }
+    expect(P.stradaDi(tag)).toEqual({ strada: 'pacchetto', perche: 'il pacchetto della Release v1.10.56-beta' })
+    expect(P.stradaDi({ ...tag, cèPacchetto: false }).strada).toBe('compilazione')
+    expect(P.stradaDi({ ...tag, versione: null }).perche).toBe('il ref non è un tag di versione')
+    // La demo e i locali curati a mano (la Tana) restano sulla compilazione.
+    expect(P.stradaDi({ ...tag, demo: true })).toEqual({ strada: 'compilazione', perche: 'la demo si compila ancora' })
+    expect(P.stradaDi({ ...tag, esistente: true }).strada).toBe('compilazione')
+    // Il ripiego chiesto (Daniele, 18/11/2026: «la regia puo far partire la
+    // compilazione lo stesso se serve»).
+    expect(P.stradaDi({ ...tag, richiesta: 'compilazione' })).toEqual({ strada: 'compilazione', perche: 'chiesta da chi ha lanciato' })
+    // Il pacchetto chiesto e che non c'è: ci si ferma, non si compila di nascosto.
+    expect(P.stradaDi({ ...tag, cèPacchetto: false, richiesta: 'pacchetto' }).strada).toBeNull()
+    expect(P.stradaDi({ ...tag, richiesta: 'boh' }).strada).toBeNull()
+  })
+
+  it('la versione viene solo da un tag di versione', () => {
+    expect(P.versioneDelTag('v1.10.56-beta')).toBe('1.10.56-beta')
+    expect(P.versioneDelTag('v1.11.0')).toBe('1.11.0')
+    expect(P.versioneDelTag('main')).toBeNull()
+    expect(P.versioneDelTag('v1.11')).toBeNull()
+    expect(P.versioneDelTag('1.11.0')).toBeNull()
+  })
+
+  // (C): l'impronta dichiarata e quella che la regia ricorda.
+  it('l’archivio deve avere l’impronta dichiarata e, se la regia ne ricorda una, quella', () => {
+    expect(P.improntaDalFile(`${H('a')}  pacchetto-locali-v1.11.0.tgz\n`)).toBe(H('a'))
+    expect(P.improntaDalFile(H('a'))).toBe(H('a'))
+    expect(P.improntaDalFile('niente')).toBeNull()
+    expect(P.problemiDellArchivio({ dichiarata: H('a'), vera: H('a') })).toEqual([])
+    expect(P.problemiDellArchivio({ dichiarata: H('a'), vera: H('a'), ricordata: H('a') })).toEqual([])
+    expect(P.problemiDellArchivio({ dichiarata: null, vera: H('a') })[0]).toMatch(/non contiene/)
+    expect(P.problemiDellArchivio({ dichiarata: H('a'), vera: H('b') })[0]).toMatch(/non ha l'impronta dichiarata/)
+    // Una Release riscritta: l'impronta nuova torna col suo archivio, ma non
+    // con quella del primo pacchetto usato.
+    expect(P.problemiDellArchivio({ dichiarata: H('b'), vera: H('b'), ricordata: H('a') })[0]).toMatch(/una versione corretta è una versione nuova/)
+  })
+
+  it('firebase.json non deve far girare comandi al deploy', () => {
+    expect(P.comandiInFirebaseJson({ hosting: { public: 'dist' }, functions: [{ source: 'functions' }] })).toEqual([])
+    expect(P.comandiInFirebaseJson({ functions: [{ source: 'functions', predeploy: ['npm run build'] }], hosting: { postdeploy: 'x' } })).toEqual(['firebase.json.functions[0].predeploy', 'firebase.json.hosting.postdeploy'])
+  })
+
+  // IL GIRO INTERO, con un archivio vero e una Release finta: tar GNU
+  // (quello dei runner di GitHub); su Windows il tar di sistema scrive
+  // l'elenco in un'altra forma, e il giro si prova in CI.
+  it.skipIf(process.platform === 'win32')('su disco: scarica, controlla, personalizza con un ambiente vuoto e ricontrolla', async () => {
+    const { spawnSync } = await import('node:child_process')
+    const { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join, dirname } = await import('node:path')
+    const { createHash } = await import('node:crypto')
+    const D = await import('../scripts/pacchetto-su-disco.mjs')
+    const sha = (b) => createHash('sha256').update(b).digest('hex')
+    const PERSONALIZZA = [
+      "import { readFileSync, writeFileSync } from 'node:fs'",
+      'const a = process.argv',
+      "const conf = readFileSync(a[a.indexOf('--configurazione') + 1], 'utf8')",
+      "const dist = a[a.indexOf('--dist') + 1]",
+      "writeFileSync(dist + '/configurazione.json', conf)",
+      "writeFileSync(dist + '/index.html', '<html>' + JSON.parse(conf).venue.venue_name + (process.env.SEGRETO_DI_PROVA || '') + '</html>')",
+    ].join('\n')
+    const COMMIT = 'c'.repeat(40)
+    function costruisci(radice, { firebaseJson = '{}', extra = {}, manifesto = {} } = {}) {
+      const file = {
+        'firebase.json': firebaseJson, 'firestore.rules': 'r', 'firestore.indexes.json': '{}', 'storage.rules': 's',
+        'dist/index.html': '<html>%VENUE_NAME%</html>', 'dist/manifest.webmanifest': '{}',
+        'functions/package.json': '{}', 'functions/package-lock.json': '{}', 'personalizza.mjs': PERSONALIZZA,
+      }
+      const cartella = join(radice, 'sorgente')
+      for (const [f, c] of Object.entries({ ...file, ...extra })) {
+        mkdirSync(dirname(join(cartella, f)), { recursive: true })
+        writeFileSync(join(cartella, f), c)
+      }
+      const m = {
+        formato: 1, tipo: 'locali', versione: '1.10.56-beta', tag: 'v1.10.56-beta', beta: true, commit: COMMIT,
+        strumenti: { node: '22', 'firebase-tools': '15.36.0' }, personalizzabili: ['dist/index.html', 'dist/manifest.webmanifest'],
+        creato_il: '2026-11-18T23:15:10Z', profili: ['completo', 'leggero'], campiVenue: ['venue_name', 'venue_short_name', 'venue_description', 'venue_legal_name'],
+        file: Object.fromEntries(Object.entries(file).map(([f, c]) => [f, sha(c)])), ...manifesto,
+      }
+      writeFileSync(join(cartella, 'pacchetto.json'), JSON.stringify(m))
+      const archivio = join(radice, 'pacchetto.tgz')
+      const r = spawnSync('tar', ['-czf', archivio, '-C', cartella, '.'])
+      expect(r.status).toBe(0)
+      return readFileSync(archivio)
+    }
+    // La Release finta: risponde ai due indirizzi del tag, 404 al resto.
+    const release = (archivio, impronta = sha(archivio)) => async (url, opz) => {
+      const nome = url.split('/').pop()
+      const corpo = nome === 'pacchetto-locali-v1.10.56-beta.tgz' ? archivio : nome === 'pacchetto-locali-v1.10.56-beta.tgz.sha256' ? Buffer.from(`${impronta}  ${nome}\n`) : null
+      expect(url.startsWith('https://github.com/redirect11/tana-drink/releases/download/v1.10.56-beta/')).toBe(true)
+      if (!corpo) return { ok: false, status: 404 }
+      return { ok: true, status: 200, arrayBuffer: async () => (opz?.method === 'HEAD' ? new ArrayBuffer(0) : corpo) }
+    }
+    const conf = { backend: 'firebase', locale: 'prova-bar', firebase: { apiKey: 'k', authDomain: 'd', projectId: 'drinkpos-prova-bar', appId: 'a' }, venue: { venue_name: 'Prova Bar' }, profilo: 'completo', regia: 'drink-regia-test' }
+
+    // Il giro buono.
+    const t = mkdtempSync(join(tmpdir(), 'pacchetto-'))
+    const archivio = costruisci(t)
+    const fetchFn = release(archivio)
+    expect(await D.cèNellaRelease({ tipo: 'locali', versione: '1.10.56-beta', fetchFn })).toBe(true)
+    expect(await D.cèNellaRelease({ tipo: 'locali', versione: '1.10.57-beta', fetchFn: async () => ({ ok: false, status: 404 }) })).toBe(false)
+    const giu = await D.scaricaDallaRelease({ tipo: 'locali', versione: '1.10.56-beta', cartella: join(t, 'scarico'), fetchFn })
+    expect(giu.impronta).toBe(sha(archivio))
+    const aperto = D.apriPacchetto({ archivio: giu.archivio, cartella: join(t, 'app'), tipo: 'locali', versione: '1.10.56-beta', ambiente: 'test', commit: COMMIT })
+    expect(aperto.manifesto.commit).toBe(COMMIT)
+    process.env.SEGRETO_DI_PROVA = 'NON-DEVE-ARRIVARE'
+    try {
+      D.personalizzaPacchetto({ cartella: aperto.cartella, manifesto: aperto.manifesto, configurazione: conf, tmp: join(t, 'tmp') })
+    } finally {
+      delete process.env.SEGRETO_DI_PROVA
+    }
+    // Personalizzato, e senza vedere l'ambiente di chi lo lancia.
+    expect(readFileSync(join(t, 'app/dist/index.html'), 'utf8')).toBe('<html>Prova Bar</html>')
+    expect(JSON.parse(readFileSync(join(t, 'app/dist/configurazione.json'), 'utf8')).locale).toBe('prova-bar')
+
+    const rifiuta = async (fn, motivo) => { await expect(fn()).rejects.toThrow(motivo) }
+    // In produzione una beta no; un commit diverso da quello del tag no.
+    const t2 = mkdtempSync(join(tmpdir(), 'pacchetto-'))
+    writeFileSync(join(t2, 'p.tgz'), archivio)
+    await rifiuta(async () => D.apriPacchetto({ archivio: join(t2, 'p.tgz'), cartella: join(t2, 'a'), tipo: 'locali', versione: '1.10.56-beta', ambiente: 'produzione' }), /non si dà a un locale di produzione/)
+    await rifiuta(async () => D.apriPacchetto({ archivio: join(t2, 'p.tgz'), cartella: join(t2, 'b'), tipo: 'locali', versione: '1.10.56-beta', ambiente: 'test', commit: 'd'.repeat(40) }), /il tag v1\.10\.56-beta è su d{40}/)
+    // Un archivio diverso da quello ricordato, anche se la Release è coerente.
+    await rifiuta(() => D.scaricaDallaRelease({ tipo: 'locali', versione: '1.10.56-beta', cartella: join(t2, 's1'), fetchFn, ricordata: H('e') }), /versione corretta è una versione nuova/)
+    // L'impronta dichiarata che non torna.
+    await rifiuta(() => D.scaricaDallaRelease({ tipo: 'locali', versione: '1.10.56-beta', cartella: join(t2, 's2'), fetchFn: release(archivio, H('f')) }), /non ha l'impronta dichiarata/)
+    // La Release senza pacchetto.
+    await rifiuta(() => D.scaricaDallaRelease({ tipo: 'locali', versione: '1.10.56-beta', cartella: join(t2, 's3'), fetchFn: async () => ({ ok: false, status: 404 }) }), /non c'è \(o non è completo\)/)
+    // Un file in più non dichiarato; un firebase.json con un predeploy.
+    const t3 = mkdtempSync(join(tmpdir(), 'pacchetto-'))
+    writeFileSync(join(t3, 'p.tgz'), costruisci(join(t3, 'x'), { extra: { 'functions/intruso.js': 'x' } }))
+    await rifiuta(async () => D.apriPacchetto({ archivio: join(t3, 'p.tgz'), cartella: join(t3, 'a'), tipo: 'locali', versione: '1.10.56-beta', ambiente: 'test' }), /file non dichiarato: functions\/intruso\.js/)
+    const t4 = mkdtempSync(join(tmpdir(), 'pacchetto-'))
+    writeFileSync(join(t4, 'p.tgz'), costruisci(join(t4, 'x'), { firebaseJson: JSON.stringify({ functions: [{ source: 'functions', predeploy: ['npm run build'] }] }) }))
+    await rifiuta(async () => D.apriPacchetto({ archivio: join(t4, 'p.tgz'), cartella: join(t4, 'a'), tipo: 'locali', versione: '1.10.56-beta', ambiente: 'test' }), /firebase\.json fa girare comandi al deploy/)
+    expect(existsSync(join(t, 'app/functions/.env.drinkpos-prova-bar'))).toBe(false)
   })
 })

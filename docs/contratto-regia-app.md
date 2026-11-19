@@ -292,7 +292,11 @@ scritta solo se manca (`scritta_da: 'deploy'`). La Tana ha `regia_url: null`.
   Bearer <PROVISIONING_CALLBACK_SECRET>`.
 - Corpo: `{ slug, stato: 'in coda'|'in corso'|'attiva'|'errore', url?,
   progetto, versione, errore, ambiente, operazione:
-  'attivazione'|'aggiornamento', profilo, ref, commit, run_id, inviato_il }`;
+  'attivazione'|'aggiornamento', profilo, ref, commit, strada:
+  'pacchetto'|'compilazione', impronta (solo col pacchetto), run_id,
+  inviato_il }`; la regia scrive `strada` e `impronta` sull'istanza e, al
+  primo esito riuscito dal pacchetto di una versione, ne ricorda l'impronta
+  in `pacchetti/{tag}` (REQ-FLOTTA-140);
   per l'eliminazione `{ slug, operazione: 'eliminazione', stato:
   'eliminata'|'errore', archivio, errore, run_id, inviato_il }`.
 - Risposte: `200 { ok }`; `400` (esito non valido, progetto diverso, esito
@@ -319,6 +323,14 @@ e finché c'è tana-drink tiene `scripts/genera-cliente.mjs`.
   `cliente` (la cartella in `clienti/` di tana-drink), `build` (JSON con sole
   `VITE_FIREBASE_MEASUREMENT_ID`, `VITE_FIREBASE_VAPID_KEY`,
   `VITE_RECAPTCHA_SITE_KEY`).
+- **Input di tutti e due per il pacchetto** (REQ-FLOTTA-140, interfaccia 16):
+  `strada` (`auto`: il pacchetto se la Release del tag lo ha, se no la
+  compilazione; `pacchetto`: solo quello, altrimenti si ferma;
+  `compilazione`: come prima), `dati_locale` (JSON con i dati del titolare
+  per l'informativa, le chiavi `venue_*` di `CAMPI_DATI_LOCALE`, una riga e
+  al più 200 caratteri ciascuna), `impronta` (l'impronta dell'archivio che
+  la regia ricorda per quella versione, vuota la prima volta). La demo e i
+  locali esistenti (`progetto` o `cliente`) restano sulla compilazione.
 - **Quello che i workflow si aspettano dentro tana-drink**:
   - `scripts/genera-cliente.mjs` (senza, la versione è troppo vecchia: serve
     la 1.10); `--sa tipo-locale`, poi `--slug --nome [--tipo-locale]`, che
@@ -462,7 +474,12 @@ anche dopo come ripiego.
   nessun file non dichiarato, nessun percorso che esce dal pacchetto) e
   dopo controlla tutto tranne `personalizzabili` e `configurazione.json`
   (`problemiDelManifesto`, `problemiDeiFile`). Se è una beta lo dice
-  `beta`, e la produzione non la accetta (`versioneAmmessa`).
+  `beta`, e la produzione non la accetta (`versioneAmmessa`). Il `commit`
+  deve essere quello del tag che il workflow ha controllato (per la
+  produzione: sta su `main`), e `firebase.json` non deve avere comandi
+  `predeploy`/`postdeploy`, che girerebbero dove ci sono le credenziali
+  (`comandiInFirebaseJson`). Il codice è in `scripts/pacchetto-su-disco.mjs`
+  e `scripts/pacchetto-locale.mjs`.
 - **La personalizzazione al deploy**: `node personalizza.mjs --dist <cartella>
   --configurazione <file.json> [--pubblica <cartella>]` riempie i
   segnaposto di `index.html`, scrive il manifest, mette i file del cliente
@@ -486,11 +503,17 @@ anche dopo come ripiego.
   mancano si leggono «[… — da inserire]». Per un locale `apiKey`,
   `appId` e `projectId` non cambiano mai (sessioni e App Check ci sono
   legati). `functions/.env.<progetto>` (`VENUE_NAME`, `REGIA_PROGETTO`) lo
-  scrivono i workflow della regia, come oggi.
+  scrivono i workflow della regia, come oggi, dopo il controllo che segue
+  la personalizzazione: non è un file del pacchetto.
 - **La demo**: il pacchetto `tipo: demo` lo compila tana-drink, con la demo
   decisa dalla build; non si personalizza. Lo pubblica la regia, come oggi.
 - **Strumenti**: firebase-tools fissato a una versione, la stessa nel
-  pacchetto e in chi pubblica (15.36.0 al 18/11/2026); Node 22.
+  pacchetto e in chi pubblica (15.36.0 al 18/11/2026): col pacchetto il job
+  che pubblica usa `firebase-tools@<versione di pacchetto.json>`. Node 22.
+- **I file nella Release**: `pacchetto-<tipo>-vX.Y.Z.tgz` e
+  `pacchetto-<tipo>-vX.Y.Z.tgz.sha256` (il nome semplice, tana-drink
+  19/11/2026), allegati nell'ordine: prima l'archivio, poi l'impronta. Il
+  primo pacchetto è quello di `v1.10.56-beta` (19/11/2026).
 
 ## La sicurezza delle interfacce
 

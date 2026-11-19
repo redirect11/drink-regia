@@ -1,11 +1,12 @@
 // IL PACCHETTO PER VERSIONE (REQ-FLOTTA-137, interfaccia 16 di
 // docs/contratto-regia-app.md). tana-drink compila una volta al rilascio e
-// carica un archivio nel bucket della regia; il lavoro della flotta su
-// Google (REQ-FLOTTA-138) lo pubblica nei locali senza ricompilare. Qui si
-// controlla un pacchetto già aperto PRIMA di toccare un locale: un formato
-// che la regia non conosce, un file che manca o un'impronta che non torna
-// fermano tutto. Logica pura sui dati; chi legge i file da disco passa
-// all'ultima funzione il calcolo delle impronte.
+// pubblica l'archivio nella Release di GitHub del suo tag; provisiona-istanza
+// e aggiorna-istanza (REQ-FLOTTA-140) lo pubblicano nei locali senza
+// ricompilare. Qui si controlla un pacchetto già aperto PRIMA di toccare un
+// locale: un formato che la regia non conosce, un file che manca o
+// un'impronta che non torna fermano tutto. Logica pura sui dati; chi legge i
+// file da disco (scripts/pacchetto-su-disco.mjs) passa il calcolo delle
+// impronte.
 
 export const FORMATI = [1]
 export const TIPI = ['locali', 'demo']
@@ -27,8 +28,15 @@ const IMPRONTA = /^[0-9a-f]{64}$/
 // Un percorso dentro il pacchetto: relativo, senza risalire né assoluto.
 const PERCORSO_SICURO = (p) => typeof p === 'string' && p.length > 0 && !p.startsWith('/') && !/^[A-Za-z]:/.test(p) && !p.split('/').includes('..') && !p.includes('\\')
 
-// Il nome dell'archivio nel bucket, uguale per chi carica e chi legge.
-export const nomeArchivio = (tipo, versione) => `pacchetti/v${versione}/pacchetto-${tipo}-v${versione}.tgz`
+// Il nome del file allegato alla Release, uguale per chi pubblica e chi
+// scarica (tana-drink, 19/11/2026: «nella Release il nome è quello
+// semplice»). Fino al 18/11 c'era davanti il percorso del bucket.
+export const nomeArchivio = (tipo, versione) => `pacchetto-${tipo}-v${versione}.tgz`
+
+// Dove sta: la Release del tag di tana-drink. Il repository è pubblico; quando
+// diventerà privato servirà un accesso in sola lettura (REQ-FLOTTA-140).
+export const REPOSITORY_APP = 'redirect11/tana-drink'
+export const indirizzoNellaRelease = (nome, versione, repository = REPOSITORY_APP) => `https://github.com/${repository}/releases/download/v${versione}/${nome}`
 
 // Controlla pacchetto.json. Restituisce l'elenco dei problemi: vuoto vuol
 // dire che la forma va bene (le impronte si controllano dopo, sui file).
@@ -97,6 +105,60 @@ export function versioneAmmessa(versione, ambiente, manifesto = null) {
   return ambiente === 'test' || !beta
 }
 
-// L'impronta dell'archivio sta in un oggetto a parte, caricato DOPO
-// l'archivio (tana-drink, 18/11/2026): se c'è, il pacchetto è completo.
+// L'impronta dell'archivio sta in un file a parte, allegato DOPO l'archivio
+// (tana-drink, 18/11/2026): se c'è, il pacchetto è completo.
 export const nomeImpronta = (tipo, versione) => `${nomeArchivio(tipo, versione)}.sha256`
+
+// La versione di un tag di tana-drink («v1.10.56-beta» → «1.10.56-beta»), o
+// null se il ref non è un tag di versione: allora un pacchetto non c'è.
+export const versioneDelTag = (ref) => (typeof ref === 'string' && ref.startsWith('v') && VERSIONE.test(ref.slice(1)) ? ref.slice(1) : null)
+
+// L'impronta dell'archivio dal file .sha256 (`sha256sum`: «<64 hex>  nome»).
+export function improntaDalFile(testo) {
+  const m = /^([0-9a-f]{64})(?:\s|$)/.exec(String(testo || '').trim())
+  return m ? m[1] : null
+}
+
+// L'archivio scaricato si può usare? (C) della REQ-FLOTTA-140: la regia
+// ricorda l'impronta del primo pacchetto usato per una versione e la passa al
+// workflow; un archivio diverso per la stessa versione si rifiuta, anche se
+// il suo .sha256 torna (una Release non immutabile si può riscrivere). Una
+// versione corretta è una versione nuova.
+export function problemiDellArchivio({ dichiarata, vera, ricordata = '' }) {
+  if (!dichiarata) return ['il file .sha256 non contiene un’impronta']
+  if (dichiarata !== vera) return [`l'archivio non ha l'impronta dichiarata (${dichiarata.slice(0, 12)}…, scaricato ${String(vera).slice(0, 12)}…)`]
+  if (ricordata && ricordata !== vera) return [`per questa versione la regia ha già usato un altro archivio (${ricordata.slice(0, 12)}…): una versione corretta è una versione nuova`]
+  return []
+}
+
+// LA STRADA DI UN LANCIO (REQ-FLOTTA-140, (A)): «pacchetto» se la Release
+// del tag lo ha, «compilazione» (quella di prima, interfaccia 12) negli
+// altri casi. Chi lancia può chiedere `compilazione` (una correzione urgente,
+// una versione di prima del pacchetto) o `pacchetto` (allora, se manca, ci si
+// ferma invece di compilare: serve alle prove). La demo e i locali esistenti
+// con la loro cartella in tana-drink (la Tana) restano sulla compilazione:
+// il pacchetto dei locali non li sa fare.
+export const RICHIESTE_STRADA = ['auto', 'pacchetto', 'compilazione']
+export function stradaDi({ richiesta = 'auto', versione = null, cèPacchetto = false, demo = false, esistente = false }) {
+  if (!RICHIESTE_STRADA.includes(richiesta)) return { strada: null, perche: `strada «${richiesta}» non prevista (${RICHIESTE_STRADA.join(', ')})` }
+  if (richiesta === 'compilazione') return { strada: 'compilazione', perche: 'chiesta da chi ha lanciato' }
+  const no = demo ? 'la demo si compila ancora'
+    : esistente ? 'un locale esistente ha la sua cartella in tana-drink'
+      : !versione ? 'il ref non è un tag di versione'
+        : !cèPacchetto ? `la Release v${versione} non ha il pacchetto dei locali`
+          : null
+  if (!no) return { strada: 'pacchetto', perche: `il pacchetto della Release v${versione}` }
+  if (richiesta === 'pacchetto') return { strada: null, perche: `chiesto il pacchetto, ma ${no}` }
+  return { strada: 'compilazione', perche: no }
+}
+
+// I COMANDI DI firebase.json. `predeploy` e `postdeploy` li esegue
+// firebase-tools al deploy, cioè nel job con le credenziali: sarebbe codice di
+// tana-drink dove il pacchetto non deve far girare niente (il motivo dei job
+// separati, REQ-FLOTTA-047). Il firebase.json di oggi non ne ha; uno che li
+// avesse si rifiuta.
+export function comandiInFirebaseJson(x, dove = 'firebase.json') {
+  if (Array.isArray(x)) return x.flatMap((y, i) => comandiInFirebaseJson(y, `${dove}[${i}]`))
+  if (!x || typeof x !== 'object') return []
+  return Object.entries(x).flatMap(([k, y]) => (/^(pre|post)deploy$/.test(k) ? [`${dove}.${k}`] : comandiInFirebaseJson(y, `${dove}.${k}`)))
+}

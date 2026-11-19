@@ -5737,8 +5737,9 @@ requirements:
       DATI_LOCALE; le pagine della privacy e dei cookie sono statiche e si
       scrivono al deploy (scelta di tana-drink del 18/11), quindi dopo un
       cambio di quei dati la regia lancia un aggiornamento alla stessa
-      versione. Gli input di workflow_dispatch hanno un numero massimo [da
-      verificare]: se non bastano, i dati del locale vanno in un input solo.
+      versione. Gli input di workflow_dispatch possono essere fino a 25 dal
+      04/12/2025 (changelog di GitHub): i dati del locale stanno comunque in
+      un input solo, `dati_locale`.
       QUANDO TANA-DRINK DIVENTA PRIVATO: per scaricare dalla Release serve
       un accesso in sola lettura (una GitHub App o un token), da decidere
       allora con Daniele.
@@ -5750,13 +5751,39 @@ requirements:
       dove ci sono credenziali. (6) Test.
       INTERFACCE CON L'APP: la 16 (il pacchetto, dalla Release); la 12
       resta per la compilazione di ripiego.
-    status: todo
+      FATTO IL 19/11/2026, dopo il primo pacchetto di tana-drink (Release
+      v1.10.56-beta, commit 512d6a82): i due workflow hanno gli input
+      `strada` (auto|pacchetto|compilazione), `dati_locale` e `impronta`;
+      `controlla` decide la strada (stradaDi in lib-pacchetto.js; la demo e
+      i locali esistenti restano sulla compilazione); il job `pacchetto`,
+      senza environment né secret e senza installare niente, scarica,
+      controlla, personalizza e ricontrolla (scripts/pacchetto-locale.mjs e
+      scripts/pacchetto-su-disco.mjs, lo stesso codice del lavoro su Google
+      in pausa), e rifiuta anche un pacchetto di un commit diverso da quello
+      del tag e un firebase.json con predeploy/postdeploy, che girerebbero
+      dove ci sono le credenziali; `pubblica` usa la firebase-tools fissata
+      dal pacchetto e manda all'esito strada e impronta. La regia manda i
+      dati del titolare (datiLocalePerIlWorkflow) e l'impronta ricordata
+      (pacchetti/{tag}, scritta con create al primo esito riuscito dal
+      pacchetto), e il backoffice dice «dal pacchetto» o «compilata». Il nome
+      dei file nella Release è quello semplice (tana-drink, 19/11/2026), e
+      functions/.env.<progetto> si scrive dopo il controllo che segue la
+      personalizzazione.
+      MANCA: il primo giro vero su un locale di prova del test (criterio
+      1); l'email per la privacy (REQ-FLOTTA-141); la prova della
+      compilazione di ripiego nel collaudo (F). Le «release immutabili» di
+      GitHub sono spente in tana-drink: è una decisione di Daniele, e finché
+      restano spente la garanzia è l'impronta ricordata.
+    status: partial
     generate_issue: true
     labels: [flotta, contratto-tana-drink, rilascio, sicurezza]
     priority: P1
     test_cases:
       - tests/flotta.test.js
       - tests/contratto.test.js
+      - tests/provisioning.test.js
+      - tests/Backoffice.test.jsx
+      - tests/licenza.test.js
 
   - id: REQ-FLOTTA-132
     title: "I locali nascono nell'Organizzazione stone-b.it: l'account predefinito ha Editor dal Terraform, il Terraform aspetta gli account di Google, e il deploy cancella solo le Functions col cambio di tipo"

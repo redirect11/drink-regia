@@ -112,7 +112,7 @@ export function datiLocaleDa(testo) {
 // Le impostazioni della regia per il lavoro: stanno nell'esecuzione come
 // variabili d'ambiente fissate sul lavoro (non per esecuzione), il segreto
 // della callback da Secret Manager. Sono quelle dell'environment GitHub.
-export const IMPOSTAZIONI = ['TFSTATE_BUCKET', 'RILASCI_BUCKET', 'REGIA_URL', 'REGIA_CALLBACK_URL', 'REGIA_SA_EMAIL', 'BILLING_ACCOUNT_ID', 'ARCHIVIO_BUCKET', 'PROVISIONING_CALLBACK_SECRET']
+export const IMPOSTAZIONI = ['TFSTATE_BUCKET', 'REGIA_URL', 'REGIA_CALLBACK_URL', 'REGIA_SA_EMAIL', 'BILLING_ACCOUNT_ID', 'ARCHIVIO_BUCKET', 'PROVISIONING_CALLBACK_SECRET']
 export function impostazioniMancanti(env = {}) {
   return IMPOSTAZIONI.filter((k) => !env[k])
 }
@@ -148,6 +148,10 @@ export function firebaseDa(c = {}) {
     messagingSenderId: s.messagingSenderId ?? s.VITE_FIREBASE_MESSAGING_SENDER_ID ?? '',
     appId: s.appId ?? s.VITE_FIREBASE_APP_ID,
   }
+  // Le chiavi pubbliche che il progetto non sa dire (l'input `build` di
+  // aggiorna-istanza, REQ-FLOTTA-018): entrano solo se ci sono.
+  const facoltative = { measurementId: s.measurementId ?? s.VITE_FIREBASE_MEASUREMENT_ID, recaptchaSiteKey: s.VITE_RECAPTCHA_SITE_KEY, vapidKey: s.VITE_FIREBASE_VAPID_KEY }
+  for (const [k, v] of Object.entries(facoltative)) if (typeof v === 'string' && v) f[k] = v
   // Gli stessi che personalizza.mjs pretende al deploy: senza authDomain
   // l'accesso non parte, e meglio saperlo prima del deploy.
   for (const k of ['apiKey', 'authDomain', 'projectId', 'appId']) if (!f[k]) throw new Error(`configurazione web senza ${k}`)

@@ -25,7 +25,31 @@ const { defineSecret } = require('firebase-functions/params')
 const eventiStripe = require('./lib/eventistripe.js')
 const { initializeApp } = require('firebase-admin/app')
 const { getFirestore } = require('firebase-admin/firestore')
-const { simulazioneAmmessa, documentoSimulato, preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, eAggiornamento, documentoIstanza, documentoAggiornamento, vincoliEsito, bearerValido, segretoUsabile } = require('./lib/provisioning.js')
+const { simulazioneAmmessa, documentoSimulato, preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, eAggiornamento, documentoIstanza, documentoAggiornamento, vincoliEsito, bearerValido, segretoUsabile, idPacchetto, improntaDaRicordare } = require('./lib/provisioning.js')
+
+// L'IMPRONTA RICORDATA DEL PACCHETTO DI UNA VERSIONE (REQ-FLOTTA-140, (C)).
+// Si legge prima di lanciare un workflow; si scrive al primo esito riuscito
+// dal pacchetto, con create (mai sopra una che c'è già). Se la lettura
+// fallisce si lancia senza: il workflow controlla comunque l'impronta
+// dichiarata dalla Release.
+async function improntaRicordata(ref) {
+  const id = idPacchetto(ref)
+  if (!id) return ''
+  try {
+    return (await db.doc(`pacchetti/${id}`).get()).data()?.impronta || ''
+  } catch (e) {
+    console.error(`[pacchetti] ${id}:`, e?.message || e)
+    return ''
+  }
+}
+async function ricordaImpronta(esito) {
+  const r = improntaDaRicordare(esito)
+  if (!r) return
+  await db.doc(`pacchetti/${r.id}`).create({ impronta: r.impronta, primo_locale: r.slug, commit: r.commit, ricordata_il: new Date().toISOString() }).catch((e) => {
+    // ALREADY_EXISTS (6): c'è già, ed è quella che il workflow ha controllato.
+    if (e?.code !== 6) console.error(`[pacchetti] ${r.id}:`, e?.message || e)
+  })
+}
 const rilasci = require('./lib/rilasci.js')
 const { sceltaCambiata, licenzaProtetta, stessaLicenza, perIlDatabase, scadenzaCoerente } = require('./lib/licenza.js')
 const { rinnovoUrl, fatturaDelRinnovo } = require('./lib/rinnovo.js')
@@ -208,7 +232,7 @@ async function lancia(richiesta) {
     await db.doc(`richieste/${richiesta.slug}`).set({ stato: 'attiva', simulata: true, lanciata_il: adesso, aggiornata_il: adesso }, { merge: true })
     return
   }
-  const corpo = dispatchPayload({ ...richiesta, nome_locale: cliente.nome_locale, piano: cliente.piano, moduli: cliente.moduli, email: cliente.email }, { ref: REF, app: REF_APP, ambiente: AMBIENTE_FLOTTA })
+  const corpo = dispatchPayload({ ...richiesta, nome_locale: cliente.nome_locale, piano: cliente.piano, moduli: cliente.moduli, email: cliente.email }, { ref: REF, app: REF_APP, ambiente: AMBIENTE_FLOTTA, cliente, impronta: await improntaRicordata(REF_APP) })
   const res = await fetch(`https://api.github.com/repos/${REPO}/actions/workflows/${WORKFLOW}/dispatches`, {
     method: 'POST',
     headers: {
@@ -324,6 +348,7 @@ exports.esitoProvisioning = onRequest({ ...OPTS, secrets: [PROVISIONING_CALLBACK
   const aggiornamento = eAggiornamento(esito, prima)
   const vincoli = vincoliEsito(esito, prima, { operazione: aggiornamento ? 'aggiornamento' : 'attivazione' })
   if (!vincoli.ok) return res.status(400).json({ errore: vincoli.perche })
+  await ricordaImpronta(esito)
   // Un locale esistente senza run_id (la Tana, oggi) non lascia il segno:
   // non si cancella quello di un run precedente.
   const segno = vincoli.ultimo_esito ? { ultimo_esito: vincoli.ultimo_esito } : {}
@@ -1286,7 +1311,9 @@ async function lanciaAggiornamento(slug, ref, { rilascio = null, ritorno = false
   // scrive, l'aggiornamento non parte.
   const licenza = await scriviLicenza(slug).catch((e) => ({ ok: false, perche: e?.message || String(e) }))
   if (!licenza.ok) return `La licenza non si è scritta (${licenza.perche}): l’aggiornamento non parte.`
-  const res = await dispatchGitHub(WORKFLOW_AGGIORNA, dispatchAggiornamento(datiIstanza, { ref: REF, app: ref, ambiente: AMBIENTE_FLOTTA, profilo: profilo || ist.profilo || 'completo' }))
+  // I dati del titolare per l'informativa (REQ-FLOTTA-140): non per un
+  // locale esistente, che si compila con la sua cartella.
+  const res = await dispatchGitHub(WORKFLOW_AGGIORNA, dispatchAggiornamento(datiIstanza, { ref: REF, app: ref, ambiente: AMBIENTE_FLOTTA, profilo: profilo || ist.profilo || 'completo', cliente: esistente ? null : cliente, impronta: await improntaRicordata(ref) }))
   const adesso = new Date()
   if (res.status !== 204) {
     // Non è partito: si segna fallito, così il rilascio si ferma e si vede.

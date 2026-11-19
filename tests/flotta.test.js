@@ -105,7 +105,7 @@ describe.each(WORKFLOW)('%s', (_, w, corpo) => {
     // d'altro tipo sono tre, come nell'aggiornamento.
     if (w === provisiona) expect(deploy).toContain('if [ "$tentativo" -ge 3 ]; then exit 1; fi')
     else expect(deploy).toContain('for tentativo in 1 2 3; do')
-    expect(deploy).toContain('npx firebase-tools deploy --only "$SOLO" --project "$PROGETTO" --force')
+    expect(deploy).toContain('npx -y "$FIREBASE_TOOLS" deploy --only "$SOLO" --project "$PROGETTO" --force')
     expect(deploy).toContain('sleep 90')
   })
 
@@ -249,7 +249,8 @@ describe.each(WORKFLOW)('%s: l’app di produzione di quel locale', (_, w) => {
   it('un’app che non sa compilare per un cliente (la 1.9.x) si ferma, su tutte e due le regie', () => {
     const controllo = passo(w, "La versione dell'app va bene per questa regia?").run
     const primo = controllo.slice(0, controllo.indexOf('if [ "$AMBIENTE"'))
-    expect(primo).toMatch(/if \[ ! -f scripts\/genera-cliente\.mjs \]; then[\s\S]*exit 1/)
+    // Solo sulla compilazione (REQ-FLOTTA-140): il pacchetto non lo usa.
+    expect(primo).toMatch(/if \[ "\$STRADA_SCELTA" = "compilazione" \] && \[ ! -f scripts\/genera-cliente\.mjs \]; then[\s\S]*exit 1/)
   })
 })
 
@@ -336,7 +337,7 @@ describe('aggiorna-istanza.yml: la demo', () => {
     const storage = passo(aggiorna, 'Lo Storage della demo chiuso')
     expect(nomi.indexOf('Lo Storage della demo chiuso')).toBe(deploy - 1)
     expect(storage.if).toBe("env.DEMO == 'true'")
-    expect(storage.run).toContain('npx firebase-tools deploy --only storage --project "$PROGETTO" --force')
+    expect(storage.run).toContain('npx -y "$FIREBASE_TOOLS" deploy --only storage --project "$PROGETTO" --force')
     const testo = leggi('infra/demo/firestore.rules').replace(/\/\/.*$/gm, '')
     expect(testo).toMatch(/match \/\{documento=\*\*\} \{\s*allow read, write: if false;\s*\}/)
     expect(testo.match(/allow /g)).toHaveLength(1)
@@ -447,12 +448,16 @@ describe.each(WORKFLOW)('%s: il codice di tana-drink gira solo nel job senza la 
   const eseguonoLApp = (j) => /npm ci --prefix app|npm run build|node scripts\/genera-cliente\.mjs/.test(testo(j))
   const hannoLaChiave = (j) => testo(j).includes('secrets.')
 
-  it('quattro job in fila: controlla → prepara → compila → pubblica', () => {
-    expect(Object.keys(w.jobs)).toEqual(['controlla', 'prepara', 'compila', 'pubblica'])
+  it('i job in fila: controlla → prepara → compila o pacchetto (uno dei due) → pubblica', () => {
+    expect(Object.keys(w.jobs)).toEqual(['controlla', 'prepara', 'compila', 'pacchetto', 'pubblica'])
     expect(w.jobs.controlla.needs).toBeUndefined()
     expect(w.jobs.prepara.needs).toBe('controlla')
     expect(w.jobs.compila.needs).toEqual(['controlla', 'prepara'])
-    expect(w.jobs.pubblica.needs).toEqual(['controlla', 'prepara', 'compila'])
+    expect(w.jobs.pacchetto.needs).toEqual(['controlla', 'prepara'])
+    // REQ-FLOTTA-140: la strada decisa in `controlla` fa partire uno solo dei due.
+    expect(w.jobs.compila.if).toBe("needs.controlla.outputs.strada == 'compilazione'")
+    expect(w.jobs.pacchetto.if).toBe("needs.controlla.outputs.strada == 'pacchetto'")
+    expect(w.jobs.pubblica.needs).toEqual(['controlla', 'prepara', 'compila', 'pacchetto'])
     // La concorrenza per slug resta del workflow intero, non di un job.
     expect(w.concurrency.group).toBe('progetto-drinkpos-${{ inputs.slug }}')
   })
@@ -513,7 +518,7 @@ describe.each(WORKFLOW)('%s: il codice di tana-drink gira solo nel job senza la 
     expect(w.jobs.pubblica.if).toBe('${{ !cancelled() }}')
     const primo = w.jobs.pubblica.steps[0]
     expect(primo.name).toBe('I job precedenti sono riusciti?')
-    expect(primo.if).toBe("needs.compila.result != 'success'")
+    expect(primo.if).toBe("needs.compila.result != 'success' && needs.pacchetto.result != 'success'")
     expect(primo.run).toMatch(/exit 1\s*$/)
     expect(passo(w, 'Esito alla regia').if).toBe('always()')
     expect(passo(w, 'Esito alla regia').env.ESITO_JOB).toBe('${{ job.status }}')
@@ -525,6 +530,58 @@ describe.each(WORKFLOW)('%s: il codice di tana-drink gira solo nel job senza la 
   it('lo SHA di tana-drink pubblicato arriva al job dell’esito e nel callback', () => {
     expect(w.jobs.pubblica.env.COMMIT_APP).toBe('${{ needs.controlla.outputs.commit }}')
     expect(passo(w, 'Esito alla regia').run).toContain('commit: process.env.COMMIT_APP || null')
+  })
+
+  // REQ-FLOTTA-140, (A): la strada si decide in `controlla`, senza
+  // credenziali, con gli script della regia e non con quelli dell'app.
+  it('la strada si decide nel job controlla, prima di guardare l’app, con lo script della regia', () => {
+    const c = w.jobs.controlla
+    expect(c.environment).toBeUndefined()
+    expect(testo(c)).not.toContain('secrets.')
+    expect(c.outputs.strada).toBe('${{ steps.strada.outputs.strada }}')
+    const nomi = c.steps.map((x) => x.name || x.uses)
+    const strada = c.steps.find((x) => x.id === 'strada')
+    expect(strada.run).toBe('node regia/scripts/pacchetto-locale.mjs strada')
+    expect(nomi.indexOf('La strada')).toBeLessThan(nomi.indexOf("La versione dell'app va bene per questa regia?"))
+    // La regia, non tana-drink: il checkout senza `repository`.
+    const regia = c.steps.find((x) => x.with?.path === 'regia')
+    expect(regia.with.repository).toBeUndefined()
+    // Gli input nuovi passano da «Input validi», come gli altri.
+    const validi = passo(w, 'Input validi').run
+    expect(validi).toContain('[[ "$STRADA" =~ ^(auto|pacchetto|compilazione)$ ]]')
+    expect(validi).toContain('[[ "$IMPRONTA_RICORDATA" =~ ^([0-9a-f]{64})?$ ]]')
+    expect(validi).toContain('if [ ${#DATI_LOCALE} -gt 4000 ]')
+    expect(w.on.workflow_dispatch.inputs.strada).toMatchObject({ type: 'choice', options: ['auto', 'pacchetto', 'compilazione'], default: 'auto' })
+  })
+
+  // (B): il pacchetto si scarica, si controlla e si personalizza dove
+  // prima si compilava: senza environment, senza secret, senza installare
+  // niente. personalizza.mjs è l'unico codice di tana-drink che gira, e qui.
+  it('il job del pacchetto non ha environment né secret, non installa niente e consegna app/ come compila', () => {
+    const j = w.jobs.pacchetto
+    expect(j.environment).toBeUndefined()
+    expect(testo(j)).not.toContain('secrets.')
+    expect(testo(j)).not.toMatch(/npm ci|npm run build|GOOGLE_APPLICATION_CREDENTIALS|sa\.json/)
+    expect(j.steps.some((x) => x.with?.repository)).toBe(false)
+    const prepara = j.steps.find((x) => x.id === 'prepara')
+    expect(prepara.run).toBe('node regia/scripts/pacchetto-locale.mjs prepara')
+    expect(prepara.env).toMatchObject({ COMMIT_APP: '${{ needs.controlla.outputs.commit }}', USCITA: '${{ github.workspace }}/app' })
+    expect(j.outputs).toEqual({ impronta: '${{ steps.prepara.outputs.impronta }}', firebase_tools: '${{ steps.prepara.outputs.firebase_tools }}' })
+    const su = j.steps.find((x) => x.uses?.startsWith('actions/upload-artifact'))
+    expect(su.with).toMatchObject({ name: 'app', path: 'app.tgz', 'retention-days': 1 })
+  })
+
+  // (E) e interfaccia 16: col pacchetto si pubblica con la sua
+  // firebase-tools, e l'esito dice la strada e l'impronta.
+  it('pubblica usa la firebase-tools fissata dal pacchetto e riferisce strada e impronta alla regia', () => {
+    const e = w.jobs.pubblica.env
+    expect(e.FIREBASE_TOOLS).toBe("${{ needs.pacchetto.outputs.firebase_tools && format('firebase-tools@{0}', needs.pacchetto.outputs.firebase_tools) || 'firebase-tools' }}")
+    expect(e.STRADA_USATA).toBe('${{ needs.controlla.outputs.strada }}')
+    expect(e.IMPRONTA_USATA).toBe('${{ needs.pacchetto.outputs.impronta }}')
+    expect(testo(w.jobs.pubblica)).not.toMatch(/npx firebase-tools /)
+    expect(passo(w, 'Esito alla regia').run).toContain('strada: process.env.STRADA_USATA || null, impronta: process.env.IMPRONTA_USATA || null')
+    // Il pacchetto non ha package.json nella radice: la versione la dice pacchetto.json.
+    expect(passo(w, 'Versione pubblicata').run).toContain("if [ -f app/pacchetto.json ]; then V=$(node -p \"require('./app/pacchetto.json').versione\")")
   })
 })
 
@@ -620,7 +677,7 @@ describe('infra/istanza/main.tf', () => {
       for (const w of [provisiona, aggiorna]) {
         const passi = w.jobs.pubblica.steps
         const storage = passi.findIndex((x) => x.name === 'Lo Storage del locale')
-        const deploy = passi.findIndex((x) => /firebase-tools deploy --only "\$SOLO"/.test(x.run || ''))
+        const deploy = passi.findIndex((x) => /deploy --only "\$SOLO"/.test(x.run || ''))
         expect(storage).toBeGreaterThan(-1)
         expect(storage).toBeLessThan(deploy)
       }
@@ -1136,9 +1193,9 @@ describe('il primo deploy delle Functions di un locale nuovo', () => {
   it('la nascita cancella le Functions rimaste a metà prima di riprovare; l’aggiornamento no', () => {
     const deploy = passo(provisiona, 'Deploy regole, indici, Functions e hosting').run
     expect(deploy.startsWith('set -o pipefail\n')).toBe(true)
-    expect(deploy).toContain('npx firebase-tools deploy --only "$SOLO" --project "$PROGETTO" --force 2>&1 | tee "$RUNNER_TEMP/deploy.log"')
+    expect(deploy).toContain('npx -y "$FIREBASE_TOOLS" deploy --only "$SOLO" --project "$PROGETTO" --force 2>&1 | tee "$RUNNER_TEMP/deploy.log"')
     expect(deploy).toContain('A_META=$(node ../scripts/funzioni-fallite.mjs --cambio-di-tipo "$RUNNER_TEMP/deploy.log")')
-    expect(deploy).toContain('npx firebase-tools functions:delete "$nome" --region "$regione" --project "$PROGETTO" --force || true')
+    expect(deploy).toContain('npx -y "$FIREBASE_TOOLS" functions:delete "$nome" --region "$regione" --project "$PROGETTO" --force || true')
     expect(deploy).toContain('done <<< "$A_META"')
     // Si cancella solo dopo un tentativo fallito; dopo una cancellazione si
     // riprova subito (il «cambio di tipo» ne scopre una per volta), finché
@@ -1410,7 +1467,9 @@ describe('il lavoro della flotta su Google (REQ-FLOTTA-138)', async () => {
   it('le impostazioni della regia mancanti si vedono tutte', () => {
     expect(L.impostazioniMancanti({ TFSTATE_BUCKET: 'x' })).toEqual(L.IMPOSTAZIONI.filter((k) => k !== 'TFSTATE_BUCKET'))
     expect(L.IMPOSTAZIONI).toContain('PROVISIONING_CALLBACK_SECRET')
-    expect(L.IMPOSTAZIONI).toContain('RILASCI_BUCKET')
+    // Il bucket dei pacchetti è stato tolto il 18/11/2026: il pacchetto
+    // viene dalla Release di tana-drink (REQ-FLOTTA-137).
+    expect(L.IMPOSTAZIONI).not.toContain('RILASCI_BUCKET')
   })
 
   it('il blocco per progetto: un nome per locale, morto dopo il tempo massimo col margine', () => {
@@ -1487,7 +1546,8 @@ describe('il lavoro della flotta su Google (REQ-FLOTTA-138)', async () => {
     expect(L.importNonAmmessi('const a = require("child_process")')).toEqual(['child_process'])
     expect(L.importNonAmmessi("const n = 'x'; await import(n)")).toEqual(['(import calcolato)'])
     // E gira con un ambiente vuoto: il segreto della callback non lo vede.
-    expect(lavoro).toMatch(/'personalizza\.mjs'[^\n]*envSolo: \{ PATH: env\.PATH, HOME: TMP \}/)
+    // Il codice sta in pacchetto-su-disco.mjs, lo stesso dei workflow.
+    expect(leggi('scripts/pacchetto-su-disco.mjs')).toMatch(/'personalizza\.mjs'[^\n]*env: \{ PATH: process\.env\.PATH \|\| '', HOME: tmp \}/)
   })
 
   it('l’esito ha lo stesso corpo della callback dei workflow, e la regia lo accetta', () => {
@@ -1532,8 +1592,8 @@ describe('il lavoro della flotta su Google (REQ-FLOTTA-138)', async () => {
     expect(L.passi({ comando: 'aggiorna', profilo: 'completo' })).toContain('account-ai-locale')
     expect(L.passi({ comando: 'elimina', profilo: 'completo' })).toEqual(['blocco', 'progetto-della-regia', 'backup-leggibile', 'export-nativo', 'archivio', 'verifica-backup', 'elimina-progetto', 'stato-terraform', 'esito'])
     // Nello script: il pacchetto prima del Terraform.
-    expect(lavoro.indexOf('const pacchetto = scaricaPacchetto(input)')).toBeGreaterThan(0)
-    expect(lavoro.indexOf('const pacchetto = scaricaPacchetto(input)')).toBeLessThan(lavoro.indexOf('await terraformAttiva(input, account)'))
+    expect(lavoro.indexOf('const pacchetto = await scaricaPacchetto(input)')).toBeGreaterThan(0)
+    expect(lavoro.indexOf('const pacchetto = await scaricaPacchetto(input)')).toBeLessThan(lavoro.indexOf('await terraformAttiva(input, account)'))
   })
 
   it('lo script non usa GitHub, non scrive nel database della regia e non mette input in una riga di shell', () => {

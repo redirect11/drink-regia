@@ -8,6 +8,7 @@
 const { sceltaPulita } = require('./abbonamento.js')
 const { eGratuito, profiloDi } = require('./free.js')
 const { dominiDi } = require('./moduliapp.js')
+const { datiDelLocale } = require('./passaggio.js')
 
 const SLUG = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/
 const STATI = ['in coda', 'in corso', 'attiva', 'errore']
@@ -81,12 +82,45 @@ function richiestaCoerente(richiesta, cliente) {
 const AMBIENTI = ['produzione', 'test']
 const ambienteValido = (a) => (AMBIENTI.includes(a) ? a : 'produzione')
 
+// IL PACCHETTO NEI WORKFLOW (REQ-FLOTTA-140). I dati del titolare per
+// l'informativa del locale, che il pacchetto scrive al deploy: quelli che la
+// regia sa (datiDelLocale, gli stessi che passano a settings/bar), senza il
+// nome (il workflow ha già il suo input) e senza i vuoti. Il workflow li
+// rilegge campo per campo (scripts/lib-lavoro.js, datiLocaleDa: una riga, al
+// più 200 caratteri): qui si portano già in quella forma, perché un
+// indirizzo scritto su due righe non fermi un deploy.
+const CAMPI_DATI_LOCALE = ['venue_legal_name', 'venue_address', 'venue_postal_city', 'venue_city', 'venue_phone', 'venue_vat_number', 'venue_tax_code', 'venue_legal_address', 'venue_email']
+function datiLocalePerIlWorkflow(cliente) {
+  if (!cliente) return ''
+  const dati = datiDelLocale(cliente)
+  const fuori = {}
+  for (const k of CAMPI_DATI_LOCALE) {
+    // eslint-disable-next-line no-control-regex -- i caratteri di controllo sono proprio quelli da togliere
+    const v = String(dati[k] ?? '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200)
+    if (v) fuori[k] = v
+  }
+  return Object.keys(fuori).length ? JSON.stringify(fuori) : ''
+}
+
+// L'impronta del pacchetto che la regia ricorda per una versione ((C) della
+// REQ-FLOTTA-140): si scrive al primo esito riuscito dal pacchetto e da lì
+// la si passa al workflow, che rifiuta un archivio diverso. Il documento è
+// pacchetti/{tag}; solo i tag di versione ne hanno uno.
+const TAG_VERSIONE = /^v\d+\.\d+\.\d+(?:-beta(?:\.\d+)?)?$/
+const IMPRONTA = /^[0-9a-f]{64}$/
+const idPacchetto = (ref) => (TAG_VERSIONE.test(ref || '') ? ref : null)
+function improntaDaRicordare(esito) {
+  if (!esito || esito.stato !== 'attiva' || esito.strada !== 'pacchetto' || !IMPRONTA.test(esito.impronta || '')) return null
+  const id = idPacchetto(esito.ref)
+  return id ? { id, impronta: esito.impronta, slug: esito.slug, commit: esito.commit || null } : null
+}
+
 // Il corpo della chiamata `POST /repos/{repo}/actions/workflows/{file}/dispatches`.
 // Gli input sono stringhe: GitHub non accetta altro. Due versioni diverse,
 // dal 29/10/2026 che i workflow stanno nella regia: `ref` in cima è il
 // ramo della regia che contiene il workflow (di norma main), `app` è la
 // versione di tana-drink da pubblicare (REQ-FLOTTA-009).
-function dispatchPayload(richiesta, { ref = 'main', app = 'main', ambiente = 'produzione' } = {}) {
+function dispatchPayload(richiesta, { ref = 'main', app = 'main', ambiente = 'produzione', cliente = null, impronta = '' } = {}) {
   if (!richiesta || !SLUG.test(richiesta.slug || '')) throw new Error('Richiesta senza uno slug valido')
   return {
     ref,
@@ -103,6 +137,11 @@ function dispatchPayload(richiesta, { ref = 'main', app = 'main', ambiente = 'pr
       // Leggero per il Free (niente Functions, Storage, segreti: costo
       // zero), completo per gli altri (REQ-FLOTTA-015).
       profilo: profiloDi(richiesta.piano),
+      // Il pacchetto della Release se c'è, se no la compilazione
+      // (REQ-FLOTTA-140): decide il workflow.
+      strada: 'auto',
+      dati_locale: datiLocalePerIlWorkflow(cliente),
+      impronta: IMPRONTA.test(impronta || '') ? impronta : '',
     },
   }
 }
@@ -114,7 +153,7 @@ const profiloValido = (p) => (PROFILI.includes(p) ? p : 'completo')
 // workflow (aggiorna-istanza.yml), con la versione dell'app da pubblicare
 // e il profilo: quello che l'istanza ha, o «completo» quando un locale Free
 // passa a un piano a pagamento.
-function dispatchAggiornamento(istanza, { ref = 'main', app = 'main', ambiente = 'produzione', profilo = 'completo' } = {}) {
+function dispatchAggiornamento(istanza, { ref = 'main', app = 'main', ambiente = 'produzione', profilo = 'completo', cliente = null, impronta = '' } = {}) {
   if (!istanza || !SLUG.test(istanza.slug || '')) throw new Error('Istanza senza uno slug valido')
   return {
     ref,
@@ -134,6 +173,12 @@ function dispatchAggiornamento(istanza, { ref = 'main', app = 'main', ambiente =
       // locale esistente, come l'email.
       uid: String(istanza.uid || ''),
       build: istanza.build && Object.keys(istanza.build).length ? JSON.stringify(istanza.build) : '',
+      // REQ-FLOTTA-140, come nell'attivazione. Dopo un cambio dei dati del
+      // titolare, un aggiornamento alla stessa versione riscrive
+      // l'informativa (le sue pagine sono statiche, scritte al deploy).
+      strada: 'auto',
+      dati_locale: datiLocalePerIlWorkflow(cliente),
+      impronta: IMPRONTA.test(impronta || '') ? impronta : '',
     },
   }
 }
@@ -179,6 +224,10 @@ function esitoValido(body) {
     operazione: ['attivazione', 'aggiornamento'].includes(body.operazione) ? body.operazione : null,
     // Con quale profilo è stato pubblicato (REQ-FLOTTA-015).
     profilo: PROFILI.includes(body.profilo) ? body.profilo : null,
+    // Da dove viene l'app pubblicata (REQ-FLOTTA-140): il pacchetto della
+    // Release, con la sua impronta, o la compilazione.
+    strada: ['pacchetto', 'compilazione'].includes(body.strada) ? body.strada : null,
+    impronta: body.strada === 'pacchetto' && IMPRONTA.test(body.impronta || '') ? body.impronta : null,
     errore: body.stato === 'errore' ? String(body.errore || (body.operazione === 'aggiornamento' ? 'Aggiornamento fallito' : 'Attivazione fallita')) : null,
   }
 }
@@ -215,6 +264,8 @@ function documentoAggiornamento(esito, prima = null, adesso = new Date()) {
     commit: riuscito ? esito.commit ?? prima?.commit ?? null : prima?.commit ?? null,
     ambiente: esito.ambiente ?? prima?.ambiente ?? null,
     profilo: riuscito ? esito.profilo ?? prima?.profilo ?? null : prima?.profilo ?? null,
+    strada: riuscito ? esito.strada ?? prima?.strada ?? null : prima?.strada ?? null,
+    impronta: riuscito ? (esito.strada ? esito.impronta : prima?.impronta) ?? null : prima?.impronta ?? null,
     aggiornamento: {
       ...agg,
       ref: agg.ref ?? esito.ref ?? null,
@@ -240,6 +291,8 @@ function documentoIstanza(esito, prima = null, adesso = new Date()) {
     ref: esito.ref ?? prima?.ref ?? null,
     commit: esito.commit ?? prima?.commit ?? null,
     profilo: esito.profilo ?? prima?.profilo ?? null,
+    strada: esito.strada ?? prima?.strada ?? null,
+    impronta: (esito.strada ? esito.impronta : prima?.impronta) ?? null,
     errore: esito.errore,
     aggiornata_il: adesso.toISOString(),
   }
@@ -347,4 +400,4 @@ function documentoSimulato(slug, prima = null, adesso = new Date()) {
   return { ...doc, progetto: null, simulata: true }
 }
 
-module.exports = { simulazioneAmmessa, documentoSimulato, preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, eAggiornamento, documentoIstanza, documentoAggiornamento, vincoliEsito, progettoAtteso, urlAmmesso, runIdValido, istanteValido, bearerValido, segretoUsabile, STATI, PREFISSO_PROGETTI, ESITO_VECCHIO_MS, ESITO_FUTURO_MS, SEGRETO_MIN }
+module.exports = { CAMPI_DATI_LOCALE, datiLocalePerIlWorkflow, idPacchetto, improntaDaRicordare, simulazioneAmmessa, documentoSimulato, preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, eAggiornamento, documentoIstanza, documentoAggiornamento, vincoliEsito, progettoAtteso, urlAmmesso, runIdValido, istanteValido, bearerValido, segretoUsabile, STATI, PREFISSO_PROGETTI, ESITO_VECCHIO_MS, ESITO_FUTURO_MS, SEGRETO_MIN }

@@ -87,6 +87,22 @@ on:
         type: choice
         options: [completo, leggero]
         default: completo
+      strada:
+        description: 'auto (il pacchetto della Release del tag, se c’è) | pacchetto (solo quello) | compilazione (come prima)'
+        required: false
+        type: choice
+        options: [auto, pacchetto, compilazione]
+        default: auto
+      dati_locale:
+        description: 'I dati del titolare per l’informativa del locale, in JSON (REQ-FLOTTA-140)'
+        required: false
+        type: string
+        default: ''
+      impronta:
+        description: 'L’impronta del pacchetto che la regia ricorda per questa versione (vuota se è la prima volta)'
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -117,6 +133,12 @@ env:
   # La «Chiave AI» (REGIA_AI_KEY) non c'è più: l'AI del locale passa dal
   # gettone di Google del suo account ai-locale (REQ-FLOTTA-079).
   SEGRETI_APP: SUMUP_API_KEY
+  # LA STRADA (REQ-FLOTTA-140): il pacchetto della Release di tana-drink o
+  # la compilazione di prima. I dati del titolare e l'impronta ricordata
+  # servono solo al pacchetto.
+  STRADA: ${{ inputs.strada }}
+  DATI_LOCALE: ${{ inputs.dati_locale }}
+  IMPRONTA_RICORDATA: ${{ inputs.impronta }}
 
 jobs:
   # 1. I CONTROLLI, senza credenziali: fermarsi qui non costa niente, nessun
@@ -131,6 +153,9 @@ jobs:
       # job e l'altro non cambia quello che si pubblica.
       commit: ${{ steps.app.outputs.commit }}
       ramo: ${{ steps.app.outputs.ramo }}
+      # pacchetto | compilazione (REQ-FLOTTA-140), e perché.
+      strada: ${{ steps.strada.outputs.strada }}
+      perche: ${{ steps.strada.outputs.perche }}
     steps:
       - name: Input validi
         run: |
@@ -143,6 +168,11 @@ jobs:
           [[ "$REF_APP" =~ ^[A-Za-z0-9._/-]{1,100}$ ]] || { echo "::error::ref non valido."; exit 1; }
           [[ "$AMBIENTE" =~ ^(produzione|test)$ ]] || { echo "::error::ambiente non valido."; exit 1; }
           [[ "$PROFILO" =~ ^(completo|leggero)$ ]] || { echo "::error::profilo non valido."; exit 1; }
+          [[ "$STRADA" =~ ^(auto|pacchetto|compilazione)$ ]] || { echo "::error::strada non valida."; exit 1; }
+          [[ "$IMPRONTA_RICORDATA" =~ ^([0-9a-f]{64})?$ ]] || { echo "::error::impronta non valida."; exit 1; }
+          # I dati del titolare si controllano campo per campo nello script
+          # del pacchetto (datiLocaleDa); qui solo la misura.
+          if [ ${#DATI_LOCALE} -gt 4000 ]; then echo "::error::dati_locale troppo lunghi."; exit 1; fi
           if [ -z "$NOME" ] || [ ${#NOME} -gt 80 ] || [[ "$NOME" =~ [[:cntrl:]] ]]; then echo "::error::Nome del locale non valido."; exit 1; fi
 
       # APP DI PRODUZIONE (REQ-FLOTTA-009): un locale della regia di
@@ -150,6 +180,24 @@ jobs:
       # build è di produzione. Un ramo di lavoro (`develop`) passa solo
       # sulla regia di test, con un avviso. «In produzione solo il tag su
       # main» (l'utente, 30/10/2026).
+      # LA STRADA (REQ-FLOTTA-140): il pacchetto se la Release del tag lo
+      # ha, la compilazione altrimenti o se chi lancia la chiede. Gli script
+      # della regia, senza dipendenze: solo Node.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: regia
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - name: La strada
+        id: strada
+        env:
+          DEMO: false
+          ESISTENTE: false
+        run: node regia/scripts/pacchetto-locale.mjs strada
+
       - name: È un rilascio?
         run: |
           if [ "$REF_APP" = "main" ] || [[ "$REF_APP" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -179,8 +227,10 @@ jobs:
       - name: La versione dell'app va bene per questa regia?
         id: app
         working-directory: app
+        env:
+          STRADA_SCELTA: ${{ steps.strada.outputs.strada }}
         run: |
-          if [ ! -f scripts/genera-cliente.mjs ]; then
+          if [ "$STRADA_SCELTA" = "compilazione" ] && [ ! -f scripts/genera-cliente.mjs ]; then
             echo "::error::«$REF_APP» di tana-drink non sa compilare per un cliente (manca scripts/genera-cliente.mjs): serve la 1.10 o una successiva."
             exit 1
           fi
@@ -373,6 +423,7 @@ jobs:
   compila:
     name: Compila l'app per ${{ inputs.slug }}
     needs: [controlla, prepara]
+    if: needs.controlla.outputs.strada == 'compilazione'
     runs-on: ubuntu-latest
     steps:
       # Lo stesso commit che `controlla` ha approvato, non il ref di nuovo.
@@ -475,6 +526,54 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
+  # 3b. IL PACCHETTO (REQ-FLOTTA-140), al posto della build quando la
+  #     strada è «pacchetto»: lo scarica dalla Release del tag di tana-drink,
+  #     lo controlla tutto (impronta, elenco, manifesto, impronte dei file,
+  #     import di personalizza.mjs, firebase.json), lo personalizza per il
+  #     locale e lo ricontrolla. Senza credenziali e senza environment, come
+  #     `compila`: personalizza.mjs è codice di tana-drink. Qui non si
+  #     installa niente: le dipendenze delle Functions sono nel pacchetto.
+  pacchetto:
+    name: Il pacchetto per ${{ inputs.slug }}
+    needs: [controlla, prepara]
+    if: needs.controlla.outputs.strada == 'pacchetto'
+    runs-on: ubuntu-latest
+    outputs:
+      impronta: ${{ steps.prepara.outputs.impronta }}
+      firebase_tools: ${{ steps.prepara.outputs.firebase_tools }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: regia
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: config-web
+          path: ${{ runner.temp }}/config-web
+
+      - name: Scarica, controlla e personalizza
+        id: prepara
+        env:
+          COMMIT_APP: ${{ needs.controlla.outputs.commit }}
+          CONFIG_WEB: ${{ runner.temp }}/config-web/config-web.json
+          LAVORO: ${{ runner.temp }}/pacchetto
+          USCITA: ${{ github.workspace }}/app
+        run: node regia/scripts/pacchetto-locale.mjs prepara
+
+      - name: Il pacchetto per il deploy
+        run: tar -czf app.tgz app
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: app
+          path: app.tgz
+          retention-days: 1
+          if-no-files-found: error
+
   # 4. IL DEPLOY, con la chiave: la licenza, lo Storage, i segreti, il
   #    deploy, il titolare, l'esito. L'app arriva già compilata.
   pubblica:
@@ -482,7 +581,7 @@ jobs:
     # Anche se un job prima è fallito: l'esito deve arrivare alla regia
     # (il primo passo fa fallire il job, e poi parla solo «Esito alla regia»).
     if: ${{ !cancelled() }}
-    needs: [controlla, prepara, compila]
+    needs: [controlla, prepara, compila, pacchetto]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -492,9 +591,15 @@ jobs:
       URL_ISTANZA: ${{ needs.prepara.outputs.url }}
       # Lo SHA di tana-drink che si pubblica (REQ-FLOTTA-048).
       COMMIT_APP: ${{ needs.controlla.outputs.commit }}
+      # La strada e, per il pacchetto, la sua impronta e la firebase-tools
+      # fissata dal pacchetto (interfaccia 16). La compilazione usa quella di
+      # sempre.
+      STRADA_USATA: ${{ needs.controlla.outputs.strada }}
+      IMPRONTA_USATA: ${{ needs.pacchetto.outputs.impronta }}
+      FIREBASE_TOOLS: ${{ needs.pacchetto.outputs.firebase_tools && format('firebase-tools@{0}', needs.pacchetto.outputs.firebase_tools) || 'firebase-tools' }}
     steps:
       - name: I job precedenti sono riusciti?
-        if: needs.compila.result != 'success'
+        if: needs.compila.result != 'success' && needs.pacchetto.result != 'success'
         env:
           ESITI: ${{ toJSON(needs.*.result) }}
         run: |
@@ -583,12 +688,12 @@ jobs:
           tentativo=1
           cancellate=0
           while :; do
-            if npx firebase-tools deploy --only "$SOLO" --project "$PROGETTO" --force 2>&1 | tee "$RUNNER_TEMP/deploy.log"; then exit 0; fi
+            if npx -y "$FIREBASE_TOOLS" deploy --only "$SOLO" --project "$PROGETTO" --force 2>&1 | tee "$RUNNER_TEMP/deploy.log"; then exit 0; fi
             A_META=$(node ../scripts/funzioni-fallite.mjs --cambio-di-tipo "$RUNNER_TEMP/deploy.log")
             if [ -n "$A_META" ] && [ "$cancellate" -lt 40 ]; then
               while read -r nome regione; do
                 echo "La Function $nome ($regione) è rimasta a metà: la cancello prima di riprovare."
-                npx firebase-tools functions:delete "$nome" --region "$regione" --project "$PROGETTO" --force || true
+                npx -y "$FIREBASE_TOOLS" functions:delete "$nome" --region "$regione" --project "$PROGETTO" --force || true
                 cancellate=$((cancellate + 1))
               done <<< "$A_META"
               echo "::warning::Deploy non riuscito: cancellate le Functions a metà ($cancellate finora), riprovo subito."
@@ -612,7 +717,9 @@ jobs:
         run: node scripts/titolare-istanza.mjs --project "$PROGETTO" --uid "$UID_TITOLARE" --email "$EMAIL_TITOLARE" --env app/.env --sito "$URL_ISTANZA"
 
       - name: Versione pubblicata
-        run: echo "VERSIONE=v$(node -p "require('./app/package.json').version")" >> "$GITHUB_ENV"
+        run: |
+          if [ -f app/pacchetto.json ]; then V=$(node -p "require('./app/pacchetto.json').versione"); else V=$(node -p "require('./app/package.json').version"); fi
+          echo "VERSIONE=v$V" >> "$GITHUB_ENV"
 
       # L'ESITO ALLA REGIA, sempre: anche un fallimento si deve vedere nella
       # dashboard del titolare, non solo qui. Porta anche `commit`, lo SHA di
@@ -636,6 +743,7 @@ jobs:
               body: JSON.stringify({ slug, stato, url: u || null, progetto, versione: versione || null, errore: errore || null,
                 ambiente: "produzione", operazione: "attivazione", profilo: process.env.PROFILO || null, ref: process.env.REF_APP || null,
                 commit: process.env.COMMIT_APP || null,
+                strada: process.env.STRADA_USATA || null, impronta: process.env.IMPRONTA_USATA || null,
                 run_id: Number(process.env.RUN_ID), inviato_il: new Date().toISOString() }) })
               .then((r) => (r.status === 429 && n < 5 ? attendi(n) : r), (e) => { if (n < 5) return attendi(n); throw e; })
               .then((r) => (typeof r === "number" ? manda(r) : r));

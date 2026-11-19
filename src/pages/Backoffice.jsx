@@ -948,6 +948,9 @@ function SchedaLocale({ riga, az, lanciato, inAvvio = false, cambiaAperto, onCam
             <span data-testid={`versione-${c.slug}`}>{versione || '—'}</span>
             {!istanza?.versione && istanza?.presentazione?.versione && <span className="muted"> · detta dall’app</span>}
             {istanza?.ref && istanza.ref !== 'main' && <span className="muted"> · da {istanza.ref}</span>}
+            {/* Da dove viene (REQ-FLOTTA-140): il pacchetto della Release di
+                tana-drink o la compilazione di prima. */}
+            {istanza?.strada && <span className="muted"> · {istanza.strada === 'pacchetto' ? 'dal pacchetto' : 'compilata'}</span>}
           </div>
           {/* L'aggiornamento: in corso con un segno che gira e da quanto (la
               pagina si ricarica da sola), riuscito con la versione a cui è

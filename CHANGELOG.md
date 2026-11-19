@@ -6,6 +6,16 @@ data.
 
 ## 0.5.1 (in lavorazione)
 
+- Un locale si pubblica dal pacchetto che tana-drink allega alla Release
+  del suo tag, senza compilare l'app: i workflow lo scaricano, ne
+  controllano l'impronta e ogni file, lo personalizzano per il locale coi
+  dati del titolare per l'informativa e lo ricontrollano, tutto in un job
+  senza credenziali. Se la Release non ha il pacchetto, o se lo si chiede,
+  si compila come prima; la demo e i locali curati a mano restano sulla
+  compilazione. La regia ricorda l'impronta del primo pacchetto usato per
+  una versione e rifiuta un archivio diverso, e il backoffice dice se l'app
+  di un locale è arrivata dal pacchetto o è stata compilata
+  (REQ-FLOTTA-140).
 - La flotta si prepara a non compilare più l'app per ogni locale.
   tana-drink compilerà una volta per versione e pubblicherà il pacchetto
   nella Release del tag; la regia lo controlla (formato, impronte, nessun
