@@ -476,10 +476,18 @@ anche dopo come ripiego.
   (`problemiDelManifesto`, `problemiDeiFile`). Se è una beta lo dice
   `beta`, e la produzione non la accetta (`versioneAmmessa`). Il `commit`
   deve essere quello del tag che il workflow ha controllato (per la
-  produzione: sta su `main`), e `firebase.json` non deve avere comandi
-  `predeploy`/`postdeploy`, che girerebbero dove ci sono le credenziali
-  (`comandiInFirebaseJson`). Il codice è in `scripts/pacchetto-su-disco.mjs`
-  e `scripts/pacchetto-locale.mjs`.
+  produzione: sta su `main`), e `firebase.json` passa da una lista di
+  ammessi (`problemiDiFirebaseJson`): sito in `dist`, Functions in
+  `functions`, regole nei file del pacchetto, sezioni `firestore`,
+  `storage`, `functions`, `hosting`, `emulators`, niente
+  `predeploy`/`postdeploy` né `hosting.source`, che girerebbero dove ci sono
+  le credenziali. Nei workflow il pacchetto si controlla tutto nel job
+  `controlla`, prima del Terraform; il job che pubblica, prima delle
+  credenziali, ricontrolla l'app personalizzata contro il pacchetto
+  riscaricato (nessun collegamento, nessun file in più, ogni file non
+  personalizzabile uguale). I dati del titolare che il `campiVenue` del
+  pacchetto non conosce restano fuori. Il codice è in
+  `scripts/pacchetto-su-disco.mjs` e `scripts/pacchetto-locale.mjs`.
 - **La personalizzazione al deploy**: `node personalizza.mjs --dist <cartella>
   --configurazione <file.json> [--pubblica <cartella>]` riempie i
   segnaposto di `index.html`, scrive il manifest, mette i file del cliente

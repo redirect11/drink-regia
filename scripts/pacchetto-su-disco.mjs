@@ -8,9 +8,9 @@
 // motivo, da riferire a tana-drink così com'è.
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdirSync, readFileSync, writeFileSync, readdirSync, statSync, existsSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync, readdirSync, lstatSync, existsSync } from 'node:fs'
 import { join, relative, resolve, dirname, sep } from 'node:path'
-import { problemiDelManifesto, problemiDeiFile, versioneAmmessa, nomeArchivio, nomeImpronta, indirizzoNellaRelease, improntaDalFile, problemiDellArchivio, comandiInFirebaseJson } from './lib-pacchetto.js'
+import { problemiDelManifesto, problemiDeiFile, versioneAmmessa, nomeArchivio, nomeImpronta, indirizzoNellaRelease, improntaDalFile, problemiDellArchivio, problemiDiFirebaseJson } from './lib-pacchetto.js'
 import { problemiDellElenco, importNonAmmessi } from './lib-lavoro.js'
 
 export class ErrorePacchetto extends Error {}
@@ -18,13 +18,20 @@ const rifiuta = (msg) => { throw new ErrorePacchetto(msg) }
 
 export const sha256 = (file) => createHash('sha256').update(readFileSync(file)).digest('hex')
 
+// I file di una cartella, coi percorsi del pacchetto. Senza seguire i
+// collegamenti (lstat): un collegamento non è un file del pacchetto, e lo si
+// rifiuta (revisione della PR #345: personalizza.mjs poteva lasciarne uno
+// verso un file delle credenziali del job che pubblica).
 export function fileDi(cartella) {
   const fuori = []
   const giro = (d) => {
     for (const n of readdirSync(d)) {
       const p = join(d, n)
-      if (statSync(p).isDirectory()) giro(p)
-      else fuori.push(relative(cartella, p).split(sep).join('/'))
+      const st = lstatSync(p)
+      const rel = relative(cartella, p).split(sep).join('/')
+      if (st.isDirectory()) giro(p)
+      else if (st.isFile()) fuori.push(rel)
+      else rifiuta(`${rel} non è un file né una cartella (un collegamento?)`)
     }
   }
   giro(cartella)
@@ -49,10 +56,15 @@ async function scarica(indirizzo, destinazione, fetchFn) {
 }
 
 // Il pacchetto c'è nella Release? Basta l'impronta: è allegata dopo
-// l'archivio, quindi se c'è il pacchetto è completo.
+// l'archivio, quindi se c'è il pacchetto è completo. Solo un 404 vuol dire
+// «non c'è»: un altro errore di GitHub ferma il lavoro, invece di far
+// compilare in silenzio un locale che il pacchetto ce l'ha.
 export async function cèNellaRelease({ tipo, versione, fetchFn = fetch }) {
-  const r = await fetchFn(indirizzoNellaRelease(nomeImpronta(tipo, versione), versione), { method: 'HEAD', redirect: 'follow' })
-  return r.ok
+  const indirizzo = indirizzoNellaRelease(nomeImpronta(tipo, versione), versione)
+  const r = await fetchFn(indirizzo, { method: 'HEAD', redirect: 'follow' })
+  if (r.ok) return true
+  if (r.status === 404) return false
+  rifiuta(`${indirizzo} ha risposto ${r.status}: non si sa se il pacchetto c'è`)
 }
 
 // Scarica impronta e archivio in `cartella` e li confronta: con l'impronta
@@ -116,8 +128,8 @@ export function apriPacchetto({ archivio, cartella, tipo, versione, ambiente, co
   controllaFile(cartella, m)
   let fj
   try { fj = JSON.parse(readFileSync(join(cartella, 'firebase.json'), 'utf8')) } catch { rifiuta('firebase.json non è JSON') }
-  const hook = comandiInFirebaseJson(fj)
-  if (hook.length) rifiuta(`firebase.json fa girare comandi al deploy, dove ci sono le credenziali: ${hook.join(', ')}`)
+  const pf = problemiDiFirebaseJson(fj)
+  if (pf.length) rifiuta(`firebase.json non va:\n  ${pf.join('\n  ')}`)
   if (tipo === 'locali') controllaPersonalizza(cartella)
   return { cartella, manifesto: m }
 }
@@ -136,4 +148,42 @@ export function personalizzaPacchetto({ cartella, manifesto, configurazione, tmp
   if (!r.ok) rifiuta(`personalizza.mjs è uscito con ${r.status}:\n${r.err.trim()}`)
   if (!existsSync(join(cartella, 'dist/configurazione.json'))) rifiuta('personalizza.mjs non ha scritto dist/configurazione.json')
   controllaFile(cartella, manifesto, { dopo: true })
+}
+
+// IL RICONTROLLO NEL JOB CHE PUBBLICA (revisione della PR #345). Il sito
+// personalizzato arriva da un job dove ha girato personalizza.mjs, codice di
+// tana-drink: prima delle credenziali il job che pubblica non si fida di
+// niente. Apre l'archivio solo se l'elenco è pulito, poi lo confronta col
+// pacchetto della Release (scaricato di nuovo, con l'impronta già
+// verificata): ogni file che non si personalizza deve essere quello del
+// pacchetto, i personalizzabili e configurazione.json devono essere file
+// veri, e non c'è nient'altro tranne i due .env, che si riscrivono qui.
+export const ENV_AMMESSI = (progetto) => ['.env', `functions/.env.${progetto}`]
+export function riverificaApp({ archivioApp, cartella, riferimento, progetto }) {
+  const elenco = comando('tar', ['-tvzf', archivioApp])
+  if (!elenco.ok) rifiuta(`l'app non si legge: ${elenco.err.trim()}`)
+  const pe = problemiDellElenco(elenco.out.split('\n'))
+  if (pe.length) rifiuta(`l'app contiene voci non ammesse:\n  ${pe.join('\n  ')}`)
+  // L'archivio ha dentro la cartella app/: si apre accanto e si guarda quella.
+  mkdirSync(cartella, { recursive: true })
+  if (readdirSync(cartella).length) rifiuta(`${cartella} non è vuota`)
+  const x = comando('tar', ['-xzf', archivioApp, '-C', cartella, '--no-same-owner', '--no-same-permissions'])
+  if (!x.ok) rifiuta(`l'app non si apre: ${x.err.trim()}`)
+  const app = join(cartella, 'app')
+  if (!existsSync(app) || !lstatSync(app).isDirectory()) rifiuta('nell\'archivio manca la cartella app/')
+  const m = riferimento.manifesto
+  const personalizzabili = new Set([...(m.personalizzabili || []), 'dist/configurazione.json'])
+  const ammessi = new Set([...Object.keys(m.file), 'pacchetto.json', ...personalizzabili, ...ENV_AMMESSI(progetto)])
+  const p = []
+  const presenti = fileDi(app)
+  for (const f of presenti) if (!ammessi.has(f)) p.push(`file non del pacchetto: ${f}`)
+  for (const [f, h] of Object.entries(m.file)) {
+    if (personalizzabili.has(f)) continue
+    if (!existsSync(join(app, f))) p.push(`manca ${f}`)
+    else if (sha256(join(app, f)) !== h) p.push(`${f} non è quello del pacchetto`)
+  }
+  if (!existsSync(join(app, 'pacchetto.json')) || sha256(join(app, 'pacchetto.json')) !== sha256(join(riferimento.cartella, 'pacchetto.json'))) p.push('pacchetto.json non è quello del pacchetto')
+  if (!presenti.includes('dist/configurazione.json')) p.push('manca dist/configurazione.json')
+  if (p.length) rifiuta(`l'app da pubblicare non torna col pacchetto:\n  ${p.join('\n  ')}`)
+  return { app, configurazione: JSON.parse(readFileSync(join(app, 'dist/configurazione.json'), 'utf8')) }
 }

@@ -188,6 +188,28 @@ export function configurazioneLocale({ slug, nome, profilo, ambiente, firebase, 
 // pacchetto: personalizza.mjs le rifiuterebbe dopo il Terraform, a locale
 // già toccato. L'elenco c'è sempre (lo pretende problemiDelManifesto);
 // senza, qui non si guarda.
+// La configurazione che il sito personalizzato porta è quella di questo
+// locale? Il job che pubblica la ricalcola da quello che sa e confronta i
+// campi che decidono a quale backend e a quale regia parla l'app
+// (revisione della PR #345).
+export function problemiDellaConfigurazione(scritta, attesa) {
+  const diversi = ['backend', 'locale', 'profilo', 'regia'].filter((k) => scritta?.[k] !== attesa[k])
+  for (const k of Object.keys(attesa.firebase)) if (scritta?.firebase?.[k] !== attesa.firebase[k]) diversi.push(`firebase.${k}`)
+  if (scritta?.venue?.venue_name !== attesa.venue.venue_name) diversi.push('venue.venue_name')
+  return diversi
+}
+// I DATI DEL TITOLARE CHE IL PACCHETTO ACCETTA (revisione della PR #345): un
+// pacchetto più vecchio può non conoscere un campo che la regia manda oggi, e
+// tornare a quella versione non deve fermarsi per questo. Si mandano solo
+// quelli del suo elenco, e si dice quali restano fuori: l'informativa li
+// mostrerà «da inserire».
+export function datiAmmessi(datiLocale = {}, campiVenue) {
+  if (!Array.isArray(campiVenue)) return { ammessi: { ...datiLocale }, scartati: [] }
+  const ammessi = {}
+  const scartati = []
+  for (const [k, v] of Object.entries(datiLocale)) (campiVenue.includes(k) ? (ammessi[k] = v) : scartati.push(k))
+  return { ammessi, scartati }
+}
 export function chiaviVenueFuori({ nome, datiLocale }, campiVenue) {
   if (!Array.isArray(campiVenue)) return []
   return Object.keys(venueDelLocale(nome, datiLocale)).filter((k) => !campiVenue.includes(k))

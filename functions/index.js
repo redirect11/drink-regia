@@ -25,7 +25,7 @@ const { defineSecret } = require('firebase-functions/params')
 const eventiStripe = require('./lib/eventistripe.js')
 const { initializeApp } = require('firebase-admin/app')
 const { getFirestore } = require('firebase-admin/firestore')
-const { simulazioneAmmessa, documentoSimulato, preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, eAggiornamento, documentoIstanza, documentoAggiornamento, vincoliEsito, bearerValido, segretoUsabile, idPacchetto, improntaDaRicordare } = require('./lib/provisioning.js')
+const { simulazioneAmmessa, documentoSimulato, preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, eAggiornamento, documentoIstanza, documentoAggiornamento, vincoliEsito, bearerValido, segretoUsabile, idPacchetto, improntaDaRicordare, improntaDiversa } = require('./lib/provisioning.js')
 
 // L'IMPRONTA RICORDATA DEL PACCHETTO DI UNA VERSIONE (REQ-FLOTTA-140, (C)).
 // Si legge prima di lanciare un workflow; si scrive al primo esito riuscito
@@ -45,10 +45,19 @@ async function improntaRicordata(ref) {
 async function ricordaImpronta(esito) {
   const r = improntaDaRicordare(esito)
   if (!r) return
-  await db.doc(`pacchetti/${r.id}`).create({ impronta: r.impronta, primo_locale: r.slug, commit: r.commit, ricordata_il: new Date().toISOString() }).catch((e) => {
-    // ALREADY_EXISTS (6): c'è già, ed è quella che il workflow ha controllato.
-    if (e?.code !== 6) console.error(`[pacchetti] ${r.id}:`, e?.message || e)
-  })
+  const ref = db.doc(`pacchetti/${r.id}`)
+  try {
+    await ref.create({ impronta: r.impronta, primo_locale: r.slug, commit: r.commit, ricordata_il: new Date().toISOString() })
+  } catch (e) {
+    if (e?.code !== 6) return console.error(`[pacchetti] ${r.id}:`, e?.message || e)
+    // ALREADY_EXISTS: c'è già. Se è un'altra impronta, il locale gira con un
+    // archivio diverso da quello ricordato: non si sovrascrive, si segna.
+    const diversa = improntaDiversa((await ref.get()).data(), esito)
+    if (diversa) {
+      console.error(`[pacchetti] ${r.id}: ${esito.slug} è stato pubblicato con ${diversa.usata}, la regia ricorda ${diversa.ricordata}`)
+      await db.doc(`istanze/${esito.slug}`).set({ pacchetto_diverso: { ...diversa, il: new Date().toISOString() } }, { merge: true })
+    }
+  }
 }
 const rilasci = require('./lib/rilasci.js')
 const { sceltaCambiata, licenzaProtetta, stessaLicenza, perIlDatabase, scadenzaCoerente } = require('./lib/licenza.js')

@@ -115,6 +115,17 @@ function improntaDaRicordare(esito) {
   return id ? { id, impronta: esito.impronta, slug: esito.slug, commit: esito.commit || null } : null
 }
 
+// Un esito riuscito dal pacchetto con un'impronta diversa da quella già
+// ricordata per la stessa versione (revisione della PR #345): succede se la
+// lettura dell'impronta è fallita prima del lancio, o in un'ondata partita
+// tutta prima del primo esito. Non si sovrascrive niente: si segna
+// sull'istanza, perché qualcuno guardi.
+function improntaDiversa(salvata, esito) {
+  const r = improntaDaRicordare(esito)
+  if (!r || !salvata?.impronta || salvata.impronta === r.impronta) return null
+  return { versione: r.id, ricordata: salvata.impronta, usata: r.impronta }
+}
+
 // Il corpo della chiamata `POST /repos/{repo}/actions/workflows/{file}/dispatches`.
 // Gli input sono stringhe: GitHub non accetta altro. Due versioni diverse,
 // dal 29/10/2026 che i workflow stanno nella regia: `ref` in cima è il
@@ -291,8 +302,10 @@ function documentoIstanza(esito, prima = null, adesso = new Date()) {
     ref: esito.ref ?? prima?.ref ?? null,
     commit: esito.commit ?? prima?.commit ?? null,
     profilo: esito.profilo ?? prima?.profilo ?? null,
-    strada: esito.strada ?? prima?.strada ?? null,
-    impronta: (esito.strada ? esito.impronta : prima?.impronta) ?? null,
+    // Solo un'attivazione riuscita dice da dove viene l'app: una fallita non
+    // ha pubblicato niente (revisione della PR #345).
+    strada: esito.stato === 'attiva' ? esito.strada ?? prima?.strada ?? null : prima?.strada ?? null,
+    impronta: (esito.stato === 'attiva' && esito.strada ? esito.impronta : prima?.impronta) ?? null,
     errore: esito.errore,
     aggiornata_il: adesso.toISOString(),
   }
@@ -400,4 +413,4 @@ function documentoSimulato(slug, prima = null, adesso = new Date()) {
   return { ...doc, progetto: null, simulata: true }
 }
 
-module.exports = { CAMPI_DATI_LOCALE, datiLocalePerIlWorkflow, idPacchetto, improntaDaRicordare, simulazioneAmmessa, documentoSimulato, preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, eAggiornamento, documentoIstanza, documentoAggiornamento, vincoliEsito, progettoAtteso, urlAmmesso, runIdValido, istanteValido, bearerValido, segretoUsabile, STATI, PREFISSO_PROGETTI, ESITO_VECCHIO_MS, ESITO_FUTURO_MS, SEGRETO_MIN }
+module.exports = { CAMPI_DATI_LOCALE, datiLocalePerIlWorkflow, idPacchetto, improntaDaRicordare, improntaDiversa, simulazioneAmmessa, documentoSimulato, preparaRichiesta, richiestaCoerente, dispatchPayload, dispatchAggiornamento, daLanciare, esitoValido, eAggiornamento, documentoIstanza, documentoAggiornamento, vincoliEsito, progettoAtteso, urlAmmesso, runIdValido, istanteValido, bearerValido, segretoUsabile, STATI, PREFISSO_PROGETTI, ESITO_VECCHIO_MS, ESITO_FUTURO_MS, SEGRETO_MIN }

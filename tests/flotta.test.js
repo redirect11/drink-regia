@@ -565,23 +565,59 @@ describe.each(WORKFLOW)('%s: il codice di tana-drink gira solo nel job senza la 
     expect(j.steps.some((x) => x.with?.repository)).toBe(false)
     const prepara = j.steps.find((x) => x.id === 'prepara')
     expect(prepara.run).toBe('node regia/scripts/pacchetto-locale.mjs prepara')
-    expect(prepara.env).toMatchObject({ COMMIT_APP: '${{ needs.controlla.outputs.commit }}', USCITA: '${{ github.workspace }}/app' })
-    expect(j.outputs).toEqual({ impronta: '${{ steps.prepara.outputs.impronta }}', firebase_tools: '${{ steps.prepara.outputs.firebase_tools }}' })
+    // Lo stesso archivio verificato in `controlla`, e nessun altro.
+    expect(prepara.env).toMatchObject({ COMMIT_APP: '${{ needs.controlla.outputs.commit }}', IMPRONTA_RICORDATA: '${{ needs.controlla.outputs.impronta }}', USCITA: '${{ github.workspace }}/app' })
+    // Niente esce da qui come output: chi pubblica non si fida di questo job.
+    expect(j.outputs).toBeUndefined()
     const su = j.steps.find((x) => x.uses?.startsWith('actions/upload-artifact'))
     expect(su.with).toMatchObject({ name: 'app', path: 'app.tgz', 'retention-days': 1 })
   })
 
   // (E) e interfaccia 16: col pacchetto si pubblica con la sua
   // firebase-tools, e l'esito dice la strada e l'impronta.
-  it('pubblica usa la firebase-tools fissata dal pacchetto e riferisce strada e impronta alla regia', () => {
+  // Revisione della PR #345, punto 1: il pacchetto si controlla prima che il
+  // Terraform di `prepara` crei o cambi il progetto del locale.
+  it('il pacchetto si controlla in controlla, prima del Terraform, senza eseguirne niente', () => {
+    const c = w.jobs.controlla
+    const v = c.steps.find((x) => x.id === 'verifica')
+    expect(v.if).toBe("steps.strada.outputs.strada == 'pacchetto'")
+    expect(v.run).toBe('node regia/scripts/pacchetto-locale.mjs verifica')
+    expect(v.env.COMMIT_APP).toBe('${{ steps.app.outputs.commit }}')
+    expect(c.steps.indexOf(v)).toBe(c.steps.length - 1)
+    expect(c.outputs.impronta).toBe('${{ steps.verifica.outputs.impronta }}')
+    expect(w.jobs.prepara.needs).toBe('controlla')
+    // Il comando `verifica` non lancia personalizza.mjs: solo `prepara` lo fa.
+    const script = leggi('scripts/pacchetto-locale.mjs')
+    const corpo = script.slice(script.indexOf('async function verifica()'), script.indexOf('async function prepara()'))
+    expect(corpo).not.toContain('personalizzaPacchetto')
+  })
+
+  // Punti 2, 4 e 5: chi pubblica non si fida di quello che arriva dal job di
+  // personalizza.mjs, e niente di quel job entra in GITHUB_ENV o in npx.
+  it('pubblica ricontrolla l’app prima delle credenziali e prende firebase-tools e versione dal pacchetto', () => {
     const e = w.jobs.pubblica.env
-    expect(e.FIREBASE_TOOLS).toBe("${{ needs.pacchetto.outputs.firebase_tools && format('firebase-tools@{0}', needs.pacchetto.outputs.firebase_tools) || 'firebase-tools' }}")
+    expect(e.FIREBASE_TOOLS).toBeUndefined()
     expect(e.STRADA_USATA).toBe('${{ needs.controlla.outputs.strada }}')
-    expect(e.IMPRONTA_USATA).toBe('${{ needs.pacchetto.outputs.impronta }}')
+    expect(e.IMPRONTA_USATA).toBe('${{ needs.controlla.outputs.impronta }}')
+    expect(testo(w.jobs.pubblica)).not.toMatch(/needs\.pacchetto\.outputs/)
+    const nomi = w.jobs.pubblica.steps.map((x) => x.name || x.uses)
+    const ricontrollo = passo(w, 'Il pacchetto, ricontrollato prima delle credenziali')
+    expect(ricontrollo.if).toBe("env.STRADA_USATA == 'pacchetto'")
+    expect(ricontrollo.run).toBe('node scripts/pacchetto-locale.mjs riverifica && rm app.tgz')
+    expect(ricontrollo.env.IMPRONTA_RICORDATA).toBe('${{ needs.controlla.outputs.impronta }}')
+    expect(nomi.indexOf('Il pacchetto, ricontrollato prima delle credenziali')).toBeLessThan(nomi.indexOf('Credenziali di provisioning'))
+    expect(nomi.indexOf('Il pacchetto, ricontrollato prima delle credenziali')).toBeLessThan(nomi.indexOf('Dipendenze della regia'))
+    // Col pacchetto l'archivio non si apre alla cieca.
+    expect(passo(w, "L'app compilata").if).toBe("env.STRADA_USATA != 'pacchetto'")
+    expect(passo(w, 'La firebase-tools della compilazione').run).toBe('echo "FIREBASE_TOOLS=firebase-tools" >> "$GITHUB_ENV"')
     expect(testo(w.jobs.pubblica)).not.toMatch(/npx firebase-tools /)
     expect(passo(w, 'Esito alla regia').run).toContain('strada: process.env.STRADA_USATA || null, impronta: process.env.IMPRONTA_USATA || null')
-    // Il pacchetto non ha package.json nella radice: la versione la dice pacchetto.json.
-    expect(passo(w, 'Versione pubblicata').run).toContain("if [ -f app/pacchetto.json ]; then V=$(node -p \"require('./app/pacchetto.json').versione\")")
+    // La versione della compilazione: letta come testo e controllata prima di GITHUB_ENV.
+    const ver = passo(w, 'Versione pubblicata')
+    expect(ver.if).toBe("env.STRADA_USATA != 'pacchetto'")
+    expect(ver.run).not.toMatch(/require\(['"]\.\/app/)
+    expect(ver.run).toContain('readFileSync("app/package.json", "utf8")')
+    expect(ver.run).toMatch(/process\.exit\(1\)/)
   })
 })
 

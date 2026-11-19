@@ -162,3 +162,40 @@ export function comandiInFirebaseJson(x, dove = 'firebase.json') {
   if (!x || typeof x !== 'object') return []
   return Object.entries(x).flatMap(([k, y]) => (/^(pre|post)deploy$/.test(k) ? [`${dove}.${k}`] : comandiInFirebaseJson(y, `${dove}.${k}`)))
 }
+
+// FIREBASE.JSON: COSA È AMMESSO (revisione della PR #345). firebase-tools lo
+// legge nel job con le credenziali: una cartella del sito fuori dal pacchetto
+// (`hosting.public` assoluto, o con `..`) pubblicherebbe sul sito del locale
+// quello che c'è sul runner, credenziali comprese. Quindi non una lista di
+// cose vietate ma di cose ammesse: il sito è `dist`, le Functions sono
+// `functions`, le regole sono i file del pacchetto; niente comandi al deploy
+// e niente `hosting.source` (i web frameworks compilano al deploy).
+export const SEZIONI_FIREBASE_JSON = ['firestore', 'storage', 'functions', 'hosting', 'emulators']
+const comeElenco = (x) => (Array.isArray(x) ? x : [x])
+export function problemiDiFirebaseJson(fj) {
+  if (!fj || typeof fj !== 'object' || Array.isArray(fj)) return ['firebase.json non è un oggetto']
+  const p = comandiInFirebaseJson(fj).map((d) => `${d}: un comando al deploy girerebbe dove ci sono le credenziali`)
+  for (const k of Object.keys(fj)) if (!SEZIONI_FIREBASE_JSON.includes(k)) p.push(`firebase.json: sezione «${k}» non prevista`)
+  for (const f of comeElenco(fj.firestore ?? [])) {
+    if (!f || typeof f !== 'object') { p.push('firebase.json: firestore non è un oggetto'); continue }
+    if ('rules' in f && f.rules !== 'firestore.rules') p.push('firebase.json: firestore.rules deve essere «firestore.rules»')
+    if ('indexes' in f && f.indexes !== 'firestore.indexes.json') p.push('firebase.json: firestore.indexes deve essere «firestore.indexes.json»')
+  }
+  for (const st of comeElenco(fj.storage ?? [])) {
+    if (!st || typeof st !== 'object' || st.rules !== 'storage.rules') p.push('firebase.json: storage.rules deve essere «storage.rules»')
+  }
+  for (const fn of comeElenco(fj.functions ?? [])) {
+    if (!fn || typeof fn !== 'object' || fn.source !== 'functions') p.push('firebase.json: le Functions devono stare in «functions»')
+  }
+  for (const h of comeElenco(fj.hosting ?? [])) {
+    if (!h || typeof h !== 'object') { p.push('firebase.json: hosting non è un oggetto'); continue }
+    if (h.public !== 'dist') p.push('firebase.json: hosting.public deve essere «dist»')
+    if ('source' in h) p.push('firebase.json: hosting.source non è ammesso (compilerebbe al deploy)')
+  }
+  return p
+}
+
+// LA VERSIONE DI FIREBASE-TOOLS che il job con le credenziali installa: solo
+// cifre, mai un nome di pacchetto (`npm:altro@1.0.0` farebbe installare
+// altro).
+export const versioneStrumentoValida = (v) => typeof v === 'string' && /^\d+\.\d+\.\d+$/.test(v)

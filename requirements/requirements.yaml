@@ -5650,6 +5650,12 @@ requirements:
       porta sempre campiVenue (formato 1, accordo con tana-drink del 18/11):
       il venue si confronta con quell'elenco prima del Terraform, e un
       pacchetto senza elenco non passa.
+      PRIMA DI TOGLIERE LA PAUSA (revisione della PR #345, 19/11/2026): nel
+      lavoro su Google personalizza.mjs gira dentro Cloud Run, dove il
+      controllo degli import non è un confine: con l'ambiente vuoto può
+      comunque chiedere un gettone al server dei metadati con il fetch di
+      Node. Va fatto girare in un processo senza accesso ai metadati (o in
+      un job separato senza account) prima di usarlo.
       IN PAUSA (18/11/2026, Daniele: «provisiona istanza e aggiorna istanza
       aggiornano con il pacchetto di release di tana-drink»): i locali si
       pubblicano dal pacchetto coi workflow di oggi (REQ-FLOTTA-140). Il
@@ -5776,11 +5782,39 @@ requirements:
       dei file nella Release è quello semplice (tana-drink, 19/11/2026), e
       functions/.env.<progetto> si scrive dopo il controllo che segue la
       personalizzazione.
+      DOPO LA REVISIONE DEL 19/11/2026 (PR #345): il pacchetto si
+      controlla tutto nel job `controlla`, prima del Terraform (comando
+      `verifica`), e i job dopo riscaricano lo stesso archivio
+      (l'impronta verificata); `pubblica`, prima delle credenziali, non si
+      fida dell'app che arriva dal job di personalizza.mjs (comando
+      `riverifica`): elenco pulito, ogni file non personalizzabile uguale a
+      quello del pacchetto riscaricato, nessun collegamento né file in più,
+      configurazione.json di questo locale, i due .env riscritti, e
+      firebase-tools e versione presi dal pacchetto e controllati.
+      firebase.json passa da una lista di ammessi (problemiDiFirebaseJson:
+      sito in dist, Functions in functions, regole del pacchetto). La
+      versione della compilazione si legge come testo e si controlla prima
+      di GITHUB_ENV. Solo un 404 della Release vuol dire «senza pacchetto»:
+      un altro errore ferma il lavoro. I dati del titolare che il pacchetto
+      non conosce restano fuori (datiAmmessi), così un ritorno a una
+      versione vecchia non si ferma. Un'impronta diversa da quella ricordata
+      si segna sull'istanza (pacchetto_diverso), senza sovrascrivere.
+      LIMITI NOTI. (a) Criterio 5: nel profilo completo il deploy in
+      `pubblica` carica il codice delle Functions di tana-drink per
+      scoprirle, come già con la compilazione (REQ-FLOTTA-047); vale per il
+      sito e per tutto il resto, non per la scoperta delle Functions. (b)
+      Le attivazioni partono da APP_REF (main in produzione, develop sul
+      test), che non sono tag: oggi si compilano; il pacchetto lo usano gli
+      aggiornamenti a un tag (i rilasci, «Aggiorna» con un ref). (c) La
+      prima pubblicazione di una versione, e un'ondata partita prima del
+      primo esito, hanno solo il .sha256 della Release: l'impronta ricordata
+      vale dal primo esito in poi.
       MANCA: il primo giro vero su un locale di prova del test (criterio
       1); l'email per la privacy (REQ-FLOTTA-141); la prova della
-      compilazione di ripiego nel collaudo (F). Le «release immutabili» di
-      GitHub sono spente in tana-drink: è una decisione di Daniele, e finché
-      restano spente la garanzia è l'impronta ricordata.
+      compilazione di ripiego nel collaudo (F); le attivazioni da un tag
+      (b). Le «release immutabili» di GitHub sono spente in tana-drink: è
+      una decisione di Daniele, e finché restano spente la garanzia è
+      l'impronta ricordata.
     status: partial
     generate_issue: true
     labels: [flotta, contratto-tana-drink, rilascio, sicurezza]

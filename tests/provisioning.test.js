@@ -219,6 +219,20 @@ describe('il pacchetto della Release nei lanci e negli esiti (REQ-FLOTTA-140)', 
     expect(P.documentoAggiornamento(compilata, { stato: 'attiva', strada: 'pacchetto', impronta: H('a') })).toMatchObject({ strada: 'compilazione', impronta: null })
   })
 
+  it('un’impronta diversa da quella ricordata si segnala, senza sovrascriverla', () => {
+    const esito = { slug: 'bar-mario', stato: 'attiva', ref: 'v1.10.56-beta', strada: 'pacchetto', impronta: H('b') }
+    expect(P.improntaDiversa({ impronta: H('a') }, esito)).toEqual({ versione: 'v1.10.56-beta', ricordata: H('a'), usata: H('b') })
+    expect(P.improntaDiversa({ impronta: H('b') }, esito)).toBeNull()
+    expect(P.improntaDiversa(undefined, esito)).toBeNull()
+    expect(P.improntaDiversa({ impronta: H('a') }, { ...esito, stato: 'errore' })).toBeNull()
+  })
+
+  it('un’attivazione fallita non dice che l’app viene dal pacchetto', () => {
+    const fallita = P.esitoValido({ slug: 'bar-mario', stato: 'errore', operazione: 'attivazione', strada: 'pacchetto', impronta: H('a') })
+    expect(P.documentoIstanza(fallita, null)).toMatchObject({ strada: null, impronta: null })
+    expect(P.documentoIstanza(fallita, { strada: 'compilazione' })).toMatchObject({ strada: 'compilazione', impronta: null })
+  })
+
   it('si ricorda l’impronta solo di un esito riuscito dal pacchetto di un tag', () => {
     const base = { slug: 'bar-mario', stato: 'attiva', ref: 'v1.10.56-beta', strada: 'pacchetto', impronta: H('a'), commit: 'c'.repeat(40) }
     expect(P.improntaDaRicordare(base)).toEqual({ id: 'v1.10.56-beta', impronta: H('a'), slug: 'bar-mario', commit: 'c'.repeat(40) })
@@ -234,7 +248,10 @@ describe('il pacchetto della Release nei lanci e negli esiti (REQ-FLOTTA-140)', 
     const idx = require('node:fs').readFileSync(require('node:path').join(__dirname, '../functions/index.js'), 'utf8')
     expect(idx).toContain("cliente, impronta: await improntaRicordata(REF_APP) })")
     expect(idx).toContain("cliente: esistente ? null : cliente, impronta: await improntaRicordata(ref) })")
-    expect(idx).toMatch(/db\.doc\(`pacchetti\/\$\{r\.id\}`\)\.create\(/)
+    expect(idx).toContain('const ref = db.doc(`pacchetti/${r.id}`)')
+    expect(idx).toContain('await ref.create({ impronta: r.impronta')
+    // Su ALREADY_EXISTS si confronta e, se è diversa, si segna sull'istanza.
+    expect(idx).toMatch(/if \(e\?\.code !== 6\) return[\s\S]*improntaDiversa\(\(await ref\.get\(\)\)\.data\(\), esito\)[\s\S]*pacchetto_diverso/)
     const esitoDa = idx.indexOf('exports.esitoProvisioning')
     expect(idx.indexOf('await ricordaImpronta(esito)', esitoDa)).toBeGreaterThan(idx.indexOf('if (!vincoli.ok) return res.status(400)', idx.indexOf('const esito = esitoValido(req.body)')))
   })

@@ -324,6 +324,61 @@ describe('il pacchetto nei workflow della regia (REQ-FLOTTA-140)', async () => {
     expect(P.comandiInFirebaseJson({ functions: [{ source: 'functions', predeploy: ['npm run build'] }], hosting: { postdeploy: 'x' } })).toEqual(['firebase.json.functions[0].predeploy', 'firebase.json.hosting.postdeploy'])
   })
 
+  // Revisione della PR #345, punto 3: una lista di ammessi. Il firebase.json
+  // di tana-drink al tag v1.10.56-beta ha queste sezioni, e passa.
+  it('firebase.json: il sito è dist, le Functions sono functions, le regole i file del pacchetto, e niente altro', () => {
+    const buono = { firestore: { rules: 'firestore.rules', indexes: 'firestore.indexes.json' }, storage: { rules: 'storage.rules' }, functions: [{ source: 'functions', codebase: 'default', ignore: ['node_modules'] }], hosting: { public: 'dist', ignore: [], rewrites: [{ source: '**', destination: '/index.html' }] }, emulators: { ui: { enabled: true } } }
+    expect(P.problemiDiFirebaseJson(buono)).toEqual([])
+    const con = (extra) => P.problemiDiFirebaseJson({ ...buono, ...extra })
+    // Il sito o le Functions fuori dal pacchetto: il deploy pubblicherebbe il runner.
+    expect(con({ hosting: { public: '/home/runner/work/_temp' } })).toEqual(['firebase.json: hosting.public deve essere «dist»'])
+    expect(con({ hosting: [{ public: 'dist' }, { public: '../..' }] })).toEqual(['firebase.json: hosting.public deve essere «dist»'])
+    expect(con({ functions: { source: '/tmp' } })).toEqual(['firebase.json: le Functions devono stare in «functions»'])
+    expect(con({ hosting: { public: 'dist', source: '.' } })).toEqual(['firebase.json: hosting.source non è ammesso (compilerebbe al deploy)'])
+    expect(con({ firestore: { rules: '../x.rules', indexes: 'firestore.indexes.json' } })).toEqual(['firebase.json: firestore.rules deve essere «firestore.rules»'])
+    expect(con({ storage: { rules: '/etc/x' } })).toEqual(['firebase.json: storage.rules deve essere «storage.rules»'])
+    expect(con({ remoteconfig: { template: 'x.json' } })).toEqual(['firebase.json: sezione «remoteconfig» non prevista'])
+    expect(con({ functions: [{ source: 'functions', predeploy: ['x'] }] })[0]).toMatch(/predeploy: un comando al deploy/)
+    expect(P.problemiDiFirebaseJson([])).toEqual(['firebase.json non è un oggetto'])
+  })
+
+  // Punto 5: la versione di firebase-tools che il job con le credenziali installa.
+  it('firebase-tools si installa solo per numero di versione', () => {
+    expect(P.versioneStrumentoValida('15.36.0')).toBe(true)
+    expect(P.versioneStrumentoValida('npm:altro@1.0.0')).toBe(false)
+    expect(P.versioneStrumentoValida('latest')).toBe(false)
+    expect(P.versioneStrumentoValida('15.36.0\nX=1')).toBe(false)
+  })
+
+  // Punto 10: un pacchetto più vecchio può non conoscere un dato del titolare.
+  it('i dati del titolare che il pacchetto non conosce restano fuori, senza fermare il lavoro', async () => {
+    const L = await import('../scripts/lib-lavoro.js')
+    expect(L.datiAmmessi({ venue_legal_name: 'X', venue_email: 'a@b.it' }, ['venue_name', 'venue_legal_name'])).toEqual({ ammessi: { venue_legal_name: 'X' }, scartati: ['venue_email'] })
+    expect(L.datiAmmessi({ venue_legal_name: 'X' }, undefined)).toEqual({ ammessi: { venue_legal_name: 'X' }, scartati: [] })
+  })
+
+  // Punto 2: la configurazione che arriva nel sito è quella di questo locale.
+  it('la configurazione nel sito deve tornare con quella che la regia ricalcola', async () => {
+    const L = await import('../scripts/lib-lavoro.js')
+    const attesa = L.configurazioneLocale({ slug: 'prova-bar', nome: 'Prova Bar', profilo: 'completo', ambiente: 'test', firebase: { apiKey: 'k', authDomain: 'd', projectId: 'drinkpos-prova-bar', storageBucket: '', messagingSenderId: '', appId: 'a' } })
+    expect(L.problemiDellaConfigurazione(structuredClone(attesa), attesa)).toEqual([])
+    // Il resto del venue può cambiare (personalizza.mjs lo normalizza).
+    expect(L.problemiDellaConfigurazione({ ...attesa, venue: { venue_name: 'Prova Bar', venue_description: 'altro' } }, attesa)).toEqual([])
+    expect(L.problemiDellaConfigurazione({ ...attesa, regia: 'drink-regia' }, attesa)).toEqual(['regia'])
+    expect(L.problemiDellaConfigurazione({ ...attesa, firebase: { ...attesa.firebase, projectId: 'altro' } }, attesa)).toEqual(['firebase.projectId'])
+    expect(L.problemiDellaConfigurazione(null, attesa)).toContain('locale')
+  })
+
+  // Punto 8: solo un 404 vuol dire «non c'è»; un altro errore ferma il lavoro.
+  it('la Release: 404 vuol dire senza pacchetto, un altro errore ferma il lavoro', async () => {
+    const D = await import('../scripts/pacchetto-su-disco.mjs')
+    const risponde = (status) => async () => ({ ok: status < 300, status })
+    expect(await D.cèNellaRelease({ tipo: 'locali', versione: '1.10.56-beta', fetchFn: risponde(200) })).toBe(true)
+    expect(await D.cèNellaRelease({ tipo: 'locali', versione: '1.10.56-beta', fetchFn: risponde(404) })).toBe(false)
+    await expect(D.cèNellaRelease({ tipo: 'locali', versione: '1.10.56-beta', fetchFn: risponde(403) })).rejects.toThrow(/ha risposto 403/)
+    await expect(D.cèNellaRelease({ tipo: 'locali', versione: '1.10.56-beta', fetchFn: risponde(503) })).rejects.toThrow(/non si sa se il pacchetto c'è/)
+  })
+
   // IL GIRO INTERO, con un archivio vero e una Release finta: tar GNU
   // (quello dei runner di GitHub); su Windows il tar di sistema scrive
   // l'elenco in un'altra forma, e il giro si prova in CI.
@@ -415,7 +470,38 @@ describe('il pacchetto nei workflow della regia (REQ-FLOTTA-140)', async () => {
     await rifiuta(async () => D.apriPacchetto({ archivio: join(t3, 'p.tgz'), cartella: join(t3, 'a'), tipo: 'locali', versione: '1.10.56-beta', ambiente: 'test' }), /file non dichiarato: functions\/intruso\.js/)
     const t4 = mkdtempSync(join(tmpdir(), 'pacchetto-'))
     writeFileSync(join(t4, 'p.tgz'), costruisci(join(t4, 'x'), { firebaseJson: JSON.stringify({ functions: [{ source: 'functions', predeploy: ['npm run build'] }] }) }))
-    await rifiuta(async () => D.apriPacchetto({ archivio: join(t4, 'p.tgz'), cartella: join(t4, 'a'), tipo: 'locali', versione: '1.10.56-beta', ambiente: 'test' }), /firebase\.json fa girare comandi al deploy/)
+    await rifiuta(async () => D.apriPacchetto({ archivio: join(t4, 'p.tgz'), cartella: join(t4, 'a'), tipo: 'locali', versione: '1.10.56-beta', ambiente: 'test' }), /un comando al deploy girerebbe dove ci sono le credenziali/)
+    const t5 = mkdtempSync(join(tmpdir(), 'pacchetto-'))
+    writeFileSync(join(t5, 'p.tgz'), costruisci(join(t5, 'x'), { firebaseJson: JSON.stringify({ hosting: { public: '/home/runner/work/_temp' } }) }))
+    await rifiuta(async () => D.apriPacchetto({ archivio: join(t5, 'p.tgz'), cartella: join(t5, 'a'), tipo: 'locali', versione: '1.10.56-beta', ambiente: 'test' }), /hosting\.public deve essere «dist»/)
     expect(existsSync(join(t, 'app/functions/.env.drinkpos-prova-bar'))).toBe(false)
+
+    // IL RICONTROLLO NEL JOB CHE PUBBLICA (revisione della PR #345, punto 2):
+    // l'app personalizzata, impacchettata come fa il job `pacchetto`.
+    const { symlinkSync, rmSync: rm } = await import('node:fs')
+    const riferimento = D.apriPacchetto({ archivio: giu.archivio, cartella: join(t, 'riferimento'), tipo: 'locali', versione: '1.10.56-beta', ambiente: 'test' })
+    const impacchetta = (dir, nome) => {
+      const r = spawnSync('tar', ['-czf', nome, '-C', dir, 'app'])
+      expect(r.status).toBe(0)
+      return nome
+    }
+    const buona = impacchetta(t, join(t, 'app-buona.tgz'))
+    const ok = D.riverificaApp({ archivioApp: buona, cartella: join(t, 'ricevuta-1'), riferimento, progetto: 'drinkpos-prova-bar' })
+    expect(ok.configurazione.locale).toBe('prova-bar')
+    // Un .env arrivato dal job è ammesso (lo si riscrive), un altro file no.
+    writeFileSync(join(t, 'app/functions/.env.drinkpos-prova-bar'), 'X=1')
+    expect(() => D.riverificaApp({ archivioApp: impacchetta(t, join(t, 'app-env.tgz')), cartella: join(t, 'ricevuta-2'), riferimento, progetto: 'drinkpos-prova-bar' })).not.toThrow()
+    writeFileSync(join(t, 'app/functions/altro.js'), 'x')
+    expect(() => D.riverificaApp({ archivioApp: impacchetta(t, join(t, 'app-altro.tgz')), cartella: join(t, 'ricevuta-3'), riferimento, progetto: 'drinkpos-prova-bar' })).toThrow(/file non del pacchetto: functions\/altro\.js/)
+    rm(join(t, 'app/functions/altro.js'))
+    // firebase.json cambiato dopo il controllo (un processo rimasto acceso).
+    const fj = readFileSync(join(t, 'app/firebase.json'), 'utf8')
+    writeFileSync(join(t, 'app/firebase.json'), JSON.stringify({ functions: [{ source: 'functions', predeploy: ['x'] }] }))
+    expect(() => D.riverificaApp({ archivioApp: impacchetta(t, join(t, 'app-fj.tgz')), cartella: join(t, 'ricevuta-4'), riferimento, progetto: 'drinkpos-prova-bar' })).toThrow(/firebase\.json non è quello del pacchetto/)
+    writeFileSync(join(t, 'app/firebase.json'), fj)
+    // Un collegamento al posto di configurazione.json, verso un file del runner.
+    rm(join(t, 'app/dist/configurazione.json'))
+    symlinkSync('/etc/hostname', join(t, 'app/dist/configurazione.json'))
+    expect(() => D.riverificaApp({ archivioApp: impacchetta(t, join(t, 'app-link.tgz')), cartella: join(t, 'ricevuta-5'), riferimento, progetto: 'drinkpos-prova-bar' })).toThrow(/voce non ammessa/)
   })
 })
