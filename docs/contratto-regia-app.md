@@ -292,7 +292,11 @@ scritta solo se manca (`scritta_da: 'deploy'`). La Tana ha `regia_url: null`.
   Bearer <PROVISIONING_CALLBACK_SECRET>`.
 - Corpo: `{ slug, stato: 'in coda'|'in corso'|'attiva'|'errore', url?,
   progetto, versione, errore, ambiente, operazione:
-  'attivazione'|'aggiornamento', profilo, ref, commit, run_id, inviato_il }`;
+  'attivazione'|'aggiornamento', profilo, ref, commit, strada:
+  'pacchetto'|'compilazione', impronta (solo col pacchetto), run_id,
+  inviato_il }`; la regia scrive `strada` e `impronta` sull'istanza e, al
+  primo esito riuscito dal pacchetto di una versione, ne ricorda l'impronta
+  in `pacchetti/{tag}` (REQ-FLOTTA-140);
   per l'eliminazione `{ slug, operazione: 'eliminazione', stato:
   'eliminata'|'errore', archivio, errore, run_id, inviato_il }`.
 - Risposte: `200 { ok }`; `400` (esito non valido, progetto diverso, esito
@@ -306,6 +310,9 @@ scritta solo se manca (`scritta_da: 'deploy'`). La Tana ha `regia_url: null`.
 
 La regia lancia i suoi workflow con `GITHUB_DISPATCH_TOKEN`, sul ramo
 `FLOTTA_REF` (oggi `main`), e il workflow scarica tana-drink al `ref` chiesto.
+Quando la Release del `ref` ha il pacchetto, i workflow pubblicano da lì
+(interfaccia 16); questa compilazione resta come ripiego (REQ-FLOTTA-140),
+e finché c'è tana-drink tiene `scripts/genera-cliente.mjs`.
 
 - **Input di `provisiona-istanza.yml`**: `slug`, `nome_locale`, `piano`
   (`free|base|completo`), `moduli` (csv), `uid`, `email`, `ref` (`main` o
@@ -316,6 +323,14 @@ La regia lancia i suoi workflow con `GITHUB_DISPATCH_TOKEN`, sul ramo
   `cliente` (la cartella in `clienti/` di tana-drink), `build` (JSON con sole
   `VITE_FIREBASE_MEASUREMENT_ID`, `VITE_FIREBASE_VAPID_KEY`,
   `VITE_RECAPTCHA_SITE_KEY`).
+- **Input di tutti e due per il pacchetto** (REQ-FLOTTA-140, interfaccia 16):
+  `strada` (`auto`: il pacchetto se la Release del tag lo ha, se no la
+  compilazione; `pacchetto`: solo quello, altrimenti si ferma;
+  `compilazione`: come prima), `dati_locale` (JSON con i dati del titolare
+  per l'informativa, le chiavi `venue_*` di `CAMPI_DATI_LOCALE`, una riga e
+  al più 200 caratteri ciascuna), `impronta` (l'impronta dell'archivio che
+  la regia ricorda per quella versione, vuota la prima volta). La demo e i
+  locali esistenti (`progetto` o `cliente`) restano sulla compilazione.
 - **Quello che i workflow si aspettano dentro tana-drink**:
   - `scripts/genera-cliente.mjs` (senza, la versione è troppo vecchia: serve
     la 1.10); `--sa tipo-locale`, poi `--slug --nome [--tipo-locale]`, che
@@ -406,6 +421,108 @@ e 9.
 - Da REQ-FLOTTA-114 (Daniele, 15/11/2026: «disattivare l'istanza e2e alla
   fine delle prove e nel backoffice la si vede come disattivata»), col
   gettone di deploy dalle regole di REQ-FLOTTA-115.
+### 16. Il pacchetto per versione (tag di tana-drink → Release di GitHub → workflow della regia)
+
+**Proposta della regia del 17/11/2026, decisa da Daniele il 18/11/2026**
+(REQ-FLOTTA-137, REQ-FLOTTA-140): «tana drink compila il pacchetto,
+provisiona istanza e aggiorna istanza aggiornano con il pacchetto di
+release di tana-drink». La regola 2 di `docs/flotta.md` di tana-drink
+(«Ognuno pubblica il suo») resta intatta: nessuno dei due scrive nelle cose
+dell'altro. Finché il pacchetto non c'è, vale l'interfaccia 12, che resta
+anche dopo come ripiego.
+
+- **Chi lo fa**: tana-drink, una volta per versione (lo stesso sito per
+  tutti i locali), col suo workflow di rilascio al tag: `npm ci && npm
+  --prefix functions ci` e `node scripts/crea-pacchetto.mjs --tipo
+  locali|demo`. Una versione non beta la pubblica solo se il commit del
+  tag sta in `main` e la sua CI su quel commit è riuscita; il tag su
+  `main` si fa col via libera di Daniele. I tag di prova sono
+  `vX.Y.Z-beta`.
+- **Dove**: nella Release di GitHub del tag di tana-drink, come file
+  `pacchetto-<tipo>-vX.Y.Z.tgz` e accanto `….tgz.sha256` con l'impronta
+  dell'archivio; `tipo` = `locali` o `demo`. tana-drink è pubblico: per
+  scaricarlo non serve una chiave. Quando diventerà privato, la regia
+  avrà bisogno di un accesso in sola lettura (da decidere allora).
+- **Chi lo usa**: `provisiona-istanza.yml` e `aggiorna-istanza.yml` della
+  regia (REQ-FLOTTA-140). Se la Release del ref ha il pacchetto lo
+  scaricano, lo controllano e lo personalizzano nel job senza
+  credenziali; se non c'è, o se la regia chiede la compilazione,
+  compilano come nell'interfaccia 12. La regia ricorda l'impronta del
+  pacchetto usato per una versione e rifiuta un archivio diverso per la
+  stessa versione (un file della Release sostituito). Il lavoro della
+  flotta su Google (REQ-FLOTTA-138) usa lo stesso formato ed è in pausa.
+- **Cosa contiene**: `dist/` (il sito compilato in «modalità pacchetto»:
+  segnaposto `%VENUE_*%` in `index.html`, il manifest come modello, il set
+  neutro già al posto dei file della Tana); `functions/` col codice,
+  `package.json`, `package-lock.json` e le dipendenze installate (servono a
+  firebase-tools per trovare le Functions; Cloud Build le reinstalla dal
+  lock), **senza** i `functions/.env.<progetto>` di altri locali;
+  `firebase.json`, `firestore.rules`, `firestore.indexes.json`,
+  `storage.rules`; `personalizza.mjs` e i suoi moduli (solo `locali`);
+  `pacchetto.json`.
+- **`pacchetto.json`**: `{ formato: 1, tipo, versione, tag: "v<versione>",
+  beta: true|false, commit (40 cifre esadecimali), creato_il, profili:
+  ["completo","leggero"], strumenti: { node, "firebase-tools": "<x.y.z>" },
+  personalizzabili: [percorsi], campiVenue: [chiavi], file: { "<percorso>":
+  "<sha256>" } }`. `campiVenue` fa parte del formato 1 (tana-drink,
+  18/11/2026: sempre presente, mai vuoto; `crea-pacchetto.mjs` si ferma
+  altrimenti) ed è `CAMPI_VENUE` dell'app di quel tag: la regia ci confronta il `venue`
+  della configurazione appena scaricato il pacchetto, prima di toccare il
+  locale (`chiaviVenueFuori`). Ogni
+  file è elencato con la sua impronta. Il lavoro della flotta controlla
+  l'archivio **prima** di personalizzare (formato, file necessari, impronte,
+  nessun file non dichiarato, nessun percorso che esce dal pacchetto) e
+  dopo controlla tutto tranne `personalizzabili` e `configurazione.json`
+  (`problemiDelManifesto`, `problemiDeiFile`). Se è una beta lo dice
+  `beta`, e la produzione non la accetta (`versioneAmmessa`). Il `commit`
+  deve essere quello del tag che il workflow ha controllato (per la
+  produzione: sta su `main`), e `firebase.json` passa da una lista di
+  ammessi (`problemiDiFirebaseJson`): sito in `dist`, Functions in
+  `functions`, regole nei file del pacchetto, sezioni `firestore`,
+  `storage`, `functions`, `hosting`, `emulators`, niente
+  `predeploy`/`postdeploy` né `hosting.source`, che girerebbero dove ci sono
+  le credenziali. Nei workflow il pacchetto si controlla tutto nel job
+  `controlla`, prima del Terraform; il job che pubblica, prima delle
+  credenziali, ricontrolla l'app personalizzata contro il pacchetto
+  riscaricato (nessun collegamento, nessun file in più, ogni file non
+  personalizzabile uguale). I dati del titolare che il `campiVenue` del
+  pacchetto non conosce restano fuori. Il codice è in
+  `scripts/pacchetto-su-disco.mjs` e `scripts/pacchetto-locale.mjs`.
+- **La personalizzazione al deploy**: `node personalizza.mjs --dist <cartella>
+  --configurazione <file.json> [--pubblica <cartella>]` riempie i
+  segnaposto di `index.html`, scrive il manifest, mette i file del cliente
+  (facoltativi) sopra il set neutro, scrive `configurazione.json` **e lo
+  stesso contenuto come blocco `<script id="configurazione"
+  type="application/json">` in `index.html`**, così la configurazione
+  arriva con la pagina anche al primo avvio e senza rete. Rifiuta un
+  `dist/` già personalizzato, rifiuta la configurazione che l'app
+  rifiuterebbe, ed esce con errore se resta un segnaposto. La
+  configurazione: `{ backend: "firebase", locale: "<slug>", firebase: {…},
+  venue: {…le chiavi ammesse dall'app…}, profilo: "completo|leggero",
+  regia: "drink-regia|drink-regia-test" }` (le regole in
+  `src/porte/configurazioneLocale.mjs` dell'app: un campo sconosciuto, a
+  qualunque livello, è un errore; al deploy servono `locale`,
+  `firebase.apiKey`, `authDomain`, `projectId`, `appId` e
+  `venue.venue_name`). Nel `venue` la regia mette anche i dati del
+  titolare per l'informativa del locale (`venue_legal_name`,
+  `venue_address`, `venue_postal_city`, `venue_legal_address`,
+  `venue_vat_number`, `venue_tax_code`, `venue_email`): personalizza.mjs
+  li scrive in `privacy-policy.html` e `cookie-policy.html`, e quelli che
+  mancano si leggono «[… — da inserire]». Per un locale `apiKey`,
+  `appId` e `projectId` non cambiano mai (sessioni e App Check ci sono
+  legati). `functions/.env.<progetto>` (`VENUE_NAME`, `REGIA_PROGETTO`) lo
+  scrivono i workflow della regia, come oggi, dopo il controllo che segue
+  la personalizzazione: non è un file del pacchetto.
+- **La demo**: il pacchetto `tipo: demo` lo compila tana-drink, con la demo
+  decisa dalla build; non si personalizza. Lo pubblica la regia, come oggi.
+- **Strumenti**: firebase-tools fissato a una versione, la stessa nel
+  pacchetto e in chi pubblica (15.36.0 al 18/11/2026): col pacchetto il job
+  che pubblica usa `firebase-tools@<versione di pacchetto.json>`. Node 22.
+- **I file nella Release**: `pacchetto-<tipo>-vX.Y.Z.tgz` e
+  `pacchetto-<tipo>-vX.Y.Z.tgz.sha256` (il nome semplice, tana-drink
+  19/11/2026), allegati nell'ordine: prima l'archivio, poi l'impronta. Il
+  primo pacchetto è quello di `v1.10.56-beta` (19/11/2026).
+
 ## La sicurezza delle interfacce
 
 REQ-FLOTTA-115. Daniele, 15/11/2026, dopo aver visto che chiunque si
@@ -478,6 +595,7 @@ con un backend diverso l'interfaccia va rifatta, gettone o no.
 | 13 | Identità, ruoli e permessi | — | `role` nel locale; l'account della regia sui progetti dei locali | sì; legata a Firebase Auth e ai permessi di Google | la regia legge `role` per il passaggio e per le azioni del titolare (5, 6, 9) e lo scrive al titolare alla nascita (12): con il passo 3 la lettura per la 5 e la 9 passa al server del locale |
 | 14 | `VITE_REGIA_PROGETTO` | la build della Tana | — | sì | niente |
 | 15 | L'istanza di prova (`istanzaDiProva`) | le prove e2e di tana-drink | gettone di Google di `deploy@<progetto>`, destinatario `regia-prova:<regia>` | sì, con la chiave dell'account di deploy che le e2e tengono nei loro segreti (c'era già per il deploy); il gettone dura un'ora | niente; a tana-drink, il gettone nel giro e2e |
+| 16 | Il pacchetto per versione (REQ-FLOTTA-137, REQ-FLOTTA-140) | il workflow di rilascio di tana-drink, nella Release del tag; i workflow della regia lo scaricano | nessuna: tana-drink è pubblico; da privato, un accesso in sola lettura per la regia | sì: nessuno scrive nelle cose dell'altro | la regia controlla impronte e formato, e ricorda l'impronta di ogni versione |
 | — | `passaggioVersoRegia`, deprecata | il browser del titolare | ID token | no | si toglie come già previsto (sotto) |
 
 ### Il percorso

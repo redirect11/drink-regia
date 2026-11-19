@@ -1,0 +1,15 @@
+# L’IMMAGINE DEL LAVORO DELLA FLOTTA su Cloud Build (REQ-FLOTTA-138), nel
+# progetto della regia, dalla radice del repository:
+#   gcloud builds submit --project <regia> --config infra/flotta/cloudbuild.yaml \
+#     --ignore-file infra/flotta/.gcloudignore --substitutions _VERSIONE=<versione della regia>
+# Il magazzino «flotta» (Artifact Registry, europe-west1) lo crea una volta
+# chi prepara la regia: infra/README.md.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: [build, -f, infra/flotta/Dockerfile, -t, "europe-west1-docker.pkg.dev/$PROJECT_ID/flotta/lavoro:$_VERSIONE", .]
+images:
+  - "europe-west1-docker.pkg.dev/$PROJECT_ID/flotta/lavoro:$_VERSIONE"
+substitutions:
+  _VERSIONE: prova
+options:
+  logging: CLOUD_LOGGING_ONLY

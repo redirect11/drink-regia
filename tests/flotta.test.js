@@ -105,7 +105,7 @@ describe.each(WORKFLOW)('%s', (_, w, corpo) => {
     // d'altro tipo sono tre, come nell'aggiornamento.
     if (w === provisiona) expect(deploy).toContain('if [ "$tentativo" -ge 3 ]; then exit 1; fi')
     else expect(deploy).toContain('for tentativo in 1 2 3; do')
-    expect(deploy).toContain('npx firebase-tools deploy --only "$SOLO" --project "$PROGETTO" --force')
+    expect(deploy).toContain('npx -y "$FIREBASE_TOOLS" deploy --only "$SOLO" --project "$PROGETTO" --force')
     expect(deploy).toContain('sleep 90')
   })
 
@@ -249,7 +249,8 @@ describe.each(WORKFLOW)('%s: l’app di produzione di quel locale', (_, w) => {
   it('un’app che non sa compilare per un cliente (la 1.9.x) si ferma, su tutte e due le regie', () => {
     const controllo = passo(w, "La versione dell'app va bene per questa regia?").run
     const primo = controllo.slice(0, controllo.indexOf('if [ "$AMBIENTE"'))
-    expect(primo).toMatch(/if \[ ! -f scripts\/genera-cliente\.mjs \]; then[\s\S]*exit 1/)
+    // Solo sulla compilazione (REQ-FLOTTA-140): il pacchetto non lo usa.
+    expect(primo).toMatch(/if \[ "\$STRADA_SCELTA" = "compilazione" \] && \[ ! -f scripts\/genera-cliente\.mjs \]; then[\s\S]*exit 1/)
   })
 })
 
@@ -336,7 +337,7 @@ describe('aggiorna-istanza.yml: la demo', () => {
     const storage = passo(aggiorna, 'Lo Storage della demo chiuso')
     expect(nomi.indexOf('Lo Storage della demo chiuso')).toBe(deploy - 1)
     expect(storage.if).toBe("env.DEMO == 'true'")
-    expect(storage.run).toContain('npx firebase-tools deploy --only storage --project "$PROGETTO" --force')
+    expect(storage.run).toContain('npx -y "$FIREBASE_TOOLS" deploy --only storage --project "$PROGETTO" --force')
     const testo = leggi('infra/demo/firestore.rules').replace(/\/\/.*$/gm, '')
     expect(testo).toMatch(/match \/\{documento=\*\*\} \{\s*allow read, write: if false;\s*\}/)
     expect(testo.match(/allow /g)).toHaveLength(1)
@@ -447,12 +448,16 @@ describe.each(WORKFLOW)('%s: il codice di tana-drink gira solo nel job senza la 
   const eseguonoLApp = (j) => /npm ci --prefix app|npm run build|node scripts\/genera-cliente\.mjs/.test(testo(j))
   const hannoLaChiave = (j) => testo(j).includes('secrets.')
 
-  it('quattro job in fila: controlla → prepara → compila → pubblica', () => {
-    expect(Object.keys(w.jobs)).toEqual(['controlla', 'prepara', 'compila', 'pubblica'])
+  it('i job in fila: controlla → prepara → compila o pacchetto (uno dei due) → pubblica', () => {
+    expect(Object.keys(w.jobs)).toEqual(['controlla', 'prepara', 'compila', 'pacchetto', 'pubblica'])
     expect(w.jobs.controlla.needs).toBeUndefined()
     expect(w.jobs.prepara.needs).toBe('controlla')
     expect(w.jobs.compila.needs).toEqual(['controlla', 'prepara'])
-    expect(w.jobs.pubblica.needs).toEqual(['controlla', 'prepara', 'compila'])
+    expect(w.jobs.pacchetto.needs).toEqual(['controlla', 'prepara'])
+    // REQ-FLOTTA-140: la strada decisa in `controlla` fa partire uno solo dei due.
+    expect(w.jobs.compila.if).toBe("needs.controlla.outputs.strada == 'compilazione'")
+    expect(w.jobs.pacchetto.if).toBe("needs.controlla.outputs.strada == 'pacchetto'")
+    expect(w.jobs.pubblica.needs).toEqual(['controlla', 'prepara', 'compila', 'pacchetto'])
     // La concorrenza per slug resta del workflow intero, non di un job.
     expect(w.concurrency.group).toBe('progetto-drinkpos-${{ inputs.slug }}')
   })
@@ -513,7 +518,7 @@ describe.each(WORKFLOW)('%s: il codice di tana-drink gira solo nel job senza la 
     expect(w.jobs.pubblica.if).toBe('${{ !cancelled() }}')
     const primo = w.jobs.pubblica.steps[0]
     expect(primo.name).toBe('I job precedenti sono riusciti?')
-    expect(primo.if).toBe("needs.compila.result != 'success'")
+    expect(primo.if).toBe("needs.compila.result != 'success' && needs.pacchetto.result != 'success'")
     expect(primo.run).toMatch(/exit 1\s*$/)
     expect(passo(w, 'Esito alla regia').if).toBe('always()')
     expect(passo(w, 'Esito alla regia').env.ESITO_JOB).toBe('${{ job.status }}')
@@ -525,6 +530,94 @@ describe.each(WORKFLOW)('%s: il codice di tana-drink gira solo nel job senza la 
   it('lo SHA di tana-drink pubblicato arriva al job dell’esito e nel callback', () => {
     expect(w.jobs.pubblica.env.COMMIT_APP).toBe('${{ needs.controlla.outputs.commit }}')
     expect(passo(w, 'Esito alla regia').run).toContain('commit: process.env.COMMIT_APP || null')
+  })
+
+  // REQ-FLOTTA-140, (A): la strada si decide in `controlla`, senza
+  // credenziali, con gli script della regia e non con quelli dell'app.
+  it('la strada si decide nel job controlla, prima di guardare l’app, con lo script della regia', () => {
+    const c = w.jobs.controlla
+    expect(c.environment).toBeUndefined()
+    expect(testo(c)).not.toContain('secrets.')
+    expect(c.outputs.strada).toBe('${{ steps.strada.outputs.strada }}')
+    const nomi = c.steps.map((x) => x.name || x.uses)
+    const strada = c.steps.find((x) => x.id === 'strada')
+    expect(strada.run).toBe('node regia/scripts/pacchetto-locale.mjs strada')
+    expect(nomi.indexOf('La strada')).toBeLessThan(nomi.indexOf("La versione dell'app va bene per questa regia?"))
+    // La regia, non tana-drink: il checkout senza `repository`.
+    const regia = c.steps.find((x) => x.with?.path === 'regia')
+    expect(regia.with.repository).toBeUndefined()
+    // Gli input nuovi passano da «Input validi», come gli altri.
+    const validi = passo(w, 'Input validi').run
+    expect(validi).toContain('[[ "$STRADA" =~ ^(auto|pacchetto|compilazione)$ ]]')
+    expect(validi).toContain('[[ "$IMPRONTA_RICORDATA" =~ ^([0-9a-f]{64})?$ ]]')
+    expect(validi).toContain('if [ ${#DATI_LOCALE} -gt 4000 ]')
+    expect(w.on.workflow_dispatch.inputs.strada).toMatchObject({ type: 'choice', options: ['auto', 'pacchetto', 'compilazione'], default: 'auto' })
+  })
+
+  // (B): il pacchetto si scarica, si controlla e si personalizza dove
+  // prima si compilava: senza environment, senza secret, senza installare
+  // niente. personalizza.mjs è l'unico codice di tana-drink che gira, e qui.
+  it('il job del pacchetto non ha environment né secret, non installa niente e consegna app/ come compila', () => {
+    const j = w.jobs.pacchetto
+    expect(j.environment).toBeUndefined()
+    expect(testo(j)).not.toContain('secrets.')
+    expect(testo(j)).not.toMatch(/npm ci|npm run build|GOOGLE_APPLICATION_CREDENTIALS|sa\.json/)
+    expect(j.steps.some((x) => x.with?.repository)).toBe(false)
+    const prepara = j.steps.find((x) => x.id === 'prepara')
+    expect(prepara.run).toBe('node regia/scripts/pacchetto-locale.mjs prepara')
+    // Lo stesso archivio verificato in `controlla`, e nessun altro.
+    expect(prepara.env).toMatchObject({ COMMIT_APP: '${{ needs.controlla.outputs.commit }}', IMPRONTA_RICORDATA: '${{ needs.controlla.outputs.impronta }}', USCITA: '${{ github.workspace }}/app' })
+    // Niente esce da qui come output: chi pubblica non si fida di questo job.
+    expect(j.outputs).toBeUndefined()
+    const su = j.steps.find((x) => x.uses?.startsWith('actions/upload-artifact'))
+    expect(su.with).toMatchObject({ name: 'app', path: 'app.tgz', 'retention-days': 1 })
+  })
+
+  // (E) e interfaccia 16: col pacchetto si pubblica con la sua
+  // firebase-tools, e l'esito dice la strada e l'impronta.
+  // Revisione della PR #345, punto 1: il pacchetto si controlla prima che il
+  // Terraform di `prepara` crei o cambi il progetto del locale.
+  it('il pacchetto si controlla in controlla, prima del Terraform, senza eseguirne niente', () => {
+    const c = w.jobs.controlla
+    const v = c.steps.find((x) => x.id === 'verifica')
+    expect(v.if).toBe("steps.strada.outputs.strada == 'pacchetto'")
+    expect(v.run).toBe('node regia/scripts/pacchetto-locale.mjs verifica')
+    expect(v.env.COMMIT_APP).toBe('${{ steps.app.outputs.commit }}')
+    expect(c.steps.indexOf(v)).toBe(c.steps.length - 1)
+    expect(c.outputs.impronta).toBe('${{ steps.verifica.outputs.impronta }}')
+    expect(w.jobs.prepara.needs).toBe('controlla')
+    // Il comando `verifica` non lancia personalizza.mjs: solo `prepara` lo fa.
+    const script = leggi('scripts/pacchetto-locale.mjs')
+    const corpo = script.slice(script.indexOf('async function verifica()'), script.indexOf('async function prepara()'))
+    expect(corpo).not.toContain('personalizzaPacchetto')
+  })
+
+  // Punti 2, 4 e 5: chi pubblica non si fida di quello che arriva dal job di
+  // personalizza.mjs, e niente di quel job entra in GITHUB_ENV o in npx.
+  it('pubblica ricontrolla l’app prima delle credenziali e prende firebase-tools e versione dal pacchetto', () => {
+    const e = w.jobs.pubblica.env
+    expect(e.FIREBASE_TOOLS).toBeUndefined()
+    expect(e.STRADA_USATA).toBe('${{ needs.controlla.outputs.strada }}')
+    expect(e.IMPRONTA_USATA).toBe('${{ needs.controlla.outputs.impronta }}')
+    expect(testo(w.jobs.pubblica)).not.toMatch(/needs\.pacchetto\.outputs/)
+    const nomi = w.jobs.pubblica.steps.map((x) => x.name || x.uses)
+    const ricontrollo = passo(w, 'Il pacchetto, ricontrollato prima delle credenziali')
+    expect(ricontrollo.if).toBe("env.STRADA_USATA == 'pacchetto'")
+    expect(ricontrollo.run).toBe('node scripts/pacchetto-locale.mjs riverifica && rm app.tgz')
+    expect(ricontrollo.env.IMPRONTA_RICORDATA).toBe('${{ needs.controlla.outputs.impronta }}')
+    expect(nomi.indexOf('Il pacchetto, ricontrollato prima delle credenziali')).toBeLessThan(nomi.indexOf('Credenziali di provisioning'))
+    expect(nomi.indexOf('Il pacchetto, ricontrollato prima delle credenziali')).toBeLessThan(nomi.indexOf('Dipendenze della regia'))
+    // Col pacchetto l'archivio non si apre alla cieca.
+    expect(passo(w, "L'app compilata").if).toBe("env.STRADA_USATA != 'pacchetto'")
+    expect(passo(w, 'La firebase-tools della compilazione').run).toBe('echo "FIREBASE_TOOLS=firebase-tools" >> "$GITHUB_ENV"')
+    expect(testo(w.jobs.pubblica)).not.toMatch(/npx firebase-tools /)
+    expect(passo(w, 'Esito alla regia').run).toContain('strada: process.env.STRADA_USATA || null, impronta: process.env.IMPRONTA_USATA || null')
+    // La versione della compilazione: letta come testo e controllata prima di GITHUB_ENV.
+    const ver = passo(w, 'Versione pubblicata')
+    expect(ver.if).toBe("env.STRADA_USATA != 'pacchetto'")
+    expect(ver.run).not.toMatch(/require\(['"]\.\/app/)
+    expect(ver.run).toContain('readFileSync("app/package.json", "utf8")')
+    expect(ver.run).toMatch(/process\.exit\(1\)/)
   })
 })
 
@@ -620,7 +713,7 @@ describe('infra/istanza/main.tf', () => {
       for (const w of [provisiona, aggiorna]) {
         const passi = w.jobs.pubblica.steps
         const storage = passi.findIndex((x) => x.name === 'Lo Storage del locale')
-        const deploy = passi.findIndex((x) => /firebase-tools deploy --only "\$SOLO"/.test(x.run || ''))
+        const deploy = passi.findIndex((x) => /deploy --only "\$SOLO"/.test(x.run || ''))
         expect(storage).toBeGreaterThan(-1)
         expect(storage).toBeLessThan(deploy)
       }
@@ -1136,9 +1229,9 @@ describe('il primo deploy delle Functions di un locale nuovo', () => {
   it('la nascita cancella le Functions rimaste a metà prima di riprovare; l’aggiornamento no', () => {
     const deploy = passo(provisiona, 'Deploy regole, indici, Functions e hosting').run
     expect(deploy.startsWith('set -o pipefail\n')).toBe(true)
-    expect(deploy).toContain('npx firebase-tools deploy --only "$SOLO" --project "$PROGETTO" --force 2>&1 | tee "$RUNNER_TEMP/deploy.log"')
+    expect(deploy).toContain('npx -y "$FIREBASE_TOOLS" deploy --only "$SOLO" --project "$PROGETTO" --force 2>&1 | tee "$RUNNER_TEMP/deploy.log"')
     expect(deploy).toContain('A_META=$(node ../scripts/funzioni-fallite.mjs --cambio-di-tipo "$RUNNER_TEMP/deploy.log")')
-    expect(deploy).toContain('npx firebase-tools functions:delete "$nome" --region "$regione" --project "$PROGETTO" --force || true')
+    expect(deploy).toContain('npx -y "$FIREBASE_TOOLS" functions:delete "$nome" --region "$regione" --project "$PROGETTO" --force || true')
     expect(deploy).toContain('done <<< "$A_META"')
     // Si cancella solo dopo un tentativo fallito; dopo una cancellazione si
     // riprova subito (il «cambio di tipo» ne scopre una per volta), finché
@@ -1371,5 +1464,194 @@ describe('le credenziali della flotta (REQ-FLOTTA-136)', async () => {
     expect(provisiona.env.PROGETTO).toBe('drinkpos-${{ inputs.slug }}')
     expect(elimina.env.PROGETTO).toBe('drinkpos-${{ inputs.slug }}')
     expect(prepara.concurrency).toEqual({ group: 'progetto-${{ inputs.progetto }}', 'cancel-in-progress': false })
+  })
+})
+
+// IL LAVORO DELLA FLOTTA SU GOOGLE (REQ-FLOTTA-138): le regole dei workflow,
+// scritte una volta in scripts/lib-lavoro.js, e lo script che le usa dentro
+// il Cloud Run Job della regia, senza GitHub.
+describe('il lavoro della flotta su Google (REQ-FLOTTA-138)', async () => {
+  const L = await import('../scripts/lib-lavoro.js')
+  const base = { COMANDO: 'aggiorna', SLUG: 'prova-bar', AMBIENTE: 'test', VERSIONE: '1.10.56-beta', NOME: 'Prova Bar', RUN_ID: '42' }
+  const lavoro = leggi('scripts/flotta-lavoro.mjs')
+
+  it('gli input passano dagli stessi controlli dei workflow, e la versione è obbligatoria tranne che per eliminare', () => {
+    const { input, problemi } = L.inputDelLavoro(base)
+    expect(problemi).toEqual([])
+    expect(input).toMatchObject({ comando: 'aggiorna', progetto: 'drinkpos-prova-bar', profilo: 'completo', piano: 'base', runId: 42 })
+    expect(L.inputDelLavoro({ ...base, SLUG: 'Prova;rm' }).problemi).toContain('slug non valido')
+    expect(L.inputDelLavoro({ ...base, COMANDO: 'cancella' }).problemi[0]).toMatch(/comando/)
+    expect(L.inputDelLavoro({ ...base, NOME: 'Bar\nMario' }).problemi).toContain('nome del locale non valido')
+    expect(L.inputDelLavoro({ ...base, EMAIL_TITOLARE: 'non-email' }).problemi).toContain('email del titolare non valida')
+    expect(L.inputDelLavoro({ ...base, VERSIONE: 'main' }).problemi[0]).toMatch(/versione non valida/)
+    expect(L.inputDelLavoro({ ...base, AMBIENTE: 'produzione' }).problemi).toContain('in produzione un locale riceve solo rilasci, non una beta')
+    expect(L.inputDelLavoro({ ...base, AMBIENTE: 'produzione', VERSIONE: '1.10.56' }).problemi).toEqual([])
+    expect(L.inputDelLavoro({ COMANDO: 'elimina', SLUG: 'prova-bar', AMBIENTE: 'test', RUN_ID: '7' }).problemi).toEqual([])
+    // La demo resta sui workflow finché non c'è il suo pacchetto.
+    expect(L.inputDelLavoro({ ...base, SLUG: 'demo' }).problemi.join()).toMatch(/demo/)
+  })
+
+  it('il run_id per la callback è un intero positivo: quello di chi lancia, o l’istante', () => {
+    expect(L.runIdDi('123')).toBe(123)
+    expect(L.runIdDi('', 1700000000000)).toBe(1700000000000)
+    expect(L.runIdDi(undefined, 5)).toBe(5)
+    expect(L.runIdDi('0')).toBeNull()
+    expect(L.runIdDi('12abc')).toBeNull()
+    expect(L.inputDelLavoro({ ...base, RUN_ID: '-1' }).problemi).toContain('RUN_ID non valido (un intero positivo)')
+  })
+
+  it('le impostazioni della regia mancanti si vedono tutte', () => {
+    expect(L.impostazioniMancanti({ TFSTATE_BUCKET: 'x' })).toEqual(L.IMPOSTAZIONI.filter((k) => k !== 'TFSTATE_BUCKET'))
+    expect(L.IMPOSTAZIONI).toContain('PROVISIONING_CALLBACK_SECRET')
+    // Il bucket dei pacchetti è stato tolto il 18/11/2026: il pacchetto
+    // viene dalla Release di tana-drink (REQ-FLOTTA-137).
+    expect(L.IMPOSTAZIONI).not.toContain('RILASCI_BUCKET')
+  })
+
+  it('il blocco per progetto: un nome per locale, morto dopo il tempo massimo col margine', () => {
+    expect(L.nomeBlocco('prova-bar')).toBe('blocchi/drinkpos-prova-bar.json')
+    const adesso = Date.parse('2026-11-18T12:00:00Z')
+    expect(L.TEMPO_MASSIMO_S).toBe(3600)
+    expect(L.bloccoMorto('2026-11-18T11:00:00Z', adesso)).toBe(false)
+    expect(L.bloccoMorto('2026-11-18T10:49:00Z', adesso)).toBe(true)
+    expect(L.bloccoMorto('non una data', adesso)).toBe(true)
+    // Preso solo se non c'è, tolto solo se è ancora il nostro.
+    expect(lavoro).toContain("'--if-generation-match=0'")
+    expect(lavoro).toMatch(/storage', 'rm', blocco\.oggetto, `--if-generation-match=\$\{blocco\.generazione\}`/)
+  })
+
+  it('la configurazione web si legge dal Terraform o da Firebase, e deve essere del progetto del locale', () => {
+    const tf = { VITE_FIREBASE_API_KEY: 'k', VITE_FIREBASE_AUTH_DOMAIN: 'drinkpos-prova-bar.firebaseapp.com', VITE_FIREBASE_PROJECT_ID: 'drinkpos-prova-bar', VITE_FIREBASE_APP_ID: '1:2:web:3' }
+    const sdk = { result: { sdkConfig: { apiKey: 'k', authDomain: 'drinkpos-prova-bar.firebaseapp.com', projectId: 'drinkpos-prova-bar', appId: '1:2:web:3', storageBucket: 'b' } } }
+    expect(L.firebaseDa(tf)).toMatchObject({ apiKey: 'k', projectId: 'drinkpos-prova-bar', appId: '1:2:web:3', storageBucket: '' })
+    expect(L.firebaseDa(sdk)).toMatchObject({ apiKey: 'k', storageBucket: 'b' })
+    expect(() => L.firebaseDa({ projectId: 'x' })).toThrow(/apiKey/)
+    // authDomain lo pretende personalizza.mjs di tana-drink al deploy.
+    expect(() => L.firebaseDa({ apiKey: 'k', projectId: 'drinkpos-prova-bar', appId: '1:2:web:3' })).toThrow(/authDomain/)
+    const c = L.configurazioneLocale({ slug: 'prova-bar', nome: 'Prova Bar del Centro', profilo: 'leggero', ambiente: 'test', firebase: L.firebaseDa(tf) })
+    expect(c).toMatchObject({ backend: 'firebase', locale: 'prova-bar', profilo: 'leggero', regia: 'drink-regia-test' })
+    expect(c.venue).toEqual({ venue_name: 'Prova Bar del Centro', venue_short_name: 'Prova', venue_description: 'Ordina da Prova Bar del Centro' })
+    // I dati del titolare per l'informativa entrano nel venue, accanto al nome.
+    const conDati = L.configurazioneLocale({ slug: 'prova-bar', nome: 'Prova Bar', profilo: 'completo', ambiente: 'test', firebase: L.firebaseDa(tf), datiLocale: { venue_legal_name: 'Prova S.r.l.', venue_vat_number: '00000000000' } })
+    expect(conDati.venue).toMatchObject({ venue_name: 'Prova Bar', venue_legal_name: 'Prova S.r.l.', venue_vat_number: '00000000000' })
+    expect(() => L.configurazioneLocale({ slug: 'altro-bar', nome: 'x', profilo: 'completo', ambiente: 'test', firebase: L.firebaseDa(tf) })).toThrow(/non di drinkpos-altro-bar/)
+    expect(L.envDaFirebase(L.firebaseDa(tf))).toMatch(/^VITE_FIREBASE_API_KEY=k$/m)
+    expect(L.envFunctions({ nome: 'Prova Bar', ambiente: 'produzione' })).toBe('VENUE_NAME=Prova Bar\nREGIA_PROGETTO=drink-regia\n')
+    expect(L.soloDelDeploy('leggero')).toBe('firestore,hosting')
+    expect(L.soloDelDeploy('completo')).toBe('firestore,storage,functions,hosting')
+  })
+
+  it('i dati del titolare per l’informativa: solo le chiavi della regia, testi su una riga, niente per eliminare', () => {
+    const { datiDelLocale } = require('../functions/lib/passaggio.js')
+    // Le chiavi sono quelle che la regia scrive in settings/bar, più l'email.
+    expect([...L.CAMPI_DATI_LOCALE].sort()).toEqual([...Object.keys(datiDelLocale({})).filter((k) => k !== 'venue_name'), 'venue_email'].sort())
+    expect(L.datiLocaleDa(undefined)).toEqual({ valori: {}, problemi: [] })
+    expect(L.datiLocaleDa(JSON.stringify({ venue_legal_name: ' Prova S.r.l. ', venue_tax_code: '' })).valori).toEqual({ venue_legal_name: 'Prova S.r.l.' })
+    expect(L.datiLocaleDa('{').problemi).toEqual(['DATI_LOCALE non è JSON'])
+    expect(L.datiLocaleDa('[]').problemi).toEqual(['DATI_LOCALE deve essere un oggetto'])
+    expect(L.datiLocaleDa(JSON.stringify({ venue_socials: [] })).problemi).toEqual(['DATI_LOCALE: campo sconosciuto venue_socials'])
+    expect(L.datiLocaleDa(JSON.stringify({ venue_address: 'Via Roma 1' + String.fromCharCode(10) + 'riga due' })).problemi[0]).toMatch(/su una riga/)
+    expect(L.datiLocaleDa(JSON.stringify({ venue_email: 'non-una-email' })).problemi).toEqual(['DATI_LOCALE: venue_email non valida'])
+    const base = { COMANDO: 'attiva', SLUG: 'prova-bar', AMBIENTE: 'test', NOME: 'Prova Bar', UID_TITOLARE: 'abcdefghij1234567890', VERSIONE: '1.10.0-beta' }
+    expect(L.inputDelLavoro({ ...base, DATI_LOCALE: JSON.stringify({ venue_vat_number: '00000000000' }) }, 1).input.datiLocale).toEqual({ venue_vat_number: '00000000000' })
+    expect(L.inputDelLavoro({ ...base, DATI_LOCALE: '{' }, 1).problemi).toContain('DATI_LOCALE non è JSON')
+    // Se il pacchetto dice quali chiavi accetta, il venue ci deve stare.
+    const campi = ['venue_name', 'venue_short_name', 'venue_description', 'venue_legal_name']
+    expect(L.chiaviVenueFuori({ nome: 'Prova Bar', datiLocale: { venue_legal_name: 'Prova S.r.l.' } }, campi)).toEqual([])
+    expect(L.chiaviVenueFuori({ nome: 'Prova Bar', datiLocale: { venue_vat_number: '00000000000' } }, campi)).toEqual(['venue_vat_number'])
+    expect(L.chiaviVenueFuori({ nome: 'Prova Bar', datiLocale: { venue_vat_number: '00000000000' } }, undefined)).toEqual([])
+    expect(lavoro).toMatch(/chiaviVenueFuori\(input, pacchetto\.manifesto\.campiVenue\)[\s\S]*passo\('Il Terraform'\)/)
+    // Per eliminare non servono, e non si guardano.
+    expect(L.inputDelLavoro({ COMANDO: 'elimina', SLUG: 'prova-bar', AMBIENTE: 'test', DATI_LOCALE: '{' }, 1).problemi).toEqual([])
+  })
+
+  it('l’archivio si apre solo con file e cartelle dentro il pacchetto', () => {
+    const ok = ['drwxr-xr-x u/g 0 2026-11-18 10:00 ./', '-rw-r--r-- u/g 12 2026-11-18 10:00 ./dist/index.html', 'drwxr-xr-x u/g 0 2026-11-18 10:00 functions/', '-rw-r--r-- u/g 9 2026-11-18 10:00 nome con spazi.txt', '']
+    expect(L.problemiDellElenco(ok)).toEqual([])
+    expect(L.problemiDellElenco(['lrwxrwxrwx u/g 0 2026-11-18 10:00 dist/x -> /etc/passwd'])[0]).toMatch(/tipo «l»/)
+    expect(L.problemiDellElenco(['-rw-r--r-- u/g 1 2026-11-18 10:00 ../fuori.js'])[0]).toMatch(/percorso non ammesso/)
+    expect(L.problemiDellElenco(['-rw-r--r-- u/g 1 2026-11-18 10:00 /etc/cron.d/x'])[0]).toMatch(/percorso non ammesso/)
+    expect(L.problemiDellElenco(['hrw-r--r-- u/g 1 2026-11-18 10:00 dist/a link to b'])[0]).toMatch(/tipo «h»/)
+  })
+
+  it('personalizza.mjs può importare solo moduli di Node e file del pacchetto', () => {
+    expect(L.importNonAmmessi("import { readFileSync } from 'node:fs'\nimport x from './lib/venue.mjs'\nexport { y } from '../z.js'")).toEqual([])
+    expect(L.importNonAmmessi("import fs from 'fs'")).toEqual(['fs'])
+    expect(L.importNonAmmessi("import 'left-pad'")).toEqual(['left-pad'])
+    expect(L.importNonAmmessi("const a = await import('https://x.y/z.js')")).toEqual(['https://x.y/z.js'])
+    expect(L.importNonAmmessi('const a = require("child_process")')).toEqual(['child_process'])
+    expect(L.importNonAmmessi("const n = 'x'; await import(n)")).toEqual(['(import calcolato)'])
+    // E gira con un ambiente vuoto: il segreto della callback non lo vede.
+    // Il codice sta in pacchetto-su-disco.mjs, lo stesso dei workflow.
+    expect(leggi('scripts/pacchetto-su-disco.mjs')).toMatch(/'personalizza\.mjs'[^\n]*env: \{ PATH: process\.env\.PATH \|\| '', HOME: tmp \}/)
+  })
+
+  it('l’esito ha lo stesso corpo della callback dei workflow, e la regia lo accetta', () => {
+    const { esitoValido, vincoliEsito } = require('../functions/lib/provisioning.js')
+    const eliminazione = require('../functions/lib/eliminazione.js')
+    const adesso = new Date('2026-11-18T12:00:00Z')
+    const { input } = L.inputDelLavoro({ ...base, COMANDO: 'attiva' })
+    const ok = L.corpoEsito({ input, riuscito: true, url: 'https://drinkpos-prova-bar.web.app', versione: '1.10.56-beta', commit: 'a'.repeat(40), adesso })
+    expect(ok).toMatchObject({ slug: 'prova-bar', stato: 'attiva', operazione: 'attivazione', progetto: 'drinkpos-prova-bar', versione: 'v1.10.56-beta', run_id: 42, errore: null })
+    const letto = esitoValido(ok)
+    expect(letto).not.toBeNull()
+    expect(vincoliEsito(letto, null, { operazione: 'attivazione', adesso }).ok).toBe(true)
+    const ko = L.corpoEsito({ input: { ...input, comando: 'aggiorna' }, riuscito: false, errore: 'deploy non riuscito', adesso })
+    expect(ko).toMatchObject({ stato: 'errore', operazione: 'aggiornamento', errore: 'deploy non riuscito' })
+    expect(ko).not.toHaveProperty('url')
+    const el = L.corpoEsito({ input: { ...input, comando: 'elimina' }, riuscito: true, archivio: { percorso: 'istanze/prova-bar/x', zip: 'istanze/prova-bar/x/archivio.zip', byte: 10, conteggi: null }, adesso })
+    expect(el).toMatchObject({ operazione: 'eliminazione', stato: 'eliminata', run_id: 42 })
+    expect(eliminazione.esitoEliminazione(el)).not.toBeNull()
+  })
+
+  it('l’esito si ritenta su un 429 o una rete caduta, e si arrende dopo cinque tentativi', async () => {
+    const attese = []
+    const risposte = [429, 'rete', 200]
+    const f = async () => { const r = risposte.shift(); if (r === 'rete') throw new Error('rete'); return { status: r } }
+    expect(await L.mandaEsito({ url: 'u', segreto: 's', corpo: {}, fetch: f, attendi: async (ms) => attese.push(ms), log: () => {} })).toBe(200)
+    expect(attese).toEqual([15000, 30000])
+    let tentativi = 0
+    const sempre = async () => { tentativi++; return { status: 429 } }
+    expect(await L.mandaEsito({ url: 'u', segreto: 's', corpo: {}, fetch: sempre, attendi: async () => {}, log: () => {} })).toBe(429)
+    expect(tentativi).toBe(5)
+    await expect(L.mandaEsito({ url: 'u', segreto: 's', corpo: {}, fetch: async () => { throw new Error('giù') }, attendi: async () => {}, log: () => {} })).rejects.toThrow('giù')
+    // Un 400 non si ritenta: la regia ha detto di no.
+    let chiamate = 0
+    expect(await L.mandaEsito({ url: 'u', segreto: 's', corpo: {}, fetch: async () => { chiamate++; return { status: 400 } }, attendi: async () => {}, log: () => {} })).toBe(400)
+    expect(chiamate).toBe(1)
+  })
+
+  it('i passi sono quelli dei workflow, e il pacchetto si controlla prima di toccare il locale', () => {
+    const attiva = L.passi({ comando: 'attiva', profilo: 'completo' })
+    expect(attiva).toEqual(['blocco', 'progetto-della-regia', 'pacchetto', 'terraform', 'configurazione-web', 'personalizza', 'env-functions', 'licenza', 'storage', 'segreti', 'deploy', 'titolare', 'esito'])
+    expect(L.passi({ comando: 'aggiorna', profilo: 'leggero' })).toEqual(['blocco', 'progetto-della-regia', 'pacchetto', 'configurazione-web', 'personalizza', 'env-functions', 'deploy', 'titolare', 'esito'])
+    expect(L.passi({ comando: 'aggiorna', profilo: 'completo' })).toContain('account-ai-locale')
+    expect(L.passi({ comando: 'elimina', profilo: 'completo' })).toEqual(['blocco', 'progetto-della-regia', 'backup-leggibile', 'export-nativo', 'archivio', 'verifica-backup', 'elimina-progetto', 'stato-terraform', 'esito'])
+    // Nello script: il pacchetto prima del Terraform.
+    expect(lavoro.indexOf('const pacchetto = await scaricaPacchetto(input)')).toBeGreaterThan(0)
+    expect(lavoro.indexOf('const pacchetto = await scaricaPacchetto(input)')).toBeLessThan(lavoro.indexOf('await terraformAttiva(input, account)'))
+  })
+
+  it('lo script non usa GitHub, non scrive nel database della regia e non mette input in una riga di shell', () => {
+    // Il codice, non i commenti (che dicono, appunto, «senza GitHub»).
+    const codice = lavoro.split(/\r?\n/).filter((r) => !r.trim().startsWith('//')).join(' ')
+    expect(codice).not.toMatch(/github|GITHUB_|actions\//i)
+    expect(lavoro).not.toMatch(/firebase-admin|getFirestore/)
+    expect(lavoro).not.toMatch(/shell:\s*true|execSync|\bexec\(/)
+    // Il segreto della callback esce dall'ambiente prima di ogni comando:
+    // il deploy carica il codice delle Functions di tana-drink.
+    expect(lavoro).toMatch(/const SEGRETO_CALLBACK = env\.PROVISIONING_CALLBACK_SECRET\r?\ndelete env\.PROVISIONING_CALLBACK_SECRET/)
+    // E dopo non lo legge più nessuno dall'ambiente.
+    expect(lavoro.match(/env\.PROVISIONING_CALLBACK_SECRET/g).length).toBe(2)
+    // L'esito parte dopo il blocco lasciato, anche quando qualcosa si ferma.
+    expect(lavoro).toMatch(/\} finally \{\s*lasciaBlocco\(blocco\)\s*\}\s*const arrivato = await esito\(/)
+  })
+
+  it('con input sbagliati e senza impostazioni si ferma subito, senza chiamare niente', () => {
+    const r = spawnSync(process.execPath, ['scripts/flotta-lavoro.mjs'], { cwd: process.cwd(), encoding: 'utf8', env: { PATH: process.env.PATH, COMANDO: 'boh', SLUG: 'prova-bar', AMBIENTE: 'test' } })
+    expect(r.status).toBe(1)
+    expect(r.stderr).toMatch(/Fermo prima di cominciare/)
+    expect(r.stderr).toMatch(/manca l'impostazione REGIA_CALLBACK_URL/)
+    expect(r.stdout).not.toMatch(/Esito alla regia/)
   })
 })

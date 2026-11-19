@@ -91,7 +91,7 @@ describe('dispatchPayload', () => {
   it('è il corpo del workflow_dispatch, con gli input come stringhe', () => {
     expect(dispatchPayload(richiesta, { ref: 'main', app: 'v1.10.0', ambiente: 'test' })).toEqual({
       ref: 'main',
-      inputs: { slug: 'bar-mario', nome_locale: 'Bar Mario', piano: 'base', moduli: 'staff,magazzino', uid: 'u1', email: '', ref: 'v1.10.0', ambiente: 'test', profilo: 'completo' },
+      inputs: { slug: 'bar-mario', nome_locale: 'Bar Mario', piano: 'base', moduli: 'staff,magazzino', uid: 'u1', email: '', ref: 'v1.10.0', ambiente: 'test', profilo: 'completo', strada: 'auto', dati_locale: '', impronta: '' },
     })
   })
 
@@ -125,7 +125,7 @@ describe('dispatchAggiornamento', () => {
   it('lancia aggiorna-istanza.yml con lo slug, la versione dell’app e l’ambiente', () => {
     expect(dispatchAggiornamento({ slug: 'bar-mario', nome_locale: 'Bar Mario' }, { ref: 'main', app: 'v1.10.0', ambiente: 'test' })).toEqual({
       ref: 'main',
-      inputs: { slug: 'bar-mario', nome_locale: 'Bar Mario', ref: 'v1.10.0', ambiente: 'test', profilo: 'completo', progetto: '', cliente: '', email: '', uid: '', build: '' },
+      inputs: { slug: 'bar-mario', nome_locale: 'Bar Mario', ref: 'v1.10.0', ambiente: 'test', profilo: 'completo', progetto: '', cliente: '', email: '', uid: '', build: '', strada: 'auto', dati_locale: '', impronta: '' },
     })
     expect(dispatchAggiornamento({ slug: 'bar-mario', email: 'mario@example.it' }).inputs.email).toBe('mario@example.it')
     // Lo stesso uid della regia nel locale (M7): anche agli aggiornamenti.
@@ -169,6 +169,94 @@ describe('daLanciare', () => {
   })
 })
 
+// IL PACCHETTO NEI WORKFLOW (REQ-FLOTTA-140): i dati del titolare per
+// l'informativa, l'impronta ricordata, la strada nell'esito.
+describe('il pacchetto della Release nei lanci e negli esiti (REQ-FLOTTA-140)', () => {
+  const P = require('../functions/lib/provisioning.js')
+  const H = (c) => c.repeat(64)
+  const cliente = {
+    nome_locale: 'Bar Mario',
+    locale: { indirizzo: { via: 'Via Roma 1', cap: '80035', citta: 'Nola', provincia: 'NA' }, telefono: '' },
+    fatturazione: { ragione_sociale: 'Bar Mario' + String.fromCharCode(10) + 'S.r.l.', partita_iva: '00000000000', codice_fiscale: '', sede_legale: {} },
+  }
+
+  it('i dati del titolare vanno al workflow in una riga di JSON, solo quelli che ci sono, senza a capo', () => {
+    const dati = JSON.parse(P.datiLocalePerIlWorkflow(cliente))
+    expect(dati).toEqual({ venue_legal_name: 'Bar Mario S.r.l.', venue_address: 'Via Roma 1', venue_postal_city: '80035 Nola (NA)', venue_city: 'Nola', venue_vat_number: '00000000000' })
+    expect(P.datiLocalePerIlWorkflow(null)).toBe('')
+    expect(P.datiLocalePerIlWorkflow({ fatturazione: { ragione_sociale: 'x'.repeat(300) } })).toBe(JSON.stringify({ venue_legal_name: 'x'.repeat(200) }))
+    // Le chiavi sono quelle che il workflow accetta (scripts/lib-lavoro.js).
+    return import('../scripts/lib-lavoro.js').then((L) => {
+      expect(P.CAMPI_DATI_LOCALE).toEqual(L.CAMPI_DATI_LOCALE)
+      expect(L.datiLocaleDa(P.datiLocalePerIlWorkflow(cliente)).problemi).toEqual([])
+    })
+  })
+
+  it('il lancio porta strada, dati del titolare e l’impronta ricordata, solo se è un’impronta', () => {
+    const r = { slug: 'bar-mario', nome_locale: 'Bar Mario', piano: 'base', uid: 'u1' }
+    const a = P.dispatchPayload(r, { app: 'v1.10.56-beta', cliente, impronta: H('a') }).inputs
+    expect(a).toMatchObject({ strada: 'auto', impronta: H('a') })
+    expect(JSON.parse(a.dati_locale).venue_vat_number).toBe('00000000000')
+    expect(P.dispatchPayload(r, { impronta: 'boh' }).inputs.impronta).toBe('')
+    const g = P.dispatchAggiornamento({ slug: 'bar-mario' }, { app: 'v1.10.56-beta', cliente, impronta: H('b') }).inputs
+    expect(g).toMatchObject({ strada: 'auto', impronta: H('b') })
+    expect(g.dati_locale).not.toBe('')
+  })
+
+  it('l’esito dice la strada e, col pacchetto, l’impronta; il documento le tiene', () => {
+    const e = P.esitoValido({ slug: 'bar-mario', stato: 'attiva', ref: 'v1.10.56-beta', strada: 'pacchetto', impronta: H('a') })
+    expect(e).toMatchObject({ strada: 'pacchetto', impronta: H('a') })
+    expect(P.esitoValido({ slug: 'bar-mario', stato: 'attiva', strada: 'boh', impronta: H('a') })).toMatchObject({ strada: null, impronta: null })
+    expect(P.esitoValido({ slug: 'bar-mario', stato: 'attiva', strada: 'compilazione', impronta: H('a') }).impronta).toBeNull()
+    expect(P.documentoIstanza(e, null)).toMatchObject({ strada: 'pacchetto', impronta: H('a') })
+    // Un aggiornamento fallito non cambia da dove viene l'app che gira.
+    const prima = { stato: 'attiva', strada: 'compilazione', impronta: null }
+    const fallito = P.esitoValido({ slug: 'bar-mario', stato: 'errore', operazione: 'aggiornamento', strada: 'pacchetto', impronta: H('a') })
+    expect(P.documentoAggiornamento(fallito, prima)).toMatchObject({ strada: 'compilazione', impronta: null })
+    expect(P.documentoAggiornamento({ ...e, operazione: 'aggiornamento' }, prima)).toMatchObject({ strada: 'pacchetto', impronta: H('a') })
+    // Tornare alla compilazione toglie l'impronta: non è più quel pacchetto.
+    const compilata = P.esitoValido({ slug: 'bar-mario', stato: 'attiva', operazione: 'aggiornamento', strada: 'compilazione' })
+    expect(P.documentoAggiornamento(compilata, { stato: 'attiva', strada: 'pacchetto', impronta: H('a') })).toMatchObject({ strada: 'compilazione', impronta: null })
+  })
+
+  it('un’impronta diversa da quella ricordata si segnala, senza sovrascriverla', () => {
+    const esito = { slug: 'bar-mario', stato: 'attiva', ref: 'v1.10.56-beta', strada: 'pacchetto', impronta: H('b') }
+    expect(P.improntaDiversa({ impronta: H('a') }, esito)).toEqual({ versione: 'v1.10.56-beta', ricordata: H('a'), usata: H('b') })
+    expect(P.improntaDiversa({ impronta: H('b') }, esito)).toBeNull()
+    expect(P.improntaDiversa(undefined, esito)).toBeNull()
+    expect(P.improntaDiversa({ impronta: H('a') }, { ...esito, stato: 'errore' })).toBeNull()
+  })
+
+  it('un’attivazione fallita non dice che l’app viene dal pacchetto', () => {
+    const fallita = P.esitoValido({ slug: 'bar-mario', stato: 'errore', operazione: 'attivazione', strada: 'pacchetto', impronta: H('a') })
+    expect(P.documentoIstanza(fallita, null)).toMatchObject({ strada: null, impronta: null })
+    expect(P.documentoIstanza(fallita, { strada: 'compilazione' })).toMatchObject({ strada: 'compilazione', impronta: null })
+  })
+
+  it('si ricorda l’impronta solo di un esito riuscito dal pacchetto di un tag', () => {
+    const base = { slug: 'bar-mario', stato: 'attiva', ref: 'v1.10.56-beta', strada: 'pacchetto', impronta: H('a'), commit: 'c'.repeat(40) }
+    expect(P.improntaDaRicordare(base)).toEqual({ id: 'v1.10.56-beta', impronta: H('a'), slug: 'bar-mario', commit: 'c'.repeat(40) })
+    expect(P.improntaDaRicordare({ ...base, stato: 'errore' })).toBeNull()
+    expect(P.improntaDaRicordare({ ...base, strada: 'compilazione' })).toBeNull()
+    expect(P.improntaDaRicordare({ ...base, ref: 'main' })).toBeNull()
+    expect(P.improntaDaRicordare({ ...base, impronta: 'x' })).toBeNull()
+    expect(P.idPacchetto('v1.11.0')).toBe('v1.11.0')
+    expect(P.idPacchetto('../x')).toBeNull()
+  })
+
+  it('index.js legge l’impronta prima di lanciare e la scrive con create, dopo i vincoli sull’esito', () => {
+    const idx = require('node:fs').readFileSync(require('node:path').join(__dirname, '../functions/index.js'), 'utf8')
+    expect(idx).toContain("cliente, impronta: await improntaRicordata(REF_APP) })")
+    expect(idx).toContain("cliente: esistente ? null : cliente, impronta: await improntaRicordata(ref) })")
+    expect(idx).toContain('const ref = db.doc(`pacchetti/${r.id}`)')
+    expect(idx).toContain('await ref.create({ impronta: r.impronta')
+    // Su ALREADY_EXISTS si confronta e, se è diversa, si segna sull'istanza.
+    expect(idx).toMatch(/if \(e\?\.code !== 6\) return[\s\S]*improntaDiversa\(\(await ref\.get\(\)\)\.data\(\), esito\)[\s\S]*pacchetto_diverso/)
+    const esitoDa = idx.indexOf('exports.esitoProvisioning')
+    expect(idx.indexOf('await ricordaImpronta(esito)', esitoDa)).toBeGreaterThan(idx.indexOf('if (!vincoli.ok) return res.status(400)', idx.indexOf('const esito = esitoValido(req.body)')))
+  })
+})
+
 describe('esitoValido e documentoIstanza', () => {
   it('accetta solo slug e stati noti, e riempie il documento senza perdere quello che c’era', () => {
     expect(esitoValido({ slug: 'bar-mario', stato: 'boh' })).toBeNull()
@@ -187,6 +275,8 @@ describe('esitoValido e documentoIstanza', () => {
       ref: 'main',
       commit: SHA,
       profilo: null,
+      strada: null,
+      impronta: null,
       errore: null,
       aggiornata_il: '2026-10-22T10:00:00.000Z',
     })

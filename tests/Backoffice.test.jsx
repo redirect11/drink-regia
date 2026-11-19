@@ -1559,6 +1559,16 @@ describe('le licenze protette nel backoffice', () => {
     expect(within(attivo).getByTestId('versione-bar-attivo')).toHaveTextContent(/^v1\.10\.4$/)
     expect(within(attivo).getByRole('region', { name: 'App' })).toHaveTextContent(/installata v1\.10\.4 · detta dall’app/)
   })
+
+  // REQ-FLOTTA-140, (E): da dove viene l'app pubblicata dalla regia.
+  it('la scheda dice se l’app è arrivata dal pacchetto o compilata', async () => {
+    db.elencoIstanze.mockResolvedValue({
+      'bar-attivo': { stato: 'attiva', progetto: 'drinkpos-bar-attivo', versione: 'v1.10.56', ref: 'v1.10.56', strada: 'pacchetto' },
+    })
+    mostra()
+    const attivo = await apri('Bar Attivo')
+    expect(within(attivo).getByRole('region', { name: 'App' })).toHaveTextContent(/installata v1\.10\.56 · da v1\.10\.56 · dal pacchetto/)
+  })
 })
 
 // LE SCADENZE A EVENTI (REQ-FLOTTA-023): un piano pagato fuori da Stripe ha

@@ -6,6 +6,23 @@ data.
 
 ## 0.5.1 (in lavorazione)
 
+- Un locale si pubblica dal pacchetto che tana-drink allega alla Release
+  del suo tag, senza compilare l'app: i workflow lo scaricano, ne
+  controllano l'impronta e ogni file, lo personalizzano per il locale coi
+  dati del titolare per l'informativa e lo ricontrollano, tutto in un job
+  senza credenziali. Se la Release non ha il pacchetto, o se lo si chiede,
+  si compila come prima; la demo e i locali curati a mano restano sulla
+  compilazione. La regia ricorda l'impronta del primo pacchetto usato per
+  una versione e rifiuta un archivio diverso, e il backoffice dice se l'app
+  di un locale è arrivata dal pacchetto o è stata compilata
+  (REQ-FLOTTA-140).
+- La flotta si prepara a non compilare più l'app per ogni locale.
+  tana-drink compilerà una volta per versione e pubblicherà il pacchetto
+  nella Release del tag; la regia lo controlla (formato, impronte, nessun
+  file in più, mai una beta in produzione) prima di personalizzarlo per un
+  locale. Pronto, e per ora in pausa, un lavoro su Google Cloud che
+  attiva, aggiorna ed elimina un locale dal pacchetto senza GitHub
+  (REQ-FLOTTA-137, REQ-FLOTTA-138).
 - I workflow della flotta possono entrare su Google senza chiave salvata:
   GitHub dà al job un gettone firmato e Google lo scambia con un accesso di
   un'ora all'account della sua regia. Lo accende l'environment, una regia

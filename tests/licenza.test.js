@@ -277,7 +277,7 @@ describe("il contratto con l'app", () => {
     const wf = readFileSync('.github/workflows/provisiona-istanza.yml', 'utf8')
     const licenza = wf.indexOf('node scripts/licenza-istanza.mjs')
     expect(licenza).toBeGreaterThan(0)
-    expect(licenza).toBeLessThan(wf.indexOf('npx firebase-tools deploy'))
+    expect(licenza).toBeLessThan(wf.indexOf('npx -y "$FIREBASE_TOOLS" deploy'))
     const script = readFileSync('scripts/licenza-istanza.mjs', 'utf8')
     expect(script).toContain("db.doc('licenza/attuale').get()")
     expect(script).toContain('licenza: protetta.exists ? protetta.data() : undefined')

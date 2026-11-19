@@ -85,6 +85,22 @@ on:
         required: false
         type: string
         default: ''
+      strada:
+        description: 'auto (il pacchetto della Release del tag, se c’è) | pacchetto (solo quello) | compilazione (come prima)'
+        required: false
+        type: choice
+        options: [auto, pacchetto, compilazione]
+        default: auto
+      dati_locale:
+        description: 'I dati del titolare per l’informativa del locale, in JSON (REQ-FLOTTA-140)'
+        required: false
+        type: string
+        default: ''
+      impronta:
+        description: 'L’impronta del pacchetto che la regia ricorda per questa versione (vuota se è la prima volta)'
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -118,6 +134,12 @@ env:
   # La «Chiave AI» (REGIA_AI_KEY) non c'è più: l'AI del locale passa dal
   # gettone di Google del suo account ai-locale (REQ-FLOTTA-079).
   SEGRETI_APP: SUMUP_API_KEY
+  # LA STRADA (REQ-FLOTTA-140): il pacchetto della Release di tana-drink o
+  # la compilazione di prima. I dati del titolare e l'impronta ricordata
+  # servono solo al pacchetto.
+  STRADA: ${{ inputs.strada }}
+  DATI_LOCALE: ${{ inputs.dati_locale }}
+  IMPRONTA_RICORDATA: ${{ inputs.impronta }}
 
 jobs:
   # 1. I CONTROLLI, senza credenziali. L'app si scarica soltanto (git non
@@ -130,6 +152,11 @@ jobs:
       # riferisce alla regia (REQ-FLOTTA-048).
       commit: ${{ steps.app.outputs.commit }}
       ramo: ${{ steps.app.outputs.ramo }}
+      # pacchetto | compilazione (REQ-FLOTTA-140), e perché.
+      strada: ${{ steps.strada.outputs.strada }}
+      perche: ${{ steps.strada.outputs.perche }}
+      # L'impronta del pacchetto controllato qui: i job dopo usano quello.
+      impronta: ${{ steps.verifica.outputs.impronta }}
     steps:
       - name: Input validi
         run: |
@@ -137,6 +164,11 @@ jobs:
           [[ "$REF_APP" =~ ^[A-Za-z0-9._/-]{1,100}$ ]] || { echo "::error::ref non valido."; exit 1; }
           [[ "$AMBIENTE" =~ ^(produzione|test)$ ]] || { echo "::error::ambiente non valido."; exit 1; }
           [[ "$PROFILO" =~ ^(completo|leggero)$ ]] || { echo "::error::profilo non valido."; exit 1; }
+          [[ "$STRADA" =~ ^(auto|pacchetto|compilazione)$ ]] || { echo "::error::strada non valida."; exit 1; }
+          [[ "$IMPRONTA_RICORDATA" =~ ^([0-9a-f]{64})?$ ]] || { echo "::error::impronta non valida."; exit 1; }
+          # I dati del titolare si controllano campo per campo nello script
+          # del pacchetto (datiLocaleDa); qui solo la misura.
+          if [ ${#DATI_LOCALE} -gt 4000 ]; then echo "::error::dati_locale troppo lunghi."; exit 1; fi
           # L'email del titolare (REQ-FLOTTA-029): vuota, o un'email.
           [[ -z "$EMAIL_TITOLARE" || "$EMAIL_TITOLARE" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]{2,}$ ]] || { echo "::error::Email del titolare non valida."; exit 1; }
           [[ "$UID_TITOLARE" =~ ^[A-Za-z0-9]{0,128}$ ]] || { echo "::error::uid non valido."; exit 1; }
@@ -167,6 +199,25 @@ jobs:
       # build è di produzione. Un ramo di lavoro (`develop`) passa solo
       # sulla regia di test, con un avviso. «In produzione solo il tag su
       # main» (l'utente, 30/10/2026).
+      # LA STRADA (REQ-FLOTTA-140): il pacchetto se la Release del tag lo
+      # ha, la compilazione altrimenti o se chi lancia la chiede. Gli script
+      # della regia, senza dipendenze: solo Node.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: regia
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - name: La strada
+        id: strada
+        env:
+          DEMO: ${{ env.DEMO }}
+          # Anche una cartella del cliente diversa dallo slug è un locale curato a mano.
+          ESISTENTE: ${{ env.ESISTENTE == 'true' || inputs.cliente != '' }}
+        run: node regia/scripts/pacchetto-locale.mjs strada
+
       - name: È un rilascio?
         run: |
           if [ "$REF_APP" = "main" ] || [[ "$REF_APP" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -196,8 +247,10 @@ jobs:
       - name: La versione dell'app va bene per questa regia?
         id: app
         working-directory: app
+        env:
+          STRADA_SCELTA: ${{ steps.strada.outputs.strada }}
         run: |
-          if [ ! -f scripts/genera-cliente.mjs ]; then
+          if [ "$STRADA_SCELTA" = "compilazione" ] && [ ! -f scripts/genera-cliente.mjs ]; then
             echo "::error::«$REF_APP» di tana-drink non sa compilare per un cliente (manca scripts/genera-cliente.mjs): serve la 1.10 o una successiva."
             exit 1
           fi
@@ -218,6 +271,19 @@ jobs:
           echo "ramo=$RAMO" >> "$GITHUB_OUTPUT"
           echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
+
+      # IL PACCHETTO, CONTROLLATO PRIMA DI TOCCARE IL LOCALE (REQ-FLOTTA-140,
+      # revisione della PR #345): scaricato e controllato tutto qui, senza
+      # credenziali e senza eseguirne niente, prima del Terraform del job
+      # `prepara`. L'impronta verificata va ai job dopo, che riscaricano lo
+      # stesso archivio e nessun altro.
+      - name: Il pacchetto, controllato prima di toccare il locale
+        id: verifica
+        if: steps.strada.outputs.strada == 'pacchetto'
+        env:
+          COMMIT_APP: ${{ steps.app.outputs.commit }}
+          LAVORO: ${{ runner.temp }}/pacchetto
+        run: node regia/scripts/pacchetto-locale.mjs verifica
   # 2. IL PROGETTO, con la chiave e senza l'app: su questo runner gira solo
   #    il codice della regia, gcloud, Terraform e firebase-tools.
   prepara:
@@ -352,6 +418,7 @@ jobs:
   compila:
     name: Compila l'app per ${{ inputs.slug }}
     needs: [controlla, prepara]
+    if: needs.controlla.outputs.strada == 'compilazione'
     runs-on: ubuntu-latest
     steps:
       # Lo stesso commit che `controlla` ha approvato, non il ref di nuovo.
@@ -513,13 +580,59 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
+  # 3b. IL PACCHETTO (REQ-FLOTTA-140), al posto della build quando la
+  #     strada è «pacchetto»: lo scarica dalla Release del tag di tana-drink,
+  #     lo controlla tutto (impronta, elenco, manifesto, impronte dei file,
+  #     import di personalizza.mjs, firebase.json), lo personalizza per il
+  #     locale e lo ricontrolla. Senza credenziali e senza environment, come
+  #     `compila`: personalizza.mjs è codice di tana-drink. Qui non si
+  #     installa niente: le dipendenze delle Functions sono nel pacchetto.
+  pacchetto:
+    name: Il pacchetto per ${{ inputs.slug }}
+    needs: [controlla, prepara]
+    if: needs.controlla.outputs.strada == 'pacchetto'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: regia
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: config-web
+          path: ${{ runner.temp }}/config-web
+
+      - name: Scarica, controlla e personalizza
+        id: prepara
+        env:
+          COMMIT_APP: ${{ needs.controlla.outputs.commit }}
+          IMPRONTA_RICORDATA: ${{ needs.controlla.outputs.impronta }}
+          CONFIG_WEB: ${{ runner.temp }}/config-web/config-web.json
+          LAVORO: ${{ runner.temp }}/pacchetto
+          USCITA: ${{ github.workspace }}/app
+        run: node regia/scripts/pacchetto-locale.mjs prepara
+
+      - name: Il pacchetto per il deploy
+        run: tar -czf app.tgz app
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: app
+          path: app.tgz
+          retention-days: 1
+          if-no-files-found: error
+
   # 4. IL DEPLOY, con la chiave. L'app arriva già compilata.
   pubblica:
     name: Pubblica ${{ inputs.slug }} a ${{ inputs.ref }} (${{ inputs.ambiente }})
     # Anche se un job prima è fallito: l'esito deve arrivare alla regia
     # (il primo passo fa fallire il job, e poi parla solo «Esito alla regia»).
     if: ${{ !cancelled() }}
-    needs: [controlla, prepara, compila]
+    needs: [controlla, prepara, compila, pacchetto]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -528,9 +641,13 @@ jobs:
     env:
       # Lo SHA di tana-drink che si pubblica (REQ-FLOTTA-048).
       COMMIT_APP: ${{ needs.controlla.outputs.commit }}
+      # La strada e, per il pacchetto, l'impronta verificata in `controlla`.
+      # FIREBASE_TOOLS e VERSIONE li scrive un passo, in GITHUB_ENV.
+      STRADA_USATA: ${{ needs.controlla.outputs.strada }}
+      IMPRONTA_USATA: ${{ needs.controlla.outputs.impronta }}
     steps:
       - name: I job precedenti sono riusciti?
-        if: needs.compila.result != 'success'
+        if: needs.compila.result != 'success' && needs.pacchetto.result != 'success'
         env:
           ESITI: ${{ toJSON(needs.*.result) }}
         run: |
@@ -546,6 +663,7 @@ jobs:
           name: app
 
       - name: L'app compilata
+        if: env.STRADA_USATA != 'pacchetto'
         run: tar -xzf app.tgz && rm app.tgz
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -553,6 +671,32 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: functions/package-lock.json
+
+      # IL PACCHETTO, RICONTROLLATO PRIMA DELLE CREDENZIALI (revisione della
+      # PR #345): l'app arriva dal job dove ha girato personalizza.mjs, codice
+      # di tana-drink. Si apre solo se l'elenco è pulito, si confronta col
+      # pacchetto della Release (riscaricato con l'impronta verificata in
+      # `controlla`), si riscrivono i due .env, e firebase-tools e la versione
+      # si prendono dal pacchetto, controllati.
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: env.STRADA_USATA == 'pacchetto'
+        with:
+          name: config-web
+          path: ${{ runner.temp }}/config-web
+
+      - name: Il pacchetto, ricontrollato prima delle credenziali
+        if: env.STRADA_USATA == 'pacchetto'
+        env:
+          IMPRONTA_RICORDATA: ${{ needs.controlla.outputs.impronta }}
+          ARCHIVIO_APP: app.tgz
+          CONFIG_WEB: ${{ runner.temp }}/config-web/config-web.json
+          LAVORO: ${{ runner.temp }}/ricontrollo
+        run: node scripts/pacchetto-locale.mjs riverifica && rm app.tgz
+
+      # Sulla compilazione, la firebase-tools di sempre.
+      - name: La firebase-tools della compilazione
+        if: env.STRADA_USATA != 'pacchetto'
+        run: echo "FIREBASE_TOOLS=firebase-tools" >> "$GITHUB_ENV"
 
       - name: Dipendenze della regia
         run: npm ci --prefix functions
@@ -622,7 +766,7 @@ jobs:
         if: env.DEMO == 'true'
         working-directory: app
         run: |
-          if npx firebase-tools deploy --only storage --project "$PROGETTO" --force 2>&1 | tee "$RUNNER_TEMP/storage.log"; then exit 0; fi
+          if npx -y "$FIREBASE_TOOLS" deploy --only storage --project "$PROGETTO" --force 2>&1 | tee "$RUNNER_TEMP/storage.log"; then exit 0; fi
           if grep -qiE "storage has not been set up|get started" "$RUNNER_TEMP/storage.log"; then echo "::warning::drinkpos-demo non ha Storage: niente da chiudere."; exit 0; fi
           exit 1
 
@@ -637,7 +781,7 @@ jobs:
           # sito: niente Functions né Storage, che sono quello che costa.
           if [ "$PROFILO" = "leggero" ]; then SOLO=firestore,hosting; else SOLO=firestore,storage,functions,hosting; fi
           for tentativo in 1 2 3; do
-            if npx firebase-tools deploy --only "$SOLO" --project "$PROGETTO" --force; then exit 0; fi
+            if npx -y "$FIREBASE_TOOLS" deploy --only "$SOLO" --project "$PROGETTO" --force; then exit 0; fi
             if [ "$tentativo" = 3 ]; then exit 1; fi
             echo "::warning::Deploy non riuscito al tentativo $tentativo: riprovo fra 90 secondi."
             sleep 90
@@ -655,7 +799,14 @@ jobs:
         run: node scripts/titolare-istanza.mjs --project "$PROGETTO" --uid "$UID_TITOLARE" --email "$EMAIL_TITOLARE" --env app/.env --sito "https://$PROGETTO.web.app"
 
       - name: Versione pubblicata
-        run: echo "VERSIONE=v$(node -p "require('./app/package.json').version")" >> "$GITHUB_ENV"
+        # Col pacchetto la mette il ricontrollo. Qui si legge come testo (un
+        # require eseguirebbe una cartella con index.js) e si controlla
+        # prima di scriverla in GITHUB_ENV: un a capo aggiungerebbe una
+        # variabile per tutti i passi dopo (revisione della PR #345).
+        if: env.STRADA_USATA != 'pacchetto'
+        run: |
+          V=$(node -e 'const v = JSON.parse(require("fs").readFileSync("app/package.json", "utf8")).version; if (typeof v !== "string" || !/^\d+\.\d+\.\d+(-beta(\.\d+)?)?$/.test(v)) { console.error("::error::Versione di package.json non valida."); process.exit(1) } console.log(v)')
+          echo "VERSIONE=v$V" >> "$GITHUB_ENV"
 
       # L'esito porta anche `commit`, lo SHA di tana-drink pubblicato (dal
       # job `controlla`): un tag o «main» sono riferimenti, lo SHA dice cosa
@@ -678,6 +829,7 @@ jobs:
               body: JSON.stringify({ slug, stato, progetto, versione: versione || null, errore: errore || null,
                 ambiente: "produzione", operazione: "aggiornamento", profilo: process.env.PROFILO || null, ref: process.env.REF_APP || null,
                 commit: process.env.COMMIT_APP || null,
+                strada: process.env.STRADA_USATA || null, impronta: process.env.IMPRONTA_USATA || null,
                 run_id: Number(process.env.RUN_ID), inviato_il: new Date().toISOString() }) })
               .then((r) => (r.status === 429 && n < 5 ? attendi(n) : r), (e) => { if (n < 5) return attendi(n); throw e; })
               .then((r) => (typeof r === "number" ? manda(r) : r));
